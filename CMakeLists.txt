@@ -74,6 +74,15 @@ target_compile_definitions(VulkanMemoryAllocator-Hpp_module PRIVATE
 # --------------------
 
 add_executable(vk-gltf-viewer main.cpp)
+target_sources(vk-gltf-viewer PRIVATE
+	FILE_SET CXX_MODULES
+	BASE_DIRS interface
+	FILES
+		interface/mod.cppm
+		interface/helpers/mod.cppm
+		interface/helpers/ranges.cppm
+		interface/MainApp.cppm
+)
 target_link_libraries(vk-gltf-viewer PRIVATE 
 	glfw
 	Vulkan-Hpp::module
