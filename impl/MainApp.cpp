@@ -65,6 +65,7 @@ vk_gltf_viewer::MainApp::MainApp()
 }
 
 vk_gltf_viewer::MainApp::~MainApp() {
+	allocator.destroy();
 	glfwDestroyWindow(pWindow);
 }
 
