@@ -179,7 +179,11 @@ namespace vk_gltf_viewer {
 
 				// Present the image to the swapchain.
 				try {
-					queues.graphicsPresent.presentKHR({ {}, *swapchain, imageIndex });
+					// The result codes VK_ERROR_OUT_OF_DATE_KHR and VK_SUBOPTIMAL_KHR have the same meaning when
+					// returned by vkQueuePresentKHR as they do when returned by vkAcquireNextImageKHR.
+					if (queues.graphicsPresent.presentKHR({ {}, *swapchain, imageIndex }) == vk::Result::eSuboptimalKHR) {
+						throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
+					}
 				}
 				catch (const vk::OutOfDateKHRError&) {
 					device.waitIdle();
