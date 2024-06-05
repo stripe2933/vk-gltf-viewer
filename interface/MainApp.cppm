@@ -8,7 +8,7 @@ module;
 
 export module vk_gltf_viewer:MainApp;
 
-import vulkan_hpp;
+export import vulkan_hpp; // have to be exported for initializing DispatchLoader.
 import vk_mem_alloc_hpp;
 
 namespace vk_gltf_viewer {
