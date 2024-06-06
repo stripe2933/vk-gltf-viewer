@@ -11,7 +11,7 @@ export module vk_gltf_viewer:helpers.ranges;
 
 namespace vk_gltf_viewer::ranges {
     export template <typename Derived>
-#if __cpp_lib_ranges >= 202202L
+#if !defined(_LIBCPP_VERSION) && __cpp_lib_ranges >= 202202L // https://github.com/llvm/llvm-project/issues/70557#issuecomment-1851936055
         using range_adaptor_closure = std::ranges::range_adaptor_closure<Derived>;
 #else
         requires std::is_object_v<Derived> && std::same_as<Derived, std::remove_cv_t<Derived>>
