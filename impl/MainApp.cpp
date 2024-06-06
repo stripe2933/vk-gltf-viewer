@@ -28,7 +28,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
 	for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % frames.size()) {
 		glfwPollEvents();
-		if (vulkan::Frame &frame = frames[frameIndex]; !frame.onLoop(gpu)) {
+		if (!frames[frameIndex].onLoop(gpu)) {
 			gpu.device.waitIdle();
 
 			// Yield while window is minimized.
@@ -37,7 +37,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			}
 
 			sharedData->handleSwapchainResize(gpu, *window.surface, { framebufferSize.x, framebufferSize.y });
-			frame.handleSwapchainResize(gpu, *window.surface, { framebufferSize.x, framebufferSize.y });
+			for (vulkan::Frame &frame : frames) {
+				frame.handleSwapchainResize(gpu, *window.surface, { framebufferSize.x, framebufferSize.y });
+			}
 		}
 	}
 	gpu.device.waitIdle();
