@@ -64,7 +64,8 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 #endif
 	};
 	std::uint32_t glfwExtensionCount;
-	extensions.append_range(std::views::counted(glfwGetRequiredInstanceExtensions(&glfwExtensionCount), glfwExtensionCount));
+	const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+	extensions.append_range(std::views::counted(glfwExtensions, glfwExtensionCount));
 
 	return { context, vk::InstanceCreateInfo{
 #if __APPLE__
