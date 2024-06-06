@@ -16,44 +16,12 @@ include(${CMAKE_BINARY_DIR}/cmake/CPM.cmake)
 # External dependencies.
 # --------------------
 
-find_package(glfw3 CONFIG REQUIRED)
-find_package(Vulkan REQUIRED)
-
-CPMAddPackage("gh:stripe2933/VulkanMemoryAllocator-Hpp#master")
+set(VKU_USE_GLFW ON)
+add_subdirectory(extlibs)
 
 # --------------------
 # Module configurations for the external dependencies.
 # --------------------
-
-if (NOT TARGET Vulkan-Hpp_module)
-	add_library(Vulkan-Hpp_module)
-	target_sources(Vulkan-Hpp_module PUBLIC
-		FILE_SET CXX_MODULES
-		BASE_DIRS ${Vulkan_INCLUDE_DIR}/vulkan
-		FILES ${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm
-	)
-	target_link_libraries(Vulkan-Hpp_module PUBLIC Vulkan::Vulkan)
-
-	add_library(Vulkan-Hpp::module ALIAS Vulkan-Hpp_module)
-endif()
-
-if (NOT TARGET VulkanMemoryAllocator-Hpp_module)
-	add_library(VulkanMemoryAllocator-Hpp_module)
-	target_sources(VulkanMemoryAllocator-Hpp_module PUBLIC
-		FILE_SET CXX_MODULES
-		BASE_DIRS ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src
-		FILES ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm
-	)
-	target_link_libraries(VulkanMemoryAllocator-Hpp_module PUBLIC 
-		VulkanMemoryAllocator-Hpp
-		Vulkan-Hpp::module
-	)
-	target_compile_definitions(VulkanMemoryAllocator-Hpp_module PUBLIC 
-		VULKAN_MEMORY_ALLOCATOR_HPP_USE_MODULE
-	)
-
-	add_library(VulkanMemoryAllocator-Hpp::module ALIAS VulkanMemoryAllocator-Hpp_module)
-endif()
 
 target_compile_definitions(Vulkan-Hpp_module
 PUBLIC
@@ -87,7 +55,5 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/MainApp.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE 
-	glfw
-	Vulkan-Hpp::module
-	VulkanMemoryAllocator-Hpp::module
+	vku
 )
