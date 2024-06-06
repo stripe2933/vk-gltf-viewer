@@ -10,14 +10,22 @@ export module vk_gltf_viewer:helpers.ranges;
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
 namespace vk_gltf_viewer::ranges {
-    export template <typename D> requires
-        std::is_object_v<D> && std::same_as<D, std::remove_cv_t<D>>
+    export template <typename Derived>
+#if __cpp_lib_ranges >= 202202L
+        using range_adaptor_closure = std::ranges::range_adaptor_closure<Derived>;
+#else
+        requires std::is_object_v<Derived> && std::same_as<Derived, std::remove_cv_t<Derived>>
     struct range_adaptor_closure {
         template <std::ranges::range R>
-        [[nodiscard]] friend constexpr auto operator|(R &&r, const D &derived) noexcept(std::is_nothrow_invocable_v<const D&, R>) {
+        [[nodiscard]] friend constexpr auto operator|(
+            R &&r, 
+            const Derived &derived
+        ) noexcept(std::is_nothrow_invocable_v<const Derived&, R>) {
             return derived(FWD(r));
         }
     };
+#endif
+
 
 namespace views {
 #if __cpp_lib_ranges_enumerate >= 202302L
