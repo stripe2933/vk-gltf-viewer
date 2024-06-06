@@ -197,7 +197,7 @@ auto vku::AttachmentGroup::getRenderingInfo(
                 1,
                 {},
                 colorAttachmentInfos,
-                depthStencilAttachmentInfo ? &*depthStencilAttachmentInfo : nullptr,
+                depthStencilAttachmentInfo.transform([](const auto& x) { return &x; }).value_or(nullptr),
             };
         },
         ranges::views::zip_transform([](const Attachment &attachment, const std::tuple<vk::AttachmentLoadOp, vk::AttachmentStoreOp, vk::ClearColorValue> &info) {
@@ -207,7 +207,8 @@ auto vku::AttachmentGroup::getRenderingInfo(
                 std::get<0>(info), std::get<1>(info), std::get<2>(info),
             };
         }, colorAttachments, colorAttachmentInfos) | std::ranges::to<std::vector>(),
-        depthStencilAttachment.transform([info = *depthStencilAttachmentInfo](const Attachment &attachment) {
+        depthStencilAttachment.transform([&](const Attachment &attachment) {
+            const auto& info = *depthStencilAttachmentInfo;
             return vk::RenderingAttachmentInfo {
                 *attachment.view, vk::ImageLayout::eDepthStencilAttachmentOptimal,
                 {}, {}, {},
