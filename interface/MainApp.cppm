@@ -8,8 +8,8 @@ module;
 
 export module vk_gltf_viewer:MainApp;
 
-export import vulkan_hpp; // have to be exported for initializing DispatchLoader.
 import vk_mem_alloc_hpp;
+export import vulkan_hpp; // have to be exported for initializing DispatchLoader.
 
 namespace vk_gltf_viewer {
 	export class MainApp {
@@ -50,6 +50,7 @@ namespace vk_gltf_viewer {
 		[[nodiscard]] auto selectPhysicalDevice() const -> decltype(physicalDevice);
 		[[nodiscard]] auto createDevice() const -> decltype(device);
 		[[nodiscard]] auto createAllocator() const -> decltype(allocator);
+
 		[[nodiscard]] auto createSwapchain(vk::SwapchainKHR oldSwapchain = {}) const -> vk::raii::SwapchainKHR;
 		[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 	};

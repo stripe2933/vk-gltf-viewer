@@ -43,6 +43,7 @@ target_compile_definitions(VulkanMemoryAllocator-Hpp_module PRIVATE
 
 add_executable(vk-gltf-viewer
 	impl/MainApp.cpp
+	impl/vulkan/pipelines/TriangleRenderer.cpp
 	main.cpp
 )
 target_sources(vk-gltf-viewer PRIVATE
@@ -53,6 +54,9 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/helpers/mod.cppm
 		interface/helpers/ranges.cppm
 		interface/MainApp.cppm
+		interface/vulkan/mod.cppm
+		interface/vulkan/pipelines/mod.cppm
+		interface/vulkan/pipelines/TriangleRenderer.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE 
 	vku

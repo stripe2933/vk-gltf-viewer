@@ -12,15 +12,16 @@ module;
 #include <vector>
 
 #include <vulkan/vulkan.h>
-#include <vulkan/vulkan_hpp_macros.hpp>
 #include <GLFW/glfw3.h>
+#include <shaderc/shaderc.hpp>
+#include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
 import :MainApp;
 
-import vulkan_hpp;
-import vk_mem_alloc_hpp;
+import vku;
 import :helpers;
+import :vulkan.pipelines;
 
 vk_gltf_viewer::MainApp::QueueFamilies::QueueFamilies(
 	vk::PhysicalDevice physicalDevice,
@@ -56,7 +57,7 @@ auto vk_gltf_viewer::MainApp::Queues::getDeviceQueueCreateInfos(
 }
 
 vk_gltf_viewer::MainApp::MainApp()
-	: pWindow { glfwCreateWindow(800, 600, "Vulkan glTF Viewer", nullptr, nullptr) } {
+	: pWindow { glfwCreateWindow(800, 480, "Vulkan glTF Viewer", nullptr, nullptr) } {
 	if (!pWindow) {
 		const char* error;
 		const int code = glfwGetError(&error);
@@ -71,7 +72,15 @@ vk_gltf_viewer::MainApp::~MainApp() {
 
 auto vk_gltf_viewer::MainApp::run() -> void {
 	vk::raii::SwapchainKHR swapchain = createSwapchain();
+	vk::Extent2D swapchainExtent { 1600, 960 };
 	std::vector swapchainImages = swapchain.getImages();
+
+	// Pipelines.
+	const shaderc::Compiler compiler;
+	const vulkan::TriangleRenderer triangleRenderer { device, compiler };
+
+	// Attachment groups.
+	std::vector<vku::AttachmentGroup> swapchainAttachmentGroups;
 
 	// Descriptor/command pools.
 	const vk::raii::CommandPool graphicsCommandPool = createCommandPool(queueFamilies.graphicsPresent);
@@ -87,48 +96,55 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 	const vk::raii::Semaphore swapchainImageAcquireSema{ device, vk::SemaphoreCreateInfo{} };
 	const vk::raii::Fence inFlightFence{ device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } };
 
+	const auto createAttachmentGroups = [&]() -> void {
+		swapchainAttachmentGroups
+			= swapchainImages
+			| std::views::transform([&](vk::Image image) {
+				vku::AttachmentGroup attachmentGroup { swapchainExtent };
+				attachmentGroup.addColorAttachment(
+					device,
+					{ image, vk::Extent3D { swapchainExtent, 1 }, vk::Format::eB8G8R8A8Srgb, 1, 1 });
+				return attachmentGroup;
+			})
+			| std::ranges::to<std::vector<vku::AttachmentGroup>>();
+	};
+
 	const auto initImageLayouts = [&]() -> void {
-		const vk::CommandBuffer cb = (*device).allocateCommandBuffers(vk::CommandBufferAllocateInfo{
-			*graphicsCommandPool,
-			vk::CommandBufferLevel::ePrimary,
-			1,
-		}).front();
-		cb.begin(vk::CommandBufferBeginInfo{});
-
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-			{}, {}, {},
-			swapchainImages
-				| std::views::transform([](vk::Image image) {
-					return vk::ImageMemoryBarrier{
-						{}, {},
-						{}, vk::ImageLayout::ePresentSrcKHR,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						image,
-						vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-					};
+		vku::executeSingleCommand(*device, *graphicsCommandPool, queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
+				{}, {}, {},
+				swapchainImages
+					| std::views::transform([](vk::Image image) {
+						return vk::ImageMemoryBarrier{
+							{}, {},
+							{}, vk::ImageLayout::ePresentSrcKHR,
+							vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+							image,
+							vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+						};
 					})
-				| std::ranges::to<std::vector>());
-
-		cb.end();
-		queues.graphicsPresent.submit(vk::SubmitInfo{
-			{},
-			{},
-			cb,
+					| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
 		});
 		queues.graphicsPresent.waitIdle();
 	};
 
 	const auto recreateSwapchain = [&]() -> void {
 		// Yield while window is minimized.
-		for (int width, height; !glfwWindowShouldClose(pWindow) && (glfwGetFramebufferSize(pWindow, &width, &height), width == 0 || height == 0); std::this_thread::yield());
+		int width, height;
+		while (!glfwWindowShouldClose(pWindow) && (glfwGetFramebufferSize(pWindow, &width, &height), width == 0 || height == 0)) {
+			std::this_thread::yield();
+		}
 
 		swapchain = createSwapchain(*swapchain);
+		swapchainExtent = vk::Extent2D { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) };
 		swapchainImages = swapchain.getImages();
 
+		createAttachmentGroups();
 		initImageLayouts();
 	};
 
+	createAttachmentGroups();
 	initImageLayouts();
 
 	while (!glfwWindowShouldClose(pWindow)) {
@@ -155,6 +171,48 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
 		// Record draw command.
 		drawCommandBuffer.begin(vk::CommandBufferBeginInfo{});
+
+		// Change image layout to ColorAttachmentOptimal.
+		drawCommandBuffer.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			{}, {}, {},
+			vk::ImageMemoryBarrier{
+				{}, vk::AccessFlagBits::eColorAttachmentWrite,
+				vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				swapchainImages[imageIndex],
+				vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+			});
+
+		// Begin dynamic rendering.
+		drawCommandBuffer.beginRenderingKHR(
+			swapchainAttachmentGroups[imageIndex].getRenderingInfo(
+				std::array {
+					std::tuple { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearColorValue{} },
+				}));
+
+		// Set viewport and scissor.
+		swapchainAttachmentGroups[imageIndex].setViewport(drawCommandBuffer);
+		swapchainAttachmentGroups[imageIndex].setScissor(drawCommandBuffer);
+
+		// Draw triangle.
+		triangleRenderer.draw(drawCommandBuffer);
+
+		// End dynamic rendering.
+		drawCommandBuffer.endRenderingKHR();
+
+		// Change image layout to PresentSrcKHR.
+		drawCommandBuffer.pipelineBarrier(
+			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
+			{}, {}, {},
+			vk::ImageMemoryBarrier{
+				vk::AccessFlagBits::eColorAttachmentWrite, {},
+				vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				swapchainImages[imageIndex],
+				vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+			});
+
 		drawCommandBuffer.end();
 
 		// Submit draw command to the graphics queue.
@@ -236,14 +294,21 @@ auto vk_gltf_viewer::MainApp::createDevice() const -> decltype(device) {
 #if __APPLE__
 		vk::KHRPortabilitySubsetExtensionName,
 #endif
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+		vk::KHRDynamicRenderingExtensionName,
+#pragma clang diagnostic pop
 		vk::KHRSwapchainExtensionName,
 	};
-	return { physicalDevice, vk::DeviceCreateInfo{
-		{},
-		queueCreateInfos,
-		{},
-		extensions,
-	} };
+	return { physicalDevice, vk::StructureChain {
+		vk::DeviceCreateInfo{
+			{},
+			queueCreateInfos,
+			{},
+			extensions,
+		},
+		vk::PhysicalDeviceDynamicRenderingFeatures { vk::True },
+	}.get() };
 }
 
 auto vk_gltf_viewer::MainApp::createAllocator() const -> decltype(allocator) {
