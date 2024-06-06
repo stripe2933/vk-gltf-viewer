@@ -7,43 +7,37 @@ export module vku:utils;
 import vulkan_hpp;
 export import :utils.RefHolder;
 
-namespace vku {
-    export template <std::unsigned_integral T>
+export namespace vku {
+    template <std::unsigned_integral T>
     [[nodiscard]] constexpr auto divCeil(T num, T denom) noexcept -> T {
         return (num / denom) + (num % denom != 0);
     }
 
-    export
     [[nodiscard]] constexpr auto fullSubresourceRange(
         vk::ImageAspectFlags aspectFlags = vk::ImageAspectFlagBits::eColor
     ) noexcept -> vk::ImageSubresourceRange {
         return { aspectFlags, 0, vk::RemainingMipLevels, 0, vk::RemainingArrayLayers };
     }
-}
 
-namespace vk {
-    export
-    [[nodiscard]] constexpr auto toFlags(auto flagBit) noexcept -> Flags<decltype(flagBit)> {
+    [[nodiscard]] constexpr auto toFlags(auto flagBit) noexcept -> vk::Flags<decltype(flagBit)> {
         return flagBit;
     }
 
-    export template <typename T>
-    [[nodiscard]] constexpr auto contains(Flags<T> flags, T flag) noexcept -> bool {
+    template <typename T>
+    [[nodiscard]] constexpr auto contains(vk::Flags<T> flags, T flag) noexcept -> bool {
         return (flags & flag) == flag;
     }
 
-    export template <typename T>
-    [[nodiscard]] constexpr auto contains(Flags<T> flags, Flags<T> flag) noexcept -> bool {
+    template <typename T>
+    [[nodiscard]] constexpr auto contains(vk::Flags<T> flags, vk::Flags<T> flag) noexcept -> bool {
         return (flags & flag) == flag;
     }
 
-    export
-    [[nodiscard]] constexpr auto toExtent2D(const Extent3D &extent) noexcept -> Extent2D {
+    [[nodiscard]] constexpr auto toExtent2D(const vk::Extent3D &extent) noexcept -> vk::Extent2D {
         return { extent.width, extent.height };
     }
 
-    export
-    [[nodiscard]] constexpr auto aspect(const Extent2D &extent) noexcept -> float {
+    [[nodiscard]] constexpr auto aspect(const vk::Extent2D &extent) noexcept -> float {
         return static_cast<float>(extent.width) / extent.height;
     }
 }

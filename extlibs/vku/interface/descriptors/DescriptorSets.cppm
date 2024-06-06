@@ -40,11 +40,11 @@ namespace vku {
             const Layouts &descriptorSetLayouts,
             std::size_t n
         ) -> std::vector<Self> {
-            const std::vector multipleSetLayouts
-                // TODO: 1. Why pipe syntax between std::span and std::views::repeat not works? 2. Why compile-time sized span not works?
-                = std::views::repeat(std::span<const vk::DescriptorSetLayout> { descriptorSetLayouts }, n)
-                | std::views::join
-                | std::ranges::to<std::vector>();
+            std::vector<vk::DescriptorSetLayout> multipleSetLayouts;
+            multipleSetLayouts.reserve(descriptorSetLayouts.size() * n);
+            for (auto _ : std::views::iota(n)) {
+                multipleSetLayouts.append_range(descriptorSetLayouts);
+            }
 
             const std::vector descriptorSets = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo {
                 descriptorPool,
