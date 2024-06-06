@@ -1,14 +1,11 @@
 module;
 
 #include <compare>
-#include <format>
 #include <ranges>
-#include <stdexcept>
 #include <string_view>
 #include <thread>
 #include <vector>
 
-#include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
 module vk_gltf_viewer;
@@ -20,43 +17,27 @@ import :vulkan.frame;
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
 
-vk_gltf_viewer::MainApp::MainApp()
-	: pWindow { glfwCreateWindow(800, 480, "Vulkan glTF Viewer", nullptr, nullptr) } {
-	if (!pWindow) {
-		const char* error;
-		const int code = glfwGetError(&error);
-		throw std::runtime_error{ std::format("Failed to create GLFW window: {} (error code {})", error, code) };
-	}
-}
-
-vk_gltf_viewer::MainApp::~MainApp() {
-	glfwDestroyWindow(pWindow);
-}
-
 auto vk_gltf_viewer::MainApp::run() -> void {
-	int width, height;
-	glfwGetFramebufferSize(pWindow, &width, &height);
+	glm::u32vec2 framebufferSize = window.getFramebufferSize();
 
-	auto sharedData = std::make_shared<vulkan::SharedData>(gpu, *surface, vk::Extent2D { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) });
+	auto sharedData = std::make_shared<vulkan::SharedData>(gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y });
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
 	std::array frames = ARRAY_OF(2, vulkan::Frame { gpu, sharedData });
 #pragma clang diagnostic pop
 
-	for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(pWindow); frameIndex = (frameIndex + 1) % frames.size()) {
+	for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % frames.size()) {
 		glfwPollEvents();
 		if (vulkan::Frame &frame = frames[frameIndex]; !frame.onLoop(gpu)) {
 			gpu.device.waitIdle();
 
 			// Yield while window is minimized.
-			int width, height;
-			while (!glfwWindowShouldClose(pWindow) && (glfwGetFramebufferSize(pWindow, &width, &height), width == 0 || height == 0)) {
+			while (!glfwWindowShouldClose(window) && (framebufferSize = window.getFramebufferSize()) == glm::u32vec2 { 0, 0 }) {
 				std::this_thread::yield();
 			}
 
-			const vk::Extent2D newSwapchainExtent { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) };
-			sharedData->handleSwapchainResize(gpu, *surface, newSwapchainExtent);
-			frame.handleSwapchainResize(gpu, *surface, newSwapchainExtent);
+			sharedData->handleSwapchainResize(gpu, *window.surface, { framebufferSize.x, framebufferSize.y });
+			frame.handleSwapchainResize(gpu, *window.surface, { framebufferSize.x, framebufferSize.y });
 		}
 	}
 	gpu.device.waitIdle();
@@ -81,8 +62,7 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 #endif
 	};
 	std::uint32_t glfwExtensionCount;
-	const char** const glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-	extensions.append_range(std::views::counted(glfwExtensions, glfwExtensionCount));
+	extensions.append_range(std::views::counted(glfwGetRequiredInstanceExtensions(&glfwExtensionCount), glfwExtensionCount));
 
 	return { context, vk::InstanceCreateInfo{
 #if __APPLE__
@@ -94,14 +74,4 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 		layers,
 		extensions,
 	} };
-}
-
-auto vk_gltf_viewer::MainApp::createSurface() const -> decltype(surface) {
-	VkSurfaceKHR surface;
-	if (glfwCreateWindowSurface(*instance, pWindow, nullptr, &surface) != VK_SUCCESS) {
-		const char* error;
-		const int code = glfwGetError(&error);
-		throw std::runtime_error{ std::format("Failed to create window surface: {} (error code {})", error, code) };
-	}
-	return { instance, surface };
 }
