@@ -1,7 +1,7 @@
 module;
 
-#include <cstdint>
 #include <array>
+#include <compare>
 
 export module vk_gltf_viewer:vulkan.Gpu;
 

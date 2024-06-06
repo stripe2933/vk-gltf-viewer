@@ -1,5 +1,6 @@
 module;
 
+#include <compare>
 #include <concepts>
 
 export module vku:utils;

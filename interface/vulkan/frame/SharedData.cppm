@@ -1,5 +1,6 @@
 module;
 
+#include <compare>
 #include <vector>
 
 #include <shaderc/shaderc.hpp>

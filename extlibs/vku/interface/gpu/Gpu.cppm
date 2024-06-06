@@ -4,6 +4,8 @@ module;
 #include <concepts>
 #include <functional>
 #include <ranges>
+#include <stdexcept>
+#include <variant>
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
@@ -145,7 +147,7 @@ namespace vku {
                     queueCreateInfos,
                     {},
                     config.extensions,
-                    [&] -> const vk::PhysicalDeviceFeatures* {
+                    [&]() -> const vk::PhysicalDeviceFeatures* {
                         return std::convertible_to<decltype(config.physicalDeviceFeatures), vk::PhysicalDeviceFeatures>
                             ? &config.physicalDeviceFeatures
                             : nullptr;

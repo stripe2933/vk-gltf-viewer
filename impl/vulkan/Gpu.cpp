@@ -1,6 +1,8 @@
 module;
 
 #include <array>
+#include <ranges>
+#include <stdexcept>
 #include <vector>
 
 #include <vulkan/vulkan_hpp_macros.hpp>

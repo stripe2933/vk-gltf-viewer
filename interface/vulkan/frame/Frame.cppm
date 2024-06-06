@@ -1,5 +1,6 @@
 module;
 
+#include <compare>
 #include <memory>
 
 export module vk_gltf_viewer:vulkan.frame.Frame;

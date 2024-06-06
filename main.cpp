@@ -1,4 +1,6 @@
-﻿#include <GLFW/glfw3.h>
+﻿#include <compare>
+
+#include <GLFW/glfw3.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 import vk_gltf_viewer;

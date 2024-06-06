@@ -1,3 +1,7 @@
+module;
+
+#include <compare>
+
 export module vk_gltf_viewer:vulkan;
 
 export import :vulkan.frame;

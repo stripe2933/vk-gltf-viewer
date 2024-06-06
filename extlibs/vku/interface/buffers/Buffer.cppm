@@ -1,3 +1,7 @@
+module;
+
+#include <compare>
+
 export module vku:buffers.Buffer;
 
 export import vulkan_hpp;

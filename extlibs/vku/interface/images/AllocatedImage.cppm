@@ -1,5 +1,6 @@
 module;
 
+#include <string_view>
 #include <tuple>
 
 export module vku:images.AllocatedImage;

@@ -1,6 +1,7 @@
 module;
 
 #include <concepts>
+#include <compare>
 
 export module vku:commands;
 

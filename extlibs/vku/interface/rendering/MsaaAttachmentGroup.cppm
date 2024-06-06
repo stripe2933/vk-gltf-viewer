@@ -1,6 +1,7 @@
 module;
 
 #include <cassert>
+#include <compare>
 #include <optional>
 #include <ranges>
 #include <tuple>

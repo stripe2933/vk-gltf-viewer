@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <bit>
+#include <stdexcept>
 #include <tuple>
 
 export module vku:pipelines;
