@@ -24,9 +24,9 @@ namespace vku::ranges {
     export template <std::size_t N>
     struct to_array : range_adaptor_closure<to_array<N>> {
         template <std::ranges::input_range R>
-        static constexpr auto operator()(
+        [[nodiscard]] constexpr auto operator()(
             R &&r
-        ) -> std::array<std::ranges::range_value_t<R>, N> {
+        ) const -> std::array<std::ranges::range_value_t<R>, N> {
             auto it = r.begin();
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
