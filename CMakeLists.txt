@@ -43,6 +43,9 @@ target_compile_definitions(VulkanMemoryAllocator-Hpp_module PRIVATE
 
 add_executable(vk-gltf-viewer
 	impl/MainApp.cpp
+	impl/vulkan/frame/Frame.cpp
+	impl/vulkan/frame/SharedData.cpp
+	impl/vulkan/Gpu.cpp
 	impl/vulkan/pipelines/TriangleRenderer.cpp
 	main.cpp
 )
@@ -55,6 +58,10 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/helpers/ranges.cppm
 		interface/MainApp.cppm
 		interface/vulkan/mod.cppm
+		interface/vulkan/frame/mod.cppm
+		interface/vulkan/frame/Frame.cppm
+		interface/vulkan/frame/SharedData.cppm
+		interface/vulkan/Gpu.cppm
 		interface/vulkan/pipelines/mod.cppm
 		interface/vulkan/pipelines/TriangleRenderer.cppm
 )
