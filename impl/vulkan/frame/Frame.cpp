@@ -12,6 +12,7 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
+import :gltf;
 import :vulkan.frame.Frame;
 import :helpers.ranges;
 
@@ -201,8 +202,16 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 
         	const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
         	for (const fastgltf::Primitive &primitive : mesh.primitives){
-        	    const auto &[indexBuffer, vertexBuffer] = sharedData->primitiveBuffers.at(&primitive);
-		        sharedData->meshRenderer.draw(cb, indexBuffer, vertexBuffer, { nodeWorldTransform, projectionView, viewPosition });
+        	    const gltf::AssetResources::PrimitiveData &primitiveData = sharedData->assetResources.primitiveData.at(&primitive);
+		        sharedData->meshRenderer.draw(cb, primitiveData.indexInfo.buffer, primitiveData.indexInfo.offset, primitiveData.indexInfo.type, primitiveData.indexInfo.drawCount, {
+		            .model = nodeWorldTransform,
+		            .projectionView = projectionView,
+		        	.pPositionBuffer = primitiveData.positionInfo.address,
+		        	.pNormalBuffer = primitiveData.normalInfo.address,
+		        	.positionByteStride = static_cast<std::uint8_t>(primitiveData.positionInfo.byteStride),
+		        	.normalByteStride = static_cast<std::uint8_t>(primitiveData.normalInfo.byteStride),
+		            .viewPosition = viewPosition,
+		        });
         	}
         }
 

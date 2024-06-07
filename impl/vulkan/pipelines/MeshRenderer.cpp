@@ -14,20 +14,36 @@ import vku;
 // language=vert
 std::string_view vk_gltf_viewer::vulkan::MeshRenderer::vert = R"vert(
 #version 450
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_8bit_storage : require
 
-layout (location = 0) in vec3 inPosition;
-layout (location = 1) in vec3 inNormal;
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer FloatBufferAddress { float data[]; };
 
 layout (location = 0) out vec3 fragPosition;
 layout (location = 1) out vec3 fragNormal;
 
-layout (push_constant) uniform PushConstant {
+layout (push_constant, std430) uniform PushConstant {
     mat4 model;
     mat4 projectionView;
-    vec3 viewPosition;
+    FloatBufferAddress pPositionBuffer;
+    FloatBufferAddress pNormalBuffer;
+    uint8_t positionByteStride;
+    uint8_t normalByteStride;
+    uint8_t padding[14];
 } pc;
 
+// --------------------
+// Functions.
+// --------------------
+
+vec3 composeVec3(readonly FloatBufferAddress address, uint floatStride, uint index){
+    return vec3(address.data[floatStride * index], address.data[floatStride * index + 1U], address.data[floatStride * index + 2U]);
+}
+
 void main(){
+    vec3 inPosition = composeVec3(pc.pPositionBuffer, uint(pc.positionByteStride) / 4, gl_VertexIndex);
+    vec3 inNormal = composeVec3(pc.pNormalBuffer, uint(pc.normalByteStride) / 4, gl_VertexIndex);
+
     fragPosition = (pc.model * vec4(inPosition, 1.0)).xyz;
     fragNormal = transpose(inverse(mat3(pc.model))) * inNormal;
     gl_Position = pc.projectionView * vec4(fragPosition, 1.0);
@@ -46,8 +62,7 @@ layout (location = 1) in vec3 fragNormal;
 layout (location = 0) out vec4 outColor;
 
 layout (push_constant) uniform PushConstant {
-    mat4 model;
-    mat4 projectionView;
+    layout (offset = 160)
     vec3 viewPosition;
 } pc;
 
@@ -70,15 +85,16 @@ vk_gltf_viewer::vulkan::MeshRenderer::MeshRenderer(
 
 auto vk_gltf_viewer::vulkan::MeshRenderer::draw(
     vk::CommandBuffer commandBuffer,
-    const vku::Buffer &indexBuffer,
-    const vku::Buffer &vertexBuffer,
+    vk::Buffer indexBuffer,
+    vk::DeviceSize indexBufferOffset,
+    vk::IndexType indexType,
+    std::uint32_t drawCount,
     const PushConstant &pushConstant
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-    commandBuffer.bindIndexBuffer(indexBuffer, 0, vk::IndexType::eUint32);
-    commandBuffer.bindVertexBuffers(0, vertexBuffer.buffer, { 0 });
+    commandBuffer.bindIndexBuffer(indexBuffer, indexBufferOffset, indexType);
     commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
-    commandBuffer.drawIndexed(indexBuffer.size / sizeof(std::uint32_t), 1, 0, 0, 0);
+    commandBuffer.drawIndexed(drawCount, 1, 0, 0, 0);
 }
 
 auto vk_gltf_viewer::vulkan::MeshRenderer::createPipelineLayout(
@@ -104,31 +120,6 @@ auto vk_gltf_viewer::vulkan::MeshRenderer::createPipeline(
         vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
         vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment });
 
-    constexpr vk::VertexInputBindingDescription bindingDescription {
-        0,
-        sizeof(glm::vec3) * 2,
-        vk::VertexInputRate::eVertex
-    };
-    constexpr std::array attributeDescriptions {
-        vk::VertexInputAttributeDescription {
-            0,
-            0,
-            vk::Format::eR32G32B32Sfloat,
-            0,
-        },
-        vk::VertexInputAttributeDescription {
-            1,
-            0,
-            vk::Format::eR32G32B32Sfloat,
-            sizeof(glm::vec3),
-        }
-    };
-    const vk::PipelineVertexInputStateCreateInfo vertexInputState {
-        {},
-        bindingDescription,
-        attributeDescriptions,
-    };
-
     constexpr vk::PipelineDepthStencilStateCreateInfo depthStencilState {
         {},
         true, true, vk::CompareOp::eLess,
@@ -138,7 +129,6 @@ auto vk_gltf_viewer::vulkan::MeshRenderer::createPipeline(
 
     return { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
-            .setPVertexInputState(&vertexInputState)
             .setPDepthStencilState(&depthStencilState),
         vk::PipelineRenderingCreateInfo {
             {},

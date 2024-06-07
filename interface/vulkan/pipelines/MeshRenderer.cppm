@@ -16,6 +16,11 @@ namespace vk_gltf_viewer::vulkan {
         struct PushConstant {
             glm::mat4 model;
             glm::mat4 projectionView;
+            vk::DeviceAddress pPositionBuffer;
+            vk::DeviceAddress pNormalBuffer;
+            std::uint8_t positionByteStride;
+            std::uint8_t normalByteStride;
+            char padding[14];
             glm::vec3 viewPosition;
         };
 
@@ -24,7 +29,7 @@ namespace vk_gltf_viewer::vulkan {
 
         explicit MeshRenderer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
 
-        auto draw(vk::CommandBuffer commandBuffer, const vku::Buffer &indexBuffer, const vku::Buffer &vertexBuffer, const PushConstant &pushConstant) const -> void;
+        auto draw(vk::CommandBuffer commandBuffer, vk::Buffer indexBuffer, vk::DeviceSize indexBufferOffset, vk::IndexType indexType, std::uint32_t drawCount, const PushConstant &pushConstant) const -> void;
 
     private:
         static std::string_view vert, frag;

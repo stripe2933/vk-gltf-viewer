@@ -76,6 +76,9 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 			{},
 			extensions,
 		},
+		vk::PhysicalDeviceVulkan12Features{}
+			.setBufferDeviceAddress(vk::True)
+            .setStoragePushConstant8(vk::True),
 		vk::PhysicalDeviceDynamicRenderingFeatures { vk::True },
 	}.get() };
 }
@@ -89,7 +92,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createAllocator(
 		device.getDispatcher()->vkGetDeviceProcAddr,
 	};
 	return vma::createAllocator(vma::AllocatorCreateInfo{
-		{},
+		vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
 		*physicalDevice,
 		*device,
 		{}, {}, {}, {}, &vulkanFuncs,
