@@ -1,5 +1,6 @@
 module;
 
+#include <compare>
 #include <format>
 #include <ranges>
 #include <stdexcept>

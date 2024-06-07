@@ -1,5 +1,6 @@
 module;
 
+#include <compare>
 #include <unordered_map>
 #include <vector>
 
