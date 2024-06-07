@@ -16,12 +16,7 @@ include(${CMAKE_BINARY_DIR}/cmake/CPM.cmake)
 # External dependencies.
 # --------------------
 
-CPMAddPackage(
-	NAME fastgltf
-	OPTIONS "FASTGLTF_ENABLE_CPP_MODULES ON"
-	GITHUB_REPOSITORY spnda/fastgltf
-	GIT_TAG main
-)
+CPMAddPackage("gh:stripe2933/fastgltf#main")
 
 set(VKU_USE_GLFW ON)
 add_subdirectory(extlibs)
