@@ -14,14 +14,17 @@ namespace vk_gltf_viewer::vulkan {
     public:
     	std::shared_ptr<SharedData> sharedData;
 
+    	// Attachment groups.
+    	vku::MsaaAttachmentGroup primaryAttachmentGroup;
+
         // Descriptor/command pools.
         vk::raii::CommandPool graphicsCommandPool;
 
     	// Command buffers.
-    	vk::CommandBuffer drawCommandBuffer;
+    	vk::CommandBuffer drawCommandBuffer, blitToSwapchainCommandBuffer;
 
 		// Synchronization stuffs.
-		vk::raii::Semaphore swapchainImageAcquireSema, drawFinishSema;
+		vk::raii::Semaphore swapchainImageAcquireSema, drawFinishSema, blitToSwapchainFinishSema;
 		vk::raii::Fence inFlightFence;
 
     	Frame(const Gpu &gpu, const std::shared_ptr<SharedData> &sharedData);
@@ -32,8 +35,12 @@ namespace vk_gltf_viewer::vulkan {
     	auto handleSwapchainResize(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
     private:
+    	[[nodiscard]] auto createPrimaryAttachmentGroup(const Gpu &gpu) const -> decltype(primaryAttachmentGroup);
     	[[nodiscard]] auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
-    	auto draw(vk::CommandBuffer cb, const vku::AttachmentGroup &attachmentGroup) const -> void;
+    	auto initAttachmentLayouts(const Gpu &gpu) const -> void;
+
+    	auto draw(vk::CommandBuffer cb) const -> void;
+    	auto blitToSwapchain(vk::CommandBuffer cb, const vku::AttachmentGroup &swapchainAttachmentGroup) const -> void;
     };
 }

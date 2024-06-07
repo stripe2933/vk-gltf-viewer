@@ -51,6 +51,8 @@ layout (push_constant) uniform PushConstant {
     vec3 viewPosition;
 } pc;
 
+layout (early_fragment_tests) in;
+
 void main(){
     vec3 normal = normalize(fragNormal);
     vec3 lightDir = normalize(pc.viewPosition - fragPosition);
@@ -127,14 +129,21 @@ auto vk_gltf_viewer::vulkan::MeshRenderer::createPipeline(
         attributeDescriptions,
     };
 
-    constexpr vk::Format colorAttachmentFormat = vk::Format::eB8G8R8A8Srgb;
+    constexpr vk::PipelineDepthStencilStateCreateInfo depthStencilState {
+        {},
+        true, true, vk::CompareOp::eLess,
+    };
+
+    constexpr vk::Format colorAttachmentFormat = vk::Format::eR16G16B16A16Sfloat;
 
     return { device, nullptr, vk::StructureChain {
-        vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1)
-            .setPVertexInputState(&vertexInputState),
+        vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
+            .setPVertexInputState(&vertexInputState)
+            .setPDepthStencilState(&depthStencilState),
         vk::PipelineRenderingCreateInfo {
             {},
             colorAttachmentFormat,
+            vk::Format::eD32Sfloat,
         }
     }.get() };
 }

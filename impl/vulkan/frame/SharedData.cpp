@@ -54,7 +54,7 @@ auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(
 		vk::ColorSpaceKHR::eSrgbNonlinear,
 		extent,
 		1,
-		vk::ImageUsageFlagBits::eColorAttachment,
+		vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst,
 		{}, {},
 		surfaceCapabilities.currentTransform,
 		vk::CompositeAlphaFlagBitsKHR::eOpaque,
