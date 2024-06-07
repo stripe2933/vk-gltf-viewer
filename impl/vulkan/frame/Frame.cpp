@@ -3,7 +3,6 @@ module;
 #include <cstdint>
 #include <array>
 #include <format>
-#include <initializer_list>
 #include <limits>
 #include <mutex>
 #include <ranges>
