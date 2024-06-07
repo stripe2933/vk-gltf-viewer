@@ -16,6 +16,13 @@ include(${CMAKE_BINARY_DIR}/cmake/CPM.cmake)
 # External dependencies.
 # --------------------
 
+CPMAddPackage(
+	NAME fastgltf
+	OPTIONS "FASTGLTF_ENABLE_CPP_MODULES ON"
+	GITHUB_REPOSITORY spnda/fastgltf
+	GIT_TAG main
+)
+
 set(VKU_USE_GLFW ON)
 add_subdirectory(extlibs)
 
@@ -37,16 +44,23 @@ target_compile_definitions(VulkanMemoryAllocator-Hpp_module PRIVATE
 	VMA_VULKAN_VERSION=1002000 # MoltenVK supports Vulkan 1.2.
 )
 
+target_compile_definitions(glm_module PRIVATE
+	GLM_FORCE_DEPTH_ZERO_TO_ONE
+	GLM_FORCE_XYZW_ONLY
+)
+
 # --------------------
 # Project targets.
 # --------------------
 
 add_executable(vk-gltf-viewer
+	impl/gltf/AssetResources.cpp
+	impl/gltf/SceneResources.cpp
 	impl/MainApp.cpp
 	impl/vulkan/frame/Frame.cpp
 	impl/vulkan/frame/SharedData.cpp
 	impl/vulkan/Gpu.cpp
-	impl/vulkan/pipelines/TriangleRenderer.cpp
+	impl/vulkan/pipelines/MeshRenderer.cpp
 	main.cpp
 )
 target_sources(vk-gltf-viewer PRIVATE
@@ -54,8 +68,16 @@ target_sources(vk-gltf-viewer PRIVATE
 	BASE_DIRS interface
 	FILES
 		interface/mod.cppm
+		interface/gltf/mod.cppm
+		interface/gltf/AssetResources.cppm
+		interface/gltf/SceneResources.cppm
 		interface/helpers/mod.cppm
+		interface/helpers/formatters/mod.cppm
+		interface/helpers/formatters/glm.cppm
+		interface/helpers/formatters/joiner.cppm
+		interface/helpers/formatters/omitted.cppm
 		interface/helpers/ranges.cppm
+		interface/helpers/type_map.cppm
 		interface/MainApp.cppm
 		interface/vulkan/mod.cppm
 		interface/vulkan/frame/mod.cppm
@@ -63,8 +85,9 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/frame/SharedData.cppm
 		interface/vulkan/Gpu.cppm
 		interface/vulkan/pipelines/mod.cppm
-		interface/vulkan/pipelines/TriangleRenderer.cppm
+		interface/vulkan/pipelines/MeshRenderer.cppm
 )
-target_link_libraries(vk-gltf-viewer PRIVATE 
+target_link_libraries(vk-gltf-viewer PRIVATE
+	fastgltf::fastgltf
 	vku
 )

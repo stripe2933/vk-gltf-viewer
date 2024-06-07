@@ -1,6 +1,8 @@
 module;
 
 #include <ranges>
+#include <tuple>
+#include <unordered_map>
 #include <vector>
 
 #include <shaderc/shaderc.hpp>
@@ -16,9 +18,10 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
     const shaderc::Compiler &compiler
 ) : swapchain { createSwapchain(gpu, surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent },
-	triangleRenderer { gpu.device, compiler },
+	meshRenderer { gpu.device, compiler },
 	swapchainAttachmentGroups { createSwapchainAttachmentGroups(gpu.device) },
-	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) } {
+	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
+	primitiveBuffers { createPrimitiveBuffers(gpu) } {
 	initAttachmentLayouts(gpu);
 }
 
@@ -105,4 +108,24 @@ auto vk_gltf_viewer::vulkan::SharedData::initAttachmentLayouts(
 				| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
 	});
 	gpu.queues.graphicsPresent.waitIdle();
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::createPrimitiveBuffers(
+	const Gpu &gpu
+) const -> decltype(primitiveBuffers) {
+	return assetResources.primitiveData
+		| std::views::transform([&](const auto &keyValue) {
+			const auto &[pPrimitive, value] = keyValue;
+			const auto &[indices, vertices] = value;
+
+			return std::pair {
+				pPrimitive,
+				std::pair<vku::MappedBuffer, vku::MappedBuffer> {
+					std::piecewise_construct,
+					std::forward_as_tuple(gpu.allocator, std::from_range, indices, vk::BufferUsageFlagBits::eIndexBuffer),
+					std::forward_as_tuple(gpu.allocator, std::from_range, vertices, vk::BufferUsageFlagBits::eVertexBuffer),
+				},
+			};
+		})
+		| std::ranges::to<decltype(primitiveBuffers)>();
 }

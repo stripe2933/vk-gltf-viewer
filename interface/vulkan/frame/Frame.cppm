@@ -33,5 +33,7 @@ namespace vk_gltf_viewer::vulkan {
 
     private:
     	[[nodiscard]] auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
+
+    	auto draw(vk::CommandBuffer cb, const vku::AttachmentGroup &attachmentGroup) const -> void;
     };
 }

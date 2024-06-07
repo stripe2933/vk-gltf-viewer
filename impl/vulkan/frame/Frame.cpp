@@ -4,8 +4,11 @@ module;
 #include <format>
 #include <limits>
 #include <mutex>
+#include <ranges>
 #include <stdexcept>
+#include <unordered_map>
 
+#include <fastgltf/core.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
@@ -46,51 +49,8 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 		return false;
 	}
 
-	// Record draw command.
-	drawCommandBuffer.begin(vk::CommandBufferBeginInfo{});
-
-	// Change image layout to ColorAttachmentOptimal.
-	drawCommandBuffer.pipelineBarrier(
-		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-		{}, {}, {},
-		vk::ImageMemoryBarrier{
-			{}, vk::AccessFlagBits::eColorAttachmentWrite,
-			vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
-			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			sharedData->swapchainImages[imageIndex],
-			vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-		});
-
-	// Begin dynamic rendering.
-	drawCommandBuffer.beginRenderingKHR(
-		sharedData->swapchainAttachmentGroups[imageIndex].getRenderingInfo(
-			std::array {
-				std::tuple { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearColorValue{} },
-			}));
-
-	// Set viewport and scissor.
-	sharedData->swapchainAttachmentGroups[imageIndex].setViewport(drawCommandBuffer);
-	sharedData->swapchainAttachmentGroups[imageIndex].setScissor(drawCommandBuffer);
-
-	// Draw triangle.
-	sharedData->triangleRenderer.draw(drawCommandBuffer);
-
-	// End dynamic rendering.
-	drawCommandBuffer.endRenderingKHR();
-
-	// Change image layout to PresentSrcKHR.
-	drawCommandBuffer.pipelineBarrier(
-		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
-		{}, {}, {},
-		vk::ImageMemoryBarrier{
-			vk::AccessFlagBits::eColorAttachmentWrite, {},
-			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
-			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			sharedData->swapchainImages[imageIndex],
-			vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-		});
-
-	drawCommandBuffer.end();
+	// Record commands.
+	draw(drawCommandBuffer, sharedData->swapchainAttachmentGroups[imageIndex]);
 
 	// Submit draw command to the graphics queue.
 	constexpr vk::PipelineStageFlags waitStages = vk::PipelineStageFlagBits::eColorAttachmentOutput;
@@ -132,4 +92,74 @@ auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
 		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
 		queueFamilyIndex,
 	} };
+}
+
+auto vk_gltf_viewer::vulkan::Frame::draw(
+	vk::CommandBuffer cb,
+	const vku::AttachmentGroup &attachmentGroup
+) const -> void {
+	cb.begin(vk::CommandBufferBeginInfo{});
+
+	// Change image layout to ColorAttachmentOptimal.
+	cb.pipelineBarrier(
+		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+		{}, {}, {},
+		vk::ImageMemoryBarrier{
+			vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			attachmentGroup.colorAttachments[0].image,
+			vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+		});
+
+	// Begin dynamic rendering.
+	cb.beginRenderingKHR(attachmentGroup.getRenderingInfo(
+		std::array {
+			std::tuple { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearColorValue{} },
+		}));
+
+	// Set viewport and scissor.
+	attachmentGroup.setViewport(cb, true);
+	attachmentGroup.setScissor(cb);
+
+	// Draw glTF mesh.
+	constexpr glm::vec3 viewPosition { 0.5f };
+	const glm::mat4 projectionView
+		= glm::gtc::perspective(glm::radians(45.0f), vku::aspect(sharedData->swapchainExtent), 0.1f, 100.0f)
+		* glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f }, glm::vec3{ 0.f, 1.f, 0.f });
+
+	const fastgltf::Asset &asset = sharedData->assetResources.asset;
+	for (std::stack dfs { std::from_range, asset.scenes[asset.defaultScene.value_or(0)].nodeIndices | std::views::reverse }; !dfs.empty(); ) {
+		const std::size_t nodeIndex = dfs.top();
+        const fastgltf::Node &node = asset.nodes[nodeIndex];
+        if (node.meshIndex) {
+        	const glm::mat4 &nodeWorldTransform = sharedData->sceneResources.nodeWorldTransforms[nodeIndex];
+
+        	const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+        	for (const fastgltf::Primitive &primitive : mesh.primitives){
+        	    const auto &[indexBuffer, vertexBuffer] = sharedData->primitiveBuffers.at(&primitive);
+		        sharedData->meshRenderer.draw(cb, indexBuffer, vertexBuffer, { nodeWorldTransform, projectionView, viewPosition });
+        	}
+        }
+
+		dfs.pop();
+		dfs.push_range(node.children | std::views::reverse);
+	}
+
+	// End dynamic rendering.
+	cb.endRenderingKHR();
+
+	// Change image layout to PresentSrcKHR.
+	cb.pipelineBarrier(
+		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
+		{}, {}, {},
+		vk::ImageMemoryBarrier{
+			vk::AccessFlagBits::eColorAttachmentWrite, {},
+			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			attachmentGroup.colorAttachments[0].image,
+			vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+		});
+
+	cb.end();
 }
