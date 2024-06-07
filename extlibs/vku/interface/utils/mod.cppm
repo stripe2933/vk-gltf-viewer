@@ -20,7 +20,8 @@ export namespace vku {
         return { aspectFlags, 0, vk::RemainingMipLevels, 0, vk::RemainingArrayLayers };
     }
 
-    [[nodiscard]] constexpr auto toFlags(auto flagBit) noexcept -> vk::Flags<decltype(flagBit)> {
+    template <typename T>
+    [[nodiscard]] constexpr auto toFlags(T flagBit) noexcept -> vk::Flags<T> {
         return flagBit;
     }
 
