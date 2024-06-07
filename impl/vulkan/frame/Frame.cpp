@@ -23,11 +23,23 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	const std::shared_ptr<SharedData> &sharedData
 ) : sharedData { sharedData },
 	primaryAttachmentGroup { createPrimaryAttachmentGroup(gpu) },
+    descriptorPool { createDescriptorPool(gpu.device) },
 	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
+	cameraBuffer { createCameraBuffer(gpu.allocator) },
+	nodeTransformBuffer { createNodeTransformBuffer(gpu.allocator) },
+	meshRendererSets { *gpu.device, *descriptorPool, sharedData->meshRenderer.descriptorSetLayouts },
 	swapchainImageAcquireSema { gpu.device, vk::SemaphoreCreateInfo{} },
 	drawFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
 	blitToSwapchainFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
 	inFlightFence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } } {
+	// Update per-frame descriptor sets.
+	gpu.device.updateDescriptorSets(
+	    ranges::array_cat(
+		    meshRendererSets.getDescriptorWrites0({ cameraBuffer, 0, vk::WholeSize }).get(),
+		    meshRendererSets.getDescriptorWrites1({ nodeTransformBuffer, 0, vk::WholeSize }).get()),
+		{});
+
+	// Allocate per-frame command buffers.
 	std::tie(drawCommandBuffer, blitToSwapchainCommandBuffer)
 	    = (*gpu.device).allocateCommandBuffers(vk::CommandBufferAllocateInfo{
 	    	*graphicsCommandPool,
@@ -35,12 +47,13 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	    	2,
 	    })
 		| ranges::to_array<2>();
+
 	initAttachmentLayouts(gpu);
 }
 
 auto vk_gltf_viewer::vulkan::Frame::onLoop(
 	const Gpu &gpu
-) const -> bool {
+) -> bool {
 	constexpr std::uint64_t MAX_TIMEOUT = std::numeric_limits<std::uint64_t>::max();
 
 	// Wait for the previous frame execution to finish.
@@ -48,6 +61,9 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 		throw std::runtime_error{ std::format("Failed to wait for in-flight fence: {}", to_string(result)) };
 	}
 	gpu.device.resetFences(*inFlightFence);
+
+	// Update per-frame resources.
+	update();
 
 	// Acquire the next swapchain image.
 	std::uint32_t imageIndex;
@@ -121,6 +137,20 @@ auto vk_gltf_viewer::vulkan::Frame::createPrimaryAttachmentGroup(
 	return attachmentGroup;
 }
 
+auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
+    const vk::raii::Device &device
+) const -> decltype(descriptorPool) {
+    constexpr std::array poolSizes {
+    	vk::DescriptorPoolSize { vk::DescriptorType::eUniformBuffer, 1 },
+    	vk::DescriptorPoolSize { vk::DescriptorType::eStorageBuffer, 1 },
+    };
+	return { device, vk::DescriptorPoolCreateInfo{
+		{},
+		2,
+		poolSizes,
+	} };
+}
+
 auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
     const vk::raii::Device &device,
     std::uint32_t queueFamilyIndex
@@ -129,6 +159,24 @@ auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
 		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
 		queueFamilyIndex,
 	} };
+}
+
+auto vk_gltf_viewer::vulkan::Frame::createCameraBuffer(
+	vma::Allocator allocator
+) const -> decltype(cameraBuffer) {
+	return { allocator, MeshRenderer::Camera{}, vk::BufferUsageFlagBits::eUniformBuffer };
+}
+
+auto vk_gltf_viewer::vulkan::Frame::createNodeTransformBuffer(
+	vma::Allocator allocator
+) const -> decltype(nodeTransformBuffer) {
+	return {
+		allocator,
+		std::from_range, sharedData->sceneResources.nodeWorldTransforms | std::views::transform([](const glm::mat4 &m) {
+			return MeshRenderer::NodeTransform { m };
+		}),
+		vk::BufferUsageFlagBits::eStorageBuffer,
+	};
 }
 
 auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
@@ -162,6 +210,16 @@ auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
 	gpu.queues.graphicsPresent.waitIdle();
 }
 
+auto vk_gltf_viewer::vulkan::Frame::update() -> void {
+	constexpr glm::vec3 viewPosition { 0.5f };
+	const MeshRenderer::Camera camera {
+		glm::gtc::perspective(glm::radians(45.0f), vku::aspect(sharedData->swapchainExtent), 0.1f, 100.0f)
+		    * glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f }, glm::vec3{ 0.f, 1.f, 0.f }),
+		viewPosition,
+	};
+	cameraBuffer.asValue<MeshRenderer::Camera>() = camera;
+}
+
 auto vk_gltf_viewer::vulkan::Frame::draw(
 	vk::CommandBuffer cb
 ) const -> void {
@@ -190,29 +248,20 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	primaryAttachmentGroup.setScissor(cb);
 
 	// Draw glTF mesh.
-	constexpr glm::vec3 viewPosition { 0.5f };
-	const glm::mat4 projectionView
-		= glm::gtc::perspective(glm::radians(45.0f), vku::aspect(sharedData->swapchainExtent), 0.1f, 100.0f)
-		* glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f }, glm::vec3{ 0.f, 1.f, 0.f });
-
 	const fastgltf::Asset &asset = sharedData->assetResources.asset;
 	for (std::stack dfs { std::from_range, asset.scenes[asset.defaultScene.value_or(0)].nodeIndices | std::views::reverse }; !dfs.empty(); ) {
 		const std::size_t nodeIndex = dfs.top();
         const fastgltf::Node &node = asset.nodes[nodeIndex];
         if (node.meshIndex) {
-        	const glm::mat4 &nodeWorldTransform = sharedData->sceneResources.nodeWorldTransforms[nodeIndex];
-
         	const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
         	for (const fastgltf::Primitive &primitive : mesh.primitives){
         	    const gltf::AssetResources::PrimitiveData &primitiveData = sharedData->assetResources.primitiveData.at(&primitive);
-		        sharedData->meshRenderer.draw(cb, primitiveData.indexInfo.buffer, primitiveData.indexInfo.offset, primitiveData.indexInfo.type, primitiveData.indexInfo.drawCount, {
-		            .model = nodeWorldTransform,
-		            .projectionView = projectionView,
+		        sharedData->meshRenderer.draw(cb, meshRendererSets, primitiveData.indexInfo.buffer, primitiveData.indexInfo.offset, primitiveData.indexInfo.type, primitiveData.indexInfo.drawCount, {
 		        	.pPositionBuffer = primitiveData.positionInfo.address,
 		        	.pNormalBuffer = primitiveData.normalInfo.address,
 		        	.positionByteStride = static_cast<std::uint8_t>(primitiveData.positionInfo.byteStride),
 		        	.normalByteStride = static_cast<std::uint8_t>(primitiveData.normalInfo.byteStride),
-		            .viewPosition = viewPosition,
+		            .nodeIndex = static_cast<std::uint32_t>(nodeIndex),
 		        });
         	}
         }

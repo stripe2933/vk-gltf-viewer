@@ -42,6 +42,24 @@ namespace vk_gltf_viewer::ranges {
         }
     };
 
+    /**
+     * Concatenate variadic arrays into one array.
+     * @tparam ArrayT Array types, must have same value_type.
+     * @param arrays Arrays to be concatenated.
+     * @return Concatenated array.
+     * @code
+     * array_cat(std::array { 1, 2 }, std::array { 3, 4, 5 }) == std::array { 1, 2, 3, 4, 5 };
+     * @endcode
+     */
+    export template <typename... ArrayT>
+    [[nodiscard]] constexpr auto array_cat(
+        ArrayT &&...arrays
+    ) -> auto {
+        return std::apply([](auto &&...xs) {
+            return std::array { FWD(xs)... };
+        }, tuple_cat(FWD(arrays)...));
+    }
+
 namespace views {
 #if __cpp_lib_ranges_enumerate >= 202302L
     export constexpr decltype(std::views::enumerate) enumerate;

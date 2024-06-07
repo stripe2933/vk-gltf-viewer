@@ -18,7 +18,15 @@ namespace vk_gltf_viewer::vulkan {
     	vku::MsaaAttachmentGroup primaryAttachmentGroup;
 
         // Descriptor/command pools.
+    	vk::raii::DescriptorPool descriptorPool;
         vk::raii::CommandPool graphicsCommandPool;
+
+    	// Buffer, image and image views.
+    	vku::MappedBuffer cameraBuffer;
+    	vku::MappedBuffer nodeTransformBuffer;
+
+    	// Descriptor sets.
+    	MeshRenderer::DescriptorSets meshRendererSets;
 
     	// Command buffers.
     	vk::CommandBuffer drawCommandBuffer, blitToSwapchainCommandBuffer;
@@ -30,16 +38,20 @@ namespace vk_gltf_viewer::vulkan {
     	Frame(const Gpu &gpu, const std::shared_ptr<SharedData> &sharedData);
 
     	// Return true if frame's corresponding swapchain image sucessfully presented, false otherwise (e.g. swapchain out of date).
-    	[[nodiscard]] auto onLoop(const Gpu &gpu) const -> bool;
+    	[[nodiscard]] auto onLoop(const Gpu &gpu) -> bool;
 
     	auto handleSwapchainResize(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
     private:
     	[[nodiscard]] auto createPrimaryAttachmentGroup(const Gpu &gpu) const -> decltype(primaryAttachmentGroup);
+    	[[nodiscard]] auto createDescriptorPool(const vk::raii::Device &device) const -> decltype(descriptorPool);
+    	[[nodiscard]] auto createCameraBuffer(vma::Allocator allocator) const -> decltype(cameraBuffer);
+    	[[nodiscard]] auto createNodeTransformBuffer(vma::Allocator allocator) const -> decltype(nodeTransformBuffer);
     	[[nodiscard]] auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto initAttachmentLayouts(const Gpu &gpu) const -> void;
 
+    	auto update() -> void;
     	auto draw(vk::CommandBuffer cb) const -> void;
     	auto blitToSwapchain(vk::CommandBuffer cb, const vku::AttachmentGroup &swapchainAttachmentGroup) const -> void;
     };
