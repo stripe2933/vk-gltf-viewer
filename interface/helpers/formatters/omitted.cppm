@@ -2,6 +2,7 @@ module;
 
 #include <format>
 #include <ranges>
+#include <version>
 
 export module vk_gltf_viewer:helpers.formatters.omitted;
 
@@ -18,8 +19,9 @@ namespace vk_gltf_viewer {
     };
 }
 
+#if __cpp_lib_format_ranges >= 202207L
 export template <typename R>
-struct std::formatter<vk_gltf_viewer::omitted<R>> : std::range_formatter<std::ranges::range_value_t<R>>{
+struct std::formatter<vk_gltf_viewer::omitted<R>> : range_formatter<std::ranges::range_value_t<R>>{
     constexpr formatter() noexcept{
         range_formatter<std::ranges::range_value_t<R>>::set_brackets("", "");
     }
@@ -65,3 +67,4 @@ struct std::formatter<vk_gltf_viewer::omitted<R>> : std::range_formatter<std::ra
         }
     }
 };
+#endif
