@@ -6,6 +6,7 @@ module;
 #include <unordered_map>
 #include <vector>
 
+#include <fastgltf/core.hpp>
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
@@ -17,7 +18,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
     vk::SurfaceKHR surface,
 	const vk::Extent2D &swapchainExtent,
     const shaderc::Compiler &compiler
-) : assetResources { std::getenv("GLTF_PATH"), parser, gpu },
+) : assetResources { assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), gpu },
 	swapchain { createSwapchain(gpu, surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent },
 	meshRenderer { gpu.device, compiler },
@@ -38,6 +39,28 @@ auto vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(
 	swapchainAttachmentGroups = createSwapchainAttachmentGroups(gpu.device);
 
 	initAttachmentLayouts(gpu);
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::loadGltfDataBuffer(
+    const std::filesystem::path &path
+) const -> decltype(gltfDataBufferExpected) {
+    auto dataBuffer = fastgltf::GltfDataBuffer::FromPath(path);
+    if (auto error = dataBuffer.error(); error != fastgltf::Error::None) {
+        throw std::runtime_error { std::format("Failed to load glTF data buffer: {}", getErrorMessage(error)) };
+    }
+
+    return dataBuffer;
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::loadAsset(
+    const std::filesystem::path &parentPath
+) -> decltype(assetExpected) {
+    auto asset = fastgltf::Parser{}.loadGltf(gltfDataBufferExpected.get(), parentPath);
+    if (auto error = asset.error(); error != fastgltf::Error::None) {
+        throw std::runtime_error { std::format("Failed to load glTF asset: {}", getErrorMessage(error)) };
+    }
+
+    return asset;
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(

@@ -84,5 +84,18 @@ namespace views {
 
     export constexpr enumerate_fn enumerate;
 #endif
+
+#if __cpp_lib_ranges_zip >= 202110L
+    export constexpr decltype(std::views::zip_transform) zip_transform;
+#else
+    export constexpr auto zip_transform(
+        auto &&f,
+        std::ranges::input_range auto &&...rs
+    ) -> auto {
+        return std::views::zip(FWD(rs)...) | std::views::transform([&](auto &&t) {
+            return std::apply(f, FWD(t));
+        });
+    }
+#endif
 }
 }

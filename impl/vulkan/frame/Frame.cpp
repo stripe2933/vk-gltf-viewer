@@ -248,15 +248,14 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	primaryAttachmentGroup.setScissor(cb);
 
 	// Draw glTF mesh.
-	const fastgltf::Asset &asset = sharedData->assetResources.asset;
-	for (std::stack dfs { std::from_range, asset.scenes[asset.defaultScene.value_or(0)].nodeIndices | std::views::reverse }; !dfs.empty(); ) {
+	for (std::stack dfs { std::from_range, sharedData->assetExpected->scenes[sharedData->assetExpected->defaultScene.value_or(0)].nodeIndices | std::views::reverse }; !dfs.empty(); ) {
 		const std::size_t nodeIndex = dfs.top();
-        const fastgltf::Node &node = asset.nodes[nodeIndex];
+        const fastgltf::Node &node = sharedData->assetExpected->nodes[nodeIndex];
         if (node.meshIndex) {
-        	const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+        	const fastgltf::Mesh &mesh = sharedData->assetExpected->meshes[*node.meshIndex];
         	for (const fastgltf::Primitive &primitive : mesh.primitives){
         	    const gltf::AssetResources::PrimitiveData &primitiveData = sharedData->assetResources.primitiveData.at(&primitive);
-		        sharedData->meshRenderer.draw(cb, meshRendererSets, primitiveData.indexInfo.buffer, primitiveData.indexInfo.offset, primitiveData.indexInfo.type, primitiveData.indexInfo.drawCount, {
+		        sharedData->meshRenderer.draw(cb, meshRendererSets, sharedData->assetResources.indexBuffers.at(primitiveData.indexInfo.type), primitiveData.indexInfo.offset, primitiveData.indexInfo.type, primitiveData.indexInfo.drawCount, {
 		        	.pPositionBuffer = primitiveData.positionInfo.address,
 		        	.pNormalBuffer = primitiveData.normalInfo.address,
 		        	.positionByteStride = static_cast<std::uint8_t>(primitiveData.positionInfo.byteStride),
