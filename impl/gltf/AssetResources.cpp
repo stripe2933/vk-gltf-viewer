@@ -155,10 +155,15 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveIndexData(
         if (accessor.normalized) throw std::runtime_error { "Normalized indices accessor not supported" };
         if (!accessor.bufferViewIndex) throw std::runtime_error { "Missing indices accessor buffer view index" };
         const std::size_t componentByteSize = getElementByteSize(accessor.type, accessor.componentType);
-        const bool isIndexInterleaved
-            = asset.bufferViews[*accessor.bufferViewIndex].byteStride
-            .transform([=](std::size_t stride) { return stride != componentByteSize; })
-            .value_or(false);
+        // TODO: use monadic operation when fastgltf correctly support it.
+        // const bool isIndexInterleaved
+        //     = asset.bufferViews[*accessor.bufferViewIndex].byteStride
+        //     .transform([=](std::size_t stride) { return stride != componentByteSize; })
+        //     .value_or(false);
+        bool isIndexInterleaved = false;
+        if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride; byteStride) {
+            isIndexInterleaved = *byteStride != componentByteSize;
+        }
         if (isIndexInterleaved) throw std::runtime_error { "Interleaved index buffer not supported" };
 
         const vk::IndexType indexType = [&]() {
