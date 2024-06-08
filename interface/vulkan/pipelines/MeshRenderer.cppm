@@ -62,7 +62,9 @@ namespace vk_gltf_viewer::vulkan {
 
         explicit MeshRenderer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
 
-        auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, vk::Buffer indexBuffer, vk::DeviceSize indexBufferOffset, vk::IndexType indexType, std::uint32_t drawCount, const PushConstant &pushConstant) const -> void;
+        auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
+        auto bindDescriptorSets(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t firstSet = 0) const -> void;
+        auto pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const -> void;
 
     private:
         static std::string_view vert, frag;

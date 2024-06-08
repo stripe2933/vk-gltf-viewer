@@ -1,7 +1,6 @@
 module;
 
 #include <compare>
-#include <unordered_map>
 #include <vector>
 
 #include <fastgltf/core.hpp>

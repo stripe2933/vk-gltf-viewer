@@ -1,6 +1,7 @@
 module;
 
 #include <format>
+#include <span>
 #include <string_view>
 
 #include <shaderc/shaderc.hpp>
@@ -111,20 +112,28 @@ vk_gltf_viewer::vulkan::MeshRenderer::MeshRenderer(
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
-auto vk_gltf_viewer::vulkan::MeshRenderer::draw(
-    vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
-    vk::Buffer indexBuffer,
-    vk::DeviceSize indexBufferOffset,
-    vk::IndexType indexType,
-    std::uint32_t drawCount,
-    const PushConstant &pushConstant
+auto vk_gltf_viewer::vulkan::MeshRenderer::bindPipeline(
+    vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
-    commandBuffer.bindIndexBuffer(indexBuffer, indexBufferOffset, indexType);
+
+}
+
+auto vk_gltf_viewer::vulkan::MeshRenderer::bindDescriptorSets(
+    vk::CommandBuffer commandBuffer,
+    const DescriptorSets &descriptorSets,
+    std::uint32_t firstSet
+) const -> void {
+    commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics, *pipelineLayout,
+        firstSet, std::span { descriptorSets }.subspan(firstSet), {});
+}
+
+auto vk_gltf_viewer::vulkan::MeshRenderer::pushConstants(
+    vk::CommandBuffer commandBuffer,
+    const PushConstant &pushConstant
+) const -> void {
     commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
-    commandBuffer.drawIndexed(drawCount, 1, 0, 0, 0);
 }
 
 auto vk_gltf_viewer::vulkan::MeshRenderer::createPipelineLayout(
