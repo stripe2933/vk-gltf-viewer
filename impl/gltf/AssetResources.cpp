@@ -506,12 +506,12 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
     // Iterate over the primitives and set their attribute infos.
     for (const fastgltf::Primitive &primitive : primitives) {
         PrimitiveData &data = primitiveData[&primitive];
-        const auto getTargetAttributeBufferInfo = [&](std::string_view attributeName) -> PrimitiveData::AttributeBufferInfo& {
-            if (attributeName == "POSITION") return data.positionInfo;
+        const auto getPTargetAttributeBufferInfo = [&](std::string_view attributeName) -> std::optional<PrimitiveData::AttributeBufferInfo*> {
+            if (attributeName == "POSITION") return &data.positionInfo;
 
             // For std::optional, they must be initialized before being accessed.
-            if (attributeName == "NORMAL") return data.normalInfo.emplace();
-            if (attributeName == "TANGENT") return data.tangentInfo.emplace();
+            if (attributeName == "NORMAL") return &data.normalInfo.emplace();
+            if (attributeName == "TANGENT") return &data.tangentInfo.emplace();
 
             // Otherwise, attributeName has form of <TEXCOORD_i> or <COLOR_i>.
             constexpr auto parseIndex = [](std::string_view str) {
@@ -521,21 +521,24 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
                 return index;
             };
             if (constexpr auto prefix = "TEXCOORD_"sv; attributeName.starts_with(prefix)) {
-                return data.texcoordInfos[parseIndex(attributeName.substr(prefix.size()))];
+                return &data.texcoordInfos[parseIndex(attributeName.substr(prefix.size()))];
             }
             if (constexpr auto prefix = "COLOR_"sv; attributeName.starts_with(prefix)) {
-                return data.colorInfos[parseIndex(attributeName.substr(prefix.size()))];
+                return &data.colorInfos[parseIndex(attributeName.substr(prefix.size()))];
             }
 
-            throw std::runtime_error { std::format("Unknown primitive attribute: {}", attributeName) };
+            // If unknown attribute name found, just return nullopt (means do not process it).
+            return std::nullopt;
         };
 
         for (const auto &[attributeName, accessorIndex] : primitive.attributes) {
             const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
-            getTargetAttributeBufferInfo(attributeName) = {
-                .address = gpu.device.getBufferAddress({ bufferMappings.at(*accessor.bufferViewIndex) }) + accessor.byteOffset,
-                .byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType)),
-            };
+            if (auto pTarget = getPTargetAttributeBufferInfo(attributeName); pTarget) {
+                **pTarget = {
+                    .address = gpu.device.getBufferAddress({ bufferMappings.at(*accessor.bufferViewIndex) }) + accessor.byteOffset,
+                    .byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType)),
+                };
+            }
         }
     }
 }
