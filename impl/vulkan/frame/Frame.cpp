@@ -36,7 +36,11 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	gpu.device.updateDescriptorSets(
 	    ranges::array_cat(
 		    meshRendererSets.getDescriptorWrites0({ cameraBuffer, 0, vk::WholeSize }).get(),
-		    meshRendererSets.getDescriptorWrites1({ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get()),
+		    meshRendererSets.getDescriptorWrites1(
+				sharedData->assetResources.textures,
+		    	{ sharedData->assetResources.materialBuffer, 0, vk::WholeSize }).get(),
+		    meshRendererSets.getDescriptorWrites2(
+		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get()),
 		{});
 
 	// Allocate per-frame command buffers.
@@ -140,13 +144,14 @@ auto vk_gltf_viewer::vulkan::Frame::createPrimaryAttachmentGroup(
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
     const vk::raii::Device &device
 ) const -> decltype(descriptorPool) {
-    constexpr std::array poolSizes {
+    const std::array poolSizes {
+    	vk::DescriptorPoolSize { vk::DescriptorType::eCombinedImageSampler, static_cast<std::uint32_t>(sharedData->assetResources.textures.size()) },
+    	vk::DescriptorPoolSize { vk::DescriptorType::eStorageBuffer, 2 },
     	vk::DescriptorPoolSize { vk::DescriptorType::eUniformBuffer, 1 },
-    	vk::DescriptorPoolSize { vk::DescriptorType::eStorageBuffer, 1 },
     };
 	return { device, vk::DescriptorPoolCreateInfo{
-		{},
-		2,
+		vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind,
+		3,
 		poolSizes,
 	} };
 }
@@ -165,18 +170,6 @@ auto vk_gltf_viewer::vulkan::Frame::createCameraBuffer(
 	vma::Allocator allocator
 ) const -> decltype(cameraBuffer) {
 	return { allocator, MeshRenderer::Camera{}, vk::BufferUsageFlagBits::eUniformBuffer };
-}
-
-auto vk_gltf_viewer::vulkan::Frame::createNodeTransformBuffer(
-	vma::Allocator allocator
-) const -> decltype(nodeTransformBuffer) {
-	return {
-		allocator,
-		std::from_range, sharedData->sceneResources.nodeWorldTransforms | std::views::transform([](const glm::mat4 &m) {
-			return MeshRenderer::NodeTransform { m };
-		}),
-		vk::BufferUsageFlagBits::eStorageBuffer,
-	};
 }
 
 auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
@@ -223,7 +216,7 @@ auto vk_gltf_viewer::vulkan::Frame::update() -> void {
 auto vk_gltf_viewer::vulkan::Frame::draw(
 	vk::CommandBuffer cb
 ) const -> void {
-	cb.begin(vk::CommandBufferBeginInfo{});
+	cb.begin(vk::CommandBufferBeginInfo { vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
 	// Change image layout to ColorAttachmentOptimal.
 	cb.pipelineBarrier(
@@ -248,7 +241,7 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	primaryAttachmentGroup.setScissor(cb);
 
 	// Collect glTF mesh primitives.
-	std::vector<std::pair<std::size_t /* nodeIndex */, const gltf::AssetResources::PrimitiveData*>> primitives;
+	std::vector<std::tuple<std::size_t /* nodeIndex */, std::size_t /* materialIndex */, const gltf::AssetResources::PrimitiveData*>> primitives;
 	for (std::stack dfs { std::from_range, sharedData->assetExpected->scenes[sharedData->assetExpected->defaultScene.value_or(0)].nodeIndices | std::views::reverse }; !dfs.empty(); ) {
 		const std::size_t nodeIndex = dfs.top();
         const fastgltf::Node &node = sharedData->assetExpected->nodes[nodeIndex];
@@ -257,7 +250,7 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
         	primitives.append_range(
         		mesh.primitives | std::views::transform([&](const fastgltf::Primitive &primitive) {
 					const gltf::AssetResources::PrimitiveData &primitiveData = sharedData->assetResources.primitiveData.at(&primitive);
-					return std::pair { nodeIndex, &primitiveData };
+					return std::tuple { nodeIndex, primitive.materialIndex.value(), &primitiveData };
 				}));
         }
 		dfs.pop();
@@ -265,11 +258,12 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	}
 
 	// Sort primitive by index type.
-	std::ranges::sort(primitives, {}, [](const auto &primitive) { return primitive.second->indexInfo.type; });
+	constexpr auto getIndexType = [](const auto &primitive) { return get<2>(primitive)->indexInfo.type; };
+	std::ranges::sort(primitives, {}, getIndexType);
 	sharedData->meshRenderer.bindPipeline(cb);
 	sharedData->meshRenderer.bindDescriptorSets(cb, meshRendererSets);
-	for (auto primitivesWithSameIndexType : std::views::chunk_by(primitives, [](const auto &lhs, const auto &rhs) { return lhs.second->indexInfo.type == rhs.second->indexInfo.type; })) {
-		const vk::IndexType indexType = primitivesWithSameIndexType.front().second->indexInfo.type;
+	for (auto primitivesWithSameIndexType : std::views::chunk_by(primitives, [&](const auto &lhs, const auto &rhs) { return getIndexType(lhs) == getIndexType(rhs); })) {
+		const vk::IndexType indexType = getIndexType(primitivesWithSameIndexType.front());
 		const std::size_t indexByteSize = [=]() {
 			switch (indexType) {
 				case vk::IndexType::eUint16: return sizeof(std::uint16_t);
@@ -279,13 +273,14 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 		}();
 		cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(indexType), 0, indexType);
 
-		for (const auto [nodeIndex, pPrimitiveData] : primitivesWithSameIndexType) {
+		for (const auto [nodeIndex, materialIndex, pPrimitiveData] : primitivesWithSameIndexType) {
 			sharedData->meshRenderer.pushConstants(cb, {
 		        .pPositionBuffer = pPrimitiveData->positionInfo.address,
-		        .pNormalBuffer = pPrimitiveData->normalInfo.address,
+		        .pNormalBuffer = pPrimitiveData->normalInfo.value().address,
 		        .positionByteStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride),
-		        .normalByteStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.byteStride),
+		        .normalByteStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride),
 	            .nodeIndex = static_cast<std::uint32_t>(nodeIndex),
+	            .materialIndex = static_cast<std::uint32_t>(materialIndex),
 			});
 			cb.drawIndexed(pPrimitiveData->indexInfo.drawCount, 1, pPrimitiveData->indexInfo.offset / indexByteSize, 0, 0);
 		}
@@ -312,14 +307,14 @@ auto vk_gltf_viewer::vulkan::Frame::blitToSwapchain(
 	vk::CommandBuffer cb,
 	const vku::AttachmentGroup &swapchainAttachmentGroup
 ) const -> void {
-	cb.begin(vk::CommandBufferBeginInfo{});
+	cb.begin(vk::CommandBufferBeginInfo { vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
 	// Change image layout to TransferDstOptimal.
 	cb.pipelineBarrier(
 		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer,
 		{}, {}, {},
 		vk::ImageMemoryBarrier{
-			vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferWrite,
+			{}, vk::AccessFlagBits::eTransferWrite,
 			vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eTransferDstOptimal,
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 			swapchainAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),

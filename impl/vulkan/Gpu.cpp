@@ -2,12 +2,14 @@ module;
 
 #include <array>
 #include <ranges>
+#include <set>
 #include <stdexcept>
 #include <vector>
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
+import vku;
 import :vulkan.Gpu;
 import :helpers;
 
@@ -15,21 +17,38 @@ vk_gltf_viewer::vulkan::Gpu::QueueFamilies::QueueFamilies(
 	vk::PhysicalDevice physicalDevice,
 	vk::SurfaceKHR surface
 ) {
-	for (auto [queueFamilyIndex, properties] : physicalDevice.getQueueFamilyProperties() | ranges::views::enumerate) {
+	const std::vector queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
+	for (auto [queueFamilyIndex, properties] : queueFamilyProperties | ranges::views::enumerate) {
 		if (properties.queueFlags & vk::QueueFlagBits::eGraphics && physicalDevice.getSurfaceSupportKHR(queueFamilyIndex, surface)) {
 			graphicsPresent = queueFamilyIndex;
-			return;
+			goto TRANSFER;
 		}
 	}
 
 	throw std::runtime_error { "Failed to find the required queue families" };
+
+TRANSFER:
+	// Transfer: prefer transfer-only (\w sparse binding ok) queue fmaily.
+	if (auto it = std::ranges::find_if(queueFamilyProperties, [](vk::QueueFlags flags) {
+		return (flags & ~vk::QueueFlagBits::eSparseBinding) == vk::QueueFlagBits::eTransfer;
+	}, &vk::QueueFamilyProperties::queueFlags);
+		it != queueFamilyProperties.end()) {
+		transfer = it - queueFamilyProperties.begin();
+	}
+	else if (auto it = std::ranges::find_if(queueFamilyProperties, [](vk::QueueFlags flags) {
+		return vku::contains(flags, vk::QueueFlagBits::eTransfer);
+	}, &vk::QueueFamilyProperties::queueFlags); it != queueFamilyProperties.end()) {
+		transfer = it - queueFamilyProperties.begin();
+	}
+	else std::unreachable(); // Vulkan instance always have at least one compute capable queue family (therefore transfer capable).
 }
 
 
 vk_gltf_viewer::vulkan::Gpu::Queues::Queues(
 	vk::Device device,
 	const QueueFamilies& queueFamilies
-) : graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) } {}
+) noexcept : graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) },
+	         transfer { device.getQueue(queueFamilies.transfer, 0) } { }
 
 vk_gltf_viewer::vulkan::Gpu::Gpu(
     const vk::raii::Instance &instance,
@@ -52,13 +71,16 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(
 
 auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 	constexpr std::array queuePriorities{ 1.0f };
-	const std::array queueCreateInfos {
-		vk::DeviceQueueCreateInfo{
-			{},
-			queueFamilies.graphicsPresent,
-			queuePriorities,
-		},
-	};
+	const std::vector queueCreateInfos
+		= std::set { queueFamilies.graphicsPresent, queueFamilies.transfer }
+		| std::views::transform([&](std::uint32_t queueFamilyIndex) {
+			return vk::DeviceQueueCreateInfo{
+				{},
+				queueFamilyIndex,
+				queuePriorities,
+			};
+		})
+		| std::ranges::to<std::vector<vk::DeviceQueueCreateInfo>>();
 	constexpr std::array extensions{
 #if __APPLE__
 		vk::KHRPortabilitySubsetExtensionName,
@@ -66,20 +88,32 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 		vk::KHRDynamicRenderingExtensionName,
+		vk::KHRSynchronization2ExtensionName,
 #pragma clang diagnostic pop
 		vk::KHRSwapchainExtensionName,
 	};
+	constexpr auto physicalDeviceFeatures
+		= vk::PhysicalDeviceFeatures{}
+		.setSamplerAnisotropy(vk::True);
 	return { physicalDevice, vk::StructureChain {
 		vk::DeviceCreateInfo{
 			{},
 			queueCreateInfos,
 			{},
 			extensions,
+			&physicalDeviceFeatures,
 		},
+		vk::PhysicalDeviceVulkan11Features{}
+			.setStorageBuffer16BitAccess(vk::True),
 		vk::PhysicalDeviceVulkan12Features{}
 			.setBufferDeviceAddress(vk::True)
+			.setDescriptorIndexing(vk::True)
+			.setDescriptorBindingSampledImageUpdateAfterBind(vk::True)
+			.setRuntimeDescriptorArray(vk::True)
+			.setStorageBuffer8BitAccess(vk::True)
             .setStoragePushConstant8(vk::True),
 		vk::PhysicalDeviceDynamicRenderingFeatures { vk::True },
+		vk::PhysicalDeviceSynchronization2Features { vk::True },
 	}.get() };
 }
 

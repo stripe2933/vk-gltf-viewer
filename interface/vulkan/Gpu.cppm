@@ -1,6 +1,5 @@
 module;
 
-#include <array>
 #include <compare>
 
 export module vk_gltf_viewer:vulkan.Gpu;
@@ -12,15 +11,15 @@ namespace vk_gltf_viewer::vulkan {
     class Gpu {
 	public:
 		struct QueueFamilies {
-			std::uint32_t graphicsPresent;
+			std::uint32_t graphicsPresent, transfer;
 
 			QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface);
 		};
 
 		struct Queues {
-			vk::Queue graphicsPresent;
+			vk::Queue graphicsPresent, transfer;
 
-			Queues(vk::Device device, const QueueFamilies& queueFamilies);
+			Queues(vk::Device device, const QueueFamilies& queueFamilies) noexcept;
 		};
 
 		vk::raii::PhysicalDevice physicalDevice;

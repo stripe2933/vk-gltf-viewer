@@ -1,9 +1,11 @@
 module;
 
+#include <cstdint>
 #include <compare>
 #include <filesystem>
 #include <list>
 #include <numeric>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <unordered_map>
@@ -15,6 +17,7 @@ export module vk_gltf_viewer:gltf.AssetResources;
 
 export import vku;
 export import :vulkan.Gpu;
+export import :gltf.io.StbDecoder;
 
 namespace vk_gltf_viewer::gltf {
     export class AssetResources {
@@ -24,11 +27,15 @@ namespace vk_gltf_viewer::gltf {
 
         public:
             std::vector<std::span<const std::uint8_t>> bufferBytes; // bufferBytes[i] -> asset.buffers[i].data
-            std::vector<std::span<const std::uint8_t>> imageBytes; // imageBytes[i] -> asset.images[i].data
+            std::vector<io::StbDecoder<std::uint8_t>::DecodeResult> images; // images[i] -> decoded image data.
 
             explicit ResourceBytes(const fastgltf::Asset &asset, const std::filesystem::path &assetDir);
 
             [[nodiscard]] auto getBufferViewBytes(const fastgltf::BufferView &bufferView) const noexcept -> std::span<const std::uint8_t>;
+
+        private:
+            auto createBufferBytes(const fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> decltype(bufferBytes);
+            auto createImages(const fastgltf::Asset &asset, const std::filesystem::path &assetDir) const -> decltype(images);
         };
 
         mutable std::list<vku::MappedBuffer> stagingBuffers;
@@ -39,26 +46,74 @@ namespace vk_gltf_viewer::gltf {
             struct AttributeBufferInfo { vk::DeviceAddress address; vk::DeviceSize byteStride; };
 
             IndexBufferInfo indexInfo;
-            AttributeBufferInfo positionInfo, normalInfo;
+            AttributeBufferInfo positionInfo;
+            std::optional<AttributeBufferInfo> normalInfo, tangentInfo;
+            std::unordered_map<std::size_t, AttributeBufferInfo> texcoordInfos, colorInfos;
         };
 
-        std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
+        struct GpuMaterial {
+            vk::DeviceAddress pTangentBuffer                   = 0,
+                              pBaseColorTexcoordBuffer         = 0,
+                              pMetallicRoughnessTexcoordBuffer = 0,
+                              pNormalTexcoordBuffer            = 0,
+                              pOcclusionTexcoordBuffer         = 0;
+            std::uint8_t      tangentByteStride                   = 4,
+                              baseColorTexcoordByteStride         = 2,
+                              metallicRoughnessTexcoordByteStride = 2,
+                              normalTexcoordByteStride            = 2,
+                              occlusionTexcoordByteStride         = 2;
+            char              padding0[3];
+            std::uint16_t     baseColorTextureIndex         = -1,
+                              metallicRoughnessTextureIndex = -1,
+                              normalTextureIndex            = -1,
+                              occlusionTextureIndex         = -1;
+            char              padding1[8];
+            glm::vec4         baseColorFactor = { 1.f, 0.f, 1.f, 1.f }; // Magenta.
+            float             metallicFactor    = 1.f,
+                              roughnessFactor   = 1.f,
+                              normalScale       = 1.f,
+                              occlusionStrength = 1.f;
+            char              padding2[32];
+        };
+
+        vk::raii::Sampler defaultSampler;
+
         std::vector<vku::AllocatedImage> images;
+        std::vector<vk::raii::ImageView> imageViews;
+        std::vector<vk::raii::Sampler> samplers;
+        std::vector<vk::DescriptorImageInfo> textures;
+        vku::AllocatedBuffer materialBuffer;
+
         std::unordered_map<const fastgltf::Primitive*, PrimitiveData> primitiveData;
+        std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
+        std::vector<vku::AllocatedBuffer> attributeBuffers;
 
         AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const vulkan::Gpu &gpu);
 
     private:
-        std::vector<vku::AllocatedBuffer> attributeBuffers;
+        AssetResources(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu);
+
+        [[nodiscard]] auto createDefaultSampler(const vk::raii::Device &device) const -> decltype(defaultSampler);
+        [[nodiscard]] auto createImages(const ResourceBytes &resourceBytes, vma::Allocator allocator) const -> decltype(images);
+        [[nodiscard]] auto createImageViews(const vk::raii::Device &device) const -> decltype(imageViews);
+        [[nodiscard]] auto createSamplers(const fastgltf::Asset &asset, const vk::raii::Device &device) const -> decltype(samplers);
+        [[nodiscard]] auto createTextures(const fastgltf::Asset &asset) const -> decltype(textures);
+        [[nodiscard]] auto createMaterialBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const -> decltype(materialBuffer);
+
+        auto stageImages(const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto setPrimitiveIndexData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto setPrimitiveAttributeData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto stageMaterials(const fastgltf::Asset &asset, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
+
+        auto releaseResourceQueueFamilyOwnership(const vulkan::Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
 
         [[nodiscard]] auto createCombinedStagingBuffer(vma::Allocator allocator, std::ranges::random_access_range auto &&segments) -> std::pair<const vku::MappedBuffer&, std::vector<vk::DeviceSize>>;
-
-        auto setPrimitiveIndexData(const fastgltf::Asset &asset, const vulkan::Gpu &gpu, const ResourceBytes &resourceBytes, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto setPrimitiveAttributeData(const fastgltf::Asset &asset, const vulkan::Gpu &gpu, const ResourceBytes &resourceBytes, vk::CommandBuffer copyCommandBuffer) -> void;
     };
 }
 
 // module :private;
+
+static_assert(sizeof(vk_gltf_viewer::gltf::AssetResources::GpuMaterial) % 64 == 0 && "minStorageBufferOffsetAlignment = 64");
 
 /**
  * From given segments (a range of byte datas), create a combined staging buffer and return each segments' start offsets.
@@ -89,6 +144,7 @@ namespace vk_gltf_viewer::gltf {
             vma::MemoryUsage::eAuto,
         });
 
+    #pragma omp parallel for
     for (const auto &[segment, copyOffset] : std::views::zip(segments, copyOffsets)){
         std::ranges::copy(segment, static_cast<std::uint8_t*>(stagingBuffer.data) + copyOffset);
     }

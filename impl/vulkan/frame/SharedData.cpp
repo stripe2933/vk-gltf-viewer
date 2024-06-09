@@ -22,10 +22,14 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	sceneResources { assetExpected.get(), assetExpected->scenes[assetExpected->defaultScene.value_or(0)], gpu },
 	swapchain { createSwapchain(gpu, surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent },
-	meshRenderer { gpu.device, compiler },
+	meshRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler },
 	swapchainAttachmentGroups { createSwapchainAttachmentGroups(gpu.device) },
 	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) } {
-	initAttachmentLayouts(gpu);
+	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+		acquireResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
+		initAttachmentLayouts(cb);
+	});
+	gpu.queues.graphicsPresent.waitIdle();
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(
@@ -39,7 +43,10 @@ auto vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(
 
 	swapchainAttachmentGroups = createSwapchainAttachmentGroups(gpu.device);
 
-	initAttachmentLayouts(gpu);
+	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
+		initAttachmentLayouts(cb);
+	});
+	gpu.queues.graphicsPresent.waitIdle();
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::loadGltfDataBuffer(
@@ -113,24 +120,57 @@ auto vk_gltf_viewer::vulkan::SharedData::createCommandPool(
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::initAttachmentLayouts(
-	const Gpu &gpu
+auto vk_gltf_viewer::vulkan::SharedData::acquireResourceQueueFamilyOwnership(
+	const Gpu::QueueFamilies &queueFamilies,
+	vk::CommandBuffer commandBuffer
 ) const -> void {
-	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-			{}, {}, {},
-			swapchainImages
-				| std::views::transform([](vk::Image image) {
-					return vk::ImageMemoryBarrier{
-						{}, {},
-						{}, vk::ImageLayout::ePresentSrcKHR,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						image,
-						vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-					};
-				})
-				| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
-	});
-	gpu.queues.graphicsPresent.waitIdle();
+	std::vector<vk::Buffer> targetBuffers;
+	targetBuffers.emplace_back(assetResources.materialBuffer);
+	targetBuffers.append_range(assetResources.indexBuffers | std::views::values);
+	targetBuffers.append_range(assetResources.attributeBuffers);
+
+	std::vector<vk::Image> targetImages { std::from_range, assetResources.images };
+
+	commandBuffer.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eAllCommands,
+		{}, {},
+		targetBuffers
+			| std::views::transform([&](vk::Buffer buffer) {
+				return vk::BufferMemoryBarrier {
+					{}, {},
+					queueFamilies.transfer, queueFamilies.graphicsPresent,
+					buffer,
+					0, vk::WholeSize,
+				};
+			})
+			| std::ranges::to<std::vector<vk::BufferMemoryBarrier>>(),
+		targetImages
+			| std::views::transform([&](vk::Image image) {
+				return vk::ImageMemoryBarrier {
+					{}, {},
+					vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+					queueFamilies.transfer, queueFamilies.graphicsPresent,
+					image, vku::fullSubresourceRange(),
+				};
+			})
+			| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::initAttachmentLayouts(
+	vk::CommandBuffer commandBuffer
+) const -> void {
+	commandBuffer.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
+		{}, {}, {},
+		swapchainImages
+			| std::views::transform([](vk::Image image) {
+				return vk::ImageMemoryBarrier{
+					{}, {},
+					{}, vk::ImageLayout::ePresentSrcKHR,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					image,
+					vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+				};
+			})
+			| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
 }
