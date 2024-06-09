@@ -44,18 +44,15 @@ struct Material {
     int16_t metallicRoughnessTextureIndex;
     int16_t normalTextureIndex;
     int16_t occlusionTextureIndex;
-    uint8_t padding1[8];
-    vec4 baseColorFactor;
-    float metallicFactor;
-    float roughnessFactor;
-    float normalScale;
-    float occlusionStrength;
-    uint8_t padding2[32];
+    uint8_t FRAGMENT_DATA[72];
 };
 
 layout (location = 0) out vec3 fragPosition;
 layout (location = 1) out vec3 fragNormal;
 layout (location = 2) out vec2 fragBaseColorTexcoord;
+layout (location = 3) out vec2 fragMetallicRoughnessTexcoord;
+layout (location = 4) out vec2 fragNormalTexcoord;
+layout (location = 5) out vec2 fragOcclusionTexcoord;
 
 layout (set = 0, binding = 0) uniform CameraBuffer {
     mat4 projectionView;
@@ -102,6 +99,15 @@ void main(){
     if (int(MATERIAL.baseColorTextureIndex) != -1){
         fragBaseColorTexcoord = composeVec2(MATERIAL.pBaseColorTexcoordBuffer, uint(MATERIAL.baseColorTexcoordByteStride) / 4, gl_VertexIndex);
     }
+    if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
+        fragMetallicRoughnessTexcoord = composeVec2(MATERIAL.pMetallicRoughnessTexcoordBuffer, uint(MATERIAL.metallicRoughnessTexcoordByteStride) / 4, gl_VertexIndex);
+    }
+    if (int(MATERIAL.normalTextureIndex) != -1){
+        fragNormalTexcoord = composeVec2(MATERIAL.pNormalTexcoordBuffer, uint(MATERIAL.normalTexcoordByteStride) / 4, gl_VertexIndex);
+    }
+    if (int(MATERIAL.occlusionTextureIndex) != -1){
+        fragOcclusionTexcoord = composeVec2(MATERIAL.pOcclusionTexcoordBuffer, uint(MATERIAL.occlusionTexcoordByteStride) / 4, gl_VertexIndex);
+    }
 
     gl_Position = camera.projectionView * vec4(fragPosition, 1.0);
 }
@@ -118,20 +124,10 @@ std::string_view vk_gltf_viewer::vulkan::MeshRenderer::frag = R"frag(
 // For convinience.
 #define MATERIAL materials[pc.materialIndex]
 
-layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer FloatBufferAddress { float data[]; };
-
 const vec3 lightColor = vec3(1.0);
 
 struct Material {
-    FloatBufferAddress pBaseColorTexcoordBuffer;
-    FloatBufferAddress pMetallicRoughnessTexcoordBuffer;
-    FloatBufferAddress pNormalTexcoordBuffer;
-    FloatBufferAddress pOcclusionTexcoordBuffer;
-    uint8_t baseColorTexcoordByteStride;
-    uint8_t metallicRoughnessTexcoordByteStride;
-    uint8_t normalTexcoordByteStride;
-    uint8_t occlusionTexcoordByteStride;
-    uint8_t padding0[12];
+    uint8_t VERTEX_DATA[48];
     int16_t baseColorTextureIndex;
     int16_t metallicRoughnessTextureIndex;
     int16_t normalTextureIndex;
@@ -148,6 +144,9 @@ struct Material {
 layout (location = 0) in vec3 fragPosition;
 layout (location = 1) in vec3 fragNormal;
 layout (location = 2) in vec2 fragBaseColorTexcoord;
+layout (location = 3) in vec2 fragMetallicRoughnessTexcoord;
+layout (location = 4) in vec2 fragNormalTexcoord;
+layout (location = 5) in vec2 fragOcclusionTexcoord;
 
 layout (location = 0) out vec4 outColor;
 
@@ -162,11 +161,7 @@ layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
 };
 
 layout (push_constant, std430) uniform PushConstant {
-    FloatBufferAddress pPositionBuffer;
-    FloatBufferAddress pNormalBuffer;
-    uint8_t positionByteStride;
-    uint8_t normalByteStride;
-    uint8_t padding[14];
+    layout (offset = 32) // VERTEX_DATA
     uint nodeIndex;
     uint materialIndex;
 } pc;
@@ -179,14 +174,19 @@ void main(){
         baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], fragBaseColorTexcoord);
     }
 
-    outColor = baseColor;
-    // vec3 normal = normalize(fragNormal);
-    // vec3 lightDir = normalize(camera.viewPosition - fragPosition);
-    // float diff = max(dot(normal, lightDir), 0.0);
-    // vec3 diffuse = diff * lightColor;
+    float metallic = MATERIAL.metallicFactor, roughness = MATERIAL.roughnessFactor;
+    if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
+        vec4 metallicRoughness = texture(textures[uint(MATERIAL.metallicRoughnessTextureIndex)], fragMetallicRoughnessTexcoord);
+        metallic *= metallicRoughness.b;
+        roughness *= metallicRoughness.g;
+    }
 
-    // vec3 color = texture(textures[materials[pc.materialIndex].baseColorTextureIndex], fragBaseColorTexcoord).rgb;
-    // outColor = vec4(diffuse, 1.0);
+    float occlusion = 1.0;
+    if (int(MATERIAL.occlusionTextureIndex) != -1){
+        occlusion *= texture(textures[uint(MATERIAL.occlusionTextureIndex)], fragOcclusionTexcoord).r;
+    }
+
+    outColor = baseColor;
 }
 )frag";
 

@@ -104,13 +104,15 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 			&physicalDeviceFeatures,
 		},
 		vk::PhysicalDeviceVulkan11Features{}
-			.setStorageBuffer16BitAccess(vk::True),
+			.setStorageBuffer16BitAccess(vk::True)
+			.setUniformAndStorageBuffer16BitAccess(vk::True),
 		vk::PhysicalDeviceVulkan12Features{}
 			.setBufferDeviceAddress(vk::True)
 			.setDescriptorIndexing(vk::True)
 			.setDescriptorBindingSampledImageUpdateAfterBind(vk::True)
 			.setRuntimeDescriptorArray(vk::True)
 			.setStorageBuffer8BitAccess(vk::True)
+			.setUniformAndStorageBuffer8BitAccess(vk::True)
             .setStoragePushConstant8(vk::True),
 		vk::PhysicalDeviceDynamicRenderingFeatures { vk::True },
 		vk::PhysicalDeviceSynchronization2Features { vk::True },
