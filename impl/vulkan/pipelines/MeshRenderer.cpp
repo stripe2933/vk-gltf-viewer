@@ -31,17 +31,15 @@ struct NodeTransform {
 };
 
 struct Material {
-    FloatBufferAddress pTangentBuffer;
     FloatBufferAddress pBaseColorTexcoordBuffer;
     FloatBufferAddress pMetallicRoughnessTexcoordBuffer;
     FloatBufferAddress pNormalTexcoordBuffer;
     FloatBufferAddress pOcclusionTexcoordBuffer;
-    uint8_t tangentByteStride;
     uint8_t baseColorTexcoordByteStride;
     uint8_t metallicRoughnessTexcoordByteStride;
     uint8_t normalTexcoordByteStride;
     uint8_t occlusionTexcoordByteStride;
-    uint8_t padding0[3];
+    uint8_t padding0[12];
     int16_t baseColorTextureIndex;
     int16_t metallicRoughnessTextureIndex;
     int16_t normalTextureIndex;
@@ -125,17 +123,15 @@ layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Fl
 const vec3 lightColor = vec3(1.0);
 
 struct Material {
-    FloatBufferAddress pTangentBuffer;
     FloatBufferAddress pBaseColorTexcoordBuffer;
     FloatBufferAddress pMetallicRoughnessTexcoordBuffer;
     FloatBufferAddress pNormalTexcoordBuffer;
     FloatBufferAddress pOcclusionTexcoordBuffer;
-    uint8_t tangentByteStride;
     uint8_t baseColorTexcoordByteStride;
     uint8_t metallicRoughnessTexcoordByteStride;
     uint8_t normalTexcoordByteStride;
     uint8_t occlusionTexcoordByteStride;
-    uint8_t padding0[3];
+    uint8_t padding0[12];
     int16_t baseColorTextureIndex;
     int16_t metallicRoughnessTextureIndex;
     int16_t normalTextureIndex;

@@ -55,17 +55,15 @@ namespace vk_gltf_viewer::gltf {
         };
 
         struct GpuMaterial {
-            vk::DeviceAddress pTangentBuffer                   = 0,
-                              pBaseColorTexcoordBuffer         = 0,
+            vk::DeviceAddress pBaseColorTexcoordBuffer         = 0,
                               pMetallicRoughnessTexcoordBuffer = 0,
                               pNormalTexcoordBuffer            = 0,
                               pOcclusionTexcoordBuffer         = 0;
-            std::uint8_t      tangentByteStride                   = 4,
-                              baseColorTexcoordByteStride         = 2,
+            std::uint8_t      baseColorTexcoordByteStride         = 2,
                               metallicRoughnessTexcoordByteStride = 2,
                               normalTexcoordByteStride            = 2,
                               occlusionTexcoordByteStride         = 2;
-            char              padding0[3];
+            char              padding0[12];
             std::int16_t      baseColorTextureIndex         = -1,
                               metallicRoughnessTextureIndex = -1,
                               normalTextureIndex            = -1,
