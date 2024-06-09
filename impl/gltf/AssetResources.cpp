@@ -233,10 +233,10 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
                     vk::ImageType::e2D,
                     vk::Format::eR8G8B8A8Unorm,
                     vk::Extent3D { decodeResult.width, decodeResult.height, 1 },
-                    1, 1,
+                    vku::Image::maxMipLevels({ decodeResult.width, decodeResult.height }), 1,
                     vk::SampleCountFlagBits::e1,
                     vk::ImageTiling::eOptimal,
-                    vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+                    vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
                 },
                 vma::AllocationCreateInfo {
                     {},

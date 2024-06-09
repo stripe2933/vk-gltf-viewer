@@ -19,10 +19,7 @@ namespace vk_gltf_viewer::ranges {
         requires std::is_object_v<Derived> && std::same_as<Derived, std::remove_cv_t<Derived>>
     struct range_adaptor_closure {
         template <std::ranges::range R>
-        [[nodiscard]] friend constexpr auto operator|(
-            R &&r, 
-            const Derived &derived
-        ) noexcept(std::is_nothrow_invocable_v<const Derived&, R>) {
+        [[nodiscard]] friend constexpr auto operator|(R &&r, const Derived &derived) noexcept(std::is_nothrow_invocable_v<const Derived&, R>) {
             return derived(FWD(r));
         }
     };
@@ -31,9 +28,7 @@ namespace vk_gltf_viewer::ranges {
     export template <std::size_t N>
     struct to_array : range_adaptor_closure<to_array<N>> {
         template <std::ranges::input_range R>
-        [[nodiscard]] constexpr auto operator()(
-            R &&r
-        ) const -> std::array<std::ranges::range_value_t<R>, N> {
+        [[nodiscard]] constexpr auto operator()(R &&r) const -> std::array<std::ranges::range_value_t<R>, N> {
             auto it = r.begin();
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
@@ -52,9 +47,7 @@ namespace vk_gltf_viewer::ranges {
      * @endcode
      */
     export template <typename... ArrayT>
-    [[nodiscard]] constexpr auto array_cat(
-        ArrayT &&...arrays
-    ) -> auto {
+    [[nodiscard]] constexpr auto array_cat(ArrayT &&...arrays) -> auto {
         return std::apply([](auto &&...xs) {
             return std::array { FWD(xs)... };
         }, tuple_cat(FWD(arrays)...));
@@ -66,9 +59,7 @@ namespace views {
 #else
     struct enumerate_fn : range_adaptor_closure<enumerate_fn> {
         template <std::ranges::viewable_range R>
-        static constexpr auto operator()(
-            R &&r
-        ) -> auto {
+        [[nodiscard]] static constexpr auto operator()(R &&r) -> auto {
             if constexpr (std::ranges::sized_range<R>) {
                 return std::views::zip(
                     std::views::iota(static_cast<std::ranges::range_difference_t<R>>(0), static_cast<std::ranges::range_difference_t<R>>(r.size())),
@@ -86,16 +77,41 @@ namespace views {
 #endif
 
 #if __cpp_lib_ranges_zip >= 202110L
+    export template <std::size_t N>
+    constexpr decltype(std::views::adjacent<N>) adjacent;
+    export constexpr decltype(std::views::pairwise) pairwise;
+#else
+    template <std::size_t N>
+    struct adjacent_fn : range_adaptor_closure<adjacent_fn<N>> {
+        [[nodiscard]] static constexpr auto operator()(std::ranges::forward_range auto &&r) {
+            return INDEX_SEQ(Is, N, {
+                return std::views::zip(r | std::views::drop(Is)...);
+            });
+        }
+    };
+    export template <std::size_t N>
+    constexpr adjacent_fn<N> adjacent;
+    export constexpr adjacent_fn<2> pairwise;
+#endif
+
+#if __cpp_lib_ranges_zip >= 202110L
     export constexpr decltype(std::views::zip_transform) zip_transform;
 #else
-    export constexpr auto zip_transform(
-        auto &&f,
-        std::ranges::input_range auto &&...rs
-    ) -> auto {
+    export
+    [[nodiscard]] constexpr auto zip_transform(auto &&f, std::ranges::input_range auto &&...rs) -> auto {
         return std::views::zip(FWD(rs)...) | std::views::transform([&](auto &&t) {
             return std::apply(f, FWD(t));
         });
     }
 #endif
+
+    struct deref_fn : range_adaptor_closure<deref_fn> {
+        [[nodiscard]] constexpr auto operator()(std::ranges::input_range auto &&r) const {
+            return FWD(r) | std::views::transform([](auto &&x) -> decltype(auto) {
+                return *FWD(x);
+            });
+        }
+    };
+    export constexpr deref_fn deref;
 }
 }

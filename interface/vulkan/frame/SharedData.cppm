@@ -48,6 +48,7 @@ namespace vk_gltf_viewer::vulkan {
     	[[nodiscard]] auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto acquireResourceQueueFamilyOwnership(const Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
+    	auto generateAssetResourceMipmaps(vk::CommandBuffer commandBuffer) const -> void;
     	auto initAttachmentLayouts(vk::CommandBuffer commandBuffer) const -> void;
     };
 }
