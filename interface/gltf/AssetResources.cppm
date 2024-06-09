@@ -63,7 +63,7 @@ namespace vk_gltf_viewer::gltf {
                               normalTexcoordByteStride            = 2,
                               occlusionTexcoordByteStride         = 2;
             char              padding0[3];
-            std::uint16_t     baseColorTextureIndex         = -1,
+            std::int16_t      baseColorTextureIndex         = -1,
                               metallicRoughnessTextureIndex = -1,
                               normalTextureIndex            = -1,
                               occlusionTextureIndex         = -1;
