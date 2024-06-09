@@ -2,6 +2,9 @@ module;
 
 #include <cstdint>
 #include <compare>
+#ifdef _MSC_VER
+#include <execution>
+#endif
 #include <filesystem>
 #include <list>
 #include <numeric>
@@ -144,10 +147,18 @@ static_assert(sizeof(vk_gltf_viewer::gltf::AssetResources::GpuMaterial) % 64 == 
             vma::MemoryUsage::eAuto,
         });
 
+#ifdef _MSC_VER
+    const auto segmentAndCopyOffsets = std::views::zip(segments, copyOffsets) | std::views::common;
+    std::for_each(std::execution::par_unseq, segmentAndCopyOffsets.begin(), segmentAndCopyOffsets.end(), [&](const auto &segmentAndCopyOffsets) {
+        const auto &[segment, copyOffset] = segmentAndCopyOffsets;
+		std::ranges::copy(segment, static_cast<std::uint8_t*>(stagingBuffer.data) + copyOffset);
+	});
+#else
     #pragma omp parallel for
     for (const auto &[segment, copyOffset] : std::views::zip(segments, copyOffsets)){
         std::ranges::copy(segment, static_cast<std::uint8_t*>(stagingBuffer.data) + copyOffset);
     }
+#endif
 
     return { std::move(stagingBuffer), std::move(copyOffsets) };
 }

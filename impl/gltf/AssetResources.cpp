@@ -3,6 +3,9 @@ module;
 #include <cerrno>
 #include <charconv>
 #include <compare>
+#ifdef _MSC_VER
+#include <execution>
+#endif
 #include <format>
 #include <list>
 #include <ranges>
@@ -24,6 +27,7 @@ import :helpers;
 
 using namespace std::string_view_literals;
 
+#ifndef _MSC_VER
 [[nodiscard]] constexpr auto to_rvalue_range(std::ranges::input_range auto &&r) {
     return FWD(r) | std::views::as_rvalue;
 }
@@ -34,6 +38,7 @@ using namespace std::string_view_literals;
           std::vector<vku::AllocatedImage> \
         : omp_out.append_range(to_rvalue_range(omp_in))) \
     initializer(omp_priv{})
+#endif
 
 [[nodiscard]] auto createStagingDstBuffer(
     vma::Allocator allocator,
@@ -135,40 +140,49 @@ auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createBufferBytes(
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createImages(
-    const fastgltf::Asset &asset,
-    const std::filesystem::path &assetDir
+    const fastgltf::Asset& asset,
+    const std::filesystem::path& assetDir
 ) const -> decltype(images) {
+    const fastgltf::visitor visitor{
+        [](const fastgltf::sources::Array& array) -> io::StbDecoder<std::uint8_t>::DecodeResult {
+            if (array.mimeType == fastgltf::MimeType::JPEG || array.mimeType == fastgltf::MimeType::PNG) {
+                return io::StbDecoder<std::uint8_t>::fromMemory(std::span { array.bytes }, 4);
+            }
+            throw std::runtime_error { "Unsupported image MIME type" };
+        },
+        [&](const fastgltf::sources::URI& uri) -> io::StbDecoder<std::uint8_t>::DecodeResult {
+            if (!uri.uri.isLocalPath()) throw std::runtime_error { "Non-local source URI not supported." };
+
+            if (uri.mimeType == fastgltf::MimeType::JPEG || uri.mimeType == fastgltf::MimeType::PNG) {
+                return io::StbDecoder<std::uint8_t>::fromFile((assetDir / uri.uri.fspath()).string().c_str(), 4);
+            }
+            throw std::runtime_error { "Unsupported image MIME type" };
+        },
+        [&](const fastgltf::sources::BufferView& bufferView) -> io::StbDecoder<std::uint8_t>::DecodeResult {
+            if (bufferView.mimeType == fastgltf::MimeType::JPEG || bufferView.mimeType == fastgltf::MimeType::PNG) {
+                return io::StbDecoder<std::uint8_t>::fromMemory(getBufferViewBytes(asset.bufferViews[bufferView.bufferViewIndex]), 4);
+            }
+            throw std::runtime_error { "Unsupported image MIME type" };
+        },
+        [](const auto&) -> io::StbDecoder<std::uint8_t>::DecodeResult {
+            throw std::runtime_error { "Unsupported source data type" };
+        },
+    };
+
+#ifdef _MSC_VER
+    std::vector<io::StbDecoder<std::uint8_t>::DecodeResult> images(asset.images.size());
+    std::transform(std::execution::par_unseq, asset.images.begin(), asset.images.end(), images.begin(), [&](const fastgltf::Image& image) {
+        return visit(visitor, image.data);
+    });
+#else
     std::vector<io::StbDecoder<std::uint8_t>::DecodeResult> images;
     images.reserve(asset.images.size());
 
     #pragma omp parallel for reduction(merge_vec: images)
     for (const fastgltf::Image &image : asset.images) {
-        images.emplace_back(visit(fastgltf::visitor {
-            [](const fastgltf::sources::Array &array) -> io::StbDecoder<std::uint8_t>::DecodeResult {
-                if (array.mimeType == fastgltf::MimeType::JPEG || array.mimeType == fastgltf::MimeType::PNG) {
-                    return io::StbDecoder<std::uint8_t>::fromMemory(std::span { array.bytes }, 4);
-                }
-                throw std::runtime_error { "Unsupported image MIME type" };
-            },
-            [&](const fastgltf::sources::URI &uri) -> io::StbDecoder<std::uint8_t>::DecodeResult {
-                if (!uri.uri.isLocalPath()) throw std::runtime_error { "Non-local source URI not supported." };
-
-                if (uri.mimeType == fastgltf::MimeType::JPEG || uri.mimeType == fastgltf::MimeType::PNG) {
-                    return io::StbDecoder<std::uint8_t>::fromFile((assetDir / uri.uri.fspath()).c_str(), 4);
-                }
-                throw std::runtime_error { "Unsupported image MIME type" };
-            },
-            [&](const fastgltf::sources::BufferView &bufferView) -> io::StbDecoder<std::uint8_t>::DecodeResult {
-                if (bufferView.mimeType == fastgltf::MimeType::JPEG || bufferView.mimeType == fastgltf::MimeType::PNG) {
-                    return io::StbDecoder<std::uint8_t>::fromMemory(getBufferViewBytes(asset.bufferViews[bufferView.bufferViewIndex]), 4);
-                }
-                throw std::runtime_error { "Unsupported image MIME type" };
-            },
-            [](const auto &) -> io::StbDecoder<std::uint8_t>::DecodeResult {
-                throw std::runtime_error { "Unsupported source data type" };
-            },
-        }, image.data));
+        images.emplace_back(visit(visitor, image.data));
     }
+#endif
 
     return images;
 }

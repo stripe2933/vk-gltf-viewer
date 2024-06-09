@@ -40,7 +40,7 @@ namespace vk_gltf_viewer::gltf::io {
         };
 
         [[nodiscard]] static auto fromFile(const char *path, int desiredChannels = 0) -> DecodeResult {
-            constexpr auto loadFunc = [] consteval {
+            constexpr auto loadFunc = []() consteval {
                 if constexpr (std::same_as<T, stbi_uc>) return &stbi_load;
                 if constexpr (std::same_as<T, stbi_us>) return &stbi_load_16;
                 if constexpr (std::same_as<T, float>)   return &stbi_loadf;
@@ -59,7 +59,7 @@ namespace vk_gltf_viewer::gltf::io {
 
         template <typename U>
         [[nodiscard]] static auto fromMemory(std::span<const U> memory, int desiredChannels = 0) -> DecodeResult {
-            constexpr auto loadFunc = [] consteval {
+            constexpr auto loadFunc = []() consteval {
                 if constexpr (std::same_as<T, stbi_uc>) return &stbi_load_from_memory;
                 if constexpr (std::same_as<T, stbi_us>) return &stbi_load_16_from_memory;
                 if constexpr (std::same_as<T, float>)   return &stbi_loadf_from_memory;
