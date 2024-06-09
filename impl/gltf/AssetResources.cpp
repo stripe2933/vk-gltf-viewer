@@ -435,10 +435,15 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
         }, attributeBufferViewBytes | std::views::values, copyOffsets),
         copyCommandBuffer);
 
-    // Hashmap that can get buffer by corresponding buffer view index.
-    const std::unordered_map bufferMappings
-        = std::views::zip(attributeBufferViewBytes | std::views::keys, attributeBuffers)
-        | std::ranges::to<std::unordered_map<std::size_t, vk::Buffer>>();
+    // Hashmap that can get buffer device address by corresponding buffer view index.
+    const std::unordered_map bufferDeviceAddressMappings
+        = ranges::views::zip_transform(
+            [&](std::size_t bufferViewIndex, vk::Buffer buffer) {
+                return std::pair { bufferViewIndex, gpu.device.getBufferAddress({ buffer }) };
+            },
+            attributeBufferViewBytes | std::views::keys,
+            attributeBuffers)
+        | std::ranges::to<std::unordered_map<std::size_t, vk::DeviceAddress>>();
 
     // Iterate over the primitives and set their attribute infos.
     for (const fastgltf::Primitive &primitive : primitives) {
@@ -472,7 +477,7 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
             const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
             if (auto pTarget = getPTargetAttributeBufferInfo(attributeName); pTarget) {
                 **pTarget = {
-                    .address = gpu.device.getBufferAddress({ bufferMappings.at(*accessor.bufferViewIndex) }) + accessor.byteOffset,
+                    .address = bufferDeviceAddressMappings.at(*accessor.bufferViewIndex) + accessor.byteOffset,
                     .byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType)),
                 };
             }
