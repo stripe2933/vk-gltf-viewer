@@ -27,7 +27,6 @@ vk_gltf_viewer::vulkan::Frame::Frame(
     descriptorPool { createDescriptorPool(gpu.device) },
 	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
 	cameraBuffer { createCameraBuffer(gpu.allocator) },
-	nodeTransformBuffer { createNodeTransformBuffer(gpu.allocator) },
 	meshRendererSets { *gpu.device, *descriptorPool, sharedData->meshRenderer.descriptorSetLayouts },
 	swapchainImageAcquireSema { gpu.device, vk::SemaphoreCreateInfo{} },
 	drawFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
@@ -37,7 +36,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	gpu.device.updateDescriptorSets(
 	    ranges::array_cat(
 		    meshRendererSets.getDescriptorWrites0({ cameraBuffer, 0, vk::WholeSize }).get(),
-		    meshRendererSets.getDescriptorWrites1({ nodeTransformBuffer, 0, vk::WholeSize }).get()),
+		    meshRendererSets.getDescriptorWrites1({ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get()),
 		{});
 
 	// Allocate per-frame command buffers.

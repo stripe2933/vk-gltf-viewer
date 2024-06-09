@@ -23,7 +23,6 @@ namespace vk_gltf_viewer::vulkan {
 
     	// Buffer, image and image views.
     	vku::MappedBuffer cameraBuffer;
-    	vku::MappedBuffer nodeTransformBuffer;
 
     	// Descriptor sets.
     	MeshRenderer::DescriptorSets meshRendererSets;
@@ -46,7 +45,6 @@ namespace vk_gltf_viewer::vulkan {
     	[[nodiscard]] auto createPrimaryAttachmentGroup(const Gpu &gpu) const -> decltype(primaryAttachmentGroup);
     	[[nodiscard]] auto createDescriptorPool(const vk::raii::Device &device) const -> decltype(descriptorPool);
     	[[nodiscard]] auto createCameraBuffer(vma::Allocator allocator) const -> decltype(cameraBuffer);
-    	[[nodiscard]] auto createNodeTransformBuffer(vma::Allocator allocator) const -> decltype(nodeTransformBuffer);
     	[[nodiscard]] auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto initAttachmentLayouts(const Gpu &gpu) const -> void;

@@ -20,7 +20,7 @@ namespace vk_gltf_viewer::vulkan {
     	fastgltf::Expected<fastgltf::GltfDataBuffer> gltfDataBufferExpected = loadGltfDataBuffer(std::getenv("GLTF_PATH"));
     	fastgltf::Expected<fastgltf::Asset> assetExpected = loadAsset(std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path());
 		gltf::AssetResources assetResources;
-    	gltf::SceneResources sceneResources { assetExpected.get(), assetExpected->scenes[assetExpected->defaultScene.value_or(0)] };
+    	gltf::SceneResources sceneResources;
 
     	// Swapchain.
 		vk::raii::SwapchainKHR swapchain;

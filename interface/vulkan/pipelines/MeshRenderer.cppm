@@ -54,7 +54,6 @@ namespace vk_gltf_viewer::vulkan {
 
         // Pipeline resource types.
         struct Camera { glm::mat4 projectionView; glm::vec3 viewPosition; };
-        struct NodeTransform { glm::mat4 matrix; glm::mat4 inverseMatrix = inverse(matrix); };
 
         DescriptorSetLayouts descriptorSetLayouts;
         vk::raii::PipelineLayout pipelineLayout;

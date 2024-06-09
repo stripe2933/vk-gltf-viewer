@@ -19,6 +19,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	const vk::Extent2D &swapchainExtent,
     const shaderc::Compiler &compiler
 ) : assetResources { assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), gpu },
+	sceneResources { assetExpected.get(), assetExpected->scenes[assetExpected->defaultScene.value_or(0)], gpu },
 	swapchain { createSwapchain(gpu, surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent },
 	meshRenderer { gpu.device, compiler },
