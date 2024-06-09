@@ -5,7 +5,6 @@ module;
 #include <array>
 #include <format>
 #include <limits>
-#include <mutex>
 #include <ranges>
 #include <stack>
 #include <stdexcept>
