@@ -240,6 +240,10 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	primaryAttachmentGroup.setViewport(cb, true);
 	primaryAttachmentGroup.setScissor(cb);
 
+	// Draw glTF mesh.
+	sharedData->meshRenderer.bindPipeline(cb);
+	sharedData->meshRenderer.bindDescriptorSets(cb, meshRendererSets);
+
 	// Collect glTF mesh primitives.
 	std::vector<std::tuple<std::size_t /* nodeIndex */, std::size_t /* materialIndex */, const gltf::AssetResources::PrimitiveData*>> primitives;
 	for (std::stack dfs { std::from_range, sharedData->assetExpected->scenes[sharedData->assetExpected->defaultScene.value_or(0)].nodeIndices | std::views::reverse }; !dfs.empty(); ) {
@@ -258,31 +262,49 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	}
 
 	// Sort primitive by index type.
-	constexpr auto getIndexType = [](const auto &primitive) { return get<2>(primitive)->indexInfo.type; };
+	constexpr auto getIndexType = [](const auto &primitive) {
+		return get<2>(primitive)->indexInfo
+			.transform([](const auto &info) { return info.type; });
+	};
 	std::ranges::sort(primitives, {}, getIndexType);
-	sharedData->meshRenderer.bindPipeline(cb);
-	sharedData->meshRenderer.bindDescriptorSets(cb, meshRendererSets);
 	for (auto primitivesWithSameIndexType : std::views::chunk_by(primitives, [&](const auto &lhs, const auto &rhs) { return getIndexType(lhs) == getIndexType(rhs); })) {
-		const vk::IndexType indexType = getIndexType(primitivesWithSameIndexType.front());
-		const std::size_t indexByteSize = [=]() {
-			switch (indexType) {
-				case vk::IndexType::eUint16: return sizeof(std::uint16_t);
-				case vk::IndexType::eUint32: return sizeof(std::uint32_t);
-				default: throw std::runtime_error{ "Unsupported index type: only Uint16 and Uint32 are supported" };
-			};
-		}();
-		cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(indexType), 0, indexType);
+		if (std::optional indexType = getIndexType(primitivesWithSameIndexType.front()); indexType) {
+			const std::size_t indexByteSize = [=]() {
+				switch (*indexType) {
+					case vk::IndexType::eUint16: return sizeof(std::uint16_t);
+					case vk::IndexType::eUint32: return sizeof(std::uint32_t);
+					default: throw std::runtime_error{ "Unsupported index type: only Uint16 and Uint32 are supported" };
+				};
+			}();
+			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
 
-		for (const auto [nodeIndex, materialIndex, pPrimitiveData] : primitivesWithSameIndexType) {
-			sharedData->meshRenderer.pushConstants(cb, {
-		        .pPositionBuffer = pPrimitiveData->positionInfo.address,
-		        .pNormalBuffer = pPrimitiveData->normalInfo.value().address,
-		        .positionByteStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride),
-		        .normalByteStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride),
-	            .nodeIndex = static_cast<std::uint32_t>(nodeIndex),
-	            .materialIndex = static_cast<std::uint32_t>(materialIndex),
-			});
-			cb.drawIndexed(pPrimitiveData->indexInfo.drawCount, 1, pPrimitiveData->indexInfo.offset / indexByteSize, 0, 0);
+			for (const auto [nodeIndex, materialIndex, pPrimitiveData] : primitivesWithSameIndexType) {
+				sharedData->meshRenderer.pushConstants(cb, {
+			    	.pPositionBuffer = pPrimitiveData->positionInfo.address,
+			    	.pNormalBuffer = pPrimitiveData->normalInfo.value().address,
+			    	.positionByteStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride),
+			    	.normalByteStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride),
+			    	.nodeIndex = static_cast<std::uint32_t>(nodeIndex),
+			    	.materialIndex = static_cast<std::uint32_t>(materialIndex),
+			    });
+				cb.drawIndexed(
+					pPrimitiveData->drawCount, 1,
+					pPrimitiveData->indexInfo->offset / indexByteSize, 0, 0);
+			}
+		}
+		else {
+			for (const auto [nodeIndex, materialIndex, pPrimitiveData] : primitivesWithSameIndexType) {
+				sharedData->meshRenderer.pushConstants(cb, {
+		            .pPositionBuffer = pPrimitiveData->positionInfo.address,
+		            .pNormalBuffer = pPrimitiveData->normalInfo.value().address,
+		            .positionByteStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride),
+		            .normalByteStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride),
+	                .nodeIndex = static_cast<std::uint32_t>(nodeIndex),
+	                .materialIndex = static_cast<std::uint32_t>(materialIndex),
+			    });
+
+				cb.draw(pPrimitiveData->drawCount, 1, 0, 0);
+			}
 		}
 	}
 

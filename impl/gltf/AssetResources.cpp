@@ -209,8 +209,8 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     } };
     vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
         stageImages(resourceBytes, gpu.allocator, cb);
-        setPrimitiveIndexData(asset, resourceBytes, gpu.allocator, cb);
         setPrimitiveAttributeData(asset, resourceBytes, gpu, cb);
+        setPrimitiveIndexData(asset, resourceBytes, gpu.allocator, cb);
         stageMaterials(asset, gpu.allocator, cb);
 
         releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
@@ -380,73 +380,6 @@ auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
     } };
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveIndexData(
-    const fastgltf::Asset &asset,
-    const ResourceBytes &resourceBytes,
-    vma::Allocator allocator,
-    vk::CommandBuffer copyCommandBuffer
-) -> void {
-    // Primitive that are contains an indices accessor.
-    auto indexedPrimitives = asset.meshes
-        | std::views::transform(&fastgltf::Mesh::primitives)
-        | std::views::join
-        | std::views::filter([](const fastgltf::Primitive &primitive) { return primitive.indicesAccessor.has_value(); });
-
-    // Get buffer view bytes from indexedPrimtives and group them by index type.
-    std::unordered_map<vk::IndexType, std::vector<std::pair<const fastgltf::Primitive*, std::span<const std::uint8_t>>>> indexBufferBytesByType;
-    for (const fastgltf::Primitive &primitive : indexedPrimitives) {
-        const fastgltf::Accessor &accessor = asset.accessors[*primitive.indicesAccessor];
-
-        // Check accessor validity.
-        if (accessor.sparse) throw std::runtime_error { "Sparse indices accessor not supported" };
-        if (accessor.normalized) throw std::runtime_error { "Normalized indices accessor not supported" };
-        if (!accessor.bufferViewIndex) throw std::runtime_error { "Missing indices accessor buffer view index" };
-        const std::size_t componentByteSize = getElementByteSize(accessor.type, accessor.componentType);
-        // TODO: use monadic operation when fastgltf correctly support it.
-        // const bool isIndexInterleaved
-        //     = asset.bufferViews[*accessor.bufferViewIndex].byteStride
-        //     .transform([=](std::size_t stride) { return stride != componentByteSize; })
-        //     .value_or(false);
-        bool isIndexInterleaved = false;
-        if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride; byteStride) {
-            isIndexInterleaved = *byteStride != componentByteSize;
-        }
-        if (isIndexInterleaved) throw std::runtime_error { "Interleaved index buffer not supported" };
-
-        const vk::IndexType indexType = [&]() {
-            switch (accessor.componentType) {
-                case fastgltf::ComponentType::UnsignedShort: return vk::IndexType::eUint16;
-                case fastgltf::ComponentType::UnsignedInt: return vk::IndexType::eUint32;
-                default: throw std::runtime_error { "Unsupported index type" };
-            }
-        }();
-        indexBufferBytesByType[indexType].emplace_back(
-            &primitive,
-            resourceBytes.getBufferViewBytes(asset.bufferViews[*accessor.bufferViewIndex])
-                .subspan(accessor.byteOffset, accessor.count * componentByteSize));
-    }
-
-    // Create combined staging buffers and GPU local buffers for each indexBufferBytes, and record copy commands to the
-    // copyCommandBuffer.
-    indexBuffers = indexBufferBytesByType
-        | std::views::transform([&](const auto &keyValue) {
-            const auto &[indexType, bufferBytes] = keyValue;
-            const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(allocator, bufferBytes | std::views::values);
-            auto indexBuffer = createStagingDstBuffer(allocator, stagingBuffer, vk::BufferUsageFlagBits::eIndexBuffer, copyCommandBuffer);
-
-            for (auto [pPrimitive, offset] : std::views::zip(bufferBytes | std::views::keys, copyOffsets)) {
-                primitiveData[pPrimitive].indexInfo = {
-                    .offset = offset,
-                    .type = indexType,
-                    .drawCount = static_cast<std::uint32_t>(asset.accessors[*pPrimitive->indicesAccessor].count),
-                };
-            }
-
-            return std::pair { indexType, std::move(indexBuffer) };
-        })
-        | std::ranges::to<std::unordered_map<vk::IndexType, vku::AllocatedBuffer>>();
-}
-
 auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
     const fastgltf::Asset &asset,
     const ResourceBytes &resourceBytes,
@@ -539,8 +472,77 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
                     .byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType)),
                 };
             }
+
+            if (attributeName == "POSITION") {
+                data.drawCount = accessor.count;
+            }
         }
     }
+}
+
+auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveIndexData(
+    const fastgltf::Asset &asset,
+    const ResourceBytes &resourceBytes,
+    vma::Allocator allocator,
+    vk::CommandBuffer copyCommandBuffer
+) -> void {
+    // Primitive that are contains an indices accessor.
+    auto indexedPrimitives = asset.meshes
+        | std::views::transform(&fastgltf::Mesh::primitives)
+        | std::views::join
+        | std::views::filter([](const fastgltf::Primitive &primitive) { return primitive.indicesAccessor.has_value(); });
+
+    // Get buffer view bytes from indexedPrimtives and group them by index type.
+    std::unordered_map<vk::IndexType, std::vector<std::pair<const fastgltf::Primitive*, std::span<const std::uint8_t>>>> indexBufferBytesByType;
+    for (const fastgltf::Primitive &primitive : indexedPrimitives) {
+        const fastgltf::Accessor &accessor = asset.accessors[*primitive.indicesAccessor];
+
+        // Check accessor validity.
+        if (accessor.sparse) throw std::runtime_error { "Sparse indices accessor not supported" };
+        if (accessor.normalized) throw std::runtime_error { "Normalized indices accessor not supported" };
+        if (!accessor.bufferViewIndex) throw std::runtime_error { "Missing indices accessor buffer view index" };
+        const std::size_t componentByteSize = getElementByteSize(accessor.type, accessor.componentType);
+        // TODO: use monadic operation when fastgltf correctly support it.
+        // const bool isIndexInterleaved
+        //     = asset.bufferViews[*accessor.bufferViewIndex].byteStride
+        //     .transform([=](std::size_t stride) { return stride != componentByteSize; })
+        //     .value_or(false);
+        bool isIndexInterleaved = false;
+        if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride; byteStride) {
+            isIndexInterleaved = *byteStride != componentByteSize;
+        }
+        if (isIndexInterleaved) throw std::runtime_error { "Interleaved index buffer not supported" };
+
+        const vk::IndexType indexType = [&]() {
+            switch (accessor.componentType) {
+                case fastgltf::ComponentType::UnsignedShort: return vk::IndexType::eUint16;
+                case fastgltf::ComponentType::UnsignedInt: return vk::IndexType::eUint32;
+                default: throw std::runtime_error { "Unsupported index type" };
+            }
+        }();
+        indexBufferBytesByType[indexType].emplace_back(
+            &primitive,
+            resourceBytes.getBufferViewBytes(asset.bufferViews[*accessor.bufferViewIndex])
+                .subspan(accessor.byteOffset, accessor.count * componentByteSize));
+    }
+
+    // Create combined staging buffers and GPU local buffers for each indexBufferBytes, and record copy commands to the
+    // copyCommandBuffer.
+    indexBuffers = indexBufferBytesByType
+        | std::views::transform([&](const auto &keyValue) {
+            const auto &[indexType, bufferBytes] = keyValue;
+            const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(allocator, bufferBytes | std::views::values);
+            auto indexBuffer = createStagingDstBuffer(allocator, stagingBuffer, vk::BufferUsageFlagBits::eIndexBuffer, copyCommandBuffer);
+
+            for (auto [pPrimitive, offset] : std::views::zip(bufferBytes | std::views::keys, copyOffsets)) {
+                PrimitiveData &data = primitiveData[pPrimitive];
+                data.indexInfo.emplace(offset, indexType);
+                data.drawCount = asset.accessors[*pPrimitive->indicesAccessor].count;
+            }
+
+            return std::pair { indexType, std::move(indexBuffer) };
+        })
+        | std::ranges::to<std::unordered_map<vk::IndexType, vku::AllocatedBuffer>>();
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(

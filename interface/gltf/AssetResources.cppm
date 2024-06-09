@@ -45,10 +45,11 @@ namespace vk_gltf_viewer::gltf {
 
     public:
         struct PrimitiveData {
-            struct IndexBufferInfo { vk::DeviceSize offset; vk::IndexType type; std::uint32_t drawCount; };
+            struct IndexBufferInfo { vk::DeviceSize offset; vk::IndexType type; };
             struct AttributeBufferInfo { vk::DeviceAddress address; vk::DeviceSize byteStride; };
 
-            IndexBufferInfo indexInfo;
+            std::uint32_t drawCount;
+            std::optional<IndexBufferInfo> indexInfo;
             AttributeBufferInfo positionInfo;
             std::optional<AttributeBufferInfo> normalInfo, tangentInfo;
             std::unordered_map<std::size_t, AttributeBufferInfo> texcoordInfos, colorInfos;
@@ -102,8 +103,8 @@ namespace vk_gltf_viewer::gltf {
         [[nodiscard]] auto createMaterialBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const -> decltype(materialBuffer);
 
         auto stageImages(const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto setPrimitiveIndexData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
         auto setPrimitiveAttributeData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto setPrimitiveIndexData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
         auto stageMaterials(const fastgltf::Asset &asset, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
 
         auto releaseResourceQueueFamilyOwnership(const vulkan::Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
