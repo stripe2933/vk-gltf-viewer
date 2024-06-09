@@ -145,7 +145,9 @@ auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createImages(
 ) const -> decltype(images) {
     const fastgltf::visitor visitor{
         [](const fastgltf::sources::Array& array) -> io::StbDecoder<std::uint8_t>::DecodeResult {
-            if (array.mimeType == fastgltf::MimeType::JPEG || array.mimeType == fastgltf::MimeType::PNG) {
+            // TODO: handle MimeType::None correctly.
+            if (array.mimeType == fastgltf::MimeType::JPEG || array.mimeType == fastgltf::MimeType::PNG ||
+                array.mimeType == fastgltf::MimeType::None) {
                 return io::StbDecoder<std::uint8_t>::fromMemory(std::span { array.bytes }, 4);
             }
             throw std::runtime_error { "Unsupported image MIME type" };
@@ -153,7 +155,9 @@ auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createImages(
         [&](const fastgltf::sources::URI& uri) -> io::StbDecoder<std::uint8_t>::DecodeResult {
             if (!uri.uri.isLocalPath()) throw std::runtime_error { "Non-local source URI not supported." };
 
-            if (uri.mimeType == fastgltf::MimeType::JPEG || uri.mimeType == fastgltf::MimeType::PNG) {
+            // TODO: handle MimeType::None correctly.
+            if (uri.mimeType == fastgltf::MimeType::JPEG || uri.mimeType == fastgltf::MimeType::PNG ||
+                uri.mimeType == fastgltf::MimeType::None) {
                 return io::StbDecoder<std::uint8_t>::fromFile((assetDir / uri.uri.fspath()).string().c_str(), 4);
             }
             throw std::runtime_error { "Unsupported image MIME type" };
