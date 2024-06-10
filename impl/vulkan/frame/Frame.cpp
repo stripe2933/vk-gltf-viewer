@@ -27,6 +27,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
 	cameraBuffer { createCameraBuffer(gpu.allocator) },
 	meshRendererSets { *gpu.device, *descriptorPool, sharedData->meshRenderer.descriptorSetLayouts },
+    skyboxSets { *gpu.device, *descriptorPool, sharedData->skyboxRenderer.descriptorSetLayouts },
 	swapchainImageAcquireSema { gpu.device, vk::SemaphoreCreateInfo{} },
 	drawFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
 	blitToSwapchainFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
@@ -43,7 +44,8 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 				sharedData->assetResources.textures,
 		    	{ sharedData->assetResources.materialBuffer, 0, vk::WholeSize }).get(),
 		    meshRendererSets.getDescriptorWrites2(
-		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get()),
+		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
+		    skyboxSets.getDescriptorWrites0(*sharedData->cubemapImageView).get()),
 		{});
 
 	// Allocate per-frame command buffers.
@@ -150,24 +152,26 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
     const std::array poolSizes {
     	vk::DescriptorPoolSize {
     		vk::DescriptorType::eCombinedImageSampler,
-    		1 /* prefilteredmap */
-    		+ 1 /* brdfmap */
-    		+ static_cast<std::uint32_t>(sharedData->assetResources.textures.size()),
+    		1 /* MeshRenderer prefilteredmap */
+    		+ 1 /* MeshRenderer brdfmap */
+    		+ static_cast<std::uint32_t>(sharedData->assetResources.textures.size()) /* MeshRenderer textures */
+    		+ 1 /* SkyboxRenderer cubemap */,
     	},
     	vk::DescriptorPoolSize {
     		vk::DescriptorType::eStorageBuffer,
-    		1 /* materialBuffer */
-    		+ 1, /* nodeTransformBuffer */
+    		1 /* MeshRenderer materialBuffer */
+    		+ 1 /* MeshRenderer nodeTransformBuffer */,
     	},
     	vk::DescriptorPoolSize {
     	    vk::DescriptorType::eUniformBuffer,
-    		1 /* cameraBuffer */
-    		+ 1, /* cubemapSphericalHarmonicsBuffer */
+    		1 /* MeshRenderer cameraBuffer */
+    		+ 1 /* MeshRenderer cubemapSphericalHarmonicsBuffer */,
     	},
     };
 	return { device, vk::DescriptorPoolCreateInfo{
 		vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind,
-		3,
+		3 /* MeshRenderer */
+		+ 1 /* SkyboxRenderer */,
 		poolSizes,
 	} };
 }
@@ -226,14 +230,21 @@ auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
 	gpu.queues.graphicsPresent.waitIdle();
 }
 
+// TODO: does this really need to be here? ^^;;;
+float rotation = 0.f;
+glm::mat4 view;
+glm::mat4 projection;
+
 auto vk_gltf_viewer::vulkan::Frame::update() -> void {
-	constexpr glm::vec3 viewPosition { 0.5f };
-	const MeshRenderer::Camera camera {
-		glm::gtc::perspective(glm::radians(45.0f), vku::aspect(sharedData->swapchainExtent), 0.1f, 100.0f)
-		    * glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f }, glm::vec3{ 0.f, 1.f, 0.f }),
+	rotation += 1e-2f;
+
+	const auto viewPosition = glm::vec3 { 40.f * std::cos(rotation), 1.f, 40.f * std::sin(rotation) };
+	view = glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f, 1.f, 0.f }, glm::vec3{ 0.f, 1.f, 0.f });
+	projection = glm::gtc::perspective(glm::radians(45.0f), vku::aspect(sharedData->swapchainExtent), 0.1f, 1e2f);
+	cameraBuffer.asValue<pipelines::MeshRenderer::Camera>() = {
+		projection * view,
 		viewPosition,
 	};
-	cameraBuffer.asValue<pipelines::MeshRenderer::Camera>() = camera;
 }
 
 auto vk_gltf_viewer::vulkan::Frame::draw(
@@ -346,6 +357,9 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 			}
 		}
 	}
+
+	// Draw skybox.
+	sharedData->skyboxRenderer.draw(cb, skyboxSets, { projection * glm::mat4 { glm::mat3 { view } } });
 
 	// End dynamic rendering.
 	cb.endRenderingKHR();

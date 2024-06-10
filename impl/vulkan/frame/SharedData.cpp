@@ -28,6 +28,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	swapchain { createSwapchain(gpu, surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent },
 	meshRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler },
+	skyboxRenderer { gpu, compiler },
 	swapchainAttachmentGroups { createSwapchainAttachmentGroups(gpu.device) },
 	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
 	transferCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.transfer) },

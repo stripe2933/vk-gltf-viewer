@@ -26,6 +26,7 @@ namespace vk_gltf_viewer::vulkan {
 
     	// Descriptor sets.
     	pipelines::MeshRenderer::DescriptorSets meshRendererSets;
+    	pipelines::SkyboxRenderer::DescriptorSets skyboxSets;
 
     	// Command buffers.
     	vk::CommandBuffer drawCommandBuffer, blitToSwapchainCommandBuffer;

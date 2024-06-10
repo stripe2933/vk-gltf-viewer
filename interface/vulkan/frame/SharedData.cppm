@@ -29,6 +29,7 @@ namespace vk_gltf_viewer::vulkan {
 
 		// Pipelines.
 		pipelines::MeshRenderer meshRenderer;
+		pipelines::SkyboxRenderer skyboxRenderer;
 
     	// Attachment groups.
     	std::vector<vku::AttachmentGroup> swapchainAttachmentGroups;

@@ -122,6 +122,7 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/Gpu.cpp
 	impl/vulkan/pipelines/BrdfmapComputer.cpp
 	impl/vulkan/pipelines/MeshRenderer.cpp
+	impl/vulkan/pipelines/SkyboxRenderer.cpp
 	main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
@@ -156,6 +157,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipelines/mod.cppm
 		interface/vulkan/pipelines/BrdfmapComputer.cppm
 		interface/vulkan/pipelines/MeshRenderer.cppm
+		interface/vulkan/pipelines/SkyboxRenderer.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
 	fastgltf::fastgltf
