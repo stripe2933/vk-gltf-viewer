@@ -2,6 +2,7 @@ module;
 
 #include <cstdlib>
 #include <algorithm>
+#include <charconv>
 #include <ranges>
 #include <tuple>
 #include <unordered_map>
@@ -39,17 +40,12 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	prefilteredmapImageView { gpu.device, prefilteredmapTexture.getImageViewCreateInfo() },
     cubemapSphericalHarmonicsBuffer {
     	gpu.allocator,
-    	std::from_range, std::array {
-    		2.7587876f, 2.0989325f, 1.7705394f,
-			-0.73479897f, -0.15493552f, 0.23305114f,
-			1.1079133f, 0.631953f, 0.37011847f,
-			0.19294362f, 0.5683571f, 0.8914644f,
-			0.22942889f, 0.18320735f, 0.25089666f,
-			-1.0598593f, -0.41463852f, -0.044216275f,
-			-0.07484526f, -0.47375235f, -0.7829024f,
-			-0.1877947f, 0.19751835f, 0.48172066f,
-			0.48739594f, 1.1162034f, 1.6161786f,
-    	},
+    	std::from_range,
+    	std::string { std::getenv("CUBEMAP_SH_COEFFS") }
+    		| std::views::split(',')
+    		| std::views::transform([](auto r) { return std::stof(std::string { r.begin(), r.end() }); })
+    		| std::views::take(27)
+    		| std::ranges::to<std::vector<float>>(),
     	vk::BufferUsageFlagBits::eUniformBuffer,
     },
 	brdfmapImage { gpu.allocator, vk::ImageCreateInfo {
