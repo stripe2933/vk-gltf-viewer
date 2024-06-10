@@ -7,6 +7,7 @@ module;
 #include <shaderc/shaderc.hpp>
 
 export module vk_gltf_viewer:vulkan.pipelines.BrdfmapComputer;
+
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::pipelines {
