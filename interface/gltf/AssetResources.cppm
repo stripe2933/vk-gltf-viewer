@@ -60,10 +60,10 @@ namespace vk_gltf_viewer::gltf {
                               pMetallicRoughnessTexcoordBuffer = 0,
                               pNormalTexcoordBuffer            = 0,
                               pOcclusionTexcoordBuffer         = 0;
-            std::uint8_t      baseColorTexcoordByteStride         = 2,
-                              metallicRoughnessTexcoordByteStride = 2,
-                              normalTexcoordByteStride            = 2,
-                              occlusionTexcoordByteStride         = 2;
+            std::uint8_t      baseColorTexcoordFloatStride         = 2,
+                              metallicRoughnessTexcoordFloatStride = 2,
+                              normalTexcoordFloatStride            = 2,
+                              occlusionTexcoordFloatStride         = 2;
             char              padding0[12];
             std::int16_t      baseColorTextureIndex         = -1,
                               metallicRoughnessTextureIndex = -1,

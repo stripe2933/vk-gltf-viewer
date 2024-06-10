@@ -68,8 +68,8 @@ namespace vk_gltf_viewer::vulkan {
         struct PushConstant {
             vk::DeviceAddress pPositionBuffer;
             vk::DeviceAddress pNormalBuffer;
-            std::uint8_t positionByteStride;
-            std::uint8_t normalByteStride;
+            std::uint8_t positionFloatStride;
+            std::uint8_t normalFloatStride;
             char padding[14];
             std::uint32_t nodeIndex;
             std::uint32_t materialIndex;

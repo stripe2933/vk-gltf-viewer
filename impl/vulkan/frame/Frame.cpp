@@ -281,8 +281,8 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 				sharedData->meshRenderer.pushConstants(cb, {
 			    	.pPositionBuffer = pPrimitiveData->positionInfo.address,
 			    	.pNormalBuffer = pPrimitiveData->normalInfo.value().address,
-			    	.positionByteStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride),
-			    	.normalByteStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride),
+			    	.positionFloatStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride / sizeof(float)),
+			    	.normalFloatStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride / sizeof(float)),
 			    	.nodeIndex = static_cast<std::uint32_t>(nodeIndex),
 			    	.materialIndex = static_cast<std::uint32_t>(materialIndex),
 			    });
@@ -296,8 +296,8 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 				sharedData->meshRenderer.pushConstants(cb, {
 		            .pPositionBuffer = pPrimitiveData->positionInfo.address,
 		            .pNormalBuffer = pPrimitiveData->normalInfo.value().address,
-		            .positionByteStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride),
-		            .normalByteStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride),
+		            .positionFloatStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride / sizeof(float)),
+		            .normalFloatStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride / sizeof(float)),
 	                .nodeIndex = static_cast<std::uint32_t>(nodeIndex),
 	                .materialIndex = static_cast<std::uint32_t>(materialIndex),
 			    });

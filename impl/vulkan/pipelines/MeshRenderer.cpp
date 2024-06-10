@@ -35,10 +35,10 @@ struct Material {
     FloatBufferAddress pMetallicRoughnessTexcoordBuffer;
     FloatBufferAddress pNormalTexcoordBuffer;
     FloatBufferAddress pOcclusionTexcoordBuffer;
-    uint8_t baseColorTexcoordByteStride;
-    uint8_t metallicRoughnessTexcoordByteStride;
-    uint8_t normalTexcoordByteStride;
-    uint8_t occlusionTexcoordByteStride;
+    uint8_t baseColorTexcoordFloatStride;
+    uint8_t metallicRoughnessTexcoordFloatStride;
+    uint8_t normalTexcoordFloatStride;
+    uint8_t occlusionTexcoordFloatStride;
     uint8_t padding0[12];
     int16_t baseColorTextureIndex;
     int16_t metallicRoughnessTextureIndex;
@@ -70,8 +70,8 @@ layout (set = 2, binding = 0) readonly buffer NodeTransformBuffer {
 layout (push_constant, std430) uniform PushConstant {
     FloatBufferAddress pPositionBuffer;
     FloatBufferAddress pNormalBuffer;
-    uint8_t positionByteStride;
-    uint8_t normalByteStride;
+    uint8_t positionFloatStride;
+    uint8_t normalFloatStride;
     uint8_t padding[14];
     uint nodeIndex;
     uint materialIndex;
@@ -90,23 +90,23 @@ vec3 composeVec3(readonly FloatBufferAddress address, uint floatStride, uint ind
 }
 
 void main(){
-    vec3 inPosition = composeVec3(pc.pPositionBuffer, uint(pc.positionByteStride) / 4, gl_VertexIndex);
-    vec3 inNormal = composeVec3(pc.pNormalBuffer, uint(pc.normalByteStride) / 4, gl_VertexIndex);
+    vec3 inPosition = composeVec3(pc.pPositionBuffer, uint(pc.positionFloatStride), gl_VertexIndex);
+    vec3 inNormal = composeVec3(pc.pNormalBuffer, uint(pc.normalFloatStride), gl_VertexIndex);
 
     fragPosition = (TRANSFORM.matrix * vec4(inPosition, 1.0)).xyz;
     fragNormal = transpose(mat3(TRANSFORM.inverseMatrix)) * inNormal;
 
     if (int(MATERIAL.baseColorTextureIndex) != -1){
-        fragBaseColorTexcoord = composeVec2(MATERIAL.pBaseColorTexcoordBuffer, uint(MATERIAL.baseColorTexcoordByteStride) / 4, gl_VertexIndex);
+        fragBaseColorTexcoord = composeVec2(MATERIAL.pBaseColorTexcoordBuffer, uint(MATERIAL.baseColorTexcoordFloatStride), gl_VertexIndex);
     }
     if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
-        fragMetallicRoughnessTexcoord = composeVec2(MATERIAL.pMetallicRoughnessTexcoordBuffer, uint(MATERIAL.metallicRoughnessTexcoordByteStride) / 4, gl_VertexIndex);
+        fragMetallicRoughnessTexcoord = composeVec2(MATERIAL.pMetallicRoughnessTexcoordBuffer, uint(MATERIAL.metallicRoughnessTexcoordFloatStride), gl_VertexIndex);
     }
     if (int(MATERIAL.normalTextureIndex) != -1){
-        fragNormalTexcoord = composeVec2(MATERIAL.pNormalTexcoordBuffer, uint(MATERIAL.normalTexcoordByteStride) / 4, gl_VertexIndex);
+        fragNormalTexcoord = composeVec2(MATERIAL.pNormalTexcoordBuffer, uint(MATERIAL.normalTexcoordFloatStride), gl_VertexIndex);
     }
     if (int(MATERIAL.occlusionTextureIndex) != -1){
-        fragOcclusionTexcoord = composeVec2(MATERIAL.pOcclusionTexcoordBuffer, uint(MATERIAL.occlusionTexcoordByteStride) / 4, gl_VertexIndex);
+        fragOcclusionTexcoord = composeVec2(MATERIAL.pOcclusionTexcoordBuffer, uint(MATERIAL.occlusionTexcoordFloatStride), gl_VertexIndex);
     }
 
     gl_Position = camera.projectionView * vec4(fragPosition, 1.0);

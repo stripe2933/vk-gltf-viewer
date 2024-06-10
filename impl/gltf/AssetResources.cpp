@@ -590,19 +590,19 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
 
         if (const auto &baseColorTexture = material.pbrData.baseColorTexture; baseColorTexture) {
             gpuMaterial.pBaseColorTexcoordBuffer = primitiveData.texcoordInfos.at(baseColorTexture->texCoordIndex).address;
-            gpuMaterial.baseColorTexcoordByteStride = primitiveData.texcoordInfos.at(baseColorTexture->texCoordIndex).byteStride;
+            gpuMaterial.baseColorTexcoordFloatStride = primitiveData.texcoordInfos.at(baseColorTexture->texCoordIndex).byteStride / sizeof(float);
         }
         if (const auto &metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture; metallicRoughnessTexture) {
             gpuMaterial.pMetallicRoughnessTexcoordBuffer = primitiveData.texcoordInfos.at(metallicRoughnessTexture->texCoordIndex).address;
-            gpuMaterial.metallicRoughnessTexcoordByteStride = primitiveData.texcoordInfos.at(metallicRoughnessTexture->texCoordIndex).byteStride;
+            gpuMaterial.metallicRoughnessTexcoordFloatStride = primitiveData.texcoordInfos.at(metallicRoughnessTexture->texCoordIndex).byteStride / sizeof(float);
         }
         if (const auto &normalTexture = material.normalTexture; normalTexture) {
             gpuMaterial.pNormalTexcoordBuffer = primitiveData.texcoordInfos.at(normalTexture->texCoordIndex).address;
-            gpuMaterial.normalTexcoordByteStride = primitiveData.texcoordInfos.at(normalTexture->texCoordIndex).byteStride;
+            gpuMaterial.normalTexcoordFloatStride = primitiveData.texcoordInfos.at(normalTexture->texCoordIndex).byteStride / sizeof(float);
         }
         if (const auto &occlusionTexture = material.occlusionTexture; occlusionTexture) {
             gpuMaterial.pOcclusionTexcoordBuffer = primitiveData.texcoordInfos.at(occlusionTexture->texCoordIndex).address;
-            gpuMaterial.occlusionTexcoordByteStride = primitiveData.texcoordInfos.at(occlusionTexture->texCoordIndex).byteStride;
+            gpuMaterial.occlusionTexcoordFloatStride = primitiveData.texcoordInfos.at(occlusionTexture->texCoordIndex).byteStride / sizeof(float);
         }
     }
 
