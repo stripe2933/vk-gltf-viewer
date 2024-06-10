@@ -20,25 +20,25 @@ auto vk_gltf_viewer::gltf::SceneResources::createNodeTransformBuffer(
 ) const -> decltype(nodeTransformBuffer) {
     std::vector<NodeTransform> nodeTransforms(asset.nodes.size());
     const auto calculateNodeTransformsRecursive
-        = [&](this const auto &self, std::size_t nodeIndex, fastgltf::math::fmat4x4 transform) -> void {
+        = [&](this const auto &self, std::size_t nodeIndex, glm::mat4 transform) -> void {
             const fastgltf::Node &node = asset.nodes[nodeIndex];
             transform = transform * visit(fastgltf::visitor {
                 [](const fastgltf::TRS &trs) {
-                    return translate(fastgltf::math::fmat4x4 { 1.f }, trs.translation)
-                        * fastgltf::math::fmat4x4 { asMatrix(trs.rotation) }
-                        * scale(fastgltf::math::fmat4x4 { 1.f }, trs.scale);
+                    return glm::gtc::translate(glm::mat4 { 1.f }, glm::gtc::make_vec3(trs.translation.data()))
+                        * glm::gtc::mat4_cast(glm::gtc::make_quat(trs.rotation.data()))
+                        * glm::gtc::scale(glm::mat4 { 1.f }, glm::gtc::make_vec3(trs.scale.data()));
                 },
-                [](const fastgltf::math::fmat4x4 &mat) {
-                    return mat;
+                [](const fastgltf::Node::TransformMatrix &mat) {
+                    return glm::gtc::make_mat4(mat.data());
                 },
             }, node.transform);
-            nodeTransforms[nodeIndex] = { .matrix = glm::gtc::make_mat4(transform.data()) };
+            nodeTransforms[nodeIndex] = { .matrix = glm::gtc::make_mat4(&transform[0][0]) };
             for (std::size_t childIndex : node.children) {
                 self(childIndex, transform);
             }
         };
     for (std::size_t nodeIndex : scene.nodeIndices) {
-        calculateNodeTransformsRecursive(nodeIndex, fastgltf::math::fmat4x4 { 1.f });
+        calculateNodeTransformsRecursive(nodeIndex, { 1.f });
     }
 
     return {

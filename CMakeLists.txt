@@ -16,22 +16,20 @@ include(${CMAKE_BINARY_DIR}/cmake/CPM.cmake)
 # External dependencies.
 # --------------------
 
-find_package(glm CONFIG REQUIRED)
-if (NOT MSVC)
-	find_package(OpenMP REQUIRED) # For MSVC, use <execution> instead.
+if (NOT MSVC) # For MSVC, use <execution> instead.
+	find_package(OpenMP REQUIRED)
+	# OpenMP must be linked to all C++ modules for definition consistency.
+	link_libraries(OpenMP::OpenMP_CXX) # Therefore it's in here.
 endif()
+
+find_package(fastgltf CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(Vulkan REQUIRED)
-
-CPMAddPackage("gh:stripe2933/fastgltf#main")
 
 # --------------------
 # Module configurations for the external dependencies.
 # --------------------
-
-if (NOT MSVC)
-	link_libraries(OpenMP::OpenMP_CXX) # OpenMP must be linked to all C++ modules for definition consistency.
-endif()
 
 if (NOT TARGET Vulkan-Hpp_module)
 	add_library(Vulkan-Hpp_module)

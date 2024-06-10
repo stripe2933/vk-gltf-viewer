@@ -245,11 +245,11 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 
 	// Collect glTF mesh primitives.
 	std::vector<std::tuple<std::size_t /* nodeIndex */, std::size_t /* materialIndex */, const gltf::AssetResources::PrimitiveData*>> primitives;
-	for (std::stack dfs { std::from_range, sharedData->assetExpected->scenes[sharedData->assetExpected->defaultScene.value_or(0)].nodeIndices | std::views::reverse }; !dfs.empty(); ) {
+	for (std::stack dfs { std::from_range, sharedData->asset.scenes[sharedData->asset.defaultScene.value_or(0)].nodeIndices | std::views::reverse }; !dfs.empty(); ) {
 		const std::size_t nodeIndex = dfs.top();
-        const fastgltf::Node &node = sharedData->assetExpected->nodes[nodeIndex];
+        const fastgltf::Node &node = sharedData->asset.nodes[nodeIndex];
         if (node.meshIndex) {
-        	const fastgltf::Mesh &mesh = sharedData->assetExpected->meshes[*node.meshIndex];
+        	const fastgltf::Mesh &mesh = sharedData->asset.meshes[*node.meshIndex];
         	primitives.append_range(
         		mesh.primitives | std::views::transform([&](const fastgltf::Primitive &primitive) {
 					const gltf::AssetResources::PrimitiveData &primitiveData = sharedData->assetResources.primitiveData.at(&primitive);

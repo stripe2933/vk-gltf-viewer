@@ -17,8 +17,7 @@ namespace vk_gltf_viewer::vulkan {
     export class SharedData {
     public:
 		// CPU resources.
-    	fastgltf::Expected<fastgltf::GltfDataBuffer> gltfDataBufferExpected = loadGltfDataBuffer(std::getenv("GLTF_PATH"));
-    	fastgltf::Expected<fastgltf::Asset> assetExpected = loadAsset(std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path());
+    	const fastgltf::Asset &asset;
 		gltf::AssetResources assetResources;
     	gltf::SceneResources sceneResources;
 
@@ -36,13 +35,11 @@ namespace vk_gltf_viewer::vulkan {
     	// Descriptor/command pools.
     	vk::raii::CommandPool graphicsCommandPool;
 
-    	SharedData(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent, const shaderc::Compiler &compiler = {});
+    	SharedData(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent, const shaderc::Compiler &compiler = {});
 
     	auto handleSwapchainResize(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
     private:
-    	[[nodiscard]] auto loadGltfDataBuffer(const std::filesystem::path &path) const -> decltype(gltfDataBufferExpected);
-    	[[nodiscard]] auto loadAsset(const std::filesystem::path &parentPath) -> decltype(assetExpected);
     	[[nodiscard]] auto createSwapchain(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain);
     	[[nodiscard]] auto createSwapchainAttachmentGroups(const vk::raii::Device &device) const -> decltype(swapchainAttachmentGroups);
     	[[nodiscard]] auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;

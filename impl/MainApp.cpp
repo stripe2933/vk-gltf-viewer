@@ -1,11 +1,14 @@
 module;
 
 #include <compare>
+#include <format>
 #include <ranges>
 #include <string_view>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
+#include <fastgltf/core.hpp>
 #include <GLFW/glfw3.h>
 
 module vk_gltf_viewer;
@@ -20,7 +23,9 @@ import :vulkan.frame;
 auto vk_gltf_viewer::MainApp::run() -> void {
 	glm::u32vec2 framebufferSize = window.getFramebufferSize();
 
-	auto sharedData = std::make_shared<vulkan::SharedData>(gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y });
+	auto sharedData = std::make_shared<vulkan::SharedData>(
+		assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(),
+		gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y });
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
 	std::array frames = ARRAY_OF(2, vulkan::Frame { gpu, sharedData });
@@ -43,6 +48,21 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		}
 	}
 	gpu.device.waitIdle();
+}
+
+auto vk_gltf_viewer::MainApp::loadAsset(
+    const std::filesystem::path &path
+) -> decltype(assetExpected) {
+    if (!gltfDataBuffer.loadFromFile(path)) {
+        throw std::runtime_error { "Failed to load glTF data buffer" };
+    }
+
+    auto asset = fastgltf::Parser{}.loadGltf(&gltfDataBuffer, path.parent_path(), fastgltf::Options::LoadGLBBuffers);
+    if (auto error = asset.error(); error != fastgltf::Error::None) {
+        throw std::runtime_error { std::format("Failed to load glTF asset: {}", getErrorMessage(error)) };
+    }
+
+    return asset;
 }
 
 auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
