@@ -1,5 +1,6 @@
 module;
 
+#include <compare>
 #include <filesystem>
 #include <span>
 #include <stdexcept>
@@ -62,7 +63,7 @@ vk_gltf_viewer::io::ktxvk::Texture::Texture(
     vk::ImageLayout finalLayout
 ) : deviceInfo { std::ref(deviceInfo) } {
     ktxTexture2* kTexture;
-    if (auto result = ktxTexture2_CreateFromNamedFile(path.c_str(), KTX_TEXTURE_CREATE_NO_FLAGS, &kTexture); result != KTX_SUCCESS) {
+    if (auto result = ktxTexture2_CreateFromNamedFile(path.string().c_str(), KTX_TEXTURE_CREATE_NO_FLAGS, &kTexture); result != KTX_SUCCESS) {
         throw std::runtime_error { std::format("Failed to load KTX texture: {}", ktxErrorString(result)) };
     } else if (result = upload(kTexture, tiling, usageFlags, finalLayout); result != KTX_SUCCESS) {
         ktxTexture_Destroy(ktxTexture(kTexture));

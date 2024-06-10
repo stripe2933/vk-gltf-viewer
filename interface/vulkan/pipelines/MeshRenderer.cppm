@@ -1,6 +1,6 @@
 module;
 
-#include <cstdint>
+#include <array>
 #include <compare>
 #include <span>
 #include <string_view>
@@ -29,7 +29,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
                 vk::ImageView brdfmapImageView
             ) const {
                 return vku::RefHolder {
-                    [this](const auto &cameraBufferInfo, const auto &cubemapSphericalHarmonicsBufferInfo, const auto &prefilteredmapImageInfo, const auto &brdfmapImageInfo) {
+                    [this](const vk::DescriptorBufferInfo &cameraBufferInfo, const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo, const vk::DescriptorImageInfo &prefilteredmapImageInfo, const vk::DescriptorImageInfo &brdfmapImageInfo) {
                         return std::array {
                             getDescriptorWrite<0, 0>().setBufferInfo(cameraBufferInfo),
                             getDescriptorWrite<0, 1>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo),

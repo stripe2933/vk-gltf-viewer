@@ -613,8 +613,8 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
     // If there's no attributeBufferInfo to process, skip processing.
     const std::size_t attributeBufferInfoCount = std::transform_reduce(
         attributeBufferInfos.begin(), attributeBufferInfos.end(),
-        0UZ, std::plus{}, [](const auto& v) { return v.size(); });
-    if (attributeBufferInfoCount == 0UZ) return;
+        std::size_t { 0 }, std::plus{}, [](const auto& v) { return v.size(); });
+    if (attributeBufferInfoCount == 0) return;
 
     const std::vector addressSegments
         = attributeBufferInfos
@@ -659,8 +659,8 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
             copyCommandBuffer));
 
-    const vk::DeviceAddress pReferenceBuffer = gpu.device.getBufferAddress({ *targetReferenceBuffer }),
-                            pFloatStrideBuffer = gpu.device.getBufferAddress({ *targetFloatStrideBuffer });
+    const vk::DeviceAddress pReferenceBuffer = gpu.device.getBufferAddress({ targetReferenceBuffer->buffer }),
+                            pFloatStrideBuffer = gpu.device.getBufferAddress({ targetFloatStrideBuffer->buffer });
 
     for (auto &&[primitiveData, bufferReferenceCopyOffset, strideCopyOffset] : zip(primitiveData | values, bufferReferenceCopyOffsets, strideCopyOffsets)) {
         // OpenMP does not support capture variable in structured binding.
