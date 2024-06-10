@@ -24,6 +24,7 @@ endif()
 
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
+find_package(Ktx CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(Vulkan REQUIRED)
 
@@ -132,8 +133,6 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/mod.cppm
 		interface/gltf/mod.cppm
 		interface/gltf/AssetResources.cppm
-		interface/gltf/io/mod.cppm
-		interface/gltf/io/StbDecoder.cppm
 		interface/gltf/SceneResources.cppm
 		interface/helpers/mod.cppm
 		interface/helpers/formatters/mod.cppm
@@ -142,6 +141,11 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/helpers/formatters/omitted.cppm
 		interface/helpers/ranges.cppm
 		interface/helpers/type_map.cppm
+		interface/io/mod.cppm
+		interface/io/ktxvk/mod.cppm
+		interface/io/ktxvk/DeviceInfo.cppm
+		interface/io/ktxvk/Texture.cppm
+		interface/io/StbDecoder.cppm
 		interface/MainApp.cppm
 		interface/vulkan/mod.cppm
 		interface/vulkan/frame/mod.cppm
@@ -153,5 +157,6 @@ target_sources(vk-gltf-viewer PRIVATE
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
 	fastgltf::fastgltf
+	KTX::ktx
 	vku
 )

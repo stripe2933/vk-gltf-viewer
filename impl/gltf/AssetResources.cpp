@@ -24,6 +24,7 @@ module;
 module vk_gltf_viewer;
 import :gltf.AssetResources;
 import :helpers;
+import :io.StbDecoder;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
@@ -37,7 +38,7 @@ using namespace std::string_view_literals;
 
 #pragma omp declare \
     reduction(merge_vec \
-        : std::vector<vk_gltf_viewer::gltf::io::StbDecoder<std::uint8_t>::DecodeResult>, \
+        : std::vector<vk_gltf_viewer::io::StbDecoder<std::uint8_t>::DecodeResult>, \
           std::vector<vku::AllocatedImage> \
         : omp_out.append_range(to_rvalue_range(omp_in))) \
     initializer(omp_priv{})
@@ -741,10 +742,11 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
     const vulkan::Gpu::QueueFamilies &queueFamilies,
     vk::CommandBuffer commandBuffer
 ) const -> void {
-    std::vector<vk::Buffer> targetBuffers;
+    if (queueFamilies.transfer == queueFamilies.graphicsPresent) return;
+
+    std::vector<vk::Buffer> targetBuffers { std::from_range, attributeBuffers };
     targetBuffers.emplace_back(materialBuffer);
-    targetBuffers.append_range(indexBuffers | values);
-    targetBuffers.append_range(attributeBuffers);
+    targetBuffers.append_range(indexBuffers | std::views::values);
     if (texcoordReferenceBuffer) targetBuffers.emplace_back(*texcoordReferenceBuffer);
     if (colorReferenceBuffer) targetBuffers.emplace_back(*colorReferenceBuffer);
     if (texcoordFloatStrideBuffer) targetBuffers.emplace_back(*texcoordFloatStrideBuffer);
@@ -769,7 +771,7 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
             | transform([&](vk::Image image) {
                 return vk::ImageMemoryBarrier {
                     vk::AccessFlagBits::eTransferWrite, {},
-                    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferDstOptimal,
+                    {}, {},
                     queueFamilies.transfer, queueFamilies.graphicsPresent,
                     image, vku::fullSubresourceRange(),
                 };

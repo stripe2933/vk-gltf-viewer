@@ -111,24 +111,18 @@ void main(){
         uint texcoordIndex = uint(MATERIAL.baseColorTexcoordIndex);
         fragBaseColorTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
     }
-    /*if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
-        fragMetallicRoughnessTexcoord = composeVec2(
-            pc.texcoords.references[MATERIAL.metallicRoughnessTexcoordIndex],
-            uint(pc.texcoordFloatStrides.data[MATERIAL.metallicRoughnessTexcoordIndex]),
-            gl_VertexIndex);
+    if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
+        uint texcoordIndex = uint(MATERIAL.metallicRoughnessTexcoordIndex);
+        fragMetallicRoughnessTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
     }
     if (int(MATERIAL.normalTextureIndex) != -1){
-        fragNormalTexcoord = composeVec2(
-            pc.texcoords.references[MATERIAL.normalTexcoordIndex],
-            uint(pc.texcoordFloatStrides.data[MATERIAL.normalTexcoordIndex]),
-            gl_VertexIndex);
+        uint texcoordIndex = uint(MATERIAL.normalTexcoordIndex);
+        fragNormalTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
     }
     if (int(MATERIAL.occlusionTextureIndex) != -1){
-        fragOcclusionTexcoord = composeVec2(
-            pc.texcoords.references[MATERIAL.occlusionTexcoordIndex],
-            uint(pc.texcoordFloatStrides.data[MATERIAL.occlusionTexcoordIndex]),
-            gl_VertexIndex);
-    }*/
+        uint texcoordIndex = uint(MATERIAL.occlusionTexcoordIndex);
+        fragOcclusionTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
+    }
 
     gl_Position = camera.projectionView * vec4(fragPosition, 1.0);
 }
@@ -140,11 +134,18 @@ std::string_view vk_gltf_viewer::vulkan::MeshRenderer::frag = R"frag(
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_8bit_storage : require
+#extension GL_EXT_scalar_block_layout : require
 
 // For convinience.
 #define MATERIAL materials[pc.materialIndex]
 
 const vec3 lightColor = vec3(1.0);
+
+struct SphericalHarmonicBasis{
+    float band0[1];
+    float band1[3];
+    float band2[5];
+};
 
 struct Material {
     uint8_t VERTEX_DATA[8];
@@ -173,6 +174,10 @@ layout (set = 0, binding = 0) uniform CameraBuffer {
     mat4 projectionView;
     vec3 viewPosition;
 } camera;
+layout (set = 0, binding = 1, scalar) uniform SphericalHarmonicsBuffer {
+    vec3 coefficients[9];
+} sphericalHarmonics;
+layout (set = 0, binding = 2) uniform samplerCube prefilteredmap;
 
 layout (set = 1, binding = 0) uniform sampler2D textures[];
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
@@ -187,40 +192,91 @@ layout (push_constant, std430) uniform PushConstant {
 
 layout (early_fragment_tests) in;
 
+// --------------------
+// Functions.
+// --------------------
+
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness){
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+SphericalHarmonicBasis getSphericalHarmonicBasis(vec3 v){
+    return SphericalHarmonicBasis(
+        float[1](0.282095),
+        float[3](-0.488603 * v.y, 0.488603 * v.z, -0.488603 * v.x),
+        float[5](1.092548 * v.x * v.y, -1.092548 * v.y * v.z, 0.315392 * (3.0 * v.z * v.z - 1.0), -1.092548 * v.x * v.z, 0.546274 * (v.x * v.x - v.y * v.y))
+    );
+}
+
+vec3 computeDiffuseIrradiance(vec3 normal){
+    SphericalHarmonicBasis basis = getSphericalHarmonicBasis(normal);
+    vec3 irradiance
+        = 3.141593 * (sphericalHarmonics.coefficients[0] * basis.band0[0])
+        + 2.094395 * (sphericalHarmonics.coefficients[1] * basis.band1[0]
+                   +  sphericalHarmonics.coefficients[2] * basis.band1[1]
+                   +  sphericalHarmonics.coefficients[3] * basis.band1[2])
+        + 0.785398 * (sphericalHarmonics.coefficients[4] * basis.band2[0]
+                   +  sphericalHarmonics.coefficients[5] * basis.band2[1]
+                   +  sphericalHarmonics.coefficients[6] * basis.band2[2]
+                   +  sphericalHarmonics.coefficients[7] * basis.band2[3]
+                   +  sphericalHarmonics.coefficients[8] * basis.band2[4]);
+    return irradiance / 3.141593;
+}
+
 void main(){
     vec4 baseColor = MATERIAL.baseColorFactor;
-    if (int(MATERIAL.baseColorTextureIndex) != -1){
-        baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], fragBaseColorTexcoord);
-    }
-    /*vec4 baseColor = MATERIAL.baseColorFactor;
-    if (int(MATERIAL.baseColorTextureIndex) != -1){
-        baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], fragBaseColorTexcoord);
+    int baseColorTextureIndex = int(MATERIAL.baseColorTextureIndex);
+    if (baseColorTextureIndex != -1) {
+        baseColor *= texture(textures[baseColorTextureIndex], fragBaseColorTexcoord);
     }
 
     float metallic = MATERIAL.metallicFactor, roughness = MATERIAL.roughnessFactor;
-    if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
-        vec2 metallicRoughness = texture(textures[uint(MATERIAL.metallicRoughnessTextureIndex)], fragMetallicRoughnessTexcoord).bg;
+    int metallicRoughnessTextureIndex = int(MATERIAL.metallicRoughnessTextureIndex);
+    if (metallicRoughnessTextureIndex != -1){
+        vec2 metallicRoughness = texture(textures[metallicRoughnessTextureIndex], fragMetallicRoughnessTexcoord).bg;
         metallic *= metallicRoughness.x;
         roughness *= metallicRoughness.y;
     }
 
     float occlusion = 1.0;
-    if (int(MATERIAL.occlusionTextureIndex) != -1){
-        occlusion += MATERIAL.occlusionStrength * (texture(textures[uint(MATERIAL.occlusionTextureIndex)], fragOcclusionTexcoord).r - 1.0);
-    }*/
+    int occlusionTextureIndex = int(MATERIAL.occlusionTextureIndex);
+    if (occlusionTextureIndex != -1){
+        occlusion += MATERIAL.occlusionStrength * (texture(textures[occlusionTextureIndex], fragOcclusionTexcoord).r - 1.0);
+    }
 
-    outColor = baseColor;
+    vec3 N = normalize(fragNormal);
+    vec3 V = normalize(camera.viewPosition - fragPosition);
+    vec3 R = reflect(-V, N);
+
+    vec3 F0 = mix(vec3(0.04), baseColor.rgb, metallic);
+    vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+
+    vec3 kS = F;
+    vec3 kD = (1.0 - kS) * (1.0 - metallic);
+
+    vec3 irradiance = computeDiffuseIrradiance(N);
+    vec3 diffuse    = irradiance * baseColor.rgb;
+
+    /*vec3 prefilteredColor = textureLod(prefilteredmapSampler, R, roughness * (pc.prefilteredmapRoughnessLevels - 1U)).rgb;
+    vec2 brdf  = texture(brdfmapSampler, vec2(max(dot(N, V), 0.0), roughness)).rg;
+    vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);*/
+
+    vec3 color = (kD * diffuse/* + specular*/) * occlusion;
+    outColor = vec4(color, 1.0);
 }
 )frag";
 
 vk_gltf_viewer::vulkan::MeshRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
+    const vk::Sampler &sampler,
     std::uint32_t textureCount
-) : vku::DescriptorSetLayouts<1, 2, 1> {
+) : vku::DescriptorSetLayouts<3, 2, 1> {
         device,
         LayoutBindings {
             {},
             vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
+            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
+            vk::DescriptorSetLayoutBinding { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
         },
         LayoutBindings {
             vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
@@ -238,7 +294,8 @@ vk_gltf_viewer::vulkan::MeshRenderer::MeshRenderer(
     const vk::raii::Device &device,
     std::uint32_t textureCount,
     const shaderc::Compiler &compiler
-) : descriptorSetLayouts { device, textureCount },
+) : sampler { createSampler(device) },
+    descriptorSetLayouts { device, *sampler, textureCount },
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
@@ -264,6 +321,20 @@ auto vk_gltf_viewer::vulkan::MeshRenderer::pushConstants(
     const PushConstant &pushConstant
 ) const -> void {
     commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
+}
+
+auto vk_gltf_viewer::vulkan::MeshRenderer::createSampler(
+    const vk::raii::Device &device
+) const -> decltype(sampler) {
+    return { device, vk::SamplerCreateInfo {
+        {},
+        vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
+        {}, {}, {},
+        {},
+        vk::True, 16.f,
+        {}, {},
+        {}, vk::LodClampNone,
+    } };
 }
 
 auto vk_gltf_viewer::vulkan::MeshRenderer::createPipelineLayout(

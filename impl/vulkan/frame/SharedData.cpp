@@ -29,7 +29,32 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	swapchainExtent { swapchainExtent },
 	meshRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler },
 	swapchainAttachmentGroups { createSwapchainAttachmentGroups(gpu.device) },
-	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) } {
+	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
+	transferCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.transfer) },
+	deviceInfo { *gpu.physicalDevice, *gpu.device, gpu.queues.transfer, *transferCommandPool },
+    cubemapTexture { std::getenv("CUBEMAP_PATH"), deviceInfo },
+    prefilteredmapTexture { std::getenv("PREFILTEREDMAP_PATH"), deviceInfo },
+	cubemapImageView { gpu.device, cubemapTexture.getImageViewCreateInfo() },
+	prefilteredmapImageView { gpu.device, prefilteredmapTexture.getImageViewCreateInfo() },
+    cubemapSphericalHarmonicsBuffer {
+    	gpu.allocator,
+    	std::from_range, std::array {
+    		2.7587876f, 2.0989325f, 1.7705394f,
+			-0.73479897f, -0.15493552f, 0.23305114f,
+			1.1079133f, 0.631953f, 0.37011847f,
+			0.19294362f, 0.5683571f, 0.8914644f,
+			0.22942889f, 0.18320735f, 0.25089666f,
+			-1.0598593f, -0.41463852f, -0.044216275f,
+			-0.07484526f, -0.47375235f, -0.7829024f,
+			-0.1877947f, 0.19751835f, 0.48172066f,
+			0.48739594f, 1.1162034f, 1.6161786f,
+    	},
+    	vk::BufferUsageFlagBits::eUniformBuffer,
+    } {
+	vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
+		releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
+	});
+	gpu.queues.transfer.waitIdle();
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
 		acquireResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
 		generateAssetResourceMipmaps(cb);
@@ -104,16 +129,45 @@ auto vk_gltf_viewer::vulkan::SharedData::createCommandPool(
 	} };
 }
 
+auto vk_gltf_viewer::vulkan::SharedData::releaseResourceQueueFamilyOwnership(
+	const Gpu::QueueFamilies &queueFamilies,
+	vk::CommandBuffer commandBuffer
+) const -> void {
+	if (queueFamilies.transfer == queueFamilies.graphicsPresent) return;
+
+	const std::vector<vk::Image> targetIamges { cubemapTexture.image, prefilteredmapTexture.image };
+	commandBuffer.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
+		{}, {}, {},
+		targetIamges
+			| std::views::transform([&](vk::Image image) {
+				return vk::ImageMemoryBarrier {
+					{}, {},
+					{}, {},
+					queueFamilies.transfer, queueFamilies.graphicsPresent,
+					image, vku::fullSubresourceRange(),
+				};
+			})
+			| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
+}
+
 auto vk_gltf_viewer::vulkan::SharedData::acquireResourceQueueFamilyOwnership(
 	const Gpu::QueueFamilies &queueFamilies,
 	vk::CommandBuffer commandBuffer
 ) const -> void {
-	std::vector<vk::Buffer> targetBuffers;
+	if (queueFamilies.transfer == queueFamilies.graphicsPresent) return;
+
+	std::vector<vk::Buffer> targetBuffers { std::from_range, assetResources.attributeBuffers };
 	targetBuffers.emplace_back(assetResources.materialBuffer);
 	targetBuffers.append_range(assetResources.indexBuffers | std::views::values);
-	targetBuffers.append_range(assetResources.attributeBuffers);
+	if (assetResources.texcoordReferenceBuffer) targetBuffers.emplace_back(*assetResources.texcoordReferenceBuffer);
+	if (assetResources.colorReferenceBuffer) targetBuffers.emplace_back(*assetResources.colorReferenceBuffer);
+	if (assetResources.texcoordFloatStrideBuffer) targetBuffers.emplace_back(*assetResources.texcoordFloatStrideBuffer);
+	if (assetResources.colorFloatStrideBuffer) targetBuffers.emplace_back(*assetResources.colorFloatStrideBuffer);
 
 	std::vector<vk::Image> targetImages { std::from_range, assetResources.images };
+	targetImages.emplace_back(cubemapTexture.image);
+	targetImages.emplace_back(prefilteredmapTexture.image);
 
 	commandBuffer.pipelineBarrier(
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,

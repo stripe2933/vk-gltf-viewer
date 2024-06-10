@@ -11,9 +11,9 @@ module;
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-export module vk_gltf_viewer:gltf.io.StbDecoder;
+export module vk_gltf_viewer:io.StbDecoder;
 
-namespace vk_gltf_viewer::gltf::io {
+namespace vk_gltf_viewer::io {
     export template <typename T>
         requires (std::same_as<T, std::uint8_t> || std::same_as<T, std::uint16_t> || std::same_as<T, float>)
     class StbDecoder {

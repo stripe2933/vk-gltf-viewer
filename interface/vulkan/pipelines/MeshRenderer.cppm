@@ -15,21 +15,29 @@ export import vku;
 namespace vk_gltf_viewer::vulkan {
     export class MeshRenderer {
     public:
-        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1, 2, 1>{
-            explicit DescriptorSetLayouts(const vk::raii::Device &device, std::uint32_t textureCount);
+        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<3, 2, 1>{
+            explicit DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler, std::uint32_t textureCount);
         };
 
         struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
             using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
 
-            [[nodiscard]] auto getDescriptorWrites0(const vk::DescriptorBufferInfo &cameraBufferInfo) const {
+            [[nodiscard]] auto getDescriptorWrites0(
+                const vk::DescriptorBufferInfo &cameraBufferInfo,
+                const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo,
+                vk::ImageView prefilteredmapImageView
+            ) const {
                 return vku::RefHolder {
-                    [this](const vk::DescriptorBufferInfo &cameraBufferInfo) {
+                    [this](const auto &cameraBufferInfo, const auto &cubemapSphericalHarmonicsBufferInfo, const auto &prefilteredmapImageInfo) {
                         return std::array {
                             getDescriptorWrite<0, 0>().setBufferInfo(cameraBufferInfo),
+                            getDescriptorWrite<0, 1>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo),
+                            getDescriptorWrite<0, 2>().setImageInfo(prefilteredmapImageInfo),
                         };
                     },
                     cameraBufferInfo,
+                    cubemapSphericalHarmonicsBufferInfo,
+                    vk::DescriptorImageInfo { {}, prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
                 };
             }
 
@@ -87,6 +95,7 @@ namespace vk_gltf_viewer::vulkan {
             glm::vec3 viewPosition;
         };
 
+        vk::raii::Sampler sampler;
         DescriptorSetLayouts descriptorSetLayouts;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
@@ -100,6 +109,7 @@ namespace vk_gltf_viewer::vulkan {
     private:
         static std::string_view vert, frag;
 
+        [[nodiscard]] auto createSampler(const vk::raii::Device &device) const -> decltype(sampler);
         [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
         [[nodiscard]] auto createPipeline(const vk::raii::Device &device, const shaderc::Compiler &compiler) const -> decltype(pipeline);
     };

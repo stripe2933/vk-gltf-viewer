@@ -3,6 +3,12 @@
     "fastgltf",
     "glfw3",
     "glm",
+    {
+      "name": "ktx",
+      "features": [
+        "vulkan"
+      ]
+    },
     "stb"
   ]
 }

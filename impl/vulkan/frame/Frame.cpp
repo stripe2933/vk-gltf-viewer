@@ -34,7 +34,10 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	// Update per-frame descriptor sets.
 	gpu.device.updateDescriptorSets(
 	    ranges::array_cat(
-		    meshRendererSets.getDescriptorWrites0({ cameraBuffer, 0, vk::WholeSize }).get(),
+		    meshRendererSets.getDescriptorWrites0(
+		    	{ cameraBuffer, 0, vk::WholeSize },
+		    	{ sharedData->cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
+		    	*sharedData->prefilteredmapImageView).get(),
 		    meshRendererSets.getDescriptorWrites1(
 				sharedData->assetResources.textures,
 		    	{ sharedData->assetResources.materialBuffer, 0, vk::WholeSize }).get(),
@@ -144,9 +147,21 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
     const vk::raii::Device &device
 ) const -> decltype(descriptorPool) {
     const std::array poolSizes {
-    	vk::DescriptorPoolSize { vk::DescriptorType::eCombinedImageSampler, static_cast<std::uint32_t>(sharedData->assetResources.textures.size()) },
-    	vk::DescriptorPoolSize { vk::DescriptorType::eStorageBuffer, 2 },
-    	vk::DescriptorPoolSize { vk::DescriptorType::eUniformBuffer, 1 },
+    	vk::DescriptorPoolSize {
+    		vk::DescriptorType::eCombinedImageSampler,
+    		1 /* prefilteredmap */
+    		+ static_cast<std::uint32_t>(sharedData->assetResources.textures.size()),
+    	},
+    	vk::DescriptorPoolSize {
+    		vk::DescriptorType::eStorageBuffer,
+    		1 /* materialBuffer */
+    		+ 1, /* nodeTransformBuffer */
+    	},
+    	vk::DescriptorPoolSize {
+    	    vk::DescriptorType::eUniformBuffer,
+    		1 /* cameraBuffer */
+    		+ 1, /* cubemapSphericalHarmonicsBuffer */
+    	},
     };
 	return { device, vk::DescriptorPoolCreateInfo{
 		vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind,

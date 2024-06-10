@@ -19,8 +19,8 @@ module;
 export module vk_gltf_viewer:gltf.AssetResources;
 
 export import vku;
+import :io.StbDecoder;
 export import :vulkan.Gpu;
-export import :gltf.io.StbDecoder;
 
 namespace vk_gltf_viewer::gltf {
     export class AssetResources {

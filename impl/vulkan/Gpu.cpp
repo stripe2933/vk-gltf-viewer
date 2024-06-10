@@ -113,7 +113,8 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 			.setRuntimeDescriptorArray(vk::True)
 			.setStorageBuffer8BitAccess(vk::True)
 			.setUniformAndStorageBuffer8BitAccess(vk::True)
-            .setStoragePushConstant8(vk::True),
+            .setStoragePushConstant8(vk::True)
+			.setScalarBlockLayout(vk::True),
 		vk::PhysicalDeviceDynamicRenderingFeatures { vk::True },
 		vk::PhysicalDeviceSynchronization2Features { vk::True },
 	}.get() };
