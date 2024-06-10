@@ -13,7 +13,7 @@ import :vulkan.pipelines.MeshRenderer;
 import vku;
 
 // language=vert
-std::string_view vk_gltf_viewer::vulkan::MeshRenderer::vert = R"vert(
+std::string_view vk_gltf_viewer::vulkan::pipelines::MeshRenderer::vert = R"vert(
 #version 450
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference : require
@@ -129,7 +129,7 @@ void main(){
 )vert";
 
 // language=frag
-std::string_view vk_gltf_viewer::vulkan::MeshRenderer::frag = R"frag(
+std::string_view vk_gltf_viewer::vulkan::pipelines::MeshRenderer::frag = R"frag(
 #version 450
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_nonuniform_qualifier : require
@@ -266,7 +266,7 @@ void main(){
 }
 )frag";
 
-vk_gltf_viewer::vulkan::MeshRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipelines::MeshRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
     const vk::Sampler &sampler,
     std::uint32_t textureCount
@@ -290,7 +290,7 @@ vk_gltf_viewer::vulkan::MeshRenderer::DescriptorSetLayouts::DescriptorSetLayouts
         },
     } { }
 
-vk_gltf_viewer::vulkan::MeshRenderer::MeshRenderer(
+vk_gltf_viewer::vulkan::pipelines::MeshRenderer::MeshRenderer(
     const vk::raii::Device &device,
     std::uint32_t textureCount,
     const shaderc::Compiler &compiler
@@ -299,14 +299,14 @@ vk_gltf_viewer::vulkan::MeshRenderer::MeshRenderer(
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
-auto vk_gltf_viewer::vulkan::MeshRenderer::bindPipeline(
+auto vk_gltf_viewer::vulkan::pipelines::MeshRenderer::bindPipeline(
     vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
 
 }
 
-auto vk_gltf_viewer::vulkan::MeshRenderer::bindDescriptorSets(
+auto vk_gltf_viewer::vulkan::pipelines::MeshRenderer::bindDescriptorSets(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     std::uint32_t firstSet
@@ -316,14 +316,14 @@ auto vk_gltf_viewer::vulkan::MeshRenderer::bindDescriptorSets(
         firstSet, std::span { descriptorSets }.subspan(firstSet), {});
 }
 
-auto vk_gltf_viewer::vulkan::MeshRenderer::pushConstants(
+auto vk_gltf_viewer::vulkan::pipelines::MeshRenderer::pushConstants(
     vk::CommandBuffer commandBuffer,
     const PushConstant &pushConstant
 ) const -> void {
     commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
 }
 
-auto vk_gltf_viewer::vulkan::MeshRenderer::createSampler(
+auto vk_gltf_viewer::vulkan::pipelines::MeshRenderer::createSampler(
     const vk::raii::Device &device
 ) const -> decltype(sampler) {
     return { device, vk::SamplerCreateInfo {
@@ -337,7 +337,7 @@ auto vk_gltf_viewer::vulkan::MeshRenderer::createSampler(
     } };
 }
 
-auto vk_gltf_viewer::vulkan::MeshRenderer::createPipelineLayout(
+auto vk_gltf_viewer::vulkan::pipelines::MeshRenderer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> decltype(pipelineLayout) {
     constexpr vk::PushConstantRange pushConstantRange {
@@ -351,7 +351,7 @@ auto vk_gltf_viewer::vulkan::MeshRenderer::createPipelineLayout(
     } };
 }
 
-auto vk_gltf_viewer::vulkan::MeshRenderer::createPipeline(
+auto vk_gltf_viewer::vulkan::pipelines::MeshRenderer::createPipeline(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
 ) const -> decltype(pipeline) {

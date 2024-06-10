@@ -12,7 +12,7 @@ export module vk_gltf_viewer:vulkan.pipelines.MeshRenderer;
 export import glm;
 export import vku;
 
-namespace vk_gltf_viewer::vulkan {
+namespace vk_gltf_viewer::vulkan::pipelines {
     export class MeshRenderer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<3, 2, 1>{
@@ -113,4 +113,4 @@ namespace vk_gltf_viewer::vulkan {
         [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
         [[nodiscard]] auto createPipeline(const vk::raii::Device &device, const shaderc::Compiler &compiler) const -> decltype(pipeline);
     };
-};
+}

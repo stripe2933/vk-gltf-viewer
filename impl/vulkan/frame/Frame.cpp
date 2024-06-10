@@ -183,7 +183,14 @@ auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
 auto vk_gltf_viewer::vulkan::Frame::createCameraBuffer(
 	vma::Allocator allocator
 ) const -> decltype(cameraBuffer) {
-	return { allocator, MeshRenderer::Camera{}, vk::BufferUsageFlagBits::eUniformBuffer };
+	return { allocator, vk::BufferCreateInfo {
+		{},
+		sizeof(pipelines::MeshRenderer::Camera),
+		vk::BufferUsageFlagBits::eUniformBuffer,
+	}, vma::AllocationCreateInfo {
+		vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+		vma::MemoryUsage::eAuto,
+	} };
 }
 
 auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
@@ -224,7 +231,7 @@ auto vk_gltf_viewer::vulkan::Frame::update() -> void {
 		    * glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f }, glm::vec3{ 0.f, 1.f, 0.f }),
 		viewPosition,
 	};
-	cameraBuffer.asValue<MeshRenderer::Camera>() = camera;
+	cameraBuffer.asValue<pipelines::MeshRenderer::Camera>() = camera;
 }
 
 auto vk_gltf_viewer::vulkan::Frame::draw(

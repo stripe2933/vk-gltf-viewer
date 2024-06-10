@@ -28,7 +28,7 @@ namespace vk_gltf_viewer::vulkan {
 		std::vector<vk::Image> swapchainImages = swapchain.getImages();
 
 		// Pipelines.
-		MeshRenderer meshRenderer;
+		pipelines::MeshRenderer meshRenderer;
 
     	// Attachment groups.
     	std::vector<vku::AttachmentGroup> swapchainAttachmentGroups;

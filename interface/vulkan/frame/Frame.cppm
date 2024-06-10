@@ -25,7 +25,7 @@ namespace vk_gltf_viewer::vulkan {
     	vku::MappedBuffer cameraBuffer;
 
     	// Descriptor sets.
-    	MeshRenderer::DescriptorSets meshRendererSets;
+    	pipelines::MeshRenderer::DescriptorSets meshRendererSets;
 
     	// Command buffers.
     	vk::CommandBuffer drawCommandBuffer, blitToSwapchainCommandBuffer;
