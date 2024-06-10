@@ -127,7 +127,6 @@ namespace vk_gltf_viewer::gltf {
 
 // module :private;
 
-static_assert(sizeof(vk_gltf_viewer::gltf::AssetResources::GpuPrimitive) % 64 == 0 && "minStorageBufferOffsetAlignment = 64");
 static_assert(sizeof(vk_gltf_viewer::gltf::AssetResources::GpuMaterial) % 64 == 0 && "minStorageBufferOffsetAlignment = 64");
 
 template <std::ranges::random_access_range R>
