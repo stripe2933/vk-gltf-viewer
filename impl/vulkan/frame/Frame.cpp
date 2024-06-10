@@ -267,6 +267,11 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	};
 	std::ranges::sort(primitives, {}, getIndexType);
 	for (auto primitivesWithSameIndexType : std::views::chunk_by(primitives, [&](const auto &lhs, const auto &rhs) { return getIndexType(lhs) == getIndexType(rhs); })) {
+		constexpr auto value_or = []<typename Key, typename Value>(const std::unordered_map<Key, Value> &map, const Key &key, Value default_value) {
+			if (auto it = map.find(key); it != map.end()) return it->second;
+			else return default_value;
+		};
+
 		if (std::optional indexType = getIndexType(primitivesWithSameIndexType.front()); indexType) {
 			const std::size_t indexByteSize = [=]() {
 				switch (*indexType) {
@@ -279,12 +284,22 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 
 			for (const auto [nodeIndex, materialIndex, pPrimitiveData] : primitivesWithSameIndexType) {
 				sharedData->meshRenderer.pushConstants(cb, {
-			    	.pPositionBuffer = pPrimitiveData->positionInfo.address,
-			    	.pNormalBuffer = pPrimitiveData->normalInfo.value().address,
-			    	.positionFloatStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride / sizeof(float)),
-			    	.normalFloatStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride / sizeof(float)),
-			    	.nodeIndex = static_cast<std::uint32_t>(nodeIndex),
-			    	.materialIndex = static_cast<std::uint32_t>(materialIndex),
+					.pPositionBuffer = pPrimitiveData->positionInfo.address,
+					.pNormalBuffer = pPrimitiveData->normalInfo.value().address,
+					.pTangentBuffer = pPrimitiveData->tangentInfo.value().address,
+					.pTexcoordBuffers = pPrimitiveData->pTexcoordReferenceBuffer,
+					/* .pColorBuffer0 = value_or(pPrimitiveData->colorInfos, 0UZ, {}).address,
+					.pColorBuffer1 = value_or(pPrimitiveData->colorInfos, 1UZ, {}).address,
+					.pColorBuffer2 = value_or(pPrimitiveData->colorInfos, 2UZ, {}).address, */
+					.positionFloatStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride / sizeof(float)),
+					.normalFloatStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride / sizeof(float)),
+					.tangentFloatStride = static_cast<std::uint8_t>(pPrimitiveData->tangentInfo.value().byteStride / sizeof(float)),
+					.pTexcoordFloatStrideBuffer = pPrimitiveData->pTexcoordFloatStrideBuffer,
+					/* .color0FloatStride = static_cast<std::uint8_t>(value_or(pPrimitiveData->colorInfos, 0UZ, {}).byteStride / sizeof(float)),
+					.color1FloatStride = static_cast<std::uint8_t>(value_or(pPrimitiveData->colorInfos, 1UZ, {}).byteStride / sizeof(float)),
+					.color2FloatStride = static_cast<std::uint8_t>(value_or(pPrimitiveData->colorInfos, 2UZ, {}).byteStride / sizeof(float)),*/
+					.nodeIndex = static_cast<std::uint32_t>(nodeIndex),
+					.materialIndex = static_cast<std::uint32_t>(materialIndex),
 			    });
 				cb.drawIndexed(
 					pPrimitiveData->drawCount, 1,
@@ -292,18 +307,31 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 			}
 		}
 		else {
-			for (const auto [nodeIndex, materialIndex, pPrimitiveData] : primitivesWithSameIndexType) {
+			throw std::runtime_error { "TODO" };
+			/*for (const auto [nodeIndex, materialIndex, pPrimitiveData] : primitivesWithSameIndexType) {
 				sharedData->meshRenderer.pushConstants(cb, {
 		            .pPositionBuffer = pPrimitiveData->positionInfo.address,
 		            .pNormalBuffer = pPrimitiveData->normalInfo.value().address,
+					.pTexcoordBuffer0 = pPrimitiveData->texcoordInfos[0].address,
+					.pTexcoordBuffer1 = pPrimitiveData->texcoordInfos[1].address,
+					.pTexcoordBuffer2 = pPrimitiveData->texcoordInfos[2].address,
+					.pColorBuffer0 = pPrimitiveData->colorInfos[0].address,
+					.pColorBuffer1 = pPrimitiveData->colorInfos[1].address,
+					.pColorBuffer2 = pPrimitiveData->colorInfos[2].address,
 		            .positionFloatStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride / sizeof(float)),
 		            .normalFloatStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride / sizeof(float)),
+		            .texcoord0FloatStride = static_cast<std::uint8_t>(pPrimitiveData->texcoordInfos[0].byteStride / sizeof(float)),
+		            .texcoord1FloatStride = static_cast<std::uint8_t>(pPrimitiveData->texcoordInfos[1].byteStride / sizeof(float)),
+					.texcoord2FloatStride = static_cast<std::uint8_t>(pPrimitiveData->texcoordInfos[2].byteStride / sizeof(float)),
+					.color0FloatStride = static_cast<std::uint8_t>(pPrimitiveData->colorInfos[0].byteStride / sizeof(float)),
+					.color1FloatStride = static_cast<std::uint8_t>(pPrimitiveData->colorInfos[1].byteStride / sizeof(float)),
+					.color2FloatStride = static_cast<std::uint8_t>(pPrimitiveData->colorInfos[2].byteStride / sizeof(float)),
 	                .nodeIndex = static_cast<std::uint32_t>(nodeIndex),
 	                .materialIndex = static_cast<std::uint32_t>(materialIndex),
 			    });
 
 				cb.draw(pPrimitiveData->drawCount, 1, 0, 0);
-			}
+			}*/
 		}
 	}
 

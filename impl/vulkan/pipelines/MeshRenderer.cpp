@@ -23,7 +23,9 @@ std::string_view vk_gltf_viewer::vulkan::MeshRenderer::vert = R"vert(
 #define TRANSFORM nodeTransforms[pc.nodeIndex]
 #define MATERIAL materials[pc.materialIndex]
 
-layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer FloatBufferAddress { float data[]; };
+layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer Ubytes { uint8_t data[]; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Floats { float data[]; };
+layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer FloatReferences { Floats references[]; };
 
 struct NodeTransform {
     mat4 matrix;
@@ -31,20 +33,16 @@ struct NodeTransform {
 };
 
 struct Material {
-    FloatBufferAddress pBaseColorTexcoordBuffer;
-    FloatBufferAddress pMetallicRoughnessTexcoordBuffer;
-    FloatBufferAddress pNormalTexcoordBuffer;
-    FloatBufferAddress pOcclusionTexcoordBuffer;
-    uint8_t baseColorTexcoordFloatStride;
-    uint8_t metallicRoughnessTexcoordFloatStride;
-    uint8_t normalTexcoordFloatStride;
-    uint8_t occlusionTexcoordFloatStride;
-    uint8_t padding0[12];
+    uint8_t baseColorTexcoordIndex;
+    uint8_t metallicRoughnessTexcoordIndex;
+    uint8_t normalTexcoordIndex;
+    uint8_t occlusionTexcoordIndex;
+    uint8_t padding0[4];
     int16_t baseColorTextureIndex;
     int16_t metallicRoughnessTextureIndex;
     int16_t normalTextureIndex;
     int16_t occlusionTextureIndex;
-    uint8_t FRAGMENT_DATA[72];
+    uint8_t FRAGMENT_DATA[48];
 };
 
 layout (location = 0) out vec3 fragPosition;
@@ -68,11 +66,17 @@ layout (set = 2, binding = 0) readonly buffer NodeTransformBuffer {
 };
 
 layout (push_constant, std430) uniform PushConstant {
-    FloatBufferAddress pPositionBuffer;
-    FloatBufferAddress pNormalBuffer;
+    Floats positions;
+    Floats normals;
+    Floats tangents;
+    FloatReferences texcoords;
+    FloatReferences colors;
     uint8_t positionFloatStride;
     uint8_t normalFloatStride;
-    uint8_t padding[14];
+    uint8_t tangentFloatStride;
+    uint8_t padding[5];
+    Ubytes texcoordFloatStrides;
+    Ubytes colorFloatStrides;
     uint nodeIndex;
     uint materialIndex;
 } pc;
@@ -81,33 +85,50 @@ layout (push_constant, std430) uniform PushConstant {
 // Functions.
 // --------------------
 
-vec2 composeVec2(readonly FloatBufferAddress address, uint floatStride, uint index){
-    return vec2(address.data[floatStride * index], address.data[floatStride * index + 1U]);
+vec2 composeVec2(readonly Floats floats, uint floatStride, uint index){
+    return vec2(floats.data[floatStride * index], floats.data[floatStride * index + 1U]);
 }
 
-vec3 composeVec3(readonly FloatBufferAddress address, uint floatStride, uint index){
-    return vec3(address.data[floatStride * index], address.data[floatStride * index + 1U], address.data[floatStride * index + 2U]);
+vec3 composeVec3(readonly Floats floats, uint floatStride, uint index){
+    return vec3(floats.data[floatStride * index], floats.data[floatStride * index + 1U], floats.data[floatStride * index + 2U]);
 }
 
 void main(){
-    vec3 inPosition = composeVec3(pc.pPositionBuffer, uint(pc.positionFloatStride), gl_VertexIndex);
-    vec3 inNormal = composeVec3(pc.pNormalBuffer, uint(pc.normalFloatStride), gl_VertexIndex);
+    vec3 inPosition = composeVec3(pc.positions, uint(pc.positionFloatStride), gl_VertexIndex);
+    vec3 inNormal = composeVec3(pc.normals, uint(pc.normalFloatStride), gl_VertexIndex);
 
     fragPosition = (TRANSFORM.matrix * vec4(inPosition, 1.0)).xyz;
     fragNormal = transpose(mat3(TRANSFORM.inverseMatrix)) * inNormal;
 
+    /*if (int(MATERIAL.baseColorTextureIndex) != -1){
+        uint texcoordIndex = uint(MATERIAL.baseColorTexcoordIndex);
+        if (texcoordIndex == 0) fragBaseColorTexcoord = composeVec2(pc.texcoords0, uint(pc.texcoord0FloatStride), gl_VertexIndex);
+        else if (texcoordIndex == 1) fragBaseColorTexcoord = composeVec2(pc.texcoords1, uint(pc.texcoord1FloatStride), gl_VertexIndex);
+        else if (texcoordIndex == 2) fragBaseColorTexcoord = composeVec2(pc.texcoords2, uint(pc.texcoord2FloatStride), gl_VertexIndex);
+    }*/
+
     if (int(MATERIAL.baseColorTextureIndex) != -1){
-        fragBaseColorTexcoord = composeVec2(MATERIAL.pBaseColorTexcoordBuffer, uint(MATERIAL.baseColorTexcoordFloatStride), gl_VertexIndex);
+        uint texcoordIndex = uint(MATERIAL.baseColorTexcoordIndex);
+        fragBaseColorTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
     }
-    if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
-        fragMetallicRoughnessTexcoord = composeVec2(MATERIAL.pMetallicRoughnessTexcoordBuffer, uint(MATERIAL.metallicRoughnessTexcoordFloatStride), gl_VertexIndex);
+    /*if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
+        fragMetallicRoughnessTexcoord = composeVec2(
+            pc.texcoords.references[MATERIAL.metallicRoughnessTexcoordIndex],
+            uint(pc.texcoordFloatStrides.data[MATERIAL.metallicRoughnessTexcoordIndex]),
+            gl_VertexIndex);
     }
     if (int(MATERIAL.normalTextureIndex) != -1){
-        fragNormalTexcoord = composeVec2(MATERIAL.pNormalTexcoordBuffer, uint(MATERIAL.normalTexcoordFloatStride), gl_VertexIndex);
+        fragNormalTexcoord = composeVec2(
+            pc.texcoords.references[MATERIAL.normalTexcoordIndex],
+            uint(pc.texcoordFloatStrides.data[MATERIAL.normalTexcoordIndex]),
+            gl_VertexIndex);
     }
     if (int(MATERIAL.occlusionTextureIndex) != -1){
-        fragOcclusionTexcoord = composeVec2(MATERIAL.pOcclusionTexcoordBuffer, uint(MATERIAL.occlusionTexcoordFloatStride), gl_VertexIndex);
-    }
+        fragOcclusionTexcoord = composeVec2(
+            pc.texcoords.references[MATERIAL.occlusionTexcoordIndex],
+            uint(pc.texcoordFloatStrides.data[MATERIAL.occlusionTexcoordIndex]),
+            gl_VertexIndex);
+    }*/
 
     gl_Position = camera.projectionView * vec4(fragPosition, 1.0);
 }
@@ -116,8 +137,8 @@ void main(){
 // language=frag
 std::string_view vk_gltf_viewer::vulkan::MeshRenderer::frag = R"frag(
 #version 450
-#extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_8bit_storage : require
 
 // For convinience.
@@ -126,18 +147,17 @@ std::string_view vk_gltf_viewer::vulkan::MeshRenderer::frag = R"frag(
 const vec3 lightColor = vec3(1.0);
 
 struct Material {
-    uint8_t VERTEX_DATA[48];
+    uint8_t VERTEX_DATA[8];
     int16_t baseColorTextureIndex;
     int16_t metallicRoughnessTextureIndex;
     int16_t normalTextureIndex;
     int16_t occlusionTextureIndex;
-    uint8_t padding1[8];
     vec4 baseColorFactor;
     float metallicFactor;
     float roughnessFactor;
     float normalScale;
     float occlusionStrength;
-    uint8_t padding2[32];
+    uint8_t padding1[16];
 };
 
 layout (location = 0) in vec3 fragPosition;
@@ -160,7 +180,7 @@ layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
 };
 
 layout (push_constant, std430) uniform PushConstant {
-    layout (offset = 32) // VERTEX_DATA
+    layout (offset = 64) // VERTEX_DATA
     uint nodeIndex;
     uint materialIndex;
 } pc;
@@ -172,18 +192,22 @@ void main(){
     if (int(MATERIAL.baseColorTextureIndex) != -1){
         baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], fragBaseColorTexcoord);
     }
+    /*vec4 baseColor = MATERIAL.baseColorFactor;
+    if (int(MATERIAL.baseColorTextureIndex) != -1){
+        baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], fragBaseColorTexcoord);
+    }
 
     float metallic = MATERIAL.metallicFactor, roughness = MATERIAL.roughnessFactor;
     if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
-        vec4 metallicRoughness = texture(textures[uint(MATERIAL.metallicRoughnessTextureIndex)], fragMetallicRoughnessTexcoord);
-        metallic *= metallicRoughness.b;
-        roughness *= metallicRoughness.g;
+        vec2 metallicRoughness = texture(textures[uint(MATERIAL.metallicRoughnessTextureIndex)], fragMetallicRoughnessTexcoord).bg;
+        metallic *= metallicRoughness.x;
+        roughness *= metallicRoughness.y;
     }
 
     float occlusion = 1.0;
     if (int(MATERIAL.occlusionTextureIndex) != -1){
         occlusion += MATERIAL.occlusionStrength * (texture(textures[uint(MATERIAL.occlusionTextureIndex)], fragOcclusionTexcoord).r - 1.0);
-    }
+    }*/
 
     outColor = baseColor;
 }
