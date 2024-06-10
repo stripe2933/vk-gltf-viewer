@@ -178,6 +178,7 @@ layout (set = 0, binding = 1, scalar) uniform SphericalHarmonicsBuffer {
     vec3 coefficients[9];
 } sphericalHarmonics;
 layout (set = 0, binding = 2) uniform samplerCube prefilteredmap;
+layout (set = 0, binding = 3) uniform sampler2D brdfmap;
 
 layout (set = 1, binding = 0) uniform sampler2D textures[];
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
@@ -257,11 +258,12 @@ void main(){
     vec3 irradiance = computeDiffuseIrradiance(N);
     vec3 diffuse    = irradiance * baseColor.rgb;
 
-    /*vec3 prefilteredColor = textureLod(prefilteredmapSampler, R, roughness * (pc.prefilteredmapRoughnessLevels - 1U)).rgb;
-    vec2 brdf  = texture(brdfmapSampler, vec2(max(dot(N, V), 0.0), roughness)).rg;
-    vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);*/
+    uint prefilteredmapMipLevels = textureQueryLevels(prefilteredmap);
+    vec3 prefilteredColor = textureLod(prefilteredmap, R, roughness * (prefilteredmapMipLevels - 1U)).rgb;
+    vec2 brdf  = texture(brdfmap, vec2(max(dot(N, V), 0.0), roughness)).rg;
+    vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-    vec3 color = (kD * diffuse/* + specular*/) * occlusion;
+    vec3 color = (kD * diffuse + specular) * occlusion;
     outColor = vec4(color, 1.0);
 }
 )frag";
@@ -270,13 +272,14 @@ vk_gltf_viewer::vulkan::pipelines::MeshRenderer::DescriptorSetLayouts::Descripto
     const vk::raii::Device &device,
     const vk::Sampler &sampler,
     std::uint32_t textureCount
-) : vku::DescriptorSetLayouts<3, 2, 1> {
+) : vku::DescriptorSetLayouts<4, 2, 1> {
         device,
         LayoutBindings {
             {},
             vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
             vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
             vk::DescriptorSetLayoutBinding { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
+            vk::DescriptorSetLayoutBinding { 3, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
         },
         LayoutBindings {
             vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,

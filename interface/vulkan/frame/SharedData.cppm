@@ -41,6 +41,8 @@ namespace vk_gltf_viewer::vulkan {
     	io::ktxvk::Texture cubemapTexture, prefilteredmapTexture;
     	vk::raii::ImageView cubemapImageView, prefilteredmapImageView;
     	vku::MappedBuffer cubemapSphericalHarmonicsBuffer;
+    	vku::AllocatedImage brdfmapImage;
+    	vk::raii::ImageView brdfmapImageView;
 
     	SharedData(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent, const shaderc::Compiler &compiler = {});
 
@@ -51,8 +53,6 @@ namespace vk_gltf_viewer::vulkan {
     	[[nodiscard]] auto createSwapchainAttachmentGroups(const vk::raii::Device &device) const -> decltype(swapchainAttachmentGroups);
     	[[nodiscard]] auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
-    	auto releaseResourceQueueFamilyOwnership(const Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
-    	auto acquireResourceQueueFamilyOwnership(const Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
     	auto generateAssetResourceMipmaps(vk::CommandBuffer commandBuffer) const -> void;
     	auto initAttachmentLayouts(vk::CommandBuffer commandBuffer) const -> void;
     };

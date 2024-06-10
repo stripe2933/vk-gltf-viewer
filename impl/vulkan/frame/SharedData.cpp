@@ -50,13 +50,145 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 			0.48739594f, 1.1162034f, 1.6161786f,
     	},
     	vk::BufferUsageFlagBits::eUniformBuffer,
-    } {
+    },
+	brdfmapImage { gpu.allocator, vk::ImageCreateInfo {
+        {},
+		vk::ImageType::e2D,
+		vk::Format::eR16G16Unorm,
+		vk::Extent3D { 512, 512, 1 },
+		1, 1,
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
+	}, vma::AllocationCreateInfo {
+        {},
+		vma::MemoryUsage::eAutoPreferDevice,
+	} },
+	brdfmapImageView { gpu.device, vk::ImageViewCreateInfo {
+        {},
+		brdfmapImage,
+		vk::ImageViewType::e2D,
+		brdfmapImage.format,
+		{},
+		vku::fullSubresourceRange(),
+	} } {
 	vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
-		releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
+		if (gpu.queueFamilies.transfer == gpu.queueFamilies.graphicsPresent) return;
+
+		const std::vector<vk::Image> targetIamges { cubemapTexture.image, prefilteredmapTexture.image };
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
+			{}, {}, {},
+			targetIamges
+				| std::views::transform([&](vk::Image image) {
+					return vk::ImageMemoryBarrier {
+						{}, {},
+						{}, {},
+						gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
+						image, vku::fullSubresourceRange(),
+					};
+				})
+				| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
 	});
 	gpu.queues.transfer.waitIdle();
+
+	{
+		const pipelines::BrdfmapComputer brdfmapComputer { gpu.device, compiler };
+
+		constexpr std::array poolSizes {
+			vk::DescriptorPoolSize { vk::DescriptorType::eStorageImage, 1 },
+		};
+		const vk::raii::DescriptorPool descriptorPool { gpu.device, vk::DescriptorPoolCreateInfo {
+			{},
+			1,
+			poolSizes,
+		} };
+
+		const pipelines::BrdfmapComputer::DescriptorSets brdfmapSets { *gpu.device, *descriptorPool, brdfmapComputer.descriptorSetLayouts };
+		gpu.device.updateDescriptorSets(brdfmapSets.getDescriptorWrites0(*brdfmapImageView).get(), {});
+
+		const vk::raii::CommandPool computeCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.compute);
+		vku::executeSingleCommand(*gpu.device, *computeCommandPool, gpu.queues.compute, [&](vk::CommandBuffer cb) {
+			// Change brdfmapImage layout to GENERAL.
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eComputeShader,
+				{}, {}, {},
+				vk::ImageMemoryBarrier {
+					{}, vk::AccessFlagBits::eShaderWrite,
+					{}, vk::ImageLayout::eGeneral,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					brdfmapImage, vku::fullSubresourceRange(),
+				});
+
+			// Compute BRDF.
+			brdfmapComputer.compute(cb, brdfmapSets, vku::toExtent2D(brdfmapImage.extent));
+
+			// Change brdfmapImage layout to SHADER_READ_ONLY_OPTIMAL, with optional queue family ownership transfer.
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eBottomOfPipe,
+				{}, {}, {},
+				vk::ImageMemoryBarrier {
+					vk::AccessFlagBits::eShaderWrite, {},
+					vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+					gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+					brdfmapImage, vku::fullSubresourceRange(),
+				});
+		});
+		gpu.queues.compute.waitIdle();
+	}
+
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-		acquireResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
+		// Acquire resource queue family ownerships.
+		if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
+			std::vector<vk::Buffer> targetBuffers { std::from_range, assetResources.attributeBuffers };
+			targetBuffers.emplace_back(assetResources.materialBuffer);
+			targetBuffers.append_range(assetResources.indexBuffers | std::views::values);
+			if (assetResources.texcoordReferenceBuffer) targetBuffers.emplace_back(*assetResources.texcoordReferenceBuffer);
+			if (assetResources.colorReferenceBuffer) targetBuffers.emplace_back(*assetResources.colorReferenceBuffer);
+			if (assetResources.texcoordFloatStrideBuffer) targetBuffers.emplace_back(*assetResources.texcoordFloatStrideBuffer);
+			if (assetResources.colorFloatStrideBuffer) targetBuffers.emplace_back(*assetResources.colorFloatStrideBuffer);
+
+			std::vector<vk::Image> targetImages { std::from_range, assetResources.images };
+			targetImages.emplace_back(cubemapTexture.image);
+			targetImages.emplace_back(prefilteredmapTexture.image);
+
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+				{}, {},
+				targetBuffers
+					| std::views::transform([&](vk::Buffer buffer) {
+						return vk::BufferMemoryBarrier {
+							{}, {},
+							gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
+							buffer,
+							0, vk::WholeSize,
+						};
+					})
+					| std::ranges::to<std::vector<vk::BufferMemoryBarrier>>(),
+				targetImages
+					| std::views::transform([&](vk::Image image) {
+						return vk::ImageMemoryBarrier {
+							{}, {},
+							{}, {},
+							gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
+							image, vku::fullSubresourceRange(),
+						};
+					})
+					| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
+		}
+
+		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
+				{}, {}, {},
+				vk::ImageMemoryBarrier {
+					{}, {},
+					vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+					gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+					brdfmapImage, vku::fullSubresourceRange(),
+				});
+		}
+
 		generateAssetResourceMipmaps(cb);
 		initAttachmentLayouts(cb);
 	});
@@ -127,71 +259,6 @@ auto vk_gltf_viewer::vulkan::SharedData::createCommandPool(
 		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
 		queueFamilyIndex,
 	} };
-}
-
-auto vk_gltf_viewer::vulkan::SharedData::releaseResourceQueueFamilyOwnership(
-	const Gpu::QueueFamilies &queueFamilies,
-	vk::CommandBuffer commandBuffer
-) const -> void {
-	if (queueFamilies.transfer == queueFamilies.graphicsPresent) return;
-
-	const std::vector<vk::Image> targetIamges { cubemapTexture.image, prefilteredmapTexture.image };
-	commandBuffer.pipelineBarrier(
-		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-		{}, {}, {},
-		targetIamges
-			| std::views::transform([&](vk::Image image) {
-				return vk::ImageMemoryBarrier {
-					{}, {},
-					{}, {},
-					queueFamilies.transfer, queueFamilies.graphicsPresent,
-					image, vku::fullSubresourceRange(),
-				};
-			})
-			| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
-}
-
-auto vk_gltf_viewer::vulkan::SharedData::acquireResourceQueueFamilyOwnership(
-	const Gpu::QueueFamilies &queueFamilies,
-	vk::CommandBuffer commandBuffer
-) const -> void {
-	if (queueFamilies.transfer == queueFamilies.graphicsPresent) return;
-
-	std::vector<vk::Buffer> targetBuffers { std::from_range, assetResources.attributeBuffers };
-	targetBuffers.emplace_back(assetResources.materialBuffer);
-	targetBuffers.append_range(assetResources.indexBuffers | std::views::values);
-	if (assetResources.texcoordReferenceBuffer) targetBuffers.emplace_back(*assetResources.texcoordReferenceBuffer);
-	if (assetResources.colorReferenceBuffer) targetBuffers.emplace_back(*assetResources.colorReferenceBuffer);
-	if (assetResources.texcoordFloatStrideBuffer) targetBuffers.emplace_back(*assetResources.texcoordFloatStrideBuffer);
-	if (assetResources.colorFloatStrideBuffer) targetBuffers.emplace_back(*assetResources.colorFloatStrideBuffer);
-
-	std::vector<vk::Image> targetImages { std::from_range, assetResources.images };
-	targetImages.emplace_back(cubemapTexture.image);
-	targetImages.emplace_back(prefilteredmapTexture.image);
-
-	commandBuffer.pipelineBarrier(
-		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-		{}, {},
-		targetBuffers
-			| std::views::transform([&](vk::Buffer buffer) {
-				return vk::BufferMemoryBarrier {
-					{}, {},
-					queueFamilies.transfer, queueFamilies.graphicsPresent,
-					buffer,
-					0, vk::WholeSize,
-				};
-			})
-			| std::ranges::to<std::vector<vk::BufferMemoryBarrier>>(),
-		targetImages
-			| std::views::transform([&](vk::Image image) {
-				return vk::ImageMemoryBarrier {
-					{}, {},
-					{}, {},
-					queueFamilies.transfer, queueFamilies.graphicsPresent,
-					image, vku::fullSubresourceRange(),
-				};
-			})
-			| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::generateAssetResourceMipmaps(

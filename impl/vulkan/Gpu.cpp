@@ -18,6 +18,20 @@ vk_gltf_viewer::vulkan::Gpu::QueueFamilies::QueueFamilies(
 	vk::SurfaceKHR surface
 ) {
 	const std::vector queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
+
+	// Compute: prefer compute specialized (no graphics capable) queue family.
+	if (auto it = std::ranges::find_if(queueFamilyProperties, [](vk::QueueFlags flags) {
+		return (flags & vk::QueueFlagBits::eCompute) && !(flags & vk::QueueFlagBits::eGraphics);
+	}, &vk::QueueFamilyProperties::queueFlags); it != queueFamilyProperties.end()) {
+		compute = it - queueFamilyProperties.begin();
+	}
+	else if (auto it = std::ranges::find_if(queueFamilyProperties, [](vk::QueueFlags flags) {
+		return vku::contains(flags, vk::QueueFlagBits::eCompute);
+	}, &vk::QueueFamilyProperties::queueFlags); it != queueFamilyProperties.end()) {
+		compute = it - queueFamilyProperties.begin();
+	}
+	else std::unreachable(); // Vulkan instance always have at least one compute capable queue family.
+
 	for (auto [queueFamilyIndex, properties] : queueFamilyProperties | ranges::views::enumerate) {
 		if (properties.queueFlags & vk::QueueFlagBits::eGraphics && physicalDevice.getSurfaceSupportKHR(queueFamilyIndex, surface)) {
 			graphicsPresent = queueFamilyIndex;
@@ -31,8 +45,7 @@ TRANSFER:
 	// Transfer: prefer transfer-only (\w sparse binding ok) queue fmaily.
 	if (auto it = std::ranges::find_if(queueFamilyProperties, [](vk::QueueFlags flags) {
 		return (flags & ~vk::QueueFlagBits::eSparseBinding) == vk::QueueFlagBits::eTransfer;
-	}, &vk::QueueFamilyProperties::queueFlags);
-		it != queueFamilyProperties.end()) {
+	}, &vk::QueueFamilyProperties::queueFlags); it != queueFamilyProperties.end()) {
 		transfer = it - queueFamilyProperties.begin();
 	}
 	else if (auto it = std::ranges::find_if(queueFamilyProperties, [](vk::QueueFlags flags) {
@@ -47,7 +60,8 @@ TRANSFER:
 vk_gltf_viewer::vulkan::Gpu::Queues::Queues(
 	vk::Device device,
 	const QueueFamilies& queueFamilies
-) noexcept : graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) },
+) noexcept : compute { device.getQueue(queueFamilies.compute, 0) },
+			 graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) },
 	         transfer { device.getQueue(queueFamilies.transfer, 0) } { }
 
 vk_gltf_viewer::vulkan::Gpu::Gpu(
@@ -72,7 +86,7 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(
 auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 	constexpr std::array queuePriorities{ 1.0f };
 	const std::vector queueCreateInfos
-		= std::set { queueFamilies.graphicsPresent, queueFamilies.transfer }
+		= std::set { queueFamilies.compute, queueFamilies.graphicsPresent, queueFamilies.transfer }
 		| std::views::transform([&](std::uint32_t queueFamilyIndex) {
 			return vk::DeviceQueueCreateInfo{
 				{},
@@ -94,7 +108,8 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 	};
 	constexpr auto physicalDeviceFeatures
 		= vk::PhysicalDeviceFeatures{}
-		.setSamplerAnisotropy(vk::True);
+		.setSamplerAnisotropy(vk::True)
+		.setShaderStorageImageWriteWithoutFormat(vk::True);
 	return { physicalDevice, vk::StructureChain {
 		vk::DeviceCreateInfo{
 			{},

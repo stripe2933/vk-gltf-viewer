@@ -37,7 +37,8 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    meshRendererSets.getDescriptorWrites0(
 		    	{ cameraBuffer, 0, vk::WholeSize },
 		    	{ sharedData->cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
-		    	*sharedData->prefilteredmapImageView).get(),
+		    	*sharedData->prefilteredmapImageView,
+		    	*sharedData->brdfmapImageView).get(),
 		    meshRendererSets.getDescriptorWrites1(
 				sharedData->assetResources.textures,
 		    	{ sharedData->assetResources.materialBuffer, 0, vk::WholeSize }).get(),
@@ -150,6 +151,7 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
     	vk::DescriptorPoolSize {
     		vk::DescriptorType::eCombinedImageSampler,
     		1 /* prefilteredmap */
+    		+ 1 /* brdfmap */
     		+ static_cast<std::uint32_t>(sharedData->assetResources.textures.size()),
     	},
     	vk::DescriptorPoolSize {

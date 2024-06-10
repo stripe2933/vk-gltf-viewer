@@ -11,13 +11,13 @@ namespace vk_gltf_viewer::vulkan {
     class Gpu {
 	public:
 		struct QueueFamilies {
-			std::uint32_t graphicsPresent, transfer;
+			std::uint32_t compute, graphicsPresent, transfer;
 
 			QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface);
 		};
 
 		struct Queues {
-			vk::Queue graphicsPresent, transfer;
+			vk::Queue compute, graphicsPresent, transfer;
 
 			Queues(vk::Device device, const QueueFamilies& queueFamilies) noexcept;
 		};

@@ -15,7 +15,7 @@ export import vku;
 namespace vk_gltf_viewer::vulkan::pipelines {
     export class MeshRenderer {
     public:
-        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<3, 2, 1>{
+        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<4, 2, 1>{
             explicit DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler, std::uint32_t textureCount);
         };
 
@@ -25,19 +25,22 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             [[nodiscard]] auto getDescriptorWrites0(
                 const vk::DescriptorBufferInfo &cameraBufferInfo,
                 const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo,
-                vk::ImageView prefilteredmapImageView
+                vk::ImageView prefilteredmapImageView,
+                vk::ImageView brdfmapImageView
             ) const {
                 return vku::RefHolder {
-                    [this](const auto &cameraBufferInfo, const auto &cubemapSphericalHarmonicsBufferInfo, const auto &prefilteredmapImageInfo) {
+                    [this](const auto &cameraBufferInfo, const auto &cubemapSphericalHarmonicsBufferInfo, const auto &prefilteredmapImageInfo, const auto &brdfmapImageInfo) {
                         return std::array {
                             getDescriptorWrite<0, 0>().setBufferInfo(cameraBufferInfo),
                             getDescriptorWrite<0, 1>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo),
                             getDescriptorWrite<0, 2>().setImageInfo(prefilteredmapImageInfo),
+                            getDescriptorWrite<0, 3>().setImageInfo(brdfmapImageInfo),
                         };
                     },
                     cameraBufferInfo,
                     cubemapSphericalHarmonicsBufferInfo,
                     vk::DescriptorImageInfo { {}, prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+                    vk::DescriptorImageInfo { {}, brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
                 };
             }
 
