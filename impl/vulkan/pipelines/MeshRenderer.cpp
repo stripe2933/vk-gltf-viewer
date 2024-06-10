@@ -118,7 +118,6 @@ std::string_view vk_gltf_viewer::vulkan::MeshRenderer::frag = R"frag(
 #version 450
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_16bit_storage : require
-#extension GL_EXT_buffer_reference : require
 #extension GL_EXT_shader_8bit_storage : require
 
 // For convinience.
@@ -183,7 +182,7 @@ void main(){
 
     float occlusion = 1.0;
     if (int(MATERIAL.occlusionTextureIndex) != -1){
-        occlusion *= texture(textures[uint(MATERIAL.occlusionTextureIndex)], fragOcclusionTexcoord).r;
+        occlusion += MATERIAL.occlusionStrength * (texture(textures[uint(MATERIAL.occlusionTextureIndex)], fragOcclusionTexcoord).r - 1.0);
     }
 
     outColor = baseColor;
