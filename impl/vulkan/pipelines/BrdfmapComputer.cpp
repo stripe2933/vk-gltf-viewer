@@ -1,0 +1,177 @@
+module;
+
+#include <string_view>
+
+#include <shaderc/shaderc.hpp>
+#include <vulkan/vulkan_hpp_macros.hpp>
+
+module vk_gltf_viewer;
+import :vulkan.pipelines.BrdfmapComputer;
+
+import vku;
+
+// language=comp
+std::string_view vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::comp = R"comp(
+#version 450
+
+const float PI = 3.1415926535;
+const float INV_PI = 1.0 / PI;
+
+layout (constant_id = 0) const uint TOTAL_SAMPLE_COUNT = 1024;
+
+layout (set = 0, binding = 0) writeonly uniform image2D brdfmapImage;
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+// --------------------
+// Functions.
+// --------------------
+
+// Normal Distribution
+float dGgx(float dotNH, float roughness){
+    float alpha = roughness * roughness;
+    float alpha2 = alpha * alpha;
+    float denom = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
+    return alpha2 / (PI * denom * denom);
+}
+
+// Geometric Shadowing
+float schlickSmithGGX(float dotN, float k){
+    return dotN / (dotN * (1.0 - k) + k);
+}
+
+float schlickSmithGGXIbl(float dotNL, float dotNV, float roughness){
+    float alpha = roughness;
+    float k = (alpha * alpha) / 2.0; // special remap of k for IBL lighting
+    float GL = schlickSmithGGX(dotNL, k);
+    float GV = schlickSmithGGX(dotNV, k);
+    return GL * GV;
+}
+
+// Van Der Corpus sequence
+// @see http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+float vdcSequence(uint bits){
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10; // / 0x100000000
+}
+
+// Hammersley sequence
+// @see http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+vec2 hammersleySequence(uint i, uint N){
+    return vec2(float(i) / float(N), vdcSequence(i));
+}
+
+// GGX NDF via importance sampling
+vec3 importanceSampleGGX(vec2 Xi, vec3 N, float roughness){
+    float alpha = roughness * roughness;
+    float alpha2 = alpha * alpha;
+
+    float phi = 2.0 * PI * Xi.x;
+    float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (alpha2 - 1.0) * Xi.y));
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+
+    // from spherical coordinates to cartesian coordinates
+    vec3 H = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+
+    // from tangent-space vector to world-space sample vector
+    vec3 up        = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent   = normalize(cross(up, N));
+    vec3 bitangent = cross(N, tangent);
+
+    vec3 sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
+    return normalize(sampleVec);
+}
+
+void main(){
+    uvec2 brdfmapImageSize = imageSize(brdfmapImage);
+
+    ivec2 texcoord = ivec2(gl_GlobalInvocationID.xy);
+    float dotNV = float(texcoord.x) / brdfmapImageSize.x;
+    float roughness = max(float(texcoord.y) / brdfmapImageSize.x, 1e-2);
+
+    vec3 V = vec3(sqrt(1.0 - dotNV * dotNV) , 0.0 , dotNV);
+
+    const vec3 N = vec3(0.0, 0.0, 1.0);
+    float A = 0.0;
+    float B = 0.0;
+    for (uint i = 0; i < TOTAL_SAMPLE_COUNT; ++i) {
+        // generate sample vector towards the alignment of the specular lobe
+        vec2 Xi = hammersleySequence(i, TOTAL_SAMPLE_COUNT);
+        vec3 H  = importanceSampleGGX(Xi, N, roughness);
+        float dotHV = dot(H, V);
+        vec3 L  = normalize(2.0 * dotHV * H - V);
+
+        float dotNL = max(L.z, 0.0);
+        if (dotNL > 0.0) {
+            dotHV = max(dotHV, 0.0);
+            float dotNH = max(H.z, 0.0);
+            // Geometric Shadowing term
+            float G = schlickSmithGGXIbl(dotNL, dotNV, roughness);
+            float G_Vis = (G * dotHV) / (dotNH * dotNV + 1e-4);
+            float Fc = pow(1.0 - dotHV, 5.0);
+
+            A += (1.0 - Fc) * G_Vis;
+            B += Fc * G_Vis;
+        }
+    }
+    A /= TOTAL_SAMPLE_COUNT;
+    B /= TOTAL_SAMPLE_COUNT;
+
+    imageStore(brdfmapImage, texcoord, vec4(A, B, 0.0, 0.0));
+}
+)comp";
+
+vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+    const vk::raii::Device &device
+) : vku::DescriptorSetLayouts<1> { device, LayoutBindings {
+        {},
+        vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
+    } } { }
+
+vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::BrdfmapComputer(
+    const vk::raii::Device &device,
+    const shaderc::Compiler &compiler,
+    const SpecializationConstants &specializationConstants
+) : descriptorSetLayouts { device },
+    pipelineLayout { createPipelineLayout(device) },
+    pipeline { createPipeline(device, compiler, specializationConstants) } { }
+
+auto vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::compute(
+    vk::CommandBuffer commandBuffer,
+    const DescriptorSets &descriptorSets,
+    const vk::Extent2D &imageSize
+) const -> void {
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.dispatch(imageSize.width / 16, imageSize.height / 16, 1);
+}
+
+auto vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::createPipelineLayout(
+    const vk::raii::Device &device
+) const -> decltype(pipelineLayout) {
+    return { device, vk::PipelineLayoutCreateInfo {
+        {},
+        descriptorSetLayouts,
+    } };
+}
+
+auto vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::createPipeline(
+    const vk::raii::Device &device,
+    const shaderc::Compiler &compiler,
+    const SpecializationConstants &specializationConstants
+) const -> decltype(pipeline) {
+    // TODO: apply specializationConstants.
+    const auto [_, stages] = createStages(
+        device,
+        vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute });
+
+    return { device, nullptr, vk::ComputePipelineCreateInfo {
+        {},
+        get<0>(stages),
+        *pipelineLayout,
+    } };
+}
