@@ -49,11 +49,12 @@ namespace vk_gltf_viewer::gltf {
             struct AttributeBufferInfo { vk::DeviceAddress address; std::uint8_t byteStride; };
 
             std::uint32_t drawCount;
-            std::optional<IndexBufferInfo> indexInfo;
+            std::optional<IndexBufferInfo> indexInfo{};
             AttributeBufferInfo positionInfo;
             std::optional<AttributeBufferInfo> normalInfo, tangentInfo;
             std::unordered_map<std::size_t, AttributeBufferInfo> texcoordInfos, colorInfos;
-            vk::DeviceAddress pTexcoordReferenceBuffer, pTexcoordFloatStrideBuffer;
+            vk::DeviceAddress pTexcoordReferenceBuffer = 0, pTexcoordFloatStrideBuffer = 0,
+                              pColorReferenceBuffer = 0, pColorFloatStrideBuffer = 0;
         };
 
         struct GpuMaterial {
@@ -85,11 +86,14 @@ namespace vk_gltf_viewer::gltf {
         std::unordered_map<const fastgltf::Primitive*, PrimitiveData> primitiveData;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
         std::vector<vku::AllocatedBuffer> attributeBuffers;
-        std::unique_ptr<vku::AllocatedBuffer> texcoordReferenceBuffer, texcoordStrideBuffer;
+        std::unique_ptr<vku::AllocatedBuffer> texcoordReferenceBuffer, texcoordFloatStrideBuffer,
+                                              colorReferenceBuffer, colorFloatStrideBuffer;
 
         AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const vulkan::Gpu &gpu);
 
     private:
+        enum class VariadicAttribute { Texcoord, Color };
+
         AssetResources(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu);
 
         [[nodiscard]] auto createDefaultSampler(const vk::raii::Device &device) const -> decltype(defaultSampler);
@@ -100,10 +104,10 @@ namespace vk_gltf_viewer::gltf {
         [[nodiscard]] auto createMaterialBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const -> decltype(materialBuffer);
 
         auto stageImages(const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto setPrimitiveAttributeData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto setPrimitiveVariadicAttributeData(const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto setPrimitiveIndexData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
         auto stageMaterials(const fastgltf::Asset &asset, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto setPrimitiveAttributeData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto setPrimitiveVariadicAttributeData(const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer, VariadicAttribute attributeType) -> void;
+        auto setPrimitiveIndexData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
 
         auto releaseResourceQueueFamilyOwnership(const vulkan::Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
 

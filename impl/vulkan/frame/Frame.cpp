@@ -288,16 +288,12 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 					.pNormalBuffer = pPrimitiveData->normalInfo.value().address,
 					.pTangentBuffer = pPrimitiveData->tangentInfo.value().address,
 					.pTexcoordBuffers = pPrimitiveData->pTexcoordReferenceBuffer,
-					/* .pColorBuffer0 = value_or(pPrimitiveData->colorInfos, 0UZ, {}).address,
-					.pColorBuffer1 = value_or(pPrimitiveData->colorInfos, 1UZ, {}).address,
-					.pColorBuffer2 = value_or(pPrimitiveData->colorInfos, 2UZ, {}).address, */
+					.pColorBuffers = pPrimitiveData->pColorReferenceBuffer,
 					.positionFloatStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride / sizeof(float)),
 					.normalFloatStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride / sizeof(float)),
 					.tangentFloatStride = static_cast<std::uint8_t>(pPrimitiveData->tangentInfo.value().byteStride / sizeof(float)),
 					.pTexcoordFloatStrideBuffer = pPrimitiveData->pTexcoordFloatStrideBuffer,
-					/* .color0FloatStride = static_cast<std::uint8_t>(value_or(pPrimitiveData->colorInfos, 0UZ, {}).byteStride / sizeof(float)),
-					.color1FloatStride = static_cast<std::uint8_t>(value_or(pPrimitiveData->colorInfos, 1UZ, {}).byteStride / sizeof(float)),
-					.color2FloatStride = static_cast<std::uint8_t>(value_or(pPrimitiveData->colorInfos, 2UZ, {}).byteStride / sizeof(float)),*/
+					.pColorFloatStrideBuffer = pPrimitiveData->pColorFloatStrideBuffer,
 					.nodeIndex = static_cast<std::uint32_t>(nodeIndex),
 					.materialIndex = static_cast<std::uint32_t>(materialIndex),
 			    });
@@ -307,31 +303,23 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 			}
 		}
 		else {
-			throw std::runtime_error { "TODO" };
-			/*for (const auto [nodeIndex, materialIndex, pPrimitiveData] : primitivesWithSameIndexType) {
+			for (const auto [nodeIndex, materialIndex, pPrimitiveData] : primitivesWithSameIndexType) {
 				sharedData->meshRenderer.pushConstants(cb, {
-		            .pPositionBuffer = pPrimitiveData->positionInfo.address,
-		            .pNormalBuffer = pPrimitiveData->normalInfo.value().address,
-					.pTexcoordBuffer0 = pPrimitiveData->texcoordInfos[0].address,
-					.pTexcoordBuffer1 = pPrimitiveData->texcoordInfos[1].address,
-					.pTexcoordBuffer2 = pPrimitiveData->texcoordInfos[2].address,
-					.pColorBuffer0 = pPrimitiveData->colorInfos[0].address,
-					.pColorBuffer1 = pPrimitiveData->colorInfos[1].address,
-					.pColorBuffer2 = pPrimitiveData->colorInfos[2].address,
-		            .positionFloatStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride / sizeof(float)),
-		            .normalFloatStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride / sizeof(float)),
-		            .texcoord0FloatStride = static_cast<std::uint8_t>(pPrimitiveData->texcoordInfos[0].byteStride / sizeof(float)),
-		            .texcoord1FloatStride = static_cast<std::uint8_t>(pPrimitiveData->texcoordInfos[1].byteStride / sizeof(float)),
-					.texcoord2FloatStride = static_cast<std::uint8_t>(pPrimitiveData->texcoordInfos[2].byteStride / sizeof(float)),
-					.color0FloatStride = static_cast<std::uint8_t>(pPrimitiveData->colorInfos[0].byteStride / sizeof(float)),
-					.color1FloatStride = static_cast<std::uint8_t>(pPrimitiveData->colorInfos[1].byteStride / sizeof(float)),
-					.color2FloatStride = static_cast<std::uint8_t>(pPrimitiveData->colorInfos[2].byteStride / sizeof(float)),
-	                .nodeIndex = static_cast<std::uint32_t>(nodeIndex),
-	                .materialIndex = static_cast<std::uint32_t>(materialIndex),
-			    });
-
+					.pPositionBuffer = pPrimitiveData->positionInfo.address,
+					.pNormalBuffer = pPrimitiveData->normalInfo.value().address,
+					.pTangentBuffer = pPrimitiveData->tangentInfo.value().address,
+					.pTexcoordBuffers = pPrimitiveData->pTexcoordReferenceBuffer,
+					.pColorBuffers = pPrimitiveData->pColorReferenceBuffer,
+					.positionFloatStride = static_cast<std::uint8_t>(pPrimitiveData->positionInfo.byteStride / sizeof(float)),
+					.normalFloatStride = static_cast<std::uint8_t>(pPrimitiveData->normalInfo.value().byteStride / sizeof(float)),
+					.tangentFloatStride = static_cast<std::uint8_t>(pPrimitiveData->tangentInfo.value().byteStride / sizeof(float)),
+					.pTexcoordFloatStrideBuffer = pPrimitiveData->pTexcoordFloatStrideBuffer,
+					.pColorFloatStrideBuffer = pPrimitiveData->pColorFloatStrideBuffer,
+					.nodeIndex = static_cast<std::uint32_t>(nodeIndex),
+					.materialIndex = static_cast<std::uint32_t>(materialIndex),
+				});
 				cb.draw(pPrimitiveData->drawCount, 1, 0, 0);
-			}*/
+			}
 		}
 	}
 

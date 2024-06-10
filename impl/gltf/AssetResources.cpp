@@ -9,6 +9,7 @@ module;
 #include <fstream>
 #include <format>
 #include <list>
+#include <numeric>
 #include <ranges>
 #include <span>
 #include <string_view>
@@ -215,10 +216,11 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     } };
     vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
         stageImages(resourceBytes, gpu.allocator, cb);
-        setPrimitiveAttributeData(asset, resourceBytes, gpu, cb);
-        setPrimitiveVariadicAttributeData(gpu, cb);
-        setPrimitiveIndexData(asset, resourceBytes, gpu.allocator, cb);
         stageMaterials(asset, gpu.allocator, cb);
+        setPrimitiveAttributeData(asset, resourceBytes, gpu, cb);
+        setPrimitiveVariadicAttributeData(gpu, cb, VariadicAttribute::Texcoord);
+        setPrimitiveVariadicAttributeData(gpu, cb, VariadicAttribute::Color);
+        setPrimitiveIndexData(asset, resourceBytes, gpu.allocator, cb);
 
         releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
     });
@@ -386,6 +388,88 @@ auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
     } };
 }
 
+auto vk_gltf_viewer::gltf::AssetResources::stageImages(
+    const ResourceBytes &resourceBytes,
+    vma::Allocator allocator,
+    vk::CommandBuffer copyCommandBuffer
+) -> void {
+    const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
+        allocator,
+        resourceBytes.images | transform([](const auto &image) { return image.asSpan(); }));
+
+    // 1. Change image layouts to vk::ImageLayout::eTransferDstOptimal.
+    const std::vector imageMemoryBarriers
+        = images
+        | transform([](vk::Image image) {
+            return vk::ImageMemoryBarrier {
+                {}, vk::AccessFlagBits::eTransferWrite,
+                {}, vk::ImageLayout::eTransferDstOptimal,
+                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                image, vku::fullSubresourceRange(),
+            };
+        })
+        | std::ranges::to<std::vector<vk::ImageMemoryBarrier>>();
+    copyCommandBuffer.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+        {}, {}, {}, imageMemoryBarriers);
+
+    // 2. Copy image data from staging buffer to images.
+    for (const auto &[image, copyOffset] : zip(images, copyOffsets)) {
+        copyCommandBuffer.copyBufferToImage(
+            stagingBuffer, image,
+            vk::ImageLayout::eTransferDstOptimal,
+            vk::BufferImageCopy {
+                copyOffset, 0, 0,
+                vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+                { 0, 0, 0 },
+                image.extent,
+            });
+    }
+}
+
+auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
+    const fastgltf::Asset &asset,
+    vma::Allocator allocator,
+    vk::CommandBuffer copyCommandBuffer
+) -> void {
+    const auto materialData
+        = asset.materials
+        | transform([&](const fastgltf::Material &material) {
+            GpuMaterial gpuMaterial {
+                .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
+                .metallicFactor = material.pbrData.metallicFactor,
+                .roughnessFactor = material.pbrData.roughnessFactor,
+            };
+
+            if (const auto &baseColorTexture = material.pbrData.baseColorTexture; baseColorTexture) {
+                gpuMaterial.baseColorTexcoordIndex = baseColorTexture->texCoordIndex;
+                gpuMaterial.baseColorTextureIndex = static_cast<std::int16_t>(baseColorTexture->textureIndex);
+            }
+            if (const auto &metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture; metallicRoughnessTexture) {
+                gpuMaterial.metallicRoughnessTexcoordIndex = metallicRoughnessTexture->texCoordIndex;
+                gpuMaterial.metallicRoughnessTextureIndex = static_cast<std::int16_t>(metallicRoughnessTexture->textureIndex);
+            }
+            if (const auto &normalTexture = material.normalTexture; normalTexture) {
+                gpuMaterial.normalTexcoordIndex = normalTexture->texCoordIndex;
+                gpuMaterial.normalTextureIndex = static_cast<std::int16_t>(normalTexture->textureIndex);
+                gpuMaterial.normalScale = normalTexture->scale;
+            }
+            if (const auto &occlusionTexture = material.occlusionTexture; occlusionTexture) {
+                gpuMaterial.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
+                gpuMaterial.occlusionTextureIndex = static_cast<std::int16_t>(occlusionTexture->textureIndex);
+                gpuMaterial.occlusionStrength = occlusionTexture->strength;
+            }
+
+            return gpuMaterial;
+        });
+
+    const vk::Buffer stagingBuffer = stagingBuffers.emplace_back(
+        allocator, std::from_range, materialData, vk::BufferUsageFlagBits::eTransferSrc);
+    copyCommandBuffer.copyBuffer(
+        stagingBuffer, materialBuffer,
+        vk::BufferCopy { 0, 0, materialBuffer.size });
+}
+
 auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
     const fastgltf::Asset &asset,
     const ResourceBytes &resourceBytes,
@@ -494,34 +578,53 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
 
 auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
     const vulkan::Gpu &gpu,
-    vk::CommandBuffer copyCommandBuffer
+    vk::CommandBuffer copyCommandBuffer,
+    VariadicAttribute attributeType
 ) -> void {
-    const std::vector texcoordAttributeBufferInfos
+    // Helper lambda to get value from map or return default value.
+    // Intended to be usable with immutable container (not calling subscript operator, which is not const qualified).
+    static constexpr auto value_or
+        = []<typename Key, typename Value>(const std::unordered_map<Key, Value> &map, const Key &key, Value default_value) {
+            const auto it = map.find(key);
+            return it == map.end() ? default_value : it->second;
+        };
+
+    const std::vector attributeBufferInfos
         = primitiveData
         | values
-        | transform([](const PrimitiveData &primitiveData) {
-            return iota(0U, primitiveData.texcoordInfos.size())
-                | transform([&](std::size_t i) {
-                    constexpr auto value_or = []<typename Key, typename Value>(const std::unordered_map<Key, Value> &map, const Key &key, Value default_value) {
-                        const auto it = map.find(key);
-                        return it == map.end() ? default_value : it->second;
-                    };
+        | transform([attributeType](const PrimitiveData &primitiveData) {
+            const auto &targetAttributeInfoMap = [=]() -> decltype(auto) {
+                switch (attributeType) {
+                    case VariadicAttribute::Texcoord: return primitiveData.texcoordInfos;
+                    case VariadicAttribute::Color: return primitiveData.colorInfos;
+                }
+                std::unreachable(); // Invalid attributeType: must be Texcoord or Color
+            }();
 
-                    return value_or(primitiveData.texcoordInfos, i, {});
+            return iota(0U, targetAttributeInfoMap.size())
+                | transform([&](std::size_t i) {
+                    return value_or(targetAttributeInfoMap, i, {});
                 })
                 | std::ranges::to<std::vector<PrimitiveData::AttributeBufferInfo>>();
         })
         | std::ranges::to<std::vector<std::vector<PrimitiveData::AttributeBufferInfo>>>();
-    const std::vector texcoordAddressSegments
-        = texcoordAttributeBufferInfos
+
+    // If there's no attributeBufferInfo to process, skip processing.
+    const std::size_t attributeBufferInfoCount = std::transform_reduce(
+        attributeBufferInfos.begin(), attributeBufferInfos.end(),
+        0UZ, std::plus{}, [](const auto& v) { return v.size(); });
+    if (attributeBufferInfoCount == 0UZ) return;
+
+    const std::vector addressSegments
+        = attributeBufferInfos
         | transform([](const auto &attributeBufferInfos) {
             return attributeBufferInfos
                 | transform(&PrimitiveData::AttributeBufferInfo::address)
                 | std::ranges::to<std::vector<vk::DeviceAddress>>();
         })
         | std::ranges::to<std::vector<std::vector<vk::DeviceAddress>>>();
-    const std::vector texcoordFloatStrideSegments
-        = texcoordAttributeBufferInfos
+    const std::vector floatStrideSegments
+        = attributeBufferInfos
         | transform([](const auto &attributeBufferInfos) {
             return attributeBufferInfos
                 | transform([](const PrimitiveData::AttributeBufferInfo &attributeBufferInfo) {
@@ -531,29 +634,44 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
         })
         | std::ranges::to<std::vector<std::vector<std::uint8_t>>>();
 
-    const auto &[bufferReferences, bufferReferenceCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, texcoordAddressSegments);
-    texcoordReferenceBuffer = std::make_unique<vku::AllocatedBuffer>(
+    auto [targetReferenceBuffer, targetFloatStrideBuffer] = [=, this]() -> decltype(auto) {
+        switch (attributeType) {
+            case VariadicAttribute::Texcoord: return std::tie(texcoordReferenceBuffer, texcoordFloatStrideBuffer);
+            case VariadicAttribute::Color: return std::tie(colorReferenceBuffer, colorFloatStrideBuffer);
+        }
+        std::unreachable(); // Invalid attributeType: must be Texcoord or Color
+    }();
+
+    const auto &[bufferReferences, bufferReferenceCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, addressSegments);
+    targetReferenceBuffer = std::make_unique<vku::AllocatedBuffer>(
         createStagingDstBuffer(
             gpu.allocator,
             bufferReferences,
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
             copyCommandBuffer));
 
-    const auto &[strides, strideCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, texcoordFloatStrideSegments);
-    texcoordStrideBuffer = std::make_unique<vku::AllocatedBuffer>(
+    const auto &[strides, strideCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, floatStrideSegments);
+    targetFloatStrideBuffer = std::make_unique<vku::AllocatedBuffer>(
         createStagingDstBuffer(
             gpu.allocator,
             strides,
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
             copyCommandBuffer));
 
-    const vk::DeviceAddress pTexcoordReferenceBuffer = gpu.device.getBufferAddress({ *texcoordReferenceBuffer }),
-                            pTexcoordFloatStrideBuffer = gpu.device.getBufferAddress({ *texcoordStrideBuffer });
+    const vk::DeviceAddress pReferenceBuffer = gpu.device.getBufferAddress({ *targetReferenceBuffer }),
+                            pFloatStrideBuffer = gpu.device.getBufferAddress({ *targetFloatStrideBuffer });
 
-    for (auto [pPrimitive, bufferReferenceCopyOffset, strideCopyOffset] : zip(primitiveData | keys, bufferReferenceCopyOffsets, strideCopyOffsets)) {
-        auto &data = primitiveData[pPrimitive];
-        data.pTexcoordReferenceBuffer = pTexcoordReferenceBuffer + bufferReferenceCopyOffset;
-        data.pTexcoordFloatStrideBuffer = pTexcoordFloatStrideBuffer + strideCopyOffset;
+    for (auto &&[primitiveData, bufferReferenceCopyOffset, strideCopyOffset] : zip(primitiveData | values, bufferReferenceCopyOffsets, strideCopyOffsets)) {
+        // OpenMP does not support capture variable in structured binding.
+        auto [targetPReferenceBuffer, targetPFloatStrideBuffer] = [attributeType](auto &primitiveData) {
+            switch (attributeType) {
+                case VariadicAttribute::Texcoord: return std::tie(primitiveData.pTexcoordReferenceBuffer, primitiveData.pTexcoordFloatStrideBuffer);
+                case VariadicAttribute::Color: return std::tie(primitiveData.pColorReferenceBuffer, primitiveData.pColorFloatStrideBuffer);
+            }
+            std::unreachable(); // Invalid attributeType: must be Texcoord or Color
+        }(primitiveData);
+        targetPReferenceBuffer = pReferenceBuffer + bufferReferenceCopyOffset;
+        targetPFloatStrideBuffer = pFloatStrideBuffer + strideCopyOffset;
     }
 }
 
@@ -619,88 +737,6 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveIndexData(
         | std::ranges::to<std::unordered_map<vk::IndexType, vku::AllocatedBuffer>>();
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
-    const fastgltf::Asset &asset,
-    vma::Allocator allocator,
-    vk::CommandBuffer copyCommandBuffer
-) -> void {
-    const auto materialData
-        = asset.materials
-        | transform([&](const fastgltf::Material &material) {
-            GpuMaterial gpuMaterial {
-                .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
-                .metallicFactor = material.pbrData.metallicFactor,
-                .roughnessFactor = material.pbrData.roughnessFactor,
-            };
-
-            if (const auto &baseColorTexture = material.pbrData.baseColorTexture; baseColorTexture) {
-                gpuMaterial.baseColorTexcoordIndex = baseColorTexture->texCoordIndex;
-                gpuMaterial.baseColorTextureIndex = static_cast<std::int16_t>(baseColorTexture->textureIndex);
-            }
-            if (const auto &metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture; metallicRoughnessTexture) {
-                gpuMaterial.metallicRoughnessTexcoordIndex = metallicRoughnessTexture->texCoordIndex;
-                gpuMaterial.metallicRoughnessTextureIndex = static_cast<std::int16_t>(metallicRoughnessTexture->textureIndex);
-            }
-            if (const auto &normalTexture = material.normalTexture; normalTexture) {
-                gpuMaterial.normalTexcoordIndex = normalTexture->texCoordIndex;
-                gpuMaterial.normalTextureIndex = static_cast<std::int16_t>(normalTexture->textureIndex);
-                gpuMaterial.normalScale = normalTexture->scale;
-            }
-            if (const auto &occlusionTexture = material.occlusionTexture; occlusionTexture) {
-                gpuMaterial.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
-                gpuMaterial.occlusionTextureIndex = static_cast<std::int16_t>(occlusionTexture->textureIndex);
-                gpuMaterial.occlusionStrength = occlusionTexture->strength;
-            }
-
-            return gpuMaterial;
-        });
-
-    const vk::Buffer stagingBuffer = stagingBuffers.emplace_back(
-        allocator, std::from_range, materialData, vk::BufferUsageFlagBits::eTransferSrc);
-    copyCommandBuffer.copyBuffer(
-        stagingBuffer, materialBuffer,
-        vk::BufferCopy { 0, 0, materialBuffer.size });
-}
-
-auto vk_gltf_viewer::gltf::AssetResources::stageImages(
-    const ResourceBytes &resourceBytes,
-    vma::Allocator allocator,
-    vk::CommandBuffer copyCommandBuffer
-) -> void {
-    const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
-        allocator,
-        resourceBytes.images | transform([](const auto &image) { return image.asSpan(); }));
-
-    // 1. Change image layouts to vk::ImageLayout::eTransferDstOptimal.
-    const std::vector imageMemoryBarriers
-        = images
-        | transform([](vk::Image image) {
-            return vk::ImageMemoryBarrier {
-                {}, vk::AccessFlagBits::eTransferWrite,
-                {}, vk::ImageLayout::eTransferDstOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                image, vku::fullSubresourceRange(),
-            };
-        })
-        | std::ranges::to<std::vector<vk::ImageMemoryBarrier>>();
-    copyCommandBuffer.pipelineBarrier(
-        vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-        {}, {}, {}, imageMemoryBarriers);
-
-    // 2. Copy image data from staging buffer to images.
-    for (const auto &[image, copyOffset] : zip(images, copyOffsets)) {
-        copyCommandBuffer.copyBufferToImage(
-            stagingBuffer, image,
-            vk::ImageLayout::eTransferDstOptimal,
-            vk::BufferImageCopy {
-                copyOffset, 0, 0,
-                vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-                { 0, 0, 0 },
-                image.extent,
-            });
-    }
-}
-
 auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
     const vulkan::Gpu::QueueFamilies &queueFamilies,
     vk::CommandBuffer commandBuffer
@@ -709,6 +745,10 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
     targetBuffers.emplace_back(materialBuffer);
     targetBuffers.append_range(indexBuffers | values);
     targetBuffers.append_range(attributeBuffers);
+    if (texcoordReferenceBuffer) targetBuffers.emplace_back(*texcoordReferenceBuffer);
+    if (colorReferenceBuffer) targetBuffers.emplace_back(*colorReferenceBuffer);
+    if (texcoordFloatStrideBuffer) targetBuffers.emplace_back(*texcoordFloatStrideBuffer);
+    if (colorFloatStrideBuffer) targetBuffers.emplace_back(*colorFloatStrideBuffer);
 
     std::vector<vk::Image> targetImages { std::from_range, images };
 
