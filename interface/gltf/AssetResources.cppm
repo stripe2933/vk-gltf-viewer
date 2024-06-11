@@ -72,7 +72,6 @@ namespace vk_gltf_viewer::gltf {
                               roughnessFactor   = 1.f,
                               normalScale       = 1.f,
                               occlusionStrength = 1.f;
-            char              padding2[16];
         };
 
         vk::raii::Sampler defaultSampler;
@@ -128,8 +127,6 @@ namespace vk_gltf_viewer::gltf {
 }
 
 // module :private;
-
-static_assert(sizeof(vk_gltf_viewer::gltf::AssetResources::GpuMaterial) % 64 == 0 && "minStorageBufferOffsetAlignment = 64");
 
 template <std::ranges::random_access_range R>
 [[nodiscard]] auto vk_gltf_viewer::gltf::AssetResources::createCombinedStagingBuffer(

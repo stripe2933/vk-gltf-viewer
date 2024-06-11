@@ -45,7 +45,7 @@ struct Material {
     int16_t metallicRoughnessTextureIndex;
     int16_t normalTextureIndex;
     int16_t occlusionTextureIndex;
-    uint8_t FRAGMENT_DATA[48];
+    uint8_t FRAGMENT_DATA[32];
 };
 
 layout (location = 0) out vec3 fragPosition;
@@ -162,7 +162,6 @@ struct Material {
     float roughnessFactor;
     float normalScale;
     float occlusionStrength;
-    uint8_t padding1[16];
 };
 
 layout (location = 0) in vec3 fragPosition;

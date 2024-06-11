@@ -24,7 +24,3 @@ namespace vk_gltf_viewer::gltf {
         [[nodiscard]] auto createNodeTransformBuffer(const fastgltf::Asset &asset, const fastgltf::Scene &scene, const vulkan::Gpu &gpu) const -> decltype(nodeTransformBuffer);
     };
 }
-
-// module :private;
-
-static_assert(sizeof(vk_gltf_viewer::gltf::SceneResources::NodeTransform) % 64 == 0 && "minStorageBufferOffsetAlignment = 64");
