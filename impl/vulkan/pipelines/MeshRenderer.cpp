@@ -101,13 +101,6 @@ void main(){
     fragPosition = (TRANSFORM.matrix * vec4(inPosition, 1.0)).xyz;
     fragNormal = transpose(mat3(TRANSFORM.inverseMatrix)) * inNormal;
 
-    /*if (int(MATERIAL.baseColorTextureIndex) != -1){
-        uint texcoordIndex = uint(MATERIAL.baseColorTexcoordIndex);
-        if (texcoordIndex == 0) fragBaseColorTexcoord = composeVec2(pc.texcoords0, uint(pc.texcoord0FloatStride), gl_VertexIndex);
-        else if (texcoordIndex == 1) fragBaseColorTexcoord = composeVec2(pc.texcoords1, uint(pc.texcoord1FloatStride), gl_VertexIndex);
-        else if (texcoordIndex == 2) fragBaseColorTexcoord = composeVec2(pc.texcoords2, uint(pc.texcoord2FloatStride), gl_VertexIndex);
-    }*/
-
     if (int(MATERIAL.baseColorTextureIndex) != -1){
         uint texcoordIndex = uint(MATERIAL.baseColorTexcoordIndex);
         fragBaseColorTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
