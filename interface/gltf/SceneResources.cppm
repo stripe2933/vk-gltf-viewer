@@ -11,11 +11,6 @@ export import :vulkan.Gpu;
 namespace vk_gltf_viewer::gltf {
     export class SceneResources {
     public:
-        struct NodeTransform {
-            glm::mat4 matrix;
-            glm::mat4 inverseMatrix = inverse(matrix);
-        };
-
         vku::MappedBuffer nodeTransformBuffer;
 
         SceneResources(const fastgltf::Asset &asset, const fastgltf::Scene &scene, const vulkan::Gpu &gpu);

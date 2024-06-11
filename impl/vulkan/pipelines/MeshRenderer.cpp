@@ -30,11 +30,6 @@ layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Ve
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Vec4Ref { vec4 data; };
 layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Pointers { uint64_t data[]; };
 
-struct NodeTransform {
-    mat4 matrix;
-    mat4 inverseMatrix;
-};
-
 struct Material {
     uint8_t baseColorTexcoordIndex;
     uint8_t metallicRoughnessTexcoordIndex;
@@ -65,7 +60,7 @@ layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
 };
 
 layout (set = 2, binding = 0) readonly buffer NodeTransformBuffer {
-    NodeTransform nodeTransforms[];
+    mat4 nodeTransforms[];
 };
 
 layout (push_constant, std430) uniform PushConstant {
@@ -108,8 +103,8 @@ void main(){
     vec3 inPosition = getVec3(pc.pPositionBuffer + uint(pc.positionByteStride) * gl_VertexIndex);
     vec3 inNormal = getVec3(pc.pNormalBuffer + uint(pc.normalByteStride) * gl_VertexIndex);
 
-    fragPosition = (TRANSFORM.matrix * vec4(inPosition, 1.0)).xyz;
-    fragTBN[2] = normalize(mat3(TRANSFORM.matrix) * inNormal); // N
+    fragPosition = (TRANSFORM * vec4(inPosition, 1.0)).xyz;
+    fragTBN[2] = normalize(mat3(TRANSFORM) * inNormal); // N
 
     if (int(MATERIAL.baseColorTextureIndex) != -1){
         fragBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
@@ -119,7 +114,7 @@ void main(){
     }
     if (int(MATERIAL.normalTextureIndex) != -1){
         vec4 inTangent = getVec4(pc.pTangentBuffer + uint(pc.tangentByteStride) * gl_VertexIndex);
-        fragTBN[0] = normalize(mat3(TRANSFORM.matrix) * inTangent.xyz); // T
+        fragTBN[0] = normalize(mat3(TRANSFORM) * inTangent.xyz); // T
         fragTBN[1] = cross(fragTBN[2], fragTBN[0]) * -inTangent.w; // B
 
         fragNormalTexcoord = getTexcoord(uint(MATERIAL.normalTexcoordIndex));
