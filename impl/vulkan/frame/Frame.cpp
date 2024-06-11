@@ -14,8 +14,10 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :gltf;
 import :vulkan.frame.Frame;
+
+import :gltf.AssetResources;
+import :gltf.SceneResources;
 import :helpers.ranges;
 
 vk_gltf_viewer::vulkan::Frame::Frame(
@@ -302,11 +304,6 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	};
 	std::ranges::sort(primitives, {}, getIndexType);
 	for (auto primitivesWithSameIndexType : std::views::chunk_by(primitives, [&](const auto &lhs, const auto &rhs) { return getIndexType(lhs) == getIndexType(rhs); })) {
-		constexpr auto value_or = []<typename Key, typename Value>(const std::unordered_map<Key, Value> &map, const Key &key, Value default_value) {
-			if (auto it = map.find(key); it != map.end()) return it->second;
-			else return default_value;
-		};
-
 		if (std::optional indexType = getIndexType(primitivesWithSameIndexType.front()); indexType) {
 			const std::size_t indexByteSize = [=]() {
 				switch (*indexType) {

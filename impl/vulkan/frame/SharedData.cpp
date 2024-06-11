@@ -13,8 +13,20 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :helpers.ranges;
 import :vulkan.frame.SharedData;
+
+import :helpers.ranges;
+import :vulkan.pipelines.BrdfmapComputer;
+
+auto createCommandPool(
+	const vk::raii::Device &device,
+	std::uint32_t queueFamilyIndex
+) -> vk::raii::CommandPool {
+	return { device, vk::CommandPoolCreateInfo{
+		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+		queueFamilyIndex,
+	} };
+}
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(
     const fastgltf::Asset &asset,
@@ -247,16 +259,6 @@ auto vk_gltf_viewer::vulkan::SharedData::createSwapchainAttachmentGroups(
 			return attachmentGroup;
 		})
 		| std::ranges::to<std::vector<vku::AttachmentGroup>>();
-}
-
-auto vk_gltf_viewer::vulkan::SharedData::createCommandPool(
-	const vk::raii::Device &device,
-	std::uint32_t queueFamilyIndex
-) const -> vk::raii::CommandPool {
-	return { device, vk::CommandPoolCreateInfo{
-		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-		queueFamilyIndex,
-	} };
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::generateAssetResourceMipmaps(

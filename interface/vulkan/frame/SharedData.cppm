@@ -9,12 +9,14 @@ module;
 export module vk_gltf_viewer:vulkan.frame.SharedData;
 
 export import vku;
-import :gltf;
+import :gltf.AssetResources;
+import :gltf.SceneResources;
 import :io.ktxvk;
 export import :vulkan.Gpu;
-export import :vulkan.pipelines;
+export import :vulkan.pipelines.MeshRenderer;
+export import :vulkan.pipelines.SkyboxRenderer;
 
-namespace vk_gltf_viewer::vulkan {
+namespace vk_gltf_viewer::vulkan::inline frame {
     export class SharedData {
     public:
 		// CPU resources.
@@ -52,7 +54,6 @@ namespace vk_gltf_viewer::vulkan {
     private:
     	[[nodiscard]] auto createSwapchain(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain);
     	[[nodiscard]] auto createSwapchainAttachmentGroups(const vk::raii::Device &device) const -> decltype(swapchainAttachmentGroups);
-    	[[nodiscard]] auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto generateAssetResourceMipmaps(vk::CommandBuffer commandBuffer) const -> void;
     	auto initAttachmentLayouts(vk::CommandBuffer commandBuffer) const -> void;

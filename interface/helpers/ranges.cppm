@@ -11,7 +11,7 @@ export module vk_gltf_viewer:helpers.ranges;
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
-namespace vk_gltf_viewer::ranges {
+namespace vk_gltf_viewer::inline helpers::ranges {
     export template <typename Derived>
 #if !defined(_LIBCPP_VERSION) && __cpp_lib_ranges >= 202202L // https://github.com/llvm/llvm-project/issues/70557#issuecomment-1851936055
     using range_adaptor_closure = std::ranges::range_adaptor_closure<Derived>;

@@ -15,7 +15,8 @@ module vk_gltf_viewer;
 import :MainApp;
 
 import vku;
-import :vulkan.frame;
+import :vulkan.frame.Frame;
+import :vulkan.frame.SharedData;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })

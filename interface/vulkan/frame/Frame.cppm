@@ -9,7 +9,7 @@ export import vku;
 export import :vulkan.Gpu;
 export import :vulkan.frame.SharedData;
 
-namespace vk_gltf_viewer::vulkan {
+namespace vk_gltf_viewer::vulkan::inline frame {
     export class Frame {
     public:
     	std::shared_ptr<SharedData> sharedData;

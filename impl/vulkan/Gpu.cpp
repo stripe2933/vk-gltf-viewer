@@ -11,7 +11,7 @@ module;
 module vk_gltf_viewer;
 import vku;
 import :vulkan.Gpu;
-import :helpers;
+import :helpers.ranges;
 
 vk_gltf_viewer::vulkan::Gpu::QueueFamilies::QueueFamilies(
 	vk::PhysicalDevice physicalDevice,
