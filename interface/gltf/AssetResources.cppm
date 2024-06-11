@@ -98,7 +98,7 @@ namespace vk_gltf_viewer::gltf {
         AssetResources(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu);
 
         [[nodiscard]] auto createDefaultSampler(const vk::raii::Device &device) const -> decltype(defaultSampler);
-        [[nodiscard]] auto createImages(const ResourceBytes &resourceBytes, vma::Allocator allocator) const -> decltype(images);
+        [[nodiscard]] auto createImages(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, vma::Allocator allocator) const -> decltype(images);
         [[nodiscard]] auto createImageViews(const vk::raii::Device &device) const -> decltype(imageViews);
         [[nodiscard]] auto createSamplers(const fastgltf::Asset &asset, const vk::raii::Device &device) const -> decltype(samplers);
         [[nodiscard]] auto createTextures(const fastgltf::Asset &asset) const -> decltype(textures);

@@ -209,7 +209,7 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     const ResourceBytes &resourceBytes,
     const vulkan::Gpu &gpu
 ) : defaultSampler { createDefaultSampler(gpu.device) },
-    images { createImages(resourceBytes, gpu.allocator) },
+    images { createImages(asset, resourceBytes, gpu.allocator) },
     imageViews { createImageViews(gpu.device) },
     samplers { createSamplers(asset, gpu.device) },
     textures { createTextures(asset) },
@@ -249,17 +249,32 @@ auto vk_gltf_viewer::gltf::AssetResources::createDefaultSampler(
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createImages(
+    const fastgltf::Asset &asset,
     const ResourceBytes &resourceBytes,
     vma::Allocator allocator
 ) const -> decltype(images) {
+    // Base color and emissive texture must be in SRGB format.
+    // Therefore, first traverse the asset and fetch the image index that must be in vk::Format::eR8G8B8A8Srgb.
+    std::unordered_set<std::size_t> srgbImageIndices;
+    for (const fastgltf::Material &material : asset.materials) {
+        if (const auto &baseColorTexture = material.pbrData.baseColorTexture; baseColorTexture) {
+            srgbImageIndices.emplace(asset.textures[baseColorTexture->textureIndex].imageIndex.value());
+        }
+        if (const auto &emissiveTexture = material.emissiveTexture; emissiveTexture) {
+            srgbImageIndices.emplace(asset.textures[emissiveTexture->textureIndex].imageIndex.value());
+        }
+    }
+
     return resourceBytes.images
-        | transform([&](const io::StbDecoder<std::uint8_t>::DecodeResult &decodeResult) {
+        | ranges::views::enumerate
+        | transform([&](const auto &indexedResult) {
+            const auto &[imageIndex, decodeResult] = indexedResult;
             return vku::AllocatedImage {
                 allocator,
                 vk::ImageCreateInfo {
                     {},
                     vk::ImageType::e2D,
-                    vk::Format::eR8G8B8A8Srgb,
+                    srgbImageIndices.contains(imageIndex) ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm,
                     vk::Extent3D { decodeResult.width, decodeResult.height, 1 },
                     vku::Image::maxMipLevels({ decodeResult.width, decodeResult.height }), 1,
                     vk::SampleCountFlagBits::e1,
