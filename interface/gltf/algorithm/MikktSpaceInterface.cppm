@@ -2,6 +2,7 @@ module;
 
 #include <algorithm>
 #include <concepts>
+#include <functional>
 #include <vector>
 
 #include <fastgltf/core.hpp>
@@ -21,6 +22,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
     export struct MikktSpaceMesh {
         const fastgltf::Asset &asset;
         const fastgltf::Accessor &indicesAccessor, &positionAccessor, &normalAccessor, &texcoordAccessor;
+        std::function<const std::byte*(const fastgltf::Buffer&)> bufferDataAdaptor = fastgltf::DefaultBufferDataAdapter{};
         std::vector<glm::vec4> tangents = std::vector<glm::vec4>(positionAccessor.count);
     };
 
@@ -37,17 +39,20 @@ namespace vk_gltf_viewer::gltf::algorithm {
                 },
                 .m_getPosition = [](const SMikkTSpaceContext *pContext, float fvPosOut[], int iFace, int iVert) {
                     const auto *meshData = static_cast<const MikktSpaceMesh*>(pContext->m_pUserData);
-                    const glm::vec3 position = getAccessorElement<glm::vec3>(meshData->asset, meshData->positionAccessor, getIndex(*meshData, iFace, iVert));
+                    const glm::vec3 position = getAccessorElement<glm::vec3>(
+                        meshData->asset, meshData->positionAccessor, getIndex(*meshData, iFace, iVert), meshData->bufferDataAdaptor);
                     std::ranges::copy_n(glm::gtc::value_ptr(position), 3, fvPosOut);
                 },
                 .m_getNormal = [](const SMikkTSpaceContext *pContext, float fvNormOut[], int iFace, int iVert) {
                     const auto *meshData = static_cast<const MikktSpaceMesh*>(pContext->m_pUserData);
-                    const glm::vec3 normal = getAccessorElement<glm::vec3>(meshData->asset, meshData->normalAccessor, getIndex(*meshData, iFace, iVert));
+                    const glm::vec3 normal = getAccessorElement<glm::vec3>(
+                        meshData->asset, meshData->normalAccessor, getIndex(*meshData, iFace, iVert), meshData->bufferDataAdaptor);
                     std::ranges::copy_n(glm::gtc::value_ptr(normal), 3, fvNormOut);
                 },
                 .m_getTexCoord = [](const SMikkTSpaceContext *pContext, float fvTexcOut[], int iFace, int iVert) {
                     const auto *meshData = static_cast<const MikktSpaceMesh*>(pContext->m_pUserData);
-                    const glm::vec2 texcoord = getAccessorElement<glm::vec2>(meshData->asset, meshData->texcoordAccessor, getIndex(*meshData, iFace, iVert));
+                    const glm::vec2 texcoord = getAccessorElement<glm::vec2>(
+                        meshData->asset, meshData->texcoordAccessor, getIndex(*meshData, iFace, iVert), meshData->bufferDataAdaptor);
                     std::ranges::copy_n(glm::gtc::value_ptr(texcoord), 2, fvTexcOut);
                 },
                 .m_setTSpaceBasic = [](const SMikkTSpaceContext *pContext, const float *fvTangent, float fSign, int iFace, int iVert) {
@@ -57,7 +62,8 @@ namespace vk_gltf_viewer::gltf::algorithm {
             } { }
 
         [[nodiscard]] static auto getIndex(const MikktSpaceMesh &meshData, int iFace, int iVert) -> int {
-            return getAccessorElement<IndexType>(meshData.asset, meshData.indicesAccessor, 3 * iFace + iVert);
+            return getAccessorElement<IndexType>(
+                meshData.asset, meshData.indicesAccessor, 3 * iFace + iVert, meshData.bufferDataAdaptor);
         }
     };
 

@@ -730,6 +730,10 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveMissingTangents(
                 asset.accessors[pPrimitive->findAttribute("POSITION")->second],
                 asset.accessors[normalIt->second],
                 asset.accessors[texcoordIt->second],
+                [&](const fastgltf::Buffer &buffer) {
+                    const std::size_t bufferIndex = &buffer - asset.buffers.data();
+                    return as_bytes(resourceBytes.bufferBytes[bufferIndex]).data();
+                },
             };
         })
         | std::ranges::to<std::vector<algorithm::MikktSpaceMesh>>();
