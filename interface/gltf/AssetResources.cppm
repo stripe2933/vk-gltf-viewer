@@ -53,8 +53,8 @@ namespace vk_gltf_viewer::gltf {
             AttributeBufferInfo positionInfo;
             std::optional<AttributeBufferInfo> normalInfo, tangentInfo;
             std::unordered_map<std::size_t, AttributeBufferInfo> texcoordInfos, colorInfos;
-            vk::DeviceAddress pTexcoordReferenceBuffer = 0, pTexcoordFloatStrideBuffer = 0,
-                              pColorReferenceBuffer = 0, pColorFloatStrideBuffer = 0;
+            vk::DeviceAddress pTexcoordReferenceBuffer = 0, pTexcoordByteStrideBuffer = 0,
+                              pColorReferenceBuffer = 0, pColorByteStrideBuffer = 0;
         };
 
         struct GpuMaterial {
@@ -85,8 +85,8 @@ namespace vk_gltf_viewer::gltf {
 
         std::unordered_map<const fastgltf::Primitive*, PrimitiveData> primitiveData;
         std::vector<vku::AllocatedBuffer> attributeBuffers;
-        std::unique_ptr<vku::AllocatedBuffer> texcoordReferenceBuffer, texcoordFloatStrideBuffer,
-                                              colorReferenceBuffer, colorFloatStrideBuffer;
+        std::unique_ptr<vku::AllocatedBuffer> texcoordReferenceBuffer, texcoordByteStrideBuffer,
+                                              colorReferenceBuffer, colorByteStrideBuffer;
         std::unique_ptr<vku::AllocatedBuffer> tangentBuffer;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 

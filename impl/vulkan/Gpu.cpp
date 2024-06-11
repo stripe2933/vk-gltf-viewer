@@ -109,6 +109,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 	constexpr auto physicalDeviceFeatures
 		= vk::PhysicalDeviceFeatures{}
 		.setSamplerAnisotropy(vk::True)
+		.setShaderInt64(vk::True)
 		.setShaderStorageImageWriteWithoutFormat(vk::True);
 	return { physicalDevice, vk::StructureChain {
 		vk::DeviceCreateInfo{

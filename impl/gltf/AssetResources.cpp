@@ -628,21 +628,19 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
                 | std::ranges::to<std::vector<vk::DeviceAddress>>();
         })
         | std::ranges::to<std::vector<std::vector<vk::DeviceAddress>>>();
-    const std::vector floatStrideSegments
+    const std::vector byteStrideSegments
         = attributeBufferInfos
         | transform([](const auto &attributeBufferInfos) {
             return attributeBufferInfos
-                | transform([](const PrimitiveData::AttributeBufferInfo &attributeBufferInfo) {
-                    return static_cast<std::uint8_t>(attributeBufferInfo.byteStride / sizeof(float));
-                })
-                | std::ranges::to<std::vector<vk::DeviceAddress>>();
+                | transform(&PrimitiveData::AttributeBufferInfo::byteStride)
+                | std::ranges::to<std::vector<std::uint8_t>>();
         })
         | std::ranges::to<std::vector<std::vector<std::uint8_t>>>();
 
-    auto [targetReferenceBuffer, targetFloatStrideBuffer] = [=, this]() -> decltype(auto) {
+    auto [targetReferenceBuffer, targetByteStrideBuffer] = [=, this]() -> decltype(auto) {
         switch (attributeType) {
-            case VariadicAttribute::Texcoord: return std::tie(texcoordReferenceBuffer, texcoordFloatStrideBuffer);
-            case VariadicAttribute::Color: return std::tie(colorReferenceBuffer, colorFloatStrideBuffer);
+            case VariadicAttribute::Texcoord: return std::tie(texcoordReferenceBuffer, texcoordByteStrideBuffer);
+            case VariadicAttribute::Color: return std::tie(colorReferenceBuffer, colorByteStrideBuffer);
         }
         std::unreachable(); // Invalid attributeType: must be Texcoord or Color
     }();
@@ -655,8 +653,8 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
             copyCommandBuffer));
 
-    const auto &[strides, strideCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, floatStrideSegments);
-    targetFloatStrideBuffer = std::make_unique<vku::AllocatedBuffer>(
+    const auto &[strides, strideCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, byteStrideSegments);
+    targetByteStrideBuffer = std::make_unique<vku::AllocatedBuffer>(
         createStagingDstBuffer(
             gpu.allocator,
             strides,
@@ -664,19 +662,19 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
             copyCommandBuffer));
 
     const vk::DeviceAddress pReferenceBuffer = gpu.device.getBufferAddress({ targetReferenceBuffer->buffer }),
-                            pFloatStrideBuffer = gpu.device.getBufferAddress({ targetFloatStrideBuffer->buffer });
+                            pByteStrideBuffer = gpu.device.getBufferAddress({ targetByteStrideBuffer->buffer });
 
     for (auto &&[primitiveData, bufferReferenceCopyOffset, strideCopyOffset] : zip(primitiveData | values, bufferReferenceCopyOffsets, strideCopyOffsets)) {
         // OpenMP does not support capture variable in structured binding.
-        auto [targetPReferenceBuffer, targetPFloatStrideBuffer] = [attributeType](auto &primitiveData) {
+        auto [targetPReferenceBuffer, targetPByteStrideBuffer] = [attributeType](auto &primitiveData) {
             switch (attributeType) {
-                case VariadicAttribute::Texcoord: return std::tie(primitiveData.pTexcoordReferenceBuffer, primitiveData.pTexcoordFloatStrideBuffer);
-                case VariadicAttribute::Color: return std::tie(primitiveData.pColorReferenceBuffer, primitiveData.pColorFloatStrideBuffer);
+                case VariadicAttribute::Texcoord: return std::tie(primitiveData.pTexcoordReferenceBuffer, primitiveData.pTexcoordByteStrideBuffer);
+                case VariadicAttribute::Color: return std::tie(primitiveData.pColorReferenceBuffer, primitiveData.pColorByteStrideBuffer);
             }
             std::unreachable(); // Invalid attributeType: must be Texcoord or Color
         }(primitiveData);
         targetPReferenceBuffer = pReferenceBuffer + bufferReferenceCopyOffset;
-        targetPFloatStrideBuffer = pFloatStrideBuffer + strideCopyOffset;
+        targetPByteStrideBuffer = pByteStrideBuffer + strideCopyOffset;
     }
 }
 
@@ -827,8 +825,8 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
     targetBuffers.append_range(indexBuffers | values);
     if (texcoordReferenceBuffer) targetBuffers.emplace_back(*texcoordReferenceBuffer);
     if (colorReferenceBuffer) targetBuffers.emplace_back(*colorReferenceBuffer);
-    if (texcoordFloatStrideBuffer) targetBuffers.emplace_back(*texcoordFloatStrideBuffer);
-    if (colorFloatStrideBuffer) targetBuffers.emplace_back(*colorFloatStrideBuffer);
+    if (texcoordByteStrideBuffer) targetBuffers.emplace_back(*texcoordByteStrideBuffer);
+    if (colorByteStrideBuffer) targetBuffers.emplace_back(*colorByteStrideBuffer);
     if (tangentBuffer) targetBuffers.emplace_back(*tangentBuffer);
 
     std::vector<vk::Image> targetImages { std::from_range, images };

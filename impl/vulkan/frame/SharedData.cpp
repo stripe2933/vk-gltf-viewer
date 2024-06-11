@@ -142,8 +142,8 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 			targetBuffers.append_range(assetResources.indexBuffers | std::views::values);
 			if (assetResources.texcoordReferenceBuffer) targetBuffers.emplace_back(*assetResources.texcoordReferenceBuffer);
 			if (assetResources.colorReferenceBuffer) targetBuffers.emplace_back(*assetResources.colorReferenceBuffer);
-			if (assetResources.texcoordFloatStrideBuffer) targetBuffers.emplace_back(*assetResources.texcoordFloatStrideBuffer);
-			if (assetResources.colorFloatStrideBuffer) targetBuffers.emplace_back(*assetResources.colorFloatStrideBuffer);
+			if (assetResources.texcoordByteStrideBuffer) targetBuffers.emplace_back(*assetResources.texcoordByteStrideBuffer);
+			if (assetResources.colorByteStrideBuffer) targetBuffers.emplace_back(*assetResources.colorByteStrideBuffer);
 			if (assetResources.tangentBuffer) targetBuffers.emplace_back(*assetResources.tangentBuffer);
 
 			std::vector<vk::Image> targetImages { std::from_range, assetResources.images };

@@ -18,6 +18,7 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::MeshRenderer::vert = R"vert(
 #version 450
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_shader_8bit_storage : require
 
 // For convinience.
@@ -25,8 +26,9 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::MeshRenderer::vert = R"vert(
 #define MATERIAL materials[pc.materialIndex]
 
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer Ubytes { uint8_t data[]; };
-layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Floats { float data[]; };
-layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer FloatReferences { Floats references[]; };
+layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Vec2Ref { vec2 data; };
+layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Vec4Ref { vec4 data; };
+layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Pointers { uint64_t data[]; };
 
 struct NodeTransform {
     mat4 matrix;
@@ -67,17 +69,17 @@ layout (set = 2, binding = 0) readonly buffer NodeTransformBuffer {
 };
 
 layout (push_constant, std430) uniform PushConstant {
-    Floats positions;
-    Floats normals;
-    Floats tangents;
-    FloatReferences texcoords;
-    FloatReferences colors;
-    uint8_t positionFloatStride;
-    uint8_t normalFloatStride;
-    uint8_t tangentFloatStride;
+    uint64_t pPositionBuffer;
+    uint64_t pNormalBuffer;
+    uint64_t pTangentBuffer;
+    Pointers texcoordBufferPtrs;
+    Pointers colorBufferPtrs;
+    uint8_t positionByteStride;
+    uint8_t normalByteStride;
+    uint8_t tangentByteStride;
     uint8_t padding[5];
-    Ubytes texcoordFloatStrides;
-    Ubytes colorFloatStrides;
+    Ubytes texcoordByteStrides;
+    Ubytes colorByteStrides;
     uint nodeIndex;
     uint materialIndex;
 } pc;
@@ -86,44 +88,44 @@ layout (push_constant, std430) uniform PushConstant {
 // Functions.
 // --------------------
 
-vec2 composeVec2(readonly Floats floats, uint floatStride, uint index){
-    return vec2(floats.data[floatStride * index], floats.data[floatStride * index + 1U]);
+vec2 getVec2(uint64_t address){
+    return Vec2Ref(address).data;
 }
 
-vec3 composeVec3(readonly Floats floats, uint floatStride, uint index){
-    return vec3(floats.data[floatStride * index], floats.data[floatStride * index + 1U], floats.data[floatStride * index + 2U]);
+vec3 getVec3(uint64_t address){
+    return Vec4Ref(address).data.xyz;
 }
 
-vec4 composeVec4(readonly Floats floats, uint floatStride, uint index){
-    return vec4(floats.data[floatStride * index], floats.data[floatStride * index + 1U], floats.data[floatStride * index + 2U], floats.data[floatStride * index + 3U]);
+vec4 getVec4(uint64_t address){
+    return Vec4Ref(address).data;
+}
+
+vec2 getTexcoord(uint texcoordIndex){
+    return getVec2(pc.texcoordBufferPtrs.data[texcoordIndex] + uint(pc.texcoordByteStrides.data[texcoordIndex]) * gl_VertexIndex);
 }
 
 void main(){
-    vec3 inPosition = composeVec3(pc.positions, uint(pc.positionFloatStride), gl_VertexIndex);
-    vec3 inNormal = composeVec3(pc.normals, uint(pc.normalFloatStride), gl_VertexIndex);
+    vec3 inPosition = getVec3(pc.pPositionBuffer + uint(pc.positionByteStride) * gl_VertexIndex);
+    vec3 inNormal = getVec3(pc.pNormalBuffer + uint(pc.normalByteStride) * gl_VertexIndex);
 
     fragPosition = (TRANSFORM.matrix * vec4(inPosition, 1.0)).xyz;
     fragTBN[2] = normalize(mat3(TRANSFORM.matrix) * inNormal); // N
 
     if (int(MATERIAL.baseColorTextureIndex) != -1){
-        uint texcoordIndex = uint(MATERIAL.baseColorTexcoordIndex);
-        fragBaseColorTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
+        fragBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
     }
     if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
-        uint texcoordIndex = uint(MATERIAL.metallicRoughnessTexcoordIndex);
-        fragMetallicRoughnessTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
+        fragMetallicRoughnessTexcoord = getTexcoord(uint(MATERIAL.metallicRoughnessTexcoordIndex));
     }
     if (int(MATERIAL.normalTextureIndex) != -1){
-        vec4 inTangent = composeVec4(pc.tangents, uint(pc.tangentFloatStride), gl_VertexIndex);
+        vec4 inTangent = getVec4(pc.pTangentBuffer + uint(pc.tangentByteStride) * gl_VertexIndex);
         fragTBN[0] = normalize(mat3(TRANSFORM.matrix) * inTangent.xyz); // T
-        fragTBN[1] = cross(fragTBN[2], fragTBN[0]) * inTangent.w; // B
+        fragTBN[1] = cross(fragTBN[2], fragTBN[0]) * -inTangent.w; // B
 
-        uint texcoordIndex = uint(MATERIAL.normalTexcoordIndex);
-        fragNormalTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
+        fragNormalTexcoord = getTexcoord(uint(MATERIAL.normalTexcoordIndex));
     }
     if (int(MATERIAL.occlusionTextureIndex) != -1){
-        uint texcoordIndex = uint(MATERIAL.occlusionTexcoordIndex);
-        fragOcclusionTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
+        fragOcclusionTexcoord = getTexcoord(uint(MATERIAL.occlusionTexcoordIndex));
     }
 
     gl_Position = camera.projectionView * vec4(fragPosition, 1.0);
@@ -241,8 +243,9 @@ void main(){
 
     vec3 N;
     if (int(MATERIAL.normalTextureIndex) != -1){
-        N = (2.0 * texture(textures[uint(MATERIAL.normalTextureIndex)], fragNormalTexcoord).xyz - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
-        N = normalize(fragTBN * N);
+        vec3 tangentNormal = texture(textures[uint(MATERIAL.normalTextureIndex)], fragNormalTexcoord).rgb;
+        vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
+        N = normalize(fragTBN * scaledNormal);
     }
     else {
         N = normalize(fragTBN[2]);
