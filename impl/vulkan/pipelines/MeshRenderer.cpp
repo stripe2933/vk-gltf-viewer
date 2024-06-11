@@ -47,11 +47,11 @@ struct Material {
 };
 
 layout (location = 0) out vec3 fragPosition;
-layout (location = 1) out vec3 fragNormal;
-layout (location = 2) out vec2 fragBaseColorTexcoord;
-layout (location = 3) out vec2 fragMetallicRoughnessTexcoord;
-layout (location = 4) out vec2 fragNormalTexcoord;
-layout (location = 5) out vec2 fragOcclusionTexcoord;
+layout (location = 1) out mat3 fragTBN;
+layout (location = 4) out vec2 fragBaseColorTexcoord;
+layout (location = 5) out vec2 fragMetallicRoughnessTexcoord;
+layout (location = 6) out vec2 fragNormalTexcoord;
+layout (location = 7) out vec2 fragOcclusionTexcoord;
 
 layout (set = 0, binding = 0) uniform CameraBuffer {
     mat4 projectionView;
@@ -94,12 +94,16 @@ vec3 composeVec3(readonly Floats floats, uint floatStride, uint index){
     return vec3(floats.data[floatStride * index], floats.data[floatStride * index + 1U], floats.data[floatStride * index + 2U]);
 }
 
+vec4 composeVec4(readonly Floats floats, uint floatStride, uint index){
+    return vec4(floats.data[floatStride * index], floats.data[floatStride * index + 1U], floats.data[floatStride * index + 2U], floats.data[floatStride * index + 3U]);
+}
+
 void main(){
     vec3 inPosition = composeVec3(pc.positions, uint(pc.positionFloatStride), gl_VertexIndex);
     vec3 inNormal = composeVec3(pc.normals, uint(pc.normalFloatStride), gl_VertexIndex);
 
     fragPosition = (TRANSFORM.matrix * vec4(inPosition, 1.0)).xyz;
-    fragNormal = transpose(mat3(TRANSFORM.inverseMatrix)) * inNormal;
+    fragTBN[2] = normalize(mat3(TRANSFORM.matrix) * inNormal); // N
 
     if (int(MATERIAL.baseColorTextureIndex) != -1){
         uint texcoordIndex = uint(MATERIAL.baseColorTexcoordIndex);
@@ -110,6 +114,10 @@ void main(){
         fragMetallicRoughnessTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
     }
     if (int(MATERIAL.normalTextureIndex) != -1){
+        vec4 inTangent = composeVec4(pc.tangents, uint(pc.tangentFloatStride), gl_VertexIndex);
+        fragTBN[0] = normalize(mat3(TRANSFORM.matrix) * inTangent.xyz); // T
+        fragTBN[1] = cross(fragTBN[2], fragTBN[0]) * inTangent.w; // B
+
         uint texcoordIndex = uint(MATERIAL.normalTexcoordIndex);
         fragNormalTexcoord = composeVec2(pc.texcoords.references[texcoordIndex], uint(pc.texcoordFloatStrides.data[texcoordIndex]), gl_VertexIndex);
     }
@@ -156,11 +164,11 @@ struct Material {
 };
 
 layout (location = 0) in vec3 fragPosition;
-layout (location = 1) in vec3 fragNormal;
-layout (location = 2) in vec2 fragBaseColorTexcoord;
-layout (location = 3) in vec2 fragMetallicRoughnessTexcoord;
-layout (location = 4) in vec2 fragNormalTexcoord;
-layout (location = 5) in vec2 fragOcclusionTexcoord;
+layout (location = 1) in mat3 fragTBN;
+layout (location = 4) in vec2 fragBaseColorTexcoord;
+layout (location = 5) in vec2 fragMetallicRoughnessTexcoord;
+layout (location = 6) in vec2 fragNormalTexcoord;
+layout (location = 7) in vec2 fragOcclusionTexcoord;
 
 layout (location = 0) out vec4 outColor;
 
@@ -220,26 +228,31 @@ vec3 computeDiffuseIrradiance(vec3 normal){
 
 void main(){
     vec4 baseColor = MATERIAL.baseColorFactor;
-    int baseColorTextureIndex = int(MATERIAL.baseColorTextureIndex);
-    if (baseColorTextureIndex != -1) {
-        baseColor *= texture(textures[baseColorTextureIndex], fragBaseColorTexcoord);
+    if (int(MATERIAL.baseColorTextureIndex) != -1) {
+        baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], fragBaseColorTexcoord);
     }
 
     float metallic = MATERIAL.metallicFactor, roughness = MATERIAL.roughnessFactor;
-    int metallicRoughnessTextureIndex = int(MATERIAL.metallicRoughnessTextureIndex);
-    if (metallicRoughnessTextureIndex != -1){
-        vec2 metallicRoughness = texture(textures[metallicRoughnessTextureIndex], fragMetallicRoughnessTexcoord).bg;
+    if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
+        vec2 metallicRoughness = texture(textures[uint(MATERIAL.metallicRoughnessTextureIndex)], fragMetallicRoughnessTexcoord).bg;
         metallic *= metallicRoughness.x;
         roughness *= metallicRoughness.y;
     }
 
-    float occlusion = 1.0;
-    int occlusionTextureIndex = int(MATERIAL.occlusionTextureIndex);
-    if (occlusionTextureIndex != -1){
-        occlusion += MATERIAL.occlusionStrength * (texture(textures[occlusionTextureIndex], fragOcclusionTexcoord).r - 1.0);
+    vec3 N;
+    if (int(MATERIAL.normalTextureIndex) != -1){
+        N = (2.0 * texture(textures[uint(MATERIAL.normalTextureIndex)], fragNormalTexcoord).xyz - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
+        N = normalize(fragTBN * N);
+    }
+    else {
+        N = normalize(fragTBN[2]);
     }
 
-    vec3 N = normalize(fragNormal);
+    float occlusion = 1.0;
+    if (int(MATERIAL.occlusionTextureIndex) != -1){
+        occlusion += MATERIAL.occlusionStrength * (texture(textures[uint(MATERIAL.occlusionTextureIndex)], fragOcclusionTexcoord).r - 1.0);
+    }
+
     vec3 V = normalize(camera.viewPosition - fragPosition);
     vec3 R = reflect(-V, N);
 

@@ -84,10 +84,11 @@ namespace vk_gltf_viewer::gltf {
         vku::AllocatedBuffer materialBuffer;
 
         std::unordered_map<const fastgltf::Primitive*, PrimitiveData> primitiveData;
-        std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
         std::vector<vku::AllocatedBuffer> attributeBuffers;
         std::unique_ptr<vku::AllocatedBuffer> texcoordReferenceBuffer, texcoordFloatStrideBuffer,
                                               colorReferenceBuffer, colorFloatStrideBuffer;
+        std::unique_ptr<vku::AllocatedBuffer> tangentBuffer;
+        std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
         AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const vulkan::Gpu &gpu);
 
@@ -107,6 +108,7 @@ namespace vk_gltf_viewer::gltf {
         auto stageMaterials(const fastgltf::Asset &asset, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
         auto setPrimitiveAttributeData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
         auto setPrimitiveVariadicAttributeData(const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer, VariadicAttribute attributeType) -> void;
+        auto setPrimitiveMissingTangents(const fastgltf::Asset &asset, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
         auto setPrimitiveIndexData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
 
         auto releaseResourceQueueFamilyOwnership(const vulkan::Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;

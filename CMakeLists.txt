@@ -25,6 +25,7 @@ endif()
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(Ktx CONFIG REQUIRED)
+find_package(mikktspace CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(Vulkan REQUIRED)
 
@@ -134,6 +135,8 @@ target_sources(vk-gltf-viewer PRIVATE
 	FILES
 		interface/mod.cppm
 		interface/gltf/mod.cppm
+		interface/gltf/algorithm/mod.cppm
+		interface/gltf/algorithm/MikktSpaceInterface.cppm
 		interface/gltf/AssetResources.cppm
 		interface/gltf/SceneResources.cppm
 		interface/helpers/mod.cppm
@@ -162,5 +165,6 @@ target_sources(vk-gltf-viewer PRIVATE
 target_link_libraries(vk-gltf-viewer PRIVATE
 	fastgltf::fastgltf
 	KTX::ktx
+	mikktspace::mikktspace
 	vku
 )

@@ -144,6 +144,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 			if (assetResources.colorReferenceBuffer) targetBuffers.emplace_back(*assetResources.colorReferenceBuffer);
 			if (assetResources.texcoordFloatStrideBuffer) targetBuffers.emplace_back(*assetResources.texcoordFloatStrideBuffer);
 			if (assetResources.colorFloatStrideBuffer) targetBuffers.emplace_back(*assetResources.colorFloatStrideBuffer);
+			if (assetResources.tangentBuffer) targetBuffers.emplace_back(*assetResources.tangentBuffer);
 
 			std::vector<vk::Image> targetImages { std::from_range, assetResources.images };
 			targetImages.emplace_back(cubemapTexture.image);

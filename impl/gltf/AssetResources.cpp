@@ -19,10 +19,13 @@ module;
 #include <vector>
 
 #include <fastgltf/core.hpp>
+#include <mikktspace.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
 import :gltf.AssetResources;
+
+import :gltf.algorithm.MikktSpaceInterface;
 import :helpers;
 import :io.StbDecoder;
 
@@ -221,6 +224,7 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
         setPrimitiveAttributeData(asset, resourceBytes, gpu, cb);
         setPrimitiveVariadicAttributeData(gpu, cb, VariadicAttribute::Texcoord);
         setPrimitiveVariadicAttributeData(gpu, cb, VariadicAttribute::Color);
+        setPrimitiveMissingTangents(asset, gpu, cb);
         setPrimitiveIndexData(asset, resourceBytes, gpu.allocator, cb);
 
         releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
@@ -255,7 +259,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
                 vk::ImageCreateInfo {
                     {},
                     vk::ImageType::e2D,
-                    vk::Format::eR8G8B8A8Unorm,
+                    vk::Format::eR8G8B8A8Srgb,
                     vk::Extent3D { decodeResult.width, decodeResult.height, 1 },
                     vku::Image::maxMipLevels({ decodeResult.width, decodeResult.height }), 1,
                     vk::SampleCountFlagBits::e1,
@@ -676,6 +680,80 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
     }
 }
 
+auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveMissingTangents(
+    const fastgltf::Asset &asset,
+    const vulkan::Gpu &gpu,
+    vk::CommandBuffer copyCommandBuffer
+) -> void {
+    std::vector missingTangentMeshes
+        = primitiveData
+        | filter([&](const auto &keyValue) {
+            const auto &[pPrimitive, primitiveData] = keyValue;
+
+            // Skip if primitive already has a tangent attribute.
+            if (primitiveData.tangentInfo) return false;
+            // Skip if primitive doesn't have a material.
+            else if (const auto &materialIndex = pPrimitive->materialIndex; !materialIndex) return false;
+            // Skip if primitive doesn't have a normal texture.
+            else return asset.materials[*materialIndex].normalTexture.has_value();
+        })
+        | transform([&](const auto &keyValue) {
+            const auto &[pPrimitive, primitiveData] = keyValue;
+
+            // Validate constriant for MikktSpaceInterface.
+            if (auto normalIt = pPrimitive->findAttribute("NORMAL"); normalIt == pPrimitive->attributes.end()) {
+                throw std::runtime_error { "Missing NORMAL attribute" };
+            }
+            else if (auto texcoordIt = pPrimitive->findAttribute(std::format("TEXCOORD_{}", asset.materials[*pPrimitive->materialIndex].normalTexture->texCoordIndex));
+                texcoordIt == pPrimitive->attributes.end()) {
+                throw std::runtime_error { "Missing TEXCOORD attribute" };
+            }
+            else if (!pPrimitive->indicesAccessor) {
+                throw std::runtime_error { "Missing indices accessor" };
+            }
+            else return algorithm::MikktSpaceMesh {
+                asset,
+                asset.accessors[*pPrimitive->indicesAccessor],
+                asset.accessors[pPrimitive->findAttribute("POSITION")->second],
+                asset.accessors[normalIt->second],
+                asset.accessors[texcoordIt->second],
+            };
+        })
+        | std::ranges::to<std::vector<algorithm::MikktSpaceMesh>>();
+    if (missingTangentMeshes.empty()) return; // Skip if there's no missing tangent mesh.
+
+    #pragma omp parallel for
+    for (algorithm::MikktSpaceMesh &mesh : missingTangentMeshes) {
+        SMikkTSpaceInterface* const pInterface = [indexType = mesh.indicesAccessor.componentType]() -> SMikkTSpaceInterface* {
+            switch (indexType) {
+                case fastgltf::ComponentType::UnsignedShort:
+                    return &algorithm::mikktSpaceInterface<std::uint16_t>;
+                case fastgltf::ComponentType::UnsignedInt:
+                    return &algorithm::mikktSpaceInterface<std::uint32_t>;
+                default:
+                    throw std::runtime_error { "Unsupported index type" };
+            }
+        }();
+        if (const SMikkTSpaceContext context { pInterface, &mesh }; !genTangSpaceDefault(&context)) {
+            throw std::runtime_error { "Failed to generate tangent attributes" };
+        }
+    }
+
+    const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
+        gpu.allocator,
+        missingTangentMeshes | transform(&algorithm::MikktSpaceMesh::tangents));
+    tangentBuffer = std::make_unique<vku::AllocatedBuffer>(
+        createStagingDstBuffer(
+            gpu.allocator, stagingBuffer,
+            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            copyCommandBuffer));
+    const vk::DeviceAddress pTangentBuffer = gpu.device.getBufferAddress({ tangentBuffer->buffer });
+
+    for (auto &&[primitiveData, copyOffset] : zip(primitiveData | values, copyOffsets)) {
+        primitiveData.tangentInfo.emplace(pTangentBuffer + copyOffset, 16);
+    }
+}
+
 auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveIndexData(
     const fastgltf::Asset &asset,
     const ResourceBytes &resourceBytes,
@@ -746,11 +824,12 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
 
     std::vector<vk::Buffer> targetBuffers { std::from_range, attributeBuffers };
     targetBuffers.emplace_back(materialBuffer);
-    targetBuffers.append_range(indexBuffers | std::views::values);
+    targetBuffers.append_range(indexBuffers | values);
     if (texcoordReferenceBuffer) targetBuffers.emplace_back(*texcoordReferenceBuffer);
     if (colorReferenceBuffer) targetBuffers.emplace_back(*colorReferenceBuffer);
     if (texcoordFloatStrideBuffer) targetBuffers.emplace_back(*texcoordFloatStrideBuffer);
     if (colorFloatStrideBuffer) targetBuffers.emplace_back(*colorFloatStrideBuffer);
+    if (tangentBuffer) targetBuffers.emplace_back(*tangentBuffer);
 
     std::vector<vk::Image> targetImages { std::from_range, images };
 
