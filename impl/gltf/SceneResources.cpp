@@ -62,17 +62,19 @@ auto vk_gltf_viewer::gltf::SceneResources::createNodeTransformBuffer(
 auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
     const vulkan::Gpu &gpu
 ) -> decltype(primitiveBuffer) {
+    const fastgltf::Asset &asset = assetResources.asset;
+
     // Collect glTF mesh primitives.
-    std::vector<const AssetResources::PrimitiveData*> primitiveDataPtrs;
-    for (std::stack dfs { std::from_range, assetResources.asset.scenes[assetResources.asset.defaultScene.value_or(0)].nodeIndices | reverse }; !dfs.empty(); ) {
+    std::vector<const AssetResources::PrimitiveInfo*> primitiveInfoPtrs;
+    for (std::stack dfs { std::from_range, asset.scenes[asset.defaultScene.value_or(0)].nodeIndices | reverse }; !dfs.empty(); ) {
         const std::size_t nodeIndex = dfs.top();
-        const fastgltf::Node &node = assetResources.asset.nodes[nodeIndex];
+        const fastgltf::Node &node = asset.nodes[nodeIndex];
         if (node.meshIndex) {
-            const fastgltf::Mesh &mesh = assetResources.asset.meshes[*node.meshIndex];
-            primitiveDataPtrs.append_range(
+            const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+            primitiveInfoPtrs.append_range(
                 mesh.primitives | transform([&](const fastgltf::Primitive &primitive) {
-                    const AssetResources::PrimitiveData &primitiveData = assetResources.primitiveData.at(&primitive);
-                    return &primitiveData;
+                    const AssetResources::PrimitiveInfo &primitiveInfo = assetResources.primitiveInfos.at(&primitive);
+                    return &primitiveInfo;
                 }));
         }
         dfs.pop();
@@ -80,30 +82,37 @@ auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
     }
 
     // Sort primitive by index type.
-    constexpr auto projection = [](const AssetResources::PrimitiveData *pPrimitiveData) {
-        return pPrimitiveData->indexInfo.transform([](const auto &info) { return info.type; });
+    constexpr auto projection = [](const AssetResources::PrimitiveInfo *pPrimitiveInfo) {
+        return pPrimitiveInfo->indexInfo.transform([](const auto &info) { return info.type; });
     };
-    std::ranges::sort(primitiveDataPtrs, {}, projection);
+    std::ranges::sort(primitiveInfoPtrs, {}, projection);
 
     const auto primitiveInfos
-        = primitiveDataPtrs
-        | transform([](const AssetResources::PrimitiveData *pPrimitiveData){
+        = primitiveInfoPtrs
+        | transform([](const AssetResources::PrimitiveInfo *pPrimitiveInfo){
             return GpuPrimitive {
-                .pPositionBuffer = pPrimitiveData->positionInfo.address,
-                .pNormalBuffer = pPrimitiveData->normalInfo.value().address,
-                .pTangentBuffer = pPrimitiveData->tangentInfo.value().address,
-                .pTexcoordBufferPtrBuffer = pPrimitiveData->pTexcoordReferenceBuffer,
-                .pColorBufferPtrBuffer = pPrimitiveData->pColorReferenceBuffer,
-                .positionByteStride = pPrimitiveData->positionInfo.byteStride,
-                .normalByteStride = pPrimitiveData->normalInfo.value().byteStride,
-                .tangentByteStride = pPrimitiveData->tangentInfo.value().byteStride,
-                .pTexcoordByteStrideBuffer = pPrimitiveData->pTexcoordByteStrideBuffer,
-                .pColorByteStrideBuffer = pPrimitiveData->pColorByteStrideBuffer,
-                .nodeIndex = pPrimitiveData->nodeIndex,
-                .materialIndex = pPrimitiveData->materialIndex.value(),
+                .pPositionBuffer = pPrimitiveInfo->positionInfo.address,
+                .pNormalBuffer = pPrimitiveInfo->normalInfo.value().address,
+                .pTangentBuffer = pPrimitiveInfo->tangentInfo.value().address,
+                .pTexcoordBufferPtrsBuffer = ranges::value_or(
+                    pPrimitiveInfo->indexedAttributeMappingInfos,
+                    AssetResources::IndexedAttribute::Texcoord, {}).pBufferPtrBuffer,
+                .pColorBufferPtrsBuffer = ranges::value_or(
+                    pPrimitiveInfo->indexedAttributeMappingInfos,
+                    AssetResources::IndexedAttribute::Color, {}).pBufferPtrBuffer,
+                .positionByteStride = pPrimitiveInfo->positionInfo.byteStride,
+                .normalByteStride = pPrimitiveInfo->normalInfo.value().byteStride,
+                .tangentByteStride = pPrimitiveInfo->tangentInfo.value().byteStride,
+                .pTexcoordByteStridesBuffer = ranges::value_or(
+                    pPrimitiveInfo->indexedAttributeMappingInfos,
+                    AssetResources::IndexedAttribute::Texcoord, {}).pByteStridesBuffer,
+                .pColorByteStridesBuffer = ranges::value_or(
+                    pPrimitiveInfo->indexedAttributeMappingInfos,
+                    AssetResources::IndexedAttribute::Color, {}).pByteStridesBuffer,
+                .nodeIndex = pPrimitiveInfo->nodeIndex,
+                .materialIndex = pPrimitiveInfo->materialIndex.value(),
             };
         });
-
     return { gpu.allocator, std::from_range, primitiveInfos, vk::BufferUsageFlagBits::eStorageBuffer };
 }
 
@@ -120,10 +129,10 @@ auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
         const fastgltf::Node &node = asset.nodes[nodeIndex];
         if (node.meshIndex) {
             for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex]){
-                const AssetResources::PrimitiveData &primitiveData = assetResources.primitiveData.at(&primitive);
+                const AssetResources::PrimitiveInfo &primitiveInfo = assetResources.primitiveInfos.at(&primitive);
 
                 const CommandSeparationCriteria criteria {
-                    primitiveData.indexInfo.transform([](const auto &info) { return info.type; }),
+                    primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
                     asset.materials[primitive.materialIndex.value()].doubleSided,
                 };
 
@@ -137,12 +146,12 @@ auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
                     }();
 
                     indexedDrawCommands[criteria].emplace_back(
-                        primitiveData.drawCount, 1,
-                        static_cast<std::uint32_t>(primitiveData.indexInfo->offset / indexByteSize), 0, 0);
+                        primitiveInfo.drawCount, 1,
+                        static_cast<std::uint32_t>(primitiveInfo.indexInfo->offset / indexByteSize), 0, 0);
                 }
                 else {
                     assert(false && "Non-indexed primitive drawing not implemented");
-                    // nonIndexedDrawCommands[criteria].emplace_back(primitiveData.drawCount, 1, 0, 0);
+                    // nonIndexedDrawCommands[criteria].emplace_back(primitiveInfo.drawCount, 1, 0, 0);
                 }
             }
         }

@@ -44,9 +44,12 @@ namespace vk_gltf_viewer::gltf {
         std::list<vku::MappedBuffer> stagingBuffers;
 
     public:
-        struct PrimitiveData {
+        enum class IndexedAttribute { Texcoord, Color };
+
+        struct PrimitiveInfo {
             struct IndexBufferInfo { vk::DeviceSize offset; vk::IndexType type; };
             struct AttributeBufferInfo { vk::DeviceAddress address; std::uint8_t byteStride; };
+            struct IndexedAttributeMappingInfo { vk::DeviceAddress pBufferPtrBuffer; vk::DeviceAddress pByteStridesBuffer; };
 
             std::uint32_t nodeIndex;
             std::optional<std::uint32_t> materialIndex;
@@ -55,25 +58,24 @@ namespace vk_gltf_viewer::gltf {
             AttributeBufferInfo positionInfo;
             std::optional<AttributeBufferInfo> normalInfo, tangentInfo;
             std::unordered_map<std::size_t, AttributeBufferInfo> texcoordInfos, colorInfos;
-            vk::DeviceAddress pTexcoordReferenceBuffer = 0, pTexcoordByteStrideBuffer = 0,
-                              pColorReferenceBuffer = 0, pColorByteStrideBuffer = 0;
+            std::unordered_map<IndexedAttribute, IndexedAttributeMappingInfo> indexedAttributeMappingInfos;
         };
 
         struct GpuMaterial {
-            std::uint8_t      baseColorTexcoordIndex,
-                              metallicRoughnessTexcoordIndex,
-                              normalTexcoordIndex,
-                              occlusionTexcoordIndex;
-            char              padding0[4];
-            std::int16_t      baseColorTextureIndex         = -1,
-                              metallicRoughnessTextureIndex = -1,
-                              normalTextureIndex            = -1,
-                              occlusionTextureIndex         = -1;
-            glm::vec4         baseColorFactor = { 1.f, 0.f, 1.f, 1.f }; // Magenta.
-            float             metallicFactor    = 1.f,
-                              roughnessFactor   = 1.f,
-                              normalScale       = 1.f,
-                              occlusionStrength = 1.f;
+            std::uint8_t baseColorTexcoordIndex,
+                         metallicRoughnessTexcoordIndex,
+                         normalTexcoordIndex,
+                         occlusionTexcoordIndex;
+            char         padding0[4];
+            std::int16_t baseColorTextureIndex         = -1,
+                         metallicRoughnessTextureIndex = -1,
+                         normalTextureIndex            = -1,
+                         occlusionTextureIndex         = -1;
+            glm::vec4    baseColorFactor = { 1.f, 0.f, 1.f, 1.f }; // Magenta.
+            float        metallicFactor    = 1.f,
+                         roughnessFactor   = 1.f,
+                         normalScale       = 1.f,
+                         occlusionStrength = 1.f;
         };
 
         const fastgltf::Asset &asset;
@@ -86,19 +88,20 @@ namespace vk_gltf_viewer::gltf {
         std::vector<vk::DescriptorImageInfo> textures;
         vku::AllocatedBuffer materialBuffer;
 
-        std::unordered_map<const fastgltf::Primitive*, PrimitiveData> primitiveData;
+        std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos;
         std::vector<vku::AllocatedBuffer> attributeBuffers;
-        std::unique_ptr<vku::AllocatedBuffer> texcoordReferenceBuffer, texcoordByteStrideBuffer,
-                                              colorReferenceBuffer, colorByteStrideBuffer;
-        std::unique_ptr<vku::AllocatedBuffer> tangentBuffer;
+        std::unordered_map<
+            IndexedAttribute,
+            std::pair<vku::AllocatedBuffer /* bufferPtrs */, vku::AllocatedBuffer /* byteStrides */>> indexedAttributeMappingBuffers;
+        std::optional<vku::AllocatedBuffer> tangentBuffer;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
         AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const vulkan::Gpu &gpu);
 
     private:
-        enum class VariadicAttribute { Texcoord, Color };
-
         AssetResources(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu);
+
+        [[nodiscard]] auto createPrimitiveInfos(const fastgltf::Asset &asset) const -> decltype(primitiveInfos);
 
         [[nodiscard]] auto createDefaultSampler(const vk::raii::Device &device) const -> decltype(defaultSampler);
         [[nodiscard]] auto createImages(const ResourceBytes &resourceBytes, vma::Allocator allocator) const -> decltype(images);
@@ -109,11 +112,10 @@ namespace vk_gltf_viewer::gltf {
 
         auto stageImages(const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
         auto stageMaterials(vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto setPrimitiveInfo(const fastgltf::Asset &asset) -> void;
-        auto setPrimitiveAttributeData(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto setPrimitiveVariadicAttributeData(const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer, VariadicAttribute attributeType) -> void;
-        auto setPrimitiveMissingTangents(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto setPrimitiveIndexData(const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto stagePrimitiveAttributeBuffers(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute attributeType, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto stagePrimitiveTangentBuffers(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto stagePrimitiveIndexBuffers(const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
 
         auto releaseResourceQueueFamilyOwnership(const vulkan::Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
 

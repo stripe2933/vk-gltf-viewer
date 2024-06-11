@@ -53,6 +53,26 @@ namespace vk_gltf_viewer::inline helpers::ranges {
         }, tuple_cat(FWD(arrays)...));
     }
 
+    /**
+     * Get value from associative container, or return default value if not found.
+     * @tparam AssociativeContainer
+     * @tparam Key
+     * @tparam Value
+     * @param c an associative container.
+     * @param key key to find.
+     * @param default_value a value to return if mapping not exist.
+     * @return Value mapped to key, or default_value if not found.
+     * @note This function is intended to be usable with immutable container (not calling subscript operator).
+     */
+    export template <
+        typename AssociativeContainer,
+        typename Key = std::remove_cvref_t<AssociativeContainer>::key_type,
+        typename T = std::remove_cvref_t<AssociativeContainer>::mapped_type>
+    [[nodiscard]] constexpr auto value_or(AssociativeContainer &&c, const Key &key, T default_value) noexcept -> T {
+        const auto it = c.find(key);
+        return it == c.end() ? default_value : it->second;
+    }
+
 namespace views {
 #if __cpp_lib_ranges_enumerate >= 202302L
     export constexpr decltype(std::views::enumerate) enumerate;

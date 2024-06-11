@@ -152,10 +152,10 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 			std::vector<vk::Buffer> targetBuffers { std::from_range, assetResources.attributeBuffers };
 			targetBuffers.emplace_back(assetResources.materialBuffer);
 			targetBuffers.append_range(assetResources.indexBuffers | std::views::values);
-			if (assetResources.texcoordReferenceBuffer) targetBuffers.emplace_back(*assetResources.texcoordReferenceBuffer);
-			if (assetResources.colorReferenceBuffer) targetBuffers.emplace_back(*assetResources.colorReferenceBuffer);
-			if (assetResources.texcoordByteStrideBuffer) targetBuffers.emplace_back(*assetResources.texcoordByteStrideBuffer);
-			if (assetResources.colorByteStrideBuffer) targetBuffers.emplace_back(*assetResources.colorByteStrideBuffer);
+            for (const auto &[bufferPtrsBuffer, byteStridesBuffer] : assetResources.indexedAttributeMappingBuffers | std::views::values) {
+                targetBuffers.emplace_back(bufferPtrsBuffer);
+                targetBuffers.emplace_back(byteStridesBuffer);
+            }
 			if (assetResources.tangentBuffer) targetBuffers.emplace_back(*assetResources.tangentBuffer);
 
 			std::vector<vk::Image> targetImages { std::from_range, assetResources.images };

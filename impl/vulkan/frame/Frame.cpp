@@ -283,16 +283,16 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	sharedData->meshRenderer.bindDescriptorSets(cb, meshRendererSets);
 
 	// Collect glTF mesh primitives.
-	std::vector<const gltf::AssetResources::PrimitiveData*> primitives;
+	std::vector<const gltf::AssetResources::PrimitiveInfo*> primitiveInfos;
 	for (std::stack dfs { std::from_range, sharedData->asset.scenes[sharedData->asset.defaultScene.value_or(0)].nodeIndices | std::views::reverse }; !dfs.empty(); ) {
 		const std::size_t nodeIndex = dfs.top();
         const fastgltf::Node &node = sharedData->asset.nodes[nodeIndex];
         if (node.meshIndex) {
         	const fastgltf::Mesh &mesh = sharedData->asset.meshes[*node.meshIndex];
-        	primitives.append_range(
+        	primitiveInfos.append_range(
         		mesh.primitives | std::views::transform([&](const fastgltf::Primitive &primitive) {
-					const gltf::AssetResources::PrimitiveData &primitiveData = sharedData->assetResources.primitiveData.at(&primitive);
-					return &primitiveData;
+					const gltf::AssetResources::PrimitiveInfo &primitiveInfo = sharedData->assetResources.primitiveInfos.at(&primitive);
+					return &primitiveInfo;
 				}));
         }
 		dfs.pop();
@@ -300,13 +300,13 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	}
 
 	// Sort primitive by index type.
-	constexpr auto getIndexType = [](const gltf::AssetResources::PrimitiveData *primitive) {
+	constexpr auto getIndexType = [](const gltf::AssetResources::PrimitiveInfo *primitive) {
 		return primitive->indexInfo.transform([](const auto &info) { return info.type; });
 	};
-	std::ranges::sort(primitives, {}, getIndexType);
+	std::ranges::sort(primitiveInfos, {}, getIndexType);
 
 	std::uint32_t primitiveIndex = 0;
-	for (auto primitivesWithSameIndexType : std::views::chunk_by(primitives, [&](const auto &lhs, const auto &rhs) { return getIndexType(lhs) == getIndexType(rhs); })) {
+	for (auto primitivesWithSameIndexType : std::views::chunk_by(primitiveInfos, [&](const auto &lhs, const auto &rhs) { return getIndexType(lhs) == getIndexType(rhs); })) {
 		if (const std::optional<vk::IndexType> &indexType = getIndexType(primitivesWithSameIndexType.front()); indexType) {
 			const std::size_t indexByteSize = [=]() {
 				switch (*indexType) {
@@ -317,17 +317,17 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 			}();
 			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
 
-			for (const gltf::AssetResources::PrimitiveData *pPrimitiveData : primitivesWithSameIndexType) {
+			for (const gltf::AssetResources::PrimitiveInfo *pPrimitiveInfo : primitivesWithSameIndexType) {
 				sharedData->meshRenderer.pushConstants(cb, { primitiveIndex++ });
 				cb.drawIndexed(
-					pPrimitiveData->drawCount, 1,
-					pPrimitiveData->indexInfo->offset / indexByteSize, 0, 0);
+					pPrimitiveInfo->drawCount, 1,
+					pPrimitiveInfo->indexInfo->offset / indexByteSize, 0, 0);
 			}
 		}
 		else {
-			for (const gltf::AssetResources::PrimitiveData *pPrimitiveData : primitivesWithSameIndexType) {
+			for (const gltf::AssetResources::PrimitiveInfo *pPrimitiveInfo : primitivesWithSameIndexType) {
 				sharedData->meshRenderer.pushConstants(cb, { primitiveIndex++ });
-				cb.draw(pPrimitiveData->drawCount, 1, 0, 0);
+				cb.draw(pPrimitiveInfo->drawCount, 1, 0, 0);
 			}
 		}
 	}

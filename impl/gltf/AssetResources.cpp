@@ -10,6 +10,7 @@ module;
 #include <format>
 #include <list>
 #include <numeric>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <string_view>
@@ -209,6 +210,7 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     const ResourceBytes &resourceBytes,
     const vulkan::Gpu &gpu
 ) : asset { asset },
+    primitiveInfos { createPrimitiveInfos(asset) },
     defaultSampler { createDefaultSampler(gpu.device) },
     images { createImages(resourceBytes, gpu.allocator) },
     imageViews { createImageViews(gpu.device) },
@@ -222,18 +224,38 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
         stageImages(resourceBytes, gpu.allocator, cb);
         stageMaterials(gpu.allocator, cb);
-        setPrimitiveInfo(asset);
-        setPrimitiveAttributeData(resourceBytes, gpu, cb);
-        setPrimitiveVariadicAttributeData(gpu, cb, VariadicAttribute::Texcoord);
-        setPrimitiveVariadicAttributeData(gpu, cb, VariadicAttribute::Color);
-        setPrimitiveMissingTangents(resourceBytes, gpu, cb);
-        setPrimitiveIndexData(resourceBytes, gpu.allocator, cb);
+        stagePrimitiveAttributeBuffers(resourceBytes, gpu, cb);
+        stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Texcoord, gpu, cb);
+        stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Color, gpu, cb);
+        stagePrimitiveTangentBuffers(resourceBytes, gpu, cb);
+        stagePrimitiveIndexBuffers(resourceBytes, gpu.allocator, cb);
 
         releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
     });
 
     gpu.queues.transfer.waitIdle();
     stagingBuffers.clear();
+}
+
+auto vk_gltf_viewer::gltf::AssetResources::createPrimitiveInfos(
+    const fastgltf::Asset &asset
+) const -> decltype(primitiveInfos) {
+    std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos;
+    for (const auto &[nodeIndex, node] : asset.nodes | ranges::views::enumerate){
+        if (!node.meshIndex) continue;
+
+        for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex].primitives){
+            primitiveInfos.try_emplace(
+                &primitive,
+                nodeIndex,
+                [&]() -> std::optional<std::size_t> {
+                    if (primitive.materialIndex) return *primitive.materialIndex;
+                    return std::nullopt;
+                }());
+        }
+    }
+
+    return primitiveInfos;
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createDefaultSampler(
@@ -448,7 +470,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
     vma::Allocator allocator,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
-    const auto materialData
+    const auto gpuMaterials
         = asset.materials
         | transform([&](const fastgltf::Material &material) {
             GpuMaterial gpuMaterial {
@@ -480,26 +502,13 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
         });
 
     const vk::Buffer stagingBuffer = stagingBuffers.emplace_back(
-        allocator, std::from_range, materialData, vk::BufferUsageFlagBits::eTransferSrc);
+        allocator, std::from_range, gpuMaterials, vk::BufferUsageFlagBits::eTransferSrc);
     copyCommandBuffer.copyBuffer(
         stagingBuffer, materialBuffer,
         vk::BufferCopy { 0, 0, materialBuffer.size });
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveInfo(
-    const fastgltf::Asset &asset
-) -> void {
-    for (const auto &[nodeIndex, node] : asset.nodes | ranges::views::enumerate){
-        if (!node.meshIndex) continue;
-        for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex].primitives){
-            auto &data = primitiveData[&primitive];
-            data.nodeIndex = nodeIndex;
-            if (primitive.materialIndex) data.materialIndex = *primitive.materialIndex;
-        }
-    }
-}
-
-auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
+auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
     const ResourceBytes &resourceBytes,
     const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer
@@ -561,10 +570,10 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
 
     // Iterate over the primitives and set their attribute infos.
     for (const fastgltf::Primitive &primitive : primitives) {
-        PrimitiveData &data = primitiveData[&primitive];
+        PrimitiveInfo &primitiveInfo = primitiveInfos[&primitive];
         for (const auto &[attributeName, accessorIndex] : primitive.attributes) {
             const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
-            const auto getAttributeBufferInfo = [&]() -> PrimitiveData::AttributeBufferInfo {
+            const auto getAttributeBufferInfo = [&]() -> PrimitiveInfo::AttributeBufferInfo {
                 const std::size_t byteStride
                     = asset.bufferViews[*accessor.bufferViewIndex].byteStride
                     .value_or(getElementByteSize(accessor.type, accessor.componentType));
@@ -583,59 +592,51 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
             };
 
             if (attributeName == "POSITION") {
-                data.positionInfo = getAttributeBufferInfo();
-                data.drawCount = accessor.count;
+                primitiveInfo.positionInfo = getAttributeBufferInfo();
+                primitiveInfo.drawCount = accessor.count;
             }
             // For std::optional, they must be initialized before being accessed.
             else if (attributeName == "NORMAL") {
-                data.normalInfo.emplace(getAttributeBufferInfo());
+                primitiveInfo.normalInfo.emplace(getAttributeBufferInfo());
             }
             else if (attributeName == "TANGENT") {
-                data.tangentInfo.emplace(getAttributeBufferInfo());
+                primitiveInfo.tangentInfo.emplace(getAttributeBufferInfo());
             }
             // Otherwise, attributeName has form of <TEXCOORD_i> or <COLOR_i>.
             else if (constexpr auto prefix = "TEXCOORD_"sv; attributeName.starts_with(prefix)) {
-                data.texcoordInfos[parseIndex(attributeName.substr(prefix.size()))] = getAttributeBufferInfo();
+                primitiveInfo.texcoordInfos[parseIndex(attributeName.substr(prefix.size()))] = getAttributeBufferInfo();
             }
             else if (constexpr auto prefix = "COLOR_"sv; attributeName.starts_with(prefix)) {
-                data.colorInfos[parseIndex(attributeName.substr(prefix.size()))] = getAttributeBufferInfo();
+                primitiveInfo.colorInfos[parseIndex(attributeName.substr(prefix.size()))] = getAttributeBufferInfo();
             }
         }
     }
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
+auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMappingBuffers(
+    IndexedAttribute attributeType,
     const vulkan::Gpu &gpu,
-    vk::CommandBuffer copyCommandBuffer,
-    VariadicAttribute attributeType
+    vk::CommandBuffer copyCommandBuffer
 ) -> void {
-    // Helper lambda to get value from map or return default value.
-    // Intended to be usable with immutable container (not calling subscript operator, which is not const qualified).
-    static constexpr auto value_or
-        = []<typename Key, typename Value>(const std::unordered_map<Key, Value> &map, const Key &key, Value default_value) {
-            const auto it = map.find(key);
-            return it == map.end() ? default_value : it->second;
-        };
-
     const std::vector attributeBufferInfos
-        = primitiveData
+        = primitiveInfos
         | values
-        | transform([attributeType](const PrimitiveData &primitiveData) {
+        | transform([attributeType](const PrimitiveInfo &primitiveInfo) {
             const auto &targetAttributeInfoMap = [=]() -> decltype(auto) {
                 switch (attributeType) {
-                    case VariadicAttribute::Texcoord: return primitiveData.texcoordInfos;
-                    case VariadicAttribute::Color: return primitiveData.colorInfos;
+                    case IndexedAttribute::Texcoord: return primitiveInfo.texcoordInfos;
+                    case IndexedAttribute::Color: return primitiveInfo.colorInfos;
                 }
                 std::unreachable(); // Invalid attributeType: must be Texcoord or Color
             }();
 
             return iota(0U, targetAttributeInfoMap.size())
                 | transform([&](std::size_t i) {
-                    return value_or(targetAttributeInfoMap, i, {});
+                    return ranges::value_or(targetAttributeInfoMap, i, {});
                 })
-                | std::ranges::to<std::vector<PrimitiveData::AttributeBufferInfo>>();
+                | std::ranges::to<std::vector<PrimitiveInfo::AttributeBufferInfo>>();
         })
-        | std::ranges::to<std::vector<std::vector<PrimitiveData::AttributeBufferInfo>>>();
+        | std::ranges::to<std::vector<std::vector<PrimitiveInfo::AttributeBufferInfo>>>();
 
     // If there's no attributeBufferInfo to process, skip processing.
     const std::size_t attributeBufferInfoCount = std::transform_reduce(
@@ -647,7 +648,7 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
         = attributeBufferInfos
         | transform([](const auto &attributeBufferInfos) {
             return attributeBufferInfos
-                | transform(&PrimitiveData::AttributeBufferInfo::address)
+                | transform(&PrimitiveInfo::AttributeBufferInfo::address)
                 | std::ranges::to<std::vector<vk::DeviceAddress>>();
         })
         | std::ranges::to<std::vector<std::vector<vk::DeviceAddress>>>();
@@ -655,71 +656,54 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
         = attributeBufferInfos
         | transform([](const auto &attributeBufferInfos) {
             return attributeBufferInfos
-                | transform(&PrimitiveData::AttributeBufferInfo::byteStride)
+                | transform(&PrimitiveInfo::AttributeBufferInfo::byteStride)
                 | std::ranges::to<std::vector<std::uint8_t>>();
         })
         | std::ranges::to<std::vector<std::vector<std::uint8_t>>>();
 
-    auto [targetReferenceBuffer, targetByteStrideBuffer] = [=, this]() -> decltype(auto) {
-        switch (attributeType) {
-            case VariadicAttribute::Texcoord: return std::tie(texcoordReferenceBuffer, texcoordByteStrideBuffer);
-            case VariadicAttribute::Color: return std::tie(colorReferenceBuffer, colorByteStrideBuffer);
-        }
-        std::unreachable(); // Invalid attributeType: must be Texcoord or Color
-    }();
-
-    const auto &[bufferReferences, bufferReferenceCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, addressSegments);
-    targetReferenceBuffer = std::make_unique<vku::AllocatedBuffer>(
+    const auto &[bufferPtrStagingBuffer, bufferPtrCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, addressSegments);
+    const auto &[stridesStagingBuffer, strideCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, byteStrideSegments);
+    const auto &[bufferPtrsBuffer, byteStridesBuffer] = indexedAttributeMappingBuffers.try_emplace(
+        attributeType,
         createStagingDstBuffer(
-            gpu.allocator,
-            bufferReferences,
+            gpu.allocator, bufferPtrStagingBuffer,
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-            copyCommandBuffer));
-
-    const auto &[strides, strideCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, byteStrideSegments);
-    targetByteStrideBuffer = std::make_unique<vku::AllocatedBuffer>(
+            copyCommandBuffer),
         createStagingDstBuffer(
-            gpu.allocator,
-            strides,
+            gpu.allocator, stridesStagingBuffer,
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-            copyCommandBuffer));
+            copyCommandBuffer)).first /* iterator */ ->second /* std::pair<vku::AllocatedBuffer, vku::AllocatedBuffer> */;
 
-    const vk::DeviceAddress pReferenceBuffer = gpu.device.getBufferAddress({ targetReferenceBuffer->buffer }),
-                            pByteStrideBuffer = gpu.device.getBufferAddress({ targetByteStrideBuffer->buffer });
+    const vk::DeviceAddress pBufferPtrsBuffer = gpu.device.getBufferAddress({ bufferPtrsBuffer.buffer }),
+                            pByteStridesBuffer = gpu.device.getBufferAddress({ byteStridesBuffer.buffer });
 
-    for (auto &&[primitiveData, bufferReferenceCopyOffset, strideCopyOffset] : zip(primitiveData | values, bufferReferenceCopyOffsets, strideCopyOffsets)) {
-        // OpenMP does not support capture variable in structured binding.
-        auto [targetPReferenceBuffer, targetPByteStrideBuffer] = [attributeType](auto &primitiveData) {
-            switch (attributeType) {
-                case VariadicAttribute::Texcoord: return std::tie(primitiveData.pTexcoordReferenceBuffer, primitiveData.pTexcoordByteStrideBuffer);
-                case VariadicAttribute::Color: return std::tie(primitiveData.pColorReferenceBuffer, primitiveData.pColorByteStrideBuffer);
-            }
-            std::unreachable(); // Invalid attributeType: must be Texcoord or Color
-        }(primitiveData);
-        targetPReferenceBuffer = pReferenceBuffer + bufferReferenceCopyOffset;
-        targetPByteStrideBuffer = pByteStrideBuffer + strideCopyOffset;
+    for (auto &&[primitiveInfo, bufferPtrCopyOffset, strideCopyOffset] : zip(primitiveInfos | values, bufferPtrCopyOffsets, strideCopyOffsets)) {
+        primitiveInfo.indexedAttributeMappingInfos.try_emplace(
+            attributeType,
+            pBufferPtrsBuffer + bufferPtrCopyOffset,
+            pByteStridesBuffer + strideCopyOffset);
     }
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveMissingTangents(
+auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
     const ResourceBytes &resourceBytes,
     const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
     std::vector missingTangentMeshes
-        = primitiveData
+        = primitiveInfos
         | filter([&](const auto &keyValue) {
-            const auto &[pPrimitive, primitiveData] = keyValue;
+            const auto &[pPrimitive, primitiveInfo] = keyValue;
 
             // Skip if primitive already has a tangent attribute.
-            if (primitiveData.tangentInfo) return false;
+            if (primitiveInfo.tangentInfo) return false;
             // Skip if primitive doesn't have a material.
             else if (const auto &materialIndex = pPrimitive->materialIndex; !materialIndex) return false;
             // Skip if primitive doesn't have a normal texture.
             else return asset.materials[*materialIndex].normalTexture.has_value();
         })
         | transform([&](const auto &keyValue) {
-            const auto &[pPrimitive, primitiveData] = keyValue;
+            const auto &[pPrimitive, primitiveInfo] = keyValue;
 
             // Validate constriant for MikktSpaceInterface.
             if (auto normalIt = pPrimitive->findAttribute("NORMAL"); normalIt == pPrimitive->attributes.end()) {
@@ -767,19 +751,19 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveMissingTangents(
     const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
         gpu.allocator,
         missingTangentMeshes | transform(&algorithm::MikktSpaceMesh::tangents));
-    tangentBuffer = std::make_unique<vku::AllocatedBuffer>(
+    tangentBuffer.emplace(
         createStagingDstBuffer(
             gpu.allocator, stagingBuffer,
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
             copyCommandBuffer));
     const vk::DeviceAddress pTangentBuffer = gpu.device.getBufferAddress({ tangentBuffer->buffer });
 
-    for (auto &&[primitiveData, copyOffset] : zip(primitiveData | values, copyOffsets)) {
-        primitiveData.tangentInfo.emplace(pTangentBuffer + copyOffset, 16);
+    for (auto &&[primitiveInfo, copyOffset] : zip(primitiveInfos | values, copyOffsets)) {
+        primitiveInfo.tangentInfo.emplace(pTangentBuffer + copyOffset, 16);
     }
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveIndexData(
+auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
     const ResourceBytes &resourceBytes,
     vma::Allocator allocator,
     vk::CommandBuffer copyCommandBuffer
@@ -830,9 +814,9 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveIndexData(
             auto indexBuffer = createStagingDstBuffer(allocator, stagingBuffer, vk::BufferUsageFlagBits::eIndexBuffer, copyCommandBuffer);
 
             for (auto [pPrimitive, offset] : zip(bufferBytes | keys, copyOffsets)) {
-                PrimitiveData &data = primitiveData[pPrimitive];
-                data.indexInfo.emplace(offset, indexType);
-                data.drawCount = asset.accessors[*pPrimitive->indicesAccessor].count;
+                PrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
+                primitiveInfo.indexInfo.emplace(offset, indexType);
+                primitiveInfo.drawCount = asset.accessors[*pPrimitive->indicesAccessor].count;
             }
 
             return std::pair { indexType, std::move(indexBuffer) };
@@ -849,10 +833,10 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
     std::vector<vk::Buffer> targetBuffers { std::from_range, attributeBuffers };
     targetBuffers.emplace_back(materialBuffer);
     targetBuffers.append_range(indexBuffers | values);
-    if (texcoordReferenceBuffer) targetBuffers.emplace_back(*texcoordReferenceBuffer);
-    if (colorReferenceBuffer) targetBuffers.emplace_back(*colorReferenceBuffer);
-    if (texcoordByteStrideBuffer) targetBuffers.emplace_back(*texcoordByteStrideBuffer);
-    if (colorByteStrideBuffer) targetBuffers.emplace_back(*colorByteStrideBuffer);
+    for (const auto &[bufferPtrsBuffer, byteStridesBuffer] : indexedAttributeMappingBuffers | values) {
+        targetBuffers.emplace_back(bufferPtrsBuffer);
+        targetBuffers.emplace_back(byteStridesBuffer);
+    }
     if (tangentBuffer) targetBuffers.emplace_back(*tangentBuffer);
 
     std::vector<vk::Image> targetImages { std::from_range, images };
