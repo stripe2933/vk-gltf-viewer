@@ -51,7 +51,6 @@ namespace vk_gltf_viewer::gltf {
             struct AttributeBufferInfo { vk::DeviceAddress address; std::uint8_t byteStride; };
             struct IndexedAttributeMappingInfo { vk::DeviceAddress pBufferPtrBuffer; vk::DeviceAddress pByteStridesBuffer; };
 
-            std::uint32_t nodeIndex;
             std::optional<std::uint32_t> materialIndex;
             std::uint32_t drawCount;
             std::optional<IndexBufferInfo> indexInfo{};
@@ -85,7 +84,7 @@ namespace vk_gltf_viewer::gltf {
         std::vector<vku::AllocatedImage> images;
         std::vector<vk::raii::ImageView> imageViews;
         std::vector<vk::raii::Sampler> samplers;
-        std::vector<vk::DescriptorImageInfo> textures;
+        std::vector<vk::DescriptorImageInfo> textures = createTextures();
         vku::AllocatedBuffer materialBuffer;
 
         std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos;

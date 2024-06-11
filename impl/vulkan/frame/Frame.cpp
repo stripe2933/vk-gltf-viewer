@@ -281,55 +281,10 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	// Draw glTF mesh.
 	sharedData->meshRenderer.bindPipeline(cb);
 	sharedData->meshRenderer.bindDescriptorSets(cb, meshRendererSets);
-
-	// Collect glTF mesh primitives.
-	std::vector<const gltf::AssetResources::PrimitiveInfo*> primitiveInfos;
-	for (std::stack dfs { std::from_range, sharedData->asset.scenes[sharedData->asset.defaultScene.value_or(0)].nodeIndices | std::views::reverse }; !dfs.empty(); ) {
-		const std::size_t nodeIndex = dfs.top();
-        const fastgltf::Node &node = sharedData->asset.nodes[nodeIndex];
-        if (node.meshIndex) {
-        	const fastgltf::Mesh &mesh = sharedData->asset.meshes[*node.meshIndex];
-        	primitiveInfos.append_range(
-        		mesh.primitives | std::views::transform([&](const fastgltf::Primitive &primitive) {
-					const gltf::AssetResources::PrimitiveInfo &primitiveInfo = sharedData->assetResources.primitiveInfos.at(&primitive);
-					return &primitiveInfo;
-				}));
-        }
-		dfs.pop();
-		dfs.push_range(node.children | std::views::reverse);
-	}
-
-	// Sort primitive by index type.
-	constexpr auto getIndexType = [](const gltf::AssetResources::PrimitiveInfo *primitive) {
-		return primitive->indexInfo.transform([](const auto &info) { return info.type; });
-	};
-	std::ranges::sort(primitiveInfos, {}, getIndexType);
-
-	std::uint32_t primitiveIndex = 0;
-	for (auto primitivesWithSameIndexType : std::views::chunk_by(primitiveInfos, [&](const auto &lhs, const auto &rhs) { return getIndexType(lhs) == getIndexType(rhs); })) {
-		if (const std::optional<vk::IndexType> &indexType = getIndexType(primitivesWithSameIndexType.front()); indexType) {
-			const std::size_t indexByteSize = [=]() {
-				switch (*indexType) {
-					case vk::IndexType::eUint16: return sizeof(std::uint16_t);
-					case vk::IndexType::eUint32: return sizeof(std::uint32_t);
-					default: throw std::runtime_error{ "Unsupported index type: only Uint16 and Uint32 are supported" };
-				};
-			}();
-			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
-
-			for (const gltf::AssetResources::PrimitiveInfo *pPrimitiveInfo : primitivesWithSameIndexType) {
-				sharedData->meshRenderer.pushConstants(cb, { primitiveIndex++ });
-				cb.drawIndexed(
-					pPrimitiveInfo->drawCount, 1,
-					pPrimitiveInfo->indexInfo->offset / indexByteSize, 0, 0);
-			}
-		}
-		else {
-			for (const gltf::AssetResources::PrimitiveInfo *pPrimitiveInfo : primitivesWithSameIndexType) {
-				sharedData->meshRenderer.pushConstants(cb, { primitiveIndex++ });
-				cb.draw(pPrimitiveInfo->drawCount, 1, 0, 0);
-			}
-		}
+	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
+		const vk::IndexType indexType = criteria.indexType.value();
+		cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(indexType), 0, indexType);
+		cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 	}
 
 	// Draw skybox.

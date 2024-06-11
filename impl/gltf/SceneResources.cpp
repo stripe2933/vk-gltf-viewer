@@ -1,6 +1,7 @@
 module;
 
 #include <algorithm>
+#include <map>
 #include <ranges>
 #include <tuple>
 #include <vector>
@@ -19,11 +20,42 @@ vk_gltf_viewer::gltf::SceneResources::SceneResources(
     const vulkan::Gpu &gpu
 ) : assetResources { assetResources },
     scene { scene },
-    nodeTransformBuffer { createNodeTransformBuffer(gpu) },
-    primitiveBuffer { createPrimitiveBuffer(gpu) } { }
+    nodeTransformBuffer { createNodeTransformBuffer(gpu.allocator) },
+    primitiveBuffer { createPrimitiveBuffer(gpu) },
+    indirectDrawCommandBuffers { createIndirectDrawCommandBuffer(gpu.allocator) } { }
+
+auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() const -> decltype(orderedNodePrimitiveInfoPtrs) {
+    const fastgltf::Asset &asset = assetResources.asset;
+
+    // Collect glTF mesh primitives.
+    std::vector<std::pair<std::uint32_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> nodePrimitiveInfoPtrs;
+    for (std::stack dfs { std::from_range, asset.scenes[asset.defaultScene.value_or(0)].nodeIndices | reverse }; !dfs.empty(); ) {
+        const std::size_t nodeIndex = dfs.top();
+        const fastgltf::Node &node = asset.nodes[nodeIndex];
+        if (node.meshIndex) {
+            const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+            nodePrimitiveInfoPtrs.append_range(
+                mesh.primitives
+                    | transform([&](const fastgltf::Primitive &primitive) {
+                        const AssetResources::PrimitiveInfo &primitiveInfo = assetResources.primitiveInfos.at(&primitive);
+                        return std::pair { nodeIndex, &primitiveInfo };
+                    }));
+        }
+        dfs.pop();
+        dfs.push_range(node.children | reverse);
+    }
+
+    // Sort primitive by index type.
+    constexpr auto projection = [](const auto &pair) {
+        return pair.second->indexInfo.transform([](const auto &info) { return info.type; });
+    };
+    std::ranges::sort(nodePrimitiveInfoPtrs, {}, projection);
+
+    return nodePrimitiveInfoPtrs;
+}
 
 auto vk_gltf_viewer::gltf::SceneResources::createNodeTransformBuffer(
-    const vulkan::Gpu &gpu
+    vma::Allocator allocator
 ) const -> decltype(nodeTransformBuffer) {
     std::vector<glm::mat4> nodeTransforms(assetResources.asset.nodes.size());
     const auto calculateNodeTransformsRecursive
@@ -49,7 +81,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createNodeTransformBuffer(
     }
 
     return {
-        gpu.allocator,
+        allocator,
         std::from_range, nodeTransforms,
         vk::BufferUsageFlagBits::eStorageBuffer,
         vma::AllocationCreateInfo {
@@ -62,34 +94,10 @@ auto vk_gltf_viewer::gltf::SceneResources::createNodeTransformBuffer(
 auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
     const vulkan::Gpu &gpu
 ) -> decltype(primitiveBuffer) {
-    const fastgltf::Asset &asset = assetResources.asset;
-
-    // Collect glTF mesh primitives.
-    std::vector<const AssetResources::PrimitiveInfo*> primitiveInfoPtrs;
-    for (std::stack dfs { std::from_range, asset.scenes[asset.defaultScene.value_or(0)].nodeIndices | reverse }; !dfs.empty(); ) {
-        const std::size_t nodeIndex = dfs.top();
-        const fastgltf::Node &node = asset.nodes[nodeIndex];
-        if (node.meshIndex) {
-            const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-            primitiveInfoPtrs.append_range(
-                mesh.primitives | transform([&](const fastgltf::Primitive &primitive) {
-                    const AssetResources::PrimitiveInfo &primitiveInfo = assetResources.primitiveInfos.at(&primitive);
-                    return &primitiveInfo;
-                }));
-        }
-        dfs.pop();
-        dfs.push_range(node.children | reverse);
-    }
-
-    // Sort primitive by index type.
-    constexpr auto projection = [](const AssetResources::PrimitiveInfo *pPrimitiveInfo) {
-        return pPrimitiveInfo->indexInfo.transform([](const auto &info) { return info.type; });
-    };
-    std::ranges::sort(primitiveInfoPtrs, {}, projection);
-
-    const auto primitiveInfos
-        = primitiveInfoPtrs
-        | transform([](const AssetResources::PrimitiveInfo *pPrimitiveInfo){
+    return {
+        gpu.allocator,
+        std::from_range, orderedNodePrimitiveInfoPtrs | transform([](const auto &pair){
+            const auto [nodeIndex, pPrimitiveInfo] = pair;
             return GpuPrimitive {
                 .pPositionBuffer = pPrimitiveInfo->positionInfo.address,
                 .pNormalBuffer = pPrimitiveInfo->normalInfo.value().address,
@@ -109,53 +117,56 @@ auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
                 .pColorByteStridesBuffer = ranges::value_or(
                     pPrimitiveInfo->indexedAttributeMappingInfos,
                     AssetResources::IndexedAttribute::Color, {}).pByteStridesBuffer,
-                .nodeIndex = pPrimitiveInfo->nodeIndex,
+                .nodeIndex = nodeIndex,
                 .materialIndex = pPrimitiveInfo->materialIndex.value(),
             };
-        });
-    return { gpu.allocator, std::from_range, primitiveInfos, vk::BufferUsageFlagBits::eStorageBuffer };
+        }),
+        vk::BufferUsageFlagBits::eStorageBuffer,
+    };
 }
 
-/*auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
-    const AssetResources &assetResources,
-    const vulkan::Gpu &gpu
+auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
+    vma::Allocator allocator
 ) const -> decltype(indirectDrawCommandBuffers) {
-    std::map<CommandSeparationCriteria, std::vector<vk::DrawIndexedIndirectCommand>> indexedDrawCommands;
-    // std::map<CommandSeparationCriteria, std::vector<vk::DrawIndirectCommand>> nonIndexedDrawCommands;
+    std::uint32_t instanceCounter = 0;
+    std::map<CommandSeparationCriteria, std::vector<vk::DrawIndexedIndirectCommand>> commandGroups;
 
-    // Collect glTF mesh primitives.
-    for (std::stack dfs { std::from_range, asset.scenes[asset.defaultScene.value_or(0)].nodeIndices | reverse }; !dfs.empty();) {
-        const std::size_t nodeIndex = dfs.top();
-        const fastgltf::Node &node = asset.nodes[nodeIndex];
-        if (node.meshIndex) {
-            for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex]){
-                const AssetResources::PrimitiveInfo &primitiveInfo = assetResources.primitiveInfos.at(&primitive);
-
-                const CommandSeparationCriteria criteria {
-                    primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
-                    asset.materials[primitive.materialIndex.value()].doubleSided,
+    constexpr auto getIndexType = [](const auto &pair) {
+        return pair.second->indexInfo.transform([](const auto &info) { return info.type; });
+    };
+    for (auto primitivePtrsWithSameIndexType : std::views::chunk_by(orderedNodePrimitiveInfoPtrs, [&](const auto &lhs, const auto &rhs) { return getIndexType(lhs) == getIndexType(rhs); })) {
+        if (const std::optional<vk::IndexType> &indexType = getIndexType(primitivePtrsWithSameIndexType.front()); indexType) {
+            const std::size_t indexByteSize = [=]() {
+                switch (*indexType) {
+                    case vk::IndexType::eUint16: return sizeof(std::uint16_t);
+                    case vk::IndexType::eUint32: return sizeof(std::uint32_t);
+                    default: throw std::runtime_error{ "Unsupported index type: only Uint16 and Uint32 are supported" };
                 };
-
-                if (criteria.indexType) {
-                    const std::size_t indexByteSize = [=]() {
-                        switch (*criteria.indexType) {
-                            case vk::IndexType::eUint16: return sizeof(std::uint16_t);
-                            case vk::IndexType::eUint32: return sizeof(std::uint32_t);
-                            default: throw std::runtime_error{ "Unsupported index type: only Uint16 and Uint32 are supported" };
-                        };
-                    }();
-
-                    indexedDrawCommands[criteria].emplace_back(
-                        primitiveInfo.drawCount, 1,
-                        static_cast<std::uint32_t>(primitiveInfo.indexInfo->offset / indexByteSize), 0, 0);
-                }
-                else {
-                    assert(false && "Non-indexed primitive drawing not implemented");
-                    // nonIndexedDrawCommands[criteria].emplace_back(primitiveInfo.drawCount, 1, 0, 0);
-                }
+            }();
+            auto &commands = commandGroups[CommandSeparationCriteria { indexType }];
+            for (const AssetResources::PrimitiveInfo *pPrimitiveInfo : primitivePtrsWithSameIndexType | values) {
+                commands.emplace_back(
+                    pPrimitiveInfo->drawCount,
+                    1,
+                    static_cast<std::uint32_t>(pPrimitiveInfo->indexInfo->offset / indexByteSize),
+                    0,
+                    instanceCounter++);
             }
         }
-        dfs.pop();
-        dfs.push_range(node.children | reverse);
+        else throw std::runtime_error{ "Index buffer is required for indirect draw command buffer" };
     }
-}*/
+
+    return commandGroups
+        | transform([&](const auto &keyValue) {
+            const auto &[criteria, commands] = keyValue;
+            return std::pair {
+                criteria,
+                vku::MappedBuffer {
+                    allocator,
+                    std::from_range, commands,
+                    vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer,
+                },
+            };
+        })
+        | std::ranges::to<std::map<CommandSeparationCriteria, vku::MappedBuffer>>();
+}

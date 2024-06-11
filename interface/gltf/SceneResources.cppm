@@ -34,7 +34,6 @@ namespace vk_gltf_viewer::gltf {
 
         struct CommandSeparationCriteria {
             std::optional<vk::IndexType> indexType;
-            bool isDoubleSided;
 
             [[nodiscard]] constexpr auto operator<=>(const CommandSeparationCriteria &) const noexcept -> std::strong_ordering = default;
         };
@@ -42,15 +41,18 @@ namespace vk_gltf_viewer::gltf {
         const AssetResources &assetResources;
         const fastgltf::Scene &scene;
 
+        std::vector<std::pair<std::uint32_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs = createOrderedNodePrimitiveInfoPtrs();
+
         vku::MappedBuffer nodeTransformBuffer;
         vku::MappedBuffer primitiveBuffer;
-        /*std::map<CommandSeparationCriteria, vku::MappedBuffer> indirectDrawCommandBuffers;*/
+        std::map<CommandSeparationCriteria, vku::MappedBuffer> indirectDrawCommandBuffers;
 
         SceneResources(const AssetResources &assetResources, const fastgltf::Scene &scene, const vulkan::Gpu &gpu);
 
     private:
-        [[nodiscard]] auto createNodeTransformBuffer(const vulkan::Gpu &gpu) const -> decltype(nodeTransformBuffer);
+        [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> decltype(orderedNodePrimitiveInfoPtrs);
+        [[nodiscard]] auto createNodeTransformBuffer(vma::Allocator allocator) const -> decltype(nodeTransformBuffer);
         [[nodiscard]] auto createPrimitiveBuffer(const vulkan::Gpu &gpu) -> decltype(primitiveBuffer);
-        /*[[nodiscard]] auto createIndirectDrawCommandBuffer(const AssetResources &assetResources, const vulkan::Gpu &gpu) const -> decltype(indirectDrawCommandBuffers);*/
+        [[nodiscard]] auto createIndirectDrawCommandBuffer(vma::Allocator allocator) const -> decltype(indirectDrawCommandBuffers);
     };
 }

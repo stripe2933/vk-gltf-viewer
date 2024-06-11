@@ -215,7 +215,6 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     images { createImages(resourceBytes, gpu.allocator) },
     imageViews { createImageViews(gpu.device) },
     samplers { createSamplers(gpu.device) },
-    textures { createTextures() },
     materialBuffer { createMaterialBuffer(gpu.allocator) } {
     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo {
         {},
@@ -247,7 +246,6 @@ auto vk_gltf_viewer::gltf::AssetResources::createPrimitiveInfos(
         for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex].primitives){
             primitiveInfos.try_emplace(
                 &primitive,
-                nodeIndex,
                 [&]() -> std::optional<std::size_t> {
                     if (primitive.materialIndex) return *primitive.materialIndex;
                     return std::nullopt;

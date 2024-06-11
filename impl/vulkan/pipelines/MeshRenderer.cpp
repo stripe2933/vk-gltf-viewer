@@ -22,7 +22,7 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::MeshRenderer::vert = R"vert(
 #extension GL_EXT_shader_8bit_storage : require
 
 // For convinience.
-#define PRIMITIVE primitives[pc.primitiveIndex]
+#define PRIMITIVE primitives[gl_InstanceIndex]
 #define MATERIAL materials[PRIMITIVE.materialIndex]
 #define TRANSFORM nodeTransforms[PRIMITIVE.nodeIndex]
 
@@ -66,6 +66,7 @@ layout (location = 4) out vec2 fragBaseColorTexcoord;
 layout (location = 5) out vec2 fragMetallicRoughnessTexcoord;
 layout (location = 6) out vec2 fragNormalTexcoord;
 layout (location = 7) out vec2 fragOcclusionTexcoord;
+layout (location = 8) flat out uint instanceIndex;
 
 layout (set = 0, binding = 0) uniform CameraBuffer {
     mat4 projectionView;
@@ -111,8 +112,9 @@ void main(){
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     vec3 inNormal = getVec3(PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * gl_VertexIndex);
 
-    fragPosition = (TRANSFORM * vec4(inPosition, 1.0)).xyz;
-    fragTBN[2] = normalize(mat3(TRANSFORM) * inNormal); // N
+    mat4 transform = TRANSFORM;
+    fragPosition = (transform * vec4(inPosition, 1.0)).xyz;
+    fragTBN[2] = normalize(mat3(transform) * inNormal); // N
 
     if (int(MATERIAL.baseColorTextureIndex) != -1){
         fragBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
@@ -122,7 +124,7 @@ void main(){
     }
     if (int(MATERIAL.normalTextureIndex) != -1){
         vec4 inTangent = getVec4(PRIMITIVE.pTangentBuffer + uint(PRIMITIVE.tangentByteStride) * gl_VertexIndex);
-        fragTBN[0] = normalize(mat3(TRANSFORM) * inTangent.xyz); // T
+        fragTBN[0] = normalize(mat3(transform) * inTangent.xyz); // T
         fragTBN[1] = cross(fragTBN[2], fragTBN[0]) * -inTangent.w; // B
 
         fragNormalTexcoord = getTexcoord(uint(MATERIAL.normalTexcoordIndex));
@@ -130,6 +132,7 @@ void main(){
     if (int(MATERIAL.occlusionTextureIndex) != -1){
         fragOcclusionTexcoord = getTexcoord(uint(MATERIAL.occlusionTexcoordIndex));
     }
+    instanceIndex = gl_InstanceIndex;
 
     gl_Position = camera.projectionView * vec4(fragPosition, 1.0);
 }
@@ -144,7 +147,7 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::MeshRenderer::frag = R"frag(
 #extension GL_EXT_scalar_block_layout : require
 
 // For convinience.
-#define PRIMITIVE primitives[pc.primitiveIndex]
+#define PRIMITIVE primitives[instanceIndex]
 #define MATERIAL materials[PRIMITIVE.materialIndex]
 
 const vec3 lightColor = vec3(1.0);
@@ -180,6 +183,7 @@ layout (location = 4) in vec2 fragBaseColorTexcoord;
 layout (location = 5) in vec2 fragMetallicRoughnessTexcoord;
 layout (location = 6) in vec2 fragNormalTexcoord;
 layout (location = 7) in vec2 fragOcclusionTexcoord;
+layout (location = 8) flat in uint instanceIndex;
 
 layout (location = 0) out vec4 outColor;
 
