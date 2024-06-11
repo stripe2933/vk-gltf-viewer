@@ -208,24 +208,26 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     const fastgltf::Asset &asset,
     const ResourceBytes &resourceBytes,
     const vulkan::Gpu &gpu
-) : defaultSampler { createDefaultSampler(gpu.device) },
-    images { createImages(asset, resourceBytes, gpu.allocator) },
+) : asset { asset },
+    defaultSampler { createDefaultSampler(gpu.device) },
+    images { createImages(resourceBytes, gpu.allocator) },
     imageViews { createImageViews(gpu.device) },
-    samplers { createSamplers(asset, gpu.device) },
-    textures { createTextures(asset) },
-    materialBuffer { createMaterialBuffer(asset, gpu.allocator) } {
+    samplers { createSamplers(gpu.device) },
+    textures { createTextures() },
+    materialBuffer { createMaterialBuffer(gpu.allocator) } {
     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo {
         {},
         gpu.queueFamilies.transfer,
     } };
     vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
         stageImages(resourceBytes, gpu.allocator, cb);
-        stageMaterials(asset, gpu.allocator, cb);
-        setPrimitiveAttributeData(asset, resourceBytes, gpu, cb);
+        stageMaterials(gpu.allocator, cb);
+        setPrimitiveInfo(asset);
+        setPrimitiveAttributeData(resourceBytes, gpu, cb);
         setPrimitiveVariadicAttributeData(gpu, cb, VariadicAttribute::Texcoord);
         setPrimitiveVariadicAttributeData(gpu, cb, VariadicAttribute::Color);
-        setPrimitiveMissingTangents(asset, gpu, cb);
-        setPrimitiveIndexData(asset, resourceBytes, gpu.allocator, cb);
+        setPrimitiveMissingTangents(resourceBytes, gpu, cb);
+        setPrimitiveIndexData(resourceBytes, gpu.allocator, cb);
 
         releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
     });
@@ -249,7 +251,6 @@ auto vk_gltf_viewer::gltf::AssetResources::createDefaultSampler(
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createImages(
-    const fastgltf::Asset &asset,
     const ResourceBytes &resourceBytes,
     vma::Allocator allocator
 ) const -> decltype(images) {
@@ -308,7 +309,6 @@ auto vk_gltf_viewer::gltf::AssetResources::createImageViews(
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
-    const fastgltf::Asset &asset,
     const vk::raii::Device &device
 ) const -> decltype(samplers) {
     return asset.samplers
@@ -377,9 +377,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
         | std::ranges::to<std::vector<vk::raii::Sampler>>();
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::createTextures(
-    const fastgltf::Asset &asset
-) const -> decltype(textures) {
+auto vk_gltf_viewer::gltf::AssetResources::createTextures() const -> decltype(textures) {
     return asset.textures
         | transform([&](const fastgltf::Texture &texture) {
             return vk::DescriptorImageInfo {
@@ -395,7 +393,6 @@ auto vk_gltf_viewer::gltf::AssetResources::createTextures(
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
-    const fastgltf::Asset &asset,
     vma::Allocator allocator
 ) const -> decltype(materialBuffer) {
     return { allocator, vk::BufferCreateInfo {
@@ -448,7 +445,6 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
-    const fastgltf::Asset &asset,
     vma::Allocator allocator,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
@@ -490,8 +486,20 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
         vk::BufferCopy { 0, 0, materialBuffer.size });
 }
 
+auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveInfo(
+    const fastgltf::Asset &asset
+) -> void {
+    for (const auto &[nodeIndex, node] : asset.nodes | ranges::views::enumerate){
+        if (!node.meshIndex) continue;
+        for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex].primitives){
+            auto &data = primitiveData[&primitive];
+            data.nodeIndex = nodeIndex;
+            if (primitive.materialIndex) data.materialIndex = *primitive.materialIndex;
+        }
+    }
+}
+
 auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveAttributeData(
-    const fastgltf::Asset &asset,
     const ResourceBytes &resourceBytes,
     const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer
@@ -694,7 +702,7 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveVariadicAttributeData(
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveMissingTangents(
-    const fastgltf::Asset &asset,
+    const ResourceBytes &resourceBytes,
     const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
@@ -772,7 +780,6 @@ auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveMissingTangents(
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::setPrimitiveIndexData(
-    const fastgltf::Asset &asset,
     const ResourceBytes &resourceBytes,
     vma::Allocator allocator,
     vk::CommandBuffer copyCommandBuffer

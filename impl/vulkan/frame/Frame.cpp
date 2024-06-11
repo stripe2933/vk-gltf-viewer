@@ -46,7 +46,8 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 				sharedData->assetResources.textures,
 		    	{ sharedData->assetResources.materialBuffer, 0, vk::WholeSize }).get(),
 		    meshRendererSets.getDescriptorWrites2(
-		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
+		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize },
+		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize }).get(),
 		    skyboxSets.getDescriptorWrites0(*sharedData->cubemapImageView).get()),
 		{});
 
@@ -162,7 +163,8 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
     	vk::DescriptorPoolSize {
     		vk::DescriptorType::eStorageBuffer,
     		1 /* MeshRenderer materialBuffer */
-    		+ 1 /* MeshRenderer nodeTransformBuffer */,
+    		+ 1 /* MeshRenderer nodeTransformBuffer */
+    		+ 1 /* MeshRenderer primitiveBuffer */,
     	},
     	vk::DescriptorPoolSize {
     	    vk::DescriptorType::eUniformBuffer,
@@ -238,11 +240,11 @@ glm::mat4 view;
 glm::mat4 projection;
 
 auto vk_gltf_viewer::vulkan::Frame::update() -> void {
-	rotation += 1e-2f;
+	rotation += 5e-3f;
 
-	const auto viewPosition = glm::vec3 { 40.f * std::cos(rotation), 1.f, 40.f * std::sin(rotation) };
-	view = glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f, 1.f, 0.f }, glm::vec3{ 0.f, 1.f, 0.f });
-	projection = glm::gtc::perspective(glm::radians(45.0f), vku::aspect(sharedData->swapchainExtent), 0.1f, 1e2f);
+	const auto viewPosition = glm::vec3 { 5.f * std::cos(rotation), 0.f, 5.f * std::sin(rotation) };
+	view = glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f, 0.f, 0.f }, glm::vec3{ 0.f, 1.f, 0.f });
+	projection = glm::gtc::perspective(glm::radians(45.0f), vku::aspect(sharedData->swapchainExtent), 1e-2f, 1e2f);
 	cameraBuffer.asValue<pipelines::MeshRenderer::Camera>() = {
 		projection * view,
 		viewPosition,
@@ -281,7 +283,7 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	sharedData->meshRenderer.bindDescriptorSets(cb, meshRendererSets);
 
 	// Collect glTF mesh primitives.
-	std::vector<std::tuple<std::size_t /* nodeIndex */, std::size_t /* materialIndex */, const gltf::AssetResources::PrimitiveData*>> primitives;
+	std::vector<const gltf::AssetResources::PrimitiveData*> primitives;
 	for (std::stack dfs { std::from_range, sharedData->asset.scenes[sharedData->asset.defaultScene.value_or(0)].nodeIndices | std::views::reverse }; !dfs.empty(); ) {
 		const std::size_t nodeIndex = dfs.top();
         const fastgltf::Node &node = sharedData->asset.nodes[nodeIndex];
@@ -290,7 +292,7 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
         	primitives.append_range(
         		mesh.primitives | std::views::transform([&](const fastgltf::Primitive &primitive) {
 					const gltf::AssetResources::PrimitiveData &primitiveData = sharedData->assetResources.primitiveData.at(&primitive);
-					return std::tuple { nodeIndex, primitive.materialIndex.value(), &primitiveData };
+					return &primitiveData;
 				}));
         }
 		dfs.pop();
@@ -298,13 +300,14 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	}
 
 	// Sort primitive by index type.
-	constexpr auto getIndexType = [](const auto &primitive) {
-		return get<2>(primitive)->indexInfo
-			.transform([](const auto &info) { return info.type; });
+	constexpr auto getIndexType = [](const gltf::AssetResources::PrimitiveData *primitive) {
+		return primitive->indexInfo.transform([](const auto &info) { return info.type; });
 	};
 	std::ranges::sort(primitives, {}, getIndexType);
+
+	std::uint32_t primitiveIndex = 0;
 	for (auto primitivesWithSameIndexType : std::views::chunk_by(primitives, [&](const auto &lhs, const auto &rhs) { return getIndexType(lhs) == getIndexType(rhs); })) {
-		if (std::optional indexType = getIndexType(primitivesWithSameIndexType.front()); indexType) {
+		if (const std::optional<vk::IndexType> &indexType = getIndexType(primitivesWithSameIndexType.front()); indexType) {
 			const std::size_t indexByteSize = [=]() {
 				switch (*indexType) {
 					case vk::IndexType::eUint16: return sizeof(std::uint16_t);
@@ -314,42 +317,16 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 			}();
 			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
 
-			for (const auto [nodeIndex, materialIndex, pPrimitiveData] : primitivesWithSameIndexType) {
-				sharedData->meshRenderer.pushConstants(cb, {
-					.pPositionBuffer = pPrimitiveData->positionInfo.address,
-					.pNormalBuffer = pPrimitiveData->normalInfo.value().address,
-					.pTangentBuffer = pPrimitiveData->tangentInfo.value().address,
-					.pTexcoordBufferPtrBuffer = pPrimitiveData->pTexcoordReferenceBuffer,
-					.pColorBufferPtrBuffer = pPrimitiveData->pColorReferenceBuffer,
-					.positionByteStride = pPrimitiveData->positionInfo.byteStride,
-					.normalByteStride = pPrimitiveData->normalInfo.value().byteStride,
-					.tangentByteStride = pPrimitiveData->tangentInfo.value().byteStride,
-					.pTexcoordByteStrideBuffer = pPrimitiveData->pTexcoordByteStrideBuffer,
-					.pColorByteStrideBuffer = pPrimitiveData->pColorByteStrideBuffer,
-					.nodeIndex = static_cast<std::uint32_t>(nodeIndex),
-					.materialIndex = static_cast<std::uint32_t>(materialIndex),
-			    });
+			for (const gltf::AssetResources::PrimitiveData *pPrimitiveData : primitivesWithSameIndexType) {
+				sharedData->meshRenderer.pushConstants(cb, { primitiveIndex++ });
 				cb.drawIndexed(
 					pPrimitiveData->drawCount, 1,
 					pPrimitiveData->indexInfo->offset / indexByteSize, 0, 0);
 			}
 		}
 		else {
-			for (const auto [nodeIndex, materialIndex, pPrimitiveData] : primitivesWithSameIndexType) {
-				sharedData->meshRenderer.pushConstants(cb, {
-					.pPositionBuffer = pPrimitiveData->positionInfo.address,
-					.pNormalBuffer = pPrimitiveData->normalInfo.value().address,
-					.pTangentBuffer = pPrimitiveData->tangentInfo.value().address,
-					.pTexcoordBufferPtrBuffer = pPrimitiveData->pTexcoordReferenceBuffer,
-					.pColorBufferPtrBuffer = pPrimitiveData->pColorReferenceBuffer,
-					.positionByteStride = pPrimitiveData->positionInfo.byteStride,
-					.normalByteStride = pPrimitiveData->normalInfo.value().byteStride,
-					.tangentByteStride = pPrimitiveData->tangentInfo.value().byteStride,
-					.pTexcoordByteStrideBuffer = pPrimitiveData->pTexcoordByteStrideBuffer,
-					.pColorByteStrideBuffer = pPrimitiveData->pColorByteStrideBuffer,
-					.nodeIndex = static_cast<std::uint32_t>(nodeIndex),
-					.materialIndex = static_cast<std::uint32_t>(materialIndex),
-				});
+			for (const gltf::AssetResources::PrimitiveData *pPrimitiveData : primitivesWithSameIndexType) {
+				sharedData->meshRenderer.pushConstants(cb, { primitiveIndex++ });
 				cb.draw(pPrimitiveData->drawCount, 1, 0, 0);
 			}
 		}

@@ -15,7 +15,7 @@ export import vku;
 namespace vk_gltf_viewer::vulkan::pipelines {
     export class MeshRenderer {
     public:
-        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<4, 2, 1>{
+        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<4, 2, 2>{
             explicit DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler, std::uint32_t textureCount);
         };
 
@@ -64,32 +64,25 @@ namespace vk_gltf_viewer::vulkan::pipelines {
                 };
             }
 
-            [[nodiscard]] auto getDescriptorWrites2(const vk::DescriptorBufferInfo &nodeTransformBufferInfo) const {
+            [[nodiscard]] auto getDescriptorWrites2(
+                const vk::DescriptorBufferInfo &nodeTransformBufferInfo,
+                const vk::DescriptorBufferInfo &primitiveBufferInfo
+            ) const {
                 return vku::RefHolder {
-                    [this](const vk::DescriptorBufferInfo &nodeTransformBufferInfo) {
+                    [this](const vk::DescriptorBufferInfo &nodeTransformBufferInfo, const vk::DescriptorBufferInfo &primitiveBufferInfo) {
                         return std::array {
                             getDescriptorWrite<2, 0>().setBufferInfo(nodeTransformBufferInfo),
+                            getDescriptorWrite<2, 1>().setBufferInfo(primitiveBufferInfo),
                         };
                     },
                     nodeTransformBufferInfo,
+                    primitiveBufferInfo,
                 };
             }
         };
 
         struct PushConstant {
-            vk::DeviceAddress pPositionBuffer;
-            vk::DeviceAddress pNormalBuffer;
-            vk::DeviceAddress pTangentBuffer;
-            vk::DeviceAddress pTexcoordBufferPtrBuffer;
-            vk::DeviceAddress pColorBufferPtrBuffer;
-            std::uint8_t positionByteStride;
-            std::uint8_t normalByteStride;
-            std::uint8_t tangentByteStride;
-            char padding[5];
-            vk::DeviceAddress pTexcoordByteStrideBuffer;
-            vk::DeviceAddress pColorByteStrideBuffer;
-            std::uint32_t nodeIndex;
-            std::uint32_t materialIndex;
+            std::uint32_t primitiveIndex;
         };
 
         // Pipeline resource types.

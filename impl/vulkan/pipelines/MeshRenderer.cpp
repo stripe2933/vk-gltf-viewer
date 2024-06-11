@@ -22,8 +22,9 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::MeshRenderer::vert = R"vert(
 #extension GL_EXT_shader_8bit_storage : require
 
 // For convinience.
-#define TRANSFORM nodeTransforms[pc.nodeIndex]
-#define MATERIAL materials[pc.materialIndex]
+#define PRIMITIVE primitives[pc.primitiveIndex]
+#define MATERIAL materials[PRIMITIVE.materialIndex]
+#define TRANSFORM nodeTransforms[PRIMITIVE.nodeIndex]
 
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer Ubytes { uint8_t data[]; };
 layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Vec2Ref { vec2 data; };
@@ -41,6 +42,22 @@ struct Material {
     int16_t normalTextureIndex;
     int16_t occlusionTextureIndex;
     uint8_t FRAGMENT_DATA[32];
+};
+
+struct Primitive {
+    uint64_t pPositionBuffer;
+    uint64_t pNormalBuffer;
+    uint64_t pTangentBuffer;
+    Pointers texcoordBufferPtrs;
+    Pointers colorBufferPtrs;
+    uint8_t positionByteStride;
+    uint8_t normalByteStride;
+    uint8_t tangentByteStride;
+    uint8_t padding[5];
+    Ubytes texcoordByteStrides;
+    Ubytes colorByteStrides;
+    uint nodeIndex;
+    uint materialIndex;
 };
 
 layout (location = 0) out vec3 fragPosition;
@@ -62,21 +79,12 @@ layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
 layout (set = 2, binding = 0) readonly buffer NodeTransformBuffer {
     mat4 nodeTransforms[];
 };
+layout (set = 2, binding = 1) readonly buffer PrimitiveBuffer {
+    Primitive primitives[];
+};
 
 layout (push_constant, std430) uniform PushConstant {
-    uint64_t pPositionBuffer;
-    uint64_t pNormalBuffer;
-    uint64_t pTangentBuffer;
-    Pointers texcoordBufferPtrs;
-    Pointers colorBufferPtrs;
-    uint8_t positionByteStride;
-    uint8_t normalByteStride;
-    uint8_t tangentByteStride;
-    uint8_t padding[5];
-    Ubytes texcoordByteStrides;
-    Ubytes colorByteStrides;
-    uint nodeIndex;
-    uint materialIndex;
+    uint primitiveIndex;
 } pc;
 
 // --------------------
@@ -96,12 +104,12 @@ vec4 getVec4(uint64_t address){
 }
 
 vec2 getTexcoord(uint texcoordIndex){
-    return getVec2(pc.texcoordBufferPtrs.data[texcoordIndex] + uint(pc.texcoordByteStrides.data[texcoordIndex]) * gl_VertexIndex);
+    return getVec2(PRIMITIVE.texcoordBufferPtrs.data[texcoordIndex] + uint(PRIMITIVE.texcoordByteStrides.data[texcoordIndex]) * gl_VertexIndex);
 }
 
 void main(){
-    vec3 inPosition = getVec3(pc.pPositionBuffer + uint(pc.positionByteStride) * gl_VertexIndex);
-    vec3 inNormal = getVec3(pc.pNormalBuffer + uint(pc.normalByteStride) * gl_VertexIndex);
+    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
+    vec3 inNormal = getVec3(PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * gl_VertexIndex);
 
     fragPosition = (TRANSFORM * vec4(inPosition, 1.0)).xyz;
     fragTBN[2] = normalize(mat3(TRANSFORM) * inNormal); // N
@@ -113,7 +121,7 @@ void main(){
         fragMetallicRoughnessTexcoord = getTexcoord(uint(MATERIAL.metallicRoughnessTexcoordIndex));
     }
     if (int(MATERIAL.normalTextureIndex) != -1){
-        vec4 inTangent = getVec4(pc.pTangentBuffer + uint(pc.tangentByteStride) * gl_VertexIndex);
+        vec4 inTangent = getVec4(PRIMITIVE.pTangentBuffer + uint(PRIMITIVE.tangentByteStride) * gl_VertexIndex);
         fragTBN[0] = normalize(mat3(TRANSFORM) * inTangent.xyz); // T
         fragTBN[1] = cross(fragTBN[2], fragTBN[0]) * -inTangent.w; // B
 
@@ -136,7 +144,8 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::MeshRenderer::frag = R"frag(
 #extension GL_EXT_scalar_block_layout : require
 
 // For convinience.
-#define MATERIAL materials[pc.materialIndex]
+#define PRIMITIVE primitives[pc.primitiveIndex]
+#define MATERIAL materials[PRIMITIVE.materialIndex]
 
 const vec3 lightColor = vec3(1.0);
 
@@ -157,6 +166,12 @@ struct Material {
     float roughnessFactor;
     float normalScale;
     float occlusionStrength;
+};
+
+struct Primitive {
+    uint8_t VERTEX_DATA[64];
+    uint nodeIndex;
+    uint materialIndex;
 };
 
 layout (location = 0) in vec3 fragPosition;
@@ -183,10 +198,12 @@ layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
+layout (set = 2, binding = 1) readonly buffer PrimitiveBuffer {
+    Primitive primitives[];
+};
+
 layout (push_constant, std430) uniform PushConstant {
-    layout (offset = 64) // VERTEX_DATA
-    uint nodeIndex;
-    uint materialIndex;
+    uint primitiveIndex;
 } pc;
 
 layout (early_fragment_tests) in;
@@ -276,7 +293,7 @@ vk_gltf_viewer::vulkan::pipelines::MeshRenderer::DescriptorSetLayouts::Descripto
     const vk::raii::Device &device,
     const vk::Sampler &sampler,
     std::uint32_t textureCount
-) : vku::DescriptorSetLayouts<4, 2, 1> {
+) : vku::DescriptorSetLayouts<4, 2, 2> {
         device,
         LayoutBindings {
             {},
@@ -294,6 +311,7 @@ vk_gltf_viewer::vulkan::pipelines::MeshRenderer::DescriptorSetLayouts::Descripto
         LayoutBindings {
             {},
             vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
         },
     } { }
 

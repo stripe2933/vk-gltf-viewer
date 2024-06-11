@@ -48,6 +48,8 @@ namespace vk_gltf_viewer::gltf {
             struct IndexBufferInfo { vk::DeviceSize offset; vk::IndexType type; };
             struct AttributeBufferInfo { vk::DeviceAddress address; std::uint8_t byteStride; };
 
+            std::uint32_t nodeIndex;
+            std::optional<std::uint32_t> materialIndex;
             std::uint32_t drawCount;
             std::optional<IndexBufferInfo> indexInfo{};
             AttributeBufferInfo positionInfo;
@@ -74,6 +76,8 @@ namespace vk_gltf_viewer::gltf {
                               occlusionStrength = 1.f;
         };
 
+        const fastgltf::Asset &asset;
+
         vk::raii::Sampler defaultSampler;
 
         std::vector<vku::AllocatedImage> images;
@@ -97,18 +101,19 @@ namespace vk_gltf_viewer::gltf {
         AssetResources(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu);
 
         [[nodiscard]] auto createDefaultSampler(const vk::raii::Device &device) const -> decltype(defaultSampler);
-        [[nodiscard]] auto createImages(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, vma::Allocator allocator) const -> decltype(images);
+        [[nodiscard]] auto createImages(const ResourceBytes &resourceBytes, vma::Allocator allocator) const -> decltype(images);
         [[nodiscard]] auto createImageViews(const vk::raii::Device &device) const -> decltype(imageViews);
-        [[nodiscard]] auto createSamplers(const fastgltf::Asset &asset, const vk::raii::Device &device) const -> decltype(samplers);
-        [[nodiscard]] auto createTextures(const fastgltf::Asset &asset) const -> decltype(textures);
-        [[nodiscard]] auto createMaterialBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const -> decltype(materialBuffer);
+        [[nodiscard]] auto createSamplers(const vk::raii::Device &device) const -> decltype(samplers);
+        [[nodiscard]] auto createTextures() const -> decltype(textures);
+        [[nodiscard]] auto createMaterialBuffer(vma::Allocator allocator) const -> decltype(materialBuffer);
 
         auto stageImages(const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto stageMaterials(const fastgltf::Asset &asset, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto setPrimitiveAttributeData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto stageMaterials(vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto setPrimitiveInfo(const fastgltf::Asset &asset) -> void;
+        auto setPrimitiveAttributeData(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
         auto setPrimitiveVariadicAttributeData(const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer, VariadicAttribute attributeType) -> void;
-        auto setPrimitiveMissingTangents(const fastgltf::Asset &asset, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto setPrimitiveIndexData(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto setPrimitiveMissingTangents(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto setPrimitiveIndexData(const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
 
         auto releaseResourceQueueFamilyOwnership(const vulkan::Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
 

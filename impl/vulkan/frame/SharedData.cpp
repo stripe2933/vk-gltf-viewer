@@ -37,7 +37,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
     const shaderc::Compiler &compiler
 ) : asset { asset },
 	assetResources { asset, assetDir, gpu },
-	sceneResources { asset, asset.scenes[asset.defaultScene.value_or(0)], gpu },
+	sceneResources { assetResources, asset.scenes[asset.defaultScene.value_or(0)], gpu },
 	swapchain { createSwapchain(gpu, surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent },
 	meshRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler },
