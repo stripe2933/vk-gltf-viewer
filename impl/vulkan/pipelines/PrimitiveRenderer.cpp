@@ -68,11 +68,6 @@ layout (location = 6) out vec2 fragNormalTexcoord;
 layout (location = 7) out vec2 fragOcclusionTexcoord;
 layout (location = 8) flat out uint instanceIndex;
 
-layout (set = 0, binding = 0) uniform CameraBuffer {
-    mat4 projectionView;
-    vec3 viewPosition;
-} camera;
-
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
@@ -85,7 +80,8 @@ layout (set = 2, binding = 1) readonly buffer NodeTransformBuffer {
 };
 
 layout (push_constant, std430) uniform PushConstant {
-    uint primitiveIndex;
+    mat4 projectionView;
+    vec3 viewPosition;
 } pc;
 
 // --------------------
@@ -134,7 +130,7 @@ void main(){
     }
     instanceIndex = gl_InstanceIndex;
 
-    gl_Position = camera.projectionView * vec4(fragPosition, 1.0);
+    gl_Position = pc.projectionView * vec4(fragPosition, 1.0);
 }
 )vert";
 
@@ -187,15 +183,11 @@ layout (location = 8) flat in uint instanceIndex;
 
 layout (location = 0) out vec4 outColor;
 
-layout (set = 0, binding = 0) uniform CameraBuffer {
-    mat4 projectionView;
-    vec3 viewPosition;
-} camera;
-layout (set = 0, binding = 1, scalar) uniform SphericalHarmonicsBuffer {
+layout (set = 0, binding = 0, scalar) uniform SphericalHarmonicsBuffer {
     vec3 coefficients[9];
 } sphericalHarmonics;
-layout (set = 0, binding = 2) uniform samplerCube prefilteredmap;
-layout (set = 0, binding = 3) uniform sampler2D brdfmap;
+layout (set = 0, binding = 1) uniform samplerCube prefilteredmap;
+layout (set = 0, binding = 2) uniform sampler2D brdfmap;
 
 layout (set = 1, binding = 0) uniform sampler2D textures[];
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
@@ -207,7 +199,8 @@ layout (set = 2, binding = 0) readonly buffer PrimitiveBuffer {
 };
 
 layout (push_constant, std430) uniform PushConstant {
-    uint primitiveIndex;
+    mat4 projectionView;
+    vec3 viewPosition;
 } pc;
 
 layout (early_fragment_tests) in;
@@ -271,7 +264,7 @@ void main(){
         occlusion += MATERIAL.occlusionStrength * (texture(textures[uint(MATERIAL.occlusionTextureIndex)], fragOcclusionTexcoord).r - 1.0);
     }
 
-    vec3 V = normalize(camera.viewPosition - fragPosition);
+    vec3 V = normalize(pc.viewPosition - fragPosition);
     vec3 R = reflect(-V, N);
 
     vec3 F0 = mix(vec3(0.04), baseColor.rgb, metallic);
@@ -297,14 +290,13 @@ vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::DescriptorSetLayouts::Desc
     const vk::raii::Device &device,
     const vk::Sampler &sampler,
     std::uint32_t textureCount
-) : vku::DescriptorSetLayouts<4, 2, 2> {
+) : vku::DescriptorSetLayouts<3, 2, 2> {
         device,
         LayoutBindings {
             {},
-            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
-            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
+            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
+            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
             vk::DescriptorSetLayoutBinding { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
-            vk::DescriptorSetLayoutBinding { 3, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
         },
         LayoutBindings {
             vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,

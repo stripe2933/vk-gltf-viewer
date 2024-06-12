@@ -29,7 +29,6 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	primaryAttachmentGroup { createPrimaryAttachmentGroup(gpu) },
     descriptorPool { createDescriptorPool(gpu.device) },
 	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
-	cameraBuffer { createCameraBuffer(gpu.allocator) },
 	depthSets { *gpu.device, *descriptorPool, sharedData->depthRenderer.descriptorSetLayouts },
 	primitiveSets { *gpu.device, *descriptorPool, sharedData->primitiveRenderer.descriptorSetLayouts },
     skyboxSets { *gpu.device, *descriptorPool, sharedData->skyboxRenderer.descriptorSetLayouts },
@@ -45,7 +44,6 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
 		    primitiveSets.getDescriptorWrites0(
-		    	{ cameraBuffer, 0, vk::WholeSize },
 		    	{ sharedData->cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
 		    	*sharedData->prefilteredmapImageView,
 		    	*sharedData->brdfmapImageView).get(),
@@ -215,8 +213,7 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
     	},
     	vk::DescriptorPoolSize {
     	    vk::DescriptorType::eUniformBuffer,
-    		1 /* PrimitiveRenderer cameraBuffer */
-    		+ 1 /* PrimitiveRenderer cubemapSphericalHarmonicsBuffer */,
+    		1 /* PrimitiveRenderer cubemapSphericalHarmonicsBuffer */,
     	},
     };
 	return { device, vk::DescriptorPoolCreateInfo{
@@ -235,19 +232,6 @@ auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
 	return { device, vk::CommandPoolCreateInfo{
 		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
 		queueFamilyIndex,
-	} };
-}
-
-auto vk_gltf_viewer::vulkan::Frame::createCameraBuffer(
-	vma::Allocator allocator
-) const -> decltype(cameraBuffer) {
-	return { allocator, vk::BufferCreateInfo {
-		{},
-		sizeof(pipelines::PrimitiveRenderer::Camera),
-		vk::BufferUsageFlagBits::eUniformBuffer,
-	}, vma::AllocationCreateInfo {
-		vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
-		vma::MemoryUsage::eAuto,
 	} };
 }
 
@@ -284,19 +268,16 @@ auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
 
 // TODO: does this really need to be here? ^^;;;
 float rotation = 0.f;
+glm::vec3 viewPosition;
 glm::mat4 view;
 glm::mat4 projection;
 
 auto vk_gltf_viewer::vulkan::Frame::update() -> void {
 	rotation += 5e-3f;
 
-	const auto viewPosition = glm::vec3 { 4.f * std::cos(rotation), 0.f, 4.f * std::sin(rotation) };
+	viewPosition = glm::vec3 { 4.f * std::cos(rotation), 0.f, 4.f * std::sin(rotation) };
 	view = glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f }, glm::vec3{ 0.f, 1.f, 0.f });
 	projection = glm::gtc::perspective(glm::radians(45.0f), vku::aspect(sharedData->swapchainExtent), 1e-2f, 1e2f);
-	cameraBuffer.asValue<pipelines::PrimitiveRenderer::Camera>() = {
-		projection * view,
-		viewPosition,
-	};
 }
 
 auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
@@ -358,6 +339,7 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	// Draw glTF mesh.
 	sharedData->primitiveRenderer.bindPipeline(cb);
 	sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
+	sharedData->primitiveRenderer.pushConstants(cb, { projection * view, viewPosition });
 	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
 		const vk::IndexType indexType = criteria.indexType.value();
 		cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(indexType), 0, indexType);

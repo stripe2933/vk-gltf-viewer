@@ -15,7 +15,7 @@ export import vku;
 namespace vk_gltf_viewer::vulkan::pipelines {
     export class PrimitiveRenderer {
     public:
-        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<4, 2, 2>{
+        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<3, 2, 2>{
             explicit DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler, std::uint32_t textureCount);
         };
 
@@ -23,21 +23,18 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
 
             [[nodiscard]] auto getDescriptorWrites0(
-                const vk::DescriptorBufferInfo &cameraBufferInfo,
                 const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo,
                 vk::ImageView prefilteredmapImageView,
                 vk::ImageView brdfmapImageView
             ) const {
                 return vku::RefHolder {
-                    [this](const vk::DescriptorBufferInfo &cameraBufferInfo, const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo, const vk::DescriptorImageInfo &prefilteredmapImageInfo, const vk::DescriptorImageInfo &brdfmapImageInfo) {
+                    [this](const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo, const vk::DescriptorImageInfo &prefilteredmapImageInfo, const vk::DescriptorImageInfo &brdfmapImageInfo) {
                         return std::array {
-                            getDescriptorWrite<0, 0>().setBufferInfo(cameraBufferInfo),
-                            getDescriptorWrite<0, 1>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo),
-                            getDescriptorWrite<0, 2>().setImageInfo(prefilteredmapImageInfo),
-                            getDescriptorWrite<0, 3>().setImageInfo(brdfmapImageInfo),
+                            getDescriptorWrite<0, 0>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo),
+                            getDescriptorWrite<0, 1>().setImageInfo(prefilteredmapImageInfo),
+                            getDescriptorWrite<0, 2>().setImageInfo(brdfmapImageInfo),
                         };
                     },
-                    cameraBufferInfo,
                     cubemapSphericalHarmonicsBufferInfo,
                     vk::DescriptorImageInfo { {}, prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
                     vk::DescriptorImageInfo { {}, brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
@@ -82,11 +79,6 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         };
 
         struct PushConstant {
-            std::uint32_t primitiveIndex;
-        };
-
-        // Pipeline resource types.
-        struct Camera {
             glm::mat4 projectionView;
             glm::vec3 viewPosition;
         };
