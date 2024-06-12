@@ -176,6 +176,14 @@ auto vk_gltf_viewer::vulkan::Frame::createDepthPrepassAttachmentGroup(
 	const Gpu &gpu
 ) const -> decltype(depthPrepassAttachmentGroup) {
 	vku::MsaaAttachmentGroup attachmentGroup { sharedData->swapchainExtent, vk::SampleCountFlagBits::e4 };
+	attachmentGroup.addColorAttachment(
+		gpu.device,
+		attachmentGroup.storeImage(
+			// Resolve mode is SAMPLE_ZERO, therefore attachment cannot be transient.
+			// TODO: does it only applied to MoltenVK environment? Metal uses compute shader for resolve operation.
+			attachmentGroup.createColorImage(gpu.allocator, vk::Format::eR32Uint, {})),
+		attachmentGroup.storeImage(
+			attachmentGroup.createResolveImage(gpu.allocator, vk::Format::eR32Uint)));
 	attachmentGroup.setDepthAttachment(gpu.device, depthImage);
 	return attachmentGroup;
 }
@@ -255,6 +263,18 @@ auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
 					{}, {},
 					{}, vk::ImageLayout::eColorAttachmentOptimal,
 					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
+				},
+				vk::ImageMemoryBarrier {
+					{}, {},
+					{}, vk::ImageLayout::eColorAttachmentOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					depthPrepassAttachmentGroup.colorAttachments[0].resolveImage, vku::fullSubresourceRange(),
+				},
+				vk::ImageMemoryBarrier {
+					{}, {},
+					{}, vk::ImageLayout::eColorAttachmentOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 					primaryAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
 				},
 				vk::ImageMemoryBarrier {
@@ -279,8 +299,10 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 
 	// Begin dynamic rendering.
 	cb.beginRenderingKHR(depthPrepassAttachmentGroup.getRenderingInfo(
-		{},
-		std::tuple { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearDepthStencilValue { 1.f, 0U } }));
+		std::array {
+            vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, vk::ClearColorValue { std::numeric_limits<std::uint32_t>::max(), 0U, 0U, 0U }, vk::ResolveModeFlagBits::eSampleZero },
+		},
+		vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearDepthStencilValue { 1.f, 0U } }));
 
 	// Set viewport and scissor.
 	depthPrepassAttachmentGroup.setViewport(cb, true);
@@ -320,9 +342,9 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	// Begin dynamic rendering.
 	cb.beginRenderingKHR(primaryAttachmentGroup.getRenderingInfo(
 		std::array {
-			std::tuple { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare, vk::ClearColorValue{} },
+			vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare },
 		},
-		std::tuple { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eDontCare, vk::ClearDepthStencilValue{} }));
+		vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eDontCare }));
 
 	// Set viewport and scissor.
 	primaryAttachmentGroup.setViewport(cb, true);

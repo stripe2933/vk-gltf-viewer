@@ -44,6 +44,8 @@ struct Primitive {
     uint materialIndex;
 };
 
+layout (location = 0) flat out uint primitiveNodeIndex;
+
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
@@ -64,6 +66,8 @@ vec3 getVec3(uint64_t address){
 }
 
 void main(){
+    primitiveNodeIndex = PRIMITIVE.nodeIndex;
+
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }
@@ -73,9 +77,15 @@ void main(){
 std::string_view vk_gltf_viewer::vulkan::pipelines::DepthRenderer::frag = R"frag(
 #version 450
 
+layout (location = 0) flat in uint primitiveNodeIndex;
+
+layout (location = 0) out uint outNodeIndex;
+
 layout (early_fragment_tests) in;
 
-void main(){ }
+void main(){
+    outNodeIndex = primitiveNodeIndex;
+}
 )frag";
 
 vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
@@ -156,13 +166,15 @@ auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::createPipeline(
         true, true, vk::CompareOp::eLess,
     };
 
+    constexpr std::array colorAttachmentFormats { vk::Format::eR32Uint };
+
     return { device, nullptr, vk::StructureChain {
-        vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 0, true, vk::SampleCountFlagBits::e4)
+        vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
             .setPRasterizationState(&rasterizationState)
             .setPDepthStencilState(&depthStencilState),
         vk::PipelineRenderingCreateInfo {
             {},
-            {},
+            colorAttachmentFormats,
             vk::Format::eD32Sfloat,
         }
     }.get() };
