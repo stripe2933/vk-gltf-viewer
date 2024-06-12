@@ -77,11 +77,11 @@ layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
-layout (set = 2, binding = 0) readonly buffer NodeTransformBuffer {
-    mat4 nodeTransforms[];
-};
-layout (set = 2, binding = 1) readonly buffer PrimitiveBuffer {
+layout (set = 2, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
+};
+layout (set = 2, binding = 1) readonly buffer NodeTransformBuffer {
+    mat4 nodeTransforms[];
 };
 
 layout (push_constant, std430) uniform PushConstant {
@@ -202,7 +202,7 @@ layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
-layout (set = 2, binding = 1) readonly buffer PrimitiveBuffer {
+layout (set = 2, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
 
@@ -314,8 +314,8 @@ vk_gltf_viewer::vulkan::pipelines::MeshRenderer::DescriptorSetLayouts::Descripto
         },
         LayoutBindings {
             {},
-            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
-            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
+            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
+            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
         },
     } { }
 

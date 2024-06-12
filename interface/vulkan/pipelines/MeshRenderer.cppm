@@ -65,18 +65,18 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             }
 
             [[nodiscard]] auto getDescriptorWrites2(
-                const vk::DescriptorBufferInfo &nodeTransformBufferInfo,
-                const vk::DescriptorBufferInfo &primitiveBufferInfo
+                const vk::DescriptorBufferInfo &primitiveBufferInfo,
+                const vk::DescriptorBufferInfo &nodeTransformBufferInfo
             ) const {
                 return vku::RefHolder {
-                    [this](const vk::DescriptorBufferInfo &nodeTransformBufferInfo, const vk::DescriptorBufferInfo &primitiveBufferInfo) {
+                    [this](const vk::DescriptorBufferInfo &primitiveBufferInfo, const vk::DescriptorBufferInfo &nodeTransformBufferInfo) {
                         return std::array {
-                            getDescriptorWrite<2, 0>().setBufferInfo(nodeTransformBufferInfo),
-                            getDescriptorWrite<2, 1>().setBufferInfo(primitiveBufferInfo),
+                            getDescriptorWrite<2, 0>().setBufferInfo(primitiveBufferInfo),
+                            getDescriptorWrite<2, 1>().setBufferInfo(nodeTransformBufferInfo),
                         };
                     },
-                    nodeTransformBufferInfo,
                     primitiveBufferInfo,
+                    nodeTransformBufferInfo,
                 };
             }
         };
