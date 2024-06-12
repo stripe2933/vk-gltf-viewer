@@ -3,6 +3,7 @@ module;
 #include <algorithm>
 #include <map>
 #include <ranges>
+#include <stack>
 #include <tuple>
 #include <vector>
 

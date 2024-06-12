@@ -39,19 +39,19 @@ namespace vk_gltf_viewer::gltf::algorithm {
                 },
                 .m_getPosition = [](const SMikkTSpaceContext *pContext, float fvPosOut[], int iFace, int iVert) {
                     const auto *meshData = static_cast<const MikktSpaceMesh*>(pContext->m_pUserData);
-                    const glm::vec3 position = getAccessorElement<glm::vec3>(
+                    const glm::vec3 position = fastgltf::getAccessorElement<glm::vec3>(
                         meshData->asset, meshData->positionAccessor, getIndex(*meshData, iFace, iVert), meshData->bufferDataAdaptor);
                     std::ranges::copy_n(glm::gtc::value_ptr(position), 3, fvPosOut);
                 },
                 .m_getNormal = [](const SMikkTSpaceContext *pContext, float fvNormOut[], int iFace, int iVert) {
                     const auto *meshData = static_cast<const MikktSpaceMesh*>(pContext->m_pUserData);
-                    const glm::vec3 normal = getAccessorElement<glm::vec3>(
+                    const glm::vec3 normal = fastgltf::getAccessorElement<glm::vec3>(
                         meshData->asset, meshData->normalAccessor, getIndex(*meshData, iFace, iVert), meshData->bufferDataAdaptor);
                     std::ranges::copy_n(glm::gtc::value_ptr(normal), 3, fvNormOut);
                 },
                 .m_getTexCoord = [](const SMikkTSpaceContext *pContext, float fvTexcOut[], int iFace, int iVert) {
                     const auto *meshData = static_cast<const MikktSpaceMesh*>(pContext->m_pUserData);
-                    const glm::vec2 texcoord = getAccessorElement<glm::vec2>(
+                    const glm::vec2 texcoord = fastgltf::getAccessorElement<glm::vec2>(
                         meshData->asset, meshData->texcoordAccessor, getIndex(*meshData, iFace, iVert), meshData->bufferDataAdaptor);
                     std::ranges::copy_n(glm::gtc::value_ptr(texcoord), 2, fvTexcOut);
                 },
@@ -62,7 +62,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
             } { }
 
         [[nodiscard]] static auto getIndex(const MikktSpaceMesh &meshData, int iFace, int iVert) -> int {
-            return getAccessorElement<IndexType>(
+            return fastgltf::getAccessorElement<IndexType>(
                 meshData.asset, meshData.indicesAccessor, 3 * iFace + iVert, meshData.bufferDataAdaptor);
         }
     };
