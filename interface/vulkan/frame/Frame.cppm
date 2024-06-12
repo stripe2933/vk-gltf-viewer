@@ -6,12 +6,14 @@ module;
 export module vk_gltf_viewer:vulkan.frame.Frame;
 
 export import vku;
+export import :GlobalState;
 export import :vulkan.Gpu;
 export import :vulkan.frame.SharedData;
 
 namespace vk_gltf_viewer::vulkan::inline frame {
     export class Frame {
     public:
+    	GlobalState &globalState;
     	std::shared_ptr<SharedData> sharedData;
 
     	// Attachment groups.
@@ -35,7 +37,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 		vk::raii::Semaphore depthPrepassFinishSema, swapchainImageAcquireSema, drawFinishSema, blitToSwapchainFinishSema;
 		vk::raii::Fence inFlightFence;
 
-    	Frame(const Gpu &gpu, const std::shared_ptr<SharedData> &sharedData);
+    	Frame(GlobalState &globalState, const std::shared_ptr<SharedData> &sharedData,  const Gpu &gpu);
 
     	// Return true if frame's corresponding swapchain image sucessfully presented, false otherwise (e.g. swapchain out of date).
     	[[nodiscard]] auto onLoop(const Gpu &gpu) -> bool;

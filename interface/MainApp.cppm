@@ -7,18 +7,21 @@ module;
 export module vk_gltf_viewer:MainApp;
 
 export import vulkan_hpp; // have to be exported for initializing DispatchLoader.
-import vku;
+import :control.AppWindow;
+import :GlobalState;
 import :vulkan.Gpu;
 
 namespace vk_gltf_viewer {
 	export class MainApp {
 	public:
+	    GlobalState &globalState = GlobalState::getInstance();
+
 		fastgltf::GltfDataBuffer gltfDataBuffer{};
 		fastgltf::Expected<fastgltf::Asset> assetExpected = loadAsset(std::getenv("GLTF_PATH"));
 
 		vk::raii::Context context;
 		vk::raii::Instance instance = createInstance();
-		vku::GlfwWindow window { 800, 480, "Vulkan glTF Viewer", instance };
+		control::AppWindow window { instance, globalState };
 		vulkan::Gpu gpu { instance, *window.surface };
 
 		auto run() -> void;

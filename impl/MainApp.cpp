@@ -29,11 +29,17 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y });
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
-	std::array frames = ARRAY_OF(2, vulkan::Frame { gpu, sharedData });
+	std::array frames = ARRAY_OF(2, vulkan::Frame { globalState, sharedData, gpu });
 #pragma clang diagnostic pop
 
+	float elapsedTime = 0.f;
 	for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % frames.size()) {
-		glfwPollEvents();
+        glfwPollEvents();
+
+		const float glfwTime = static_cast<float>(glfwGetTime());
+		const float timeDelta = glfwTime - std::exchange(elapsedTime, glfwTime);
+		window.update(timeDelta);
+
 		if (!frames[frameIndex].onLoop(gpu)) {
 			gpu.device.waitIdle();
 

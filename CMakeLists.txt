@@ -98,7 +98,7 @@ if (NOT TARGET glm_module)
 	add_library(glm::module ALIAS glm_module)
 endif()
 
-target_compile_definitions(glm_module PRIVATE
+target_compile_definitions(glm_module PUBLIC
 	GLM_FORCE_DEPTH_ZERO_TO_ONE
 	GLM_FORCE_XYZW_ONLY
 )
@@ -115,6 +115,8 @@ add_subdirectory(extlibs)
 # --------------------
 
 add_executable(vk-gltf-viewer
+	impl/control/AppWindow.cpp
+	impl/GlobalState.cpp
 	impl/gltf/AssetResources.cpp
 	impl/gltf/SceneResources.cpp
 	impl/MainApp.cpp
@@ -135,11 +137,15 @@ target_sources(vk-gltf-viewer PRIVATE
 	BASE_DIRS interface
 	FILES
 		interface/mod.cppm
+		interface/control/mod.cppm
+		interface/control/AppWindow.cppm
+		interface/control/Camera.cppm
 		interface/gltf/mod.cppm
 		interface/gltf/algorithm/mod.cppm
 		interface/gltf/algorithm/MikktSpaceInterface.cppm
 		interface/gltf/AssetResources.cppm
 		interface/gltf/SceneResources.cppm
+		interface/GlobalState.cppm
 		interface/helpers/mod.cppm
 		interface/helpers/formatters/mod.cppm
 		interface/helpers/formatters/glm.cppm

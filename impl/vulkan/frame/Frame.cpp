@@ -21,9 +21,11 @@ import :gltf.SceneResources;
 import :helpers.ranges;
 
 vk_gltf_viewer::vulkan::Frame::Frame(
-	const Gpu &gpu,
-	const std::shared_ptr<SharedData> &sharedData
-) : sharedData { sharedData },
+	GlobalState &globalState,
+	const std::shared_ptr<SharedData> &sharedData,
+	const Gpu &gpu
+) : globalState { globalState },
+    sharedData { sharedData },
 	depthImage { createDepthImage(gpu.allocator) },
 	depthPrepassAttachmentGroup { createDepthPrepassAttachmentGroup(gpu) },
 	primaryAttachmentGroup { createPrimaryAttachmentGroup(gpu) },
@@ -266,18 +268,8 @@ auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
 	gpu.queues.graphicsPresent.waitIdle();
 }
 
-// TODO: does this really need to be here? ^^;;;
-float rotation = 0.f;
-glm::vec3 viewPosition;
-glm::mat4 view;
-glm::mat4 projection;
-
 auto vk_gltf_viewer::vulkan::Frame::update() -> void {
-	rotation += 5e-3f;
 
-	viewPosition = glm::vec3 { 4.f * std::cos(rotation), 0.f, 4.f * std::sin(rotation) };
-	view = glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f }, glm::vec3{ 0.f, 1.f, 0.f });
-	projection = glm::gtc::perspective(glm::radians(45.0f), vku::aspect(sharedData->swapchainExtent), 1e-2f, 1e2f);
 }
 
 auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
@@ -296,7 +288,7 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 
 	sharedData->depthRenderer.bindPipeline(cb);
 	sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
-	sharedData->depthRenderer.pushConstants(cb, { .projectionView = projection * view });
+	sharedData->depthRenderer.pushConstants(cb, { .projectionView = globalState.camera.projection * globalState.camera.view });
 	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
 		const vk::IndexType indexType = criteria.indexType.value();
 		cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(indexType), 0, indexType);
@@ -339,7 +331,7 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	// Draw glTF mesh.
 	sharedData->primitiveRenderer.bindPipeline(cb);
 	sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
-	sharedData->primitiveRenderer.pushConstants(cb, { projection * view, viewPosition });
+	sharedData->primitiveRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, globalState.camera.getEye() });
 	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
 		const vk::IndexType indexType = criteria.indexType.value();
 		cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(indexType), 0, indexType);
@@ -347,7 +339,7 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	}
 
 	// Draw skybox.
-	sharedData->skyboxRenderer.draw(cb, skyboxSets, { projection * glm::mat4 { glm::mat3 { view } } });
+	sharedData->skyboxRenderer.draw(cb, skyboxSets, { globalState.camera.projection * glm::mat4 { glm::mat3 { globalState.camera.view } } });
 
 	// End dynamic rendering.
 	cb.endRenderingKHR();
