@@ -19,6 +19,18 @@ import :utils.RefHolder;
 
 export namespace vku {
     struct AttachmentGroup : AttachmentGroupBase {
+        struct ColorAttachmentInfo {
+            vk::AttachmentLoadOp loadOp;
+            vk::AttachmentStoreOp storeOp;
+            vk::ClearColorValue clearValue;
+        };
+
+        struct DepthStencilAttachmentInfo {
+            vk::AttachmentLoadOp loadOp;
+            vk::AttachmentStoreOp storeOp;
+            vk::ClearDepthStencilValue clearValue;
+        };
+
         std::vector<Attachment> colorAttachments;
         std::optional<Attachment> depthStencilAttachment;
 
@@ -72,9 +84,9 @@ export namespace vku {
         ) const -> AllocatedImage;
 
         auto getRenderingInfo(
-            std::span<const std::tuple<vk::AttachmentLoadOp, vk::AttachmentStoreOp, vk::ClearColorValue>> colorAttachmentInfos = {},
-            const std::optional<std::tuple<vk::AttachmentLoadOp, vk::AttachmentStoreOp, vk::ClearDepthStencilValue>> &depthStencilAttachmentInfo = {}
-        ) const -> RefHolder<vk::RenderingInfo, std::vector<vk::RenderingAttachmentInfo>, std::optional<vk::RenderingAttachmentInfo>> override;
+            std::span<const ColorAttachmentInfo> colorAttachmentInfos = {},
+            const std::optional<DepthStencilAttachmentInfo> &depthStencilAttachmentInfo = {}
+        ) const -> RefHolder<vk::RenderingInfo, std::vector<vk::RenderingAttachmentInfo>, std::optional<vk::RenderingAttachmentInfo>>;
     };
 }
 
@@ -184,8 +196,8 @@ auto vku::AttachmentGroup::createDepthStencilImage(
 }
 
 auto vku::AttachmentGroup::getRenderingInfo(
-    std::span<const std::tuple<vk::AttachmentLoadOp, vk::AttachmentStoreOp, vk::ClearColorValue>> colorAttachmentInfos,
-    const std::optional<std::tuple<vk::AttachmentLoadOp, vk::AttachmentStoreOp, vk::ClearDepthStencilValue>> &depthStencilAttachmentInfo
+    std::span<const ColorAttachmentInfo> colorAttachmentInfos,
+    const std::optional<DepthStencilAttachmentInfo> &depthStencilAttachmentInfo
 ) const -> RefHolder<vk::RenderingInfo, std::vector<vk::RenderingAttachmentInfo>, std::optional<vk::RenderingAttachmentInfo>> {
     assert(colorAttachments.size() == colorAttachmentInfos.size() && "Color attachment info count mismatch");
     assert(depthStencilAttachment.has_value() == depthStencilAttachmentInfo.has_value() && "Depth-stencil attachment info mismatch");
@@ -200,11 +212,11 @@ auto vku::AttachmentGroup::getRenderingInfo(
                 depthStencilAttachmentInfo.transform([](const auto& x) { return &x; }).value_or(nullptr),
             };
         },
-        ranges::views::zip_transform([](const Attachment &attachment, const std::tuple<vk::AttachmentLoadOp, vk::AttachmentStoreOp, vk::ClearColorValue> &info) {
+        ranges::views::zip_transform([](const Attachment &attachment, const ColorAttachmentInfo &info) {
             return vk::RenderingAttachmentInfo {
                 *attachment.view, vk::ImageLayout::eColorAttachmentOptimal,
                 {}, {}, {},
-                std::get<0>(info), std::get<1>(info), std::get<2>(info),
+                info.loadOp, info.storeOp, info.clearValue,
             };
         }, colorAttachments, colorAttachmentInfos) | std::ranges::to<std::vector>(),
         depthStencilAttachment.transform([&](const Attachment &attachment) {
@@ -212,7 +224,7 @@ auto vku::AttachmentGroup::getRenderingInfo(
             return vk::RenderingAttachmentInfo {
                 *attachment.view, vk::ImageLayout::eDepthStencilAttachmentOptimal,
                 {}, {}, {},
-                std::get<0>(info), std::get<1>(info), std::get<2>(info),
+                info.loadOp, info.storeOp, info.clearValue,
             };
         })
     };

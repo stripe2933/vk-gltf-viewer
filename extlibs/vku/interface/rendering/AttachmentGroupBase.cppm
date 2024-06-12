@@ -42,11 +42,6 @@ namespace vku {
         auto setViewport(vk::CommandBuffer commandBuffer, bool negativeViewport = false) const -> void;
         auto setScissor(vk::CommandBuffer commandBuffer) const -> void;
 
-        [[nodiscard]] virtual auto getRenderingInfo(
-            std::span<const std::tuple<vk::AttachmentLoadOp, vk::AttachmentStoreOp, vk::ClearColorValue>> colorAttachmentInfos = {},
-            const std::optional<std::tuple<vk::AttachmentLoadOp, vk::AttachmentStoreOp, vk::ClearDepthStencilValue>> &depthStencilAttachmentInfo = {}
-        ) const -> RefHolder<vk::RenderingInfo, std::vector<vk::RenderingAttachmentInfo>, std::optional<vk::RenderingAttachmentInfo>> = 0;
-
     protected:
         std::vector<std::unique_ptr<AllocatedImage>> storedImage;
 
