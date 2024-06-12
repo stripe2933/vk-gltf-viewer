@@ -389,9 +389,10 @@ auto vk_gltf_viewer::vulkan::pipelines::MeshRenderer::createPipeline(
         vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
         vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment });
 
+    // Since it uses previous z-prepassed depth attachment, therefore compareOp must be eLessOrEqual.
     constexpr vk::PipelineDepthStencilStateCreateInfo depthStencilState {
         {},
-        true, true, vk::CompareOp::eLess,
+        true, true, vk::CompareOp::eLessOrEqual,
     };
 
     constexpr vk::Format colorAttachmentFormat = vk::Format::eR16G16B16A16Sfloat;

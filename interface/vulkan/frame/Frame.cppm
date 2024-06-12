@@ -15,6 +15,8 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	std::shared_ptr<SharedData> sharedData;
 
     	// Attachment groups.
+    	vku::AllocatedImage depthImage;
+    	vku::MsaaAttachmentGroup depthPrepassAttachmentGroup;
     	vku::MsaaAttachmentGroup primaryAttachmentGroup;
 
         // Descriptor/command pools.
@@ -25,14 +27,15 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	vku::MappedBuffer cameraBuffer;
 
     	// Descriptor sets.
+    	pipelines::DepthRenderer::DescriptorSets depthSets;
     	pipelines::MeshRenderer::DescriptorSets meshRendererSets;
     	pipelines::SkyboxRenderer::DescriptorSets skyboxSets;
 
     	// Command buffers.
-    	vk::CommandBuffer drawCommandBuffer, blitToSwapchainCommandBuffer;
+    	vk::CommandBuffer depthPrepassCommandBuffer, drawCommandBuffer, blitToSwapchainCommandBuffer;
 
 		// Synchronization stuffs.
-		vk::raii::Semaphore swapchainImageAcquireSema, drawFinishSema, blitToSwapchainFinishSema;
+		vk::raii::Semaphore depthPrepassFinishSema, swapchainImageAcquireSema, drawFinishSema, blitToSwapchainFinishSema;
 		vk::raii::Fence inFlightFence;
 
     	Frame(const Gpu &gpu, const std::shared_ptr<SharedData> &sharedData);
@@ -43,6 +46,8 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	auto handleSwapchainResize(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
     private:
+    	[[nodiscard]] auto createDepthImage(vma::Allocator allocator) const -> decltype(depthImage);
+    	[[nodiscard]] auto createDepthPrepassAttachmentGroup(const Gpu &gpu) const -> decltype(depthPrepassAttachmentGroup);
     	[[nodiscard]] auto createPrimaryAttachmentGroup(const Gpu &gpu) const -> decltype(primaryAttachmentGroup);
     	[[nodiscard]] auto createDescriptorPool(const vk::raii::Device &device) const -> decltype(descriptorPool);
     	[[nodiscard]] auto createCameraBuffer(vma::Allocator allocator) const -> decltype(cameraBuffer);
@@ -51,6 +56,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	auto initAttachmentLayouts(const Gpu &gpu) const -> void;
 
     	auto update() -> void;
+    	auto depthPrepass(vk::CommandBuffer cb) const -> void;
     	auto draw(vk::CommandBuffer cb) const -> void;
     	auto blitToSwapchain(vk::CommandBuffer cb, const vku::AttachmentGroup &swapchainAttachmentGroup) const -> void;
     };

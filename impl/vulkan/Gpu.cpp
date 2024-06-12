@@ -111,6 +111,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 		.setSamplerAnisotropy(vk::True)
 		.setShaderInt64(vk::True)
 		.setMultiDrawIndirect(vk::True)
+		.setDepthBiasClamp(vk::True)
 		.setShaderStorageImageWriteWithoutFormat(vk::True);
 	return { physicalDevice, vk::StructureChain {
 		vk::DeviceCreateInfo{

@@ -13,6 +13,7 @@ import :gltf.AssetResources;
 import :gltf.SceneResources;
 import :io.ktxvk;
 export import :vulkan.Gpu;
+export import :vulkan.pipelines.DepthRenderer;
 export import :vulkan.pipelines.MeshRenderer;
 export import :vulkan.pipelines.SkyboxRenderer;
 
@@ -31,6 +32,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
 		// Pipelines.
 		pipelines::MeshRenderer meshRenderer;
+		pipelines::DepthRenderer depthRenderer;
 		pipelines::SkyboxRenderer skyboxRenderer;
 
     	// Attachment groups.

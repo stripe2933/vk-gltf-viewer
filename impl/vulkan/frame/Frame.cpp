@@ -24,12 +24,16 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	const Gpu &gpu,
 	const std::shared_ptr<SharedData> &sharedData
 ) : sharedData { sharedData },
+	depthImage { createDepthImage(gpu.allocator) },
+	depthPrepassAttachmentGroup { createDepthPrepassAttachmentGroup(gpu) },
 	primaryAttachmentGroup { createPrimaryAttachmentGroup(gpu) },
     descriptorPool { createDescriptorPool(gpu.device) },
 	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
 	cameraBuffer { createCameraBuffer(gpu.allocator) },
+	depthSets { *gpu.device, *descriptorPool, sharedData->depthRenderer.descriptorSetLayouts },
 	meshRendererSets { *gpu.device, *descriptorPool, sharedData->meshRenderer.descriptorSetLayouts },
     skyboxSets { *gpu.device, *descriptorPool, sharedData->skyboxRenderer.descriptorSetLayouts },
+	depthPrepassFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
 	swapchainImageAcquireSema { gpu.device, vk::SemaphoreCreateInfo{} },
 	drawFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
 	blitToSwapchainFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
@@ -37,6 +41,9 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	// Update per-frame descriptor sets.
 	gpu.device.updateDescriptorSets(
 	    ranges::array_cat(
+	    	depthSets.getDescriptorWrites0(
+		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
+		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
 		    meshRendererSets.getDescriptorWrites0(
 		    	{ cameraBuffer, 0, vk::WholeSize },
 		    	{ sharedData->cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
@@ -52,13 +59,13 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		{});
 
 	// Allocate per-frame command buffers.
-	std::tie(drawCommandBuffer, blitToSwapchainCommandBuffer)
+	std::tie(depthPrepassCommandBuffer, drawCommandBuffer, blitToSwapchainCommandBuffer)
 	    = (*gpu.device).allocateCommandBuffers(vk::CommandBufferAllocateInfo{
 	    	*graphicsCommandPool,
 	    	vk::CommandBufferLevel::ePrimary,
-	    	2,
+	    	3,
 	    })
-		| ranges::to_array<2>();
+		| ranges::to_array<3>();
 
 	initAttachmentLayouts(gpu);
 }
@@ -87,22 +94,35 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 	}
 
 	// Record commands.
+	depthPrepass(depthPrepassCommandBuffer);
 	draw(drawCommandBuffer);
 	blitToSwapchain(blitToSwapchainCommandBuffer, sharedData->swapchainAttachmentGroups[imageIndex]);
 
 	// Submit draw command to the graphics queue.
-	const std::array waitSemas { *swapchainImageAcquireSema, *drawFinishSema };
-	constexpr std::array waitStages { vku::toFlags(vk::PipelineStageFlagBits::eColorAttachmentOutput), vku::toFlags(vk::PipelineStageFlagBits::eTransfer) };
+	constexpr std::array drawWaitStages {
+		vku::toFlags(vk::PipelineStageFlagBits::eEarlyFragmentTests),
+	};
+	const std::array blitToSwapchainWaitSemas { *swapchainImageAcquireSema, *drawFinishSema };
+	constexpr std::array blitToSwapchainWaitStages {
+		vku::toFlags(vk::PipelineStageFlagBits::eColorAttachmentOutput),
+		vku::toFlags(vk::PipelineStageFlagBits::eTransfer),
+	};
 	gpu.queues.graphicsPresent.submit(std::array {
 		vk::SubmitInfo {
 			{},
 			{},
+			depthPrepassCommandBuffer,
+			*depthPrepassFinishSema,
+		},
+		vk::SubmitInfo {
+			*depthPrepassFinishSema,
+			drawWaitStages,
 			drawCommandBuffer,
 			*drawFinishSema,
 		},
 		vk::SubmitInfo {
-			waitSemas,
-			waitStages,
+			blitToSwapchainWaitSemas,
+			blitToSwapchainWaitStages,
 			blitToSwapchainCommandBuffer,
 			*blitToSwapchainFinishSema,
 		},
@@ -128,8 +148,36 @@ auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
 	vk::SurfaceKHR surface,
 	const vk::Extent2D &newExtent
 ) -> void {
+	depthImage = createDepthImage(gpu.allocator);
+	depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup(gpu);
 	primaryAttachmentGroup = createPrimaryAttachmentGroup(gpu);
 	initAttachmentLayouts(gpu);
+}
+
+auto vk_gltf_viewer::vulkan::Frame::createDepthImage(
+	vma::Allocator allocator
+) const -> decltype(depthImage) {
+	return { allocator, vk::ImageCreateInfo {
+		{},
+		vk::ImageType::e2D,
+		vk::Format::eD32Sfloat,
+		vk::Extent3D { sharedData->swapchainExtent, 1 },
+		1, 1,
+		vk::SampleCountFlagBits::e4,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eDepthStencilAttachment,
+	}, vma::AllocationCreateInfo {
+		{},
+		vma::MemoryUsage::eAutoPreferDevice,
+	} };
+}
+
+auto vk_gltf_viewer::vulkan::Frame::createDepthPrepassAttachmentGroup(
+	const Gpu &gpu
+) const -> decltype(depthPrepassAttachmentGroup) {
+	vku::MsaaAttachmentGroup attachmentGroup { sharedData->swapchainExtent, vk::SampleCountFlagBits::e4 };
+	attachmentGroup.setDepthAttachment(gpu.device, depthImage);
+	return attachmentGroup;
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createPrimaryAttachmentGroup(
@@ -142,10 +190,7 @@ auto vk_gltf_viewer::vulkan::Frame::createPrimaryAttachmentGroup(
 			attachmentGroup.createColorImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat)),
 		attachmentGroup.storeImage(
 			attachmentGroup.createResolveImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eTransferSrc)));
-	attachmentGroup.setDepthAttachment(
-		gpu.device,
-		attachmentGroup.storeImage(
-			attachmentGroup.createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
+	attachmentGroup.setDepthAttachment(gpu.device, depthImage);
 	return attachmentGroup;
 }
 
@@ -162,7 +207,9 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
     	},
     	vk::DescriptorPoolSize {
     		vk::DescriptorType::eStorageBuffer,
-    		1 /* MeshRenderer materialBuffer */
+			1 /* DepthRenderer primitiveBuffer */
+			+ 1 /* DepthRenderer nodeTransformBuffer */
+    		+ 1 /* MeshRenderer materialBuffer */
     		+ 1 /* MeshRenderer nodeTransformBuffer */
     		+ 1 /* MeshRenderer primitiveBuffer */,
     	},
@@ -174,7 +221,8 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
     };
 	return { device, vk::DescriptorPoolCreateInfo{
 		vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind,
-		3 /* MeshRenderer */
+		1 /* DepthRenderer */
+		+ 3 /* MeshRenderer */
 		+ 1 /* SkyboxRenderer */,
 		poolSizes,
 	} };
@@ -213,6 +261,12 @@ auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
 			std::array {
 				vk::ImageMemoryBarrier {
 					{}, {},
+					{}, vk::ImageLayout::eDepthAttachmentOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					depthImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
+				},
+				vk::ImageMemoryBarrier {
+					{}, {},
 					{}, vk::ImageLayout::eColorAttachmentOptimal,
 					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 					primaryAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
@@ -222,12 +276,6 @@ auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
 					{}, vk::ImageLayout::eTransferSrcOptimal,
 					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 					primaryAttachmentGroup.colorAttachments[0].resolveImage, vku::fullSubresourceRange(),
-				},
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eDepthAttachmentOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					primaryAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
 				},
 			});
 	});
@@ -242,13 +290,42 @@ glm::mat4 projection;
 auto vk_gltf_viewer::vulkan::Frame::update() -> void {
 	rotation += 5e-3f;
 
-	const auto viewPosition = glm::vec3 { 5.f * std::cos(rotation), 0.f, 5.f * std::sin(rotation) };
-	view = glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f, 0.f, 0.f }, glm::vec3{ 0.f, 1.f, 0.f });
+	const auto viewPosition = glm::vec3 { 4.f * std::cos(rotation), 0.f, 4.f * std::sin(rotation) };
+	view = glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f }, glm::vec3{ 0.f, 1.f, 0.f });
 	projection = glm::gtc::perspective(glm::radians(45.0f), vku::aspect(sharedData->swapchainExtent), 1e-2f, 1e2f);
 	cameraBuffer.asValue<pipelines::MeshRenderer::Camera>() = {
 		projection * view,
 		viewPosition,
 	};
+}
+
+auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
+	vk::CommandBuffer cb
+) const -> void {
+	cb.begin(vk::CommandBufferBeginInfo { vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+
+	// Begin dynamic rendering.
+	cb.beginRenderingKHR(depthPrepassAttachmentGroup.getRenderingInfo(
+		{},
+		std::tuple { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearDepthStencilValue { 1.f, 0U } }));
+
+	// Set viewport and scissor.
+	depthPrepassAttachmentGroup.setViewport(cb, true);
+	depthPrepassAttachmentGroup.setScissor(cb);
+
+	sharedData->depthRenderer.bindPipeline(cb);
+	sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
+	sharedData->depthRenderer.pushConstants(cb, { .projectionView = projection * view });
+	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
+		const vk::IndexType indexType = criteria.indexType.value();
+		cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(indexType), 0, indexType);
+		cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+	}
+
+	// End dynamic rendering.
+	cb.endRenderingKHR();
+
+	cb.end();
 }
 
 auto vk_gltf_viewer::vulkan::Frame::draw(
@@ -270,9 +347,9 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	// Begin dynamic rendering.
 	cb.beginRenderingKHR(primaryAttachmentGroup.getRenderingInfo(
 		std::array {
-			std::tuple { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, vk::ClearColorValue{} },
+			std::tuple { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare, vk::ClearColorValue{} },
 		},
-		std::tuple { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, vk::ClearDepthStencilValue { 1.f, 0U } }));
+		std::tuple { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eDontCare, vk::ClearDepthStencilValue{} }));
 
 	// Set viewport and scissor.
 	primaryAttachmentGroup.setViewport(cb, true);
