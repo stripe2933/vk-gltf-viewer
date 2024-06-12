@@ -31,7 +31,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
 	cameraBuffer { createCameraBuffer(gpu.allocator) },
 	depthSets { *gpu.device, *descriptorPool, sharedData->depthRenderer.descriptorSetLayouts },
-	meshRendererSets { *gpu.device, *descriptorPool, sharedData->meshRenderer.descriptorSetLayouts },
+	primitiveSets { *gpu.device, *descriptorPool, sharedData->primitiveRenderer.descriptorSetLayouts },
     skyboxSets { *gpu.device, *descriptorPool, sharedData->skyboxRenderer.descriptorSetLayouts },
 	depthPrepassFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
 	swapchainImageAcquireSema { gpu.device, vk::SemaphoreCreateInfo{} },
@@ -44,15 +44,15 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	    	depthSets.getDescriptorWrites0(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
-		    meshRendererSets.getDescriptorWrites0(
+		    primitiveSets.getDescriptorWrites0(
 		    	{ cameraBuffer, 0, vk::WholeSize },
 		    	{ sharedData->cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
 		    	*sharedData->prefilteredmapImageView,
 		    	*sharedData->brdfmapImageView).get(),
-		    meshRendererSets.getDescriptorWrites1(
+		    primitiveSets.getDescriptorWrites1(
 				sharedData->assetResources.textures,
 		    	{ sharedData->assetResources.materialBuffer, 0, vk::WholeSize }).get(),
-		    meshRendererSets.getDescriptorWrites2(
+		    primitiveSets.getDescriptorWrites2(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
 		    skyboxSets.getDescriptorWrites0(*sharedData->cubemapImageView).get()),
@@ -200,29 +200,29 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
     const std::array poolSizes {
     	vk::DescriptorPoolSize {
     		vk::DescriptorType::eCombinedImageSampler,
-    		1 /* MeshRenderer prefilteredmap */
-    		+ 1 /* MeshRenderer brdfmap */
-    		+ static_cast<std::uint32_t>(sharedData->assetResources.textures.size()) /* MeshRenderer textures */
+    		1 /* PrimitiveRenderer prefilteredmap */
+    		+ 1 /* PrimitiveRenderer brdfmap */
+    		+ static_cast<std::uint32_t>(sharedData->assetResources.textures.size()) /* PrimitiveRenderer textures */
     		+ 1 /* SkyboxRenderer cubemap */,
     	},
     	vk::DescriptorPoolSize {
     		vk::DescriptorType::eStorageBuffer,
 			1 /* DepthRenderer primitiveBuffer */
 			+ 1 /* DepthRenderer nodeTransformBuffer */
-    		+ 1 /* MeshRenderer materialBuffer */
-    		+ 1 /* MeshRenderer nodeTransformBuffer */
-    		+ 1 /* MeshRenderer primitiveBuffer */,
+    		+ 1 /* PrimitiveRenderer materialBuffer */
+    		+ 1 /* PrimitiveRenderer nodeTransformBuffer */
+    		+ 1 /* PrimitiveRenderer primitiveBuffer */,
     	},
     	vk::DescriptorPoolSize {
     	    vk::DescriptorType::eUniformBuffer,
-    		1 /* MeshRenderer cameraBuffer */
-    		+ 1 /* MeshRenderer cubemapSphericalHarmonicsBuffer */,
+    		1 /* PrimitiveRenderer cameraBuffer */
+    		+ 1 /* PrimitiveRenderer cubemapSphericalHarmonicsBuffer */,
     	},
     };
 	return { device, vk::DescriptorPoolCreateInfo{
 		vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind,
 		1 /* DepthRenderer */
-		+ 3 /* MeshRenderer */
+		+ 3 /* PrimitiveRenderer */
 		+ 1 /* SkyboxRenderer */,
 		poolSizes,
 	} };
@@ -243,7 +243,7 @@ auto vk_gltf_viewer::vulkan::Frame::createCameraBuffer(
 ) const -> decltype(cameraBuffer) {
 	return { allocator, vk::BufferCreateInfo {
 		{},
-		sizeof(pipelines::MeshRenderer::Camera),
+		sizeof(pipelines::PrimitiveRenderer::Camera),
 		vk::BufferUsageFlagBits::eUniformBuffer,
 	}, vma::AllocationCreateInfo {
 		vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
@@ -293,7 +293,7 @@ auto vk_gltf_viewer::vulkan::Frame::update() -> void {
 	const auto viewPosition = glm::vec3 { 4.f * std::cos(rotation), 0.f, 4.f * std::sin(rotation) };
 	view = glm::gtc::lookAt(viewPosition, glm::vec3{ 0.f }, glm::vec3{ 0.f, 1.f, 0.f });
 	projection = glm::gtc::perspective(glm::radians(45.0f), vku::aspect(sharedData->swapchainExtent), 1e-2f, 1e2f);
-	cameraBuffer.asValue<pipelines::MeshRenderer::Camera>() = {
+	cameraBuffer.asValue<pipelines::PrimitiveRenderer::Camera>() = {
 		projection * view,
 		viewPosition,
 	};
@@ -356,8 +356,8 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	primaryAttachmentGroup.setScissor(cb);
 
 	// Draw glTF mesh.
-	sharedData->meshRenderer.bindPipeline(cb);
-	sharedData->meshRenderer.bindDescriptorSets(cb, meshRendererSets);
+	sharedData->primitiveRenderer.bindPipeline(cb);
+	sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
 	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
 		const vk::IndexType indexType = criteria.indexType.value();
 		cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(indexType), 0, indexType);

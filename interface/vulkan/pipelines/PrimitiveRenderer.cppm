@@ -7,13 +7,13 @@ module;
 
 #include <shaderc/shaderc.hpp>
 
-export module vk_gltf_viewer:vulkan.pipelines.MeshRenderer;
+export module vk_gltf_viewer:vulkan.pipelines.PrimitiveRenderer;
 
 export import glm;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::pipelines {
-    export class MeshRenderer {
+    export class PrimitiveRenderer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<4, 2, 2>{
             explicit DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler, std::uint32_t textureCount);
@@ -96,7 +96,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        explicit MeshRenderer(const vk::raii::Device &device, std::uint32_t textureCount, const shaderc::Compiler &compiler);
+        explicit PrimitiveRenderer(const vk::raii::Device &device, std::uint32_t textureCount, const shaderc::Compiler &compiler);
 
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
         auto bindDescriptorSets(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t firstSet = 0) const -> void;

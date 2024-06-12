@@ -40,7 +40,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	sceneResources { assetResources, asset.scenes[asset.defaultScene.value_or(0)], gpu },
 	swapchain { createSwapchain(gpu, surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent },
-	meshRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler },
+	primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler },
 	depthRenderer { gpu.device, compiler },
 	skyboxRenderer { gpu, compiler },
 	swapchainAttachmentGroups { createSwapchainAttachmentGroups(gpu.device) },

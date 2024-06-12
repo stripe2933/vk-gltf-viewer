@@ -28,7 +28,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
     	// Descriptor sets.
     	pipelines::DepthRenderer::DescriptorSets depthSets;
-    	pipelines::MeshRenderer::DescriptorSets meshRendererSets;
+    	pipelines::PrimitiveRenderer::DescriptorSets primitiveSets;
     	pipelines::SkyboxRenderer::DescriptorSets skyboxSets;
 
     	// Command buffers.
