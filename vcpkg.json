@@ -10,6 +10,10 @@
       ]
     },
     "mikktspace",
-    "stb"
+    "stb",
+    {
+      "name": "vulkan-memory-allocator-hpp",
+      "version>=": "3.1.0"
+    }
   ]
 }

@@ -4,19 +4,12 @@ project(vku
 )
 
 # ----------------
-# Include CPM.cmake.
-# ----------------
-
-file(DOWNLOAD https://github.com/cpm-cmake/CPM.cmake/releases/latest/download/get_cpm.cmake
-    ${CMAKE_BINARY_DIR}/cmake/CPM.cmake
-)
-include(${CMAKE_BINARY_DIR}/cmake/CPM.cmake)
-
-# ----------------
 # External dependencies.
 # ----------------
 
 find_package(Vulkan COMPONENTS shaderc_combined REQUIRED)
+find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+find_package(unofficial-vulkan-memory-allocator-hpp CONFIG REQUIRED)
 if (VKU_USE_GLFW)
     find_package(glfw3 CONFIG REQUIRED)
     set(VKU_USE_GLM ON)
@@ -24,8 +17,6 @@ endif()
 if (VKU_USE_GLM)
     find_package(glm CONFIG REQUIRED)
 endif()
-
-CPMAddPackage("gh:stripe2933/VulkanMemoryAllocator-Hpp#master")
 
 # ----------------
 # Module configurations for external dependencies.
@@ -43,18 +34,30 @@ if (NOT TARGET Vulkan-Hpp_module)
 endif()
 
 if (NOT TARGET VulkanMemoryAllocator-Hpp_module)
+    if (NOT EXISTS ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm)
+        message(STATUS "VulkanMemoryAllocator-Hpp module not found. Downloading from repository...")
+
+        set(VulkanMemoryAllocator-Hpp_SOURCE_DIR ${PROJECT_BINARY_DIR})
+        file(MAKE_DIRECTORY ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src)
+        file(DOWNLOAD https://raw.githubusercontent.com/YaaZ/VulkanMemoryAllocator-Hpp/master/src/vk_mem_alloc.cppm
+            ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm
+        )
+
+        # For vcpkg, vk_mem_alloc.hpp is inside the include/vulkan-memory-allocator-hpp directory.
+        file(READ ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm VCPKG_MODULE_CONTENTS)
+        string(REPLACE "<vk_mem_alloc.hpp>" "<vulkan-memory-allocator-hpp/vk_mem_alloc.hpp>" VCPKG_MODULE_CONTENTS "${VCPKG_MODULE_CONTENTS}")
+        file(WRITE ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm "${VCPKG_MODULE_CONTENTS}")
+    endif()
+
     add_library(VulkanMemoryAllocator-Hpp_module)
     target_sources(VulkanMemoryAllocator-Hpp_module PUBLIC
         FILE_SET CXX_MODULES
         BASE_DIRS ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src
         FILES ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm
     )
-    target_link_libraries(VulkanMemoryAllocator-Hpp_module
-        PUBLIC Vulkan-Hpp::module
-        PRIVATE VulkanMemoryAllocator-Hpp
-    )
-    target_compile_definitions(VulkanMemoryAllocator-Hpp_module PRIVATE
-        VULKAN_MEMORY_ALLOCATOR_HPP_USE_MODULE
+    target_link_libraries(VulkanMemoryAllocator-Hpp_module PUBLIC
+        Vulkan::Vulkan
+        unofficial::VulkanMemoryAllocator-Hpp::VulkanMemoryAllocator-Hpp
     )
 
     add_library(VulkanMemoryAllocator-Hpp::module ALIAS VulkanMemoryAllocator-Hpp_module)
