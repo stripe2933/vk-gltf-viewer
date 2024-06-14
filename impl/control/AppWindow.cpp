@@ -64,7 +64,7 @@ auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
 auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(
     glm::dvec2 position
 ) -> void {
-    globalState.framebufferCursorPosition = glm::dvec2 { getContentScale() } * position;
+    globalState.framebufferCursorPosition = glm::dvec2{ getFramebufferSize() } * position / glm::dvec2{ getSize() };
 }
 
 auto vk_gltf_viewer::control::AppWindow::onKeyCallback(
