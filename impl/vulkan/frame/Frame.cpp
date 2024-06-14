@@ -131,6 +131,8 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 	}
 
 	// Record commands.
+	graphicsCommandPool.reset();
+	computeCommandPool.reset();
 	depthPrepass(gpu, depthPrepassCommandBuffer);
 	jumpFlood(gpu, jumpFloodCommandBuffer);
 	draw(drawCommandBuffer);
@@ -331,7 +333,7 @@ auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
     std::uint32_t queueFamilyIndex
 ) const -> vk::raii::CommandPool {
 	return { device, vk::CommandPoolCreateInfo{
-		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+		{},
 		queueFamilyIndex,
 	} };
 }
