@@ -495,23 +495,11 @@ auto vk_gltf_viewer::vulkan::Frame::jumpFlood(
 	cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
 	if (hoveringNodeIndex != std::numeric_limits<std::uint32_t>::max()) {
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTransfer,
-			{},
-			vk::MemoryBarrier{ vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite, vk::AccessFlagBits::eTransferWrite },
-			{}, {});
-
 		// Clear the pong jump flood image.
 		cb.clearColorImage(
 			jumpFloodImage, vk::ImageLayout::eGeneral,
 			vk::ClearColorValue { 0U, 0U, 0U, 0U },
 			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 });
-
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTopOfPipe,
-			{},
-			vk::MemoryBarrier{ vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite, vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite },
-			{}, {});
 
 		{
 			const std::array imageMemoryBarriers {
