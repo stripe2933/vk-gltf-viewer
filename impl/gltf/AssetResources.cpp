@@ -1,6 +1,7 @@
 module;
 
 #include <cerrno>
+#include <algorithm>
 #include <charconv>
 #include <compare>
 #ifdef _MSC_VER
@@ -741,22 +742,30 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
         | std::ranges::to<std::vector<algorithm::MikktSpaceMesh>>();
     if (missingTangentMeshes.empty()) return; // Skip if there's no missing tangent mesh.
 
+#ifdef _MSC_VER
+    std::for_each(std::execution::par_unseq, missingTangentMeshes.begin(), missingTangentMeshes.end(), [&](algorithm::MikktSpaceMesh& mesh) {
+#else
     #pragma omp parallel for
-    for (algorithm::MikktSpaceMesh &mesh : missingTangentMeshes) {
+    for (algorithm::MikktSpaceMesh& mesh : missingTangentMeshes) {
+#endif
         SMikkTSpaceInterface* const pInterface = [indexType = mesh.indicesAccessor.componentType]() -> SMikkTSpaceInterface* {
             switch (indexType) {
-                case fastgltf::ComponentType::UnsignedShort:
-                    return &algorithm::mikktSpaceInterface<std::uint16_t>;
-                case fastgltf::ComponentType::UnsignedInt:
-                    return &algorithm::mikktSpaceInterface<std::uint32_t>;
-                default:
-                    throw std::runtime_error { "Unsupported index type" };
+            case fastgltf::ComponentType::UnsignedShort:
+                return &algorithm::mikktSpaceInterface<std::uint16_t>;
+            case fastgltf::ComponentType::UnsignedInt:
+                return &algorithm::mikktSpaceInterface<std::uint32_t>;
+            default:
+                throw std::runtime_error{ "Unsupported index type" };
             }
-        }();
-        if (const SMikkTSpaceContext context { pInterface, &mesh }; !genTangSpaceDefault(&context)) {
-            throw std::runtime_error { "Failed to generate tangent attributes" };
+            }();
+        if (const SMikkTSpaceContext context{ pInterface, &mesh }; !genTangSpaceDefault(&context)) {
+            throw std::runtime_error{ "Failed to generate tangent attributes" };
         }
+#ifdef _MSC_VER
+    });
+#else
     }
+#endif
 
     const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
         gpu.allocator,
