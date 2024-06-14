@@ -13,14 +13,14 @@ import vku;
 
 // language=vert
 std::string_view vk_gltf_viewer::vulkan::pipelines::DepthRenderer::vert = R"vert(
-#version 450
+#version 460
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_shader_8bit_storage : require
 
 // For convinience.
-#define PRIMITIVE primitives[gl_InstanceIndex]
+#define PRIMITIVE primitives[gl_BaseInstance]
 #define TRANSFORM nodeTransforms[PRIMITIVE.nodeIndex]
 
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer Ubytes { uint8_t data[]; };

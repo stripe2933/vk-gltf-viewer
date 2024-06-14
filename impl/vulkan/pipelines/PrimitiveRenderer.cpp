@@ -15,7 +15,7 @@ import vku;
 
 // language=vert
 std::string_view vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::vert = R"vert(
-#version 450
+#version 460
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
@@ -66,7 +66,7 @@ layout (location = 4) out vec2 fragBaseColorTexcoord;
 layout (location = 5) out vec2 fragMetallicRoughnessTexcoord;
 layout (location = 6) out vec2 fragNormalTexcoord;
 layout (location = 7) out vec2 fragOcclusionTexcoord;
-layout (location = 8) flat out uint instanceIndex;
+layout (location = 8) flat out uint baseInstance;
 
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
@@ -128,7 +128,7 @@ void main(){
     if (int(MATERIAL.occlusionTextureIndex) != -1){
         fragOcclusionTexcoord = getTexcoord(uint(MATERIAL.occlusionTexcoordIndex));
     }
-    instanceIndex = gl_InstanceIndex;
+    baseInstance = gl_BaseInstance;
 
     gl_Position = pc.projectionView * vec4(fragPosition, 1.0);
 }
@@ -143,7 +143,7 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::frag = R"
 #extension GL_EXT_scalar_block_layout : require
 
 // For convinience.
-#define PRIMITIVE primitives[instanceIndex]
+#define PRIMITIVE primitives[baseInstance]
 #define MATERIAL materials[PRIMITIVE.materialIndex]
 
 const vec3 lightColor = vec3(1.0);
@@ -179,7 +179,7 @@ layout (location = 4) in vec2 fragBaseColorTexcoord;
 layout (location = 5) in vec2 fragMetallicRoughnessTexcoord;
 layout (location = 6) in vec2 fragNormalTexcoord;
 layout (location = 7) in vec2 fragOcclusionTexcoord;
-layout (location = 8) flat in uint instanceIndex;
+layout (location = 8) flat in uint baseInstance;
 
 layout (location = 0) out vec4 outColor;
 

@@ -122,6 +122,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 			&physicalDeviceFeatures,
 		},
 		vk::PhysicalDeviceVulkan11Features{}
+			.setShaderDrawParameters(vk::True)
 			.setStorageBuffer16BitAccess(vk::True)
 			.setUniformAndStorageBuffer16BitAccess(vk::True),
 		vk::PhysicalDeviceVulkan12Features{}
