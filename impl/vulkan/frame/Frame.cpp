@@ -450,7 +450,7 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 				depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
 			},
 		};
-		if (hoveringNodeIndex != std::numeric_limits<std::uint32_t>::max()) {
+		if (hoveringNodeIndex != std::numeric_limits<std::uint32_t>::max() && gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
 			// Release jumpFloodImage ownership from graphics queue family.
 			imageMemoryBarriers.emplace_back(
 				vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
@@ -495,11 +495,23 @@ auto vk_gltf_viewer::vulkan::Frame::jumpFlood(
 	cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
 	if (hoveringNodeIndex != std::numeric_limits<std::uint32_t>::max()) {
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTransfer,
+			{},
+			vk::MemoryBarrier{ vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite, vk::AccessFlagBits::eTransferWrite },
+			{}, {});
+
 		// Clear the pong jump flood image.
 		cb.clearColorImage(
 			jumpFloodImage, vk::ImageLayout::eGeneral,
 			vk::ClearColorValue { 0U, 0U, 0U, 0U },
 			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 });
+
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTopOfPipe,
+			{},
+			vk::MemoryBarrier{ vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite, vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite },
+			{}, {});
 
 		{
 			const std::array imageMemoryBarriers {
@@ -648,13 +660,15 @@ auto vk_gltf_viewer::vulkan::Frame::blitToSwapchain(
 				},
 			};
 			// Only do queue family ownership acquirement if the compute queue family is different from the graphics/present queue family.
-			imageMemoryBarriers.emplace_back(
-				vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone,
-				vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,
-				vk::ImageLayout::eUndefined, vk::ImageLayout::eUndefined,
-				gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-				jumpFloodImage,
-				vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, isJumpFloodResultForward, 1 });
+			if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
+				imageMemoryBarriers.emplace_back(
+					vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone,
+					vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,
+					vk::ImageLayout::eUndefined, vk::ImageLayout::eUndefined,
+					gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+					jumpFloodImage,
+					vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, isJumpFloodResultForward, 1 });
+			}
 
 			cb.pipelineBarrier2KHR({
 				{},
