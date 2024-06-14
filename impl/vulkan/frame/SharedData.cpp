@@ -153,7 +153,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 		// Acquire resource queue family ownerships.
 		if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
 			std::vector<vk::Buffer> targetBuffers { std::from_range, assetResources.attributeBuffers };
-			targetBuffers.emplace_back(assetResources.materialBuffer);
+			if (assetResources.materialBuffer) targetBuffers.emplace_back(*assetResources.materialBuffer);
 			targetBuffers.append_range(assetResources.indexBuffers | std::views::values);
             for (const auto &[bufferPtrsBuffer, byteStridesBuffer] : assetResources.indexedAttributeMappingBuffers | std::views::values) {
                 targetBuffers.emplace_back(bufferPtrsBuffer);

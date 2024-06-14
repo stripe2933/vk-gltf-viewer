@@ -85,7 +85,7 @@ namespace vk_gltf_viewer::gltf {
         std::vector<vk::raii::ImageView> imageViews;
         std::vector<vk::raii::Sampler> samplers;
         std::vector<vk::DescriptorImageInfo> textures = createTextures();
-        vku::AllocatedBuffer materialBuffer;
+        std::optional<vku::AllocatedBuffer> materialBuffer;
 
         std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos;
         std::vector<vku::AllocatedBuffer> attributeBuffers;
@@ -141,6 +141,7 @@ template <std::ranges::random_access_range R>
 ) -> std::pair<const vku::MappedBuffer&, std::vector<vk::DeviceSize>> {
     using value_type = std::ranges::range_value_t<std::ranges::range_value_t<R>>;
     static_assert(std::is_standard_layout_v<value_type>, "Copying non-standard layout does not guarantee the intended result.");
+    assert(!segments.empty() && "Empty segments not allowed (Vulkan requires non-zero buffer size)");
 
     const auto segmentSizes = segments | std::views::transform([](const auto &segment) { return sizeof(value_type) * segment.size(); }) | std::views::common;
     std::vector<vk::DeviceSize> copyOffsets(segmentSizes.size());

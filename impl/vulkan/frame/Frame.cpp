@@ -71,7 +71,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    	*sharedData->brdfmapImageView).get(),
 		    primitiveSets.getDescriptorWrites1(
 				sharedData->assetResources.textures,
-		    	{ sharedData->assetResources.materialBuffer, 0, vk::WholeSize }).get(),
+		    	{ sharedData->assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
 		    primitiveSets.getDescriptorWrites2(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),

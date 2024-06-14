@@ -181,6 +181,8 @@ auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createImages(
         },
     };
 
+    if (images.empty()) return {};
+
 #ifdef _MSC_VER
     std::vector<io::StbDecoder<std::uint8_t>::DecodeResult> images(asset.images.size());
     std::transform(std::execution::par_unseq, asset.images.begin(), asset.images.end(), images.begin(), [&](const fastgltf::Image& image) {
@@ -415,14 +417,19 @@ auto vk_gltf_viewer::gltf::AssetResources::createTextures() const -> decltype(te
 auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
     vma::Allocator allocator
 ) const -> decltype(materialBuffer) {
-    return { allocator, vk::BufferCreateInfo {
-        {},
-        sizeof(GpuMaterial) * asset.materials.size(),
-        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-    }, vma::AllocationCreateInfo {
-        {},
-        vma::MemoryUsage::eAutoPreferDevice,
-    } };
+    if (asset.materials.empty()) return std::nullopt;
+    return std::optional<vku::AllocatedBuffer> { std::in_place,
+        allocator,
+        vk::BufferCreateInfo {
+            {},
+            sizeof(GpuMaterial) * asset.materials.size(),
+            vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+        },
+        vma::AllocationCreateInfo {
+            {},
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    };
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::stageImages(
@@ -430,6 +437,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
     vma::Allocator allocator,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
+    if (images.empty()) return;
+
     const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
         allocator,
         resourceBytes.images | transform([](const auto &image) { return image.asSpan(); }));
@@ -468,6 +477,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
     vma::Allocator allocator,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
+    if (!materialBuffer) return;
+
     const auto gpuMaterials
         = asset.materials
         | transform([&](const fastgltf::Material &material) {
@@ -502,8 +513,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
     const vk::Buffer stagingBuffer = stagingBuffers.emplace_back(
         allocator, std::from_range, gpuMaterials, vk::BufferUsageFlagBits::eTransferSrc);
     copyCommandBuffer.copyBuffer(
-        stagingBuffer, materialBuffer,
-        vk::BufferCopy { 0, 0, materialBuffer.size });
+        stagingBuffer, *materialBuffer,
+        vk::BufferCopy { 0, 0, materialBuffer->size });
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
@@ -829,7 +840,7 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
     if (queueFamilies.transfer == queueFamilies.graphicsPresent) return;
 
     std::vector<vk::Buffer> targetBuffers { std::from_range, attributeBuffers };
-    targetBuffers.emplace_back(materialBuffer);
+    if (materialBuffer) targetBuffers.emplace_back(*materialBuffer);
     targetBuffers.append_range(indexBuffers | values);
     for (const auto &[bufferPtrsBuffer, byteStridesBuffer] : indexedAttributeMappingBuffers | values) {
         targetBuffers.emplace_back(bufferPtrsBuffer);
