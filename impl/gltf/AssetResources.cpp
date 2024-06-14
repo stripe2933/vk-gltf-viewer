@@ -6,6 +6,7 @@ module;
 #ifdef _MSC_VER
 #include <execution>
 #endif
+#include <format>
 #include <fstream>
 #include <format>
 #include <list>

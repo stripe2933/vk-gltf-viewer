@@ -5,9 +5,14 @@ module;
 #include <array>
 #include <format>
 #include <limits>
+#include <memory>
+#include <print>
 #include <ranges>
+#include <tuple>
 #include <stdexcept>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include <fastgltf/core.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>

@@ -1,3 +1,7 @@
+module;
+
+#include <compare>
+
 module vk_gltf_viewer;
 import :GlobalState;
 

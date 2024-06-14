@@ -1,6 +1,7 @@
 module;
 
 #include <bitset>
+#include <compare>
 
 export module vk_gltf_viewer:control.AppWindow;
 

@@ -4,6 +4,7 @@ module;
 #include <compare>
 #include <optional>
 #include <ranges>
+#include <span>
 #include <tuple>
 #include <vector>
 

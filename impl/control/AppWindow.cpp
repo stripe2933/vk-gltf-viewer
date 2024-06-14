@@ -1,6 +1,7 @@
 module;
 
 #include <algorithm>
+#include <compare>
 
 #include <GLFW/glfw3.h>
 
