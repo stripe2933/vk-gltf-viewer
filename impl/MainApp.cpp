@@ -53,7 +53,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 				std::this_thread::yield();
 			}
 
-			io::logger::debug("New framebuffer size: {}", framebufferSize);
+			io::logger::debug("New framebuffer size: ({},{})", framebufferSize.x, framebufferSize.y);
 			sharedData->handleSwapchainResize(gpu, *window.surface, { framebufferSize.x, framebufferSize.y });
 			for (vulkan::Frame &frame : frames) {
 				frame.handleSwapchainResize(gpu, *window.surface, { framebufferSize.x, framebufferSize.y });
