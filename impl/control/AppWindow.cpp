@@ -7,7 +7,6 @@ module;
 
 module vk_gltf_viewer;
 import :control.AppWindow;
-import :helpers.formatters.glm;
 
 import glm;
 

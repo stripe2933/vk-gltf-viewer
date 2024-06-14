@@ -161,8 +161,8 @@ template <std::ranges::random_access_range R>
 
 #ifdef _MSC_VER
     const auto segmentAndCopyOffsets = std::views::zip(segments, copyOffsets) | std::views::common;
-    std::for_each(std::execution::par_unseq, segmentAndCopyOffsets.begin(), segmentAndCopyOffsets.end(), [&](const auto &segmentAndCopyOffsets) {
-        const auto &[segment, copyOffset] = segmentAndCopyOffsets;
+    std::for_each(std::execution::par_unseq, segmentAndCopyOffsets.begin(), segmentAndCopyOffsets.end(), [&](const auto &segmentAndCopyOffset) {
+        const auto &[segment, copyOffset] = segmentAndCopyOffset;
 		std::ranges::copy(segment, static_cast<value_type*>(stagingBuffer.data) + copyOffset);
 	});
 #else

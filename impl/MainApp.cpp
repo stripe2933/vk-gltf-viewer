@@ -15,7 +15,6 @@ module vk_gltf_viewer;
 import :MainApp;
 
 import vku;
-import :helpers.formatters.glm;
 import :io.logger;
 import :vulkan.frame.Frame;
 import :vulkan.frame.SharedData;
