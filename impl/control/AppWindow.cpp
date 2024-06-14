@@ -76,12 +76,13 @@ auto vk_gltf_viewer::control::AppWindow::onKeyCallback(
     // Set WASD movement flags.
     if (action == GLFW_PRESS) {
         cameraWasd |= (key == GLFW_KEY_W) | (key == GLFW_KEY_A) << 1 | (key == GLFW_KEY_S) << 2 | (key == GLFW_KEY_D) << 3;
-    } else if (action == GLFW_RELEASE) {
+    } 
+    else if (action == GLFW_RELEASE) {
         cameraWasd &= (key != GLFW_KEY_W) | (key != GLFW_KEY_A) << 1 | (key != GLFW_KEY_S) << 2 | (key != GLFW_KEY_D) << 3;
+        if (mods & GLFW_MOD_SHIFT) {
+            cameraRunning = action == GLFW_PRESS;
+        }
     }
-
     // Running mode when pressing shift.
-    if (key == GLFW_KEY_LEFT_SHIFT) {
-        cameraRunning = action == GLFW_PRESS;
-    }
+    cameraRunning = cameraWasd.to_ulong() && (mods & GLFW_MOD_SHIFT);
 }
