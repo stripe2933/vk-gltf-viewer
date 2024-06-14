@@ -1,5 +1,6 @@
 module;
 
+#include <algorithm>
 #include <array>
 #include <ranges>
 #include <set>
