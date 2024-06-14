@@ -6,7 +6,6 @@ module;
 #include <format>
 #include <limits>
 #include <ranges>
-#include <stack>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -399,7 +398,7 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 			},
 			vk::ImageMemoryBarrier {
 				{}, vk::AccessFlagBits::eColorAttachmentWrite,
-				vk::ImageLayout::eGeneral, vk::ImageLayout::eColorAttachmentOptimal,
+				{}, vk::ImageLayout::eColorAttachmentOptimal,
 				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 				jumpFloodImage,
 				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
@@ -431,7 +430,7 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 	cb.endRenderingKHR();
 
 	{
-		const std::array imageMemoryBarriers {
+		std::vector imageMemoryBarriers {
 			// For copying to hoveringNodeIdBuffer.
 			vk::ImageMemoryBarrier2 {
 				vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
@@ -440,16 +439,18 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 				depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
 			},
-			// For releasing jumpFloodImage ownership to the compute queue family.
-			vk::ImageMemoryBarrier2 {
+		};
+		if (hoveringNodeIndex != std::numeric_limits<std::uint32_t>::max()) {
+			// Release jumpFloodImage ownership from graphics queue family.
+			imageMemoryBarriers.emplace_back(
 				vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
-				vk::PipelineStageFlagBits2::eAllCommands, {},
-				{}, {},
+				vk::PipelineStageFlagBits2::eAllCommands, vk::AccessFlagBits2::eNone,
+				vk::ImageLayout::eUndefined, vk::ImageLayout::eUndefined,
 				gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
 				jumpFloodImage,
-				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-			},
-		};
+				vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
+		}
+
 		cb.pipelineBarrier2KHR({
 			{},
 			{}, {}, imageMemoryBarriers,
@@ -483,53 +484,55 @@ auto vk_gltf_viewer::vulkan::Frame::jumpFlood(
 ) -> void {
 	cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-	// Clear the pong jump flood image.
-	cb.clearColorImage(
-		jumpFloodImage, vk::ImageLayout::eGeneral,
-		vk::ClearColorValue { 0U, 0U, 0U, 0U },
-		vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 });
+	if (hoveringNodeIndex != std::numeric_limits<std::uint32_t>::max()) {
+		// Clear the pong jump flood image.
+		cb.clearColorImage(
+			jumpFloodImage, vk::ImageLayout::eGeneral,
+			vk::ClearColorValue { 0U, 0U, 0U, 0U },
+			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 });
 
-	{
-		const std::array imageMemoryBarriers {
-			// Change image layout and acquire queue family ownership (if required).
-			vk::ImageMemoryBarrier2 {
-			    vk::PipelineStageFlagBits2::eAllCommands, {},
-				vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderRead,
-			    vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
-			    gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
-			    jumpFloodImage,
-			    { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-		    },
-			// Wait for pong jump image cleared.
-			vk::ImageMemoryBarrier2 {
-			    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2KHR::eTransferWrite,
-				vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderRead,
-			    {}, {},
-			    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			    jumpFloodImage,
-			    { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 },
-		    },
-		};
-		cb.pipelineBarrier2KHR({
-			{},
-			{}, {}, imageMemoryBarriers,
-		});
-	}
-
-	isJumpFloodResultForward = sharedData->jumpFloodComputer.compute(cb, jumpFloodSets, vku::toExtent2D(jumpFloodImage.extent));
-
-	// Release queue family ownership (if required).
-	if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eAllCommands,
-			{}, {}, {},
-			vk::ImageMemoryBarrier {
-				vk::AccessFlagBits::eShaderWrite, {},
-				{}, {},
-				gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-				jumpFloodImage,
-				{ vk::ImageAspectFlagBits::eColor, 0, 1, isJumpFloodResultForward, 1 },
+		{
+			const std::array imageMemoryBarriers {
+				// Change image layout and acquire queue family ownership (if required).
+				vk::ImageMemoryBarrier2 {
+				    vk::PipelineStageFlagBits2::eAllCommands, {},
+					vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderRead,
+				    vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
+				    gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
+				    jumpFloodImage,
+				    { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+			    },
+				// Wait for pong jump image cleared.
+				vk::ImageMemoryBarrier2 {
+				    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2KHR::eTransferWrite,
+					vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderRead,
+				    {}, {},
+				    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				    jumpFloodImage,
+				    { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 },
+			    },
+			};
+			cb.pipelineBarrier2KHR({
+				{},
+				{}, {}, imageMemoryBarriers,
 			});
+		}
+
+		isJumpFloodResultForward = sharedData->jumpFloodComputer.compute(cb, jumpFloodSets, vku::toExtent2D(jumpFloodImage.extent));
+
+		// Release queue family ownership (if required).
+		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eAllCommands,
+				{}, {}, {},
+				vk::ImageMemoryBarrier {
+					vk::AccessFlagBits::eShaderWrite, {},
+					{}, {},
+					gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+					jumpFloodImage,
+					{ vk::ImageAspectFlagBits::eColor, 0, 1, isJumpFloodResultForward, 1 },
+				});
+		}
 	}
 
 	cb.end();
@@ -622,54 +625,68 @@ auto vk_gltf_viewer::vulkan::Frame::blitToSwapchain(
 		},
 		vk::Filter::eLinear);
 
-	{
-		std::vector imageMemoryBarriers {
-			// Change swapchain image layout to ColorAttachmentOptimal.
-			vk::ImageMemoryBarrier2 {
-				vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
-			   vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentRead | vk::AccessFlagBits2::eColorAttachmentWrite,
-			   vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eColorAttachmentOptimal,
-			   vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			   swapchainAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
-		    },
-		};
-		// Only do queue family ownership acquirement if the compute queue family is different from the graphics/present queue family.
-		imageMemoryBarriers.emplace_back(
-			vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone,
-		    vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,
-		    vk::ImageLayout::eUndefined, vk::ImageLayout::eUndefined,
-			gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-			jumpFloodImage,
-			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, isJumpFloodResultForward, 1 });
+	if (hoveringNodeIndex != std::numeric_limits<std::uint32_t>::max()){
+		{
+			std::vector imageMemoryBarriers {
+				// Change swapchain image layout to ColorAttachmentOptimal.
+				vk::ImageMemoryBarrier2 {
+					vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+				   vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentRead | vk::AccessFlagBits2::eColorAttachmentWrite,
+				   vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+				   vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				   swapchainAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
+				},
+			};
+			// Only do queue family ownership acquirement if the compute queue family is different from the graphics/present queue family.
+			imageMemoryBarriers.emplace_back(
+				vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone,
+				vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,
+				vk::ImageLayout::eUndefined, vk::ImageLayout::eUndefined,
+				gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+				jumpFloodImage,
+				vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, isJumpFloodResultForward, 1 });
 
-		cb.pipelineBarrier2KHR({
-		    {},
-			{}, {}, imageMemoryBarriers,
-		});
+			cb.pipelineBarrier2KHR({
+				{},
+				{}, {}, imageMemoryBarriers,
+			});
+		}
+
+		cb.beginRenderingKHR(swapchainAttachmentGroup.getRenderingInfo(
+			std::array {
+				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
+			}));
+
+		swapchainAttachmentGroup.setViewport(cb, true);
+		swapchainAttachmentGroup.setScissor(cb);
+
+		sharedData->outlineRenderer.draw(cb, outlineSets[isJumpFloodResultForward], { .outlineColor = { 1.f, 0.5f, 0.2f }, .lineWidth = 4.f });
+
+		cb.endRenderingKHR();
+
+		// Change image layout to PresentSrcKHR.
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
+			{}, {}, {},
+			vk::ImageMemoryBarrier{
+				vk::AccessFlagBits::eColorAttachmentWrite, {},
+				vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				swapchainAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
+			});
 	}
-
-	cb.beginRenderingKHR(swapchainAttachmentGroup.getRenderingInfo(
-		std::array {
-			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
-		}));
-
-	swapchainAttachmentGroup.setViewport(cb, true);
-	swapchainAttachmentGroup.setScissor(cb);
-
-	sharedData->outlineRenderer.draw(cb, outlineSets[isJumpFloodResultForward], { .outlineColor = { 1.f, 0.5f, 0.2f }, .lineWidth = 4.f });
-
-	cb.endRenderingKHR();
-
-	// Change image layout to PresentSrcKHR.
-	cb.pipelineBarrier(
-		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
-		{}, {}, {},
-		vk::ImageMemoryBarrier{
-			vk::AccessFlagBits::eColorAttachmentWrite, {},
-			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
-			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			swapchainAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
-		});
+	else {
+		// Change image layout to PresentSrcKHR.
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+			{}, {}, {},
+			vk::ImageMemoryBarrier{
+				vk::AccessFlagBits::eTransferWrite, {},
+				vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				swapchainAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
+			});
+	}
 
 	cb.end();
 }
