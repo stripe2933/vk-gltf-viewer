@@ -80,11 +80,20 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::DepthRenderer::frag = R"frag
 layout (location = 0) flat in uint primitiveNodeIndex;
 
 layout (location = 0) out uint outNodeIndex;
+layout (location = 1) out uvec2 hoveringNodeCoord;
+
+layout (push_constant) uniform PushConstant {
+    layout (offset = 64)
+    uint hoveringNodeIndex;
+} pc;
 
 layout (early_fragment_tests) in;
 
 void main(){
     outNodeIndex = primitiveNodeIndex;
+    if (outNodeIndex == pc.hoveringNodeIndex){
+        hoveringNodeCoord = uvec2(gl_FragCoord.xy);
+    }
 }
 )frag";
 
@@ -125,14 +134,14 @@ auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::pushConstants(
     vk::CommandBuffer commandBuffer,
     const PushConstant &pushConstant
 ) const -> void {
-    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, pushConstant);
+    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
 }
 
 auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> decltype(pipelineLayout) {
     constexpr vk::PushConstantRange pushConstantRange {
-        vk::ShaderStageFlagBits::eVertex,
+        vk::ShaderStageFlagBits::eAllGraphics,
         0, sizeof(PushConstant),
     };
     return { device, vk::PipelineLayoutCreateInfo{
@@ -151,26 +160,15 @@ auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::createPipeline(
         vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
         vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment });
 
-    // Add a slight depth bias in order to avoid z-fighting.
-    // TODO: good value for biasConstantFactor, biasClamp and biasSlopeFactor?
-    constexpr vk::PipelineRasterizationStateCreateInfo rasterizationState {
-        {},
-        false, false,
-        vk::PolygonMode::eFill,
-        vk::CullModeFlagBits::eBack, {},
-        true, 8e-2f, 1e-1f, 1e-1f,
-        1.f,
-    };
     constexpr vk::PipelineDepthStencilStateCreateInfo depthStencilState {
         {},
         true, true, vk::CompareOp::eLess,
     };
 
-    constexpr std::array colorAttachmentFormats { vk::Format::eR32Uint };
+    constexpr std::array colorAttachmentFormats { vk::Format::eR32Uint, vk::Format::eR16G16Uint };
 
     return { device, nullptr, vk::StructureChain {
-        vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
-            .setPRasterizationState(&rasterizationState)
+        vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 2, true)
             .setPDepthStencilState(&depthStencilState),
         vk::PipelineRenderingCreateInfo {
             {},

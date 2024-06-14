@@ -14,6 +14,8 @@ import :gltf.SceneResources;
 import :io.ktxvk;
 export import :vulkan.Gpu;
 export import :vulkan.pipelines.DepthRenderer;
+export import :vulkan.pipelines.JumpFloodComputer;
+export import :vulkan.pipelines.OutlineRenderer;
 export import :vulkan.pipelines.PrimitiveRenderer;
 export import :vulkan.pipelines.SkyboxRenderer;
 
@@ -31,9 +33,11 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 		std::vector<vk::Image> swapchainImages = swapchain.getImages();
 
 		// Pipelines.
-		pipelines::PrimitiveRenderer primitiveRenderer;
 		pipelines::DepthRenderer depthRenderer;
+		pipelines::JumpFloodComputer jumpFloodComputer;
+		pipelines::PrimitiveRenderer primitiveRenderer;
 		pipelines::SkyboxRenderer skyboxRenderer;
+		pipelines::OutlineRenderer outlineRenderer;
 
     	// Attachment groups.
     	std::vector<vku::AttachmentGroup> swapchainAttachmentGroups;

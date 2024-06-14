@@ -16,25 +16,33 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	GlobalState &globalState;
     	std::shared_ptr<SharedData> sharedData;
 
+    	// Buffer, image and image views.
+    	vku::AllocatedImage jumpFloodImage;
+    	std::array<vk::raii::ImageView, 2> jumpFloodImageViews;
+    	vku::MappedBuffer hoveringNodeIdBuffer;
+
     	// Attachment groups.
-    	vku::AllocatedImage depthImage;
-    	vku::MsaaAttachmentGroup depthPrepassAttachmentGroup;
+    	vku::AttachmentGroup depthPrepassAttachmentGroup;
     	vku::MsaaAttachmentGroup primaryAttachmentGroup;
 
         // Descriptor/command pools.
     	vk::raii::DescriptorPool descriptorPool;
-        vk::raii::CommandPool graphicsCommandPool;
+        vk::raii::CommandPool computeCommandPool, graphicsCommandPool;
 
     	// Descriptor sets.
     	pipelines::DepthRenderer::DescriptorSets depthSets;
+    	pipelines::JumpFloodComputer::DescriptorSets jumpFloodSets;
     	pipelines::PrimitiveRenderer::DescriptorSets primitiveSets;
     	pipelines::SkyboxRenderer::DescriptorSets skyboxSets;
+    	std::array<pipelines::OutlineRenderer::DescriptorSets, 2> outlineSets;
 
     	// Command buffers.
     	vk::CommandBuffer depthPrepassCommandBuffer, drawCommandBuffer, blitToSwapchainCommandBuffer;
+    	vk::CommandBuffer jumpFloodCommandBuffer;
 
 		// Synchronization stuffs.
 		vk::raii::Semaphore depthPrepassFinishSema, swapchainImageAcquireSema, drawFinishSema, blitToSwapchainFinishSema;
+		vk::raii::Semaphore jumpFloodFinishSema;
 		vk::raii::Fence inFlightFence;
 
     	Frame(GlobalState &globalState, const std::shared_ptr<SharedData> &sharedData,  const Gpu &gpu);
@@ -45,7 +53,11 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	auto handleSwapchainResize(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
     private:
-    	[[nodiscard]] auto createDepthImage(vma::Allocator allocator) const -> decltype(depthImage);
+    	std::uint32_t hoveringNodeIndex = std::numeric_limits<std::uint32_t>::max();
+		vk::Bool32 isJumpFloodResultForward;
+
+    	[[nodiscard]] auto createJumpFloodImage(vma::Allocator allocator) const -> decltype(jumpFloodImage);
+    	[[nodiscard]] auto createJumpFloodImageViews(const vk::raii::Device &device) const -> decltype(jumpFloodImageViews);
     	[[nodiscard]] auto createDepthPrepassAttachmentGroup(const Gpu &gpu) const -> decltype(depthPrepassAttachmentGroup);
     	[[nodiscard]] auto createPrimaryAttachmentGroup(const Gpu &gpu) const -> decltype(primaryAttachmentGroup);
     	[[nodiscard]] auto createDescriptorPool(const vk::raii::Device &device) const -> decltype(descriptorPool);
@@ -54,8 +66,9 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	auto initAttachmentLayouts(const Gpu &gpu) const -> void;
 
     	auto update() -> void;
-    	auto depthPrepass(vk::CommandBuffer cb) const -> void;
+    	auto depthPrepass(const Gpu &gpu, vk::CommandBuffer cb) const -> void;
+    	auto jumpFlood(const Gpu &gpu, vk::CommandBuffer cb) -> void;
     	auto draw(vk::CommandBuffer cb) const -> void;
-    	auto blitToSwapchain(vk::CommandBuffer cb, const vku::AttachmentGroup &swapchainAttachmentGroup) const -> void;
+    	auto blitToSwapchain(const Gpu &gpu, vk::CommandBuffer cb, const vku::AttachmentGroup &swapchainAttachmentGroup) const -> void;
     };
 }

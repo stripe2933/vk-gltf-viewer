@@ -6,6 +6,7 @@ namespace vk_gltf_viewer {
     export class GlobalState {
     public:
         control::Camera camera;
+        glm::uvec2 framebufferCursorPosition;
 
         [[nodiscard]] static auto getInstance() noexcept -> GlobalState&;
 

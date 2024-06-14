@@ -28,9 +28,9 @@ auto vk_gltf_viewer::control::AppWindow::update(
         constexpr float CAMERA_SPEED = 1.f; // 1 units per second.
         constexpr float CAMERA_RUNNING_SPEED_MULTIPLIER = 2.f; // 2x speed when running.
 
-        const auto [right, up, front, eye] = globalState.camera.getViewDecomposition();
+        const auto [right, _, front, eye] = globalState.camera.getViewDecomposition();
         const glm::vec3 direction
-            = up * static_cast<float>(cameraWasd[0] - cameraWasd[2])
+            = front * static_cast<float>(cameraWasd[0] - cameraWasd[2])
             + right * static_cast<float>(cameraWasd[3] - cameraWasd[1]);
 
         glm::vec3 delta = CAMERA_SPEED * timeDelta * normalize(direction);
@@ -57,7 +57,6 @@ auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
     constexpr float SCROLL_SENSITIVITY = 1e-2f;
 
     const auto near = globalState.camera.getNear(), far = globalState.camera.getFar();
-    std::println("{}, {}", near, far);
     globalState.camera.projection = glm::gtc::perspective(
         std::clamp(globalState.camera.getFov() + SCROLL_SENSITIVITY * static_cast<float>(offset.y), MIN_FOV, MAX_FOV),
         globalState.camera.getAspectRatio(),
@@ -67,31 +66,7 @@ auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
 auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(
     glm::dvec2 position
 ) -> void {
-    static std::optional<glm::dvec2> lastPosition = {};
-    if (!lastPosition) {
-        lastPosition = position;
-        return;
-    }
-
-    const glm::vec2 delta = position - std::exchange(*lastPosition, position);
-
-    // Get view properties from camera.
-    const auto [_, _2 /* TODO.CXX26: use _ */, front, eye] = globalState.camera.getViewDecomposition();
-    float yaw = std::atan2(front.z, front.x);
-    float pitch = std::asin(front.y);
-
-    // Update yaw and pitch based on cursor movement.
-    constexpr float ZENITH_THRESHOLD = std::numbers::pi_v<float> / 2.f - 0.1f;
-    yaw += delta.x * 0.01f;
-    pitch = std::clamp(pitch + -delta.y * 0.01f, -ZENITH_THRESHOLD, ZENITH_THRESHOLD);
-    const glm::vec3 newFront {
-        std::cos(yaw) * std::cos(pitch),
-        std::sin(pitch),
-        std::sin(yaw) * std::cos(pitch),
-    };
-
-    // Get new view matrix.
-    globalState.camera.view = glm::gtc::lookAt(eye, eye + newFront, glm::vec3 { 0.f, 1.f, 0.f });
+    globalState.framebufferCursorPosition = glm::dvec2 { getContentScale() } * position;
 }
 
 auto vk_gltf_viewer::control::AppWindow::onKeyCallback(

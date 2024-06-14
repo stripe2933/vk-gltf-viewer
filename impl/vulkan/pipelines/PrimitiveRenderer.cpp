@@ -384,7 +384,7 @@ auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::createPipeline(
     // Since it uses previous z-prepassed depth attachment, therefore compareOp must be eLessOrEqual.
     constexpr vk::PipelineDepthStencilStateCreateInfo depthStencilState {
         {},
-        true, true, vk::CompareOp::eLessOrEqual,
+        true, true, vk::CompareOp::eLess,
     };
 
     constexpr vk::Format colorAttachmentFormat = vk::Format::eR16G16B16A16Sfloat;

@@ -1,5 +1,6 @@
 module;
 
+#include <cstdint>
 #include <array>
 #include <compare>
 #include <string_view>
@@ -40,6 +41,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
 
         struct PushConstant {
             glm::mat4 projectionView;
+            std::uint32_t hoveringNodeIndex;
         };
 
         DescriptorSetLayouts descriptorSetLayouts;
