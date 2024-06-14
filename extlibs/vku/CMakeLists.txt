@@ -57,6 +57,7 @@ if (NOT TARGET VulkanMemoryAllocator-Hpp_module)
     )
     target_link_libraries(VulkanMemoryAllocator-Hpp_module PUBLIC
         Vulkan::Vulkan
+        GPUOpen::VulkanMemoryAllocator
         unofficial::VulkanMemoryAllocator-Hpp::VulkanMemoryAllocator-Hpp
     )
 
