@@ -163,7 +163,7 @@ template <std::ranges::random_access_range R>
     const auto segmentAndCopyOffsets = std::views::zip(segments, copyOffsets) | std::views::common;
     std::for_each(std::execution::par_unseq, segmentAndCopyOffsets.begin(), segmentAndCopyOffsets.end(), [&](const auto &segmentAndCopyOffset) {
         const auto &[segment, copyOffset] = segmentAndCopyOffset;
-		std::ranges::copy(segment, static_cast<value_type*>(stagingBuffer.data) + copyOffset);
+		std::ranges::copy(segment, reinterpret_cast<value_type*>(static_cast<char*>(stagingBuffer.data) + copyOffset));
 	});
 #else
     #pragma omp parallel for
