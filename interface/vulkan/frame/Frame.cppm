@@ -1,5 +1,7 @@
 module;
 
+#include <cstdint>
+#include <array>
 #include <compare>
 #include <memory>
 

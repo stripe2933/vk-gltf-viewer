@@ -107,6 +107,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/io/ktxvk/mod.cppm
 		interface/io/ktxvk/DeviceInfo.cppm
 		interface/io/ktxvk/Texture.cppm
+		interface/io/logger.cppm
 		interface/io/StbDecoder.cppm
 		interface/MainApp.cppm
 		interface/vulkan/mod.cppm

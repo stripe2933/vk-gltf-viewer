@@ -16,6 +16,7 @@ module vk_gltf_viewer;
 import :vulkan.frame.SharedData;
 
 import :helpers.ranges;
+import :io.logger;
 import :vulkan.pipelines.BrdfmapComputer;
 
 auto createCommandPool(
@@ -206,6 +207,8 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 		initAttachmentLayouts(cb);
 	});
 	gpu.queues.graphicsPresent.waitIdle();
+
+	io::logger::debug("SharedData at {} initialized", static_cast<const void*>(this));
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(
@@ -223,6 +226,8 @@ auto vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(
 		initAttachmentLayouts(cb);
 	});
 	gpu.queues.graphicsPresent.waitIdle();
+
+	io::logger::debug("Swapchain resize handling for SharedData finished");
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(

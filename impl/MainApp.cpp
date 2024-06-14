@@ -15,6 +15,8 @@ module vk_gltf_viewer;
 import :MainApp;
 
 import vku;
+import :helpers.formatters.glm;
+import :io.logger;
 import :vulkan.frame.Frame;
 import :vulkan.frame.SharedData;
 
@@ -32,6 +34,8 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 	std::array frames = ARRAY_OF(2, vulkan::Frame { globalState, sharedData, gpu });
 #pragma clang diagnostic pop
 
+	io::logger::debug("Main loop started");
+
 	float elapsedTime = 0.f;
 	for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % frames.size()) {
         glfwPollEvents();
@@ -41,6 +45,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		window.update(timeDelta);
 
 		if (!frames[frameIndex].onLoop(gpu)) {
+			io::logger::debug("Window resizing detected.");
 			gpu.device.waitIdle();
 
 			// Yield while window is minimized.
@@ -48,6 +53,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 				std::this_thread::yield();
 			}
 
+			io::logger::debug("New framebuffer size: {}", framebufferSize);
 			sharedData->handleSwapchainResize(gpu, *window.surface, { framebufferSize.x, framebufferSize.y });
 			for (vulkan::Frame &frame : frames) {
 				frame.handleSwapchainResize(gpu, *window.surface, { framebufferSize.x, framebufferSize.y });

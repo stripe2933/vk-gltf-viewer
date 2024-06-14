@@ -18,6 +18,7 @@ import :vulkan.frame.Frame;
 import :gltf.AssetResources;
 import :gltf.SceneResources;
 import :helpers.ranges;
+import :io.logger;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
@@ -97,6 +98,8 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		| ranges::to_array<3>();
 
 	initAttachmentLayouts(gpu);
+
+	io::logger::debug<true>("Frame at {} initialized", static_cast<const void*>(this));
 }
 
 auto vk_gltf_viewer::vulkan::Frame::onLoop(
@@ -202,6 +205,8 @@ auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
 			get<0>(outlineSets).getDescriptorWrites0(*jumpFloodImageViews[0]).get(),
 			get<1>(outlineSets).getDescriptorWrites0(*jumpFloodImageViews[1]).get()),
 		{});
+
+	io::logger::debug("Swapchain resize handling for Frame finished");
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImage(
