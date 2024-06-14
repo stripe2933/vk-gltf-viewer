@@ -183,7 +183,7 @@ auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createImages(
         },
     };
 
-    if (images.empty()) return {};
+    if (asset.images.empty()) return {};
 
 #ifdef _MSC_VER
     std::vector<io::StbDecoder<std::uint8_t>::DecodeResult> images(asset.images.size());
