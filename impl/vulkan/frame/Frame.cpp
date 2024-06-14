@@ -156,18 +156,16 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 		*jumpFloodFinishSema,
 	});
 
-	constexpr std::array drawWaitStages {
-		vku::toFlags(vk::PipelineStageFlagBits::eComputeShader),
-	};
-	const std::array blitToSwapchainWaitSemas { *swapchainImageAcquireSema, *drawFinishSema };
+	const std::array blitToSwapchainWaitSemas { *swapchainImageAcquireSema, *drawFinishSema, *jumpFloodFinishSema };
 	constexpr std::array blitToSwapchainWaitStages {
 		vku::toFlags(vk::PipelineStageFlagBits::eColorAttachmentOutput),
 		vku::toFlags(vk::PipelineStageFlagBits::eTransfer),
+		vku::toFlags(vk::PipelineStageFlagBits::eComputeShader),
 	};
 	gpu.queues.graphicsPresent.submit(std::array {
 		vk::SubmitInfo {
-			*jumpFloodFinishSema,
-			drawWaitStages,
+			{},
+			{},
 			drawCommandBuffer,
 			*drawFinishSema,
 		},
