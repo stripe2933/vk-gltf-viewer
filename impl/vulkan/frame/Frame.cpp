@@ -567,10 +567,12 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	primaryAttachmentGroup.setScissor(cb);
 
 	// Draw glTF mesh.
+	sharedData->primitiveRenderer.bindPipeline(cb);
+	sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
+	sharedData->primitiveRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, globalState.camera.getEye() });
 	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
-		sharedData->primitiveRenderer.bindPipeline(cb);
-		sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
-		sharedData->primitiveRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, globalState.camera.getEye() });
+		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
+
 		if (const auto &indexType = criteria.indexType) {
 			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));

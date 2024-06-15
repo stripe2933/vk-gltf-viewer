@@ -104,6 +104,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 		vk::KHRDynamicRenderingExtensionName,
 		vk::KHRSynchronization2ExtensionName,
+		vk::EXTExtendedDynamicStateExtensionName,
 #pragma clang diagnostic pop
 		vk::KHRSwapchainExtensionName,
 	};
@@ -137,6 +138,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 			.setScalarBlockLayout(vk::True),
 		vk::PhysicalDeviceDynamicRenderingFeatures { vk::True },
 		vk::PhysicalDeviceSynchronization2Features { vk::True },
+		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { vk::True },
 	}.get() };
 }
 

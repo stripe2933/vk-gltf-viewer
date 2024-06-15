@@ -33,6 +33,7 @@ namespace vk_gltf_viewer::gltf {
         };
 
         struct CommandSeparationCriteria {
+            bool doubleSided;
             std::optional<vk::IndexType> indexType;
 
             [[nodiscard]] constexpr auto operator<=>(const CommandSeparationCriteria &) const noexcept -> std::strong_ordering = default;
