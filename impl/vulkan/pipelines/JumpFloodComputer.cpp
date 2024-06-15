@@ -17,6 +17,7 @@ import vku;
 std::string_view vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::comp = R"comp(
 #version 450
 
+const uint UINT_MAX = 4294967295U;
 const ivec2 normalizedOffsets[9] = ivec2[](
     ivec2(-1, -1), ivec2(0, -1), ivec2(1, -1),
     ivec2(-1,  0), ivec2(0,  0), ivec2(1,  0),
@@ -43,7 +44,7 @@ void main(){
     }
 
     uvec2 closestSeedCoord;
-    uint closestSeedDistanceSq = length2(imageSize);
+    uint closestSeedDistanceSq = UINT_MAX;
     for (uint i = 0; i < 9; ++i){
         uvec2 seedCoord = imageLoad(pingPongImages[uint(!pc.forward)], ivec2(gl_GlobalInvocationID.xy) + int(pc.sampleOffset) * normalizedOffsets[i]).xy;
         if (seedCoord == uvec2(0U)) continue;
@@ -55,9 +56,8 @@ void main(){
         }
     }
 
-    if (closestSeedDistanceSq != length2(imageSize)) {
-        imageStore(pingPongImages[uint(pc.forward)], ivec2(gl_GlobalInvocationID.xy), uvec4(closestSeedCoord, 0, 0));
-    }
+    imageStore(pingPongImages[uint(pc.forward)], ivec2(gl_GlobalInvocationID.xy),
+        uvec4(closestSeedDistanceSq == UINT_MAX ? uvec2(0) : closestSeedCoord, 0, 0));
 }
 )comp";
 
@@ -93,6 +93,14 @@ auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::compute(
             vku::divCeil(imageSize.width, 16U),
             vku::divCeil(imageSize.height, 16U),
             1);
+
+        if (pushConstant.sampleOffset != 1U) {
+            commandBuffer.pipelineBarrier(
+                vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
+                {},
+                vk::MemoryBarrier { vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead },
+                {}, {});
+        }
     }
     return pushConstant.forward;
 }
