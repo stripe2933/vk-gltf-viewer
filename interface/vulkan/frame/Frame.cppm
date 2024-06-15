@@ -4,6 +4,7 @@ module;
 #include <array>
 #include <compare>
 #include <memory>
+#include <optional>
 
 export module vk_gltf_viewer:vulkan.frame.Frame;
 
@@ -21,7 +22,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	// Buffer, image and image views.
     	vku::AllocatedImage jumpFloodImage;
     	std::array<vk::raii::ImageView, 2> jumpFloodImageViews;
-    	vku::MappedBuffer hoveringNodeIdBuffer;
+    	vku::MappedBuffer hoveringNodeIndexBuffer;
 
     	// Attachment groups.
     	vku::AttachmentGroup depthPrepassAttachmentGroup;
@@ -55,7 +56,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	auto handleSwapchainResize(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
     private:
-    	std::uint32_t hoveringNodeIndex = std::numeric_limits<std::uint32_t>::max();
+    	std::optional<std::uint32_t> hoveringNodeIndex = std::nullopt;
 		vk::Bool32 isJumpFloodResultForward;
 
     	[[nodiscard]] auto createJumpFloodImage(vma::Allocator allocator) const -> decltype(jumpFloodImage);

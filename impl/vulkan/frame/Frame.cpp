@@ -28,6 +28,8 @@ import :io.logger;
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
 
+constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
+
 vk_gltf_viewer::vulkan::Frame::Frame(
 	GlobalState &globalState,
 	const std::shared_ptr<SharedData> &sharedData,
@@ -36,7 +38,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
     sharedData { sharedData },
 	jumpFloodImage { createJumpFloodImage(gpu.allocator) },
 	jumpFloodImageViews { createJumpFloodImageViews(gpu.device) },
-	hoveringNodeIdBuffer {
+	hoveringNodeIndexBuffer {
 		gpu.allocator,
 		std::numeric_limits<std::uint32_t>::max(),
 		vk::BufferUsageFlagBits::eTransferDst,
@@ -385,7 +387,12 @@ auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
 }
 
 auto vk_gltf_viewer::vulkan::Frame::update() -> void {
-	hoveringNodeIndex = std::exchange(hoveringNodeIdBuffer.asValue<std::uint32_t>(), std::numeric_limits<std::uint32_t>::max());
+	if (auto value = std::exchange(hoveringNodeIndexBuffer.asValue<std::uint32_t>(), NO_INDEX); value != NO_INDEX) {
+		hoveringNodeIndex = value;
+	}
+	else {
+		hoveringNodeIndex.reset();
+	}
 }
 
 auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
@@ -428,7 +435,7 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 
 	sharedData->depthRenderer.bindPipeline(cb);
 	sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
-	sharedData->depthRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, hoveringNodeIndex });
+	sharedData->depthRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, hoveringNodeIndex.value_or(NO_INDEX) });
 	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
 		const vk::IndexType indexType = criteria.indexType.value();
 		cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(indexType), 0, indexType);
@@ -440,7 +447,7 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 
 	{
 		std::vector imageMemoryBarriers {
-			// For copying to hoveringNodeIdBuffer.
+			// For copying to hoveringNodeIndexBuffer.
 			vk::ImageMemoryBarrier2 {
 				vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
 				vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
@@ -449,7 +456,7 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 				depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
 			},
 		};
-		if (hoveringNodeIndex != std::numeric_limits<std::uint32_t>::max() && gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
+		if (hoveringNodeIndex && gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
 			// Release jumpFloodImage ownership from graphics queue family.
 			imageMemoryBarriers.emplace_back(
 				vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
@@ -466,12 +473,12 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 		});
 	}
 
-	// Copy from pixel at the cursor position to hoveringNodeIdBuffer if cursor is inside the window.
+	// Copy from pixel at the cursor position to hoveringNodeIndexBuffer if cursor is inside the window.
 	if (globalState.framebufferCursorPosition.x < sharedData->swapchainExtent.width &&
 		globalState.framebufferCursorPosition.y < sharedData->swapchainExtent.height) {
 		cb.copyImageToBuffer(
 			depthPrepassAttachmentGroup.colorAttachments[0].image, vk::ImageLayout::eTransferSrcOptimal,
-			hoveringNodeIdBuffer,
+			hoveringNodeIndexBuffer,
 			vk::BufferImageCopy {
 				0, {}, {},
 				{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
@@ -493,7 +500,7 @@ auto vk_gltf_viewer::vulkan::Frame::jumpFlood(
 ) -> void {
 	cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-	if (hoveringNodeIndex != std::numeric_limits<std::uint32_t>::max()) {
+	if (hoveringNodeIndex) {
 		// Change image layout and acquire queue family ownership (if required).
 		const vk::ImageMemoryBarrier2 imageMemoryBarrier {
 		    vk::PipelineStageFlagBits2::eAllCommands, {},
@@ -615,7 +622,7 @@ auto vk_gltf_viewer::vulkan::Frame::blitToSwapchain(
 		},
 		vk::Filter::eLinear);
 
-	if (hoveringNodeIndex != std::numeric_limits<std::uint32_t>::max()){
+	if (hoveringNodeIndex){
 		std::vector imageMemoryBarriers {
 			// Change swapchain image layout to ColorAttachmentOptimal.
 			vk::ImageMemoryBarrier2 {
