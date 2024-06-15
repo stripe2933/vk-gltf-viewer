@@ -1,6 +1,5 @@
 module;
 
-#include <algorithm>
 #include <map>
 #include <ranges>
 #include <stack>
@@ -23,7 +22,7 @@ vk_gltf_viewer::gltf::SceneResources::SceneResources(
     scene { scene },
     nodeTransformBuffer { createNodeTransformBuffer(gpu.allocator) },
     primitiveBuffer { createPrimitiveBuffer(gpu) },
-    indirectDrawCommandBuffers { createIndirectDrawCommandBuffer(gpu.allocator) } { }
+    indirectDrawCommandBuffers { createIndirectDrawCommandBuffer(assetResources.asset, gpu.allocator) } { }
 
 auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() const -> decltype(orderedNodePrimitiveInfoPtrs) {
     const fastgltf::Asset &asset = assetResources.asset;
@@ -45,12 +44,6 @@ auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() 
         dfs.pop();
         dfs.push_range(node.children | reverse);
     }
-
-    // Sort primitive by index type.
-    constexpr auto projection = [](const auto &pair) {
-        return pair.second->indexInfo.transform([](const auto &info) { return info.type; });
-    };
-    std::ranges::sort(nodePrimitiveInfoPtrs, {}, projection);
 
     return nodePrimitiveInfoPtrs;
 }
@@ -127,47 +120,58 @@ auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
 }
 
 auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
+    const fastgltf::Asset &asset,
     vma::Allocator allocator
 ) const -> decltype(indirectDrawCommandBuffers) {
-    std::uint32_t instanceCounter = 0;
-    std::map<CommandSeparationCriteria, std::vector<vk::DrawIndexedIndirectCommand>> commandGroups;
+    std::map<CommandSeparationCriteria, std::vector<vk::DrawIndexedIndirectCommand>> indexedCommandGroups;
+    std::map<CommandSeparationCriteria, std::vector<vk::DrawIndirectCommand>> nonIndexedCommandGroups;
 
-    constexpr auto getIndexType = [](const auto &pair) {
-        return pair.second->indexInfo.transform([](const auto &info) { return info.type; });
-    };
-    for (auto primitivePtrsWithSameIndexType : std::views::chunk_by(orderedNodePrimitiveInfoPtrs, [&](const auto &lhs, const auto &rhs) { return getIndexType(lhs) == getIndexType(rhs); })) {
-        if (const std::optional<vk::IndexType> &indexType = getIndexType(primitivePtrsWithSameIndexType.front()); indexType) {
+    for (std::uint32_t instanceCounter = 0; const AssetResources::PrimitiveInfo *pPrimitiveInfo : orderedNodePrimitiveInfoPtrs | values) {
+        const CommandSeparationCriteria criteria {
+            .indexType = pPrimitiveInfo->indexInfo.transform([](const auto &info) { return info.type; }),
+        };
+        if (const auto &indexInfo = pPrimitiveInfo->indexInfo) {
             const std::size_t indexByteSize = [=]() {
-                switch (*indexType) {
+                switch (indexInfo->type) {
                     case vk::IndexType::eUint16: return sizeof(std::uint16_t);
                     case vk::IndexType::eUint32: return sizeof(std::uint32_t);
                     default: throw std::runtime_error{ "Unsupported index type: only Uint16 and Uint32 are supported" };
                 };
             }();
-            auto &commands = commandGroups[CommandSeparationCriteria { indexType }];
-            for (const AssetResources::PrimitiveInfo *pPrimitiveInfo : primitivePtrsWithSameIndexType | values) {
-                commands.emplace_back(
-                    pPrimitiveInfo->drawCount,
-                    1,
-                    static_cast<std::uint32_t>(pPrimitiveInfo->indexInfo->offset / indexByteSize),
-                    0,
-                    instanceCounter++);
-            }
+
+            indexedCommandGroups[criteria].emplace_back(
+                pPrimitiveInfo->drawCount,
+                1,
+                static_cast<std::uint32_t>(pPrimitiveInfo->indexInfo->offset / indexByteSize),
+                0,
+                instanceCounter);
         }
-        else throw std::runtime_error{ "Index buffer is required for indirect draw command buffer" };
+        else {
+            nonIndexedCommandGroups[criteria].emplace_back(
+                pPrimitiveInfo->drawCount,
+                1,
+                0,
+                instanceCounter);
+        }
+
+        ++instanceCounter;
     }
 
-    return commandGroups
-        | transform([&](const auto &keyValue) {
-            const auto &[criteria, commands] = keyValue;
-            return std::pair {
-                criteria,
-                vku::MappedBuffer {
-                    allocator,
-                    std::from_range, commands,
-                    vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer,
-                },
-            };
-        })
-        | std::ranges::to<std::map<CommandSeparationCriteria, vku::MappedBuffer>>();
+    std::map<CommandSeparationCriteria, vku::MappedBuffer> result;
+    for (const auto &[criteria, commands] : indexedCommandGroups) {
+        result.try_emplace(
+            criteria,
+            allocator,
+            std::from_range, commands,
+            vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer);
+    }
+    for (const auto &[criteria, commands] : nonIndexedCommandGroups) {
+        result.try_emplace(
+            criteria,
+            allocator,
+            std::from_range, commands,
+            vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer);
+    }
+
+    return result;
 }

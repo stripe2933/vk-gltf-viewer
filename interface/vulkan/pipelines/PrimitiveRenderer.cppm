@@ -16,7 +16,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
     export class PrimitiveRenderer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<3, 2, 2>{
-            explicit DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler, std::uint32_t textureCount);
+            DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler, std::uint32_t textureCount);
         };
 
         struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {

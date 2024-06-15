@@ -488,6 +488,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
                 .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
                 .metallicFactor = material.pbrData.metallicFactor,
                 .roughnessFactor = material.pbrData.roughnessFactor,
+                .emissiveFactor = glm::gtc::make_vec3(material.emissiveFactor.data()),
             };
 
             if (const auto &baseColorTexture = material.pbrData.baseColorTexture; baseColorTexture) {
@@ -507,6 +508,10 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
                 gpuMaterial.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
                 gpuMaterial.occlusionTextureIndex = static_cast<std::int16_t>(occlusionTexture->textureIndex);
                 gpuMaterial.occlusionStrength = occlusionTexture->strength;
+            }
+            if (const auto &emissiveTexture = material.emissiveTexture; emissiveTexture) {
+                gpuMaterial.emissiveTexcoordIndex = emissiveTexture->texCoordIndex;
+                gpuMaterial.emissiveTextureIndex = static_cast<std::int16_t>(emissiveTexture->textureIndex);
             }
 
             return gpuMaterial;

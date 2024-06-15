@@ -36,12 +36,14 @@ struct Material {
     uint8_t metallicRoughnessTexcoordIndex;
     uint8_t normalTexcoordIndex;
     uint8_t occlusionTexcoordIndex;
-    uint8_t padding0[4];
+    uint8_t emissiveTexcoordIndex;
+    uint8_t padding0[1];
     int16_t baseColorTextureIndex;
     int16_t metallicRoughnessTextureIndex;
     int16_t normalTextureIndex;
     int16_t occlusionTextureIndex;
-    uint8_t FRAGMENT_DATA[32];
+    int16_t emissiveTextureIndex;
+    uint8_t FRAGMENT_DATA[48];
 };
 
 struct Primitive {
@@ -66,7 +68,8 @@ layout (location = 4) out vec2 fragBaseColorTexcoord;
 layout (location = 5) out vec2 fragMetallicRoughnessTexcoord;
 layout (location = 6) out vec2 fragNormalTexcoord;
 layout (location = 7) out vec2 fragOcclusionTexcoord;
-layout (location = 8) flat out uint baseInstance;
+layout (location = 8) out vec2 fragEmissiveTexcoord;
+layout (location = 9) flat out uint baseInstance;
 
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
@@ -128,6 +131,9 @@ void main(){
     if (int(MATERIAL.occlusionTextureIndex) != -1){
         fragOcclusionTexcoord = getTexcoord(uint(MATERIAL.occlusionTexcoordIndex));
     }
+    if (int(MATERIAL.emissiveTextureIndex) != -1){
+        fragEmissiveTexcoord = getTexcoord(uint(MATERIAL.emissiveTexcoordIndex));
+    }
     baseInstance = gl_BaseInstance;
 
     gl_Position = pc.projectionView * vec4(fragPosition, 1.0);
@@ -146,7 +152,7 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::frag = R"
 #define PRIMITIVE primitives[baseInstance]
 #define MATERIAL materials[PRIMITIVE.materialIndex]
 
-const vec3 lightColor = vec3(1.0);
+const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
 struct SphericalHarmonicBasis{
     float band0[1];
@@ -155,16 +161,19 @@ struct SphericalHarmonicBasis{
 };
 
 struct Material {
-    uint8_t VERTEX_DATA[8];
+    uint8_t VERTEX_DATA[6];
     int16_t baseColorTextureIndex;
     int16_t metallicRoughnessTextureIndex;
     int16_t normalTextureIndex;
     int16_t occlusionTextureIndex;
+    int16_t emissiveTextureIndex;
     vec4 baseColorFactor;
     float metallicFactor;
     float roughnessFactor;
     float normalScale;
     float occlusionStrength;
+    vec3 emissiveFactor;
+    uint8_t padding[4];
 };
 
 struct Primitive {
@@ -179,7 +188,8 @@ layout (location = 4) in vec2 fragBaseColorTexcoord;
 layout (location = 5) in vec2 fragMetallicRoughnessTexcoord;
 layout (location = 6) in vec2 fragNormalTexcoord;
 layout (location = 7) in vec2 fragOcclusionTexcoord;
-layout (location = 8) flat in uint baseInstance;
+layout (location = 8) in vec2 fragEmissiveTexcoord;
+layout (location = 9) flat in uint baseInstance;
 
 layout (location = 0) out vec4 outColor;
 
@@ -264,6 +274,11 @@ void main(){
         occlusion += MATERIAL.occlusionStrength * (texture(textures[uint(MATERIAL.occlusionTextureIndex)], fragOcclusionTexcoord).r - 1.0);
     }
 
+    vec3 emissive = MATERIAL.emissiveFactor;
+    if (int(MATERIAL.emissiveTextureIndex) != -1){
+        emissive *= texture(textures[uint(MATERIAL.emissiveTextureIndex)], fragEmissiveTexcoord).rgb;
+    }
+
     vec3 V = normalize(pc.viewPosition - fragPosition);
     vec3 R = reflect(-V, N);
 
@@ -282,6 +297,13 @@ void main(){
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
     vec3 color = (kD * diffuse + specular) * occlusion;
+
+    // Compare the luminance of color and emissive.
+    // If emissive is brighter, use it.
+    if (dot(emissive, REC_709_LUMA) > dot(color, REC_709_LUMA)){
+        color = emissive;
+    }
+
     outColor = vec4(color, 1.0);
 }
 )frag";
@@ -324,7 +346,6 @@ auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::bindPipeline(
     vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-
 }
 
 auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::bindDescriptorSets(
@@ -381,7 +402,6 @@ auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::createPipeline(
         vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
         vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment });
 
-    // Since it uses previous z-prepassed depth attachment, therefore compareOp must be eLessOrEqual.
     constexpr vk::PipelineDepthStencilStateCreateInfo depthStencilState {
         {},
         true, true, vk::CompareOp::eLess,

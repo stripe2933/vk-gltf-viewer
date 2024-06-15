@@ -64,17 +64,21 @@ namespace vk_gltf_viewer::gltf {
             std::uint8_t baseColorTexcoordIndex,
                          metallicRoughnessTexcoordIndex,
                          normalTexcoordIndex,
-                         occlusionTexcoordIndex;
-            char         padding0[4];
+                         occlusionTexcoordIndex,
+                         emissiveTexcoordIndex;
+            char         padding0[1];
             std::int16_t baseColorTextureIndex         = -1,
                          metallicRoughnessTextureIndex = -1,
                          normalTextureIndex            = -1,
-                         occlusionTextureIndex         = -1;
+                         occlusionTextureIndex         = -1,
+                         emissiveTextureIndex          = -1;
             glm::vec4    baseColorFactor = { 1.f, 0.f, 1.f, 1.f }; // Magenta.
             float        metallicFactor    = 1.f,
                          roughnessFactor   = 1.f,
                          normalScale       = 1.f,
                          occlusionStrength = 1.f;
+            glm::vec3    emissiveFactor = { 0.f, 0.f, 0.f };
+            char         padding1[4];
         };
 
         const fastgltf::Asset &asset;
@@ -89,9 +93,7 @@ namespace vk_gltf_viewer::gltf {
 
         std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos;
         std::vector<vku::AllocatedBuffer> attributeBuffers;
-        std::unordered_map<
-            IndexedAttribute,
-            std::pair<vku::AllocatedBuffer /* bufferPtrs */, vku::AllocatedBuffer /* byteStrides */>> indexedAttributeMappingBuffers;
+        std::unordered_map<IndexedAttribute, std::pair<vku::AllocatedBuffer /* bufferPtrs */, vku::AllocatedBuffer /* byteStrides */>> indexedAttributeMappingBuffers;
         std::optional<vku::AllocatedBuffer> tangentBuffer;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 

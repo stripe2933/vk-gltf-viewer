@@ -304,7 +304,7 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
 			+ 1 /* DepthRenderer nodeTransformBuffer */
     		+ 1 /* PrimitiveRenderer materialBuffer */
     		+ 1 /* PrimitiveRenderer nodeTransformBuffer */
-    		+ 1 /* PrimitiveRenderer primitiveBuffer */,
+    		+ 1 /* PrimitiveRenderer primitiveBuffer */
     	},
 		vk::DescriptorPoolSize {
 			vk::DescriptorType::eStorageImage,
@@ -437,9 +437,13 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 	sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
 	sharedData->depthRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, hoveringNodeIndex.value_or(NO_INDEX) });
 	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
-		const vk::IndexType indexType = criteria.indexType.value();
-		cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(indexType), 0, indexType);
-		cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+		if (const auto &indexType = criteria.indexType) {
+			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+		}
+		else {
+			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+		}
 	}
 
 	// End dynamic rendering.
@@ -563,13 +567,17 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 	primaryAttachmentGroup.setScissor(cb);
 
 	// Draw glTF mesh.
-	sharedData->primitiveRenderer.bindPipeline(cb);
-	sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
-	sharedData->primitiveRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, globalState.camera.getEye() });
 	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
-		const vk::IndexType indexType = criteria.indexType.value();
-		cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(indexType), 0, indexType);
-		cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+		sharedData->primitiveRenderer.bindPipeline(cb);
+		sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
+		sharedData->primitiveRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, globalState.camera.getEye() });
+		if (const auto &indexType = criteria.indexType) {
+			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+		}
+		else {
+			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+		}
 	}
 
 	// Draw skybox.

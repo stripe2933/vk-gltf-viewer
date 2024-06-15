@@ -53,6 +53,6 @@ namespace vk_gltf_viewer::gltf {
         [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> decltype(orderedNodePrimitiveInfoPtrs);
         [[nodiscard]] auto createNodeTransformBuffer(vma::Allocator allocator) const -> decltype(nodeTransformBuffer);
         [[nodiscard]] auto createPrimitiveBuffer(const vulkan::Gpu &gpu) -> decltype(primitiveBuffer);
-        [[nodiscard]] auto createIndirectDrawCommandBuffer(vma::Allocator allocator) const -> decltype(indirectDrawCommandBuffers);
+        [[nodiscard]] auto createIndirectDrawCommandBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const -> decltype(indirectDrawCommandBuffers);
     };
 }
