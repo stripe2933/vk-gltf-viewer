@@ -76,6 +76,7 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/pipelines/JumpFloodComputer.cpp
 	impl/vulkan/pipelines/OutlineRenderer.cpp
 	impl/vulkan/pipelines/PrimitiveRenderer.cpp
+	impl/vulkan/pipelines/Rec709Renderer.cpp
 	impl/vulkan/pipelines/SkyboxRenderer.cpp
 	main.cpp
 )
@@ -121,6 +122,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipelines/JumpFloodComputer.cppm
 		interface/vulkan/pipelines/OutlineRenderer.cppm
 		interface/vulkan/pipelines/PrimitiveRenderer.cppm
+		interface/vulkan/pipelines/Rec709Renderer.cppm
 		interface/vulkan/pipelines/SkyboxRenderer.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE

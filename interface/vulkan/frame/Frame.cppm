@@ -5,6 +5,7 @@ module;
 #include <compare>
 #include <memory>
 #include <optional>
+#include <vector>
 
 export module vk_gltf_viewer:vulkan.frame.Frame;
 
@@ -38,13 +39,17 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	pipelines::PrimitiveRenderer::DescriptorSets primitiveSets;
     	pipelines::SkyboxRenderer::DescriptorSets skyboxSets;
     	std::array<pipelines::OutlineRenderer::DescriptorSets, 2> outlineSets;
+    	pipelines::Rec709Renderer::DescriptorSets rec709Sets;
 
     	// Command buffers.
-    	vk::CommandBuffer depthPrepassCommandBuffer, drawCommandBuffer, blitToSwapchainCommandBuffer;
+    	vk::CommandBuffer depthPrepassCommandBuffer, drawCommandBuffer, compositeCommandBuffer;
     	vk::CommandBuffer jumpFloodCommandBuffer;
 
+    	// Framebuffers.
+    	vk::raii::Framebuffer compositionFramebuffer;
+
 		// Synchronization stuffs.
-		vk::raii::Semaphore depthPrepassFinishSema, swapchainImageAcquireSema, drawFinishSema, blitToSwapchainFinishSema;
+		vk::raii::Semaphore depthPrepassFinishSema, swapchainImageAcquireSema, drawFinishSema, compositeFinishSema;
 		vk::raii::Semaphore jumpFloodFinishSema;
 		vk::raii::Fence inFlightFence;
 
@@ -57,7 +62,6 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
     private:
     	std::optional<std::uint32_t> hoveringNodeIndex = std::nullopt;
-		vk::Bool32 isJumpFloodResultForward;
 
     	[[nodiscard]] auto createJumpFloodImage(vma::Allocator allocator) const -> decltype(jumpFloodImage);
     	[[nodiscard]] auto createJumpFloodImageViews(const vk::raii::Device &device) const -> decltype(jumpFloodImageViews);
@@ -65,13 +69,15 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	[[nodiscard]] auto createPrimaryAttachmentGroup(const Gpu &gpu) const -> decltype(primaryAttachmentGroup);
     	[[nodiscard]] auto createDescriptorPool(const vk::raii::Device &device) const -> decltype(descriptorPool);
     	[[nodiscard]] auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
+    	[[nodiscard]] auto createCompositionFramebuffer(const vk::raii::Device &device) const -> decltype(compositionFramebuffer);
 
     	auto initAttachmentLayouts(const Gpu &gpu) const -> void;
 
     	auto update() -> void;
     	auto depthPrepass(const Gpu &gpu, vk::CommandBuffer cb) const -> void;
-    	auto jumpFlood(const Gpu &gpu, vk::CommandBuffer cb) -> void;
+    	// Return false if jumpFloodResult is in arrayLayer=0, true if in arrayLayer=1, nullopt if JFA not calculated (hoveringNodeIndex is nullopt).
+		[[nodiscard]] auto jumpFlood(const Gpu &gpu, vk::CommandBuffer cb) const -> std::optional<bool>;
     	auto draw(vk::CommandBuffer cb) const -> void;
-    	auto blitToSwapchain(const Gpu &gpu, vk::CommandBuffer cb, const vku::AttachmentGroup &swapchainAttachmentGroup) const -> void;
+    	auto composite(const Gpu &gpu, vk::CommandBuffer cb, const std::optional<bool> &isJumpFloodResultForward, std::uint32_t swapchainImageIndex) const -> void;
     };
 }

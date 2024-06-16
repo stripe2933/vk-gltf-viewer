@@ -1,18 +1,19 @@
 module;
 
+#include <cstdint>
 #include <array>
 #include <compare>
 #include <string_view>
 
 #include <shaderc/shaderc.hpp>
 
-export module vk_gltf_viewer:vulkan.pipelines.OutlineRenderer;
+export module vk_gltf_viewer:vulkan.pipelines.Rec709Renderer;
 
 export import glm;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::pipelines {
-    export class OutlineRenderer {
+    export class Rec709Renderer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1>{
             explicit DescriptorSetLayouts(const vk::raii::Device &device);
@@ -22,31 +23,26 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
 
             [[nodiscard]] auto getDescriptorWrites0(
-                vk::ImageView jumpFloodImageView
+                vk::ImageView inputImageView
             ) const {
                 return vku::RefHolder {
-                    [this](const vk::DescriptorImageInfo &jumpFloodImageInfo) {
+                    [this](const vk::DescriptorImageInfo &inputImageInfo) {
                         return std::array {
-                            getDescriptorWrite<0, 0>().setImageInfo(jumpFloodImageInfo),
+                            getDescriptorWrite<0, 0>().setImageInfo(inputImageInfo),
                         };
                     },
-                    vk::DescriptorImageInfo { {}, jumpFloodImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+                    vk::DescriptorImageInfo { {}, inputImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
                 };
             }
-        };
-
-        struct PushConstant {
-            glm::vec3 outlineColor;
-            float lineWidth;
         };
 
         DescriptorSetLayouts descriptorSetLayouts;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        OutlineRenderer(const vk::raii::Device &device, vk::RenderPass renderPass, std::uint32_t subpass, const shaderc::Compiler &compiler);
+        Rec709Renderer(const vk::raii::Device &device, vk::RenderPass renderPass, std::uint32_t subpass, const shaderc::Compiler &compiler);
 
-        auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const PushConstant &pushConstant) const -> void;
+        auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets) const -> void;
 
     private:
         static std::string_view vert, frag;

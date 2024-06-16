@@ -41,11 +41,13 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	sceneResources { assetResources, asset.scenes[asset.defaultScene.value_or(0)], gpu },
 	swapchain { createSwapchain(gpu, surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent },
+	renderPass { createRenderPass(gpu.device) },
 	depthRenderer { gpu.device, compiler },
 	jumpFloodComputer { gpu.device, compiler },
 	primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler },
 	skyboxRenderer { gpu, compiler },
-	outlineRenderer { gpu.device, compiler },
+	rec709Renderer { gpu.device, *renderPass, 0, compiler },
+	outlineRenderer { gpu.device, *renderPass, 1, compiler },
 	swapchainAttachmentGroups { createSwapchainAttachmentGroups(gpu.device) },
 	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
 	transferCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.transfer) },
@@ -245,13 +247,103 @@ auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(
 		vk::ColorSpaceKHR::eSrgbNonlinear,
 		extent,
 		1,
-		vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst,
+		vk::ImageUsageFlagBits::eColorAttachment,
 		{}, {},
 		surfaceCapabilities.currentTransform,
 		vk::CompositeAlphaFlagBitsKHR::eOpaque,
 		vk::PresentModeKHR::eFifo,
 		true,
 		oldSwapchain,
+	} };
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::createRenderPass(
+	const vk::raii::Device &device
+) const -> decltype(renderPass) {
+	constexpr std::array attachmentDescriptions {
+		// Rec709Renderer.
+		// Input attachments.
+		vk::AttachmentDescription {
+			{},
+			vk::Format::eR16G16B16A16Sfloat,
+			vk::SampleCountFlagBits::e1,
+			vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eDontCare,
+			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+		},
+		// Color attachments.
+		vk::AttachmentDescription {
+			{},
+			vk::Format::eB8G8R8A8Srgb,
+			vk::SampleCountFlagBits::e1,
+			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
+			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+			vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
+		},
+
+		// OutlineRenderer.
+		// Input attachments.
+		vk::AttachmentDescription {
+			{},
+			vk::Format::eR16G16Uint,
+			vk::SampleCountFlagBits::e1,
+			vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eDontCare,
+			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+			vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eGeneral,
+		},
+		// Color attachments.
+		vk::AttachmentDescription {
+			{},
+			vk::Format::eB8G8R8A8Srgb,
+			vk::SampleCountFlagBits::e1,
+			vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore,
+			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
+		},
+	};
+
+	constexpr std::array attachmentReferences {
+		// Rec709Renderer.
+		vk::AttachmentReference { 0, vk::ImageLayout::eShaderReadOnlyOptimal },
+		vk::AttachmentReference { 1, vk::ImageLayout::eColorAttachmentOptimal },
+		// OutlineRenderer.
+		vk::AttachmentReference { 2, vk::ImageLayout::eShaderReadOnlyOptimal },
+		vk::AttachmentReference { 3, vk::ImageLayout::eColorAttachmentOptimal },
+	};
+
+	const std::array subpassDescriptions {
+		vk::SubpassDescription {
+			{},
+			vk::PipelineBindPoint::eGraphics,
+			1, &attachmentReferences[0],
+			1, &attachmentReferences[1],
+		},
+		vk::SubpassDescription {
+			{},
+			vk::PipelineBindPoint::eGraphics,
+			1, &attachmentReferences[2],
+			1, &attachmentReferences[3],
+		},
+	};
+
+	constexpr std::array subpassDependencies {
+		vk::SubpassDependency {
+			vk::SubpassExternal, 0,
+			vk::PipelineStageFlagBits::eFragmentShader | vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentWrite,
+		},
+		vk::SubpassDependency {
+			0, 1,
+			vk::PipelineStageFlagBits::eFragmentShader | vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentWrite,
+		},
+	};
+
+	return { device, vk::RenderPassCreateInfo {
+		{},
+		attachmentDescriptions,
+		subpassDescriptions,
+		subpassDependencies,
 	} };
 }
 

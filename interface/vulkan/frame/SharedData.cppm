@@ -17,6 +17,7 @@ export import :vulkan.pipelines.DepthRenderer;
 export import :vulkan.pipelines.JumpFloodComputer;
 export import :vulkan.pipelines.OutlineRenderer;
 export import :vulkan.pipelines.PrimitiveRenderer;
+export import :vulkan.pipelines.Rec709Renderer;
 export import :vulkan.pipelines.SkyboxRenderer;
 
 namespace vk_gltf_viewer::vulkan::inline frame {
@@ -32,11 +33,15 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 		vk::Extent2D swapchainExtent;
 		std::vector<vk::Image> swapchainImages = swapchain.getImages();
 
+    	// Render passes.
+    	vk::raii::RenderPass renderPass;
+
 		// Pipelines.
 		pipelines::DepthRenderer depthRenderer;
 		pipelines::JumpFloodComputer jumpFloodComputer;
 		pipelines::PrimitiveRenderer primitiveRenderer;
 		pipelines::SkyboxRenderer skyboxRenderer;
+    	pipelines::Rec709Renderer rec709Renderer;
 		pipelines::OutlineRenderer outlineRenderer;
 
     	// Attachment groups.
@@ -59,6 +64,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
     private:
     	[[nodiscard]] auto createSwapchain(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain);
+    	[[nodiscard]] auto createRenderPass(const vk::raii::Device &device) const -> decltype(renderPass);
     	[[nodiscard]] auto createSwapchainAttachmentGroups(const vk::raii::Device &device) const -> decltype(swapchainAttachmentGroups);
 
     	auto generateAssetResourceMipmaps(vk::CommandBuffer commandBuffer) const -> void;

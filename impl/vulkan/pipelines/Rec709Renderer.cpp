@@ -7,13 +7,13 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipelines.OutlineRenderer;
+import :vulkan.pipelines.Rec709Renderer;
 
 import vku;
 
 // language=vert
-std::string_view vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::vert = R"vert(
-#version 450
+std::string_view vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::vert = R"vert(
+#version 460
 
 const vec2 positions[] = vec2[3](
     vec2(-1.0, -3.0),
@@ -30,33 +30,25 @@ void main(){
 )vert";
 
 // language=frag
-std::string_view vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::frag = R"frag(
+std::string_view vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::frag = R"frag(
 #version 450
+
+const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
 layout (location = 0) in vec2 fragTexcoord;
 
 layout (location = 0) out vec4 outColor;
 
-layout (input_attachment_index = 0, set = 0, binding = 0) uniform usubpassInput jumpFloodImage;
-
-layout (push_constant, std430) uniform PushConstant {
-    vec3 outlineColor;
-    float lineWidth;
-} pc;
+layout (input_attachment_index = 0, set = 0, binding = 0) uniform subpassInput inputImage;
 
 void main(){
-    float alpha = 0.0;
-
-    float signedDistance = distance(subpassLoad(jumpFloodImage).xy, gl_FragCoord.xy);
-    if (gl_FragCoord.x > pc.lineWidth && gl_FragCoord.y > pc.lineWidth && signedDistance > 1.0){
-        alpha = smoothstep(pc.lineWidth + 1.0, pc.lineWidth, signedDistance);
-    }
-
-    outColor = vec4(pc.outlineColor, alpha);
+    vec4 color = subpassLoad(inputImage);
+    float luminance = dot(color.rgb, REC_709_LUMA);
+    outColor = vec4(color.rgb / (1.0 + luminance), color.a);
 }
 )frag";
 
-vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<1> {
         device,
@@ -66,7 +58,7 @@ vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::DescriptorSetLayouts::Descri
         },
     } { }
 
-vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::OutlineRenderer(
+vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::Rec709Renderer(
     const vk::raii::Device &device,
     vk::RenderPass renderPass,
     std::uint32_t subpass,
@@ -75,33 +67,26 @@ vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::OutlineRenderer(
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, renderPass, subpass, compiler) } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::draw(
+auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::draw(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
-    const PushConstant &pushConstant
+    const DescriptorSets &descriptorSets
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
     commandBuffer.bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
-    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, pushConstant);
     commandBuffer.draw(3, 1, 0, 0);
 }
 
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::createPipelineLayout(
+auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> decltype(pipelineLayout) {
-    constexpr vk::PushConstantRange pushConstantRange {
-        vk::ShaderStageFlagBits::eFragment,
-        0, sizeof(PushConstant),
-    };
     return { device, vk::PipelineLayoutCreateInfo{
         {},
         descriptorSetLayouts,
-        pushConstantRange,
     } };
 }
 
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::createPipeline(
+auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipeline(
     const vk::raii::Device &device,
     vk::RenderPass renderPass,
     std::uint32_t subpass,
@@ -118,22 +103,7 @@ auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::createPipeline(
         vk::PolygonMode::eFill,
         vk::CullModeFlagBits::eNone, {},
         {}, {}, {}, {},
-        1.0f,
-    };
-
-    // Alpha blending.
-    constexpr std::array blendAttachmentStates {
-        vk::PipelineColorBlendAttachmentState {
-            true,
-            vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
-            vk::BlendFactor::eOne, vk::BlendFactor::eZero, vk::BlendOp::eAdd,
-            vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-        },
-    };
-    const vk::PipelineColorBlendStateCreateInfo colorBlendState {
-        {},
-        false, {},
-        blendAttachmentStates,
+        1.f,
     };
 
     return {
@@ -141,8 +111,7 @@ auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::createPipeline(
         nullptr,
         vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1)
             .setPRasterizationState(&rasterizationState)
-            .setPColorBlendState(&colorBlendState)
             .setRenderPass(renderPass)
-            .setSubpass(subpass),
+            .setSubpass(subpass)
     };
 }
