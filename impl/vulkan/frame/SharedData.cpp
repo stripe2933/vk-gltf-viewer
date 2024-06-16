@@ -289,7 +289,7 @@ auto vk_gltf_viewer::vulkan::SharedData::createRenderPass(
 			vk::SampleCountFlagBits::e1,
 			vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eDontCare,
 			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-			vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eGeneral,
+			vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
 		},
 		// Color attachments.
 		vk::AttachmentDescription {
