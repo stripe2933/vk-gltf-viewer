@@ -42,11 +42,6 @@ if (NOT TARGET VulkanMemoryAllocator-Hpp_module)
         file(DOWNLOAD https://raw.githubusercontent.com/YaaZ/VulkanMemoryAllocator-Hpp/master/src/vk_mem_alloc.cppm
             ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm
         )
-
-        # For vcpkg, vk_mem_alloc.hpp is inside the include/vulkan-memory-allocator-hpp directory.
-        file(READ ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm VCPKG_MODULE_CONTENTS)
-        string(REPLACE "<vk_mem_alloc.hpp>" "<vulkan-memory-allocator-hpp/vk_mem_alloc.hpp>" VCPKG_MODULE_CONTENTS "${VCPKG_MODULE_CONTENTS}")
-        file(WRITE ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm "${VCPKG_MODULE_CONTENTS}")
     endif()
 
     add_library(VulkanMemoryAllocator-Hpp_module)
