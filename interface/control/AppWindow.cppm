@@ -13,7 +13,7 @@ namespace vk_gltf_viewer::control {
     public:
         GlobalState &globalState;
 
-        explicit AppWindow(const vk::raii::Instance &instance, GlobalState &globalState);
+        AppWindow(const vk::raii::Instance &instance, GlobalState &globalState);
 
         auto update(float timeDelta) -> void;
 

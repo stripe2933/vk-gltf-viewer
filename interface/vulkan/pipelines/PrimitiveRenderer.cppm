@@ -88,7 +88,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        explicit PrimitiveRenderer(const vk::raii::Device &device, std::uint32_t textureCount, const shaderc::Compiler &compiler);
+        PrimitiveRenderer(const vk::raii::Device &device, std::uint32_t textureCount, const shaderc::Compiler &compiler);
 
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
         auto bindDescriptorSets(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t firstSet = 0) const -> void;

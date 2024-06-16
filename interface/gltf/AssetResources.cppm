@@ -32,7 +32,7 @@ namespace vk_gltf_viewer::gltf {
             std::vector<std::span<const std::uint8_t>> bufferBytes; // bufferBytes[i] -> asset.buffers[i].data
             std::vector<io::StbDecoder<std::uint8_t>::DecodeResult> images; // images[i] -> decoded image data.
 
-            explicit ResourceBytes(const fastgltf::Asset &asset, const std::filesystem::path &assetDir);
+            ResourceBytes(const fastgltf::Asset &asset, const std::filesystem::path &assetDir);
 
             [[nodiscard]] auto getBufferViewBytes(const fastgltf::BufferView &bufferView) const noexcept -> std::span<const std::uint8_t>;
 

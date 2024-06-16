@@ -42,7 +42,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        explicit BrdfmapComputer(const vk::raii::Device &device, const shaderc::Compiler &compiler, const SpecializationConstants &specializationConstants = { 1024 });
+        BrdfmapComputer(const vk::raii::Device &device, const shaderc::Compiler &compiler, const SpecializationConstants &specializationConstants = { 1024 });
 
         auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const vk::Extent2D &imageSize) const -> void;
 

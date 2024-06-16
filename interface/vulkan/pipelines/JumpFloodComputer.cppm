@@ -52,7 +52,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        explicit JumpFloodComputer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
+        JumpFloodComputer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
 
         [[nodiscard]] auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const vk::Extent2D &imageSize) const -> vk::Bool32;
 

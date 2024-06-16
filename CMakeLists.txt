@@ -88,35 +88,25 @@ target_sources(vk-gltf-viewer PRIVATE
 	BASE_DIRS interface
 	FILES
 		interface/mod.cppm
-		interface/control/mod.cppm
 		interface/control/AppWindow.cppm
 		interface/control/Camera.cppm
-		interface/gltf/mod.cppm
-		interface/gltf/algorithm/mod.cppm
 		interface/gltf/algorithm/MikktSpaceInterface.cppm
 		interface/gltf/AssetResources.cppm
 		interface/gltf/SceneResources.cppm
 		interface/GlobalState.cppm
-		interface/helpers/mod.cppm
-		interface/helpers/formatters/mod.cppm
 		interface/helpers/formatters/glm.cppm
 		interface/helpers/formatters/joiner.cppm
 		interface/helpers/formatters/omitted.cppm
 		interface/helpers/ranges.cppm
 		interface/helpers/type_map.cppm
-		interface/io/mod.cppm
-		interface/io/ktxvk/mod.cppm
 		interface/io/ktxvk/DeviceInfo.cppm
 		interface/io/ktxvk/Texture.cppm
 		interface/io/logger.cppm
 		interface/io/StbDecoder.cppm
 		interface/MainApp.cppm
-		interface/vulkan/mod.cppm
-		interface/vulkan/frame/mod.cppm
 		interface/vulkan/frame/Frame.cppm
 		interface/vulkan/frame/SharedData.cppm
 		interface/vulkan/Gpu.cppm
-		interface/vulkan/pipelines/mod.cppm
 		interface/vulkan/pipelines/BrdfmapComputer.cppm
 		interface/vulkan/pipelines/DepthRenderer.cppm
 		interface/vulkan/pipelines/JumpFloodComputer.cppm
