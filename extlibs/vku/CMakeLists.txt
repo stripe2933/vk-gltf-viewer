@@ -34,21 +34,11 @@ if (NOT TARGET Vulkan-Hpp_module)
 endif()
 
 if (NOT TARGET VulkanMemoryAllocator-Hpp_module)
-    if (NOT EXISTS ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm)
-        message(STATUS "VulkanMemoryAllocator-Hpp module not found. Downloading from repository...")
-
-        set(VulkanMemoryAllocator-Hpp_SOURCE_DIR ${PROJECT_BINARY_DIR})
-        file(MAKE_DIRECTORY ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src)
-        file(DOWNLOAD https://raw.githubusercontent.com/YaaZ/VulkanMemoryAllocator-Hpp/master/src/vk_mem_alloc.cppm
-            ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm
-        )
-    endif()
-
     add_library(VulkanMemoryAllocator-Hpp_module)
     target_sources(VulkanMemoryAllocator-Hpp_module PUBLIC
         FILE_SET CXX_MODULES
-        BASE_DIRS ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src
-        FILES ${VulkanMemoryAllocator-Hpp_SOURCE_DIR}/src/vk_mem_alloc.cppm
+        BASE_DIRS extlibs
+        FILES extlibs/vk_mem_alloc.cppm
     )
     target_link_libraries(VulkanMemoryAllocator-Hpp_module PUBLIC
         Vulkan::Vulkan
@@ -60,21 +50,11 @@ if (NOT TARGET VulkanMemoryAllocator-Hpp_module)
 endif()
 
 if (VKU_USE_GLM AND NOT TARGET glm_module)
-    if (NOT EXISTS ${glm_SOURCE_DIR}/glm/glm.cppm)
-        message(STATUS "glm module not found. Downloading from repository...")
-
-        set(glm_SOURCE_DIR ${PROJECT_BINARY_DIR})
-        file(MAKE_DIRECTORY ${glm_SOURCE_DIR}/glm)
-        file(DOWNLOAD https://raw.githubusercontent.com/g-truc/glm/master/glm/glm.cppm
-            ${glm_SOURCE_DIR}/glm/glm.cppm
-        )
-    endif()
-
     add_library(glm_module)
     target_sources(glm_module PUBLIC
         FILE_SET CXX_MODULES
-        BASE_DIRS ${glm_SOURCE_DIR}
-        FILES ${glm_SOURCE_DIR}/glm/glm.cppm
+        BASE_DIRS extlibs
+        FILES extlibs/glm.cppm
     )
     target_link_libraries(glm_module PUBLIC glm::glm)
 
