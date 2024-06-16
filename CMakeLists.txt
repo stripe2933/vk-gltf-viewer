@@ -1,16 +1,9 @@
 ﻿cmake_minimum_required (VERSION 3.28)
-project ("vk-gltf-viewer")
+project(vk-gltf-viewer
+	LANGUAGES CXX
+)
 
 set(CMAKE_CXX_STANDARD 23)
-
-# --------------------
-# Include CPM.cmake.
-# --------------------
-
-file(DOWNLOAD https://github.com/cpm-cmake/CPM.cmake/releases/latest/download/get_cpm.cmake
-	${CMAKE_BINARY_DIR}/cmake/CPM.cmake
-)
-include(${CMAKE_BINARY_DIR}/cmake/CPM.cmake)
 
 # --------------------
 # External dependencies.
