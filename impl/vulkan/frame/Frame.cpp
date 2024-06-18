@@ -6,6 +6,7 @@ module;
 #include <format>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <ranges>
 #include <tuple>
 #include <stdexcept>

@@ -2,6 +2,7 @@ module;
 
 #include <cstdlib>
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <ranges>
 #include <tuple>
