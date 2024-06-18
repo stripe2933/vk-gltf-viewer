@@ -1,6 +1,7 @@
 module;
 
 #include <compare>
+#include <format>
 #include <string_view>
 
 #include <shaderc/shaderc.hpp>

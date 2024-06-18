@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <compare>
+#include <format>
 #include <span>
 #include <string_view>
 
