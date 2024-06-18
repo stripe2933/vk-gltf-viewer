@@ -18,6 +18,9 @@ if (VKU_USE_GLM)
     find_package(glm CONFIG REQUIRED)
 endif()
 
+set_property(TARGET Vulkan::shaderc_combined PROPERTY
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+
 # ----------------
 # Module configurations for external dependencies.
 # ----------------
