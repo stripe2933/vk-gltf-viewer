@@ -41,13 +41,13 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	sceneResources { assetResources, asset.scenes[asset.defaultScene.value_or(0)], gpu },
 	swapchain { createSwapchain(gpu, surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent },
-	renderPass { createRenderPass(gpu.device) },
+	compositionRenderPass { createCompositionRenderPass(gpu.device) },
 	depthRenderer { gpu.device, compiler },
 	jumpFloodComputer { gpu.device, compiler },
 	primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler },
 	skyboxRenderer { gpu, compiler },
-	rec709Renderer { gpu.device, *renderPass, 0, compiler },
-	outlineRenderer { gpu.device, *renderPass, 1, compiler },
+	rec709Renderer { gpu.device, *compositionRenderPass, 0, compiler },
+	outlineRenderer { gpu.device, *compositionRenderPass, 1, compiler },
 	swapchainAttachmentGroups { createSwapchainAttachmentGroups(gpu.device) },
 	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
 	transferCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.transfer) },
@@ -257,9 +257,9 @@ auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::createRenderPass(
+auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass(
 	const vk::raii::Device &device
-) const -> decltype(renderPass) {
+) const -> decltype(compositionRenderPass) {
 	constexpr std::array attachmentDescriptions {
 		// Rec709Renderer.
 		// Input attachments.

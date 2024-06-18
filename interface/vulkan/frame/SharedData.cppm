@@ -35,7 +35,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 		std::vector<vk::Image> swapchainImages = swapchain.getImages();
 
     	// Render passes.
-    	vk::raii::RenderPass renderPass;
+    	vk::raii::RenderPass compositionRenderPass;
 
 		// Pipelines.
 		pipelines::DepthRenderer depthRenderer;
@@ -65,7 +65,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
     private:
     	[[nodiscard]] auto createSwapchain(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain);
-    	[[nodiscard]] auto createRenderPass(const vk::raii::Device &device) const -> decltype(renderPass);
+    	[[nodiscard]] auto createCompositionRenderPass(const vk::raii::Device &device) const -> decltype(compositionRenderPass);
     	[[nodiscard]] auto createSwapchainAttachmentGroups(const vk::raii::Device &device) const -> decltype(swapchainAttachmentGroups);
 
     	auto generateAssetResourceMipmaps(vk::CommandBuffer commandBuffer) const -> void;

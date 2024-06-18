@@ -386,7 +386,7 @@ auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer(
 	return vk::raii::Framebuffer { device, vk::StructureChain {
 		vk::FramebufferCreateInfo {
 			vk::FramebufferCreateFlagBits::eImageless,
-			*sharedData->renderPass,
+			*sharedData->compositionRenderPass,
 			4, nullptr,
 			sharedData->swapchainExtent.width, sharedData->swapchainExtent.height,
 			1,
@@ -667,7 +667,7 @@ auto vk_gltf_viewer::vulkan::Frame::composite(
 	};
 	cb.beginRenderPass(vk::StructureChain {
 		vk::RenderPassBeginInfo {
-			*sharedData->renderPass,
+			*sharedData->compositionRenderPass,
 			*compositionFramebuffer,
 			{ { 0, 0 }, sharedData->swapchainExtent },
 			clearValues,
