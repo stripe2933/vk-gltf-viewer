@@ -131,6 +131,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 			.setBufferDeviceAddress(vk::True)
 			.setDescriptorIndexing(vk::True)
 			.setDescriptorBindingSampledImageUpdateAfterBind(vk::True)
+			.setDescriptorBindingStorageImageUpdateAfterBind(vk::True)
 			.setImagelessFramebuffer(vk::True)
 			.setRuntimeDescriptorArray(vk::True)
 			.setStorageBuffer8BitAccess(vk::True)

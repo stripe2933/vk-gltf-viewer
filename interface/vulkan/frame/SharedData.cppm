@@ -1,6 +1,7 @@
 module;
 
 #include <compare>
+#include <optional>
 #include <vector>
 
 #include <fastgltf/core.hpp>
@@ -11,8 +12,6 @@ export module vk_gltf_viewer:vulkan.frame.SharedData;
 export import vku;
 import :gltf.AssetResources;
 import :gltf.SceneResources;
-import :io.ktxvk.DeviceInfo;
-import :io.ktxvk.Texture;
 export import :vulkan.Gpu;
 export import :vulkan.pipelines.DepthRenderer;
 export import :vulkan.pipelines.JumpFloodComputer;
@@ -20,6 +19,12 @@ export import :vulkan.pipelines.OutlineRenderer;
 export import :vulkan.pipelines.PrimitiveRenderer;
 export import :vulkan.pipelines.Rec709Renderer;
 export import :vulkan.pipelines.SkyboxRenderer;
+
+struct ImageBasedLightingResources {
+	vku::AllocatedImage cubemapImage; vk::raii::ImageView cubemapImageView;
+	vku::MappedBuffer cubemapSphericalHarmonicsBuffer;
+	vku::AllocatedImage prefilteredmapImage; vk::raii::ImageView prefilteredmapImageView;
+};
 
 namespace vk_gltf_viewer::vulkan::inline frame {
     export class SharedData {
@@ -33,6 +38,11 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 		vk::raii::SwapchainKHR swapchain;
 		vk::Extent2D swapchainExtent;
 		std::vector<vk::Image> swapchainImages = swapchain.getImages();
+
+    	// Buffer, image and image views.
+    	vku::AllocatedImage brdfmapImage;
+    	vk::raii::ImageView brdfmapImageView;
+    	std::optional<ImageBasedLightingResources> imageBasedLightingResources = std::nullopt;
 
     	// Render passes.
     	vk::raii::RenderPass compositionRenderPass;
@@ -50,14 +60,6 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
     	// Descriptor/command pools.
     	vk::raii::CommandPool graphicsCommandPool, transferCommandPool;
-
-    	// Buffer, image and image views.
-    	io::ktxvk::DeviceInfo deviceInfo;
-    	io::ktxvk::Texture cubemapTexture, prefilteredmapTexture;
-    	vk::raii::ImageView cubemapImageView, prefilteredmapImageView;
-    	vku::MappedBuffer cubemapSphericalHarmonicsBuffer;
-    	vku::AllocatedImage brdfmapImage;
-    	vk::raii::ImageView brdfmapImageView;
 
     	SharedData(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent, const shaderc::Compiler &compiler = {});
 

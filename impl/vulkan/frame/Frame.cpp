@@ -79,8 +79,8 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
 	    	jumpFloodSets.getDescriptorWrites0(*jumpFloodImageViews[0], *jumpFloodImageViews[1]).get(),
 		    primitiveSets.getDescriptorWrites0(
-		    	{ sharedData->cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
-		    	*sharedData->prefilteredmapImageView,
+		    	{ sharedData->imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
+		    	*sharedData->imageBasedLightingResources.value().prefilteredmapImageView,
 		    	*sharedData->brdfmapImageView).get(),
 		    primitiveSets.getDescriptorWrites1(
 				sharedData->assetResources.textures,
@@ -88,7 +88,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    primitiveSets.getDescriptorWrites2(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
-		    skyboxSets.getDescriptorWrites0(*sharedData->cubemapImageView).get(),
+		    skyboxSets.getDescriptorWrites0(*sharedData->imageBasedLightingResources.value().cubemapImageView).get(),
 		    get<0>(outlineSets).getDescriptorWrites0(*jumpFloodImageViews[0]).get(),
 		    get<1>(outlineSets).getDescriptorWrites0(*jumpFloodImageViews[1]).get(),
 		    rec709Sets.getDescriptorWrites0(*primaryAttachmentGroup.colorAttachments[0].resolveView).get()),

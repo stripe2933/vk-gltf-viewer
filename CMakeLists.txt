@@ -112,5 +112,6 @@ target_link_libraries(vk-gltf-viewer PRIVATE
 	fastgltf::fastgltf
 	KTX::ktx
 	mikktspace::mikktspace
+	pbrenvmap
 	vku
 )
