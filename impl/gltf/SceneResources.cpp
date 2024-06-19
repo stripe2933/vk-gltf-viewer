@@ -136,7 +136,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
                     case vk::IndexType::eUint16: return sizeof(std::uint16_t);
                     case vk::IndexType::eUint32: return sizeof(std::uint32_t);
                     default: throw std::runtime_error{ "Unsupported index type: only Uint16 and Uint32 are supported" };
-                };
+                }
             }();
 
             indexedCommandGroups[criteria].emplace_back(

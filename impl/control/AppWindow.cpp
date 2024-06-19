@@ -51,7 +51,7 @@ void vk_gltf_viewer::control::AppWindow::onFramebufferSizeCallback(
 
 auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
     glm::dvec2 offset
-    ) -> void {
+) -> void {
     constexpr float MIN_FOV = glm::radians(15.f), MAX_FOV = glm::radians(120.f);
     constexpr float SCROLL_SENSITIVITY = 1e-2f;
 

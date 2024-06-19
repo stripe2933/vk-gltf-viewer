@@ -304,11 +304,11 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
 	return {
 		device,
 		(vku::PoolSizes { sharedData->depthRenderer.descriptorSetLayouts }
-		+ vku::PoolSizes { sharedData->jumpFloodComputer.descriptorSetLayouts } * 2
-		+ vku::PoolSizes { sharedData->primitiveRenderer.descriptorSetLayouts }
-		+ vku::PoolSizes { sharedData->skyboxRenderer.descriptorSetLayouts }
-		+ vku::PoolSizes { sharedData->outlineRenderer.descriptorSetLayouts } * 2
-		+ vku::PoolSizes { sharedData->rec709Renderer.descriptorSetLayouts })
+		    + vku::PoolSizes { sharedData->jumpFloodComputer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData->primitiveRenderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData->skyboxRenderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData->outlineRenderer.descriptorSetLayouts } * 2
+		    + vku::PoolSizes { sharedData->rec709Renderer.descriptorSetLayouts })
 		.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
 	};
 }
