@@ -128,6 +128,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
 
     for (std::uint32_t instanceCounter = 0; const AssetResources::PrimitiveInfo *pPrimitiveInfo : orderedNodePrimitiveInfoPtrs | values) {
         const CommandSeparationCriteria criteria {
+            .doubleSided = asset.materials[*pPrimitiveInfo->materialIndex].doubleSided,
             .indexType = pPrimitiveInfo->indexInfo.transform([](const auto &info) { return info.type; }),
         };
         if (const auto &indexInfo = pPrimitiveInfo->indexInfo) {
