@@ -166,7 +166,7 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 
 	const std::array compositeWaitSemas { *swapchainImageAcquireSema, *drawFinishSema, *jumpFloodFinishSema };
 	constexpr std::array compositeWaitStages {
-		vku::toFlags(vk::PipelineStageFlagBits::eColorAttachmentOutput),
+		vku::toFlags(vk::PipelineStageFlagBits::eFragmentShader),
 		vku::toFlags(vk::PipelineStageFlagBits::eFragmentShader),
 		vku::toFlags(vk::PipelineStageFlagBits::eFragmentShader),
 	};
