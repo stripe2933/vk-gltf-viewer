@@ -60,10 +60,16 @@ vku::Shader::Shader(
     const char *identifier
 ) : stage { stage },
     entryPoint { entryPoint } {
+    shaderc::CompileOptions compileOptions;
+    compileOptions.SetTargetSpirv(shaderc_spirv_version_1_5);
+#ifdef NDEBUG
+    compileOptions.SetOptimizationLevel(shaderc_optimization_level_performance);
+#endif
+
     const auto result = compiler.CompileGlslToSpv(
         glsl.data(), glsl.size(),
         getShaderKind(stage),
-        entryPoint, identifier, {});
+        entryPoint, identifier, compileOptions);
     if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
         throw std::runtime_error { std::format("Failed to compile shader: {}", result.GetErrorMessage()) };
     }
