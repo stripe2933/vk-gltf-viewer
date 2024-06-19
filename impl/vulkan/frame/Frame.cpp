@@ -30,6 +30,9 @@ import :io.logger;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
 
+// Definition already in SharedData.cpp.
+auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) -> vk::raii::CommandPool;
+
 vk_gltf_viewer::vulkan::Frame::Frame(
 	GlobalState &globalState,
 	const std::shared_ptr<SharedData> &sharedData,
@@ -308,16 +311,6 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
 		+ vku::PoolSizes { sharedData->rec709Renderer.descriptorSetLayouts })
 		.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
 	};
-}
-
-auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
-    const vk::raii::Device &device,
-    std::uint32_t queueFamilyIndex
-) const -> vk::raii::CommandPool {
-	return { device, vk::CommandPoolCreateInfo{
-		{},
-		queueFamilyIndex,
-	} };
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer(

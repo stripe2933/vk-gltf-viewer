@@ -68,7 +68,6 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	[[nodiscard]] auto createDepthPrepassAttachmentGroup(const Gpu &gpu) const -> decltype(depthPrepassAttachmentGroup);
     	[[nodiscard]] auto createPrimaryAttachmentGroup(const Gpu &gpu) const -> decltype(primaryAttachmentGroup);
     	[[nodiscard]] auto createDescriptorPool(const vk::raii::Device &device) const -> decltype(descriptorPool);
-    	[[nodiscard]] auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
     	[[nodiscard]] auto createCompositionFramebuffer(const vk::raii::Device &device) const -> decltype(compositionFramebuffer);
 
     	auto initAttachmentLayouts(const Gpu &gpu) const -> void;
