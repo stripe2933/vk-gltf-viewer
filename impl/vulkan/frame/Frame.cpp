@@ -451,32 +451,32 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 		});
 
 	// Begin dynamic rendering.
-	cb.beginRenderingKHR(depthPrepassAttachmentGroup.getRenderingInfo(
-		std::array {
-            vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { std::numeric_limits<std::uint32_t>::max(), 0U, 0U, 0U } },
-            vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
-		},
-		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 1.f, 0U } }));
+	vku::renderingScoped(
+		cb,
+		depthPrepassAttachmentGroup.getRenderingInfo(
+			std::array {
+				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { std::numeric_limits<std::uint32_t>::max(), 0U, 0U, 0U } },
+				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
+			},
+			vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 1.f, 0U } }),
+		[&]() {
+			// Set viewport and scissor.
+			depthPrepassAttachmentGroup.setViewport(cb, true);
+			depthPrepassAttachmentGroup.setScissor(cb);
 
-	// Set viewport and scissor.
-	depthPrepassAttachmentGroup.setViewport(cb, true);
-	depthPrepassAttachmentGroup.setScissor(cb);
-
-	sharedData->depthRenderer.bindPipeline(cb);
-	sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
-	sharedData->depthRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, hoveringNodeIndex.value_or(NO_INDEX) });
-	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
-		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
-			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-		}
-		else {
-			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-		}
-	}
-
-	// End dynamic rendering.
-	cb.endRenderingKHR();
+			sharedData->depthRenderer.bindPipeline(cb);
+			sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
+			sharedData->depthRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, hoveringNodeIndex.value_or(NO_INDEX) });
+			for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
+				if (const auto &indexType = criteria.indexType) {
+					cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+					cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+				}
+				else {
+					cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+				}
+			}
+		});
 
 	const std::array imageMemoryBarriers {
 		// For copying to hoveringNodeIndexBuffer.
@@ -570,38 +570,37 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 ) const -> void {
 	cb.begin(vk::CommandBufferBeginInfo { vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-	// Begin dynamic rendering.
-	cb.beginRenderingKHR(primaryAttachmentGroup.getRenderingInfo(
-		std::array {
-			vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare },
-		},
-		vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 1.f, 0U } }));
+	vku::renderingScoped(
+		cb,
+		primaryAttachmentGroup.getRenderingInfo(
+			std::array {
+				vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare },
+			},
+			vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 1.f, 0U } }),
+		[&]() {
+			// Set viewport and scissor.
+			primaryAttachmentGroup.setViewport(cb, true);
+			primaryAttachmentGroup.setScissor(cb);
 
-	// Set viewport and scissor.
-	primaryAttachmentGroup.setViewport(cb, true);
-	primaryAttachmentGroup.setScissor(cb);
+			// Draw glTF mesh.
+			sharedData->primitiveRenderer.bindPipeline(cb);
+			sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
+			sharedData->primitiveRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, globalState.camera.getEye() });
+			for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
+				cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
-	// Draw glTF mesh.
-	sharedData->primitiveRenderer.bindPipeline(cb);
-	sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
-	sharedData->primitiveRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, globalState.camera.getEye() });
-	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
-		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
+				if (const auto &indexType = criteria.indexType) {
+					cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+					cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+				}
+				else {
+					cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+				}
+			}
 
-		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
-			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-		}
-		else {
-			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-		}
-	}
-
-	// Draw skybox.
-	sharedData->skyboxRenderer.draw(cb, skyboxSets, { globalState.camera.projection * glm::mat4 { glm::mat3 { globalState.camera.view } } });
-
-	// End dynamic rendering.
-	cb.endRenderingKHR();
+			// Draw skybox.
+			sharedData->skyboxRenderer.draw(cb, skyboxSets, { globalState.camera.projection * glm::mat4 { glm::mat3 { globalState.camera.view } } });
+		});
 
 	cb.end();
 }
@@ -636,33 +635,35 @@ auto vk_gltf_viewer::vulkan::Frame::composite(
 		*jumpFloodImageViews[isJumpFloodResultForward.value_or(0)],
 		*sharedData->swapchainAttachmentGroups[swapchainImageIndex].colorAttachments[0].view,
 	};
-	cb.beginRenderPass(vk::StructureChain {
-		vk::RenderPassBeginInfo {
-			*sharedData->compositionRenderPass,
-			*compositionFramebuffer,
-			{ { 0, 0 }, sharedData->swapchainExtent },
-			clearValues,
-		},
-		vk::RenderPassAttachmentBeginInfo { framebufferImageViews },
-	}.get(), vk::SubpassContents::eInline);
+	vku::renderPassScoped(
+		cb,
+		vk::StructureChain {
+			vk::RenderPassBeginInfo {
+				*sharedData->compositionRenderPass,
+				*compositionFramebuffer,
+				{ { 0, 0 }, sharedData->swapchainExtent },
+				clearValues,
+			},
+			vk::RenderPassAttachmentBeginInfo { framebufferImageViews },
+		}.get(),
+		vk::SubpassContents::eInline,
+		[&]() {
+			// TODO: proper viewport/scissor setting.
+			sharedData->swapchainAttachmentGroups[0].setViewport(cb, true);
+			sharedData->swapchainAttachmentGroups[0].setScissor(cb);
 
-	// TODO: proper viewport/scissor setting.
-	sharedData->swapchainAttachmentGroups[0].setViewport(cb, true);
-	sharedData->swapchainAttachmentGroups[0].setScissor(cb);
+			sharedData->rec709Renderer.draw(cb, rec709Sets);
 
-	sharedData->rec709Renderer.draw(cb, rec709Sets);
+			cb.nextSubpass(vk::SubpassContents::eInline);
 
-	cb.nextSubpass(vk::SubpassContents::eInline);
+			if (isJumpFloodResultForward) {
+				// TODO: proper viewport/scissor setting.
+				sharedData->swapchainAttachmentGroups[0].setViewport(cb, true);
+				sharedData->swapchainAttachmentGroups[0].setScissor(cb);
 
-	if (isJumpFloodResultForward) {
-		// TODO: proper viewport/scissor setting.
-		sharedData->swapchainAttachmentGroups[0].setViewport(cb, true);
-		sharedData->swapchainAttachmentGroups[0].setScissor(cb);
-
-		sharedData->outlineRenderer.draw(cb, outlineSets[*isJumpFloodResultForward], { .outlineColor = { 1.f, 0.5f, 0.2f }, .lineWidth = 4.f });
-	}
-
-	cb.endRenderPass();
+				sharedData->outlineRenderer.draw(cb, outlineSets[*isJumpFloodResultForward], { .outlineColor = { 1.f, 0.5f, 0.2f }, .lineWidth = 4.f });
+			}
+		});
 
 	cb.end();
 }

@@ -95,6 +95,7 @@ target_sources(vku PUBLIC
         interface/images/Image.cppm
         interface/pipelines/mod.cppm
         interface/pipelines/Shader.cppm
+        interface/scoped.cppm
         interface/rendering/mod.cppm
         interface/rendering/Attachment.cppm
         interface/rendering/AttachmentGroup.cppm
