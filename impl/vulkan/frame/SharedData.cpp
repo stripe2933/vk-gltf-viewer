@@ -111,14 +111,10 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	{
 		const pipelines::BrdfmapComputer brdfmapComputer { gpu.device, compiler };
 
-		constexpr std::array poolSizes {
-			vk::DescriptorPoolSize { vk::DescriptorType::eStorageImage, 1 },
+		const vk::raii::DescriptorPool descriptorPool {
+			gpu.device,
+			vku::PoolSizes { brdfmapComputer.descriptorSetLayouts }.getDescriptorPoolCreateInfo()
 		};
-		const vk::raii::DescriptorPool descriptorPool { gpu.device, vk::DescriptorPoolCreateInfo {
-			{},
-			1,
-			poolSizes,
-		} };
 
 		const pipelines::BrdfmapComputer::DescriptorSets brdfmapSets { *gpu.device, *descriptorPool, brdfmapComputer.descriptorSetLayouts };
 		gpu.device.updateDescriptorSets(brdfmapSets.getDescriptorWrites0(*brdfmapImageView).get(), {});

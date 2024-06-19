@@ -298,46 +298,16 @@ auto vk_gltf_viewer::vulkan::Frame::createPrimaryAttachmentGroup(
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
     const vk::raii::Device &device
 ) const -> decltype(descriptorPool) {
-    const std::array poolSizes {
-    	vk::DescriptorPoolSize {
-    		vk::DescriptorType::eCombinedImageSampler,
-    		1 /* PrimitiveRenderer prefilteredmap */
-    		+ 1 /* PrimitiveRenderer brdfmap */
-    		+ static_cast<std::uint32_t>(sharedData->assetResources.textures.size()) /* PrimitiveRenderer textures */
-    		+ 1 /* SkyboxRenderer cubemap */,
-    	},
-    	vk::DescriptorPoolSize {
-    	    vk::DescriptorType::eInputAttachment,
-    		1 /* Rec709Renderer inputImage */
-			+ 2 /* OutlineRenderer jumpFloodImage */,
-    	},
-    	vk::DescriptorPoolSize {
-    		vk::DescriptorType::eStorageBuffer,
-			1 /* DepthRenderer primitiveBuffer */
-			+ 1 /* DepthRenderer nodeTransformBuffer */
-    		+ 1 /* PrimitiveRenderer materialBuffer */
-    		+ 1 /* PrimitiveRenderer nodeTransformBuffer */
-    		+ 1 /* PrimitiveRenderer primitiveBuffer */
-    	},
-		vk::DescriptorPoolSize {
-			vk::DescriptorType::eStorageImage,
-			2 /* JumpFloodComputer pingPongImages */,
-		},
-    	vk::DescriptorPoolSize {
-    	    vk::DescriptorType::eUniformBuffer,
-    		1 /* PrimitiveRenderer cubemapSphericalHarmonicsBuffer */,
-    	},
-    };
-	return { device, vk::DescriptorPoolCreateInfo{
-		vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind,
-		1 /* DepthRenderer */
-		+ 1 /* JumpFloodComputer */
-		+ 3 /* PrimitiveRenderer */
-		+ 1 /* SkyboxRenderer */
-		+ 1 /* Rec709Renderer */
-		+ 2 /* OutlineRenderer */,
-		poolSizes,
-	} };
+	return {
+		device,
+		(vku::PoolSizes { sharedData->depthRenderer.descriptorSetLayouts }
+		+ vku::PoolSizes { sharedData->jumpFloodComputer.descriptorSetLayouts } * 2
+		+ vku::PoolSizes { sharedData->primitiveRenderer.descriptorSetLayouts }
+		+ vku::PoolSizes { sharedData->skyboxRenderer.descriptorSetLayouts }
+		+ vku::PoolSizes { sharedData->outlineRenderer.descriptorSetLayouts } * 2
+		+ vku::PoolSizes { sharedData->rec709Renderer.descriptorSetLayouts })
+		.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
+	};
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createCommandPool(

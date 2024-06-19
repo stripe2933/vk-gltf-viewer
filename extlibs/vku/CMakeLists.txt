@@ -82,6 +82,7 @@ target_sources(vku PUBLIC
         interface/descriptors/mod.cppm
         interface/descriptors/DescriptorSetLayouts.cppm
         interface/descriptors/DescriptorSets.cppm
+        interface/descriptors/PoolSizes.cppm
         interface/details/mod.cppm
         interface/details/concepts.cppm
         interface/details/nofield.cppm
