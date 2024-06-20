@@ -37,7 +37,8 @@ namespace vk_gltf_viewer::vulkan::pipelines {
 
         struct PushConstant {
             glm::vec3 outlineColor;
-            float lineWidth;
+            float outlineThickness;
+            vk::Bool32 useZwComponent;
         };
 
         DescriptorSetLayouts descriptorSetLayouts;
@@ -46,7 +47,10 @@ namespace vk_gltf_viewer::vulkan::pipelines {
 
         OutlineRenderer(const vk::raii::Device &device, vk::RenderPass renderPass, std::uint32_t subpass, const shaderc::Compiler &compiler);
 
-        auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const PushConstant &pushConstant) const -> void;
+        auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
+        auto bindDescriptorSets(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets) const -> void;
+        auto pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const -> void;
+        auto draw(vk::CommandBuffer commandBuffer) const -> void;
 
     private:
         static std::string_view vert, frag;

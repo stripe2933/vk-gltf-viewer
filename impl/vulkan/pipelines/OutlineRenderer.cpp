@@ -43,18 +43,15 @@ layout (input_attachment_index = 0, set = 0, binding = 0) uniform usubpassInput 
 
 layout (push_constant, std430) uniform PushConstant {
     vec3 outlineColor;
-    float lineWidth;
+    float outlineThickness;
+    bool useZwComponent;
 } pc;
 
 void main(){
-    float alpha = 0.0;
-
-    float signedDistance = distance(subpassLoad(jumpFloodImage).xy, gl_FragCoord.xy);
-    if (gl_FragCoord.x > pc.lineWidth && gl_FragCoord.y > pc.lineWidth && signedDistance > 1.0){
-        alpha = smoothstep(pc.lineWidth + 1.0, pc.lineWidth, signedDistance);
-    }
-
-    outColor = vec4(pc.outlineColor, alpha);
+    uvec4 inputTexel = subpassLoad(jumpFloodImage);
+    float signedDistance = distance(pc.useZwComponent ? inputTexel.zw : inputTexel.xy, gl_FragCoord.xy);
+    outColor.rgb = pc.outlineColor;
+    outColor.a = signedDistance > 1.0 ? smoothstep(pc.outlineThickness + 1.0, pc.outlineThickness, signedDistance) : 0.0;
 }
 )frag";
 
@@ -77,15 +74,30 @@ vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::OutlineRenderer(
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, renderPass, subpass, compiler) } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::draw(
-    vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
-    const PushConstant &pushConstant
+auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::bindPipeline(
+    vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
+}
+
+auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::bindDescriptorSets(
+    vk::CommandBuffer commandBuffer,
+    const DescriptorSets &descriptorSets
+) const -> void {
     commandBuffer.bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
+}
+
+auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::pushConstants(
+    vk::CommandBuffer commandBuffer,
+    const PushConstant &pushConstant
+) const -> void {
     commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, pushConstant);
+}
+
+auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::draw(
+    vk::CommandBuffer commandBuffer
+) const -> void {
     commandBuffer.draw(3, 1, 0, 0);
 }
 

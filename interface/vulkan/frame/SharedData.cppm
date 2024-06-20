@@ -58,8 +58,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 		pipelines::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler };
 		pipelines::SkyboxRenderer skyboxRenderer { gpu, compiler };
     	pipelines::Rec709Renderer rec709Renderer { gpu.device, *compositionRenderPass, 0, compiler };
-		pipelines::OutlineRenderer hoveringNodeOutlineRenderer { gpu.device, *compositionRenderPass, 1, compiler },
-    	                           selectedNodeOutlineRenderer { gpu.device, *compositionRenderPass, 2, compiler };
+		pipelines::OutlineRenderer outlineRenderer { gpu.device, *compositionRenderPass, 1, compiler };
 
     	// Attachment groups.
     	std::vector<vku::AttachmentGroup> swapchainAttachmentGroups = createSwapchainAttachmentGroups();

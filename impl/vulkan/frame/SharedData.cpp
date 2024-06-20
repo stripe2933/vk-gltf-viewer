@@ -133,7 +133,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
             		{}, {}, {},
             		vk::ImageMemoryBarrier {
             		    {}, vk::AccessFlagBits::eShaderRead,
-            			{}, {},
+            			vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
             			gpu.queueFamilies.transfer, gpu.queueFamilies.compute,
             			eqmapImage, vku::fullSubresourceRange(),
             		});
@@ -373,15 +373,7 @@ auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> 
 		// Input attachments.
 		vk::AttachmentDescription {
 			{},
-			vk::Format::eR16G16Uint,
-			vk::SampleCountFlagBits::e1,
-			vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eDontCare,
-			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-			vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
-		},
-		vk::AttachmentDescription {
-			{},
-			vk::Format::eR16G16Uint,
+			vk::Format::eR16G16B16A16Uint,
 			vk::SampleCountFlagBits::e1,
 			vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eDontCare,
 			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
@@ -404,8 +396,7 @@ auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> 
 		vk::AttachmentReference { 1, vk::ImageLayout::eColorAttachmentOptimal },
 		// OutlineRenderer.
 		vk::AttachmentReference { 2, vk::ImageLayout::eShaderReadOnlyOptimal },
-		vk::AttachmentReference { 3, vk::ImageLayout::eShaderReadOnlyOptimal },
-		vk::AttachmentReference { 4, vk::ImageLayout::eColorAttachmentOptimal },
+		vk::AttachmentReference { 3, vk::ImageLayout::eColorAttachmentOptimal },
 	};
 
 	const std::array subpassDescriptions {
@@ -419,31 +410,26 @@ auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> 
 			{},
 			vk::PipelineBindPoint::eGraphics,
 			1, &attachmentReferences[2],
-			1, &attachmentReferences[4],
-		},
-		vk::SubpassDescription {
-			{},
-			vk::PipelineBindPoint::eGraphics,
 			1, &attachmentReferences[3],
-			1, &attachmentReferences[4],
 		},
 	};
 
 	constexpr std::array subpassDependencies {
 		vk::SubpassDependency {
 			vk::SubpassExternal, 0,
-			vk::PipelineStageFlagBits::eFragmentShader, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-			vk::AccessFlagBits::eShaderRead, vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader,
+			vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eShaderRead,
 		},
 		vk::SubpassDependency {
 			0, 1,
 			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-			vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentWrite,
 		},
 		vk::SubpassDependency {
-			1, 2,
+			1, 1,
 			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-			vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::DependencyFlagBits::eByRegion,
 		},
 	};
 

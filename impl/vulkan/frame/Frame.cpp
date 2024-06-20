@@ -16,7 +16,6 @@ module;
 #include <vector>
 
 #include <fastgltf/core.hpp>
-#include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
 import :vulkan.frame.Frame;
@@ -29,48 +28,6 @@ import :io.logger;
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
-
-vk_gltf_viewer::vulkan::Frame::JumpFloodResources::JumpFloodResources(
-	const Gpu &gpu,
-	const vk::Extent2D &extent
-) : image { createImage(gpu.allocator, extent) },
-	pingImageView { createImageView(gpu.device, 0) },
-	pongImageView { createImageView(gpu.device, 1) } { }
-
-auto vk_gltf_viewer::vulkan::Frame::JumpFloodResources::createImage(
-	vma::Allocator allocator,
-	const vk::Extent2D &extent
-) const -> decltype(image) {
-	return { allocator, vk::ImageCreateInfo {
-		{},
-		vk::ImageType::e2D,
-		vk::Format::eR16G16Uint,
-		vk::Extent3D { extent, 1 },
-		1, 2,
-		vk::SampleCountFlagBits::e1,
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */
-			| vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer */
-			| vk::ImageUsageFlagBits::eInputAttachment /* read from OutlineRenderer */,
-	}, vma::AllocationCreateInfo {
-		{},
-		vma::MemoryUsage::eAutoPreferDevice,
-	} };
-}
-
-auto vk_gltf_viewer::vulkan::Frame::JumpFloodResources::createImageView(
-    const vk::raii::Device &device,
-    std::uint32_t arrayLayer
-) const -> vk::raii::ImageView {
-	return { device, vk::ImageViewCreateInfo {
-		{},
-		image,
-		vk::ImageViewType::e2D,
-		image.format,
-		{},
-		vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, arrayLayer, 1 },
-	} };
-}
 
 vk_gltf_viewer::vulkan::Frame::Frame(
 	const GlobalState &globalState,
@@ -95,8 +52,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	    	depthSets.getDescriptorWrites0(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
-	    	get<0>(jumpFloodSets).getDescriptorWrites0(*hoveringNodeJumpFloodResources.pingImageView, *hoveringNodeJumpFloodResources.pongImageView).get(),
-	    	get<1>(jumpFloodSets).getDescriptorWrites0(*selectedNodeJumpFloodResources.pingImageView, *selectedNodeJumpFloodResources.pongImageView).get(),
+	    	jumpFloodSets.getDescriptorWrites0(*jumpFloodImageViews.ping, *jumpFloodImageViews.pong).get(),
 		    primitiveSets.getDescriptorWrites0(
 		    	{ sharedData->imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
 		    	*sharedData->imageBasedLightingResources.value().prefilteredmapImageView,
@@ -159,22 +115,26 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop() -> std::expected<OnLoopResult, OnLo
 	graphicsCommandPool.reset();
 	computeCommandPool.reset();
 
-	depthPrepass(depthPrepassCommandBuffer);
+	depthPrepassCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+	recordDepthPrepassCommands(depthPrepassCommandBuffer);
+	depthPrepassCommandBuffer.end();
 
-	const auto [hoveringNodeJumpFloodResult, selectedNodeJumpFloodResult] = jumpFlood(jumpFloodCommandBuffer);
-	if (hoveringNodeJumpFloodResult) {
+	jumpFloodCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+	const std::optional<bool> jumpFloodResultForward = recordJumpFloodCalculationCommands(jumpFloodCommandBuffer);
+	jumpFloodCommandBuffer.end();
+	if (jumpFloodResultForward.has_value()) {
 		gpu.device.updateDescriptorSets(
-			hoveringNodeOutlineSets.getDescriptorWrites0(*hoveringNodeJumpFloodResult ? hoveringNodeJumpFloodResources.pongImageView : hoveringNodeJumpFloodResources.pingImageView).get(),
+			outlineSets.getDescriptorWrites0(*jumpFloodResultForward ? *jumpFloodImageViews.pong : *jumpFloodImageViews.ping).get(),
 			{});
 	}
-	if (selectedNodeJumpFloodResult) {
-		gpu.device.updateDescriptorSets(
-			selectedNodeOutlineSets.getDescriptorWrites0(*selectedNodeJumpFloodResult ? selectedNodeJumpFloodResources.pongImageView : selectedNodeJumpFloodResources.pingImageView).get(),
-			{});
-	}
 
-	draw(drawCommandBuffer);
-	composite(compositeCommandBuffer, hoveringNodeJumpFloodResult, selectedNodeJumpFloodResult, imageIndex);
+	drawCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+	recordGltfPrimitiveDrawCommands(drawCommandBuffer);
+	drawCommandBuffer.end();
+
+	compositeCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+	recordPostCompositionCommands(compositeCommandBuffer, jumpFloodResultForward, imageIndex);
+	compositeCommandBuffer.end();
 
 	// Submit commands to the corresponding queues.
 	gpu.queues.graphicsPresent.submit(vk::SubmitInfo {
@@ -196,7 +156,7 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop() -> std::expected<OnLoopResult, OnLo
 
 	const std::array compositeWaitSemas { *swapchainImageAcquireSema, *drawFinishSema, *jumpFloodFinishSema };
 	constexpr std::array compositeWaitStages {
-		vku::toFlags(vk::PipelineStageFlagBits::eFragmentShader),
+		vku::toFlags(vk::PipelineStageFlagBits::eColorAttachmentOutput),
 		vku::toFlags(vk::PipelineStageFlagBits::eFragmentShader),
 		vku::toFlags(vk::PipelineStageFlagBits::eFragmentShader),
 	};
@@ -235,17 +195,16 @@ auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
 	vk::SurfaceKHR surface,
 	const vk::Extent2D &newExtent
 ) -> void {
-	hoveringNodeJumpFloodResources = { gpu, sharedData->swapchainExtent };
-	selectedNodeJumpFloodResources = { gpu, sharedData->swapchainExtent };
+	jumpFloodImage = createJumpFloodImage();
+	jumpFloodImageViews = createJumpFloodImageViews();
 	depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup();
 	primaryAttachmentGroup = createPrimaryAttachmentGroup();
 	initAttachmentLayouts();
 
 	// Update per-frame descriptor sets.
 	gpu.device.updateDescriptorSets(
-	ranges::array_cat(
-		    get<0>(jumpFloodSets).getDescriptorWrites0(*hoveringNodeJumpFloodResources.pingImageView, *hoveringNodeJumpFloodResources.pongImageView).get(),
-		    get<1>(jumpFloodSets).getDescriptorWrites0(*selectedNodeJumpFloodResources.pingImageView, *selectedNodeJumpFloodResources.pongImageView).get(),
+		ranges::array_cat(
+		    jumpFloodSets.getDescriptorWrites0(*jumpFloodImageViews.ping, *jumpFloodImageViews.pong).get(),
 			rec709Sets.getDescriptorWrites0(*primaryAttachmentGroup.colorAttachments[0].resolveView).get()),
 		{});
 
@@ -255,20 +214,49 @@ auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
 	io::logger::debug("Swapchain resize handling for Frame finished");
 }
 
+auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImage() const -> decltype(jumpFloodImage) {
+	return { gpu.allocator, vk::ImageCreateInfo {
+		{},
+		vk::ImageType::e2D,
+		vk::Format::eR16G16B16A16Uint,
+		vk::Extent3D { sharedData->swapchainExtent, 1 },
+		1, 2, // arrayLevels=0 for ping image, arrayLevels=1 for pong image.
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */
+			| vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer */
+			| vk::ImageUsageFlagBits::eInputAttachment /* read from OutlineRenderer */,
+	}, vma::AllocationCreateInfo {
+		{},
+		vma::MemoryUsage::eAutoPreferDevice,
+	} };
+}
+
+auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImageViews() const -> decltype(jumpFloodImageViews) {
+	return INDEX_SEQ(Is, 2, {
+		return decltype(jumpFloodImageViews) {
+			vk::raii::ImageView { gpu.device, vk::ImageViewCreateInfo {
+				{},
+				jumpFloodImage,
+				vk::ImageViewType::e2D,
+				jumpFloodImage.format,
+				{},
+				vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, Is, 1 },
+			} }...
+		};
+	});
+}
+
 auto vk_gltf_viewer::vulkan::Frame::createDepthPrepassAttachmentGroup() const -> decltype(depthPrepassAttachmentGroup) {
 	vku::AttachmentGroup attachmentGroup { sharedData->swapchainExtent };
 	attachmentGroup.addColorAttachment(
 		gpu.device,
 		attachmentGroup.storeImage(
 			attachmentGroup.createColorImage(gpu.allocator, vk::Format::eR32Uint, vk::ImageUsageFlagBits::eTransferSrc)));
-	// Hovering node fragment coordinates.
 	attachmentGroup.addColorAttachment(
 		gpu.device,
-		hoveringNodeJumpFloodResources.image, hoveringNodeJumpFloodResources.image.format, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-	// Selected node fragment coordinates.
-	attachmentGroup.addColorAttachment(
-		gpu.device,
-		selectedNodeJumpFloodResources.image, selectedNodeJumpFloodResources.image.format, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
+		jumpFloodImage, jumpFloodImage.format,
+		{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image subresource */);
 	attachmentGroup.setDepthAttachment(
 		gpu.device,
 		attachmentGroup.storeImage(
@@ -295,11 +283,10 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(des
 	return {
 		gpu.device,
 		(vku::PoolSizes { sharedData->depthRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->jumpFloodComputer.descriptorSetLayouts } * 2
+		    + vku::PoolSizes { sharedData->jumpFloodComputer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->primitiveRenderer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->skyboxRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->hoveringNodeOutlineRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->selectedNodeOutlineRenderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData->outlineRenderer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->rec709Renderer.descriptorSetLayouts })
 		.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
 	};
@@ -309,16 +296,16 @@ auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
 	std::uint32_t queueFamilyIndex
 ) const -> vk::raii::CommandPool {
 	return { gpu.device, vk::CommandPoolCreateInfo{
-		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+		{},
 		queueFamilyIndex,
 	} };
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer() const -> decltype(compositionFramebuffer) {
 	const std::tuple attachmentImageFormats {
-		std::array { vk::Format::eR16G16B16A16Sfloat },
-		std::array { vk::Format::eB8G8R8A8Srgb },
-		std::array { vk::Format::eR16G16Uint },
+		std::array { vk::Format::eR16G16B16A16Sfloat }, // Primitive rendering image.
+		std::array { vk::Format::eB8G8R8A8Srgb }, // Swapchain image.
+		std::array { vk::Format::eR16G16B16A16Uint }, // Jump flood calculation image.
 	};
 	const std::array attachmentImageInfos {
 		vk::FramebufferAttachmentImageInfo {
@@ -336,13 +323,7 @@ auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer() const -> decl
 		vk::FramebufferAttachmentImageInfo {
 			{},
 			vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eInputAttachment,
-			hoveringNodeJumpFloodResources.image.extent.width, hoveringNodeJumpFloodResources.image.extent.height, 1,
-			get<2>(attachmentImageFormats),
-		},
-		vk::FramebufferAttachmentImageInfo {
-			{},
-			vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eInputAttachment,
-			selectedNodeJumpFloodResources.image.extent.width, selectedNodeJumpFloodResources.image.extent.height, 1,
+			jumpFloodImage.extent.width, jumpFloodImage.extent.height, 1,
 			get<2>(attachmentImageFormats),
 		},
 		vk::FramebufferAttachmentImageInfo {
@@ -356,7 +337,7 @@ auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer() const -> decl
 		vk::FramebufferCreateInfo {
 			vk::FramebufferCreateFlagBits::eImageless,
 			*sharedData->compositionRenderPass,
-			5, nullptr,
+			attachmentImageInfos.size(), nullptr,
 			sharedData->swapchainExtent.width, sharedData->swapchainExtent.height,
 			1,
 		},
@@ -374,8 +355,7 @@ auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts() const -> void {
 			image, subresourceRange);
 	};
 
-	appendBarrier(vk::ImageLayout::eGeneral, hoveringNodeJumpFloodResources.image);
-	appendBarrier(vk::ImageLayout::eGeneral, selectedNodeJumpFloodResources.image);
+	appendBarrier(vk::ImageLayout::eGeneral, jumpFloodImage);
 	appendBarrier(vk::ImageLayout::eTransferSrcOptimal, depthPrepassAttachmentGroup.colorAttachments[0].image);
 	appendBarrier(vk::ImageLayout::eDepthAttachmentOptimal, depthPrepassAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth));
 	appendBarrier(vk::ImageLayout::eColorAttachmentOptimal, primaryAttachmentGroup.colorAttachments[0].image);
@@ -393,16 +373,16 @@ auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts() const -> void {
 auto vk_gltf_viewer::vulkan::Frame::update(
 	OnLoopResult &result
 ) -> void {
+	// Get node index under the cursor from hoveringNodeIndexBuffer.
+	// If it is not NO_INDEX (i.e. node index is found), update hoveringNodeIndex.
 	if (auto value = std::exchange(hoveringNodeIndexBuffer.asValue<std::uint32_t>(), NO_INDEX); value != NO_INDEX) {
 		result.hoveringNodeIndex = value;
 	}
 }
 
-auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
+auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	vk::CommandBuffer cb
 ) const -> void {
-	cb.begin(vk::CommandBufferBeginInfo { vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
-
 	// Change color attachment layout to ColorAttachmentOptimal.
 	cb.pipelineBarrier(
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
@@ -418,50 +398,40 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 				{}, vk::AccessFlagBits::eColorAttachmentWrite,
 				vk::ImageLayout::eGeneral, vk::ImageLayout::eColorAttachmentOptimal,
 				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				hoveringNodeJumpFloodResources.image,
-				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-			},
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eColorAttachmentWrite,
-				vk::ImageLayout::eGeneral, vk::ImageLayout::eColorAttachmentOptimal,
-				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				selectedNodeJumpFloodResources.image,
-				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+				jumpFloodImage,
+				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
 			},
 		});
 
-	// Begin dynamic rendering.
-	vku::renderingScoped(
-		cb,
-		depthPrepassAttachmentGroup.getRenderingInfo(
-			std::array {
-				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { std::numeric_limits<std::uint32_t>::max(), 0U, 0U, 0U } },
-				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
-				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
-			},
-			vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 1.f, 0U } }),
-		[&]() {
-			// Set viewport and scissor.
-			depthPrepassAttachmentGroup.setViewport(cb, true);
-			depthPrepassAttachmentGroup.setScissor(cb);
+	cb.beginRenderingKHR(depthPrepassAttachmentGroup.getRenderingInfo(
+		std::array {
+			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { std::numeric_limits<std::uint32_t>::max(), 0U, 0U, 0U } },
+			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
+		},
+		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 1.f, 0U } }));
+	[&]() {
+		// Set viewport and scissor.
+		depthPrepassAttachmentGroup.setViewport(cb, true);
+		depthPrepassAttachmentGroup.setScissor(cb);
 
-			sharedData->depthRenderer.bindPipeline(cb);
-			sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
-			sharedData->depthRenderer.pushConstants(cb, {
-				globalState.camera.projection * globalState.camera.view,
-				globalState.hoveringNodeIndex.value_or(NO_INDEX),
-				globalState.selectedNodeIndex.value_or(NO_INDEX),
-			});
-			for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
-				if (const auto &indexType = criteria.indexType) {
-					cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
-					cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-				}
-				else {
-					cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-				}
+		sharedData->depthRenderer.bindPipeline(cb);
+		sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
+		sharedData->depthRenderer.pushConstants(cb, {
+			globalState.camera.projection * globalState.camera.view,
+			globalState.hoveringNodeIndex.value_or(NO_INDEX),
+			globalState.selectedNodeIndex.value_or(NO_INDEX),
+		});
+		for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
+			if (const auto &indexType = criteria.indexType) {
+				cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+				cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 			}
-		});
+			else {
+				cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+			}
+		}
+	}();
+	cb.endRenderingKHR();
 
 	const std::array imageMemoryBarriers {
 		// For copying to hoveringNodeIndexBuffer.
@@ -478,16 +448,8 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 			vk::PipelineStageFlagBits2::eAllCommands, vk::AccessFlagBits2::eNone,
 			{}, {},
 			gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
-			hoveringNodeJumpFloodResources.image,
-			{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-		},
-		vk::ImageMemoryBarrier2 {
-			vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
-			vk::PipelineStageFlagBits2::eAllCommands, vk::AccessFlagBits2::eNone,
-			{}, {},
-			gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
-			selectedNodeJumpFloodResources.image,
-			{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+			jumpFloodImage,
+			{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
 		},
 	};
 	cb.pipelineBarrier2KHR({
@@ -512,205 +474,165 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 				{ 1, 1, 1 },
 			});
 	}
-
-	cb.end();
 }
 
-auto vk_gltf_viewer::vulkan::Frame::jumpFlood(
+auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodCalculationCommands(
 	vk::CommandBuffer cb
-) const -> std::pair<std::optional<bool>, std::optional<bool>> {
-	cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
-
+) const -> std::optional<bool> {
 	// Change image layout and acquire queue family ownership.
 	cb.pipelineBarrier(
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eComputeShader,
 		{}, {}, {},
-		std::array {
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eShaderRead,
-				vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
-			    gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
-			    hoveringNodeJumpFloodResources.image,
-			    { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-			},
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eShaderRead,
-				vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
-			    gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
-			    selectedNodeJumpFloodResources.image,
-			    { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-			},
+		vk::ImageMemoryBarrier {
+			{}, vk::AccessFlagBits::eShaderRead,
+			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
+		    gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
+		    jumpFloodImage,
+		    { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping */,
 		});
 
-	const auto hoveringNodeResultForward = [&]() -> std::optional<bool> {
-		if (globalState.hoveringNodeIndex) {
-			return sharedData->jumpFloodComputer.compute(cb, get<0>(jumpFloodSets), vku::toExtent2D(hoveringNodeJumpFloodResources.image.extent));
+	if (globalState.hoveringNodeIndex || globalState.selectedNodeIndex) {
+		auto forward = sharedData->jumpFloodComputer.compute(cb, jumpFloodSets, vku::toExtent2D(jumpFloodImage.extent));
+		// Release queue family ownership.
+		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eAllCommands,
+				{}, {}, {},
+				vk::ImageMemoryBarrier {
+					vk::AccessFlagBits::eShaderWrite, {},
+					{}, {},
+					gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+					jumpFloodImage, { vk::ImageAspectFlagBits::eColor, 0, 1, forward, 1 },
+				});
 		}
-		return std::nullopt;
-	}();
-	const auto selectedNodeResultForward = [&]() -> std::optional<bool> {
-		if (globalState.selectedNodeIndex) {
-			return sharedData->jumpFloodComputer.compute(cb, get<1>(jumpFloodSets), vku::toExtent2D(selectedNodeJumpFloodResources.image.extent));
-		}
-		return std::nullopt;
-	}();
-
-	// Since JFA calculated on same dimension image, step count must be same, and consequently forward flags must be same.
-	assert(!hoveringNodeResultForward || !selectedNodeResultForward
-		|| *hoveringNodeResultForward == *selectedNodeResultForward
-		&& "Invalid JFA calculation result: two forward flags must be same");
-
-	// Release queue family ownership.
-	std::vector<vk::ImageMemoryBarrier> barriers;
-	if (hoveringNodeResultForward) {
-		barriers.emplace_back(
-		    vk::AccessFlagBits::eShaderWrite, vk::AccessFlags{},
-			vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
-			gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-			hoveringNodeJumpFloodResources.image,
-			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *hoveringNodeResultForward, 1 });
+		return forward;
 	}
-	if (selectedNodeResultForward) {
-		barriers.emplace_back(
-		    vk::AccessFlagBits::eShaderWrite, vk::AccessFlags{},
-			vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
-			gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-			selectedNodeJumpFloodResources.image,
-			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *selectedNodeResultForward, 1 });
-	}
-	if (!barriers.empty()) {
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eAllCommands,
-			{}, {}, {}, barriers);
-	}
-
-	cb.end();
-
-	return { hoveringNodeResultForward, selectedNodeResultForward };
+	return std::nullopt;
 }
 
-auto vk_gltf_viewer::vulkan::Frame::draw(
+auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	vk::CommandBuffer cb
 ) const -> void {
-	cb.begin(vk::CommandBufferBeginInfo { vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+	cb.beginRenderingKHR(primaryAttachmentGroup.getRenderingInfo(
+		std::array {
+			vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare },
+		},
+		vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 1.f, 0U } }));
 
-	vku::renderingScoped(
-		cb,
-		primaryAttachmentGroup.getRenderingInfo(
-			std::array {
-				vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare },
-			},
-			vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 1.f, 0U } }),
-		[&]() {
-			// Set viewport and scissor.
-			primaryAttachmentGroup.setViewport(cb, true);
-			primaryAttachmentGroup.setScissor(cb);
+	// Set viewport and scissor.
+	primaryAttachmentGroup.setViewport(cb, true);
+	primaryAttachmentGroup.setScissor(cb);
 
-			// Draw glTF mesh.
-			sharedData->primitiveRenderer.bindPipeline(cb);
-			sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
-			sharedData->primitiveRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, globalState.camera.getEye() });
-			for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
-				cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
+	// Draw glTF mesh.
+	sharedData->primitiveRenderer.bindPipeline(cb);
+	sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
+	sharedData->primitiveRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, globalState.camera.getEye() });
+	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
+		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
-				if (const auto &indexType = criteria.indexType) {
-					cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
-					cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-				}
-				else {
-					cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-				}
-			}
+		if (const auto &indexType = criteria.indexType) {
+			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+		}
+		else {
+			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+		}
+	}
 
-			// Draw skybox.
-			sharedData->skyboxRenderer.draw(cb, skyboxSets, {
-				globalState.camera.projection * glm::mat4 { glm::mat3 { globalState.camera.view } },
-			});
-		});
+	// Draw skybox.
+	const glm::mat4 noTranslationView = { glm::mat3 { globalState.camera.view } };
+	sharedData->skyboxRenderer.draw(cb, skyboxSets, {
+		globalState.camera.projection * noTranslationView,
+	});
 
-	cb.end();
+	cb.endRenderingKHR();
 }
 
-auto vk_gltf_viewer::vulkan::Frame::composite(
+auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 	vk::CommandBuffer cb,
-	const std::optional<bool> &isHoveringNodeJumpFloodResultForward,
-	const std::optional<bool> &isSelectedNodeJumpFloodResultForward,
+	std::optional<bool> isJumpFloodResultForward,
 	std::uint32_t swapchainImageIndex
 ) const -> void {
-	cb.begin(vk::CommandBufferBeginInfo { vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
-
 	// Acquire jumpFloodImage queue family ownership.
-	std::vector<vk::ImageMemoryBarrier> barriers;
-	if (isHoveringNodeJumpFloodResultForward) {
-		barriers.emplace_back(
-		    vk::AccessFlags{}, vk::AccessFlagBits::eShaderRead,
-		    vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
-		    gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-		    hoveringNodeJumpFloodResources.image,
-		    vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *isHoveringNodeJumpFloodResultForward, 1 });
-	}
-	if (isSelectedNodeJumpFloodResultForward) {
-		barriers.emplace_back(
-		    vk::AccessFlags{}, vk::AccessFlagBits::eShaderRead,
-		    vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
-		    gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-		    selectedNodeJumpFloodResources.image,
-		    vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *isSelectedNodeJumpFloodResultForward, 1 });
-	}
-	if (!barriers.empty()) {
+	if ((globalState.hoveringNodeIndex || globalState.selectedNodeIndex) && gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
 		cb.pipelineBarrier(
 			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eFragmentShader,
-			{}, {}, {}, barriers);
+			{}, {}, {},
+			vk::ImageMemoryBarrier {
+				{}, vk::AccessFlagBits::eShaderRead,
+				vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
+				gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+				jumpFloodImage, { vk::ImageAspectFlagBits::eColor, 0, 1, *isJumpFloodResultForward, 1 },
+			});
 	}
 
-	constexpr std::array<vk::ClearValue, 5> clearValues{};
+	constexpr std::array<vk::ClearValue, 4> clearValues{};
 	const std::array framebufferImageViews {
 		*primaryAttachmentGroup.colorAttachments[0].resolveView,
 		*sharedData->swapchainAttachmentGroups[swapchainImageIndex].colorAttachments[0].view,
 		// If JFA not computed, use the first image (it just transition the layout to General and does not matter).
-		isHoveringNodeJumpFloodResultForward.value_or(false) ? *hoveringNodeJumpFloodResources.pongImageView : *hoveringNodeJumpFloodResources.pingImageView,
-		isSelectedNodeJumpFloodResultForward.value_or(false) ? *selectedNodeJumpFloodResources.pongImageView : *selectedNodeJumpFloodResources.pingImageView,
+		(isJumpFloodResultForward && *isJumpFloodResultForward) ? *jumpFloodImageViews.pong : *jumpFloodImageViews.ping,
 		*sharedData->swapchainAttachmentGroups[swapchainImageIndex].colorAttachments[0].view,
 	};
-	vku::renderPassScoped(
-		cb,
-		vk::StructureChain {
-			vk::RenderPassBeginInfo {
-				*sharedData->compositionRenderPass,
-				*compositionFramebuffer,
-				{ { 0, 0 }, sharedData->swapchainExtent },
-				clearValues,
-			},
-			vk::RenderPassAttachmentBeginInfo { framebufferImageViews },
-		}.get(),
-		vk::SubpassContents::eInline,
-		[&]() {
-			// TODO: proper viewport/scissor setting.
-			sharedData->swapchainAttachmentGroups[0].setViewport(cb, true);
-			sharedData->swapchainAttachmentGroups[0].setScissor(cb);
 
-			sharedData->rec709Renderer.draw(cb, rec709Sets);
+	// Start render pass.
+	cb.beginRenderPass(vk::StructureChain {
+		vk::RenderPassBeginInfo {
+			*sharedData->compositionRenderPass,
+			*compositionFramebuffer,
+			{ { 0, 0 }, sharedData->swapchainExtent },
+			clearValues,
+		},
+		vk::RenderPassAttachmentBeginInfo { framebufferImageViews },
+	}.get(), vk::SubpassContents::eInline);
+	[&]() {
+		sharedData->swapchainAttachmentGroups[swapchainImageIndex].setViewport(cb, true);
+		sharedData->swapchainAttachmentGroups[swapchainImageIndex].setScissor(cb);
 
-			cb.nextSubpass(vk::SubpassContents::eInline);
+		// Draw primitive rendering image to swapchain, with Rec709 tone mapping.
+		sharedData->rec709Renderer.draw(cb, rec709Sets);
 
-			if (isHoveringNodeJumpFloodResultForward) {
-				// TODO: proper viewport/scissor setting.
-				sharedData->swapchainAttachmentGroups[0].setViewport(cb, true);
-				sharedData->swapchainAttachmentGroups[0].setScissor(cb);
+		cb.nextSubpass(vk::SubpassContents::eInline);
 
-				sharedData->hoveringNodeOutlineRenderer.draw(cb, hoveringNodeOutlineSets, { .outlineColor = { 1.f, 0.5f, 0.2f }, .lineWidth = 4.f });
+		// Draw hovering/selected node outline if exists.
+		if (globalState.hoveringNodeIndex || globalState.selectedNodeIndex) {
+			sharedData->outlineRenderer.bindPipeline(cb);
+			sharedData->outlineRenderer.bindDescriptorSets(cb, outlineSets);
+
+			if (globalState.selectedNodeIndex) {
+				sharedData->outlineRenderer.pushConstants(cb, {
+					.outlineColor = { 0.f, 1.f, 0.2f },
+					.outlineThickness = 4.f,
+					.useZwComponent = true,
+				});
+				sharedData->outlineRenderer.draw(cb);
 			}
+			if (globalState.selectedNodeIndex && globalState.hoveringNodeIndex) {
+				// Special case: if both selectedNodeIndex and hoveringNodeIndex exist and are the same, the
+				// outlines will overlap, so the latter one doesn’t need to be rendered.
+				if (*globalState.selectedNodeIndex == *globalState.hoveringNodeIndex) {
+					return;
+				}
 
-			cb.nextSubpass(vk::SubpassContents::eInline);
-
-			if (isSelectedNodeJumpFloodResultForward) {
-				// TODO: proper viewport/scissor setting.
-				sharedData->swapchainAttachmentGroups[0].setViewport(cb, true);
-				sharedData->swapchainAttachmentGroups[0].setScissor(cb);
-
-				sharedData->selectedNodeOutlineRenderer.draw(cb, selectedNodeOutlineSets, { .outlineColor = { 0.f, 1.f, 0.2f }, .lineWidth = 4.f });
+				// If we need to draw the outlines of both the hovering node and the selected node, a memory barrier
+				// is required between the two overlapping drawings.
+				cb.pipelineBarrier(
+					vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+					vk::DependencyFlagBits::eByRegion,
+					vk::MemoryBarrier {
+						vk::AccessFlagBits::eColorAttachmentWrite,
+						vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
+					}, {}, {});
 			}
-		});
-
-	cb.end();
+			if (globalState.hoveringNodeIndex) {
+				sharedData->outlineRenderer.pushConstants(cb, {
+					.outlineColor = { 1.f, 0.5f, 0.2f },
+					.outlineThickness = 4.f,
+					.useZwComponent = false,
+				});
+				sharedData->outlineRenderer.draw(cb);
+			}
+		}
+	}();
+    cb.endRenderPass();
 }

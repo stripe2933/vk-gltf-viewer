@@ -11,7 +11,7 @@ namespace vk_gltf_viewer {
     public:
         control::Camera camera;
         glm::uvec2 framebufferCursorPosition;
-        std::optional<std::uint32_t> hoveringNodeIndex, selectedNodeIndex = std::nullopt;
+        std::optional<std::uint32_t> hoveringNodeIndex, selectedNodeIndex;
 
         [[nodiscard]] static auto getInstance() noexcept -> GlobalState&;
 
