@@ -3,9 +3,11 @@ module;
 #include <cstdint>
 #include <array>
 #include <compare>
+#include <format>
 #include <string_view>
 
 #include <shaderc/shaderc.hpp>
+#include <vulkan/vulkan_hpp_macros.hpp>
 
 export module pbrenvmap:pipelines.SphericalHarmonicCoefficientsSumComputer;
 

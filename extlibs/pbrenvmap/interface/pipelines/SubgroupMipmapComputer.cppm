@@ -4,12 +4,14 @@ module;
 #include <algorithm>
 #include <array>
 #include <compare>
+#include <format>
 #include <ranges>
 #include <span>
 #include <string_view>
 #include <vector>
 
 #include <shaderc/shaderc.hpp>
+#include <vulkan/vulkan_hpp_macros.hpp>
 
 export module pbrenvmap:pipelines.SubgroupMipmapComputer;
 

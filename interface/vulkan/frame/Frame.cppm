@@ -4,9 +4,12 @@ module;
 #include <array>
 #include <compare>
 #include <expected>
+#include <format>
 #include <memory>
 #include <optional>
 #include <vector>
+
+#include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vk_gltf_viewer:vulkan.frame.Frame;
 

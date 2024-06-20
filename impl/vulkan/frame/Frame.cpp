@@ -16,6 +16,7 @@ module;
 #include <vector>
 
 #include <fastgltf/core.hpp>
+#include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
 import :vulkan.frame.Frame;

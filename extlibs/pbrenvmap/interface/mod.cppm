@@ -7,6 +7,8 @@ module;
 #include <ranges>
 #include <vector>
 
+#include <vulkan/vulkan_hpp_macros.hpp>
+
 export module pbrenvmap;
 
 export import vku;
