@@ -3,6 +3,7 @@ module;
 #include <cstdint>
 #include <algorithm>
 #include <array>
+#include <expected>
 #include <format>
 #include <limits>
 #include <memory>
@@ -29,8 +30,50 @@ import :io.logger;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
 
+vk_gltf_viewer::vulkan::Frame::JumpFloodResources::JumpFloodResources(
+	const Gpu &gpu,
+	const vk::Extent2D &extent
+) : image { createImage(gpu.allocator, extent) },
+	pingImageView { createImageView(gpu.device, 0) },
+	pongImageView { createImageView(gpu.device, 1) } { }
+
+auto vk_gltf_viewer::vulkan::Frame::JumpFloodResources::createImage(
+	vma::Allocator allocator,
+	const vk::Extent2D &extent
+) const -> decltype(image) {
+	return { allocator, vk::ImageCreateInfo {
+		{},
+		vk::ImageType::e2D,
+		vk::Format::eR16G16Uint,
+		vk::Extent3D { extent, 1 },
+		1, 2,
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */
+			| vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer */
+			| vk::ImageUsageFlagBits::eInputAttachment /* read from OutlineRenderer */,
+	}, vma::AllocationCreateInfo {
+		{},
+		vma::MemoryUsage::eAutoPreferDevice,
+	} };
+}
+
+auto vk_gltf_viewer::vulkan::Frame::JumpFloodResources::createImageView(
+    const vk::raii::Device &device,
+    std::uint32_t arrayLayer
+) const -> vk::raii::ImageView {
+	return { device, vk::ImageViewCreateInfo {
+		{},
+		image,
+		vk::ImageViewType::e2D,
+		image.format,
+		{},
+		vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, arrayLayer, 1 },
+	} };
+}
+
 vk_gltf_viewer::vulkan::Frame::Frame(
-	GlobalState &globalState,
+	const GlobalState &globalState,
 	const std::shared_ptr<SharedData> &sharedData,
 	const Gpu &gpu
 ) : globalState { globalState },
@@ -52,7 +95,8 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	    	depthSets.getDescriptorWrites0(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
-	    	jumpFloodSets.getDescriptorWrites0(*jumpFloodImageViews[0], *jumpFloodImageViews[1]).get(),
+	    	get<0>(jumpFloodSets).getDescriptorWrites0(*hoveringNodeJumpFloodResources.pingImageView, *hoveringNodeJumpFloodResources.pongImageView).get(),
+	    	get<1>(jumpFloodSets).getDescriptorWrites0(*selectedNodeJumpFloodResources.pingImageView, *selectedNodeJumpFloodResources.pongImageView).get(),
 		    primitiveSets.getDescriptorWrites0(
 		    	{ sharedData->imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
 		    	*sharedData->imageBasedLightingResources.value().prefilteredmapImageView,
@@ -64,8 +108,6 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
 		    skyboxSets.getDescriptorWrites0(*sharedData->imageBasedLightingResources.value().cubemapImageView).get(),
-		    get<0>(outlineSets).getDescriptorWrites0(*jumpFloodImageViews[0]).get(),
-		    get<1>(outlineSets).getDescriptorWrites0(*jumpFloodImageViews[1]).get(),
 		    rec709Sets.getDescriptorWrites0(*primaryAttachmentGroup.colorAttachments[0].resolveView).get()),
 		{});
 
@@ -90,7 +132,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	io::logger::debug<true>("Frame at {} initialized", static_cast<const void*>(this));
 }
 
-auto vk_gltf_viewer::vulkan::Frame::onLoop() -> bool {
+auto vk_gltf_viewer::vulkan::Frame::onLoop() -> std::expected<OnLoopResult, OnLoopError> {
 	constexpr std::uint64_t MAX_TIMEOUT = std::numeric_limits<std::uint64_t>::max();
 
 	// Wait for the previous frame execution to finish.
@@ -99,8 +141,10 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop() -> bool {
 	}
 	gpu.device.resetFences(*inFlightFence);
 
+	OnLoopResult result{};
+
 	// Update per-frame resources.
-	update();
+	update(result);
 
 	// Acquire the next swapchain image.
 	std::uint32_t imageIndex;
@@ -108,16 +152,29 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop() -> bool {
 		imageIndex = (*gpu.device).acquireNextImageKHR(*sharedData->swapchain, MAX_TIMEOUT, *swapchainImageAcquireSema).value;
 	}
 	catch (const vk::OutOfDateKHRError&) {
-		return false;
+		return std::unexpected { OnLoopError::SwapchainAcquireFailed };
 	}
 
 	// Record commands.
 	graphicsCommandPool.reset();
 	computeCommandPool.reset();
+
 	depthPrepass(depthPrepassCommandBuffer);
-	const auto jumpFloodResult = jumpFlood(jumpFloodCommandBuffer);
+
+	const auto [hoveringNodeJumpFloodResult, selectedNodeJumpFloodResult] = jumpFlood(jumpFloodCommandBuffer);
+	if (hoveringNodeJumpFloodResult) {
+		gpu.device.updateDescriptorSets(
+			hoveringNodeOutlineSets.getDescriptorWrites0(*hoveringNodeJumpFloodResult ? hoveringNodeJumpFloodResources.pongImageView : hoveringNodeJumpFloodResources.pingImageView).get(),
+			{});
+	}
+	if (selectedNodeJumpFloodResult) {
+		gpu.device.updateDescriptorSets(
+			selectedNodeOutlineSets.getDescriptorWrites0(*selectedNodeJumpFloodResult ? selectedNodeJumpFloodResources.pongImageView : selectedNodeJumpFloodResources.pingImageView).get(),
+			{});
+	}
+
 	draw(drawCommandBuffer);
-	composite(compositeCommandBuffer, jumpFloodResult, imageIndex);
+	composite(compositeCommandBuffer, hoveringNodeJumpFloodResult, selectedNodeJumpFloodResult, imageIndex);
 
 	// Submit commands to the corresponding queues.
 	gpu.queues.graphicsPresent.submit(vk::SubmitInfo {
@@ -165,31 +222,31 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop() -> bool {
 		if (gpu.queues.graphicsPresent.presentKHR({ *compositeFinishSema, *sharedData->swapchain, imageIndex }) == vk::Result::eSuboptimalKHR) {
 			throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
 		}
+		result.presentSuccess = true;
 	}
 	catch (const vk::OutOfDateKHRError&) {
-		return false;
+		result.presentSuccess = false;
 	}
 
-	return true;
+	return std::move(result);
 }
 
 auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
 	vk::SurfaceKHR surface,
 	const vk::Extent2D &newExtent
 ) -> void {
-	jumpFloodImage = createJumpFloodImage();
-	jumpFloodImageViews = createJumpFloodImageViews();
+	hoveringNodeJumpFloodResources = { gpu, sharedData->swapchainExtent };
+	selectedNodeJumpFloodResources = { gpu, sharedData->swapchainExtent };
 	depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup();
 	primaryAttachmentGroup = createPrimaryAttachmentGroup();
 	initAttachmentLayouts();
 
 	// Update per-frame descriptor sets.
 	gpu.device.updateDescriptorSets(
-		ranges::array_cat(
-			jumpFloodSets.getDescriptorWrites0(*jumpFloodImageViews[0], *jumpFloodImageViews[1]).get(),
-			rec709Sets.getDescriptorWrites0(*primaryAttachmentGroup.colorAttachments[0].resolveView).get(),
-			get<0>(outlineSets).getDescriptorWrites0(*jumpFloodImageViews[0]).get(),
-			get<1>(outlineSets).getDescriptorWrites0(*jumpFloodImageViews[1]).get()),
+	ranges::array_cat(
+		    get<0>(jumpFloodSets).getDescriptorWrites0(*hoveringNodeJumpFloodResources.pingImageView, *hoveringNodeJumpFloodResources.pongImageView).get(),
+		    get<1>(jumpFloodSets).getDescriptorWrites0(*selectedNodeJumpFloodResources.pingImageView, *selectedNodeJumpFloodResources.pongImageView).get(),
+			rec709Sets.getDescriptorWrites0(*primaryAttachmentGroup.colorAttachments[0].resolveView).get()),
 		{});
 
 	// Recreate framebuffers.
@@ -198,48 +255,20 @@ auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
 	io::logger::debug("Swapchain resize handling for Frame finished");
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImage() const -> decltype(jumpFloodImage) {
-	return { gpu.allocator, vk::ImageCreateInfo {
-		{},
-		vk::ImageType::e2D,
-		vk::Format::eR16G16Uint,
-		vk::Extent3D { sharedData->swapchainExtent, 1 },
-		1, 2,
-		vk::SampleCountFlagBits::e1,
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */
-			| vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer */
-			| vk::ImageUsageFlagBits::eInputAttachment /* read from OutlineRenderer */,
-	}, vma::AllocationCreateInfo {
-		{},
-		vma::MemoryUsage::eAutoPreferDevice,
-	} };
-}
-
-auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImageViews() const -> decltype(jumpFloodImageViews) {
-	return INDEX_SEQ(Is, 2, {
-		return std::array {
-			vk::raii::ImageView { gpu.device, vk::ImageViewCreateInfo {
-				{},
-				jumpFloodImage,
-				vk::ImageViewType::e2D,
-				jumpFloodImage.format,
-				{},
-				vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, Is, 1 },
-			} }...
-		};
-	});
-}
-
 auto vk_gltf_viewer::vulkan::Frame::createDepthPrepassAttachmentGroup() const -> decltype(depthPrepassAttachmentGroup) {
 	vku::AttachmentGroup attachmentGroup { sharedData->swapchainExtent };
 	attachmentGroup.addColorAttachment(
 		gpu.device,
 		attachmentGroup.storeImage(
 			attachmentGroup.createColorImage(gpu.allocator, vk::Format::eR32Uint, vk::ImageUsageFlagBits::eTransferSrc)));
+	// Hovering node fragment coordinates.
 	attachmentGroup.addColorAttachment(
 		gpu.device,
-		jumpFloodImage, jumpFloodImage.format, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
+		hoveringNodeJumpFloodResources.image, hoveringNodeJumpFloodResources.image.format, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
+	// Selected node fragment coordinates.
+	attachmentGroup.addColorAttachment(
+		gpu.device,
+		selectedNodeJumpFloodResources.image, selectedNodeJumpFloodResources.image.format, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
 	attachmentGroup.setDepthAttachment(
 		gpu.device,
 		attachmentGroup.storeImage(
@@ -266,10 +295,11 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(des
 	return {
 		gpu.device,
 		(vku::PoolSizes { sharedData->depthRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->jumpFloodComputer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData->jumpFloodComputer.descriptorSetLayouts } * 2
 		    + vku::PoolSizes { sharedData->primitiveRenderer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->skyboxRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->outlineRenderer.descriptorSetLayouts } * 2
+		    + vku::PoolSizes { sharedData->hoveringNodeOutlineRenderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData->selectedNodeOutlineRenderer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->rec709Renderer.descriptorSetLayouts })
 		.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
 	};
@@ -306,7 +336,13 @@ auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer() const -> decl
 		vk::FramebufferAttachmentImageInfo {
 			{},
 			vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eInputAttachment,
-			jumpFloodImage.extent.width, jumpFloodImage.extent.height, 1,
+			hoveringNodeJumpFloodResources.image.extent.width, hoveringNodeJumpFloodResources.image.extent.height, 1,
+			get<2>(attachmentImageFormats),
+		},
+		vk::FramebufferAttachmentImageInfo {
+			{},
+			vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eInputAttachment,
+			selectedNodeJumpFloodResources.image.extent.width, selectedNodeJumpFloodResources.image.extent.height, 1,
 			get<2>(attachmentImageFormats),
 		},
 		vk::FramebufferAttachmentImageInfo {
@@ -320,7 +356,7 @@ auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer() const -> decl
 		vk::FramebufferCreateInfo {
 			vk::FramebufferCreateFlagBits::eImageless,
 			*sharedData->compositionRenderPass,
-			4, nullptr,
+			5, nullptr,
 			sharedData->swapchainExtent.width, sharedData->swapchainExtent.height,
 			1,
 		},
@@ -329,58 +365,36 @@ auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer() const -> decl
 }
 
 auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts() const -> void {
+	std::vector<vk::ImageMemoryBarrier> barriers;
+	const auto appendBarrier = [&](vk::ImageLayout newLayout, vk::Image image, const vk::ImageSubresourceRange &subresourceRange = vku::fullSubresourceRange()) {
+		barriers.emplace_back(
+			vk::AccessFlags{}, vk::AccessFlags{},
+			vk::ImageLayout::eUndefined, newLayout,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			image, subresourceRange);
+	};
+
+	appendBarrier(vk::ImageLayout::eGeneral, hoveringNodeJumpFloodResources.image);
+	appendBarrier(vk::ImageLayout::eGeneral, selectedNodeJumpFloodResources.image);
+	appendBarrier(vk::ImageLayout::eTransferSrcOptimal, depthPrepassAttachmentGroup.colorAttachments[0].image);
+	appendBarrier(vk::ImageLayout::eDepthAttachmentOptimal, depthPrepassAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth));
+	appendBarrier(vk::ImageLayout::eColorAttachmentOptimal, primaryAttachmentGroup.colorAttachments[0].image);
+	appendBarrier(vk::ImageLayout::eColorAttachmentOptimal, primaryAttachmentGroup.colorAttachments[0].resolveImage);
+	appendBarrier(vk::ImageLayout::eDepthAttachmentOptimal, primaryAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth));
+
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
 		cb.pipelineBarrier(
 			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-			{}, {}, {},
-			std::array {
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eGeneral,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					jumpFloodImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
-				},
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eTransferSrcOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
-				},
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eDepthAttachmentOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					depthPrepassAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
-				},
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eColorAttachmentOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					primaryAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
-				},
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eColorAttachmentOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					primaryAttachmentGroup.colorAttachments[0].resolveImage, vku::fullSubresourceRange(),
-				},
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eDepthAttachmentOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					primaryAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
-				},
-			});
+			{}, {}, {}, barriers);
 	});
 	gpu.queues.graphicsPresent.waitIdle();
 }
 
-auto vk_gltf_viewer::vulkan::Frame::update() -> void {
+auto vk_gltf_viewer::vulkan::Frame::update(
+	OnLoopResult &result
+) -> void {
 	if (auto value = std::exchange(hoveringNodeIndexBuffer.asValue<std::uint32_t>(), NO_INDEX); value != NO_INDEX) {
-		hoveringNodeIndex = value;
-	}
-	else {
-		hoveringNodeIndex.reset();
+		result.hoveringNodeIndex = value;
 	}
 }
 
@@ -404,7 +418,14 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 				{}, vk::AccessFlagBits::eColorAttachmentWrite,
 				vk::ImageLayout::eGeneral, vk::ImageLayout::eColorAttachmentOptimal,
 				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				jumpFloodImage,
+				hoveringNodeJumpFloodResources.image,
+				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+			},
+			vk::ImageMemoryBarrier {
+				{}, vk::AccessFlagBits::eColorAttachmentWrite,
+				vk::ImageLayout::eGeneral, vk::ImageLayout::eColorAttachmentOptimal,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				selectedNodeJumpFloodResources.image,
 				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
 			},
 		});
@@ -416,6 +437,7 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 			std::array {
 				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { std::numeric_limits<std::uint32_t>::max(), 0U, 0U, 0U } },
 				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
+				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
 			},
 			vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 1.f, 0U } }),
 		[&]() {
@@ -425,7 +447,11 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 
 			sharedData->depthRenderer.bindPipeline(cb);
 			sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
-			sharedData->depthRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, hoveringNodeIndex.value_or(NO_INDEX) });
+			sharedData->depthRenderer.pushConstants(cb, {
+				globalState.camera.projection * globalState.camera.view,
+				globalState.hoveringNodeIndex.value_or(NO_INDEX),
+				globalState.selectedNodeIndex.value_or(NO_INDEX),
+			});
 			for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
 				if (const auto &indexType = criteria.indexType) {
 					cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
@@ -446,13 +472,21 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 			depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
 		},
-		// Release jumpFloodImage[arrayLayers=0] queue family ownership.
+		// Release jump flood resources' ping images queue family ownership.
 		vk::ImageMemoryBarrier2 {
 			vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
 			vk::PipelineStageFlagBits2::eAllCommands, vk::AccessFlagBits2::eNone,
 			{}, {},
 			gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
-			jumpFloodImage,
+			hoveringNodeJumpFloodResources.image,
+			{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+		},
+		vk::ImageMemoryBarrier2 {
+			vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
+			vk::PipelineStageFlagBits2::eAllCommands, vk::AccessFlagBits2::eNone,
+			{}, {},
+			gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
+			selectedNodeJumpFloodResources.image,
 			{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
 		},
 	};
@@ -484,43 +518,75 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 
 auto vk_gltf_viewer::vulkan::Frame::jumpFlood(
 	vk::CommandBuffer cb
-) const -> std::optional<bool> {
+) const -> std::pair<std::optional<bool>, std::optional<bool>> {
 	cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
 	// Change image layout and acquire queue family ownership.
 	cb.pipelineBarrier(
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eComputeShader,
 		{}, {}, {},
-		vk::ImageMemoryBarrier {
-			{}, vk::AccessFlagBits::eShaderRead,
-			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
-		    gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
-		    jumpFloodImage,
-		    { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+		std::array {
+			vk::ImageMemoryBarrier {
+				{}, vk::AccessFlagBits::eShaderRead,
+				vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
+			    gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
+			    hoveringNodeJumpFloodResources.image,
+			    { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+			},
+			vk::ImageMemoryBarrier {
+				{}, vk::AccessFlagBits::eShaderRead,
+				vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
+			    gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
+			    selectedNodeJumpFloodResources.image,
+			    { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+			},
 		});
 
-	std::optional isJumpFloodResultForward = [&]() -> std::optional<bool> {
-		if (hoveringNodeIndex) {
-			bool forward = sharedData->jumpFloodComputer.compute(cb, jumpFloodSets, vku::toExtent2D(jumpFloodImage.extent));
-			// Release queue family ownership.
-			cb.pipelineBarrier(
-				vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eAllCommands,
-				{}, {}, {},
-				vk::ImageMemoryBarrier {
-					vk::AccessFlagBits::eShaderWrite, {},
-					{}, {},
-					gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-					jumpFloodImage,
-					{ vk::ImageAspectFlagBits::eColor, 0, 1, forward ? 1U : 0U, 1 },
-				});
-			return forward;
+	const auto hoveringNodeResultForward = [&]() -> std::optional<bool> {
+		if (globalState.hoveringNodeIndex) {
+			return sharedData->jumpFloodComputer.compute(cb, get<0>(jumpFloodSets), vku::toExtent2D(hoveringNodeJumpFloodResources.image.extent));
 		}
-		else return std::nullopt;
+		return std::nullopt;
 	}();
+	const auto selectedNodeResultForward = [&]() -> std::optional<bool> {
+		if (globalState.selectedNodeIndex) {
+			return sharedData->jumpFloodComputer.compute(cb, get<1>(jumpFloodSets), vku::toExtent2D(selectedNodeJumpFloodResources.image.extent));
+		}
+		return std::nullopt;
+	}();
+
+	// Since JFA calculated on same dimension image, step count must be same, and consequently forward flags must be same.
+	assert(!hoveringNodeResultForward || !selectedNodeResultForward
+		|| *hoveringNodeResultForward == *selectedNodeResultForward
+		&& "Invalid JFA calculation result: two forward flags must be same");
+
+	// Release queue family ownership.
+	std::vector<vk::ImageMemoryBarrier> barriers;
+	if (hoveringNodeResultForward) {
+		barriers.emplace_back(
+		    vk::AccessFlagBits::eShaderWrite, vk::AccessFlags{},
+			vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
+			gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+			hoveringNodeJumpFloodResources.image,
+			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *hoveringNodeResultForward, 1 });
+	}
+	if (selectedNodeResultForward) {
+		barriers.emplace_back(
+		    vk::AccessFlagBits::eShaderWrite, vk::AccessFlags{},
+			vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
+			gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+			selectedNodeJumpFloodResources.image,
+			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *selectedNodeResultForward, 1 });
+	}
+	if (!barriers.empty()) {
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eAllCommands,
+			{}, {}, {}, barriers);
+	}
 
 	cb.end();
 
-	return isJumpFloodResultForward;
+	return { hoveringNodeResultForward, selectedNodeResultForward };
 }
 
 auto vk_gltf_viewer::vulkan::Frame::draw(
@@ -557,7 +623,9 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 			}
 
 			// Draw skybox.
-			sharedData->skyboxRenderer.draw(cb, skyboxSets, { globalState.camera.projection * glm::mat4 { glm::mat3 { globalState.camera.view } } });
+			sharedData->skyboxRenderer.draw(cb, skyboxSets, {
+				globalState.camera.projection * glm::mat4 { glm::mat3 { globalState.camera.view } },
+			});
 		});
 
 	cb.end();
@@ -565,31 +633,43 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 
 auto vk_gltf_viewer::vulkan::Frame::composite(
 	vk::CommandBuffer cb,
-	const std::optional<bool> &isJumpFloodResultForward,
+	const std::optional<bool> &isHoveringNodeJumpFloodResultForward,
+	const std::optional<bool> &isSelectedNodeJumpFloodResultForward,
 	std::uint32_t swapchainImageIndex
 ) const -> void {
 	cb.begin(vk::CommandBufferBeginInfo { vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
 	// Acquire jumpFloodImage queue family ownership.
-	if (isJumpFloodResultForward) {
+	std::vector<vk::ImageMemoryBarrier> barriers;
+	if (isHoveringNodeJumpFloodResultForward) {
+		barriers.emplace_back(
+		    vk::AccessFlags{}, vk::AccessFlagBits::eShaderRead,
+		    vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
+		    gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+		    hoveringNodeJumpFloodResources.image,
+		    vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *isHoveringNodeJumpFloodResultForward, 1 });
+	}
+	if (isSelectedNodeJumpFloodResultForward) {
+		barriers.emplace_back(
+		    vk::AccessFlags{}, vk::AccessFlagBits::eShaderRead,
+		    vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
+		    gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+		    selectedNodeJumpFloodResources.image,
+		    vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *isSelectedNodeJumpFloodResultForward, 1 });
+	}
+	if (!barriers.empty()) {
 		cb.pipelineBarrier(
 			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eFragmentShader,
-			{}, {}, {},
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eShaderRead,
-				{}, {},
-				gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-				jumpFloodImage,
-				{ vk::ImageAspectFlagBits::eColor, 0, 1, *isJumpFloodResultForward, 1 },
-			});
+			{}, {}, {}, barriers);
 	}
 
-	constexpr std::array<vk::ClearValue, 4> clearValues{};
+	constexpr std::array<vk::ClearValue, 5> clearValues{};
 	const std::array framebufferImageViews {
 		*primaryAttachmentGroup.colorAttachments[0].resolveView,
 		*sharedData->swapchainAttachmentGroups[swapchainImageIndex].colorAttachments[0].view,
 		// If JFA not computed, use the first image (it just transition the layout to General and does not matter).
-		*jumpFloodImageViews[isJumpFloodResultForward.value_or(0)],
+		isHoveringNodeJumpFloodResultForward.value_or(false) ? *hoveringNodeJumpFloodResources.pongImageView : *hoveringNodeJumpFloodResources.pingImageView,
+		isSelectedNodeJumpFloodResultForward.value_or(false) ? *selectedNodeJumpFloodResources.pongImageView : *selectedNodeJumpFloodResources.pingImageView,
 		*sharedData->swapchainAttachmentGroups[swapchainImageIndex].colorAttachments[0].view,
 	};
 	vku::renderPassScoped(
@@ -613,12 +693,22 @@ auto vk_gltf_viewer::vulkan::Frame::composite(
 
 			cb.nextSubpass(vk::SubpassContents::eInline);
 
-			if (isJumpFloodResultForward) {
+			if (isHoveringNodeJumpFloodResultForward) {
 				// TODO: proper viewport/scissor setting.
 				sharedData->swapchainAttachmentGroups[0].setViewport(cb, true);
 				sharedData->swapchainAttachmentGroups[0].setScissor(cb);
 
-				sharedData->outlineRenderer.draw(cb, outlineSets[*isJumpFloodResultForward], { .outlineColor = { 1.f, 0.5f, 0.2f }, .lineWidth = 4.f });
+				sharedData->hoveringNodeOutlineRenderer.draw(cb, hoveringNodeOutlineSets, { .outlineColor = { 1.f, 0.5f, 0.2f }, .lineWidth = 4.f });
+			}
+
+			cb.nextSubpass(vk::SubpassContents::eInline);
+
+			if (isSelectedNodeJumpFloodResultForward) {
+				// TODO: proper viewport/scissor setting.
+				sharedData->swapchainAttachmentGroups[0].setViewport(cb, true);
+				sharedData->swapchainAttachmentGroups[0].setScissor(cb);
+
+				sharedData->selectedNodeOutlineRenderer.draw(cb, selectedNodeOutlineSets, { .outlineColor = { 0.f, 1.f, 0.2f }, .lineWidth = 4.f });
 			}
 		});
 

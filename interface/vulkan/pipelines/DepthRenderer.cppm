@@ -42,6 +42,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         struct PushConstant {
             glm::mat4 projectionView;
             std::uint32_t hoveringNodeIndex;
+            std::uint32_t selectedNodeIndex;
         };
 
         DescriptorSetLayouts descriptorSetLayouts;

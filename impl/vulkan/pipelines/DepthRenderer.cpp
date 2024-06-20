@@ -82,10 +82,12 @@ layout (location = 0) flat in uint primitiveNodeIndex;
 
 layout (location = 0) out uint outNodeIndex;
 layout (location = 1) out uvec2 hoveringNodeCoord;
+layout (location = 2) out uvec2 selectedNodeCoord;
 
-layout (push_constant) uniform PushConstant {
+layout (push_constant, std430) uniform PushConstant {
     layout (offset = 64)
     uint hoveringNodeIndex;
+    uint selectedNodeIndex;
 } pc;
 
 layout (early_fragment_tests) in;
@@ -94,6 +96,9 @@ void main(){
     outNodeIndex = primitiveNodeIndex;
     if (outNodeIndex == pc.hoveringNodeIndex){
         hoveringNodeCoord = uvec2(gl_FragCoord.xy);
+    }
+    if (outNodeIndex == pc.selectedNodeIndex){
+        selectedNodeCoord = uvec2(gl_FragCoord.xy);
     }
 }
 )frag";
@@ -166,10 +171,10 @@ auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::createPipeline(
         true, true, vk::CompareOp::eLess,
     };
 
-    constexpr std::array colorAttachmentFormats { vk::Format::eR32Uint, vk::Format::eR16G16Uint };
+    constexpr std::array colorAttachmentFormats { vk::Format::eR32Uint, vk::Format::eR16G16Uint, vk::Format::eR16G16Uint };
 
     return { device, nullptr, vk::StructureChain {
-        vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 2, true)
+        vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 3, true)
             .setPDepthStencilState(&depthStencilState),
         vk::PipelineRenderingCreateInfo {
             {},

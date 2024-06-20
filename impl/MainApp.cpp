@@ -1,6 +1,7 @@
 module;
 
 #include <compare>
+#include <expected>
 #include <format>
 #include <ranges>
 #include <string_view>
@@ -43,7 +44,12 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		const float timeDelta = glfwTime - std::exchange(elapsedTime, glfwTime);
 		window.update(timeDelta);
 
-		if (!frames[frameIndex].onLoop()) {
+        const std::expected onLoopResult = frames[frameIndex].onLoop();
+		if (onLoopResult) {
+			globalState.hoveringNodeIndex = onLoopResult->hoveringNodeIndex;
+		}
+
+		if (!onLoopResult || !onLoopResult->presentSuccess) {
 			io::logger::debug("Window resizing detected.");
 			gpu.device.waitIdle();
 
@@ -57,6 +63,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			for (vulkan::Frame &frame : frames) {
 				frame.handleSwapchainResize(*window.surface, { framebufferSize.x, framebufferSize.y });
 			}
+
 		}
 	}
 	gpu.device.waitIdle();

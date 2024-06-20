@@ -24,6 +24,7 @@ namespace vk_gltf_viewer::control {
         auto onFramebufferSizeCallback(glm::ivec2 size) -> void override;
         auto onScrollCallback(glm::dvec2 offset) -> void override;
         auto onCursorPosCallback(glm::dvec2 position) -> void override;
+        auto onMouseButtonCallback(int button, int action, int mods) -> void override;
         auto onKeyCallback(int key, int scancode, int action, int mods) -> void override;
     };
 }
