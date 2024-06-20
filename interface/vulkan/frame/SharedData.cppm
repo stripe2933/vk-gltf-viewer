@@ -20,6 +20,7 @@ export import :vulkan.pipelines.PrimitiveRenderer;
 export import :vulkan.pipelines.Rec709Renderer;
 export import :vulkan.pipelines.SkyboxRenderer;
 
+// TODO: this should not be in here... use proper namespace.
 struct ImageBasedLightingResources {
 	vku::AllocatedImage cubemapImage; vk::raii::ImageView cubemapImageView;
 	vku::MappedBuffer cubemapSphericalHarmonicsBuffer;
@@ -31,8 +32,11 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     public:
 		// CPU resources.
     	const fastgltf::Asset &asset;
+
+		const Gpu &gpu;
+
 		gltf::AssetResources assetResources;
-    	gltf::SceneResources sceneResources;
+    	gltf::SceneResources sceneResources { assetResources, asset.scenes[asset.defaultScene.value_or(0)], gpu };
 
     	// Swapchain.
 		vk::raii::SwapchainKHR swapchain;
@@ -40,12 +44,12 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 		std::vector<vk::Image> swapchainImages = swapchain.getImages();
 
     	// Buffer, image and image views.
-    	vku::AllocatedImage brdfmapImage;
-    	vk::raii::ImageView brdfmapImageView;
+    	vku::AllocatedImage brdfmapImage = createBrdfmapImage();
+    	vk::raii::ImageView brdfmapImageView = createBrdfmapImageView();
     	std::optional<ImageBasedLightingResources> imageBasedLightingResources = std::nullopt;
 
     	// Render passes.
-    	vk::raii::RenderPass compositionRenderPass;
+    	vk::raii::RenderPass compositionRenderPass = createCompositionRenderPass();
 
 		// Pipelines.
 		pipelines::DepthRenderer depthRenderer;
@@ -56,19 +60,22 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 		pipelines::OutlineRenderer outlineRenderer;
 
     	// Attachment groups.
-    	std::vector<vku::AttachmentGroup> swapchainAttachmentGroups;
+    	std::vector<vku::AttachmentGroup> swapchainAttachmentGroups = createSwapchainAttachmentGroups();
 
     	// Descriptor/command pools.
-    	vk::raii::CommandPool graphicsCommandPool, transferCommandPool;
+    	vk::raii::CommandPool graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
 
     	SharedData(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent, const shaderc::Compiler &compiler = {});
 
-    	auto handleSwapchainResize(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
+    	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
     private:
-    	[[nodiscard]] auto createSwapchain(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain);
-    	[[nodiscard]] auto createCompositionRenderPass(const vk::raii::Device &device) const -> decltype(compositionRenderPass);
-    	[[nodiscard]] auto createSwapchainAttachmentGroups(const vk::raii::Device &device) const -> decltype(swapchainAttachmentGroups);
+    	[[nodiscard]] auto createSwapchain(vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain);
+    	[[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
+    	[[nodiscard]] auto createBrdfmapImageView() const -> decltype(brdfmapImageView);
+    	[[nodiscard]] auto createCompositionRenderPass() const -> decltype(compositionRenderPass);
+    	[[nodiscard]] auto createSwapchainAttachmentGroups() const -> decltype(swapchainAttachmentGroups);
+    	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto generateAssetResourceMipmaps(vk::CommandBuffer commandBuffer) const -> void;
     	auto initAttachmentLayouts(vk::CommandBuffer commandBuffer) const -> void;

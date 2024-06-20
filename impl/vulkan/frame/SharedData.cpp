@@ -22,16 +22,6 @@ import :io.logger;
 import :io.StbDecoder;
 import :vulkan.pipelines.BrdfmapComputer;
 
-auto createCommandPool(
-	const vk::raii::Device &device,
-	std::uint32_t queueFamilyIndex
-) -> vk::raii::CommandPool {
-	return { device, vk::CommandPoolCreateInfo{
-		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-		queueFamilyIndex,
-	} };
-}
-
 vk_gltf_viewer::vulkan::SharedData::SharedData(
     const fastgltf::Asset &asset,
     const std::filesystem::path &assetDir,
@@ -40,41 +30,16 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	const vk::Extent2D &swapchainExtent,
     const shaderc::Compiler &compiler
 ) : asset { asset },
+	gpu { gpu },
 	assetResources { asset, assetDir, gpu },
-	sceneResources { assetResources, asset.scenes[asset.defaultScene.value_or(0)], gpu },
-	swapchain { createSwapchain(gpu, surface, swapchainExtent) },
+	swapchain { createSwapchain(surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent },
-	brdfmapImage { gpu.allocator, vk::ImageCreateInfo {
-        {},
-		vk::ImageType::e2D,
-		vk::Format::eR16G16Unorm,
-		vk::Extent3D { 512, 512, 1 },
-		1, 1,
-		vk::SampleCountFlagBits::e1,
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
-	}, vma::AllocationCreateInfo {
-        {},
-		vma::MemoryUsage::eAutoPreferDevice,
-	} },
-	brdfmapImageView { gpu.device, vk::ImageViewCreateInfo {
-        {},
-		brdfmapImage,
-		vk::ImageViewType::e2D,
-		brdfmapImage.format,
-		{},
-		vku::fullSubresourceRange(),
-	} },
-	compositionRenderPass { createCompositionRenderPass(gpu.device) },
 	depthRenderer { gpu.device, compiler },
 	jumpFloodComputer { gpu.device, compiler },
 	primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler },
 	skyboxRenderer { gpu, compiler },
 	rec709Renderer { gpu.device, *compositionRenderPass, 0, compiler },
-	outlineRenderer { gpu.device, *compositionRenderPass, 1, compiler },
-	swapchainAttachmentGroups { createSwapchainAttachmentGroups(gpu.device) },
-	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
-	transferCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.transfer) } {
+	outlineRenderer { gpu.device, *compositionRenderPass, 1, compiler } {
 	const auto eqmapImageData = io::StbDecoder<float>::fromFile(std::getenv("EQMAP_PATH"), 4);
 	vku::MappedBuffer eqmapImageStagingBuffer { gpu.allocator, std::from_range, eqmapImageData.asSpan(), vk::BufferUsageFlagBits::eTransferSrc };
 	const vku::AllocatedImage eqmapImage {
@@ -94,6 +59,8 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 			vma::MemoryUsage::eAutoPreferDevice
 		},
 	};
+
+	const auto transferCommandPool = createCommandPool(gpu.queueFamilies.transfer);
 	vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
 		cb.pipelineBarrier(
 			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
@@ -164,7 +131,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 		const pipelines::BrdfmapComputer::DescriptorSets brdfmapSets { *gpu.device, *descriptorPool, brdfmapComputer.descriptorSetLayouts };
 		gpu.device.updateDescriptorSets(brdfmapSets.getDescriptorWrites0(*brdfmapImageView).get(), {});
 
-		const vk::raii::CommandPool computeCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.compute);
+		const auto computeCommandPool = createCommandPool(gpu.queueFamilies.compute);
 		vku::executeSingleCommand(*gpu.device, *computeCommandPool, gpu.queues.compute, [&](vk::CommandBuffer cb) {
             // Acquire queue family ownerships.
             if (gpu.queueFamilies.transfer != gpu.queueFamilies.compute) {
@@ -319,15 +286,14 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(
-	const Gpu &gpu,
 	vk::SurfaceKHR surface,
 	const vk::Extent2D &newExtent
 ) -> void {
-	swapchain = createSwapchain(gpu, surface, newExtent, *swapchain);
+	swapchain = createSwapchain(surface, newExtent, *swapchain);
 	swapchainExtent = newExtent;
 	swapchainImages = swapchain.getImages();
 
-	swapchainAttachmentGroups = createSwapchainAttachmentGroups(gpu.device);
+	swapchainAttachmentGroups = createSwapchainAttachmentGroups();
 
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
 		initAttachmentLayouts(cb);
@@ -338,7 +304,6 @@ auto vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(
-	const Gpu &gpu,
 	vk::SurfaceKHR surface,
 	const vk::Extent2D &extent,
 	vk::SwapchainKHR oldSwapchain
@@ -362,9 +327,34 @@ auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass(
-	const vk::raii::Device &device
-) const -> decltype(compositionRenderPass) {
+auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImage() const -> decltype(brdfmapImage) {
+	return { gpu.allocator, vk::ImageCreateInfo {
+        {},
+		vk::ImageType::e2D,
+		vk::Format::eR16G16Unorm,
+		vk::Extent3D { 512, 512, 1 },
+		1, 1,
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
+	}, vma::AllocationCreateInfo {
+        {},
+		vma::MemoryUsage::eAutoPreferDevice,
+	} };
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImageView() const -> decltype(brdfmapImageView) {
+	return { gpu.device, vk::ImageViewCreateInfo {
+        {},
+		brdfmapImage,
+		vk::ImageViewType::e2D,
+		brdfmapImage.format,
+		{},
+		vku::fullSubresourceRange(),
+	} };
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> decltype(compositionRenderPass) {
 	constexpr std::array attachmentDescriptions {
 		// Rec709Renderer.
 		// Input attachments.
@@ -444,7 +434,7 @@ auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass(
 		},
 	};
 
-	return { device, vk::RenderPassCreateInfo {
+	return { gpu.device, vk::RenderPassCreateInfo {
 		{},
 		attachmentDescriptions,
 		subpassDescriptions,
@@ -452,18 +442,25 @@ auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass(
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::createSwapchainAttachmentGroups(
-	const vk::raii::Device &device
-) const -> decltype(swapchainAttachmentGroups) {
+auto vk_gltf_viewer::vulkan::SharedData::createSwapchainAttachmentGroups() const -> decltype(swapchainAttachmentGroups) {
 	return swapchainImages
 		| std::views::transform([&](vk::Image image) {
 			vku::AttachmentGroup attachmentGroup { swapchainExtent };
 			attachmentGroup.addColorAttachment(
-				device,
+				gpu.device,
 				{ image, vk::Extent3D { swapchainExtent, 1 }, vk::Format::eB8G8R8A8Srgb, 1, 1 });
 			return attachmentGroup;
 		})
 		| std::ranges::to<std::vector<vku::AttachmentGroup>>();
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::createCommandPool(
+	std::uint32_t queueFamilyIndex
+) const -> vk::raii::CommandPool {
+	return { gpu.device, vk::CommandPoolCreateInfo{
+		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+		queueFamilyIndex,
+	} };
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::generateAssetResourceMipmaps(

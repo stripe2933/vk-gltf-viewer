@@ -26,12 +26,8 @@ import :helpers.ranges;
 import :io.logger;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
-#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
-
-// Definition already in SharedData.cpp.
-auto createCommandPool(const vk::raii::Device &device, std::uint32_t queueFamilyIndex) -> vk::raii::CommandPool;
 
 vk_gltf_viewer::vulkan::Frame::Frame(
 	GlobalState &globalState,
@@ -39,8 +35,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	const Gpu &gpu
 ) : globalState { globalState },
     sharedData { sharedData },
-	jumpFloodImage { createJumpFloodImage(gpu.allocator) },
-	jumpFloodImageViews { createJumpFloodImageViews(gpu.device) },
+    gpu { gpu },
 	hoveringNodeIndexBuffer {
 		gpu.allocator,
 		std::numeric_limits<std::uint32_t>::max(),
@@ -50,27 +45,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 			vma::MemoryUsage::eAuto,
 		},
 	},
-	depthPrepassAttachmentGroup { createDepthPrepassAttachmentGroup(gpu) },
-	primaryAttachmentGroup { createPrimaryAttachmentGroup(gpu) },
-    descriptorPool { createDescriptorPool(gpu.device) },
-	computeCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.compute) },
-	graphicsCommandPool { createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent) },
-	depthSets { *gpu.device, *descriptorPool, sharedData->depthRenderer.descriptorSetLayouts },
-	jumpFloodSets { *gpu.device, *descriptorPool, sharedData->jumpFloodComputer.descriptorSetLayouts },
-	primitiveSets { *gpu.device, *descriptorPool, sharedData->primitiveRenderer.descriptorSetLayouts },
-    skyboxSets { *gpu.device, *descriptorPool, sharedData->skyboxRenderer.descriptorSetLayouts },
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-value"
-    outlineSets { ARRAY_OF(2, pipelines::OutlineRenderer::DescriptorSets { *gpu.device, *descriptorPool, sharedData->outlineRenderer.descriptorSetLayouts }) },
-#pragma clang diagnostic pop
-    rec709Sets { *gpu.device, *descriptorPool, sharedData->rec709Renderer.descriptorSetLayouts },
-	compositionFramebuffer { createCompositionFramebuffer(gpu.device) },
-	depthPrepassFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
-	swapchainImageAcquireSema { gpu.device, vk::SemaphoreCreateInfo{} },
-	drawFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
-	compositeFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
-	jumpFloodFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
-	inFlightFence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } } {
+    rec709Sets { *gpu.device, *descriptorPool, sharedData->rec709Renderer.descriptorSetLayouts } {
 	// Update per-frame descriptor sets.
 	gpu.device.updateDescriptorSets(
 	    ranges::array_cat(
@@ -110,14 +85,12 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	    })
 		| ranges::to_array<3>();
 
-	initAttachmentLayouts(gpu);
+	initAttachmentLayouts();
 
 	io::logger::debug<true>("Frame at {} initialized", static_cast<const void*>(this));
 }
 
-auto vk_gltf_viewer::vulkan::Frame::onLoop(
-	const Gpu &gpu
-) -> bool {
+auto vk_gltf_viewer::vulkan::Frame::onLoop() -> bool {
 	constexpr std::uint64_t MAX_TIMEOUT = std::numeric_limits<std::uint64_t>::max();
 
 	// Wait for the previous frame execution to finish.
@@ -141,10 +114,10 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 	// Record commands.
 	graphicsCommandPool.reset();
 	computeCommandPool.reset();
-	depthPrepass(gpu, depthPrepassCommandBuffer);
-	const auto jumpFloodResult = jumpFlood(gpu, jumpFloodCommandBuffer);
+	depthPrepass(depthPrepassCommandBuffer);
+	const auto jumpFloodResult = jumpFlood(jumpFloodCommandBuffer);
 	draw(drawCommandBuffer);
-	composite(gpu, compositeCommandBuffer, jumpFloodResult, imageIndex);
+	composite(compositeCommandBuffer, jumpFloodResult, imageIndex);
 
 	// Submit commands to the corresponding queues.
 	gpu.queues.graphicsPresent.submit(vk::SubmitInfo {
@@ -201,15 +174,14 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 }
 
 auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
-	const Gpu &gpu,
 	vk::SurfaceKHR surface,
 	const vk::Extent2D &newExtent
 ) -> void {
-	jumpFloodImage = createJumpFloodImage(gpu.allocator);
-	jumpFloodImageViews = createJumpFloodImageViews(gpu.device);
-	depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup(gpu);
-	primaryAttachmentGroup = createPrimaryAttachmentGroup(gpu);
-	initAttachmentLayouts(gpu);
+	jumpFloodImage = createJumpFloodImage();
+	jumpFloodImageViews = createJumpFloodImageViews();
+	depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup();
+	primaryAttachmentGroup = createPrimaryAttachmentGroup();
+	initAttachmentLayouts();
 
 	// Update per-frame descriptor sets.
 	gpu.device.updateDescriptorSets(
@@ -221,15 +193,13 @@ auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
 		{});
 
 	// Recreate framebuffers.
-	compositionFramebuffer = createCompositionFramebuffer(gpu.device);
+	compositionFramebuffer = createCompositionFramebuffer();
 
 	io::logger::debug("Swapchain resize handling for Frame finished");
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImage(
-	vma::Allocator allocator
-) const -> decltype(jumpFloodImage) {
-	return { allocator, vk::ImageCreateInfo {
+auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImage() const -> decltype(jumpFloodImage) {
+	return { gpu.allocator, vk::ImageCreateInfo {
 		{},
 		vk::ImageType::e2D,
 		vk::Format::eR16G16Uint,
@@ -246,12 +216,10 @@ auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImage(
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImageViews(
-	const vk::raii::Device &device
-) const -> decltype(jumpFloodImageViews) {
+auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImageViews() const -> decltype(jumpFloodImageViews) {
 	return INDEX_SEQ(Is, 2, {
 		return std::array {
-			vk::raii::ImageView { device, vk::ImageViewCreateInfo {
+			vk::raii::ImageView { gpu.device, vk::ImageViewCreateInfo {
 				{},
 				jumpFloodImage,
 				vk::ImageViewType::e2D,
@@ -263,9 +231,7 @@ auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImageViews(
 	});
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createDepthPrepassAttachmentGroup(
-	const Gpu &gpu
-) const -> decltype(depthPrepassAttachmentGroup) {
+auto vk_gltf_viewer::vulkan::Frame::createDepthPrepassAttachmentGroup() const -> decltype(depthPrepassAttachmentGroup) {
 	vku::AttachmentGroup attachmentGroup { sharedData->swapchainExtent };
 	attachmentGroup.addColorAttachment(
 		gpu.device,
@@ -281,9 +247,7 @@ auto vk_gltf_viewer::vulkan::Frame::createDepthPrepassAttachmentGroup(
 	return attachmentGroup;
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createPrimaryAttachmentGroup(
-	const Gpu &gpu
-) const -> decltype(primaryAttachmentGroup) {
+auto vk_gltf_viewer::vulkan::Frame::createPrimaryAttachmentGroup() const -> decltype(primaryAttachmentGroup) {
 	vku::MsaaAttachmentGroup attachmentGroup { sharedData->swapchainExtent, vk::SampleCountFlagBits::e4 };
 	attachmentGroup.addColorAttachment(
 		gpu.device,
@@ -298,11 +262,9 @@ auto vk_gltf_viewer::vulkan::Frame::createPrimaryAttachmentGroup(
 	return attachmentGroup;
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
-    const vk::raii::Device &device
-) const -> decltype(descriptorPool) {
+auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {
 	return {
-		device,
+		gpu.device,
 		(vku::PoolSizes { sharedData->depthRenderer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->jumpFloodComputer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->primitiveRenderer.descriptorSetLayouts }
@@ -313,9 +275,16 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool(
 	};
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer(
-	const vk::raii::Device &device
-) const -> decltype(compositionFramebuffer) {
+auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
+	std::uint32_t queueFamilyIndex
+) const -> vk::raii::CommandPool {
+	return { gpu.device, vk::CommandPoolCreateInfo{
+		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+		queueFamilyIndex,
+	} };
+}
+
+auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer() const -> decltype(compositionFramebuffer) {
 	const std::tuple attachmentImageFormats {
 		std::array { vk::Format::eR16G16B16A16Sfloat },
 		std::array { vk::Format::eB8G8R8A8Srgb },
@@ -347,7 +316,7 @@ auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer(
 			get<1>(attachmentImageFormats),
 		},
 	};
-	return vk::raii::Framebuffer { device, vk::StructureChain {
+	return vk::raii::Framebuffer { gpu.device, vk::StructureChain {
 		vk::FramebufferCreateInfo {
 			vk::FramebufferCreateFlagBits::eImageless,
 			*sharedData->compositionRenderPass,
@@ -359,9 +328,7 @@ auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer(
 	}.get() };
 }
 
-auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts(
-	const Gpu &gpu
-) const -> void {
+auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts() const -> void {
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
 		cb.pipelineBarrier(
 			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
@@ -418,7 +385,6 @@ auto vk_gltf_viewer::vulkan::Frame::update() -> void {
 }
 
 auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
-	const Gpu &gpu,
 	vk::CommandBuffer cb
 ) const -> void {
 	cb.begin(vk::CommandBufferBeginInfo { vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
@@ -517,7 +483,6 @@ auto vk_gltf_viewer::vulkan::Frame::depthPrepass(
 }
 
 auto vk_gltf_viewer::vulkan::Frame::jumpFlood(
-	const Gpu &gpu,
 	vk::CommandBuffer cb
 ) const -> std::optional<bool> {
 	cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
@@ -599,7 +564,6 @@ auto vk_gltf_viewer::vulkan::Frame::draw(
 }
 
 auto vk_gltf_viewer::vulkan::Frame::composite(
-	const Gpu &gpu,
 	vk::CommandBuffer cb,
 	const std::optional<bool> &isJumpFloodResultForward,
 	std::uint32_t swapchainImageIndex

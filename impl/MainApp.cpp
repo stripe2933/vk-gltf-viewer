@@ -43,7 +43,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		const float timeDelta = glfwTime - std::exchange(elapsedTime, glfwTime);
 		window.update(timeDelta);
 
-		if (!frames[frameIndex].onLoop(gpu)) {
+		if (!frames[frameIndex].onLoop()) {
 			io::logger::debug("Window resizing detected.");
 			gpu.device.waitIdle();
 
@@ -53,9 +53,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			}
 
 			io::logger::debug("New framebuffer size: ({},{})", framebufferSize.x, framebufferSize.y);
-			sharedData->handleSwapchainResize(gpu, *window.surface, { framebufferSize.x, framebufferSize.y });
+			sharedData->handleSwapchainResize(*window.surface, { framebufferSize.x, framebufferSize.y });
 			for (vulkan::Frame &frame : frames) {
-				frame.handleSwapchainResize(gpu, *window.surface, { framebufferSize.x, framebufferSize.y });
+				frame.handleSwapchainResize(*window.surface, { framebufferSize.x, framebufferSize.y });
 			}
 		}
 	}
