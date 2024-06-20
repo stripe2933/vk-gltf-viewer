@@ -27,19 +27,12 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
     const std::filesystem::path &assetDir,
     const Gpu &gpu,
     vk::SurfaceKHR surface,
-	const vk::Extent2D &swapchainExtent,
-    const shaderc::Compiler &compiler
+	const vk::Extent2D &swapchainExtent
 ) : asset { asset },
 	gpu { gpu },
 	assetResources { asset, assetDir, gpu },
 	swapchain { createSwapchain(surface, swapchainExtent) },
-	swapchainExtent { swapchainExtent },
-	depthRenderer { gpu.device, compiler },
-	jumpFloodComputer { gpu.device, compiler },
-	primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler },
-	skyboxRenderer { gpu, compiler },
-	rec709Renderer { gpu.device, *compositionRenderPass, 0, compiler },
-	outlineRenderer { gpu.device, *compositionRenderPass, 1, compiler } {
+	swapchainExtent { swapchainExtent } {
 	const auto eqmapImageData = io::StbDecoder<float>::fromFile(std::getenv("EQMAP_PATH"), 4);
 	vku::MappedBuffer eqmapImageStagingBuffer { gpu.allocator, std::from_range, eqmapImageData.asSpan(), vk::BufferUsageFlagBits::eTransferSrc };
 	const vku::AllocatedImage eqmapImage {

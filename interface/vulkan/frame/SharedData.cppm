@@ -32,6 +32,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     public:
 		// CPU resources.
     	const fastgltf::Asset &asset;
+    	shaderc::Compiler compiler;
 
 		const Gpu &gpu;
 
@@ -52,12 +53,12 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	vk::raii::RenderPass compositionRenderPass = createCompositionRenderPass();
 
 		// Pipelines.
-		pipelines::DepthRenderer depthRenderer;
-		pipelines::JumpFloodComputer jumpFloodComputer;
-		pipelines::PrimitiveRenderer primitiveRenderer;
-		pipelines::SkyboxRenderer skyboxRenderer;
-    	pipelines::Rec709Renderer rec709Renderer;
-		pipelines::OutlineRenderer outlineRenderer;
+		pipelines::DepthRenderer depthRenderer { gpu.device, compiler };
+		pipelines::JumpFloodComputer jumpFloodComputer { gpu.device, compiler };
+		pipelines::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler };
+		pipelines::SkyboxRenderer skyboxRenderer { gpu, compiler };
+    	pipelines::Rec709Renderer rec709Renderer { gpu.device, *compositionRenderPass, 0, compiler };
+		pipelines::OutlineRenderer outlineRenderer { gpu.device, *compositionRenderPass, 1, compiler } ;
 
     	// Attachment groups.
     	std::vector<vku::AttachmentGroup> swapchainAttachmentGroups = createSwapchainAttachmentGroups();
@@ -65,7 +66,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	// Descriptor/command pools.
     	vk::raii::CommandPool graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
 
-    	SharedData(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent, const shaderc::Compiler &compiler = {});
+    	SharedData(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent);
 
     	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
