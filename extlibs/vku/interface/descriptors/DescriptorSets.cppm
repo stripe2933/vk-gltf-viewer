@@ -1,5 +1,6 @@
 module;
 
+#include <array>
 #include <ranges>
 #include <vector>
 
@@ -22,10 +23,18 @@ namespace vku {
             vk::Device device,
             vk::DescriptorPool descriptorPool,
             const Layouts &layouts
+        // TODO: seems MSVC C++20 module bug. Remove #ifdef guard and use the below version when fixed.
+#ifdef _MSC_VER
+        ) : std::array<vk::DescriptorSet, Layouts::setCount> { ranges::to_array<Layouts::setCount>{}(device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
+                descriptorPool,
+                layouts,
+            })) },
+#else
         ) : std::array<vk::DescriptorSet, Layouts::setCount> { device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo {
                 descriptorPool,
                 layouts,
             }) | ranges::to_array<Layouts::setCount>() },
+#endif
             layouts { layouts } { }
 
         // For push descriptor usage.
