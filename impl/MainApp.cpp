@@ -43,7 +43,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y });
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
-	std::array frames = ARRAY_OF(2, vulkan::Frame { globalState, sharedData, gpu });
+	std::array frames = ARRAY_OF(2, vulkan::Frame { appState, sharedData, gpu });
 #pragma clang diagnostic pop
 
 	// Init ImGui.
@@ -89,7 +89,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
         const std::expected onLoopResult = frames[frameIndex].onLoop();
 		if (onLoopResult) {
-			globalState.hoveringNodeIndex = onLoopResult->hoveringNodeIndex;
+			appState.hoveringNodeIndex = onLoopResult->hoveringNodeIndex;
 		}
 
 		if (!onLoopResult || !onLoopResult->presentSuccess) {

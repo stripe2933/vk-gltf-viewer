@@ -17,9 +17,9 @@ import glm;
 
 vk_gltf_viewer::control::AppWindow::AppWindow(
     const vk::raii::Instance &instance,
-    GlobalState &globalState
+    AppState &appState
 ) : GlfwWindow { 800, 480, "Vulkan glTF Viewer", instance },
-    globalState { globalState } { }
+    appState { appState } { }
 
 auto vk_gltf_viewer::control::AppWindow::update(
     float timeDelta
@@ -29,7 +29,7 @@ auto vk_gltf_viewer::control::AppWindow::update(
         constexpr float CAMERA_SPEED = 1.f; // 1 units per second.
         constexpr float CAMERA_RUNNING_SPEED_MULTIPLIER = 2.f; // 2x speed when running.
 
-        const auto [right, _, front, eye] = globalState.camera.getViewDecomposition();
+        const auto [right, _, front, eye] = appState.camera.getViewDecomposition();
         const glm::vec3 direction
             = front * static_cast<float>(cameraWasd[0] - cameraWasd[2])
             + right * static_cast<float>(cameraWasd[3] - cameraWasd[1]);
@@ -40,7 +40,7 @@ auto vk_gltf_viewer::control::AppWindow::update(
         }
 
         const glm::vec3 newEye = eye + delta;
-        globalState.camera.view = glm::gtc::lookAt(newEye, newEye + front, glm::vec3 { 0.f, 1.f, 0.f });
+        appState.camera.view = glm::gtc::lookAt(newEye, newEye + front, glm::vec3 { 0.f, 1.f, 0.f });
     }
 
     // ImGui.
@@ -56,15 +56,15 @@ auto vk_gltf_viewer::control::AppWindow::update(
     const ImVec2 displayFramebufferScale = ImGui::GetIO().DisplayFramebufferScale;
     const ImRect newPassthruRect = { displayFramebufferScale * centerNodeRect.Min, displayFramebufferScale * centerNodeRect.Max };
 
-    // Assign the calculated passthru rect to globalState.imGuiPassthruRect. Handle stuffs that are dependent to the it.
-    if (ImRect oldPassthruRect = std::exchange(globalState.imGuiPassthruRect, newPassthruRect);
+    // Assign the calculated passthru rect to appState.imGuiPassthruRect. Handle stuffs that are dependent to the it.
+    if (ImRect oldPassthruRect = std::exchange(appState.imGuiPassthruRect, newPassthruRect);
         oldPassthruRect.GetTL() != newPassthruRect.GetTL() || oldPassthruRect.GetBR() != newPassthruRect.GetBR()) {
-        globalState.camera.projection = glm::gtc::perspective(
-            globalState.camera.getFov(),
+        appState.camera.projection = glm::gtc::perspective(
+            appState.camera.getFov(),
             newPassthruRect.GetWidth() / newPassthruRect.GetHeight(),
-            globalState.camera.getNear(), globalState.camera.getFar());
+            appState.camera.getNear(), appState.camera.getFar());
     }
-    globalState.imGuiPassthruRect = newPassthruRect;
+    appState.imGuiPassthruRect = newPassthruRect;
 
     ImGui::ShowDemoWindow();
     ImGui::ShowDebugLogWindow();
@@ -80,10 +80,10 @@ auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
     constexpr float MIN_FOV = glm::radians(15.f), MAX_FOV = glm::radians(120.f);
     constexpr float SCROLL_SENSITIVITY = 1e-2f;
 
-    const auto near = globalState.camera.getNear(), far = globalState.camera.getFar();
-    globalState.camera.projection = glm::gtc::perspective(
-        std::clamp(globalState.camera.getFov() + SCROLL_SENSITIVITY * static_cast<float>(offset.y), MIN_FOV, MAX_FOV),
-        globalState.camera.getAspectRatio(),
+    const auto near = appState.camera.getNear(), far = appState.camera.getFar();
+    appState.camera.projection = glm::gtc::perspective(
+        std::clamp(appState.camera.getFov() + SCROLL_SENSITIVITY * static_cast<float>(offset.y), MIN_FOV, MAX_FOV),
+        appState.camera.getAspectRatio(),
         near, far);
 }
 
@@ -92,7 +92,7 @@ auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(
 ) -> void {
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
-    globalState.framebufferCursorPosition = glm::dvec2{ getFramebufferSize() } * position / glm::dvec2{ getSize() };
+    appState.framebufferCursorPosition = glm::dvec2{ getFramebufferSize() } * position / glm::dvec2{ getSize() };
 }
 
 void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
@@ -103,7 +103,7 @@ void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-        globalState.selectedNodeIndex = globalState.hoveringNodeIndex;
+        appState.selectedNodeIndex = appState.hoveringNodeIndex;
     }
 }
 

@@ -32,10 +32,10 @@ import :io.logger;
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
 
 vk_gltf_viewer::vulkan::Frame::Frame(
-	const GlobalState &globalState,
+	const AppState &appState,
 	const std::shared_ptr<SharedData> &sharedData,
 	const Gpu &gpu
-) : globalState { globalState },
+) : appState { appState },
     sharedData { sharedData },
     gpu { gpu },
 	hoveringNodeIndexBuffer {
@@ -420,21 +420,21 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 
 	// Set viewport and scissor.
 	cb.setViewport(0, vk::Viewport {
-		globalState.imGuiPassthruRect.Min.x, globalState.imGuiPassthruRect.Max.y, // Use negative viewport.
-		globalState.imGuiPassthruRect.GetWidth(), -globalState.imGuiPassthruRect.GetHeight(),
+		appState.imGuiPassthruRect.Min.x, appState.imGuiPassthruRect.Max.y, // Use negative viewport.
+		appState.imGuiPassthruRect.GetWidth(), -appState.imGuiPassthruRect.GetHeight(),
 		0.f, 1.f,
 	});
 	cb.setScissor(0, vk::Rect2D {
-		{ static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.y) },
-		{ static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetHeight()) },
+		{ static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.y) },
+		{ static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetHeight()) },
 	});
 
 	sharedData->depthRenderer.bindPipeline(cb);
 	sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
 	sharedData->depthRenderer.pushConstants(cb, {
-		globalState.camera.projection * globalState.camera.view,
-		globalState.hoveringNodeIndex.value_or(NO_INDEX),
-		globalState.selectedNodeIndex.value_or(NO_INDEX),
+		appState.camera.projection * appState.camera.view,
+		appState.hoveringNodeIndex.value_or(NO_INDEX),
+		appState.selectedNodeIndex.value_or(NO_INDEX),
 	});
 	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
 		if (const auto &indexType = criteria.indexType) {
@@ -473,8 +473,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	});
 
 	// Copy from pixel at the cursor position to hoveringNodeIndexBuffer if cursor is inside the window.
-	if (globalState.framebufferCursorPosition.x < sharedData->swapchainExtent.width &&
-		globalState.framebufferCursorPosition.y < sharedData->swapchainExtent.height) {
+	if (appState.framebufferCursorPosition.x < sharedData->swapchainExtent.width &&
+		appState.framebufferCursorPosition.y < sharedData->swapchainExtent.height) {
 		cb.copyImageToBuffer(
 			depthPrepassAttachmentGroup.colorAttachments[0].image, vk::ImageLayout::eTransferSrcOptimal,
 			hoveringNodeIndexBuffer,
@@ -482,8 +482,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 				0, {}, {},
 				{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
 				{
-					static_cast<std::int32_t>(globalState.framebufferCursorPosition.x),
-					static_cast<std::int32_t>(globalState.framebufferCursorPosition.y),
+					static_cast<std::int32_t>(appState.framebufferCursorPosition.x),
+					static_cast<std::int32_t>(appState.framebufferCursorPosition.y),
 					0,
 				},
 				{ 1, 1, 1 },
@@ -506,12 +506,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodCalculationCommands(
 		    { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping */,
 		});
 
-	if (globalState.hoveringNodeIndex || globalState.selectedNodeIndex) {
+	if (appState.hoveringNodeIndex || appState.selectedNodeIndex) {
 		auto forward = sharedData->jumpFloodComputer.compute(
 			cb, jumpFloodSets,
 			vk::Rect2D {
-				{ static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.y) },
-				{ static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetHeight()) } });
+				{ static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.y) },
+				{ static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetHeight()) } });
 		// Release queue family ownership.
 		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
 			cb.pipelineBarrier(
@@ -540,19 +540,19 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 
 	// Set viewport and scissor.
 	cb.setViewport(0, vk::Viewport {
-		globalState.imGuiPassthruRect.Min.x, globalState.imGuiPassthruRect.Max.y, // Use negative viewport.
-		globalState.imGuiPassthruRect.GetWidth(), -globalState.imGuiPassthruRect.GetHeight(),
+		appState.imGuiPassthruRect.Min.x, appState.imGuiPassthruRect.Max.y, // Use negative viewport.
+		appState.imGuiPassthruRect.GetWidth(), -appState.imGuiPassthruRect.GetHeight(),
 		0.f, 1.f,
 	});
 	cb.setScissor(0, vk::Rect2D {
-		{ static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.y) },
-		{ static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetHeight()) },
+		{ static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.y) },
+		{ static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetHeight()) },
 	});
 
 	// Draw glTF mesh.
 	sharedData->primitiveRenderer.bindPipeline(cb);
 	sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
-	sharedData->primitiveRenderer.pushConstants(cb, { globalState.camera.projection * globalState.camera.view, globalState.camera.getEye() });
+	sharedData->primitiveRenderer.pushConstants(cb, { appState.camera.projection * appState.camera.view, appState.camera.getEye() });
 	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
@@ -566,9 +566,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	}
 
 	// Draw skybox.
-	const glm::mat4 noTranslationView = { glm::mat3 { globalState.camera.view } };
+	const glm::mat4 noTranslationView = { glm::mat3 { appState.camera.view } };
 	sharedData->skyboxRenderer.draw(cb, skyboxSets, {
-		globalState.camera.projection * noTranslationView,
+		appState.camera.projection * noTranslationView,
 	});
 
 	cb.endRenderingKHR();
@@ -580,7 +580,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 	std::uint32_t swapchainImageIndex
 ) const -> void {
 	// Acquire jumpFloodImage queue family ownership.
-	if ((globalState.hoveringNodeIndex || globalState.selectedNodeIndex) && gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
+	if ((appState.hoveringNodeIndex || appState.selectedNodeIndex) && gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
 		cb.pipelineBarrier(
 			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eFragmentShader,
 			{}, {}, {},
@@ -616,13 +616,13 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 
 	// Set viewport and scissor, based on visible rendering region.
 	cb.setViewport(0, vk::Viewport {
-		globalState.imGuiPassthruRect.Min.x, globalState.imGuiPassthruRect.Max.y, // Use negative viewport.
-		globalState.imGuiPassthruRect.GetWidth(), -globalState.imGuiPassthruRect.GetHeight(),
+		appState.imGuiPassthruRect.Min.x, appState.imGuiPassthruRect.Max.y, // Use negative viewport.
+		appState.imGuiPassthruRect.GetWidth(), -appState.imGuiPassthruRect.GetHeight(),
 		0.f, 1.f,
 	});
 	cb.setScissor(0, vk::Rect2D {
-		{ static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.y) },
-		{ static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetHeight()) },
+		{ static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.y) },
+		{ static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetHeight()) },
 	});
 
 	// Draw primitive rendering image to swapchain, with Rec709 tone mapping.
@@ -632,11 +632,11 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 
 	// Draw hovering/selected node outline if exists.
 	[&]() {
-		if (globalState.hoveringNodeIndex || globalState.selectedNodeIndex) {
+		if (appState.hoveringNodeIndex || appState.selectedNodeIndex) {
 			sharedData->outlineRenderer.bindPipeline(cb);
 			sharedData->outlineRenderer.bindDescriptorSets(cb, outlineSets);
 
-			if (globalState.selectedNodeIndex) {
+			if (appState.selectedNodeIndex) {
 				sharedData->outlineRenderer.pushConstants(cb, {
 					.outlineColor = { 0.f, 1.f, 0.2f },
 					.outlineThickness = 4.f,
@@ -644,10 +644,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 				});
 				sharedData->outlineRenderer.draw(cb);
 			}
-			if (globalState.selectedNodeIndex && globalState.hoveringNodeIndex) {
+			if (appState.selectedNodeIndex && appState.hoveringNodeIndex) {
 				// Special case: if both selectedNodeIndex and hoveringNodeIndex exist and are the same, the
 				// outlines will overlap, so the latter one doesn’t need to be rendered.
-				if (*globalState.selectedNodeIndex == *globalState.hoveringNodeIndex) {
+				if (*appState.selectedNodeIndex == *appState.hoveringNodeIndex) {
 					return;
 				}
 
@@ -661,7 +661,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 						vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
 					}, {}, {});
 			}
-			if (globalState.hoveringNodeIndex) {
+			if (appState.hoveringNodeIndex) {
 				sharedData->outlineRenderer.pushConstants(cb, {
 					.outlineColor = { 1.f, 0.5f, 0.2f },
 					.outlineThickness = 4.f,

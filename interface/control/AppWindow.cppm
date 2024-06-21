@@ -6,14 +6,14 @@ module;
 export module vk_gltf_viewer:control.AppWindow;
 
 import vku;
-export import :GlobalState;
+export import :AppState;
 
 namespace vk_gltf_viewer::control {
     export class AppWindow final : public vku::GlfwWindow {
     public:
-        GlobalState &globalState;
+        AppState &appState;
 
-        AppWindow(const vk::raii::Instance &instance, GlobalState &globalState);
+        AppWindow(const vk::raii::Instance &instance, AppState &appState);
 
         auto update(float timeDelta) -> void;
 

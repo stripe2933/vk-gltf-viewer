@@ -58,7 +58,7 @@ target_compile_definitions(glm_module PUBLIC
 
 add_executable(vk-gltf-viewer
 	impl/control/AppWindow.cpp
-	impl/GlobalState.cpp
+    impl/AppState.cpp
 	impl/gltf/AssetResources.cpp
 	impl/gltf/SceneResources.cpp
 	impl/MainApp.cpp
@@ -87,7 +87,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/gltf/algorithm/MikktSpaceInterface.cppm
 		interface/gltf/AssetResources.cppm
 		interface/gltf/SceneResources.cppm
-		interface/GlobalState.cppm
+		interface/AppState.cppm
 		interface/helpers/formatters/glm.cppm
 		interface/helpers/formatters/joiner.cppm
 		interface/helpers/formatters/omitted.cppm

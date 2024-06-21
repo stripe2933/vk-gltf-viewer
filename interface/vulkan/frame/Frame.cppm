@@ -14,7 +14,7 @@ module;
 export module vk_gltf_viewer:vulkan.frame.Frame;
 
 export import vku;
-export import :GlobalState;
+export import :AppState;
 export import :vulkan.Gpu;
 export import :vulkan.frame.SharedData;
 
@@ -33,7 +33,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 			bool presentSuccess;
 		};
 
-    	const GlobalState &globalState;
+    	const AppState &appState;
     	std::shared_ptr<SharedData> sharedData;
     	const Gpu &gpu;
 
@@ -74,7 +74,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     						jumpFloodFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
 		vk::raii::Fence     inFlightFence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } };
 
-    	Frame(const GlobalState &globalState, const std::shared_ptr<SharedData> &sharedData, const Gpu &gpu);
+    	Frame(const AppState &appState, const std::shared_ptr<SharedData> &sharedData, const Gpu &gpu);
 
     	[[nodiscard]] auto onLoop() -> std::expected<OnLoopResult, OnLoopError>;
 
