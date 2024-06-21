@@ -39,12 +39,14 @@ layout (set = 0, binding = 0, rgba16ui) uniform readonly uimage2D jumpFloodImage
 layout (push_constant, std430) uniform PushConstant {
     vec3 outlineColor;
     float outlineThickness;
+    ivec2 passthruOffset;
     bool useZwComponent;
 } pc;
 
 void main(){
-    uvec4 inputTexel = imageLoad(jumpFloodImage, ivec2(gl_FragCoord.xy));
-    float signedDistance = distance(pc.useZwComponent ? inputTexel.zw : inputTexel.xy, gl_FragCoord.xy);
+    ivec2 sampleCoord = ivec2(gl_FragCoord.xy) - pc.passthruOffset;
+    uvec4 inputTexel = imageLoad(jumpFloodImage, sampleCoord);
+    float signedDistance = distance(pc.useZwComponent ? inputTexel.zw : inputTexel.xy, sampleCoord);
     outColor.rgb = pc.outlineColor;
     outColor.a = signedDistance > 1.0 ? smoothstep(pc.outlineThickness + 1.0, pc.outlineThickness, signedDistance) : 0.0;
 }

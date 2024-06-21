@@ -18,9 +18,11 @@ vk_gltf_viewer::control::AppWindow::AppWindow(
 ) : GlfwWindow { 800, 480, "Vulkan glTF Viewer", instance },
     appState { appState } { }
 
-auto vk_gltf_viewer::control::AppWindow::update(
+auto vk_gltf_viewer::control::AppWindow::handleEvents(
     float timeDelta
 ) -> void {
+    glfwPollEvents();
+
     // Move camera.
     if (cameraWasd[0] ^ cameraWasd[2] || cameraWasd[1] ^ cameraWasd[3]) {
         constexpr float CAMERA_SPEED = 1.f; // 1 units per second.
@@ -60,8 +62,6 @@ auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(
     glm::dvec2 position
 ) -> void {
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
-
-    appState.framebufferCursorPosition = glm::dvec2{ getFramebufferSize() } * position / glm::dvec2{ getSize() };
 }
 
 void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(

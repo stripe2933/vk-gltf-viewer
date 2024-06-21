@@ -16,6 +16,7 @@ module;
 #include <imgui_internal.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
+#include <ImGuizmo.h>
 
 module vk_gltf_viewer;
 import :MainApp;
@@ -62,18 +63,28 @@ vk_gltf_viewer::MainApp::~MainApp() {
 }
 
 auto vk_gltf_viewer::MainApp::run() -> void {
+	// Initialize frame shared data.
+	const glm::u32vec2 framebufferSize = window.getFramebufferSize();
+	auto sharedData = std::make_shared<vulkan::SharedData>(
+		assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(),
+		gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y });
+
+	// Initialize frames.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-value"
+	std::array frames = ARRAY_OF(MAX_FRAMES_IN_FLIGHT, vulkan::Frame { sharedData, gpu });
+#pragma clang diagnostic pop
+
 	float elapsedTime = 0.f;
 	for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % frames.size()) {
-        glfwPollEvents();
-
 		const float glfwTime = static_cast<float>(glfwGetTime());
 		const float timeDelta = glfwTime - std::exchange(elapsedTime, glfwTime);
-		update(timeDelta);
+		const auto task = update(timeDelta);
 
-        const std::expected onLoopResultExpected = frames[frameIndex].onLoop();
-		if (onLoopResultExpected) handleOnLoopResult(*onLoopResultExpected);
+        const std::expected frameOnLoopResult = frames[frameIndex].onLoop(task);
+		if (frameOnLoopResult) handleOnLoopResult(*frameOnLoopResult);
 
-		if (!onLoopResultExpected || !onLoopResultExpected->presentSuccess) {
+		if (!frameOnLoopResult || !frameOnLoopResult->presentSuccess) {
 			gpu.device.waitIdle();
 
 			// Yield while window is minimized.
@@ -152,24 +163,10 @@ auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() const -> decltype(imGu
 	} };
 }
 
-auto vk_gltf_viewer::MainApp::createSharedData() -> decltype(sharedData) {
-	const glm::u32vec2 framebufferSize = window.getFramebufferSize();
-	return std::make_shared<vulkan::SharedData>(
-		assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(),
-		gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y });
-}
-
-auto vk_gltf_viewer::MainApp::createFrames() const -> decltype(frames) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-value"
-	return ARRAY_OF(2, vulkan::Frame { appState, sharedData, gpu });
-#pragma clang diagnostic pop
-}
-
 auto vk_gltf_viewer::MainApp::update(
     float timeDelta
-) -> void {
-	window.update(timeDelta);
+) -> vulkan::Frame::OnLoopTask {
+	window.handleEvents(timeDelta);
 
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
@@ -180,23 +177,60 @@ auto vk_gltf_viewer::MainApp::update(
 
 	// Get central node region.
 	const ImRect centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpaceId)->Rect();
-	const ImVec2 displayFramebufferScale = ImGui::GetIO().DisplayFramebufferScale;
-	const ImRect newPassthruRect = { displayFramebufferScale * centerNodeRect.Min, displayFramebufferScale * centerNodeRect.Max };
 
-	// Assign the calculated passthru rect to appState.imGuiPassthruRect. Handle stuffs that are dependent to the it.
-	if (ImRect oldPassthruRect = std::exchange(appState.imGuiPassthruRect, newPassthruRect);
-		oldPassthruRect.Min != newPassthruRect.Min || oldPassthruRect.Max != newPassthruRect.Max) {
+	// Calculate framebuffer coordinate based passthru rect.
+	const ImVec2 imGuiViewportSize = ImGui::GetIO().DisplaySize;
+	const glm::vec2 scaleFactor = glm::vec2 { window.getFramebufferSize() } / glm::vec2 { imGuiViewportSize.x, imGuiViewportSize.y };
+	const vk::Rect2D passthruRect {
+	    { static_cast<std::int32_t>(centerNodeRect.Min.x * scaleFactor.x), static_cast<std::int32_t>(centerNodeRect.Min.y * scaleFactor.y) },
+	    { static_cast<std::uint32_t>(centerNodeRect.GetWidth() * scaleFactor.x), static_cast<std::uint32_t>(centerNodeRect.GetHeight() * scaleFactor.y) },
+	};
+
+	// Assign the passthruRect to appState.passthruRect. Handle stuffs that are dependent to the it.
+	static vk::Rect2D previousPassthruRect{};
+	if (vk::Rect2D oldPassthruRect = std::exchange(previousPassthruRect, passthruRect); oldPassthruRect != passthruRect) {
 		appState.camera.projection = glm::gtc::perspective(
 			appState.camera.getFov(),
-			newPassthruRect.GetWidth() / newPassthruRect.GetHeight(),
+			vku::aspect(passthruRect.extent),
 			appState.camera.getNear(), appState.camera.getFar());
 	}
-	appState.imGuiPassthruRect = newPassthruRect;
 
 	ImGui::ShowDemoWindow();
 	ImGui::ShowDebugLogWindow();
 
+	ImGuizmo::BeginFrame();
+
+	// ViewManipulate.
+	constexpr ImVec2 viewManipulateSize { 64.f, 64.f };
+	constexpr ImU32 viewManipulateBackgroundColor = 0x00000000;
+	const glm::mat4 oldView = appState.camera.view;
+	ImGuizmo::ViewManipulate(
+		glm::gtc::value_ptr(appState.camera.view),
+		distance(appState.camera.getEye(), glm::vec3 { 0.f, 0.35f, 0.f } /* TODO: match to appState.camera */),
+		centerNodeRect.Max - viewManipulateSize, viewManipulateSize,
+		viewManipulateBackgroundColor);
+
+	// Capture mouse when using ViewManipulate.
+	glfwSetInputMode(window, GLFW_CURSOR, appState.camera.view != oldView ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+
 	ImGui::Render();
+
+	return {
+		.passthruRect = passthruRect,
+		.camera = { appState.camera.view, appState.camera.projection },
+		.mouseCursorOffset = [&]() -> std::optional<vk::Offset2D> {
+			const glm::vec2 framebufferCursorPosition
+				= glm::vec2 { window.getCursorPos() } * glm::vec2 { window.getFramebufferSize() } / glm::vec2 { window.getSize() };
+			if (glm::vec2 framebufferSize = window.getFramebufferSize();
+				framebufferCursorPosition.x >= framebufferSize.x || framebufferCursorPosition.y >= framebufferSize.y) return std::nullopt;
+			return vk::Offset2D {
+				static_cast<std::int32_t>(framebufferCursorPosition.x),
+				static_cast<std::int32_t>(framebufferCursorPosition.y)
+			};
+		}(),
+		.hoveringNodeIndex = appState.hoveringNodeIndex,
+		.selectedNodeIndex = appState.selectedNodeIndex,
+	};
 }
 
 auto vk_gltf_viewer::MainApp::handleOnLoopResult(

@@ -23,15 +23,15 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
 
             [[nodiscard]] auto getDescriptorWrites0(
-                vk::ImageView inputImageView
+                vk::ImageView hdriImageView
             ) const {
                 return vku::RefHolder {
-                    [this](const vk::DescriptorImageInfo &inputImageInfo) {
+                    [this](const vk::DescriptorImageInfo &hdriImageInfo) {
                         return std::array {
-                            getDescriptorWrite<0, 0>().setImageInfo(inputImageInfo),
+                            getDescriptorWrite<0, 0>().setImageInfo(hdriImageInfo),
                         };
                     },
-                    vk::DescriptorImageInfo { {}, inputImageView, vk::ImageLayout::eGeneral },
+                    vk::DescriptorImageInfo { {}, hdriImageView, vk::ImageLayout::eGeneral },
                 };
             }
         };
@@ -42,9 +42,13 @@ namespace vk_gltf_viewer::vulkan::pipelines {
 
         Rec709Renderer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
 
-        auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets) const -> void;
+        auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const vk::Offset2D &passthruOffset) const -> void;
 
     private:
+        struct PushConstant {
+            glm::i32vec2 hdriImageOffset;
+        };
+
         static std::string_view vert, frag;
 
         [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);

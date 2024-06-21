@@ -14,15 +14,17 @@ module;
 export module vk_gltf_viewer:vulkan.frame.Frame;
 
 export import vku;
-export import :AppState;
 export import :vulkan.Gpu;
 export import :vulkan.frame.SharedData;
 
 namespace vk_gltf_viewer::vulkan::inline frame {
     export class Frame {
     public:
-    	enum class OnLoopError {
-    		SwapchainAcquireFailed,
+    	struct OnLoopTask {
+    		vk::Rect2D passthruRect;
+    		struct { glm::mat4 view, projection; } camera;
+    		std::optional<vk::Offset2D> mouseCursorOffset;
+    		std::optional<std::uint32_t> hoveringNodeIndex, selectedNodeIndex;
     	};
 
 		struct OnLoopResult {
@@ -30,19 +32,30 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 			bool presentSuccess;
 		};
 
-    	const AppState &appState;
+    	enum class OnLoopError {
+    		SwapchainAcquireFailed,
+    	};
+
+    	Frame(const std::shared_ptr<SharedData> &sharedData, const Gpu &gpu);
+
+    	[[nodiscard]] auto onLoop(const OnLoopTask &task) -> std::expected<OnLoopResult, OnLoopError>;
+
+    	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
+
+    private:
     	std::shared_ptr<SharedData> sharedData;
     	const Gpu &gpu;
 
+        bool passthruImageInitialized = false;
+
     	// Buffer, image and image views.
-    	vku::AllocatedImage jumpFloodImage = createJumpFloodImage();
-    	vk::raii::ImageView jumpFloodPingImageView = createJumpFloodImageView(0),
-    					    jumpFloodPongImageView = createJumpFloodImageView(1);
-    	vku::MappedBuffer   hoveringNodeIndexBuffer;
+    	vku::MappedBuffer hoveringNodeIndexBuffer;
+    	std::unique_ptr<vku::AllocatedImage> jumpFloodImage = nullptr;
+    	std::unique_ptr<vk::raii::ImageView> jumpFloodPingImageView = nullptr, jumpFloodPongImageView = nullptr;
 
     	// Attachment groups.
-    	vku::AttachmentGroup     depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup();
-    	vku::MsaaAttachmentGroup primaryAttachmentGroup = createPrimaryAttachmentGroup();
+    	std::unique_ptr<vku::AttachmentGroup>     depthPrepassAttachmentGroup = nullptr;
+    	std::unique_ptr<vku::MsaaAttachmentGroup> primaryAttachmentGroup = nullptr;
 
         // Descriptor/command pools.
     	vk::raii::DescriptorPool descriptorPool      = createDescriptorPool();
@@ -69,29 +82,22 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     						jumpFloodFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
 		vk::raii::Fence     inFlightFence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } };
 
-    	Frame(const AppState &appState, const std::shared_ptr<SharedData> &sharedData, const Gpu &gpu);
-
-    	[[nodiscard]] auto onLoop() -> std::expected<OnLoopResult, OnLoopError>;
-
-    	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
-
-    private:
-    	[[nodiscard]] auto createJumpFloodImage() const -> decltype(jumpFloodImage);
-    	[[nodiscard]] auto createJumpFloodImageView(std::uint32_t arrayLayer) const -> vk::raii::ImageView;
-    	[[nodiscard]] auto createDepthPrepassAttachmentGroup() const -> decltype(depthPrepassAttachmentGroup);
-    	[[nodiscard]] auto createPrimaryAttachmentGroup() const -> decltype(primaryAttachmentGroup);
+    	[[nodiscard]] auto createJumpFloodImage(const vk::Extent2D &extent) const -> decltype(jumpFloodImage);
+    	[[nodiscard]] auto createJumpFloodImageView(std::uint32_t arrayLayer) const -> std::unique_ptr<vk::raii::ImageView>;
+    	[[nodiscard]] auto createDepthPrepassAttachmentGroup(const vk::Extent2D &extent) const -> decltype(depthPrepassAttachmentGroup);
+    	[[nodiscard]] auto createPrimaryAttachmentGroup(const vk::Extent2D &extent) const -> decltype(primaryAttachmentGroup);
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto initAttachmentLayouts() const -> void;
 
-    	auto update(OnLoopResult &result) -> void;
+    	auto update(const OnLoopTask &task, OnLoopResult &result) -> void;
 
-    	auto recordDepthPrepassCommands(vk::CommandBuffer cb) const -> void;
+    	auto recordDepthPrepassCommands(vk::CommandBuffer cb, const OnLoopTask &task) const -> void;
     	// Return false if last jump flood calculation direction is forward (result is in pong buffer), true if
     	// backward, nullopt if JFA not calculated (both hoveringNodeIndex and selectedNodeIndex is nullopt).
-		[[nodiscard]] auto recordJumpFloodCalculationCommands(vk::CommandBuffer cb) const -> std::optional<bool>;
-    	auto recordGltfPrimitiveDrawCommands(vk::CommandBuffer cb) const -> void;
-    	auto recordPostCompositionCommands(vk::CommandBuffer cb, std::optional<bool> isJumpFloodResultForward, std::uint32_t swapchainImageIndex) const -> void;
+		[[nodiscard]] auto recordJumpFloodCalculationCommands(vk::CommandBuffer cb, const OnLoopTask &task) const -> std::optional<bool>;
+    	auto recordGltfPrimitiveDrawCommands(vk::CommandBuffer cb, const OnLoopTask &task) const -> void;
+    	auto recordPostCompositionCommands(vk::CommandBuffer cb, std::optional<bool> isJumpFloodResultForward, std::uint32_t swapchainImageIndex, const OnLoopTask &task) const -> void;
     };
 }

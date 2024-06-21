@@ -15,7 +15,7 @@ namespace vk_gltf_viewer::control {
 
         AppWindow(const vk::raii::Instance &instance, AppState &appState);
 
-        auto update(float timeDelta) -> void;
+        auto handleEvents(float timeDelta) -> void;
 
     private:
         std::bitset<4> cameraWasd = 0b0000;

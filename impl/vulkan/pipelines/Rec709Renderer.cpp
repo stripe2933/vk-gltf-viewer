@@ -38,8 +38,12 @@ layout (location = 0) out vec4 outColor;
 
 layout (set = 0, binding = 0, rgba16f) uniform readonly image2D hdrImage;
 
+layout (push_constant) uniform PushConstant {
+    ivec2 hdriImageOffset;
+} pc;
+
 void main(){
-    vec4 color = imageLoad(hdrImage, ivec2(gl_FragCoord.xy));
+    vec4 color = imageLoad(hdrImage, ivec2(gl_FragCoord.xy) - pc.hdriImageOffset);
     float luminance = dot(color.rgb, REC_709_LUMA);
     outColor = vec4(color.rgb / (1.0 + luminance), color.a);
 }
@@ -64,20 +68,29 @@ vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::Rec709Renderer(
 
 auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::draw(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets
+    const DescriptorSets &descriptorSets,
+    const vk::Offset2D &passthruOffset
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
     commandBuffer.bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, PushConstant {
+        .hdriImageOffset = { passthruOffset.x, passthruOffset.y },
+    });
     commandBuffer.draw(3, 1, 0, 0);
 }
 
 auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> decltype(pipelineLayout) {
+    constexpr vk::PushConstantRange pushConstantRange {
+        vk::ShaderStageFlagBits::eFragment,
+        0, sizeof(PushConstant),
+    };
     return { device, vk::PipelineLayoutCreateInfo{
         {},
         descriptorSetLayouts,
+        pushConstantRange,
     } };
 }
 
