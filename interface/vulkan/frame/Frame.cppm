@@ -36,8 +36,9 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
     	// Buffer, image and image views.
     	vku::AllocatedImage jumpFloodImage = createJumpFloodImage();
-    	struct { vk::raii::ImageView ping, pong; } jumpFloodImageViews = createJumpFloodImageViews();
-    	vku::MappedBuffer hoveringNodeIndexBuffer;
+    	vk::raii::ImageView jumpFloodPingImageView = createJumpFloodImageView(0),
+    					    jumpFloodPongImageView = createJumpFloodImageView(1);
+    	vku::MappedBuffer   hoveringNodeIndexBuffer;
 
     	// Attachment groups.
     	vku::AttachmentGroup     depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup();
@@ -76,7 +77,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
     private:
     	[[nodiscard]] auto createJumpFloodImage() const -> decltype(jumpFloodImage);
-    	[[nodiscard]] auto createJumpFloodImageViews() const -> decltype(jumpFloodImageViews);
+    	[[nodiscard]] auto createJumpFloodImageView(std::uint32_t arrayLayer) const -> vk::raii::ImageView;
     	[[nodiscard]] auto createDepthPrepassAttachmentGroup() const -> decltype(depthPrepassAttachmentGroup);
     	[[nodiscard]] auto createPrimaryAttachmentGroup() const -> decltype(primaryAttachmentGroup);
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);

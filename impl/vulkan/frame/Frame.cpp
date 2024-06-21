@@ -27,8 +27,6 @@ import :gltf.SceneResources;
 import :helpers.ranges;
 import :io.logger;
 
-#define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
-
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
 
 vk_gltf_viewer::vulkan::Frame::Frame(
@@ -54,7 +52,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	    	depthSets.getDescriptorWrites0(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
-	    	jumpFloodSets.getDescriptorWrites0(*jumpFloodImageViews.ping, *jumpFloodImageViews.pong).get(),
+	    	jumpFloodSets.getDescriptorWrites0(*jumpFloodPingImageView, *jumpFloodPongImageView).get(),
 		    primitiveSets.getDescriptorWrites0(
 		    	{ sharedData->imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
 		    	*sharedData->imageBasedLightingResources.value().prefilteredmapImageView,
@@ -126,7 +124,7 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop() -> std::expected<OnLoopResult, OnLo
 	jumpFloodCommandBuffer.end();
 	if (jumpFloodResultForward.has_value()) {
 		gpu.device.updateDescriptorSets(
-			outlineSets.getDescriptorWrites0(*jumpFloodResultForward ? *jumpFloodImageViews.pong : *jumpFloodImageViews.ping).get(),
+			outlineSets.getDescriptorWrites0(*jumpFloodResultForward ? *jumpFloodPongImageView : *jumpFloodPingImageView).get(),
 			{});
 	}
 
@@ -221,19 +219,17 @@ auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImage() const -> decltype(jum
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImageViews() const -> decltype(jumpFloodImageViews) {
-	return INDEX_SEQ(Is, 2, {
-		return decltype(jumpFloodImageViews) {
-			vk::raii::ImageView { gpu.device, vk::ImageViewCreateInfo {
-				{},
-				jumpFloodImage,
-				vk::ImageViewType::e2D,
-				jumpFloodImage.format,
-				{},
-				vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, Is, 1 },
-			} }...
-		};
-	});
+auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImageView(
+    std::uint32_t arrayLayer
+) const -> vk::raii::ImageView {
+	return vk::raii::ImageView { gpu.device, vk::ImageViewCreateInfo {
+		{},
+		jumpFloodImage,
+		vk::ImageViewType::e2D,
+		jumpFloodImage.format,
+		{},
+		vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, arrayLayer, 1 },
+	} };
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createDepthPrepassAttachmentGroup() const -> decltype(depthPrepassAttachmentGroup) {
@@ -334,13 +330,14 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 	if (jumpFloodImage.extent.width != static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetWidth()) ||
 		jumpFloodImage.extent.height != static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetHeight())) {
 		jumpFloodImage = createJumpFloodImage();
-		jumpFloodImageViews = createJumpFloodImageViews();
+		jumpFloodPingImageView = createJumpFloodImageView(0);
+		jumpFloodPongImageView = createJumpFloodImageView(1);
 		depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup();
 		primaryAttachmentGroup = createPrimaryAttachmentGroup();
 		initAttachmentLayouts();
 		gpu.device.updateDescriptorSets(
 			ranges::array_cat(
-				jumpFloodSets.getDescriptorWrites0(*jumpFloodImageViews.ping, *jumpFloodImageViews.pong).get(),
+				jumpFloodSets.getDescriptorWrites0(*jumpFloodPingImageView, *jumpFloodPongImageView).get(),
 				rec709Sets.getDescriptorWrites0(*primaryAttachmentGroup.colorAttachments[0].resolveView).get()),
 			{});
 	}
