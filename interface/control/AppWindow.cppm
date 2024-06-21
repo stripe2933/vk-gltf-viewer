@@ -21,7 +21,6 @@ namespace vk_gltf_viewer::control {
         std::bitset<4> cameraWasd = 0b0000;
         bool cameraRunning = false;
 
-        auto onFramebufferSizeCallback(glm::ivec2 size) -> void override;
         auto onScrollCallback(glm::dvec2 offset) -> void override;
         auto onCursorPosCallback(glm::dvec2 position) -> void override;
         auto onMouseButtonCallback(int button, int action, int mods) -> void override;

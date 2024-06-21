@@ -417,28 +417,35 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
 		},
 		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 1.f, 0U } }));
-	[&]() {
-		// Set viewport and scissor.
-		depthPrepassAttachmentGroup.setViewport(cb, true);
-		depthPrepassAttachmentGroup.setScissor(cb);
 
-		sharedData->depthRenderer.bindPipeline(cb);
-		sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
-		sharedData->depthRenderer.pushConstants(cb, {
-			globalState.camera.projection * globalState.camera.view,
-			globalState.hoveringNodeIndex.value_or(NO_INDEX),
-			globalState.selectedNodeIndex.value_or(NO_INDEX),
-		});
-		for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
-			if (const auto &indexType = criteria.indexType) {
-				cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
-				cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-			}
-			else {
-				cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-			}
+	// Set viewport and scissor.
+	cb.setViewport(0, vk::Viewport {
+		globalState.imGuiPassthruRect.Min.x, globalState.imGuiPassthruRect.Max.y, // Use negative viewport.
+		globalState.imGuiPassthruRect.GetWidth(), -globalState.imGuiPassthruRect.GetHeight(),
+		0.f, 1.f,
+	});
+	cb.setScissor(0, vk::Rect2D {
+		{ static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.y) },
+		{ static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetHeight()) },
+	});
+
+	sharedData->depthRenderer.bindPipeline(cb);
+	sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
+	sharedData->depthRenderer.pushConstants(cb, {
+		globalState.camera.projection * globalState.camera.view,
+		globalState.hoveringNodeIndex.value_or(NO_INDEX),
+		globalState.selectedNodeIndex.value_or(NO_INDEX),
+	});
+	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
+		if (const auto &indexType = criteria.indexType) {
+			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
-	}();
+		else {
+			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+		}
+	}
+
 	cb.endRenderingKHR();
 
 	const std::array imageMemoryBarriers {
@@ -500,7 +507,11 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodCalculationCommands(
 		});
 
 	if (globalState.hoveringNodeIndex || globalState.selectedNodeIndex) {
-		auto forward = sharedData->jumpFloodComputer.compute(cb, jumpFloodSets, vku::toExtent2D(jumpFloodImage.extent));
+		auto forward = sharedData->jumpFloodComputer.compute(
+			cb, jumpFloodSets,
+			vk::Rect2D {
+				{ static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.y) },
+				{ static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetHeight()) } });
 		// Release queue family ownership.
 		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
 			cb.pipelineBarrier(
@@ -528,8 +539,15 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 		vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 1.f, 0U } }));
 
 	// Set viewport and scissor.
-	primaryAttachmentGroup.setViewport(cb, true);
-	primaryAttachmentGroup.setScissor(cb);
+	cb.setViewport(0, vk::Viewport {
+		globalState.imGuiPassthruRect.Min.x, globalState.imGuiPassthruRect.Max.y, // Use negative viewport.
+		globalState.imGuiPassthruRect.GetWidth(), -globalState.imGuiPassthruRect.GetHeight(),
+		0.f, 1.f,
+	});
+	cb.setScissor(0, vk::Rect2D {
+		{ static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.y) },
+		{ static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetHeight()) },
+	});
 
 	// Draw glTF mesh.
 	sharedData->primitiveRenderer.bindPipeline(cb);
@@ -596,8 +614,16 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		vk::RenderPassAttachmentBeginInfo { framebufferImageViews },
 	}.get(), vk::SubpassContents::eInline);
 
-	sharedData->swapchainAttachmentGroups[swapchainImageIndex].setViewport(cb, true);
-	sharedData->swapchainAttachmentGroups[swapchainImageIndex].setScissor(cb);
+	// Set viewport and scissor, based on visible rendering region.
+	cb.setViewport(0, vk::Viewport {
+		globalState.imGuiPassthruRect.Min.x, globalState.imGuiPassthruRect.Max.y, // Use negative viewport.
+		globalState.imGuiPassthruRect.GetWidth(), -globalState.imGuiPassthruRect.GetHeight(),
+		0.f, 1.f,
+	});
+	cb.setScissor(0, vk::Rect2D {
+		{ static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(globalState.imGuiPassthruRect.Min.y) },
+		{ static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(globalState.imGuiPassthruRect.GetHeight()) },
+	});
 
 	// Draw primitive rendering image to swapchain, with Rec709 tone mapping.
 	sharedData->rec709Renderer.draw(cb, rec709Sets);

@@ -358,8 +358,7 @@ auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImageView() const -> declt
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> decltype(compositionRenderPass) {
-	// Since swapchain image is used in multiple subpasses, corresponding attachment descriptions must have MayAlias
-	// flag bits.
+	// If swapchain image is used in multiple subpasses, corresponding attachment descriptions must have MayAlias flag.
 	// See: https://vkdoc.net/man/VkAttachmentDescription#VUID-VkAttachmentDescription-format-06699
 	constexpr std::array attachmentDescriptions {
 		vk::AttachmentDescription {
@@ -374,7 +373,8 @@ auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> 
 			vk::AttachmentDescriptionFlagBits::eMayAlias,
 			vk::Format::eB8G8R8A8Srgb,
 			vk::SampleCountFlagBits::e1,
-			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
+			// Swapchain image would be first cleared at here, and never re-cleared.
+			vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
 			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
 			vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::ePresentSrcKHR,
 		},

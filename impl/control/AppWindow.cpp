@@ -5,8 +5,10 @@ module;
 #include <compare>
 
 #include <GLFW/glfw3.h>
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
+#include <imgui_internal.h>
 
 module vk_gltf_viewer;
 import :control.AppWindow;
@@ -17,9 +19,7 @@ vk_gltf_viewer::control::AppWindow::AppWindow(
     const vk::raii::Instance &instance,
     GlobalState &globalState
 ) : GlfwWindow { 800, 480, "Vulkan glTF Viewer", instance },
-    globalState { globalState } {
-    onFramebufferSizeCallback(getFramebufferSize());
-}
+    globalState { globalState } { }
 
 auto vk_gltf_viewer::control::AppWindow::update(
     float timeDelta
@@ -48,16 +48,28 @@ auto vk_gltf_viewer::control::AppWindow::update(
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
+    // Enable global docking.
+    const ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
+
+    // Get central node region.
+    const ImRect centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpaceId)->Rect();
+    const ImVec2 displayFramebufferScale = ImGui::GetIO().DisplayFramebufferScale;
+    const ImRect newPassthruRect = { displayFramebufferScale * centerNodeRect.Min, displayFramebufferScale * centerNodeRect.Max };
+
+    // Assign the calculated passthru rect to globalState.imGuiPassthruRect. Handle stuffs that are dependent to the it.
+    if (ImRect oldPassthruRect = std::exchange(globalState.imGuiPassthruRect, newPassthruRect);
+        oldPassthruRect.GetTL() != newPassthruRect.GetTL() || oldPassthruRect.GetBR() != newPassthruRect.GetBR()) {
+        globalState.camera.projection = glm::gtc::perspective(
+            globalState.camera.getFov(),
+            newPassthruRect.GetWidth() / newPassthruRect.GetHeight(),
+            globalState.camera.getNear(), globalState.camera.getFar());
+    }
+    globalState.imGuiPassthruRect = newPassthruRect;
+
     ImGui::ShowDemoWindow();
+    ImGui::ShowDebugLogWindow();
 
     ImGui::Render();
-}
-
-void vk_gltf_viewer::control::AppWindow::onFramebufferSizeCallback(
-    glm::ivec2 size
-) {
-    globalState.camera.projection = glm::gtc::perspective(
-        glm::radians(45.f), static_cast<float>(size.x) / size.y, 1e-2f, 1e2f);
 }
 
 auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
