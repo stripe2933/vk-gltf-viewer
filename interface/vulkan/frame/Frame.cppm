@@ -18,9 +18,6 @@ export import :AppState;
 export import :vulkan.Gpu;
 export import :vulkan.frame.SharedData;
 
-#define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
-#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
-
 namespace vk_gltf_viewer::vulkan::inline frame {
     export class Frame {
     public:
@@ -43,7 +40,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	vku::MappedBuffer hoveringNodeIndexBuffer;
 
     	// Attachment groups.
-    	vku::AttachmentGroup depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup();
+    	vku::AttachmentGroup     depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup();
     	vku::MsaaAttachmentGroup primaryAttachmentGroup = createPrimaryAttachmentGroup();
 
         // Descriptor/command pools.
@@ -62,9 +59,6 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	// Command buffers.
     	vk::CommandBuffer depthPrepassCommandBuffer, drawCommandBuffer, compositeCommandBuffer;
     	vk::CommandBuffer jumpFloodCommandBuffer;
-
-    	// Framebuffers.
-    	vk::raii::Framebuffer compositionFramebuffer = createCompositionFramebuffer();
 
 		// Synchronization stuffs.
 		vk::raii::Semaphore depthPrepassFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
@@ -87,7 +81,6 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	[[nodiscard]] auto createPrimaryAttachmentGroup() const -> decltype(primaryAttachmentGroup);
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
-    	[[nodiscard]] auto createCompositionFramebuffer() const -> decltype(compositionFramebuffer);
 
     	auto initAttachmentLayouts() const -> void;
 

@@ -71,11 +71,12 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		.Device = *gpu.device,
 		.Queue = gpu.queues.graphicsPresent,
 		.DescriptorPool = *imGuiDescriptorPool,
-		.Subpass = 2,
 		.MinImageCount = frames.size(),
 		.ImageCount = frames.size(),
+		.UseDynamicRendering = true,
+		.ColorAttachmentFormat = VK_FORMAT_B8G8R8A8_UNORM,
 	};
-	ImGui_ImplVulkan_Init(&initInfo, *sharedData->compositionRenderPass);
+	ImGui_ImplVulkan_Init(&initInfo, nullptr);
 
 	io::logger::debug("Main loop started");
 

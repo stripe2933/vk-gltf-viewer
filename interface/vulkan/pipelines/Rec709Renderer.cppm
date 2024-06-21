@@ -31,7 +31,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
                             getDescriptorWrite<0, 0>().setImageInfo(inputImageInfo),
                         };
                     },
-                    vk::DescriptorImageInfo { {}, inputImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+                    vk::DescriptorImageInfo { {}, inputImageView, vk::ImageLayout::eGeneral },
                 };
             }
         };
@@ -40,7 +40,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        Rec709Renderer(const vk::raii::Device &device, vk::RenderPass renderPass, std::uint32_t subpass, const shaderc::Compiler &compiler);
+        Rec709Renderer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
 
         auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets) const -> void;
 
@@ -48,6 +48,6 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         static std::string_view vert, frag;
 
         [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device, vk::RenderPass renderPass, std::uint32_t subpass, const shaderc::Compiler &compiler) const -> decltype(pipeline);
+        [[nodiscard]] auto createPipeline(const vk::raii::Device &device, const shaderc::Compiler &compiler) const -> decltype(pipeline);
     };
 }

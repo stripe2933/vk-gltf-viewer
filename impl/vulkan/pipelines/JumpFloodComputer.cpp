@@ -28,8 +28,6 @@ const ivec2 normalizedOffsets[9] = ivec2[](
 layout (set = 0, binding = 0, rg16ui) uniform uimage2D pingPongImages[2];
 
 layout (push_constant, std430) uniform PushConstant {
-    uvec2 offset;
-    uvec2 extent;
     bool forward;
     uint sampleOffset;
 } pc;
@@ -41,14 +39,15 @@ uint length2(uvec2 v) {
 }
 
 void main(){
-    if (gl_GlobalInvocationID.x >= pc.extent.x || gl_GlobalInvocationID.y >= pc.extent.y) {
+    uvec2 imageExtent = imageSize(pingPongImages[0]);
+    if (gl_GlobalInvocationID.x >= imageExtent.x || gl_GlobalInvocationID.y >= imageExtent.y) {
         return;
     }
 
     uvec2 closestSeedCoordXy, closestSeedCoordZw;
     uint closestSeedDistanceSqXy = UINT_MAX, closestSeedDistanceSqZw = UINT_MAX;
     for (uint i = 0; i < 9; ++i){
-        uvec4 seedCoord = imageLoad(pingPongImages[uint(!pc.forward)], ivec2(pc.offset + gl_GlobalInvocationID.xy) + int(pc.sampleOffset) * normalizedOffsets[i]);
+        uvec4 seedCoord = imageLoad(pingPongImages[uint(!pc.forward)], ivec2(gl_GlobalInvocationID.xy) + int(pc.sampleOffset) * normalizedOffsets[i]);
         uvec2 seedCoordXy = seedCoord.xy, seedCoordZw = seedCoord.zw;
         if (seedCoordXy != uvec2(0U)) {
             uint seedDistanceSq = length2(seedCoordXy - gl_GlobalInvocationID.xy);
@@ -66,7 +65,7 @@ void main(){
         }
     }
 
-    imageStore(pingPongImages[uint(pc.forward)], ivec2(pc.offset + gl_GlobalInvocationID.xy), uvec4(
+    imageStore(pingPongImages[uint(pc.forward)], ivec2(gl_GlobalInvocationID.xy), uvec4(
         closestSeedDistanceSqXy == UINT_MAX ? uvec2(0) : closestSeedCoordXy,
         closestSeedDistanceSqZw == UINT_MAX ? uvec2(0) : closestSeedCoordZw));
 }
@@ -89,31 +88,20 @@ vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::JumpFloodComputer(
 auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::compute(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
-    const vk::Rect2D &computeRegion
+    const vk::Extent2D &imageExtent
 ) const -> vk::Bool32 {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSets, {});
 
     PushConstant pushConstant {
-        .offset = { computeRegion.offset.x, computeRegion.offset.y },
-        .extent = { computeRegion.extent.width, computeRegion.extent.height },
         .forward = true,
-        .sampleOffset = std::bit_floor(std::min(computeRegion.extent.width, computeRegion.extent.height)) >> 1U,
+        .sampleOffset = std::bit_floor(std::min(imageExtent.width, imageExtent.height)) >> 1U,
     };
-    for (bool first = true; pushConstant.sampleOffset > 0U; pushConstant.forward = !pushConstant.forward, pushConstant.sampleOffset >>= 1U) {
-        if (first) {
-            commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
-            first = false;
-        }
-        else {
-            // Since offset and extent is not changed after first push, we can optimize by pushing only data from `forward` field.
-            commandBuffer.pushConstants(
-                *pipelineLayout, vk::ShaderStageFlagBits::eCompute,
-                offsetof(PushConstant, forward), sizeof(PushConstant) - offsetof(PushConstant, forward), &pushConstant.forward);
-        }
+    for (; pushConstant.sampleOffset > 0U; pushConstant.forward = !pushConstant.forward, pushConstant.sampleOffset >>= 1U) {
+        commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
         commandBuffer.dispatch(
-            vku::divCeil(computeRegion.extent.width, 16U),
-            vku::divCeil(computeRegion.extent.height, 16U),
+            vku::divCeil(imageExtent.width, 16U),
+            vku::divCeil(imageExtent.height, 16U),
             1);
 
         if (pushConstant.sampleOffset != 1U) {

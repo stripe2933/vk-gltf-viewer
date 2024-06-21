@@ -197,23 +197,7 @@ auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
 	vk::SurfaceKHR surface,
 	const vk::Extent2D &newExtent
 ) -> void {
-	jumpFloodImage = createJumpFloodImage();
-	jumpFloodImageViews = createJumpFloodImageViews();
-	depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup();
-	primaryAttachmentGroup = createPrimaryAttachmentGroup();
-	initAttachmentLayouts();
 
-	// Update per-frame descriptor sets.
-	gpu.device.updateDescriptorSets(
-		ranges::array_cat(
-		    jumpFloodSets.getDescriptorWrites0(*jumpFloodImageViews.ping, *jumpFloodImageViews.pong).get(),
-			rec709Sets.getDescriptorWrites0(*primaryAttachmentGroup.colorAttachments[0].resolveView).get()),
-		{});
-
-	// Recreate framebuffers.
-	compositionFramebuffer = createCompositionFramebuffer();
-
-	io::logger::debug("Swapchain resize handling for Frame finished");
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImage() const -> decltype(jumpFloodImage) {
@@ -221,13 +205,16 @@ auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImage() const -> decltype(jum
 		{},
 		vk::ImageType::e2D,
 		vk::Format::eR16G16B16A16Uint,
-		vk::Extent3D { sharedData->swapchainExtent, 1 },
+		vk::Extent3D {
+			static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetWidth()),
+			static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetHeight()),
+			1,
+		},
 		1, 2, // arrayLevels=0 for ping image, arrayLevels=1 for pong image.
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
 		vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */
-			| vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer */
-			| vk::ImageUsageFlagBits::eInputAttachment /* read from OutlineRenderer */,
+			| vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer, read from OutlineRenderer */,
 	}, vma::AllocationCreateInfo {
 		{},
 		vma::MemoryUsage::eAutoPreferDevice,
@@ -250,7 +237,10 @@ auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImageViews() const -> decltyp
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createDepthPrepassAttachmentGroup() const -> decltype(depthPrepassAttachmentGroup) {
-	vku::AttachmentGroup attachmentGroup { sharedData->swapchainExtent };
+	vku::AttachmentGroup attachmentGroup { vk::Extent2D {
+		static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetWidth()),
+		static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetHeight())
+	} };
 	attachmentGroup.addColorAttachment(
 		gpu.device,
 		attachmentGroup.storeImage(
@@ -267,13 +257,16 @@ auto vk_gltf_viewer::vulkan::Frame::createDepthPrepassAttachmentGroup() const ->
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createPrimaryAttachmentGroup() const -> decltype(primaryAttachmentGroup) {
-	vku::MsaaAttachmentGroup attachmentGroup { sharedData->swapchainExtent, vk::SampleCountFlagBits::e4 };
+	vku::MsaaAttachmentGroup attachmentGroup { vk::Extent2D {
+		static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetWidth()),
+		static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetHeight())
+	}, vk::SampleCountFlagBits::e4 };
 	attachmentGroup.addColorAttachment(
 		gpu.device,
 		attachmentGroup.storeImage(
 			attachmentGroup.createColorImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat)),
 		attachmentGroup.storeImage(
-			attachmentGroup.createResolveImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eInputAttachment)));
+			attachmentGroup.createResolveImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eStorage)));
 	attachmentGroup.setDepthAttachment(
 		gpu.device,
 		attachmentGroup.storeImage(
@@ -303,56 +296,6 @@ auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer() const -> decltype(compositionFramebuffer) {
-	const std::tuple attachmentImageFormats {
-		std::array { vk::Format::eR16G16B16A16Sfloat }, // Primitive rendering image.
-		std::array { vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm }, // Swapchain image for ImGui.
-		std::array { vk::Format::eR16G16B16A16Uint }, // Jump flood calculation image.
-	};
-	const std::array attachmentImageInfos {
-		vk::FramebufferAttachmentImageInfo {
-			{},
-			vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-			primaryAttachmentGroup.extent.width, primaryAttachmentGroup.extent.height, 1,
-			get<0>(attachmentImageFormats),
-		},
-		vk::FramebufferAttachmentImageInfo {
-			vk::ImageCreateFlagBits::eMutableFormat | vk::ImageCreateFlagBits::eExtendedUsage,
-			vk::ImageUsageFlagBits::eColorAttachment,
-			sharedData->swapchainExtent.width, sharedData->swapchainExtent.height, 1,
-			get<1>(attachmentImageFormats),
-		},
-		vk::FramebufferAttachmentImageInfo {
-			{},
-			vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eInputAttachment,
-			jumpFloodImage.extent.width, jumpFloodImage.extent.height, 1,
-			get<2>(attachmentImageFormats),
-		},
-		vk::FramebufferAttachmentImageInfo {
-			vk::ImageCreateFlagBits::eMutableFormat | vk::ImageCreateFlagBits::eExtendedUsage,
-			vk::ImageUsageFlagBits::eColorAttachment,
-			sharedData->swapchainExtent.width, sharedData->swapchainExtent.height, 1,
-			get<1>(attachmentImageFormats),
-		},
-		vk::FramebufferAttachmentImageInfo {
-			vk::ImageCreateFlagBits::eMutableFormat | vk::ImageCreateFlagBits::eExtendedUsage,
-			vk::ImageUsageFlagBits::eColorAttachment,
-			sharedData->swapchainExtent.width, sharedData->swapchainExtent.height, 1,
-			get<1>(attachmentImageFormats),
-		},
-	};
-	return vk::raii::Framebuffer { gpu.device, vk::StructureChain {
-		vk::FramebufferCreateInfo {
-			vk::FramebufferCreateFlagBits::eImageless,
-			*sharedData->compositionRenderPass,
-			attachmentImageInfos.size(), nullptr,
-			sharedData->swapchainExtent.width, sharedData->swapchainExtent.height,
-			1,
-		},
-		vk::FramebufferAttachmentsCreateInfo { attachmentImageInfos },
-	}.get() };
-}
-
 auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts() const -> void {
 	std::vector<vk::ImageMemoryBarrier> barriers;
 	const auto appendBarrier = [&](vk::ImageLayout newLayout, vk::Image image, const vk::ImageSubresourceRange &subresourceRange = vku::fullSubresourceRange()) {
@@ -367,7 +310,7 @@ auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts() const -> void {
 	appendBarrier(vk::ImageLayout::eTransferSrcOptimal, depthPrepassAttachmentGroup.colorAttachments[0].image);
 	appendBarrier(vk::ImageLayout::eDepthAttachmentOptimal, depthPrepassAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth));
 	appendBarrier(vk::ImageLayout::eColorAttachmentOptimal, primaryAttachmentGroup.colorAttachments[0].image);
-	appendBarrier(vk::ImageLayout::eColorAttachmentOptimal, primaryAttachmentGroup.colorAttachments[0].resolveImage);
+	appendBarrier(vk::ImageLayout::eGeneral, primaryAttachmentGroup.colorAttachments[0].resolveImage);
 	appendBarrier(vk::ImageLayout::eDepthAttachmentOptimal, primaryAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth));
 
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
@@ -385,6 +328,21 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 	// If it is not NO_INDEX (i.e. node index is found), update hoveringNodeIndex.
 	if (auto value = std::exchange(hoveringNodeIndexBuffer.asValue<std::uint32_t>(), NO_INDEX); value != NO_INDEX) {
 		result.hoveringNodeIndex = value;
+	}
+
+	// If passthru extent is different from current, dependent images have to be recreated.
+	if (jumpFloodImage.extent.width != static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetWidth()) ||
+		jumpFloodImage.extent.height != static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetHeight())) {
+		jumpFloodImage = createJumpFloodImage();
+		jumpFloodImageViews = createJumpFloodImageViews();
+		depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup();
+		primaryAttachmentGroup = createPrimaryAttachmentGroup();
+		initAttachmentLayouts();
+		gpu.device.updateDescriptorSets(
+			ranges::array_cat(
+				jumpFloodSets.getDescriptorWrites0(*jumpFloodImageViews.ping, *jumpFloodImageViews.pong).get(),
+				rec709Sets.getDescriptorWrites0(*primaryAttachmentGroup.colorAttachments[0].resolveView).get()),
+			{});
 	}
 }
 
@@ -418,7 +376,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		},
 		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 1.f, 0U } }));
 
-	// Set viewport and scissor.
+	// Set viewport and scissor to passthru rect.
 	cb.setViewport(0, vk::Viewport {
 		appState.imGuiPassthruRect.Min.x, appState.imGuiPassthruRect.Max.y, // Use negative viewport.
 		appState.imGuiPassthruRect.GetWidth(), -appState.imGuiPassthruRect.GetHeight(),
@@ -472,9 +430,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		{}, {}, imageMemoryBarriers,
 	});
 
-	// Copy from pixel at the cursor position to hoveringNodeIndexBuffer if cursor is inside the window.
-	if (appState.framebufferCursorPosition.x < sharedData->swapchainExtent.width &&
-		appState.framebufferCursorPosition.y < sharedData->swapchainExtent.height) {
+	// Copy from pixel at the cursor position to hoveringNodeIndexBuffer if cursor is inside the passthru rect.
+	if (glm::vec2 cursorPos = appState.framebufferCursorPosition; appState.imGuiPassthruRect.Contains({ cursorPos.x, cursorPos.y })) {
 		cb.copyImageToBuffer(
 			depthPrepassAttachmentGroup.colorAttachments[0].image, vk::ImageLayout::eTransferSrcOptimal,
 			hoveringNodeIndexBuffer,
@@ -508,10 +465,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodCalculationCommands(
 
 	if (appState.hoveringNodeIndex || appState.selectedNodeIndex) {
 		auto forward = sharedData->jumpFloodComputer.compute(
-			cb, jumpFloodSets,
-			vk::Rect2D {
-				{ static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.y) },
-				{ static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetHeight()) } });
+			cb, jumpFloodSets, vku::toExtent2D(jumpFloodImage.extent));
 		// Release queue family ownership.
 		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
 			cb.pipelineBarrier(
@@ -532,6 +486,17 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodCalculationCommands(
 auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	vk::CommandBuffer cb
 ) const -> void {
+	// Change resolve image layout from General to ColorAttachmentOptimal.
+	cb.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+		{}, {}, {},
+		vk::ImageMemoryBarrier {
+			{}, vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::ImageLayout::eGeneral, vk::ImageLayout::eColorAttachmentOptimal,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			primaryAttachmentGroup.colorAttachments[0].resolveImage, vku::fullSubresourceRange(),
+		});
+
 	cb.beginRenderingKHR(primaryAttachmentGroup.getRenderingInfo(
 		std::array {
 			vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare },
@@ -579,103 +544,144 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 	std::optional<bool> isJumpFloodResultForward,
 	std::uint32_t swapchainImageIndex
 ) const -> void {
-	// Acquire jumpFloodImage queue family ownership.
-	if ((appState.hoveringNodeIndex || appState.selectedNodeIndex) && gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eFragmentShader,
-			{}, {}, {},
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eShaderRead,
-				vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
-				gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-				jumpFloodImage, { vk::ImageAspectFlagBits::eColor, 0, 1, *isJumpFloodResultForward, 1 },
-			});
-	}
-
-	constexpr std::array<vk::ClearValue, 5> clearValues{};
-	const std::array framebufferImageViews {
-		*primaryAttachmentGroup.colorAttachments[0].resolveView,
-		*sharedData->swapchainAttachmentGroups[swapchainImageIndex].colorAttachments[0].view,
-		// If JFA not computed, use the first image (it just transition the layout to General and does not matter).
-		(isJumpFloodResultForward && *isJumpFloodResultForward) ? *jumpFloodImageViews.pong : *jumpFloodImageViews.ping,
-		*sharedData->swapchainAttachmentGroups[swapchainImageIndex].colorAttachments[0].view,
-		*sharedData->imGuiSwapchainAttachmentGroups[swapchainImageIndex].colorAttachments[0].view,
-	};
-	static_assert(clearValues.size() == framebufferImageViews.size(), "Clear count mismatch");
-
-	// Start render pass.
-	cb.beginRenderPass(vk::StructureChain {
-		vk::RenderPassBeginInfo {
-			*sharedData->compositionRenderPass,
-			*compositionFramebuffer,
-			{ { 0, 0 }, sharedData->swapchainExtent },
-			clearValues,
+	std::vector memoryBarriers {
+		// Change PrimaryAttachmentGroup's resolve image layout from ColorAttachmentOptimal to General.
+		vk::ImageMemoryBarrier2 {
+			{}, {},
+			vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderStorageRead,
+			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			primaryAttachmentGroup.colorAttachments[0].resolveImage, vku::fullSubresourceRange(),
 		},
-		vk::RenderPassAttachmentBeginInfo { framebufferImageViews },
-	}.get(), vk::SubpassContents::eInline);
+		// Change swapchain image layout from PresentSrcKHR to ColorAttachmentOptimal.
+		vk::ImageMemoryBarrier2 {
+			{}, {},
+			vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
+			vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			sharedData->swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
+		},
+	};
+	// Acquire jumpFloodImage queue family ownership, if necessary.
+	if ((appState.hoveringNodeIndex || appState.selectedNodeIndex) && gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
+		memoryBarriers.emplace_back(
+			vk::PipelineStageFlags2{}, vk::AccessFlags2{},
+			vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderStorageRead,
+			vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
+			gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+			jumpFloodImage,
+			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *isJumpFloodResultForward, 1 });
+	}
+	cb.pipelineBarrier2KHR({
+		{},
+		{}, {}, memoryBarriers,
+	});
 
-	// Set viewport and scissor, based on visible rendering region.
-	cb.setViewport(0, vk::Viewport {
+	const vk::Viewport passthruViewport {
 		appState.imGuiPassthruRect.Min.x, appState.imGuiPassthruRect.Max.y, // Use negative viewport.
 		appState.imGuiPassthruRect.GetWidth(), -appState.imGuiPassthruRect.GetHeight(),
 		0.f, 1.f,
-	});
-	cb.setScissor(0, vk::Rect2D {
+	};
+	const vk::Rect2D passthruScissor {
 		{ static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.x), static_cast<std::int32_t>(appState.imGuiPassthruRect.Min.y) },
 		{ static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetWidth()), static_cast<std::uint32_t>(appState.imGuiPassthruRect.GetHeight()) },
-	});
+	};
+
+	// TODO: The primitive rendering image should be composited before outlining the hovered or selected nodes.
+	//	Currently, this is achieved through two separate dynamic renderings, each with a consequent load operation set
+	//	to ‘Load’. However, if Vulkan extensions such as VK_KHR_dynamic_rendering_local_read are available, a pipeline
+	//	barrier can be inserted within the dynamic rendering scope, thus avoiding the need for duplicated rendering.
+
+	// Start dynamic rendering with B8G8R8A8_SRGB format.
+	cb.beginRenderingKHR(sharedData->swapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
+		std::array {
+			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f } }
+		}));
+
+	// Set viewport and scissor.
+	cb.setViewport(0, passthruViewport);
+	cb.setScissor(0, passthruScissor);
 
 	// Draw primitive rendering image to swapchain, with Rec709 tone mapping.
 	sharedData->rec709Renderer.draw(cb, rec709Sets);
 
-	cb.nextSubpass(vk::SubpassContents::eInline);
+	cb.endRenderingKHR();
+
+	cb.pipelineBarrier(
+		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+		{},
+		vk::MemoryBarrier {
+			vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
+		},
+		{}, {});
+
+	cb.beginRenderingKHR(sharedData->swapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
+		std::array {
+			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore }
+		}));
 
 	// Draw hovering/selected node outline if exists.
-	[&]() {
-		if (appState.hoveringNodeIndex || appState.selectedNodeIndex) {
-			sharedData->outlineRenderer.bindPipeline(cb);
-			sharedData->outlineRenderer.bindDescriptorSets(cb, outlineSets);
+	if (appState.hoveringNodeIndex || appState.selectedNodeIndex) {
+		sharedData->outlineRenderer.bindPipeline(cb);
+		sharedData->outlineRenderer.bindDescriptorSets(cb, outlineSets);
 
-			if (appState.selectedNodeIndex) {
-				sharedData->outlineRenderer.pushConstants(cb, {
-					.outlineColor = { 0.f, 1.f, 0.2f },
-					.outlineThickness = 4.f,
-					.useZwComponent = true,
-				});
-				sharedData->outlineRenderer.draw(cb);
-			}
-			if (appState.selectedNodeIndex && appState.hoveringNodeIndex) {
-				// Special case: if both selectedNodeIndex and hoveringNodeIndex exist and are the same, the
-				// outlines will overlap, so the latter one doesn’t need to be rendered.
-				if (*appState.selectedNodeIndex == *appState.hoveringNodeIndex) {
-					return;
-				}
-
-				// If we need to draw the outlines of both the hovering node and the selected node, a memory barrier
-				// is required between the two overlapping drawings.
-				cb.pipelineBarrier(
-					vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-					vk::DependencyFlagBits::eByRegion,
-					vk::MemoryBarrier {
-						vk::AccessFlagBits::eColorAttachmentWrite,
-						vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
-					}, {}, {});
-			}
-			if (appState.hoveringNodeIndex) {
-				sharedData->outlineRenderer.pushConstants(cb, {
-					.outlineColor = { 1.f, 0.5f, 0.2f },
-					.outlineThickness = 4.f,
-					.useZwComponent = false,
-				});
-				sharedData->outlineRenderer.draw(cb);
-			}
+		if (appState.selectedNodeIndex) {
+			sharedData->outlineRenderer.pushConstants(cb, {
+				.outlineColor = { 0.f, 1.f, 0.2f },
+				.outlineThickness = 4.f,
+				.useZwComponent = true,
+			});
+			sharedData->outlineRenderer.draw(cb);
 		}
-	}();
+		if (appState.hoveringNodeIndex &&
+			// If both selectedNodeIndex and hoveringNodeIndex exist and are the same, the outlines will overlap, so
+			// the latter one doesn’t need to be rendered.
+			(!appState.selectedNodeIndex || *appState.selectedNodeIndex != *appState.hoveringNodeIndex)) {
+			if (appState.selectedNodeIndex) {
+				// TODO: pipeline barrier required but because of the reason explained in above, it is not implemented.
+				//  Implement it when available.
+			}
 
-	cb.nextSubpass(vk::SubpassContents::eInline);
+			sharedData->outlineRenderer.pushConstants(cb, {
+				.outlineColor = { 1.f, 0.5f, 0.2f },
+				.outlineThickness = 4.f,
+				.useZwComponent = false,
+			});
+			sharedData->outlineRenderer.draw(cb);
+		}
+	}
+
+    cb.endRenderingKHR();
+
+	cb.pipelineBarrier(
+		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+		{},
+		vk::MemoryBarrier {
+			vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
+		},
+		{}, {});
+
+	// Start dynamic rendering with B8G8R8A8_UNORM format.
+	cb.beginRenderingKHR(sharedData->imGuiSwapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
+		std::array {
+			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore }
+		}));
 
 	// Draw ImGui.
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cb);
 
-    cb.endRenderPass();
+    cb.endRenderingKHR();
+
+	// Change swapchain image layout from ColorAttachmentOptimal to PresentSrcKHR.
+	cb.pipelineBarrier(
+		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
+		{}, {}, {},
+		vk::ImageMemoryBarrier {
+			vk::AccessFlagBits::eColorAttachmentWrite, {},
+			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			sharedData->swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
+		});
 }

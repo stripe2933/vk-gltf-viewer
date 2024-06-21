@@ -23,10 +23,7 @@ const vec2 positions[] = vec2[3](
     vec2(3.0, 1.0)
 );
 
-layout (location = 0) out vec2 fragTexcoord;
-
 void main(){
-    fragTexcoord = 0.5 * (positions[gl_VertexIndex] + 1.0);
     gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
 }
 )vert";
@@ -37,14 +34,12 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::frag = R"fra
 
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
-layout (location = 0) in vec2 fragTexcoord;
-
 layout (location = 0) out vec4 outColor;
 
-layout (input_attachment_index = 0, set = 0, binding = 0) uniform subpassInput inputImage;
+layout (set = 0, binding = 0, rgba16f) uniform readonly image2D hdrImage;
 
 void main(){
-    vec4 color = subpassLoad(inputImage);
+    vec4 color = imageLoad(hdrImage, ivec2(gl_FragCoord.xy));
     float luminance = dot(color.rgb, REC_709_LUMA);
     outColor = vec4(color.rgb / (1.0 + luminance), color.a);
 }
@@ -56,18 +51,16 @@ vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::DescriptorSetLayouts::Descrip
         device,
         LayoutBindings {
             {},
-            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eInputAttachment, 1, vk::ShaderStageFlagBits::eFragment },
+            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eFragment },
         },
     } { }
 
 vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::Rec709Renderer(
     const vk::raii::Device &device,
-    vk::RenderPass renderPass,
-    std::uint32_t subpass,
     const shaderc::Compiler &compiler
 ) : descriptorSetLayouts { device },
     pipelineLayout { createPipelineLayout(device) },
-    pipeline { createPipeline(device, renderPass, subpass, compiler) } { }
+    pipeline { createPipeline(device, compiler) } { }
 
 auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::draw(
     vk::CommandBuffer commandBuffer,
@@ -90,8 +83,6 @@ auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipelineLayout(
 
 auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipeline(
     const vk::raii::Device &device,
-    vk::RenderPass renderPass,
-    std::uint32_t subpass,
     const shaderc::Compiler &compiler
 ) const -> decltype(pipeline) {
     const auto [_, stages] = createStages(
@@ -108,12 +99,16 @@ auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipeline(
         1.f,
     };
 
-    return {
-        device,
-        nullptr,
-        vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1)
-            .setPRasterizationState(&rasterizationState)
-            .setRenderPass(renderPass)
-            .setSubpass(subpass)
+    constexpr std::array colorAttachmentFormats {
+        vk::Format::eB8G8R8A8Srgb,
     };
+
+    return { device, nullptr, vk::StructureChain {
+        vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1)
+            .setPRasterizationState(&rasterizationState),
+        vk::PipelineRenderingCreateInfo {
+            {},
+            colorAttachmentFormats,
+        },
+    }.get() };
 }
