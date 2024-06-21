@@ -4,6 +4,14 @@
     "glfw3",
     "glm",
     {
+      "name": "imgui",
+      "features": [
+        "glfw-binding",
+        "vulkan-binding",
+        "docking-experimental"
+      ]
+    },
+    {
       "name": "ktx",
       "features": [
         "vulkan"

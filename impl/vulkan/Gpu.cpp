@@ -107,6 +107,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 		vk::EXTExtendedDynamicStateExtensionName,
 #pragma clang diagnostic pop
 		vk::KHRSwapchainExtensionName,
+		vk::KHRSwapchainMutableFormatExtensionName, // For ImGui gamma correction.
 	};
 	constexpr auto physicalDeviceFeatures
 		= vk::PhysicalDeviceFeatures{}

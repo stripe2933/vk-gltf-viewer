@@ -286,7 +286,8 @@ auto vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(
 	swapchainExtent = newExtent;
 	swapchainImages = swapchain.getImages();
 
-	swapchainAttachmentGroups = createSwapchainAttachmentGroups();
+	swapchainAttachmentGroups = createSwapchainAttachmentGroups(vk::Format::eB8G8R8A8Srgb);
+	imGuiSwapchainAttachmentGroups = createSwapchainAttachmentGroups(vk::Format::eB8G8R8A8Unorm);
 
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
 		initAttachmentLayouts(cb);
@@ -302,22 +303,31 @@ auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(
 	vk::SwapchainKHR oldSwapchain
 ) const -> decltype(swapchain) {
 	const vk::SurfaceCapabilitiesKHR surfaceCapabilities = gpu.physicalDevice.getSurfaceCapabilitiesKHR(surface);
-	return { gpu.device, vk::SwapchainCreateInfoKHR{
-		{},
-		surface,
-		std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount),
+	constexpr std::array swapchainImageFormats {
 		vk::Format::eB8G8R8A8Srgb,
-		vk::ColorSpaceKHR::eSrgbNonlinear,
-		extent,
-		1,
-		vk::ImageUsageFlagBits::eColorAttachment,
-		{}, {},
-		surfaceCapabilities.currentTransform,
-		vk::CompositeAlphaFlagBitsKHR::eOpaque,
-		vk::PresentModeKHR::eFifo,
-		true,
-		oldSwapchain,
-	} };
+		vk::Format::eB8G8R8A8Unorm,
+	};
+	return { gpu.device, vk::StructureChain {
+		vk::SwapchainCreateInfoKHR{
+			vk::SwapchainCreateFlagBitsKHR::eMutableFormat,
+			surface,
+			std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount),
+			vk::Format::eB8G8R8A8Srgb,
+			vk::ColorSpaceKHR::eSrgbNonlinear,
+			extent,
+			1,
+			vk::ImageUsageFlagBits::eColorAttachment,
+			{}, {},
+			surfaceCapabilities.currentTransform,
+			vk::CompositeAlphaFlagBitsKHR::eOpaque,
+			vk::PresentModeKHR::eFifo,
+			true,
+			oldSwapchain,
+		},
+		vk::ImageFormatListCreateInfo {
+			swapchainImageFormats,
+		},
+	}.get() };
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImage() const -> decltype(brdfmapImage) {
@@ -348,9 +358,10 @@ auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImageView() const -> declt
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> decltype(compositionRenderPass) {
+	// Since swapchain image is used in multiple subpasses, corresponding attachment descriptions must have MayAlias
+	// flag bits.
+	// See: https://vkdoc.net/man/VkAttachmentDescription#VUID-VkAttachmentDescription-format-06699
 	constexpr std::array attachmentDescriptions {
-		// Rec709Renderer.
-		// Input attachments.
 		vk::AttachmentDescription {
 			{},
 			vk::Format::eR16G16B16A16Sfloat,
@@ -359,18 +370,14 @@ auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> 
 			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
 			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal,
 		},
-		// Color attachments.
 		vk::AttachmentDescription {
-			{},
+			vk::AttachmentDescriptionFlagBits::eMayAlias,
 			vk::Format::eB8G8R8A8Srgb,
 			vk::SampleCountFlagBits::e1,
 			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
 			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-			vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
+			vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::ePresentSrcKHR,
 		},
-
-		// OutlineRenderer.
-		// Input attachments.
 		vk::AttachmentDescription {
 			{},
 			vk::Format::eR16G16B16A16Uint,
@@ -379,14 +386,21 @@ auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> 
 			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
 			vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
 		},
-		// Color attachments.
 		vk::AttachmentDescription {
-			{},
+			vk::AttachmentDescriptionFlagBits::eMayAlias,
 			vk::Format::eB8G8R8A8Srgb,
 			vk::SampleCountFlagBits::e1,
 			vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore,
 			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
+			vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::ePresentSrcKHR,
+		},
+		vk::AttachmentDescription {
+			vk::AttachmentDescriptionFlagBits::eMayAlias,
+			vk::Format::eB8G8R8A8Unorm,
+			vk::SampleCountFlagBits::e1,
+			vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore,
+			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+			vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::ePresentSrcKHR,
 		},
 	};
 
@@ -397,20 +411,28 @@ auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> 
 		// OutlineRenderer.
 		vk::AttachmentReference { 2, vk::ImageLayout::eShaderReadOnlyOptimal },
 		vk::AttachmentReference { 3, vk::ImageLayout::eColorAttachmentOptimal },
+		// ImGui.
+		vk::AttachmentReference { 4, vk::ImageLayout::eColorAttachmentOptimal },
 	};
 
 	const std::array subpassDescriptions {
 		vk::SubpassDescription {
 			{},
 			vk::PipelineBindPoint::eGraphics,
-			1, &attachmentReferences[0],
-			1, &attachmentReferences[1],
+			get<0>(attachmentReferences),
+			get<1>(attachmentReferences),
 		},
 		vk::SubpassDescription {
 			{},
 			vk::PipelineBindPoint::eGraphics,
-			1, &attachmentReferences[2],
-			1, &attachmentReferences[3],
+			get<2>(attachmentReferences),
+			get<3>(attachmentReferences),
+		},
+		vk::SubpassDescription {
+			{},
+			vk::PipelineBindPoint::eGraphics,
+			{},
+			get<4>(attachmentReferences),
 		},
 	};
 
@@ -423,13 +445,18 @@ auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> 
 		vk::SubpassDependency {
 			0, 1,
 			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-			vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
 		},
 		vk::SubpassDependency {
 			1, 1,
 			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
 			vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
 			vk::DependencyFlagBits::eByRegion,
+		},
+		vk::SubpassDependency {
+			1, 2,
+			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
 		},
 	};
 
@@ -441,13 +468,16 @@ auto vk_gltf_viewer::vulkan::SharedData::createCompositionRenderPass() const -> 
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::createSwapchainAttachmentGroups() const -> decltype(swapchainAttachmentGroups) {
+auto vk_gltf_viewer::vulkan::SharedData::createSwapchainAttachmentGroups(
+	vk::Format mutableFormat
+) const -> decltype(swapchainAttachmentGroups) {
 	return swapchainImages
 		| std::views::transform([&](vk::Image image) {
 			vku::AttachmentGroup attachmentGroup { swapchainExtent };
 			attachmentGroup.addColorAttachment(
 				gpu.device,
-				{ image, vk::Extent3D { swapchainExtent, 1 }, vk::Format::eB8G8R8A8Srgb, 1, 1 });
+				{ image, vk::Extent3D { swapchainExtent, 1 }, vk::Format::eB8G8R8A8Srgb, 1, 1 },
+				mutableFormat);
 			return attachmentGroup;
 		})
 		| std::ranges::to<std::vector<vku::AttachmentGroup>>();

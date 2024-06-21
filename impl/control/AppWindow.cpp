@@ -5,6 +5,8 @@ module;
 #include <compare>
 
 #include <GLFW/glfw3.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
 
 module vk_gltf_viewer;
 import :control.AppWindow;
@@ -40,6 +42,15 @@ auto vk_gltf_viewer::control::AppWindow::update(
         const glm::vec3 newEye = eye + delta;
         globalState.camera.view = glm::gtc::lookAt(newEye, newEye + front, glm::vec3 { 0.f, 1.f, 0.f });
     }
+
+    // ImGui.
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    ImGui::ShowDemoWindow();
+
+    ImGui::Render();
 }
 
 void vk_gltf_viewer::control::AppWindow::onFramebufferSizeCallback(
@@ -52,6 +63,8 @@ void vk_gltf_viewer::control::AppWindow::onFramebufferSizeCallback(
 auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
     glm::dvec2 offset
 ) -> void {
+    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
+
     constexpr float MIN_FOV = glm::radians(15.f), MAX_FOV = glm::radians(120.f);
     constexpr float SCROLL_SENSITIVITY = 1e-2f;
 
@@ -65,6 +78,8 @@ auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
 auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(
     glm::dvec2 position
 ) -> void {
+    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
+
     globalState.framebufferCursorPosition = glm::dvec2{ getFramebufferSize() } * position / glm::dvec2{ getSize() };
 }
 
@@ -73,6 +88,8 @@ void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
     int action,
     int mods
 ) {
+    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
+
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
         globalState.selectedNodeIndex = globalState.hoveringNodeIndex;
     }
@@ -84,6 +101,8 @@ auto vk_gltf_viewer::control::AppWindow::onKeyCallback(
     int action,
     int mods
 ) -> void {
+    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureKeyboard) return;
+
     // Set WASD movement flags.
     if (action == GLFW_PRESS) {
         cameraWasd |= (key == GLFW_KEY_W) | (key == GLFW_KEY_A) << 1 | (key == GLFW_KEY_S) << 2 | (key == GLFW_KEY_D) << 3;

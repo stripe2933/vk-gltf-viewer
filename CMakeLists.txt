@@ -17,6 +17,7 @@ endif()
 
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
+find_package(imgui CONFIG REQUIRED)
 find_package(Ktx CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(Stb REQUIRED)
@@ -110,6 +111,7 @@ target_sources(vk-gltf-viewer PRIVATE
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
 	fastgltf::fastgltf
+	imgui::imgui
 	KTX::ktx
 	mikktspace::mikktspace
 	pbrenvmap

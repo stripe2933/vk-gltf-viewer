@@ -24,6 +24,9 @@ namespace vk_gltf_viewer {
 		control::AppWindow window { instance, globalState };
 		vulkan::Gpu gpu { instance, *window.surface };
 
+		explicit MainApp();
+		~MainApp();
+
 		auto run() -> void;
 
 	private:

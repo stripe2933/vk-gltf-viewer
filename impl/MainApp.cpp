@@ -11,6 +11,9 @@ module;
 
 #include <fastgltf/core.hpp>
 #include <GLFW/glfw3.h>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
 
 module vk_gltf_viewer;
 import :MainApp;
@@ -23,6 +26,15 @@ import :vulkan.frame.SharedData;
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
 
+vk_gltf_viewer::MainApp::MainApp() {
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+}
+
+vk_gltf_viewer::MainApp::~MainApp() {
+    ImGui::DestroyContext();
+}
+
 auto vk_gltf_viewer::MainApp::run() -> void {
 	glm::u32vec2 framebufferSize = window.getFramebufferSize();
 
@@ -33,6 +45,37 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 #pragma clang diagnostic ignored "-Wunused-value"
 	std::array frames = ARRAY_OF(2, vulkan::Frame { globalState, sharedData, gpu });
 #pragma clang diagnostic pop
+
+	// Init ImGui.
+	ImGuiIO &io = ImGui::GetIO();
+	io.DisplaySize = { static_cast<float>(framebufferSize.x), static_cast<float>(framebufferSize.y) };
+	const glm::vec2 contentScale = window.getContentScale();
+	io.DisplayFramebufferScale = { contentScale.x, contentScale.y };
+	io.FontGlobalScale = 1.f / io.DisplayFramebufferScale.x;
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	io.Fonts->AddFontFromFileTTF("/Library/Fonts/Arial Unicode.ttf", 16.f * io.DisplayFramebufferScale.x);
+
+	constexpr std::array imGuiDescriptorPoolSizes {
+		vk::DescriptorPoolSize { vk::DescriptorType::eCombinedImageSampler, 1 },
+	};
+	const vk::raii::DescriptorPool imGuiDescriptorPool { gpu.device, vk::DescriptorPoolCreateInfo {
+		vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+		1,
+		imGuiDescriptorPoolSizes,
+	} };
+
+	ImGui_ImplGlfw_InitForVulkan(window, true);
+	ImGui_ImplVulkan_InitInfo initInfo {
+		.Instance = *instance,
+		.PhysicalDevice = *gpu.physicalDevice,
+		.Device = *gpu.device,
+		.Queue = gpu.queues.graphicsPresent,
+		.DescriptorPool = *imGuiDescriptorPool,
+		.Subpass = 2,
+		.MinImageCount = frames.size(),
+		.ImageCount = frames.size(),
+	};
+	ImGui_ImplVulkan_Init(&initInfo, *sharedData->compositionRenderPass);
 
 	io::logger::debug("Main loop started");
 
@@ -67,6 +110,10 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		}
 	}
 	gpu.device.waitIdle();
+
+	// Shutdown ImGui.
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
 }
 
 auto vk_gltf_viewer::MainApp::loadAsset(

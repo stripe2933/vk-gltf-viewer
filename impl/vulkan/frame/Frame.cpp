@@ -16,6 +16,7 @@ module;
 #include <vector>
 
 #include <fastgltf/core.hpp>
+#include <imgui_impl_vulkan.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
@@ -305,7 +306,7 @@ auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
 auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer() const -> decltype(compositionFramebuffer) {
 	const std::tuple attachmentImageFormats {
 		std::array { vk::Format::eR16G16B16A16Sfloat }, // Primitive rendering image.
-		std::array { vk::Format::eB8G8R8A8Srgb }, // Swapchain image.
+		std::array { vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm }, // Swapchain image for ImGui.
 		std::array { vk::Format::eR16G16B16A16Uint }, // Jump flood calculation image.
 	};
 	const std::array attachmentImageInfos {
@@ -316,7 +317,7 @@ auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer() const -> decl
 			get<0>(attachmentImageFormats),
 		},
 		vk::FramebufferAttachmentImageInfo {
-			{},
+			vk::ImageCreateFlagBits::eMutableFormat | vk::ImageCreateFlagBits::eExtendedUsage,
 			vk::ImageUsageFlagBits::eColorAttachment,
 			sharedData->swapchainExtent.width, sharedData->swapchainExtent.height, 1,
 			get<1>(attachmentImageFormats),
@@ -328,7 +329,13 @@ auto vk_gltf_viewer::vulkan::Frame::createCompositionFramebuffer() const -> decl
 			get<2>(attachmentImageFormats),
 		},
 		vk::FramebufferAttachmentImageInfo {
-			{},
+			vk::ImageCreateFlagBits::eMutableFormat | vk::ImageCreateFlagBits::eExtendedUsage,
+			vk::ImageUsageFlagBits::eColorAttachment,
+			sharedData->swapchainExtent.width, sharedData->swapchainExtent.height, 1,
+			get<1>(attachmentImageFormats),
+		},
+		vk::FramebufferAttachmentImageInfo {
+			vk::ImageCreateFlagBits::eMutableFormat | vk::ImageCreateFlagBits::eExtendedUsage,
 			vk::ImageUsageFlagBits::eColorAttachment,
 			sharedData->swapchainExtent.width, sharedData->swapchainExtent.height, 1,
 			get<1>(attachmentImageFormats),
@@ -567,14 +574,16 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 			});
 	}
 
-	constexpr std::array<vk::ClearValue, 4> clearValues{};
+	constexpr std::array<vk::ClearValue, 5> clearValues{};
 	const std::array framebufferImageViews {
 		*primaryAttachmentGroup.colorAttachments[0].resolveView,
 		*sharedData->swapchainAttachmentGroups[swapchainImageIndex].colorAttachments[0].view,
 		// If JFA not computed, use the first image (it just transition the layout to General and does not matter).
 		(isJumpFloodResultForward && *isJumpFloodResultForward) ? *jumpFloodImageViews.pong : *jumpFloodImageViews.ping,
 		*sharedData->swapchainAttachmentGroups[swapchainImageIndex].colorAttachments[0].view,
+		*sharedData->imGuiSwapchainAttachmentGroups[swapchainImageIndex].colorAttachments[0].view,
 	};
+	static_assert(clearValues.size() == framebufferImageViews.size(), "Clear count mismatch");
 
 	// Start render pass.
 	cb.beginRenderPass(vk::StructureChain {
@@ -586,16 +595,17 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		},
 		vk::RenderPassAttachmentBeginInfo { framebufferImageViews },
 	}.get(), vk::SubpassContents::eInline);
+
+	sharedData->swapchainAttachmentGroups[swapchainImageIndex].setViewport(cb, true);
+	sharedData->swapchainAttachmentGroups[swapchainImageIndex].setScissor(cb);
+
+	// Draw primitive rendering image to swapchain, with Rec709 tone mapping.
+	sharedData->rec709Renderer.draw(cb, rec709Sets);
+
+	cb.nextSubpass(vk::SubpassContents::eInline);
+
+	// Draw hovering/selected node outline if exists.
 	[&]() {
-		sharedData->swapchainAttachmentGroups[swapchainImageIndex].setViewport(cb, true);
-		sharedData->swapchainAttachmentGroups[swapchainImageIndex].setScissor(cb);
-
-		// Draw primitive rendering image to swapchain, with Rec709 tone mapping.
-		sharedData->rec709Renderer.draw(cb, rec709Sets);
-
-		cb.nextSubpass(vk::SubpassContents::eInline);
-
-		// Draw hovering/selected node outline if exists.
 		if (globalState.hoveringNodeIndex || globalState.selectedNodeIndex) {
 			sharedData->outlineRenderer.bindPipeline(cb);
 			sharedData->outlineRenderer.bindDescriptorSets(cb, outlineSets);
@@ -635,5 +645,11 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 			}
 		}
 	}();
+
+	cb.nextSubpass(vk::SubpassContents::eInline);
+
+	// Draw ImGui.
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cb);
+
     cb.endRenderPass();
 }

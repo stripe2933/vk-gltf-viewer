@@ -62,6 +62,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
     	// Attachment groups.
     	std::vector<vku::AttachmentGroup> swapchainAttachmentGroups = createSwapchainAttachmentGroups();
+    	std::vector<vku::AttachmentGroup> imGuiSwapchainAttachmentGroups = createSwapchainAttachmentGroups(vk::Format::eB8G8R8A8Unorm);
 
     	// Descriptor/command pools.
     	vk::raii::CommandPool graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
@@ -75,7 +76,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	[[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
     	[[nodiscard]] auto createBrdfmapImageView() const -> decltype(brdfmapImageView);
     	[[nodiscard]] auto createCompositionRenderPass() const -> decltype(compositionRenderPass);
-    	[[nodiscard]] auto createSwapchainAttachmentGroups() const -> decltype(swapchainAttachmentGroups);
+    	[[nodiscard]] auto createSwapchainAttachmentGroups(vk::Format mutableFormat = {}) const -> decltype(swapchainAttachmentGroups);
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto generateAssetResourceMipmaps(vk::CommandBuffer commandBuffer) const -> void;
