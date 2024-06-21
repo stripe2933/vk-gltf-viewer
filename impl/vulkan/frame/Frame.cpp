@@ -25,7 +25,6 @@ import :vulkan.frame.Frame;
 import :gltf.AssetResources;
 import :gltf.SceneResources;
 import :helpers.ranges;
-import :io.logger;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
 
@@ -84,8 +83,6 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		| ranges::to_array<3>();
 
 	initAttachmentLayouts();
-
-	io::logger::debug<true>("Frame at {} initialized", static_cast<const void*>(this));
 }
 
 auto vk_gltf_viewer::vulkan::Frame::onLoop() -> std::expected<OnLoopResult, OnLoopError> {

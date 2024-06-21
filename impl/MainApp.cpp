@@ -11,7 +11,9 @@ module;
 
 #include <fastgltf/core.hpp>
 #include <GLFW/glfw3.h>
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
@@ -19,7 +21,6 @@ module vk_gltf_viewer;
 import :MainApp;
 
 import vku;
-import :io.logger;
 import :vulkan.frame.Frame;
 import :vulkan.frame.SharedData;
 
@@ -29,40 +30,15 @@ import :vulkan.frame.SharedData;
 vk_gltf_viewer::MainApp::MainApp() {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-}
 
-vk_gltf_viewer::MainApp::~MainApp() {
-    ImGui::DestroyContext();
-}
-
-auto vk_gltf_viewer::MainApp::run() -> void {
-	glm::u32vec2 framebufferSize = window.getFramebufferSize();
-
-	auto sharedData = std::make_shared<vulkan::SharedData>(
-		assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(),
-		gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y });
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-value"
-	std::array frames = ARRAY_OF(2, vulkan::Frame { appState, sharedData, gpu });
-#pragma clang diagnostic pop
-
-	// Init ImGui.
 	ImGuiIO &io = ImGui::GetIO();
-	io.DisplaySize = { static_cast<float>(framebufferSize.x), static_cast<float>(framebufferSize.y) };
+	const glm::vec2 framebufferSize = window.getFramebufferSize();
+	io.DisplaySize = { framebufferSize.x, framebufferSize.y };
 	const glm::vec2 contentScale = window.getContentScale();
 	io.DisplayFramebufferScale = { contentScale.x, contentScale.y };
 	io.FontGlobalScale = 1.f / io.DisplayFramebufferScale.x;
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	io.Fonts->AddFontFromFileTTF("/Library/Fonts/Arial Unicode.ttf", 16.f * io.DisplayFramebufferScale.x);
-
-	constexpr std::array imGuiDescriptorPoolSizes {
-		vk::DescriptorPoolSize { vk::DescriptorType::eCombinedImageSampler, 1 },
-	};
-	const vk::raii::DescriptorPool imGuiDescriptorPool { gpu.device, vk::DescriptorPoolCreateInfo {
-		vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-		1,
-		imGuiDescriptorPoolSizes,
-	} };
 
 	ImGui_ImplGlfw_InitForVulkan(window, true);
 	ImGui_ImplVulkan_InitInfo initInfo {
@@ -71,38 +47,41 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		.Device = *gpu.device,
 		.Queue = gpu.queues.graphicsPresent,
 		.DescriptorPool = *imGuiDescriptorPool,
-		.MinImageCount = frames.size(),
-		.ImageCount = frames.size(),
+		.MinImageCount = MAX_FRAMES_IN_FLIGHT,
+		.ImageCount = MAX_FRAMES_IN_FLIGHT,
 		.UseDynamicRendering = true,
 		.ColorAttachmentFormat = VK_FORMAT_B8G8R8A8_UNORM,
 	};
 	ImGui_ImplVulkan_Init(&initInfo, nullptr);
+}
 
-	io::logger::debug("Main loop started");
+vk_gltf_viewer::MainApp::~MainApp() {
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+}
 
+auto vk_gltf_viewer::MainApp::run() -> void {
 	float elapsedTime = 0.f;
 	for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % frames.size()) {
         glfwPollEvents();
 
 		const float glfwTime = static_cast<float>(glfwGetTime());
 		const float timeDelta = glfwTime - std::exchange(elapsedTime, glfwTime);
-		window.update(timeDelta);
+		update(timeDelta);
 
-        const std::expected onLoopResult = frames[frameIndex].onLoop();
-		if (onLoopResult) {
-			appState.hoveringNodeIndex = onLoopResult->hoveringNodeIndex;
-		}
+        const std::expected onLoopResultExpected = frames[frameIndex].onLoop();
+		if (onLoopResultExpected) handleOnLoopResult(*onLoopResultExpected);
 
-		if (!onLoopResult || !onLoopResult->presentSuccess) {
-			io::logger::debug("Window resizing detected.");
+		if (!onLoopResultExpected || !onLoopResultExpected->presentSuccess) {
 			gpu.device.waitIdle();
 
 			// Yield while window is minimized.
+			glm::u32vec2 framebufferSize;
 			while (!glfwWindowShouldClose(window) && (framebufferSize = window.getFramebufferSize()) == glm::u32vec2 { 0, 0 }) {
 				std::this_thread::yield();
 			}
 
-			io::logger::debug("New framebuffer size: ({},{})", framebufferSize.x, framebufferSize.y);
 			sharedData->handleSwapchainResize(*window.surface, { framebufferSize.x, framebufferSize.y });
 			for (vulkan::Frame &frame : frames) {
 				frame.handleSwapchainResize(*window.surface, { framebufferSize.x, framebufferSize.y });
@@ -111,10 +90,6 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		}
 	}
 	gpu.device.waitIdle();
-
-	// Shutdown ImGui.
-	ImGui_ImplVulkan_Shutdown();
-	ImGui_ImplGlfw_Shutdown();
 }
 
 auto vk_gltf_viewer::MainApp::loadAsset(
@@ -164,4 +139,68 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 		layers,
 		extensions,
 	} };
+}
+
+auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool) {
+	constexpr std::array imGuiDescriptorPoolSizes {
+		vk::DescriptorPoolSize { vk::DescriptorType::eCombinedImageSampler, 1 },
+	};
+	return { gpu.device, vk::DescriptorPoolCreateInfo {
+		vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+		1,
+		imGuiDescriptorPoolSizes,
+	} };
+}
+
+auto vk_gltf_viewer::MainApp::createSharedData() -> decltype(sharedData) {
+	const glm::u32vec2 framebufferSize = window.getFramebufferSize();
+	return std::make_shared<vulkan::SharedData>(
+		assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(),
+		gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y });
+}
+
+auto vk_gltf_viewer::MainApp::createFrames() const -> decltype(frames) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-value"
+	return ARRAY_OF(2, vulkan::Frame { appState, sharedData, gpu });
+#pragma clang diagnostic pop
+}
+
+auto vk_gltf_viewer::MainApp::update(
+    float timeDelta
+) -> void {
+	window.update(timeDelta);
+
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	// Enable global docking.
+	const ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
+
+	// Get central node region.
+	const ImRect centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpaceId)->Rect();
+	const ImVec2 displayFramebufferScale = ImGui::GetIO().DisplayFramebufferScale;
+	const ImRect newPassthruRect = { displayFramebufferScale * centerNodeRect.Min, displayFramebufferScale * centerNodeRect.Max };
+
+	// Assign the calculated passthru rect to appState.imGuiPassthruRect. Handle stuffs that are dependent to the it.
+	if (ImRect oldPassthruRect = std::exchange(appState.imGuiPassthruRect, newPassthruRect);
+		oldPassthruRect.Min != newPassthruRect.Min || oldPassthruRect.Max != newPassthruRect.Max) {
+		appState.camera.projection = glm::gtc::perspective(
+			appState.camera.getFov(),
+			newPassthruRect.GetWidth() / newPassthruRect.GetHeight(),
+			appState.camera.getNear(), appState.camera.getFar());
+	}
+	appState.imGuiPassthruRect = newPassthruRect;
+
+	ImGui::ShowDemoWindow();
+	ImGui::ShowDebugLogWindow();
+
+	ImGui::Render();
+}
+
+auto vk_gltf_viewer::MainApp::handleOnLoopResult(
+	const vulkan::Frame::OnLoopResult &onLoopResult
+) -> void {
+	appState.hoveringNodeIndex = onLoopResult.hoveringNodeIndex;
 }

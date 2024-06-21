@@ -5,10 +5,7 @@ module;
 #include <compare>
 
 #include <GLFW/glfw3.h>
-#define IMGUI_DEFINE_MATH_OPERATORS
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_vulkan.h>
-#include <imgui_internal.h>
+#include <imgui.h>
 
 module vk_gltf_viewer;
 import :control.AppWindow;
@@ -27,7 +24,6 @@ auto vk_gltf_viewer::control::AppWindow::update(
     // Move camera.
     if (cameraWasd[0] ^ cameraWasd[2] || cameraWasd[1] ^ cameraWasd[3]) {
         constexpr float CAMERA_SPEED = 1.f; // 1 units per second.
-        constexpr float CAMERA_RUNNING_SPEED_MULTIPLIER = 2.f; // 2x speed when running.
 
         const auto [right, _, front, eye] = appState.camera.getViewDecomposition();
         const glm::vec3 direction
@@ -36,40 +32,13 @@ auto vk_gltf_viewer::control::AppWindow::update(
 
         glm::vec3 delta = CAMERA_SPEED * timeDelta * normalize(direction);
         if (cameraRunning) {
+            constexpr float CAMERA_RUNNING_SPEED_MULTIPLIER = 2.f; // 2x speed when running.
             delta *= CAMERA_RUNNING_SPEED_MULTIPLIER;
         }
 
         const glm::vec3 newEye = eye + delta;
         appState.camera.view = glm::gtc::lookAt(newEye, newEye + front, glm::vec3 { 0.f, 1.f, 0.f });
     }
-
-    // ImGui.
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-    // Enable global docking.
-    const ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
-
-    // Get central node region.
-    const ImRect centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpaceId)->Rect();
-    const ImVec2 displayFramebufferScale = ImGui::GetIO().DisplayFramebufferScale;
-    const ImRect newPassthruRect = { displayFramebufferScale * centerNodeRect.Min, displayFramebufferScale * centerNodeRect.Max };
-
-    // Assign the calculated passthru rect to appState.imGuiPassthruRect. Handle stuffs that are dependent to the it.
-    if (ImRect oldPassthruRect = std::exchange(appState.imGuiPassthruRect, newPassthruRect);
-        oldPassthruRect.GetTL() != newPassthruRect.GetTL() || oldPassthruRect.GetBR() != newPassthruRect.GetBR()) {
-        appState.camera.projection = glm::gtc::perspective(
-            appState.camera.getFov(),
-            newPassthruRect.GetWidth() / newPassthruRect.GetHeight(),
-            appState.camera.getNear(), appState.camera.getFar());
-    }
-    appState.imGuiPassthruRect = newPassthruRect;
-
-    ImGui::ShowDemoWindow();
-    ImGui::ShowDebugLogWindow();
-
-    ImGui::Render();
 }
 
 auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
@@ -121,9 +90,6 @@ auto vk_gltf_viewer::control::AppWindow::onKeyCallback(
     } 
     else if (action == GLFW_RELEASE) {
         cameraWasd &= (key != GLFW_KEY_W) | (key != GLFW_KEY_A) << 1 | (key != GLFW_KEY_S) << 2 | (key != GLFW_KEY_D) << 3;
-        if (mods & GLFW_MOD_SHIFT) {
-            cameraRunning = action == GLFW_PRESS;
-        }
     }
     // Running mode when pressing shift.
     cameraRunning = cameraWasd.to_ulong() && (mods & GLFW_MOD_SHIFT);
