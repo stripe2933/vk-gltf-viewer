@@ -45,6 +45,8 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 		std::vector<vk::Image> swapchainImages = swapchain.getImages();
 
     	// Buffer, image and image views.
+    	vku::AllocatedImage gltfFallbackImage = createGltfFallbackImage();
+    	vk::raii::ImageView gltfFallbackImageView = createGltfFallbackImageView();
     	vku::AllocatedImage brdfmapImage = createBrdfmapImage();
     	vk::raii::ImageView brdfmapImageView = createBrdfmapImageView();
     	std::optional<ImageBasedLightingResources> imageBasedLightingResources = std::nullopt;
@@ -70,11 +72,14 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
     private:
     	[[nodiscard]] auto createSwapchain(vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain);
+    	[[nodiscard]] auto createGltfFallbackImage() const -> decltype(gltfFallbackImage);
+    	[[nodiscard]] auto createGltfFallbackImageView() const -> decltype(gltfFallbackImageView);
     	[[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
     	[[nodiscard]] auto createBrdfmapImageView() const -> decltype(brdfmapImageView);
     	[[nodiscard]] auto createSwapchainAttachmentGroups(vk::Format mutableFormat = {}) const -> decltype(swapchainAttachmentGroups);
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
+    	auto fillGltfFallbackImage(vk::CommandBuffer commandBuffer) const -> void;
     	auto generateAssetResourceMipmaps(vk::CommandBuffer commandBuffer) const -> void;
     	auto initAttachmentLayouts(vk::CommandBuffer commandBuffer) const -> void;
     };

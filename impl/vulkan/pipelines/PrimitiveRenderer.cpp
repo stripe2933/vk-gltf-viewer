@@ -248,21 +248,15 @@ vec3 computeDiffuseIrradiance(vec3 normal){
 }
 
 void main(){
-    vec4 baseColor = MATERIAL.baseColorFactor;
-    if (int(MATERIAL.baseColorTextureIndex) != -1) {
-        baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], fragBaseColorTexcoord);
-    }
+    vec4 baseColor = MATERIAL.baseColorFactor * texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], fragBaseColorTexcoord);
 
-    float metallic = MATERIAL.metallicFactor, roughness = MATERIAL.roughnessFactor;
-    if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
-        vec2 metallicRoughness = texture(textures[uint(MATERIAL.metallicRoughnessTextureIndex)], fragMetallicRoughnessTexcoord).bg;
-        metallic *= metallicRoughness.x;
-        roughness *= metallicRoughness.y;
-    }
+    vec2 metallicRoughness = vec2(MATERIAL.metallicFactor, MATERIAL.roughnessFactor) * texture(textures[int(MATERIAL.metallicRoughnessTextureIndex) + 1], fragMetallicRoughnessTexcoord).bg;
+    float metallic = metallicRoughness.x;
+    float roughness = metallicRoughness.y;
 
     vec3 N;
     if (int(MATERIAL.normalTextureIndex) != -1){
-        vec3 tangentNormal = texture(textures[uint(MATERIAL.normalTextureIndex)], fragNormalTexcoord).rgb;
+        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], fragNormalTexcoord).rgb;
         vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
         N = normalize(fragTBN * scaledNormal);
     }
@@ -270,15 +264,9 @@ void main(){
         N = normalize(fragTBN[2]);
     }
 
-    float occlusion = 1.0;
-    if (int(MATERIAL.occlusionTextureIndex) != -1){
-        occlusion += MATERIAL.occlusionStrength * (texture(textures[uint(MATERIAL.occlusionTextureIndex)], fragOcclusionTexcoord).r - 1.0);
-    }
+    float occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[int(MATERIAL.occlusionTextureIndex) + 1], fragOcclusionTexcoord).r - 1.0);
 
-    vec3 emissive = MATERIAL.emissiveFactor;
-    if (int(MATERIAL.emissiveTextureIndex) != -1){
-        emissive *= texture(textures[uint(MATERIAL.emissiveTextureIndex)], fragEmissiveTexcoord).rgb;
-    }
+    vec3 emissive = MATERIAL.emissiveFactor * texture(textures[int(MATERIAL.emissiveTextureIndex) + 1], fragEmissiveTexcoord).rgb;
 
     vec3 V = normalize(pc.viewPosition - fragPosition);
     vec3 R = reflect(-V, N);
@@ -323,7 +311,7 @@ vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::DescriptorSetLayouts::Desc
         },
         LayoutBindings {
             vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, textureCount, vk::ShaderStageFlagBits::eFragment },
+            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1 + textureCount, vk::ShaderStageFlagBits::eFragment },
             vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
             std::array { vku::toFlags(vk::DescriptorBindingFlagBits::eUpdateAfterBind), vk::DescriptorBindingFlags{} },
         },

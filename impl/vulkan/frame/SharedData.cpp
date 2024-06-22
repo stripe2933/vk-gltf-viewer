@@ -269,6 +269,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 				});
 		}
 
+		fillGltfFallbackImage(cb);
 		generateAssetResourceMipmaps(cb);
 		initAttachmentLayouts(cb);
 	});
@@ -325,6 +326,33 @@ auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(
 	}.get() };
 }
 
+auto vk_gltf_viewer::vulkan::SharedData::createGltfFallbackImage() const -> decltype(gltfFallbackImage) {
+	return { gpu.allocator, vk::ImageCreateInfo {
+        {},
+		vk::ImageType::e2D,
+		vk::Format::eR8G8B8A8Unorm,
+		vk::Extent3D { 1, 1, 1 },
+		1, 1,
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+	}, vma::AllocationCreateInfo {
+        {},
+		vma::MemoryUsage::eAutoPreferDevice,
+	} };
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::createGltfFallbackImageView() const -> decltype(gltfFallbackImageView) {
+	return { gpu.device, vk::ImageViewCreateInfo {
+        {},
+		gltfFallbackImage,
+		vk::ImageViewType::e2D,
+		gltfFallbackImage.format,
+		{},
+		vku::fullSubresourceRange(),
+	} };
+}
+
 auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImage() const -> decltype(brdfmapImage) {
 	return { gpu.allocator, vk::ImageCreateInfo {
         {},
@@ -376,9 +404,40 @@ auto vk_gltf_viewer::vulkan::SharedData::createCommandPool(
 	} };
 }
 
+auto vk_gltf_viewer::vulkan::SharedData::fillGltfFallbackImage(
+    vk::CommandBuffer commandBuffer
+) const -> void {
+	commandBuffer.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+		{}, {}, {},
+		vk::ImageMemoryBarrier {
+			{}, vk::AccessFlagBits::eTransferWrite,
+			{}, vk::ImageLayout::eTransferDstOptimal,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			gltfFallbackImage,
+			vku::fullSubresourceRange(),
+		});
+	commandBuffer.clearColorImage(
+		gltfFallbackImage, vk::ImageLayout::eTransferDstOptimal,
+		vk::ClearColorValue { 1.f, 1.f, 1.f, 1.f },
+		vku::fullSubresourceRange());
+	commandBuffer.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+		{}, {}, {},
+		vk::ImageMemoryBarrier {
+			vk::AccessFlagBits::eTransferWrite, {},
+			vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			gltfFallbackImage,
+			vku::fullSubresourceRange(),
+		});
+}
+
 auto vk_gltf_viewer::vulkan::SharedData::generateAssetResourceMipmaps(
     vk::CommandBuffer commandBuffer
 ) const -> void {
+	if (assetResources.images.empty()) return;
+
     // 1. Sort image by their mip levels in ascending order.
     std::vector pImages
         = assetResources.images

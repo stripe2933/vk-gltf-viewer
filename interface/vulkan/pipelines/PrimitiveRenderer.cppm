@@ -42,21 +42,27 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             }
 
             [[nodiscard]] auto getDescriptorWrites1(
-                std::vector<vk::DescriptorImageInfo> textureInfos,
+                const vk::DescriptorImageInfo &fallbackTextureInfo,
+                std::span<const vk::DescriptorImageInfo> textureInfos,
                 const vk::DescriptorBufferInfo &materialBufferInfo
             ) const {
+                std::vector<vk::DescriptorImageInfo> combinedTextureInfos;
+                combinedTextureInfos.reserve(1 /* fallbackTextureInfo */ + textureInfos.size());
+                combinedTextureInfos.push_back(fallbackTextureInfo);
+                combinedTextureInfos.append_range(textureInfos);
+
                 return vku::RefHolder {
-                    [this](std::span<const vk::DescriptorImageInfo> textureInfos, const vk::DescriptorBufferInfo &materialBufferInfo) {
+                    [this](std::span<const vk::DescriptorImageInfo> combinedTextureInfos, const vk::DescriptorBufferInfo &materialBufferInfo) {
                         return std::array {
                             // TODO: Use following line causes C++ module error in MSVC, looks like related to
                             // https://developercommunity.visualstudio.com/t/error-C2028:-structunion-member-must-be/10488679?sort=newest&topics=Fixed-in%3A+Visual+Studio+2017+version+15.2.
                             // Use setImageInfo method when available in MSVC.
-                            // getDescriptorWrite<1, 0>().setImageInfo(textureInfos),
-                            getDescriptorWrite<1, 0>().setDescriptorCount(textureInfos.size()).setPImageInfo(textureInfos.data()),
+                            // getDescriptorWrite<1, 0>().setImageInfo(combinedTextureInfos),
+                            getDescriptorWrite<1, 0>().setDescriptorCount(combinedTextureInfos.size()).setPImageInfo(combinedTextureInfos.data()),
                             getDescriptorWrite<1, 1>().setBufferInfo(materialBufferInfo),
                         };
                     },
-                    std::move(textureInfos),
+                    std::move(combinedTextureInfos),
                     materialBufferInfo,
                 };
             }

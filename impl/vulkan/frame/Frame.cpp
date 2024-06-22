@@ -53,6 +53,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    	*sharedData->imageBasedLightingResources.value().prefilteredmapImageView,
 		    	*sharedData->brdfmapImageView).get(),
 		    primitiveSets.getDescriptorWrites1(
+                { *sharedData->primitiveRenderer.sampler, *sharedData->gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
 				sharedData->assetResources.textures,
 		    	{ sharedData->assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
 		    primitiveSets.getDescriptorWrites2(
