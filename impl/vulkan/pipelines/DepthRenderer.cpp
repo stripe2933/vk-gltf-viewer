@@ -170,11 +170,22 @@ auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::createPipeline(
         true, true, vk::CompareOp::eLess,
     };
 
+    constexpr std::array dynamicStates {
+        vk::DynamicState::eViewport,
+        vk::DynamicState::eScissor,
+        vk::DynamicState::eCullMode,
+    };
+    const vk::PipelineDynamicStateCreateInfo dynamicState {
+        {},
+        dynamicStates,
+    };
+
     constexpr std::array colorAttachmentFormats { vk::Format::eR32Uint, vk::Format::eR16G16B16A16Uint };
 
     return { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 2, true)
-            .setPDepthStencilState(&depthStencilState),
+            .setPDepthStencilState(&depthStencilState)
+            .setPDynamicState(&dynamicState),
         vk::PipelineRenderingCreateInfo {
             {},
             colorAttachmentFormats,
