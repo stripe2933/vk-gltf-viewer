@@ -15,6 +15,7 @@ if (NOT MSVC) # For MSVC, use <execution> instead.
 	link_libraries(OpenMP::OpenMP_CXX) # Therefore it's in here.
 endif()
 
+find_package(Boost REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
@@ -60,8 +61,10 @@ target_compile_definitions(glm_module PUBLIC
 add_executable(vk-gltf-viewer
 	impl/control/AppWindow.cpp
     impl/AppState.cpp
+    impl/control/ImGui.cpp
 	impl/gltf/AssetResources.cpp
 	impl/gltf/SceneResources.cpp
+	impl/helpers/enum_to_string.cpp
 	impl/MainApp.cpp
 	impl/vulkan/frame/Frame.cpp
 	impl/vulkan/frame/SharedData.cpp
@@ -85,10 +88,12 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/mod.cppm
 		interface/control/AppWindow.cppm
 		interface/control/Camera.cppm
+		interface/control/ImGui.cppm
 		interface/gltf/algorithm/MikktSpaceInterface.cppm
 		interface/gltf/AssetResources.cppm
 		interface/gltf/SceneResources.cppm
 		interface/AppState.cppm
+		interface/helpers/enum_to_string.cppm
 		interface/helpers/formatters/glm.cppm
 		interface/helpers/formatters/joiner.cppm
 		interface/helpers/formatters/omitted.cppm
@@ -111,6 +116,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipelines/SkyboxRenderer.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
+	Boost::boost
 	fastgltf::fastgltf
 	imgui::imgui
 	imguizmo::imguizmo

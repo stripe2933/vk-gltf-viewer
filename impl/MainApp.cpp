@@ -11,7 +11,6 @@ module;
 
 #include <fastgltf/core.hpp>
 #include <GLFW/glfw3.h>
-#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui_impl_glfw.h>
@@ -22,6 +21,7 @@ module vk_gltf_viewer;
 import :MainApp;
 
 import vku;
+import :control.ImGui;
 import :vulkan.frame.Frame;
 import :vulkan.frame.SharedData;
 
@@ -195,23 +195,14 @@ auto vk_gltf_viewer::MainApp::update(
 			appState.camera.getNear(), appState.camera.getFar());
 	}
 
-	ImGui::ShowDemoWindow();
-	ImGui::ShowDebugLogWindow();
+	control::imgui::assetSceneHierarchies(assetExpected.get(), appState);
+	control::imgui::nodeInspector(assetExpected.get(), appState);
 
 	ImGuizmo::BeginFrame();
 
-	// ViewManipulate.
-	constexpr ImVec2 viewManipulateSize { 64.f, 64.f };
-	constexpr ImU32 viewManipulateBackgroundColor = 0x00000000;
-	const glm::mat4 oldView = appState.camera.view;
-	ImGuizmo::ViewManipulate(
-		glm::gtc::value_ptr(appState.camera.view),
-		distance(appState.camera.getEye(), glm::vec3 { 0.f, 0.35f, 0.f } /* TODO: match to appState.camera */),
-		centerNodeRect.Max - viewManipulateSize, viewManipulateSize,
-		viewManipulateBackgroundColor);
-
 	// Capture mouse when using ViewManipulate.
-	glfwSetInputMode(window, GLFW_CURSOR, appState.camera.view != oldView ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+	const bool isUsingImGuizmoViewManipulate = control::imgui::viewManipulate(appState, centerNodeRect.Max);
+	glfwSetInputMode(window, GLFW_CURSOR, isUsingImGuizmoViewManipulate ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
 
 	ImGui::Render();
 

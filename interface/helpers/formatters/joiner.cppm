@@ -1,5 +1,49 @@
 module;
 
+#include <cstdint>
+#include <algorithm>
 #include <format>
+#include <ranges>
+#include <string_view>
+#include <type_traits>
 
 export module vk_gltf_viewer:helpers.formatters.joiner;
+
+#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
+
+namespace vk_gltf_viewer {
+    template <std::size_t N>
+    struct static_string {
+        char __str_[N];
+
+        constexpr static_string(const char (&str)[N]) noexcept {
+            std::copy_n(str, N, __str_);
+        }
+
+        [[nodiscard]] constexpr operator std::string_view() const noexcept {
+            return { __str_, N - 1 /* last character would be '\0' */ };
+        }
+    };
+
+    template <std::ranges::range R, static_string /* Delimiter */>
+    struct joiner {
+        std::ranges::ref_view<R> r;
+    };
+
+    export template <static_string Delimiter>
+    auto make_joiner(std::ranges::range auto const &r) -> joiner<std::remove_reference_t<decltype(r)>, Delimiter> {
+        return { r };
+    }
+}
+
+export template <std::ranges::range R, vk_gltf_viewer::static_string Delimiter>
+struct std::formatter<vk_gltf_viewer::joiner<R, Delimiter>> : range_formatter<std::ranges::range_value_t<R>>{
+    constexpr formatter(){
+        range_formatter<std::ranges::range_value_t<R>>::set_brackets("", "");
+        range_formatter<std::ranges::range_value_t<R>>::set_separator(Delimiter);
+    }
+
+    constexpr auto format(vk_gltf_viewer::joiner<R, Delimiter> x, auto &ctx) const {
+        return range_formatter<std::ranges::range_value_t<R>>::format(x.r, ctx);
+    }
+};
