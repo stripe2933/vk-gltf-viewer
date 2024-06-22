@@ -11,6 +11,7 @@
         "vulkan-binding"
       ]
     },
+    "imguizmo",
     {
       "name": "ktx",
       "features": [
