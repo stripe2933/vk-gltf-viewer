@@ -374,7 +374,7 @@ auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::createSampler(
         vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
         {}, {}, {},
         {},
-        vk::True, 16.f,
+        false, {},
         {}, {},
         {}, vk::LodClampNone,
     } };
