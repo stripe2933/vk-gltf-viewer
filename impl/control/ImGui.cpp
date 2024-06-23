@@ -28,10 +28,17 @@ import :helpers.ranges;
 }
 
 auto vk_gltf_viewer::control::imgui::hdriEnvironments(
+    ImTextureID eqmapTextureId,
+    const glm::uvec2 &eqmapDimension,
     AppState &appState
 ) -> void {
     if (ImGui::Begin("HDRI environments info")) {
-        ImGui::Text("Equirectangular map file: %s", std::getenv("EQMAP_PATH"));
+        ImGui::SeparatorText("Equirectangular map");
+        ImGui::Text("File: %s", std::getenv("EQMAP_PATH"));
+        ImGui::Text("Dimension: %ux%u", eqmapDimension.x, eqmapDimension.y);
+        ImGui::Image(eqmapTextureId, ImVec2 { 1.f, static_cast<float>(eqmapDimension.y) / eqmapDimension.x } * ImGui::GetContentRegionAvail().x);
+
+        ImGui::SeparatorText("Cubemap");
         ImGui::Checkbox("Use blurred skybox", &appState.useBlurredSkybox);
 
         ImGui::End();

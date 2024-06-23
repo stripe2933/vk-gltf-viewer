@@ -18,7 +18,6 @@ import :vulkan.frame.SharedData;
 
 import pbrenvmap;
 import :helpers.ranges;
-import :io.StbDecoder;
 import :vulkan.pipelines.BrdfmapComputer;
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(
@@ -26,68 +25,13 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
     const std::filesystem::path &assetDir,
     const Gpu &gpu,
     vk::SurfaceKHR surface,
-	const vk::Extent2D &swapchainExtent
+	const vk::Extent2D &swapchainExtent,
+	const vku::Image &eqmapImage
 ) : asset { asset },
 	gpu { gpu },
 	assetResources { asset, assetDir, gpu },
 	swapchain { createSwapchain(surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent } {
-	const auto eqmapImageData = io::StbDecoder<float>::fromFile(std::getenv("EQMAP_PATH"), 4);
-	vku::MappedBuffer eqmapImageStagingBuffer { gpu.allocator, std::from_range, eqmapImageData.asSpan(), vk::BufferUsageFlagBits::eTransferSrc };
-	const vku::AllocatedImage eqmapImage {
-		gpu.allocator,
-		vk::ImageCreateInfo {
-			{},
-			vk::ImageType::e2D,
-			vk::Format::eR32G32B32A32Sfloat,
-			vk::Extent3D { eqmapImageData.width, eqmapImageData.height, 1 },
-			1, 1,
-			vk::SampleCountFlagBits::e1,
-			vk::ImageTiling::eOptimal,
-			vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
-		},
-		vma::AllocationCreateInfo {
-			{},
-			vma::MemoryUsage::eAutoPreferDevice
-		},
-	};
-
-	const auto transferCommandPool = createCommandPool(gpu.queueFamilies.transfer);
-	vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-			{}, {}, {},
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eTransferWrite,
-				{}, vk::ImageLayout::eTransferDstOptimal,
-				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				eqmapImage, vku::fullSubresourceRange(),
-			});
-
-		cb.copyBufferToImage(
-			eqmapImageStagingBuffer,
-			eqmapImage, vk::ImageLayout::eTransferDstOptimal,
-			vk::BufferImageCopy {
-				0, {}, {},
-				{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-				{ 0, 0, 0 },
-				eqmapImage.extent,
-			});
-
-		// Layout transition + releasing queue family ownerships.
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllCommands,
-			{},
-			{}, {},
-			vk::ImageMemoryBarrier {
-				vk::AccessFlagBits::eTransferWrite, {},
-				vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-				gpu.queueFamilies.transfer, gpu.queueFamilies.compute,
-				eqmapImage, vku::fullSubresourceRange(),
-			});
-	});
-	gpu.queues.transfer.waitIdle();
-
 	{
 		// Create image view for eqmapImage.
 		const vk::raii::ImageView eqmapImageView { gpu.device, vk::ImageViewCreateInfo {
@@ -96,7 +40,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 			vk::ImageViewType::e2D,
 			eqmapImage.format,
 			{},
-			vku::fullSubresourceRange(),
+			{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
 		} };
 
 		const pbrenvmap::Generator::Pipelines pbrenvmapPipelines {
@@ -125,19 +69,6 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 
 		const auto computeCommandPool = createCommandPool(gpu.queueFamilies.compute);
 		vku::executeSingleCommand(*gpu.device, *computeCommandPool, gpu.queues.compute, [&](vk::CommandBuffer cb) {
-            // Acquire queue family ownerships.
-            if (gpu.queueFamilies.transfer != gpu.queueFamilies.compute) {
-	            cb.pipelineBarrier(
-            		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eComputeShader,
-            		{}, {}, {},
-            		vk::ImageMemoryBarrier {
-            		    {}, vk::AccessFlagBits::eShaderRead,
-            			vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-            			gpu.queueFamilies.transfer, gpu.queueFamilies.compute,
-            			eqmapImage, vku::fullSubresourceRange(),
-            		});
-            }
-
 			pbrenvmapGenerator.recordCommands(cb, pbrenvmapPipelines, *eqmapImageView);
 
 			// Change brdfmapImage layout to GENERAL.
