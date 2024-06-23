@@ -271,7 +271,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 
 		fillGltfFallbackImage(cb);
 		generateAssetResourceMipmaps(cb);
-		initAttachmentLayouts(cb);
+		recordInitialImageLayoutTransitionCommands(cb);
 	});
 	gpu.queues.graphicsPresent.waitIdle();
 }
@@ -288,7 +288,7 @@ auto vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(
 	imGuiSwapchainAttachmentGroups = createSwapchainAttachmentGroups(vk::Format::eB8G8R8A8Unorm);
 
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
-		initAttachmentLayouts(cb);
+		recordInitialImageLayoutTransitionCommands(cb);
 	});
 	gpu.queues.graphicsPresent.waitIdle();
 }
@@ -506,7 +506,7 @@ auto vk_gltf_viewer::vulkan::SharedData::generateAssetResourceMipmaps(
             | std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::initAttachmentLayouts(
+auto vk_gltf_viewer::vulkan::SharedData::recordInitialImageLayoutTransitionCommands(
 	vk::CommandBuffer commandBuffer
 ) const -> void {
 	commandBuffer.pipelineBarrier(

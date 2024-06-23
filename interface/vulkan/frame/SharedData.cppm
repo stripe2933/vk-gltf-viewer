@@ -81,6 +81,6 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
     	auto fillGltfFallbackImage(vk::CommandBuffer commandBuffer) const -> void;
     	auto generateAssetResourceMipmaps(vk::CommandBuffer commandBuffer) const -> void;
-    	auto initAttachmentLayouts(vk::CommandBuffer commandBuffer) const -> void;
+    	auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer commandBuffer) const -> void;
     };
 }

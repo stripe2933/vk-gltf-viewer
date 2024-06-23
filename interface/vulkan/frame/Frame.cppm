@@ -43,19 +43,35 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
     private:
+    	class PassthruExtentDependentResources {
+    	public:
+			vk::Extent2D extent; // Extent that used as the resources initialization.
+
+    		// Buffer, image and image views.
+    		vku::AllocatedImage jumpFloodImage;
+    		vk::raii::ImageView jumpFloodPingImageView, jumpFloodPongImageView;
+
+    		// Attachment groups.
+    		vku::AttachmentGroup     depthPrepassAttachmentGroup;
+    		vku::MsaaAttachmentGroup primaryAttachmentGroup;
+
+    		PassthruExtentDependentResources(const Gpu &gpu, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
+
+    	private:
+    		[[nodiscard]] auto createJumpFloodImage(vma::Allocator allocator, const vk::Extent2D &extent) const -> decltype(jumpFloodImage);
+    		[[nodiscard]] auto createJumpFloodImageView(const vk::raii::Device &device, std::uint32_t arrayLayer) const -> vk::raii::ImageView;
+    		[[nodiscard]] auto createDepthPrepassAttachmentGroup(const Gpu &gpu, const vk::Extent2D &extent) const -> decltype(depthPrepassAttachmentGroup);
+    		[[nodiscard]] auto createPrimaryAttachmentGroup(const Gpu &gpu, const vk::Extent2D &extent) const -> decltype(primaryAttachmentGroup);
+
+    		auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
+    	};
+
     	std::shared_ptr<SharedData> sharedData;
     	const Gpu &gpu;
 
-        bool passthruImageInitialized = false;
-
     	// Buffer, image and image views.
     	vku::MappedBuffer hoveringNodeIndexBuffer;
-    	std::unique_ptr<vku::AllocatedImage> jumpFloodImage = nullptr;
-    	std::unique_ptr<vk::raii::ImageView> jumpFloodPingImageView = nullptr, jumpFloodPongImageView = nullptr;
-
-    	// Attachment groups.
-    	std::unique_ptr<vku::AttachmentGroup>     depthPrepassAttachmentGroup = nullptr;
-    	std::unique_ptr<vku::MsaaAttachmentGroup> primaryAttachmentGroup = nullptr;
+		std::optional<PassthruExtentDependentResources> passthruExtentDependentResources = std::nullopt;
 
         // Descriptor/command pools.
     	vk::raii::DescriptorPool descriptorPool      = createDescriptorPool();
@@ -82,14 +98,8 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     						jumpFloodFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
 		vk::raii::Fence     inFlightFence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } };
 
-    	[[nodiscard]] auto createJumpFloodImage(const vk::Extent2D &extent) const -> decltype(jumpFloodImage);
-    	[[nodiscard]] auto createJumpFloodImageView(std::uint32_t arrayLayer) const -> std::unique_ptr<vk::raii::ImageView>;
-    	[[nodiscard]] auto createDepthPrepassAttachmentGroup(const vk::Extent2D &extent) const -> decltype(depthPrepassAttachmentGroup);
-    	[[nodiscard]] auto createPrimaryAttachmentGroup(const vk::Extent2D &extent) const -> decltype(primaryAttachmentGroup);
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
-
-    	auto initAttachmentLayouts() const -> void;
 
     	auto update(const OnLoopTask &task, OnLoopResult &result) -> void;
 

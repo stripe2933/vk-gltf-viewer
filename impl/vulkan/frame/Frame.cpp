@@ -77,8 +77,6 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	    	3,
 	    })
 		| ranges::to_array<3>();
-
-	initAttachmentLayouts();
 }
 
 auto vk_gltf_viewer::vulkan::Frame::onLoop(
@@ -119,7 +117,8 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 	jumpFloodCommandBuffer.end();
 	if (jumpFloodResultForward.has_value()) {
 		gpu.device.updateDescriptorSets(
-			outlineSets.getDescriptorWrites0(*jumpFloodResultForward ? *jumpFloodPongImageView : *jumpFloodPingImageView).get(),
+			outlineSets.getDescriptorWrites0(
+				*jumpFloodResultForward ? passthruExtentDependentResources->jumpFloodPongImageView : passthruExtentDependentResources->jumpFloodPingImageView).get(),
 			{});
 	}
 
@@ -193,77 +192,116 @@ auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
 
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImage(
+vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::PassthruExtentDependentResources(
+	const Gpu &gpu,
+	const vk::Extent2D &extent,
+	vk::CommandBuffer graphicsCommandBuffer
+) : jumpFloodImage { createJumpFloodImage(gpu.allocator, extent) },
+	jumpFloodPingImageView { createJumpFloodImageView(gpu.device, 0) },
+	jumpFloodPongImageView { createJumpFloodImageView(gpu.device, 1) },
+	depthPrepassAttachmentGroup { createDepthPrepassAttachmentGroup(gpu, extent) },
+	primaryAttachmentGroup { createPrimaryAttachmentGroup(gpu, extent) } {
+	recordInitialImageLayoutTransitionCommands(graphicsCommandBuffer);
+}
+
+auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::createJumpFloodImage(
+	vma::Allocator allocator,
 	const vk::Extent2D &extent
 ) const -> decltype(jumpFloodImage) {
-	return std::make_unique<vku::AllocatedImage>(
-		gpu.allocator,
-		vk::ImageCreateInfo {
-			{},
-			vk::ImageType::e2D,
-			vk::Format::eR16G16B16A16Uint,
-			vk::Extent3D { extent, 1 },
-			1, 2, // arrayLevels=0 for ping image, arrayLevels=1 for pong image.
-			vk::SampleCountFlagBits::e1,
-			vk::ImageTiling::eOptimal,
-			vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */
-				| vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer, read from OutlineRenderer */,
-		},
-		vma::AllocationCreateInfo {
-			{},
-			vma::MemoryUsage::eAutoPreferDevice,
-		});
+	return { allocator, vk::ImageCreateInfo {
+		{},
+		vk::ImageType::e2D,
+		vk::Format::eR16G16B16A16Uint,
+		vk::Extent3D { extent, 1 },
+		1, 2, // arrayLevels=0 for ping image, arrayLevels=1 for pong image.
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */
+			| vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer, read from OutlineRenderer */,
+	}, vma::AllocationCreateInfo {
+		{},
+		vma::MemoryUsage::eAutoPreferDevice,
+	} };
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createJumpFloodImageView(
+auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::createJumpFloodImageView(
+	const vk::raii::Device &device,
     std::uint32_t arrayLayer
-) const -> std::unique_ptr<vk::raii::ImageView> {
-	return std::make_unique<vk::raii::ImageView>(
-		gpu.device,
-		vk::ImageViewCreateInfo {
-			{},
-			*jumpFloodImage,
-			vk::ImageViewType::e2D,
-			jumpFloodImage->format,
-			{},
-			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, arrayLayer, 1 },
-		});
+) const -> vk::raii::ImageView {
+	return { device, vk::ImageViewCreateInfo {
+		{},
+		jumpFloodImage,
+		vk::ImageViewType::e2D,
+		jumpFloodImage.format,
+		{},
+		vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, arrayLayer, 1 },
+	} };
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createDepthPrepassAttachmentGroup(
+auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::createDepthPrepassAttachmentGroup(
+	const Gpu &gpu,
     const vk::Extent2D &extent
 ) const -> decltype(depthPrepassAttachmentGroup) {
-	auto attachmentGroup = std::make_unique<vku::AttachmentGroup>(extent);
-	attachmentGroup->addColorAttachment(
+	vku::AttachmentGroup attachmentGroup { extent };
+	attachmentGroup.addColorAttachment(
 		gpu.device,
-		attachmentGroup->storeImage(
-			attachmentGroup->createColorImage(gpu.allocator, vk::Format::eR32Uint, vk::ImageUsageFlagBits::eTransferSrc)));
-	attachmentGroup->addColorAttachment(
+		attachmentGroup.storeImage(
+			attachmentGroup.createColorImage(gpu.allocator, vk::Format::eR32Uint, vk::ImageUsageFlagBits::eTransferSrc)));
+	attachmentGroup.addColorAttachment(
 		gpu.device,
-		*jumpFloodImage, jumpFloodImage->format,
+		jumpFloodImage, jumpFloodImage.format,
 		{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image subresource */);
-	attachmentGroup->setDepthAttachment(
+	attachmentGroup.setDepthAttachment(
 		gpu.device,
-		attachmentGroup->storeImage(
-			attachmentGroup->createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
+		attachmentGroup.storeImage(
+			attachmentGroup.createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
 	return attachmentGroup;
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createPrimaryAttachmentGroup(
+auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::createPrimaryAttachmentGroup(
+	const Gpu &gpu,
     const vk::Extent2D &extent
 ) const -> decltype(primaryAttachmentGroup) {
-	auto attachmentGroup = std::make_unique<vku::MsaaAttachmentGroup>(extent, vk::SampleCountFlagBits::e4);
-	attachmentGroup->addColorAttachment(
+	vku::MsaaAttachmentGroup attachmentGroup { extent, vk::SampleCountFlagBits::e4 };
+	attachmentGroup.addColorAttachment(
 		gpu.device,
-		attachmentGroup->storeImage(
-			attachmentGroup->createColorImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat)),
-		attachmentGroup->storeImage(
-			attachmentGroup->createResolveImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eStorage)));
-	attachmentGroup->setDepthAttachment(
+		attachmentGroup.storeImage(
+			attachmentGroup.createColorImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat)),
+		attachmentGroup.storeImage(
+			attachmentGroup.createResolveImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eStorage)));
+	attachmentGroup.setDepthAttachment(
 		gpu.device,
-		attachmentGroup->storeImage(
-			attachmentGroup->createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
+		attachmentGroup.storeImage(
+			attachmentGroup.createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
 	return attachmentGroup;
+}
+
+auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::recordInitialImageLayoutTransitionCommands(
+    vk::CommandBuffer graphicsCommandBuffer
+) const -> void {
+	const auto layoutTransitionBarrier = [](
+		vk::ImageLayout newLayout,
+		vk::Image image,
+		const vk::ImageSubresourceRange &subresourceRange = vku::fullSubresourceRange()
+	) {
+		return vk::ImageMemoryBarrier {
+			{}, {},
+			{}, newLayout,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			image, subresourceRange
+		};
+	};
+	graphicsCommandBuffer.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
+		{}, {}, {},
+		std::array {
+			layoutTransitionBarrier(vk::ImageLayout::eGeneral, jumpFloodImage),
+			layoutTransitionBarrier(vk::ImageLayout::eTransferSrcOptimal, depthPrepassAttachmentGroup.colorAttachments[0].image),
+			layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, depthPrepassAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
+			layoutTransitionBarrier(vk::ImageLayout::eColorAttachmentOptimal, primaryAttachmentGroup.colorAttachments[0].image),
+			layoutTransitionBarrier(vk::ImageLayout::eGeneral, primaryAttachmentGroup.colorAttachments[0].resolveImage),
+			layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, primaryAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
+		});
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {
@@ -288,35 +326,6 @@ auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::Frame::initAttachmentLayouts() const -> void {
-	std::vector<vk::ImageMemoryBarrier> barriers;
-	const auto appendBarrier = [&](vk::ImageLayout newLayout, vk::Image image, const vk::ImageSubresourceRange &subresourceRange = vku::fullSubresourceRange()) {
-		barriers.emplace_back(
-			vk::AccessFlags{}, vk::AccessFlags{},
-			vk::ImageLayout::eUndefined, newLayout,
-			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			image, subresourceRange);
-	};
-
-	if (passthruImageInitialized) {
-		appendBarrier(vk::ImageLayout::eGeneral, *jumpFloodImage);
-		appendBarrier(vk::ImageLayout::eTransferSrcOptimal, depthPrepassAttachmentGroup->colorAttachments[0].image);
-		appendBarrier(vk::ImageLayout::eDepthAttachmentOptimal, depthPrepassAttachmentGroup->depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth));
-		appendBarrier(vk::ImageLayout::eColorAttachmentOptimal, primaryAttachmentGroup->colorAttachments[0].image);
-		appendBarrier(vk::ImageLayout::eGeneral, primaryAttachmentGroup->colorAttachments[0].resolveImage);
-		appendBarrier(vk::ImageLayout::eDepthAttachmentOptimal, primaryAttachmentGroup->depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth));
-	}
-
-	if (!barriers.empty()) {
-		vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-			cb.pipelineBarrier(
-				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-				{}, {}, {}, barriers);
-		});
-		gpu.queues.graphicsPresent.waitIdle();
-	}
-}
-
 auto vk_gltf_viewer::vulkan::Frame::update(
     const OnLoopTask &task,
 	OnLoopResult &result
@@ -328,19 +337,19 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 	}
 
 	// If passthru extent is different from current, dependent images have to be recreated.
-	if (!passthruImageInitialized || vku::toExtent2D(jumpFloodImage->extent) != task.passthruRect.extent) {
-		jumpFloodImage = createJumpFloodImage(task.passthruRect.extent);
-		jumpFloodPingImageView = createJumpFloodImageView(0);
-		jumpFloodPongImageView = createJumpFloodImageView(1);
-		depthPrepassAttachmentGroup = createDepthPrepassAttachmentGroup(task.passthruRect.extent);
-		primaryAttachmentGroup = createPrimaryAttachmentGroup(task.passthruRect.extent);
-		passthruImageInitialized = true;
+	if (!passthruExtentDependentResources || passthruExtentDependentResources->extent != task.passthruRect.extent) {
+		vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+			passthruExtentDependentResources = PassthruExtentDependentResources { gpu, task.passthruRect.extent, cb };
+		});
+		gpu.queues.graphicsPresent.waitIdle(); // TODO: idling while frame execution is very inefficient.
 
-		initAttachmentLayouts();
 		gpu.device.updateDescriptorSets(
 			ranges::array_cat(
-				jumpFloodSets.getDescriptorWrites0(**jumpFloodPingImageView, **jumpFloodPongImageView).get(),
-				rec709Sets.getDescriptorWrites0(*primaryAttachmentGroup->colorAttachments[0].resolveView).get()),
+				jumpFloodSets.getDescriptorWrites0(
+					*passthruExtentDependentResources->jumpFloodPingImageView,
+					*passthruExtentDependentResources->jumpFloodPongImageView).get(),
+				rec709Sets.getDescriptorWrites0(
+					*passthruExtentDependentResources->primaryAttachmentGroup.colorAttachments[0].resolveView).get()),
 			{});
 	}
 }
@@ -358,26 +367,26 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 				{}, vk::AccessFlagBits::eColorAttachmentWrite,
 				vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eColorAttachmentOptimal,
 				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				depthPrepassAttachmentGroup->colorAttachments[0].image, vku::fullSubresourceRange(),
+				passthruExtentDependentResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
 			},
 			vk::ImageMemoryBarrier {
 				{}, vk::AccessFlagBits::eColorAttachmentWrite,
 				vk::ImageLayout::eGeneral, vk::ImageLayout::eColorAttachmentOptimal,
 				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				*jumpFloodImage,
+				passthruExtentDependentResources->jumpFloodImage,
 				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
 			},
 		});
 
-	cb.beginRenderingKHR(depthPrepassAttachmentGroup->getRenderingInfo(
+	cb.beginRenderingKHR(passthruExtentDependentResources->depthPrepassAttachmentGroup.getRenderingInfo(
 		std::array {
 			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { std::numeric_limits<std::uint32_t>::max(), 0U, 0U, 0U } },
 			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
 		},
 		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 1.f, 0U } }));
 
-	depthPrepassAttachmentGroup->setViewport(cb, true);
-	depthPrepassAttachmentGroup->setScissor(cb);
+	passthruExtentDependentResources->depthPrepassAttachmentGroup.setViewport(cb, true);
+	passthruExtentDependentResources->depthPrepassAttachmentGroup.setScissor(cb);
 
 	sharedData->depthRenderer.bindPipeline(cb);
 	sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
@@ -407,7 +416,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 			vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
 			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			depthPrepassAttachmentGroup->colorAttachments[0].image, vku::fullSubresourceRange(),
+			passthruExtentDependentResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
 		},
 		// Release jump flood resources' ping images queue family ownership.
 		vk::ImageMemoryBarrier2 {
@@ -415,7 +424,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 			vk::PipelineStageFlagBits2::eAllCommands, vk::AccessFlagBits2::eNone,
 			{}, {},
 			gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
-			*jumpFloodImage,
+			passthruExtentDependentResources->jumpFloodImage,
 			{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
 		},
 	};
@@ -435,7 +444,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		});
 	if (isCursorInPassthruRect.value_or(false)) {
 		cb.copyImageToBuffer(
-			depthPrepassAttachmentGroup->colorAttachments[0].image, vk::ImageLayout::eTransferSrcOptimal,
+			passthruExtentDependentResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vk::ImageLayout::eTransferSrcOptimal,
 			hoveringNodeIndexBuffer,
 			vk::BufferImageCopy {
 				0, {}, {},
@@ -458,13 +467,13 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodCalculationCommands(
 			{}, vk::AccessFlagBits::eShaderRead,
 			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
 		    gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
-		    *jumpFloodImage,
+		    passthruExtentDependentResources->jumpFloodImage,
 		    { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping */,
 		});
 
 	if (task.hoveringNodeIndex || task.selectedNodeIndex) {
 		auto forward = sharedData->jumpFloodComputer.compute(
-			cb, jumpFloodSets, vku::toExtent2D(jumpFloodImage->extent));
+			cb, jumpFloodSets, vku::toExtent2D(passthruExtentDependentResources->jumpFloodImage.extent));
 		// Release queue family ownership.
 		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
 			cb.pipelineBarrier(
@@ -474,7 +483,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodCalculationCommands(
 					vk::AccessFlagBits::eShaderWrite, {},
 					{}, {},
 					gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-					*jumpFloodImage, { vk::ImageAspectFlagBits::eColor, 0, 1, forward, 1 },
+					passthruExtentDependentResources->jumpFloodImage, { vk::ImageAspectFlagBits::eColor, 0, 1, forward, 1 },
 				});
 		}
 		return forward;
@@ -494,17 +503,17 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 			{}, vk::AccessFlagBits::eColorAttachmentWrite,
 			vk::ImageLayout::eGeneral, vk::ImageLayout::eColorAttachmentOptimal,
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			primaryAttachmentGroup->colorAttachments[0].resolveImage, vku::fullSubresourceRange(),
+			passthruExtentDependentResources->primaryAttachmentGroup.colorAttachments[0].resolveImage, vku::fullSubresourceRange(),
 		});
 
-	cb.beginRenderingKHR(primaryAttachmentGroup->getRenderingInfo(
+	cb.beginRenderingKHR(passthruExtentDependentResources->primaryAttachmentGroup.getRenderingInfo(
 		std::array {
 			vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare },
 		},
 		vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 1.f, 0U } }));
 
-	primaryAttachmentGroup->setViewport(cb, true);
-	primaryAttachmentGroup->setScissor(cb);
+	passthruExtentDependentResources->primaryAttachmentGroup.setViewport(cb, true);
+	passthruExtentDependentResources->primaryAttachmentGroup.setScissor(cb);
 
 	// Draw glTF mesh.
 	sharedData->primitiveRenderer.bindPipeline(cb);
@@ -544,7 +553,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 			vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderStorageRead,
 			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			primaryAttachmentGroup->colorAttachments[0].resolveImage, vku::fullSubresourceRange(),
+			passthruExtentDependentResources->primaryAttachmentGroup.colorAttachments[0].resolveImage, vku::fullSubresourceRange(),
 		},
 		// Change swapchain image layout from PresentSrcKHR to ColorAttachmentOptimal.
 		vk::ImageMemoryBarrier2 {
@@ -562,7 +571,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 			vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderStorageRead,
 			vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
 			gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-			*jumpFloodImage,
+			passthruExtentDependentResources->jumpFloodImage,
 			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *isJumpFloodResultForward, 1 });
 	}
 	cb.pipelineBarrier2KHR({
