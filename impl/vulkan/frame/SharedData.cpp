@@ -269,8 +269,8 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 				});
 		}
 
-		fillGltfFallbackImage(cb);
-		generateAssetResourceMipmaps(cb);
+		recordGltfFallbackImageClearCommands(cb);
+		recordImageMipmapGenerationCommands(cb);
 		recordInitialImageLayoutTransitionCommands(cb);
 	});
 	gpu.queues.graphicsPresent.waitIdle();
@@ -404,10 +404,10 @@ auto vk_gltf_viewer::vulkan::SharedData::createCommandPool(
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::fillGltfFallbackImage(
-    vk::CommandBuffer commandBuffer
+auto vk_gltf_viewer::vulkan::SharedData::recordGltfFallbackImageClearCommands(
+    vk::CommandBuffer graphicsCommandBuffer
 ) const -> void {
-	commandBuffer.pipelineBarrier(
+	graphicsCommandBuffer.pipelineBarrier(
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
 		{}, {}, {},
 		vk::ImageMemoryBarrier {
@@ -417,11 +417,11 @@ auto vk_gltf_viewer::vulkan::SharedData::fillGltfFallbackImage(
 			gltfFallbackImage,
 			vku::fullSubresourceRange(),
 		});
-	commandBuffer.clearColorImage(
+	graphicsCommandBuffer.clearColorImage(
 		gltfFallbackImage, vk::ImageLayout::eTransferDstOptimal,
 		vk::ClearColorValue { 1.f, 1.f, 1.f, 1.f },
 		vku::fullSubresourceRange());
-	commandBuffer.pipelineBarrier(
+	graphicsCommandBuffer.pipelineBarrier(
 		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
 		{}, {}, {},
 		vk::ImageMemoryBarrier {
@@ -433,8 +433,8 @@ auto vk_gltf_viewer::vulkan::SharedData::fillGltfFallbackImage(
 		});
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::generateAssetResourceMipmaps(
-    vk::CommandBuffer commandBuffer
+auto vk_gltf_viewer::vulkan::SharedData::recordImageMipmapGenerationCommands(
+    vk::CommandBuffer graphicsCommandBuffer
 ) const -> void {
 	if (assetResources.images.empty()) return;
 
@@ -458,7 +458,7 @@ auto vk_gltf_viewer::vulkan::SharedData::generateAssetResourceMipmaps(
         const auto targetImages = std::ranges::subrange(begin, pImages.end()) | ranges::views::deref;
 
         // Make image barriers that transition the subresource at the srcLevel to TRANSFER_SRC_OPTIMAL.
-        commandBuffer.pipelineBarrier(
+        graphicsCommandBuffer.pipelineBarrier(
             vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
             {}, {}, {},
             targetImages
@@ -476,7 +476,7 @@ auto vk_gltf_viewer::vulkan::SharedData::generateAssetResourceMipmaps(
         // Blit from srcLevel to dstLevel.
         for (const vku::Image &image : targetImages) {
         	const vk::Extent2D srcMipExtent = image.mipExtent(srcLevel), dstMipExtent = image.mipExtent(dstLevel);
-            commandBuffer.blitImage(
+            graphicsCommandBuffer.blitImage(
                 image, vk::ImageLayout::eTransferSrcOptimal,
                 image, vk::ImageLayout::eTransferDstOptimal,
                 vk::ImageBlit {
@@ -490,7 +490,7 @@ auto vk_gltf_viewer::vulkan::SharedData::generateAssetResourceMipmaps(
     }
 
     // Change image layouts for sampling.
-    commandBuffer.pipelineBarrier(
+    graphicsCommandBuffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
         {}, {}, {},
         assetResources.images
@@ -507,9 +507,9 @@ auto vk_gltf_viewer::vulkan::SharedData::generateAssetResourceMipmaps(
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::recordInitialImageLayoutTransitionCommands(
-	vk::CommandBuffer commandBuffer
+	vk::CommandBuffer graphicsCommandBuffer
 ) const -> void {
-	commandBuffer.pipelineBarrier(
+	graphicsCommandBuffer.pipelineBarrier(
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
 		{}, {}, {},
 		swapchainImages

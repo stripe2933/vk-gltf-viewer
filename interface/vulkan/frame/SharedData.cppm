@@ -79,8 +79,8 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	[[nodiscard]] auto createSwapchainAttachmentGroups(vk::Format mutableFormat = {}) const -> decltype(swapchainAttachmentGroups);
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
-    	auto fillGltfFallbackImage(vk::CommandBuffer commandBuffer) const -> void;
-    	auto generateAssetResourceMipmaps(vk::CommandBuffer commandBuffer) const -> void;
-    	auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer commandBuffer) const -> void;
+    	auto recordGltfFallbackImageClearCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
+    	auto recordImageMipmapGenerationCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
+    	auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
     };
 }
