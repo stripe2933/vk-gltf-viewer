@@ -83,8 +83,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	pipelines::JumpFloodComputer::DescriptorSets jumpFloodSets { *gpu.device, *descriptorPool, sharedData->jumpFloodComputer.descriptorSetLayouts };
     	pipelines::PrimitiveRenderer::DescriptorSets primitiveSets { *gpu.device, *descriptorPool, sharedData->primitiveRenderer.descriptorSetLayouts };
     	pipelines::SkyboxRenderer::DescriptorSets skyboxSets { *gpu.device, *descriptorPool, sharedData->skyboxRenderer.descriptorSetLayouts };
-    	pipelines::OutlineRenderer::DescriptorSets outlineSets { *gpu.device, *descriptorPool, sharedData->outlineRenderer.descriptorSetLayouts };
-    	pipelines::Rec709Renderer::DescriptorSets rec709Sets { *gpu.device, *descriptorPool, sharedData->rec709Renderer.descriptorSetLayouts };
+    	pipelines::SphericalHarmonicsRenderer::DescriptorSets sphericalHarmonicsSets { *gpu.device, *descriptorPool, sharedData->sphericalHarmonicsRenderer.descriptorSetLayouts };
 
     	// Command buffers.
     	vk::CommandBuffer depthPrepassCommandBuffer, drawCommandBuffer, compositeCommandBuffer;

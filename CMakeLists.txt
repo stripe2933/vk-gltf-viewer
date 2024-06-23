@@ -76,6 +76,7 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/pipelines/PrimitiveRenderer.cpp
 	impl/vulkan/pipelines/Rec709Renderer.cpp
 	impl/vulkan/pipelines/SkyboxRenderer.cpp
+	impl/vulkan/pipelines/SphericalHarmonicsRenderer.cpp
 	main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
@@ -114,6 +115,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipelines/PrimitiveRenderer.cppm
 		interface/vulkan/pipelines/Rec709Renderer.cppm
 		interface/vulkan/pipelines/SkyboxRenderer.cppm
+		interface/vulkan/pipelines/SphericalHarmonicsRenderer.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
 	Boost::boost

@@ -19,6 +19,7 @@ export import :vulkan.pipelines.OutlineRenderer;
 export import :vulkan.pipelines.PrimitiveRenderer;
 export import :vulkan.pipelines.Rec709Renderer;
 export import :vulkan.pipelines.SkyboxRenderer;
+export import :vulkan.pipelines.SphericalHarmonicsRenderer;
 
 // TODO: this should not be in here... use proper namespace.
 struct ImageBasedLightingResources {
@@ -56,8 +57,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 		pipelines::JumpFloodComputer jumpFloodComputer { gpu.device, compiler };
 		pipelines::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler };
 		pipelines::SkyboxRenderer skyboxRenderer { gpu, compiler };
-    	pipelines::Rec709Renderer rec709Renderer { gpu.device, compiler };
-		pipelines::OutlineRenderer outlineRenderer { gpu.device, compiler };
+		pipelines::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu, compiler };
 
     	// Attachment groups.
     	std::vector<vku::AttachmentGroup> swapchainAttachmentGroups = createSwapchainAttachmentGroups();

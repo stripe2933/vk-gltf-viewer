@@ -59,7 +59,9 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    primitiveSets.getDescriptorWrites2(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
-		    skyboxSets.getDescriptorWrites0(*sharedData->imageBasedLightingResources.value().cubemapImageView).get()),
+		    skyboxSets.getDescriptorWrites0(*sharedData->imageBasedLightingResources.value().cubemapImageView).get(),
+		    sphericalHarmonicsSets.getDescriptorWrites0(
+		    	{ sharedData->imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }).get()),
 		{});
 
 	// Allocate per-frame command buffers.
@@ -309,10 +311,11 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(des
 		gpu.device,
 		(vku::PoolSizes { sharedData->depthRenderer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->jumpFloodComputer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->primitiveRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->skyboxRenderer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->outlineRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->rec709Renderer.descriptorSetLayouts })
+		    + vku::PoolSizes { sharedData->primitiveRenderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData->rec709Renderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData->skyboxRenderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData->sphericalHarmonicsRenderer.descriptorSetLayouts })
 		.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
 	};
 }
