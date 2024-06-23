@@ -6,6 +6,7 @@ module;
 #include <ranges>
 #include <string_view>
 #include <type_traits>
+#include <version>
 
 export module vk_gltf_viewer:helpers.formatters.joiner;
 
@@ -36,14 +37,33 @@ namespace vk_gltf_viewer {
     }
 }
 
-export template <std::ranges::range R, vk_gltf_viewer::static_string Delimiter>
-struct std::formatter<vk_gltf_viewer::joiner<R, Delimiter>> : range_formatter<std::ranges::range_value_t<R>>{
-    constexpr formatter(){
-        range_formatter<std::ranges::range_value_t<R>>::set_brackets("", "");
-        range_formatter<std::ranges::range_value_t<R>>::set_separator(Delimiter);
-    }
+// MSVC have some lack of supports for exporting template specialization in C++20 module.
+// https://developercommunity.visualstudio.com/t/C-module-failed-to-export-the-speciali/10396010?q=DEP+0700+Registration+of+the+App+Failed
+// A simple solution for this: wrap them with std namespace.
+namespace std {
+#if __cpp_lib_format_ranges >= 202207L
+    export template <ranges::range R, vk_gltf_viewer::static_string Delimiter>
+        struct formatter<vk_gltf_viewer::joiner<R, Delimiter>> : range_formatter<ranges::range_value_t<R>> {
+        constexpr formatter() {
+            range_formatter<ranges::range_value_t<R>>::set_brackets("", "");
+            range_formatter<ranges::range_value_t<R>>::set_separator(Delimiter);
+        }
 
-    constexpr auto format(vk_gltf_viewer::joiner<R, Delimiter> x, auto &ctx) const {
-        return range_formatter<std::ranges::range_value_t<R>>::format(x.r, ctx);
-    }
-};
+        constexpr auto format(vk_gltf_viewer::joiner<R, Delimiter> x, auto& ctx) const {
+            return range_formatter<ranges::range_value_t<R>>::format(x.r, ctx);
+        }
+    };
+#else
+    export template <ranges::range R, vk_gltf_viewer::static_string Delimiter>
+        struct formatter<vk_gltf_viewer::joiner<R, Delimiter>, char> : formatter<ranges::range_value_t<R>, char> {
+        constexpr auto format(vk_gltf_viewer::joiner<R, Delimiter> x, auto& ctx) const {
+            formatter<ranges::range_value_t<R>, char>::format(x.r.front(), ctx);
+            for (auto&& e : x.r | views::drop(1)) {
+                format_to(ctx.out(), "{}", static_cast<string_view>(Delimiter));
+                formatter<ranges::range_value_t<R>, char>::format(e, ctx);
+            }
+            return ctx.out();
+        }
+    };
+#endif
+}
