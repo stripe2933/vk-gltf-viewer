@@ -55,7 +55,9 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 		// Pipelines.
 		pipelines::DepthRenderer depthRenderer { gpu.device, compiler };
 		pipelines::JumpFloodComputer jumpFloodComputer { gpu.device, compiler };
+		pipelines::OutlineRenderer outlineRenderer { gpu.device, compiler };
 		pipelines::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler };
+    	pipelines::Rec709Renderer rec709Renderer { gpu.device, compiler };
 		pipelines::SkyboxRenderer skyboxRenderer { gpu, compiler };
 		pipelines::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu, compiler };
 
