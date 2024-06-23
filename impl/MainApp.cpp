@@ -17,6 +17,7 @@ module;
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 #include <ImGuizmo.h>
+#include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
 import :MainApp;
