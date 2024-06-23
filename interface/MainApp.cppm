@@ -15,9 +15,6 @@ import :control.Camera;
 import :vulkan.frame.Frame;
 import :vulkan.Gpu;
 
-#define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
-#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
-
 namespace vk_gltf_viewer {
 	export class MainApp {
 	public:
@@ -52,7 +49,7 @@ namespace vk_gltf_viewer {
 
 		// Frame related stuffs.
 		std::shared_ptr<vulkan::frame::SharedData> frameSharedData = createFrameSharedData();
-		std::array<vulkan::frame::Frame, 2> frames = ARRAY_OF(2, vulkan::Frame { frameSharedData, gpu });
+		std::array<vulkan::frame::Frame, 2> frames = createFrames();
 
     	[[nodiscard]] auto loadAsset(const std::filesystem::path &path) -> decltype(assetExpected);
 
@@ -62,6 +59,7 @@ namespace vk_gltf_viewer {
 		[[nodiscard]] auto createEqmapSampler() const -> decltype(eqmapSampler);
     	[[nodiscard]] auto createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool);
     	[[nodiscard]] auto createFrameSharedData() -> decltype(frameSharedData);
+		[[nodiscard]] auto createFrames() -> decltype(frames);
 
 		[[nodiscard]] auto update(float timeDelta) -> vulkan::Frame::OnLoopTask;
 		auto handleOnLoopResult(const vulkan::Frame::OnLoopResult &onLoopResult) -> void;
