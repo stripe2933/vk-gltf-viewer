@@ -36,7 +36,26 @@ auto vk_gltf_viewer::control::imgui::hdriEnvironments(
         ImGui::SeparatorText("Equirectangular map");
         ImGui::Text("File: %s", std::getenv("EQMAP_PATH"));
         ImGui::Text("Dimension: %ux%u", eqmapDimension.x, eqmapDimension.y);
-        ImGui::Image(eqmapTextureId, ImVec2 { 1.f, static_cast<float>(eqmapDimension.y) / eqmapDimension.x } * ImGui::GetContentRegionAvail().x);
+
+        const ImVec2 eqmapTexturePosition = ImGui::GetCursorScreenPos();
+        const ImVec2 eqmapTextureSize = ImVec2 { 1.f, static_cast<float>(eqmapDimension.y) / eqmapDimension.x } * ImGui::GetContentRegionAvail().x;
+        ImGui::Image(eqmapTextureId, eqmapTextureSize);
+
+        // Show zoomed texture when hovering mouse over the eqmap texture.
+        if (ImGui::BeginItemTooltip()) {
+            const ImGuiIO &io = ImGui::GetIO();
+
+            constexpr ImVec2 zoomedPortionSize { 32.f, 32.f };
+            ImVec2 region = io.MousePos - eqmapTexturePosition - zoomedPortionSize * 0.5f;
+            region.x = std::clamp(region.x, 0.f, eqmapTextureSize.x - zoomedPortionSize.x);
+            region.y = std::clamp(region.y, 0.f, eqmapTextureSize.y - zoomedPortionSize.y);
+
+            constexpr float zoomScale = 4.0f;
+            ImGui::Image(eqmapTextureId, zoomedPortionSize * zoomScale, region / eqmapTextureSize, (region + zoomedPortionSize) / eqmapTextureSize);
+            ImGui::Text("Showing: [%.0f, %.0f]x[%.0f, %.0f]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y);
+
+            ImGui::EndTooltip();
+        }
 
         ImGui::SeparatorText("Cubemap");
         ImGui::Checkbox("Use blurred skybox", &appState.useBlurredSkybox);
