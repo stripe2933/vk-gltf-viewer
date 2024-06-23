@@ -25,6 +25,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     		struct { glm::mat4 view, projection; } camera;
     		std::optional<vk::Offset2D> mouseCursorOffset;
     		std::optional<std::uint32_t> hoveringNodeIndex, selectedNodeIndex;
+    		bool useBlurredSkybox;
     	};
 
 		struct OnLoopResult {

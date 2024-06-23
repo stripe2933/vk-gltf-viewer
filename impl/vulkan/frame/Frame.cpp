@@ -536,9 +536,16 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 
 	// Draw skybox.
 	const glm::mat4 noTranslationView = { glm::mat3 { task.camera.view } };
-	sharedData->skyboxRenderer.draw(cb, skyboxSets, {
-		task.camera.projection * noTranslationView,
-	});
+	if (task.useBlurredSkybox) {
+		sharedData->sphericalHarmonicsRenderer.draw(cb, sphericalHarmonicsSets, {
+			task.camera.projection * noTranslationView,
+		});
+	}
+	else {
+		sharedData->skyboxRenderer.draw(cb, skyboxSets, {
+			task.camera.projection * noTranslationView,
+		});
+	}
 
 	cb.endRenderingKHR();
 }

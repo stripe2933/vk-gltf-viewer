@@ -27,6 +27,17 @@ import :helpers.ranges;
         .value_or(getElementByteSize(accessor.type, accessor.componentType));
 }
 
+auto vk_gltf_viewer::control::imgui::hdriEnvironments(
+    AppState &appState
+) -> void {
+    if (ImGui::Begin("HDRI environments info")) {
+        ImGui::Text("Equirectangular map file: %s", std::getenv("EQMAP_PATH"));
+        ImGui::Checkbox("Use blurred skybox", &appState.useBlurredSkybox);
+
+        ImGui::End();
+    }
+}
+
 auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(
 	const fastgltf::Asset &asset,
 	AppState &appState

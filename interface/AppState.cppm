@@ -14,6 +14,7 @@ namespace vk_gltf_viewer {
     public:
         control::Camera camera;
         std::optional<std::uint32_t> hoveringNodeIndex = std::nullopt, selectedNodeIndex = std::nullopt;
+        bool useBlurredSkybox = false;
 
         AppState() noexcept;
     };

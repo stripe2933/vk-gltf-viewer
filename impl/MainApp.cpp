@@ -195,6 +195,7 @@ auto vk_gltf_viewer::MainApp::update(
 			appState.camera.getNear(), appState.camera.getFar());
 	}
 
+	control::imgui::hdriEnvironments(appState);
 	control::imgui::assetSceneHierarchies(assetExpected.get(), appState);
 	control::imgui::nodeInspector(assetExpected.get(), appState);
 
@@ -221,6 +222,7 @@ auto vk_gltf_viewer::MainApp::update(
 		}(),
 		.hoveringNodeIndex = appState.hoveringNodeIndex,
 		.selectedNodeIndex = appState.selectedNodeIndex,
+		.useBlurredSkybox = appState.useBlurredSkybox,
 	};
 }
 
