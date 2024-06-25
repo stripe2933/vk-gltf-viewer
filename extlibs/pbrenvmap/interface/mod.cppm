@@ -75,7 +75,6 @@ namespace pbrenvmap {
         vku::AllocatedBuffer sphericalHarmonicsReductionBuffer;
 
         // Descriptor pool.
-        std::array<vk::DescriptorPoolSize, 3> descriptorPoolSizes;
         vk::raii::DescriptorPool descriptorPool;
     };
 }
@@ -172,15 +171,14 @@ pbrenvmap::Generator::Generator(
             getWorkgroupTotal(pipelines::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size))),
         vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
     }, vma::AllocationCreateInfo { {}, vma::MemoryUsage::eAutoPreferDevice, } },
-    descriptorPoolSizes {
-        vk::DescriptorPoolSize { vk::DescriptorType::eCombinedImageSampler, 2 },
-        vk::DescriptorPoolSize { vk::DescriptorType::eStorageBuffer, 6 },
-        vk::DescriptorPoolSize { vk::DescriptorType::eStorageImage, 128 },
-    },
     descriptorPool { device, vk::DescriptorPoolCreateInfo {
         vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind,
         6,
-        descriptorPoolSizes,
+        vku::unsafeProxy({
+            vk::DescriptorPoolSize { vk::DescriptorType::eCombinedImageSampler, 2 },
+            vk::DescriptorPoolSize { vk::DescriptorType::eStorageBuffer, 6 },
+            vk::DescriptorPoolSize { vk::DescriptorType::eStorageImage, 128 },
+        }),
     } } {
 
 }

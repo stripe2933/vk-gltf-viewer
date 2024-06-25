@@ -218,7 +218,7 @@ auto pbrenvmap::pipelines::SphericalHarmonicsComputer::createPipelineLayout(
 auto pbrenvmap::pipelines::SphericalHarmonicsComputer::createPipeline(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
-    ) const -> vk::raii::Pipeline {
+) const -> vk::raii::Pipeline {
     const auto [_, stages] = vku::createStages(device,
         vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute });
     return { device, nullptr, vk::ComputePipelineCreateInfo {
