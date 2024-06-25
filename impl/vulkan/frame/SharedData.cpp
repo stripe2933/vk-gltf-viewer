@@ -89,7 +89,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 			cb.pipelineBarrier(
 				vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eBottomOfPipe,
 				{}, {}, {},
-				std::array {
+				{
 					vk::ImageMemoryBarrier {
 						vk::AccessFlagBits::eShaderWrite, {},
 						vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
@@ -178,7 +178,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 			cb.pipelineBarrier(
 				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
 				{}, {}, {},
-				std::array {
+				{
 					vk::ImageMemoryBarrier {
 						{}, {},
 						vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,

@@ -149,7 +149,7 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 		*jumpFloodFinishSema,
 	});
 
-	gpu.queues.graphicsPresent.submit(std::array {
+	gpu.queues.graphicsPresent.submit({
 		vk::SubmitInfo {
 			{},
 			{},
@@ -293,7 +293,7 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::recordInit
 	graphicsCommandBuffer.pipelineBarrier(
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
 		{}, {}, {},
-		std::array {
+		{
 			layoutTransitionBarrier(vk::ImageLayout::eGeneral, jumpFloodImage),
 			layoutTransitionBarrier(vk::ImageLayout::eTransferSrcOptimal, depthPrepassAttachmentGroup.colorAttachments[0].image),
 			layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, depthPrepassAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
@@ -362,7 +362,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	cb.pipelineBarrier(
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
 		{}, {}, {},
-		std::array {
+		{
 			vk::ImageMemoryBarrier {
 				{}, vk::AccessFlagBits::eColorAttachmentWrite,
 				vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eColorAttachmentOptimal,

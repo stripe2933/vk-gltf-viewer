@@ -364,7 +364,7 @@ auto vk_gltf_viewer::MainApp::recordImageMipmapGenerationCommands(
 	graphicsCommandBuffer.pipelineBarrier(
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
 		{}, {}, {},
-		std::array {
+		{
 			vk::ImageMemoryBarrier {
 				{}, vk::AccessFlagBits::eTransferRead,
 				vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferSrcOptimal,
