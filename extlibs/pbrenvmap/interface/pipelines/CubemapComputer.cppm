@@ -128,9 +128,9 @@ auto pbrenvmap::pipelines::CubemapComputer::createPipelineLayout(
     const vk::raii::Device &device
 ) -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
-            {},
-            descriptorSetLayouts,
-        } };
+        {},
+        descriptorSetLayouts,
+    } };
 }
 
 auto pbrenvmap::pipelines::CubemapComputer::createPipeline(
@@ -140,8 +140,8 @@ auto pbrenvmap::pipelines::CubemapComputer::createPipeline(
     const auto [_, stages] = vku::createStages(device,
         vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute });
     return { device, nullptr, vk::ComputePipelineCreateInfo {
-            {},
-            get<0>(stages),
-            *pipelineLayout,
-        } };
+        {},
+        get<0>(stages),
+        *pipelineLayout,
+    } };
 }

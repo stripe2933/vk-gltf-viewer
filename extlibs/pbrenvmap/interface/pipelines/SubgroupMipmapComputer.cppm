@@ -226,14 +226,15 @@ auto pbrenvmap::pipelines::SubgroupMipmapComputer::compute(
 auto pbrenvmap::pipelines::SubgroupMipmapComputer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> vk::raii::PipelineLayout {
-    constexpr vk::PushConstantRange pushConstantRange {
-        vk::ShaderStageFlagBits::eCompute,
-        0, sizeof(PushConstant),
-    };
     return { device, vk::PipelineLayoutCreateInfo {
         {},
         descriptorSetLayouts,
-        pushConstantRange,
+        vku::unsafeProxy({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eCompute,
+                0, sizeof(PushConstant),
+            },
+        }),
     } };
 }
 

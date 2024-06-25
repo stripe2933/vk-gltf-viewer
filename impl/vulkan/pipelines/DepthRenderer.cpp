@@ -113,6 +113,16 @@ vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DescriptorSetLayouts::Descript
         },
     } { }
 
+auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DescriptorSets::getDescriptorWrites0(
+    const vk::DescriptorBufferInfo &primitiveBufferInfo [[clang::lifetimebound]],
+    const vk::DescriptorBufferInfo &nodeTransformBufferInfo [[clang::lifetimebound]]
+) const -> std::array<vk::WriteDescriptorSet, 2> {
+    return std::array {
+        getDescriptorWrite<0, 0>().setBufferInfo(primitiveBufferInfo),
+        getDescriptorWrite<0, 1>().setBufferInfo(nodeTransformBufferInfo),
+    };
+}
+
 vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DepthRenderer(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler

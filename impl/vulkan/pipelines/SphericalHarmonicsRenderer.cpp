@@ -103,6 +103,14 @@ vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::DescriptorSetLayo
         },
     } } { }
 
+auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::DescriptorSets::getDescriptorWrites0(
+    const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo [[clang::lifetimebound]]
+) const -> std::array<vk::WriteDescriptorSet, 1> {
+    return std::array {
+        getDescriptorWrite<0, 0>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo),
+    };
+}
+
 vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::SphericalHarmonicsRenderer(
     const Gpu &gpu,
     const shaderc::Compiler &compiler

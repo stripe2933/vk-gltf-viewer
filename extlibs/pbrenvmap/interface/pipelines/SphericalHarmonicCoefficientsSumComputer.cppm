@@ -25,17 +25,8 @@ namespace pbrenvmap::pipelines {
             using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
 
             [[nodiscard]] auto getDescriptorWrites0(
-                const vk::DescriptorBufferInfo &pingPongBufferInfo
-            ) const {
-                return vku::RefHolder {
-                    [this](const vk::DescriptorBufferInfo &pingPongBufferInfo) {
-                        return std::array {
-                            getDescriptorWrite<0, 0>().setBufferInfo(pingPongBufferInfo),
-                        };
-                    },
-                    pingPongBufferInfo,
-                };
-            }
+                const vk::DescriptorBufferInfo &pingPongBufferInfo [[clang::lifetimebound]]
+            ) const -> std::array<vk::WriteDescriptorSet, 1>;
         };
 
         struct PushConstant {
@@ -163,6 +154,14 @@ pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::DescriptorSetLay
     vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute },
 } } { }
 
+auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::DescriptorSets::getDescriptorWrites0(
+    const vk::DescriptorBufferInfo &pingPongBufferInfo
+) const -> std::array<vk::WriteDescriptorSet, 1> {
+    return std::array {
+        getDescriptorWrite<0, 0>().setBufferInfo(pingPongBufferInfo),
+    };
+}
+
 pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::SphericalHarmonicCoefficientsSumComputer(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
@@ -207,15 +206,15 @@ auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::getPingPong
 auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> vk::raii::PipelineLayout {
-    constexpr vk::PushConstantRange pushConstantRange {
-        vk::ShaderStageFlagBits::eCompute,
-        0, sizeof(PushConstant),
-    };
-
     return { device, vk::PipelineLayoutCreateInfo {
         {},
         descriptorSetLayouts,
-        pushConstantRange,
+        vku::unsafeProxy({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eCompute,
+                0, sizeof(PushConstant),
+            },
+        }),
     } };
 }
 

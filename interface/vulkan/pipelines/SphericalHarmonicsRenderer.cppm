@@ -23,17 +23,8 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
 
             [[nodiscard]] auto getDescriptorWrites0(
-                const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo
-            ) const {
-                return vku::RefHolder {
-                    [this](const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo) {
-                        return std::array {
-                            getDescriptorWrite<0, 0>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo),
-                        };
-                    },
-                    cubemapSphericalHarmonicsBufferInfo,
-                };
-            }
+                const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo [[clang::lifetimebound]]
+            ) const -> std::array<vk::WriteDescriptorSet, 1>;
         };
 
         struct PushConstant {

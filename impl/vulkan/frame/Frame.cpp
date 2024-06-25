@@ -47,7 +47,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	    ranges::array_cat(
 	    	depthSets.getDescriptorWrites0(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
+		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
 		    primitiveSets.getDescriptorWrites0(
 		    	{ sharedData->imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
 		    	*sharedData->imageBasedLightingResources.value().prefilteredmapImageView,
@@ -61,7 +61,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
 		    skyboxSets.getDescriptorWrites0(*sharedData->imageBasedLightingResources.value().cubemapImageView).get(),
 		    sphericalHarmonicsSets.getDescriptorWrites0(
-		    	{ sharedData->imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }).get()),
+		    	{ sharedData->imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
 		{});
 
 	// Allocate per-frame command buffers.

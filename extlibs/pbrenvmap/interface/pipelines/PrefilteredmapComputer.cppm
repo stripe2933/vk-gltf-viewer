@@ -251,14 +251,15 @@ auto pbrenvmap::pipelines::PrefilteredmapComputer::compute(
 auto pbrenvmap::pipelines::PrefilteredmapComputer::createPipelineLayout(
     const vk::raii::Device &device
 ) -> vk::raii::PipelineLayout {
-    constexpr vk::PushConstantRange pushConstantRange {
-        vk::ShaderStageFlagBits::eCompute,
-        0, sizeof(PushConstant),
-    };
     return { device, vk::PipelineLayoutCreateInfo {
         {},
         descriptorSetLayouts,
-        pushConstantRange
+        vku::unsafeProxy({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eCompute,
+                0, sizeof(PushConstant),
+            },
+        }),
     } };
 }
 

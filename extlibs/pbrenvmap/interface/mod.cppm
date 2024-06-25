@@ -227,7 +227,7 @@ auto pbrenvmap::Generator::recordCommands(
                         pipelines::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size)),
                 }).get(),
             sphericalHarmonicCoefficientsSumDescriptorSets.getDescriptorWrites0(
-                { sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }).get(),
+                { sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
             prefilteredmapDescriptorSets.getDescriptorWrites0(
                 *linearSampler, *cubemapImageView, prefilteredmapMipImageViews | ranges::views::deref).get()),
         {});
@@ -312,7 +312,7 @@ auto pbrenvmap::Generator::recordCommands(
     device.updateDescriptorSets(
         multiplyDescriptorSets.getDescriptorWrites0(
             { sphericalHarmonicsReductionBuffer, sizeof(float) * 27 * dstOffset, sizeof(float) * 27 },
-            { sphericalHarmonicCoefficientsBuffer, 0, vk::WholeSize }).get(),
+            { sphericalHarmonicCoefficientsBuffer, 0, vk::WholeSize }),
         {});
 
     // Ensure reduction finish.

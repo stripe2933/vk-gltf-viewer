@@ -26,17 +26,16 @@ namespace pbrenvmap::pipelines {
 
             [[nodiscard]] auto getDescriptorWrites0(
                 vk::ImageView cubemapImageView,
-                const vk::DescriptorBufferInfo &reductionBufferInfo
+                const vk::DescriptorBufferInfo &reductionBufferInfo [[clang::lifetimebound]]
             ) const {
                 return vku::RefHolder {
-                    [this](const vk::DescriptorImageInfo &cubemapImageInfo, const vk::DescriptorBufferInfo &reductionBufferInfo) {
+                    [&](const vk::DescriptorImageInfo &cubemapImageInfo) {
                         return std::array {
                             getDescriptorWrite<0, 0>().setImageInfo(cubemapImageInfo),
                             getDescriptorWrite<0, 1>().setBufferInfo(reductionBufferInfo),
                         };
                     },
                     vk::DescriptorImageInfo { {}, cubemapImageView, vk::ImageLayout::eGeneral },
-                    reductionBufferInfo,
                 };
             }
         };

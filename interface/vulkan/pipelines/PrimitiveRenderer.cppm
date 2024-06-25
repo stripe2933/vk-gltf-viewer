@@ -23,19 +23,18 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
 
             [[nodiscard]] auto getDescriptorWrites0(
-                const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo,
+                const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo [[clang::lifetimebound]],
                 vk::ImageView prefilteredmapImageView,
                 vk::ImageView brdfmapImageView
             ) const {
                 return vku::RefHolder {
-                    [this](const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo, const vk::DescriptorImageInfo &prefilteredmapImageInfo, const vk::DescriptorImageInfo &brdfmapImageInfo) {
+                    [&](const vk::DescriptorImageInfo &prefilteredmapImageInfo, const vk::DescriptorImageInfo &brdfmapImageInfo) {
                         return std::array {
                             getDescriptorWrite<0, 0>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo),
                             getDescriptorWrite<0, 1>().setImageInfo(prefilteredmapImageInfo),
                             getDescriptorWrite<0, 2>().setImageInfo(brdfmapImageInfo),
                         };
                     },
-                    cubemapSphericalHarmonicsBufferInfo,
                     vk::DescriptorImageInfo { {}, prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
                     vk::DescriptorImageInfo { {}, brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
                 };

@@ -23,20 +23,9 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
 
             [[nodiscard]] auto getDescriptorWrites0(
-                const vk::DescriptorBufferInfo &primitiveBufferInfo,
-                const vk::DescriptorBufferInfo &nodeTransformBufferInfo
-            ) const {
-                return vku::RefHolder {
-                    [this](const vk::DescriptorBufferInfo &primitiveBufferInfo, const vk::DescriptorBufferInfo &nodeTransformBufferInfo) {
-                        return std::array {
-                            getDescriptorWrite<0, 0>().setBufferInfo(primitiveBufferInfo),
-                            getDescriptorWrite<0, 1>().setBufferInfo(nodeTransformBufferInfo),
-                        };
-                    },
-                    primitiveBufferInfo,
-                    nodeTransformBufferInfo,
-                };
-            }
+                const vk::DescriptorBufferInfo &primitiveBufferInfo [[clang::lifetimebound]],
+                const vk::DescriptorBufferInfo &nodeTransformBufferInfo [[clang::lifetimebound]]
+            ) const -> std::array<vk::WriteDescriptorSet, 2>;
         };
 
         struct PushConstant {
