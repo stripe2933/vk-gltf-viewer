@@ -48,8 +48,9 @@ namespace vku {
             return shaderc_glsl_fragment_shader;
         case vk::ShaderStageFlagBits::eCompute:
             return shaderc_glsl_compute_shader;
+        default:
+            throw std::runtime_error { std::format("Unsupported shader stage: {}", to_string(stage)) };
     }
-    throw std::runtime_error { std::format("Unsupported shader stage: {}", to_string(stage)) };
 }
 
 vku::Shader::Shader(
@@ -61,7 +62,8 @@ vku::Shader::Shader(
 ) : stage { stage },
     entryPoint { entryPoint } {
     shaderc::CompileOptions compileOptions;
-    compileOptions.SetTargetSpirv(shaderc_spirv_version_1_5);
+    // TODO: parameter option for selecting Vulkan version?
+    compileOptions.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_2);
 #ifdef NDEBUG
     compileOptions.SetOptimizationLevel(shaderc_optimization_level_performance);
 #endif
