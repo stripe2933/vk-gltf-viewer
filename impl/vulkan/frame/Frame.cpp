@@ -141,7 +141,7 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 	});
 
 	constexpr std::array jumpFloodWaitStages {
-		vku::toFlags(vk::PipelineStageFlagBits::eComputeShader),
+		vk::Flags { vk::PipelineStageFlagBits::eComputeShader },
 	};
 	gpu.queues.compute.submit(vk::SubmitInfo {
 		*depthPrepassFinishSema,
@@ -152,9 +152,9 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 
 	const std::array compositeWaitSemas { *swapchainImageAcquireSema, *drawFinishSema, *jumpFloodFinishSema };
 	constexpr std::array compositeWaitStages {
-		vku::toFlags(vk::PipelineStageFlagBits::eColorAttachmentOutput),
-		vku::toFlags(vk::PipelineStageFlagBits::eFragmentShader),
-		vku::toFlags(vk::PipelineStageFlagBits::eFragmentShader),
+		vk::Flags { vk::PipelineStageFlagBits::eColorAttachmentOutput },
+		vk::Flags { vk::PipelineStageFlagBits::eFragmentShader },
+		vk::Flags { vk::PipelineStageFlagBits::eFragmentShader },
 	};
 	gpu.queues.graphicsPresent.submit(std::array {
 		vk::SubmitInfo {

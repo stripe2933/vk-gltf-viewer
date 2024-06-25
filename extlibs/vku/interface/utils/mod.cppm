@@ -21,11 +21,6 @@ export namespace vku {
     }
 
     template <typename T>
-    [[nodiscard]] constexpr auto toFlags(T flagBit) noexcept -> vk::Flags<T> {
-        return flagBit;
-    }
-
-    template <typename T>
     [[nodiscard]] constexpr auto contains(vk::Flags<T> flags, T flag) noexcept -> bool {
         return (flags & flag) == flag;
     }

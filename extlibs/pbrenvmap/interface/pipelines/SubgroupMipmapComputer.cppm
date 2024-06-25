@@ -155,7 +155,7 @@ pbrenvmap::pipelines::SubgroupMipmapComputer::DescriptorSetLayouts::DescriptorSe
 ) : vku::DescriptorSetLayouts<1> { device, LayoutBindings {
     vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
     vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, mipImageCount, vk::ShaderStageFlagBits::eCompute },
-    std::array { vku::toFlags(vk::DescriptorBindingFlagBits::eUpdateAfterBind) },
+    std::array { vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind } },
 } } { }
 
 pbrenvmap::pipelines::SubgroupMipmapComputer::SubgroupMipmapComputer(

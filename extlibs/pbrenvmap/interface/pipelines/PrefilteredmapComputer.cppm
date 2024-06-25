@@ -214,7 +214,7 @@ pbrenvmap::pipelines::PrefilteredmapComputer::DescriptorSetLayouts::DescriptorSe
     vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
     vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eCompute },
     vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageImage, roughnessLevels, vk::ShaderStageFlagBits::eCompute },
-    std::array { vk::DescriptorBindingFlags{}, vku::toFlags(vk::DescriptorBindingFlagBits::eUpdateAfterBind) },
+    std::array { vk::DescriptorBindingFlags{}, vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind } },
 } } { }
 
 pbrenvmap::pipelines::PrefilteredmapComputer::PrefilteredmapComputer(

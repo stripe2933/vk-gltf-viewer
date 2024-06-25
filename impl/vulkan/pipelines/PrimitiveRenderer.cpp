@@ -313,7 +313,7 @@ vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::DescriptorSetLayouts::Desc
             vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
             vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1 + textureCount, vk::ShaderStageFlagBits::eFragment },
             vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
-            std::array { vku::toFlags(vk::DescriptorBindingFlagBits::eUpdateAfterBind), vk::DescriptorBindingFlags{} },
+            std::array { vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind }, vk::DescriptorBindingFlags{} },
         },
         LayoutBindings {
             {},
