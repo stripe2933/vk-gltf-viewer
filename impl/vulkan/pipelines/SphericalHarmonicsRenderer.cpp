@@ -36,7 +36,8 @@ layout (push_constant) uniform PushConstant {
 
 void main() {
     fragPosition = positions[gl_VertexIndex];
-    gl_Position = (pc.projectionView * vec4(fragPosition, 1.0)).xyww;
+    gl_Position = (pc.projectionView * vec4(fragPosition, 1.0));
+    gl_Position.z = 0.0; // Use reverse Z.
 }
 )vert";
 
@@ -167,7 +168,7 @@ auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::createPipeli
             }))
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},
-                vk::True, vk::True, vk::CompareOp::eLessOrEqual,
+                vk::True, vk::False, vk::CompareOp::eEqual,
             })),
         vk::PipelineRenderingCreateInfo {
             {},

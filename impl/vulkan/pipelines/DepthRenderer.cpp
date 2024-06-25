@@ -180,7 +180,7 @@ auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::createPipeline(
         vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 2, true)
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},
-                true, true, vk::CompareOp::eLess,
+                true, true, vk::CompareOp::eGreater, // Use reverse Z.
             }))
             .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                 {},
