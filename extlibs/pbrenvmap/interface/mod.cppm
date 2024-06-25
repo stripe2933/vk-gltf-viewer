@@ -64,7 +64,7 @@ namespace pbrenvmap {
 
     private:
         const vk::raii::Device &device;
-        const Config &config;
+        Config config;
 
         // Image views.
         vk::raii::ImageView cubemapImageView;
