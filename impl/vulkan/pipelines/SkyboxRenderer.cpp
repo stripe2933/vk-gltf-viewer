@@ -105,14 +105,15 @@ auto vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::createSampler(
 auto vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> vk::raii::PipelineLayout {
-    constexpr vk::PushConstantRange pushConstantRange {
-        vk::ShaderStageFlagBits::eAllGraphics,
-        0, sizeof(PushConstant),
-    };
     return { device, vk::PipelineLayoutCreateInfo {
         {},
         descriptorSetLayouts,
-        pushConstantRange,
+        vku::unsafeProxy({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eAllGraphics,
+                0, sizeof(PushConstant),
+            },
+        }),
     } };
 }
 
@@ -125,28 +126,23 @@ auto vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::createPipeline(
         vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
         vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment });
 
-    constexpr vk::PipelineRasterizationStateCreateInfo rasterizationState {
-        {},
-        vk::False, vk::False,
-        vk::PolygonMode::eFill,
-        vk::CullModeFlagBits::eNone, {},
-        {}, {}, {}, {},
-        1.f,
-    };
-    constexpr vk::PipelineDepthStencilStateCreateInfo depthStencilState {
-        {},
-        vk::True, vk::True, vk::CompareOp::eLessOrEqual,
-    };
-
-    constexpr vk::Format colorAttachmentFormat = vk::Format::eR16G16B16A16Sfloat;
-
     return { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
-            .setPRasterizationState(&rasterizationState)
-            .setPDepthStencilState(&depthStencilState),
+            .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
+                {},
+                vk::False, vk::False,
+                vk::PolygonMode::eFill,
+                vk::CullModeFlagBits::eNone, {},
+                {}, {}, {}, {},
+                1.f,
+            }))
+            .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
+                {},
+                vk::True, vk::True, vk::CompareOp::eLessOrEqual,
+            })),
         vk::PipelineRenderingCreateInfo {
             {},
-            colorAttachmentFormat,
+            vku::unsafeProxy({ vk::Format::eR16G16B16A16Sfloat }),
             vk::Format::eD32Sfloat,
         },
     }.get() };

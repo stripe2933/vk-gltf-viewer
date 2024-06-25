@@ -230,10 +230,6 @@ auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(
 	vk::SwapchainKHR oldSwapchain
 ) const -> decltype(swapchain) {
 	const vk::SurfaceCapabilitiesKHR surfaceCapabilities = gpu.physicalDevice.getSurfaceCapabilitiesKHR(surface);
-	constexpr std::array swapchainImageFormats {
-		vk::Format::eB8G8R8A8Srgb,
-		vk::Format::eB8G8R8A8Unorm,
-	};
 	return { gpu.device, vk::StructureChain {
 		vk::SwapchainCreateInfoKHR{
 			vk::SwapchainCreateFlagBitsKHR::eMutableFormat,
@@ -252,7 +248,10 @@ auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(
 			oldSwapchain,
 		},
 		vk::ImageFormatListCreateInfo {
-			swapchainImageFormats,
+			vku::unsafeProxy({
+				vk::Format::eB8G8R8A8Srgb,
+				vk::Format::eB8G8R8A8Unorm,
+			}),
 		},
 	}.get() };
 }

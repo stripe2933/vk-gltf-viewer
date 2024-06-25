@@ -99,14 +99,15 @@ auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::draw(
 auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> decltype(pipelineLayout) {
-    constexpr vk::PushConstantRange pushConstantRange {
-        vk::ShaderStageFlagBits::eFragment,
-        0, sizeof(PushConstant),
-    };
     return { device, vk::PipelineLayoutCreateInfo{
         {},
         descriptorSetLayouts,
-        pushConstantRange,
+        vku::unsafeProxy({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eFragment,
+                0, sizeof(PushConstant),
+            },
+        }),
     } };
 }
 
@@ -119,41 +120,31 @@ auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::createPipeline(
         vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
         vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment });
 
-    constexpr vk::PipelineRasterizationStateCreateInfo rasterizationState {
-        {},
-        false, false,
-        vk::PolygonMode::eFill,
-        vk::CullModeFlagBits::eNone, {},
-        {}, {}, {}, {},
-        1.0f,
-    };
-
-    // Alpha blending.
-    constexpr std::array blendAttachmentStates {
-        vk::PipelineColorBlendAttachmentState {
-            true,
-            vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
-            vk::BlendFactor::eOne, vk::BlendFactor::eZero, vk::BlendOp::eAdd,
-            vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-        },
-    };
-    const vk::PipelineColorBlendStateCreateInfo colorBlendState {
-        {},
-        false, {},
-        blendAttachmentStates,
-    };
-
-    constexpr std::array colorAttachmentFormats {
-        vk::Format::eB8G8R8A8Srgb,
-    };
-
     return { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1)
-            .setPRasterizationState(&rasterizationState)
-            .setPColorBlendState(&colorBlendState),
+            .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
+                {},
+                false, false,
+                vk::PolygonMode::eFill,
+                vk::CullModeFlagBits::eNone, {},
+                {}, {}, {}, {},
+                1.0f,
+            }))
+            .setPColorBlendState(vku::unsafeAddress(vk::PipelineColorBlendStateCreateInfo {
+                {},
+                false, {},
+                vku::unsafeProxy({
+                    vk::PipelineColorBlendAttachmentState {
+                        true,
+                        vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
+                        vk::BlendFactor::eOne, vk::BlendFactor::eZero, vk::BlendOp::eAdd,
+                        vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+                    },
+                }),
+            })),
         vk::PipelineRenderingCreateInfo {
             {},
-            colorAttachmentFormats,
+            vku::unsafeProxy({ vk::Format::eB8G8R8A8Srgb }),
         },
     }.get() };
 }

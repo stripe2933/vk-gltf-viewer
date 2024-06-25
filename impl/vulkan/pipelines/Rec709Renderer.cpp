@@ -83,14 +83,15 @@ auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::draw(
 auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> decltype(pipelineLayout) {
-    constexpr vk::PushConstantRange pushConstantRange {
-        vk::ShaderStageFlagBits::eFragment,
-        0, sizeof(PushConstant),
-    };
     return { device, vk::PipelineLayoutCreateInfo{
         {},
         descriptorSetLayouts,
-        pushConstantRange,
+        vku::unsafeProxy({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eFragment,
+                0, sizeof(PushConstant),
+            },
+        }),
     } };
 }
 
@@ -103,25 +104,19 @@ auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipeline(
         vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
         vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment });
 
-    constexpr vk::PipelineRasterizationStateCreateInfo rasterizationState {
-        {},
-        false, false,
-        vk::PolygonMode::eFill,
-        vk::CullModeFlagBits::eNone, {},
-        {}, {}, {}, {},
-        1.f,
-    };
-
-    constexpr std::array colorAttachmentFormats {
-        vk::Format::eB8G8R8A8Srgb,
-    };
-
     return { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1)
-            .setPRasterizationState(&rasterizationState),
+            .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
+                {},
+                false, false,
+                vk::PolygonMode::eFill,
+                vk::CullModeFlagBits::eNone, {},
+                {}, {}, {}, {},
+                1.f,
+            })),
         vk::PipelineRenderingCreateInfo {
             {},
-            colorAttachmentFormats,
+            vku::unsafeProxy({ vk::Format::eB8G8R8A8Srgb }),
         },
     }.get() };
 }

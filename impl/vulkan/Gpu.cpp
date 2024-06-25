@@ -86,43 +86,38 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(
 
 auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 	constexpr std::array queuePriorities{ 1.0f };
-	const std::vector queueCreateInfos
-		= std::set { queueFamilies.compute, queueFamilies.graphicsPresent, queueFamilies.transfer }
-		| std::views::transform([&](std::uint32_t queueFamilyIndex) {
-			return vk::DeviceQueueCreateInfo{
-				{},
-				queueFamilyIndex,
-				queuePriorities,
-			};
-		})
-		| std::ranges::to<std::vector<vk::DeviceQueueCreateInfo>>();
-	constexpr std::array extensions{
-#if __APPLE__
-		vk::KHRPortabilitySubsetExtensionName,
-#endif
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-		vk::KHRDynamicRenderingExtensionName,
-		vk::KHRSynchronization2ExtensionName,
-		vk::EXTExtendedDynamicStateExtensionName,
-#pragma clang diagnostic pop
-		vk::KHRSwapchainExtensionName,
-		vk::KHRSwapchainMutableFormatExtensionName, // For ImGui gamma correction.
-	};
-	constexpr auto physicalDeviceFeatures
-		= vk::PhysicalDeviceFeatures{}
-		.setSamplerAnisotropy(vk::True)
-		.setShaderInt64(vk::True)
-		.setMultiDrawIndirect(vk::True)
-		.setDepthBiasClamp(vk::True)
-		.setShaderStorageImageWriteWithoutFormat(vk::True);
 	return { physicalDevice, vk::StructureChain {
 		vk::DeviceCreateInfo{
 			{},
-			queueCreateInfos,
+			vku::unsafeProxy(std::set { queueFamilies.compute, queueFamilies.graphicsPresent, queueFamilies.transfer }
+				| std::views::transform([&](std::uint32_t queueFamilyIndex) {
+					return vk::DeviceQueueCreateInfo{
+						{},
+						queueFamilyIndex,
+						queuePriorities,
+					};
+				})
+				| std::ranges::to<std::vector<vk::DeviceQueueCreateInfo>>()),
 			{},
-			extensions,
-			&physicalDeviceFeatures,
+			vku::unsafeProxy({
+#if __APPLE__
+				vk::KHRPortabilitySubsetExtensionName,
+#endif
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+				vk::KHRDynamicRenderingExtensionName,
+				vk::KHRSynchronization2ExtensionName,
+				vk::EXTExtendedDynamicStateExtensionName,
+#pragma clang diagnostic pop
+				vk::KHRSwapchainExtensionName,
+				vk::KHRSwapchainMutableFormatExtensionName, // For ImGui gamma correction.
+			}),
+			vku::unsafeAddress(vk::PhysicalDeviceFeatures{}
+				.setSamplerAnisotropy(vk::True)
+				.setShaderInt64(vk::True)
+				.setMultiDrawIndirect(vk::True)
+				.setDepthBiasClamp(vk::True)
+				.setShaderStorageImageWriteWithoutFormat(vk::True)),
 		},
 		vk::PhysicalDeviceVulkan11Features{}
 			.setShaderDrawParameters(vk::True)
@@ -149,15 +144,15 @@ auto vk_gltf_viewer::vulkan::Gpu::createAllocator(
 	const vk::raii::Instance &instance
 ) const -> decltype(allocator) {
 	VULKAN_HPP_DEFAULT_DISPATCHER.init(*device);
-	const vma::VulkanFunctions vulkanFuncs{
-		instance.getDispatcher()->vkGetInstanceProcAddr,
-		device.getDispatcher()->vkGetDeviceProcAddr,
-	};
 	return vma::createAllocator(vma::AllocatorCreateInfo{
 		vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
 		*physicalDevice,
 		*device,
-		{}, {}, {}, {}, &vulkanFuncs,
+		{}, {}, {}, {},
+		vku::unsafeAddress(vma::VulkanFunctions{
+			instance.getDispatcher()->vkGetInstanceProcAddr,
+			device.getDispatcher()->vkGetDeviceProcAddr,
+		}),
 		*instance,
 		vk::makeApiVersion(0, 1, 2, 0),
 	});

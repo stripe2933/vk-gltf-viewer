@@ -371,14 +371,15 @@ auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::createSampler(
 auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> decltype(pipelineLayout) {
-    constexpr vk::PushConstantRange pushConstantRange {
-        vk::ShaderStageFlagBits::eAllGraphics,
-        0, sizeof(PushConstant),
-    };
     return { device, vk::PipelineLayoutCreateInfo{
         {},
         descriptorSetLayouts,
-        pushConstantRange,
+        vku::unsafeProxy({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eAllGraphics,
+                0, sizeof(PushConstant),
+            },
+        }),
     } };
 }
 
@@ -391,30 +392,23 @@ auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::createPipeline(
         vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
         vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment });
 
-    constexpr vk::PipelineDepthStencilStateCreateInfo depthStencilState {
-        {},
-        true, true, vk::CompareOp::eLess,
-    };
-
-    constexpr std::array dynamicStates {
-        vk::DynamicState::eViewport,
-        vk::DynamicState::eScissor,
-        vk::DynamicState::eCullMode,
-    };
-    const vk::PipelineDynamicStateCreateInfo dynamicState {
-        {},
-        dynamicStates,
-    };
-
-    constexpr vk::Format colorAttachmentFormat = vk::Format::eR16G16B16A16Sfloat;
-
     return { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
-            .setPDepthStencilState(&depthStencilState)
-            .setPDynamicState(&dynamicState),
+            .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
+                {},
+                true, true, vk::CompareOp::eLess,
+            }))
+            .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
+                {},
+                vku::unsafeProxy({
+                    vk::DynamicState::eViewport,
+                    vk::DynamicState::eScissor,
+                    vk::DynamicState::eCullMode,
+                }),
+            })),
         vk::PipelineRenderingCreateInfo {
             {},
-            colorAttachmentFormat,
+            vku::unsafeProxy({ vk::Format::eR16G16B16A16Sfloat }),
             vk::Format::eD32Sfloat,
         }
     }.get() };

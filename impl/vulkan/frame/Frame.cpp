@@ -140,22 +140,15 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 		*depthPrepassFinishSema,
 	});
 
-	constexpr std::array jumpFloodWaitStages {
-		vk::Flags { vk::PipelineStageFlagBits::eComputeShader },
-	};
 	gpu.queues.compute.submit(vk::SubmitInfo {
 		*depthPrepassFinishSema,
-		jumpFloodWaitStages,
+		vku::unsafeProxy({
+			vk::Flags { vk::PipelineStageFlagBits::eComputeShader },
+		}),
 		jumpFloodCommandBuffer,
 		*jumpFloodFinishSema,
 	});
 
-	const std::array compositeWaitSemas { *swapchainImageAcquireSema, *drawFinishSema, *jumpFloodFinishSema };
-	constexpr std::array compositeWaitStages {
-		vk::Flags { vk::PipelineStageFlagBits::eColorAttachmentOutput },
-		vk::Flags { vk::PipelineStageFlagBits::eFragmentShader },
-		vk::Flags { vk::PipelineStageFlagBits::eFragmentShader },
-	};
 	gpu.queues.graphicsPresent.submit(std::array {
 		vk::SubmitInfo {
 			{},
@@ -164,8 +157,12 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 			*drawFinishSema,
 		},
 		vk::SubmitInfo {
-			compositeWaitSemas,
-			compositeWaitStages,
+			vku::unsafeProxy({ *swapchainImageAcquireSema, *drawFinishSema, *jumpFloodFinishSema }),
+			vku::unsafeProxy({
+				vk::Flags { vk::PipelineStageFlagBits::eColorAttachmentOutput },
+				vk::Flags { vk::PipelineStageFlagBits::eFragmentShader },
+				vk::Flags { vk::PipelineStageFlagBits::eFragmentShader },
+			}),
 			compositeCommandBuffer,
 			*compositeFinishSema,
 		},
@@ -412,28 +409,28 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 
 	cb.endRenderingKHR();
 
-	const std::array imageMemoryBarriers {
-		// For copying to hoveringNodeIndexBuffer.
-		vk::ImageMemoryBarrier2 {
-			vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
-			vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
-			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
-			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			passthruExtentDependentResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
-		},
-		// Release jump flood resources' ping images queue family ownership.
-		vk::ImageMemoryBarrier2 {
-			vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
-			vk::PipelineStageFlagBits2::eAllCommands, vk::AccessFlagBits2::eNone,
-			{}, {},
-			gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
-			passthruExtentDependentResources->jumpFloodImage,
-			{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
-		},
-	};
 	cb.pipelineBarrier2KHR({
 		{},
-		{}, {}, imageMemoryBarriers,
+		{}, {},
+		vku::unsafeProxy({
+			// For copying to hoveringNodeIndexBuffer.
+			vk::ImageMemoryBarrier2 {
+				vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
+				vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+				vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				passthruExtentDependentResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
+			},
+			// Release jump flood resources' ping images queue family ownership.
+			vk::ImageMemoryBarrier2 {
+				vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
+				vk::PipelineStageFlagBits2::eAllCommands, vk::AccessFlagBits2::eNone,
+				{}, {},
+				gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
+				passthruExtentDependentResources->jumpFloodImage,
+				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
+			},
+		}),
 	});
 
 	const auto cursorPosFromPassthruRectTopLeft

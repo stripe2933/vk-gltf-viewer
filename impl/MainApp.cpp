@@ -5,6 +5,7 @@ module;
 #include <expected>
 #include <format>
 #include <ranges>
+#include <set>
 #include <string_view>
 #include <stdexcept>
 #include <thread>
@@ -131,18 +132,6 @@ auto vk_gltf_viewer::MainApp::loadAsset(
 }
 
 auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
-	constexpr vk::ApplicationInfo appInfo{
-		"Vulkan glTF Viewer", 0,
-		nullptr, 0,
-		vk::makeApiVersion(0, 1, 2, 0),
-	};
-
-	const std::vector<const char*> layers{
-#ifndef NDEBUG
-		"VK_LAYER_KHRONOS_validation",
-#endif
-	};
-
 	std::vector<const char*> extensions{
 #if __APPLE__
 		vk::KHRPortabilityEnumerationExtensionName,
@@ -158,8 +147,16 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 #else
 		{},
 #endif
-		&appInfo,
-		layers,
+		vku::unsafeAddress(vk::ApplicationInfo {
+			"Vulkan glTF Viewer", 0,
+			nullptr, 0,
+			vk::makeApiVersion(0, 1, 2, 0),
+		}),
+		vku::unsafeProxy<const char* const>({
+#ifndef NDEBUG
+			"VK_LAYER_KHRONOS_validation",
+#endif
+		}),
 		extensions,
 	} };
 }
@@ -171,11 +168,6 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 		std::from_range, eqmapImageData.asSpan(),
 		vk::BufferUsageFlagBits::eTransferSrc);
 
-	const std::array concurrentQueueFamilyIndices {
-		gpu.queueFamilies.transfer,
-		gpu.queueFamilies.compute,
-		gpu.queueFamilies.graphicsPresent,
-	};
 	vku::AllocatedImage eqmapImage {
 		gpu.allocator,
 		vk::ImageCreateInfo {
@@ -189,7 +181,11 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 			vk::ImageUsageFlagBits::eTransferDst
 				| vk::ImageUsageFlagBits::eSampled /* cubemap generation */
 				| vk::ImageUsageFlagBits::eTransferSrc /* mipmap generation */,
-			vk::SharingMode::eConcurrent, concurrentQueueFamilyIndices,
+			vk::SharingMode::eConcurrent, vku::unsafeProxy(std::set {
+				gpu.queueFamilies.transfer,
+				gpu.queueFamilies.compute,
+				gpu.queueFamilies.graphicsPresent,
+			} | std::ranges::to<std::vector<std::uint32_t>>()),
 		},
 		vma::AllocationCreateInfo {
 			{},
@@ -261,18 +257,17 @@ auto vk_gltf_viewer::MainApp::createEqmapSampler() const -> decltype(eqmapSample
 }
 
 auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool) {
-	constexpr std::array imGuiDescriptorPoolSizes {
-		vk::DescriptorPoolSize {
-			vk::DescriptorType::eCombinedImageSampler,
-			1 /* Default ImGui rendering */
-			+ 1 /* equirectangular texture */
-		},
-	};
 	return { gpu.device, vk::DescriptorPoolCreateInfo {
 		vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
 		1 /* Default ImGui rendering */
-		+ 1 /* equirectangular texture */,
-		imGuiDescriptorPoolSizes,
+			+ 1 /* equirectangular texture */,
+		vku::unsafeProxy({
+			vk::DescriptorPoolSize {
+				vk::DescriptorType::eCombinedImageSampler,
+				1 /* Default ImGui rendering */
+					+ 1 /* equirectangular texture */
+			},
+		}),
 	} };
 }
 
@@ -400,41 +395,41 @@ auto vk_gltf_viewer::MainApp::recordImageMipmapGenerationCommands(
 			},
 			vk::Filter::eLinear);
 
-		// Change eqmapImage layout.
-		// - mipLevel=srcLevel: TransferSrcOptimal -> ShaderReadOnlyOptimal
-		// - mipLevel=dstLevel:
-		//   dstLevel is last mip level -> TransferDstOptimal -> ShaderReadOnlyOptimal
-		//   otherwise -> TransferDstOptimal -> TransferSrcOptimal
-		const std::array imageMemoryBarriers {
-			vk::ImageMemoryBarrier2 {
-	            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
-				vk::PipelineStageFlagBits2::eAllCommands, {},
-				vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				eqmapImage, { vk::ImageAspectFlagBits::eColor, srcLevel, 1, 0, 1 },
-			},
-			[&, isLastMipLevel = dstLevel == (eqmapImage.mipLevels - 1U)]() {
-				return isLastMipLevel
-					? vk::ImageMemoryBarrier2 {
-						vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-						vk::PipelineStageFlagBits2::eAllCommands, {},
-						vk::ImageLayout::eTransferDstOptimal,
-						vk::ImageLayout::eShaderReadOnlyOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
-					}
-					: vk::ImageMemoryBarrier2 {
-			            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-						vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
-						vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
-					};
-			}(),
-		};
 		graphicsCommandBuffer.pipelineBarrier2KHR({
             {},
-			{}, {}, imageMemoryBarriers
+			{}, {},
+			vku::unsafeProxy({
+				// Change eqmapImage layout.
+				// - mipLevel=srcLevel: TransferSrcOptimal -> ShaderReadOnlyOptimal
+				// - mipLevel=dstLevel:
+				//   dstLevel is last mip level -> TransferDstOptimal -> ShaderReadOnlyOptimal
+				//   otherwise -> TransferDstOptimal -> TransferSrcOptimal
+				vk::ImageMemoryBarrier2 {
+		            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
+					vk::PipelineStageFlagBits2::eAllCommands, {},
+					vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					eqmapImage, { vk::ImageAspectFlagBits::eColor, srcLevel, 1, 0, 1 },
+				},
+				[&, isLastMipLevel = dstLevel == (eqmapImage.mipLevels - 1U)]() {
+					return isLastMipLevel
+						? vk::ImageMemoryBarrier2 {
+							vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+							vk::PipelineStageFlagBits2::eAllCommands, {},
+							vk::ImageLayout::eTransferDstOptimal,
+							vk::ImageLayout::eShaderReadOnlyOptimal,
+							vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+							eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
+						}
+						: vk::ImageMemoryBarrier2 {
+				            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+							vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+							vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+							vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+							eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
+						};
+				}(),
+			}),
 		});
 	}
 }

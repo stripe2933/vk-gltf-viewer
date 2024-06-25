@@ -118,14 +118,15 @@ auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::compute(
 auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> decltype(pipelineLayout) {
-    constexpr vk::PushConstantRange pushConstantRange {
-        vk::ShaderStageFlagBits::eCompute,
-        0, sizeof(PushConstant),
-    };
     return { device, vk::PipelineLayoutCreateInfo {
         {},
         descriptorSetLayouts,
-        pushConstantRange,
+        vku::unsafeProxy({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eCompute,
+                0, sizeof(PushConstant),
+            },
+        }),
     } };
 }
 

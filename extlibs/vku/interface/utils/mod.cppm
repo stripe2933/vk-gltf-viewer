@@ -2,6 +2,8 @@ module;
 
 #include <compare>
 #include <concepts>
+#include <initializer_list>
+#include <ranges>
 
 export module vku:utils;
 
@@ -18,6 +20,26 @@ export namespace vku {
         vk::ImageAspectFlags aspectFlags = vk::ImageAspectFlagBits::eColor
     ) noexcept -> vk::ImageSubresourceRange {
         return { aspectFlags, 0, vk::RemainingMipLevels, 0, vk::RemainingArrayLayers };
+    }
+
+    template <typename T>
+    [[nodiscard]] auto unsafeAddress(const T &value [[clang::lifetimebound]]) -> const T* {
+        return &value;
+    }
+
+    template <typename T>
+    [[nodiscard]] auto unsafeProxy(const T &elem [[clang::lifetimebound]]) -> vk::ArrayProxyNoTemporaries<const T> {
+        return elem;
+    }
+
+    template <typename T>
+    [[nodiscard]] auto unsafeProxy(const std::initializer_list<T> &arr [[clang::lifetimebound]]) -> vk::ArrayProxyNoTemporaries<const T> {
+        return arr;
+    }
+
+    template <std::ranges::contiguous_range R>
+    [[nodiscard]] auto unsafeProxy(const R &arr [[clang::lifetimebound]]) -> vk::ArrayProxyNoTemporaries<const std::ranges::range_value_t<R>> {
+        return arr;
     }
 
     template <typename T>
