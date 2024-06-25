@@ -66,10 +66,9 @@ namespace pbrenvmap {
         const vk::raii::Device &device;
         const Config &config;
 
-        // Image views and samplers.
+        // Image views.
         vk::raii::ImageView cubemapImageView;
         std::vector<vk::raii::ImageView> cubemapMipImageViews, prefilteredmapMipImageViews;
-        vk::raii::Sampler linearSampler;
 
         // Buffers.
         vku::AllocatedBuffer sphericalHarmonicsReductionBuffer;
@@ -156,15 +155,6 @@ pbrenvmap::Generator::Generator(
             } };
         })
     },
-    linearSampler { device, vk::SamplerCreateInfo {
-        {},
-        vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
-        {}, {}, {},
-        {},
-        {}, {},
-        {}, {},
-        0.f, vk::LodClampNone
-    } },
     sphericalHarmonicsReductionBuffer { allocator, vk::BufferCreateInfo {
         {},
         sizeof(float) * 27 * pipelines::SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
@@ -212,8 +202,7 @@ auto pbrenvmap::Generator::recordCommands(
     };
     device.updateDescriptorSets(
         ranges::array_cat(
-            cubemapDescriptorSets.getDescriptorWrites0(
-                *linearSampler, eqmapImageView, *cubemapMipImageViews[0]).get(),
+            cubemapDescriptorSets.getDescriptorWrites0(eqmapImageView, *cubemapMipImageViews[0]).get(),
             subgroupMipmapDescriptorSets.getDescriptorWrites0(
                 cubemapMipImageViews | ranges::views::deref).get(),
             sphericalHarmonicsDescriptorSets.getDescriptorWrites0(
@@ -226,8 +215,7 @@ auto pbrenvmap::Generator::recordCommands(
                 }).get(),
             sphericalHarmonicCoefficientsSumDescriptorSets.getDescriptorWrites0(
                 { sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
-            prefilteredmapDescriptorSets.getDescriptorWrites0(
-                *linearSampler, *cubemapImageView, prefilteredmapMipImageViews | ranges::views::deref).get()),
+            prefilteredmapDescriptorSets.getDescriptorWrites0(*cubemapImageView, prefilteredmapMipImageViews | ranges::views::deref).get()),
         {});
 
     ////////////////////
@@ -277,7 +265,7 @@ auto pbrenvmap::Generator::recordCommands(
             sizeof(float) * 27 * getWorkgroupTotal(
                 pipelines::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size)),
         },
-        std::array {
+        {
             vk::ImageMemoryBarrier {
                 vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead,
                 vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,

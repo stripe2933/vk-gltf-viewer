@@ -28,14 +28,13 @@ namespace pbrenvmap::pipelines {
         };
 
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<2> {
-            explicit DescriptorSetLayouts(const vk::raii::Device &device, std::uint32_t roughnessLevels);
+            explicit DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler, std::uint32_t roughnessLevels);
         };
 
         struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
             using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
 
             [[nodiscard]] auto getDescriptorWrites0(
-                vk::Sampler cubemapSampler,
                 vk::ImageView cubemapImageView,
                 auto &&prefilteredmapMipViews
             ) const {
@@ -46,7 +45,7 @@ namespace pbrenvmap::pipelines {
                             getDescriptorWrite<0, 1>().setImageInfo(prefilteredmapImageInfos),
                         };
                     },
-                    vk::DescriptorImageInfo { cubemapSampler, cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+                    vk::DescriptorImageInfo { {}, cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
                     std::vector { std::from_range, FWD(prefilteredmapMipViews) | std::views::transform([](vk::ImageView imageView) {
                         return vk::DescriptorImageInfo { {}, imageView, vk::ImageLayout::eGeneral };
                     }) },
@@ -59,6 +58,7 @@ namespace pbrenvmap::pipelines {
             std::uint32_t mipLevel;
         };
 
+        vk::raii::Sampler cubemapSampler;
         DescriptorSetLayouts descriptorSetLayouts;
         vk::raii::PipelineLayout pipelineLayout;
         std::uint32_t roughnessLevels;
@@ -71,6 +71,7 @@ namespace pbrenvmap::pipelines {
     private:
         static std::string_view comp;
 
+        [[nodiscard]] auto createCubemapSampler(const vk::raii::Device &device) const -> decltype(cubemapSampler);
         [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) -> vk::raii::PipelineLayout;
         [[nodiscard]] auto createPipeline(const vk::raii::Device &device, const SpecializationConstants &specializationConstants, const shaderc::Compiler &compiler) const -> vk::raii::Pipeline;
     };
@@ -209,10 +210,11 @@ void main(){
 
 pbrenvmap::pipelines::PrefilteredmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
+    const vk::Sampler &sampler,
     std::uint32_t roughnessLevels
 ) : vku::DescriptorSetLayouts<2> { device, LayoutBindings {
     vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eCompute },
+    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eCompute, &sampler },
     vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageImage, roughnessLevels, vk::ShaderStageFlagBits::eCompute },
     std::array { vk::DescriptorBindingFlags{}, vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind } },
 } } { }
@@ -221,7 +223,8 @@ pbrenvmap::pipelines::PrefilteredmapComputer::PrefilteredmapComputer(
     const vk::raii::Device &device,
     const SpecializationConstants &specializationConstants,
     const shaderc::Compiler &compiler
-) : descriptorSetLayouts { device, specializationConstants.roughnessLevels },
+) : cubemapSampler { createCubemapSampler(device) },
+    descriptorSetLayouts { device, *cubemapSampler, specializationConstants.roughnessLevels },
     pipelineLayout { createPipelineLayout(device) },
     roughnessLevels { specializationConstants.roughnessLevels },
     pipeline { createPipeline(device, specializationConstants, compiler) } { }
@@ -246,6 +249,20 @@ auto pbrenvmap::pipelines::PrefilteredmapComputer::compute(
             vku::divCeil(prefilteredmapSize >> mipLevel, 16U),
             6);
     }
+}
+
+auto pbrenvmap::pipelines::PrefilteredmapComputer::createCubemapSampler(
+    const vk::raii::Device &device
+) const -> decltype(cubemapSampler) {
+    return { device, vk::SamplerCreateInfo {
+        {},
+        vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eNearest,
+        {}, {}, {},
+        {},
+        false, {},
+        {}, {},
+        0.f, vk::LodClampNone,
+    } };
 }
 
 auto pbrenvmap::pipelines::PrefilteredmapComputer::createPipelineLayout(

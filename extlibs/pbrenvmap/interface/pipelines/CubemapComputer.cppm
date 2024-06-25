@@ -19,14 +19,13 @@ namespace pbrenvmap::pipelines {
     export class CubemapComputer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<2> {
-            explicit DescriptorSetLayouts(const vk::raii::Device &device);
+            explicit DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler);
         };
 
         struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
             using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
 
             [[nodiscard]] auto getDescriptorWrites0(
-                vk::Sampler eqmapSampler,
                 vk::ImageView eqmapImageView,
                 vk::ImageView cubemapImageView
             ) const {
@@ -37,12 +36,13 @@ namespace pbrenvmap::pipelines {
                             getDescriptorWrite<0, 1>().setImageInfo(cubemapImageInfo),
                         };
                     },
-                    vk::DescriptorImageInfo { eqmapSampler, eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+                    vk::DescriptorImageInfo { {}, eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
                     vk::DescriptorImageInfo { {}, cubemapImageView, vk::ImageLayout::eGeneral },
                 };
             }
         };
 
+        vk::raii::Sampler eqmapSampler;
         DescriptorSetLayouts descriptorSetLayouts;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
@@ -54,7 +54,8 @@ namespace pbrenvmap::pipelines {
     private:
         static std::string_view comp;
 
-        [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) -> vk::raii::PipelineLayout;
+        [[nodiscard]] auto createEqmapSampler(const vk::raii::Device &device) const -> decltype(eqmapSampler);
+        [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> vk::raii::PipelineLayout;
         [[nodiscard]] auto createPipeline(const vk::raii::Device &device, const shaderc::Compiler &compiler) const -> vk::raii::Pipeline;
     };
 }
@@ -100,17 +101,19 @@ void main(){
 )comp";
 
 pbrenvmap::pipelines::CubemapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
-    const vk::raii::Device &device
+    const vk::raii::Device &device,
+    const vk::Sampler &sampler
 ) : vku::DescriptorSetLayouts<2> { device, LayoutBindings {
         {},
-        vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eCompute },
+        vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eCompute, &sampler },
         vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
     } } { }
 
 pbrenvmap::pipelines::CubemapComputer::CubemapComputer(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
-) : descriptorSetLayouts { device },
+) : eqmapSampler { createEqmapSampler(device) } ,
+    descriptorSetLayouts { device, *eqmapSampler },
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
@@ -124,9 +127,23 @@ auto pbrenvmap::pipelines::CubemapComputer::compute(
     commandBuffer.dispatch(cubemapSize / 16, cubemapSize / 16, 6);
 }
 
+auto pbrenvmap::pipelines::CubemapComputer::createEqmapSampler(
+    const vk::raii::Device &device
+) const -> decltype(eqmapSampler) {
+    return { device, vk::SamplerCreateInfo {
+        {},
+        vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eNearest,
+        {}, {}, {},
+        {},
+        false, {},
+        {}, {},
+        0.f, vk::LodClampNone,
+    } };
+}
+
 auto pbrenvmap::pipelines::CubemapComputer::createPipelineLayout(
     const vk::raii::Device &device
-) -> vk::raii::PipelineLayout {
+) const -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
         descriptorSetLayouts,
