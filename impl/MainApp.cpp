@@ -411,24 +411,22 @@ auto vk_gltf_viewer::MainApp::recordImageMipmapGenerationCommands(
 					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 					eqmapImage, { vk::ImageAspectFlagBits::eColor, srcLevel, 1, 0, 1 },
 				},
-				[&, isLastMipLevel = dstLevel == (eqmapImage.mipLevels - 1U)]() {
-					return isLastMipLevel
-						? vk::ImageMemoryBarrier2 {
-							vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-							vk::PipelineStageFlagBits2::eAllCommands, {},
-							vk::ImageLayout::eTransferDstOptimal,
-							vk::ImageLayout::eShaderReadOnlyOptimal,
-							vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-							eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
-						}
-						: vk::ImageMemoryBarrier2 {
-				            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-							vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
-							vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-							vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-							eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
-						};
-				}(),
+				dstLevel == (eqmapImage.mipLevels - 1U)
+					? vk::ImageMemoryBarrier2 {
+						vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+						vk::PipelineStageFlagBits2::eAllCommands, {},
+						vk::ImageLayout::eTransferDstOptimal,
+						vk::ImageLayout::eShaderReadOnlyOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
+					}
+					: vk::ImageMemoryBarrier2 {
+			            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+						vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+						vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
+					},
 			}),
 		});
 	}
