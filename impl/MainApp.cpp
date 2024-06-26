@@ -43,12 +43,6 @@ import :vulkan.frame.SharedData;
 }
 
 vk_gltf_viewer::MainApp::MainApp() {
-	auto graphicsCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent);
-	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-		recordImageMipmapGenerationCommands(cb);
-	});
-	gpu.queues.graphicsPresent.waitIdle();
-
 	// Init ImGui.
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -196,7 +190,6 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 	// TODO: instead creating a temporary command pool, accept the transfer command buffer as a function parameter,
 	//  record all required comamnds, and submit (+ wait) once.
 	const auto transferCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.transfer);
-
 	vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
 		cb.pipelineBarrier(
 			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
@@ -205,7 +198,7 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 				{}, vk::AccessFlagBits::eTransferWrite,
 				{}, vk::ImageLayout::eTransferDstOptimal,
 				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				eqmapImage, vku::fullSubresourceRange(),
+				eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
 			});
 		cb.copyBufferToImage(
 			eqmapImageStagingBuffer,
@@ -216,19 +209,88 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 				{ 0, 0, 0 },
 				eqmapImage.extent,
 			});
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllCommands,
+		cb.pipelineBarrier2KHR({
 			{},
 			{}, {},
-			vk::ImageMemoryBarrier {
-				vk::AccessFlagBits::eTransferWrite, {},
-				vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }
-			});
+			vku::unsafeProxy({
+				// Change image layouts for graphics queue based mipmap generation:
+				// - mipLevel=0: TransferDstOptimal -> TransferSrcOptimal
+				// - mipLevel=1..: Undefined -> TransferDstOptimal
+				vk::ImageMemoryBarrier2 {
+					vk::PipelineStageFlagBits2::eCopy, vk::AccessFlagBits2::eTransferWrite,
+					vk::PipelineStageFlagBits2::eAllCommands, {},
+					vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }
+				},
+				vk::ImageMemoryBarrier2 {
+					{}, {},
+					vk::PipelineStageFlagBits2::eAllCommands, {},
+					{}, vk::ImageLayout::eTransferDstOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					eqmapImage, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingMipLevels, 0, 1 }
+				},
+			}),
+		});
 	});
 	gpu.queues.transfer.waitIdle();
 	stagingBuffers.clear();
+
+	auto graphicsCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent);
+	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+		// TODO: use ranges::views::pairwise when it's available (look's like false-positive compiler error for Clang).
+		// for (auto [srcLevel, dstLevel] : std::views::iota(0U, eqmapImage.mipLevels) | ranges::views::pairwise) {
+		for (std::uint32_t srcLevel : std::views::iota(0U, eqmapImage.mipLevels - 1U)) {
+			const std::uint32_t dstLevel = srcLevel + 1;
+			// Blit from srcLevel to dstLevel.
+			cb.blitImage(
+				eqmapImage, vk::ImageLayout::eTransferSrcOptimal,
+				eqmapImage, vk::ImageLayout::eTransferDstOptimal,
+				vk::ImageBlit {
+					{ vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
+					{ vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(eqmapImage.extent.width >> srcLevel), static_cast<std::int32_t>(eqmapImage.extent.height >> srcLevel), 1 } },
+					{ vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
+					{ vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(eqmapImage.extent.width >> dstLevel), static_cast<std::int32_t>(eqmapImage.extent.height >> dstLevel), 1 } },
+				},
+				vk::Filter::eLinear);
+
+			cb.pipelineBarrier2KHR({
+	            {},
+				{}, {},
+				vku::unsafeProxy({
+					// Change eqmapImage layout.
+					// - mipLevel=srcLevel: TransferSrcOptimal -> ShaderReadOnlyOptimal
+					// - mipLevel=dstLevel:
+					//   dstLevel is last mip level -> TransferDstOptimal -> ShaderReadOnlyOptimal
+					//   otherwise -> TransferDstOptimal -> TransferSrcOptimal
+					vk::ImageMemoryBarrier2 {
+			            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
+						vk::PipelineStageFlagBits2::eAllCommands, {},
+						vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						eqmapImage, { vk::ImageAspectFlagBits::eColor, srcLevel, 1, 0, 1 },
+					},
+					dstLevel == (eqmapImage.mipLevels - 1U)
+						? vk::ImageMemoryBarrier2 {
+							vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+							vk::PipelineStageFlagBits2::eAllCommands, {},
+							vk::ImageLayout::eTransferDstOptimal,
+							vk::ImageLayout::eShaderReadOnlyOptimal,
+							vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+							eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
+						}
+						: vk::ImageMemoryBarrier2 {
+				            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+							vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+							vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+							vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+							eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
+						},
+				}),
+			});
+		}
+	});
+	gpu.queues.graphicsPresent.waitIdle();
 
 	return eqmapImage;
 }
@@ -356,81 +418,4 @@ auto vk_gltf_viewer::MainApp::handleOnLoopResult(
 	const vulkan::Frame::OnLoopResult &onLoopResult
 ) -> void {
 	appState.hoveringNodeIndex = onLoopResult.hoveringNodeIndex;
-}
-
-auto vk_gltf_viewer::MainApp::recordImageMipmapGenerationCommands(
-	vk::CommandBuffer graphicsCommandBuffer
-) const -> void {
-	// Change eqmapImage layout.
-	// - mipLevel=0: ShaderRead -> TransferSrcOptimal.
-	// - mipLevel=1..: Undefined -> TransferDstOptimal.
-	graphicsCommandBuffer.pipelineBarrier(
-		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-		{}, {}, {},
-		{
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eTransferRead,
-				vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferSrcOptimal,
-				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-			},
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eTransferWrite,
-				{}, vk::ImageLayout::eTransferDstOptimal,
-				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				eqmapImage, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingMipLevels, 0, 1 },
-			},
-		});
-
-	// TODO: use ranges::views::pairwise when it's available (look's like false-positive compiler error for Clang).
-	// for (auto [srcLevel, dstLevel] : std::views::iota(0U, eqmapImage.mipLevels) | ranges::views::pairwise) {
-	for (std::uint32_t srcLevel : std::views::iota(0U, eqmapImage.mipLevels - 1U)) {
-		const std::uint32_t dstLevel = srcLevel + 1;
-		// Blit from srcLevel to dstLevel.
-		graphicsCommandBuffer.blitImage(
-			eqmapImage, vk::ImageLayout::eTransferSrcOptimal,
-			eqmapImage, vk::ImageLayout::eTransferDstOptimal,
-			vk::ImageBlit {
-				{ vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
-				{ vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(eqmapImage.extent.width >> srcLevel), static_cast<std::int32_t>(eqmapImage.extent.height >> srcLevel), 1 } },
-				{ vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-				{ vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(eqmapImage.extent.width >> dstLevel), static_cast<std::int32_t>(eqmapImage.extent.height >> dstLevel), 1 } },
-			},
-			vk::Filter::eLinear);
-
-		graphicsCommandBuffer.pipelineBarrier2KHR({
-            {},
-			{}, {},
-			vku::unsafeProxy({
-				// Change eqmapImage layout.
-				// - mipLevel=srcLevel: TransferSrcOptimal -> ShaderReadOnlyOptimal
-				// - mipLevel=dstLevel:
-				//   dstLevel is last mip level -> TransferDstOptimal -> ShaderReadOnlyOptimal
-				//   otherwise -> TransferDstOptimal -> TransferSrcOptimal
-				vk::ImageMemoryBarrier2 {
-		            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
-					vk::PipelineStageFlagBits2::eAllCommands, {},
-					vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					eqmapImage, { vk::ImageAspectFlagBits::eColor, srcLevel, 1, 0, 1 },
-				},
-				dstLevel == (eqmapImage.mipLevels - 1U)
-					? vk::ImageMemoryBarrier2 {
-						vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-						vk::PipelineStageFlagBits2::eAllCommands, {},
-						vk::ImageLayout::eTransferDstOptimal,
-						vk::ImageLayout::eShaderReadOnlyOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
-					}
-					: vk::ImageMemoryBarrier2 {
-			            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-						vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
-						vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
-					},
-			}),
-		});
-	}
 }

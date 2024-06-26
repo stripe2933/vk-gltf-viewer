@@ -63,7 +63,5 @@ namespace vk_gltf_viewer {
 
 		[[nodiscard]] auto update(float timeDelta) -> vulkan::Frame::OnLoopTask;
 		auto handleOnLoopResult(const vulkan::Frame::OnLoopResult &onLoopResult) -> void;
-
-		auto recordImageMipmapGenerationCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
 	};
 }
