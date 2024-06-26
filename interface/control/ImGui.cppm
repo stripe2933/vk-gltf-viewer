@@ -17,8 +17,7 @@ namespace vk_gltf_viewer::control::imgui {
      * Render ImGuizmo ViewManipulate based on the current AppState camera.
      * @param appState
      * @param passthruRectBR bottom-left position of the passthru rect.
-     * @return \p true if using ViewManipulate, \p false otherwise.
      * @note <tt>ImGuizmo::BeginFrame()</tt> must be called before this function.
      */
-    auto viewManipulate(AppState &appState, const ImVec2 &passthruRectBR) -> bool;
+    auto viewManipulate(AppState &appState, const ImVec2 &passthruRectBR) -> void;
 }

@@ -325,8 +325,8 @@ auto vk_gltf_viewer::MainApp::update(
 	ImGuizmo::BeginFrame();
 
 	// Capture mouse when using ViewManipulate.
-	const bool isUsingImGuizmoViewManipulate = control::imgui::viewManipulate(appState, centerNodeRect.Max);
-	glfwSetInputMode(window, GLFW_CURSOR, isUsingImGuizmoViewManipulate ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+	control::imgui::viewManipulate(appState, centerNodeRect.Max);
+	glfwSetInputMode(window, GLFW_CURSOR, appState.isUsingImGuizmo ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
 
 	ImGui::Render();
 
@@ -334,6 +334,9 @@ auto vk_gltf_viewer::MainApp::update(
 		.passthruRect = passthruRect,
 		.camera = { appState.camera.view, appState.camera.projection },
 		.mouseCursorOffset = [&]() -> std::optional<vk::Offset2D> {
+			// If using ImGuizmo, cursor is locked to it, so no need to check cursor position.
+			if (appState.isUsingImGuizmo) return std::nullopt;
+
 			const glm::vec2 framebufferCursorPosition
 				= glm::vec2 { window.getCursorPos() } * glm::vec2 { window.getFramebufferSize() } / glm::vec2 { window.getSize() };
 			if (glm::vec2 framebufferSize = window.getFramebufferSize();

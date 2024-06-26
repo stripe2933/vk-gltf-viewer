@@ -296,7 +296,7 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
 auto vk_gltf_viewer::control::imgui::viewManipulate(
     AppState &appState,
     const ImVec2 &passthruRectBR
-) -> bool {
+) -> void {
 	constexpr ImVec2 size { 64.f, 64.f };
 	constexpr ImU32 background = 0x00000000; // Transparent.
 	const glm::mat4 oldView = appState.camera.view;
@@ -306,6 +306,7 @@ auto vk_gltf_viewer::control::imgui::viewManipulate(
 		passthruRectBR - size, size,
 		background);
 
-	// If oldView and new view is different, it could be determined as using ViewManipulate.
-	return appState.camera.view != oldView;
+	if (appState.camera.view != oldView) {
+	    appState.isUsingImGuizmo = true;
+	}
 }

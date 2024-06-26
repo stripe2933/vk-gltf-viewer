@@ -69,6 +69,14 @@ void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
     int action,
     int mods
 ) {
+    if (appState.isUsingImGuizmo) {
+        if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+            appState.isUsingImGuizmo = false;
+        }
+        // All mouse button events that are related to ImGuizmo should be ignored.
+        return;
+    }
+
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
