@@ -1,7 +1,7 @@
 module;
 
-#include <bitset>
 #include <compare>
+#include <optional>
 
 export module vk_gltf_viewer:control.AppWindow;
 
@@ -18,8 +18,7 @@ namespace vk_gltf_viewer::control {
         auto handleEvents(float timeDelta) -> void;
 
     private:
-        std::bitset<4> cameraWasd = 0b0000;
-        bool cameraRunning = false;
+        std::optional<glm::dvec2> lastMouseDownPosition = std::nullopt;
 
         auto onScrollCallback(glm::dvec2 offset) -> void override;
         auto onCursorPosCallback(glm::dvec2 position) -> void override;
