@@ -402,12 +402,14 @@ auto vk_gltf_viewer::MainApp::update(
 		.camera = { appState.camera.view, appState.camera.projection },
 		.mouseCursorOffset = [&]() -> std::optional<vk::Offset2D> {
 			// If using ImGuizmo, cursor is locked to it, so no need to check cursor position.
-			if (appState.isUsingImGuizmo) return std::nullopt;
+			if (appState.isUsingImGuizmo || appState.isPanning) return std::nullopt;
 
+			// If cursor is outside the framebuffer, cursor position is undefined.
 			const glm::vec2 framebufferCursorPosition
 				= glm::vec2 { window.getCursorPos() } * glm::vec2 { window.getFramebufferSize() } / glm::vec2 { window.getSize() };
 			if (glm::vec2 framebufferSize = window.getFramebufferSize();
 				framebufferCursorPosition.x >= framebufferSize.x || framebufferCursorPosition.y >= framebufferSize.y) return std::nullopt;
+
 			return vk::Offset2D {
 				static_cast<std::int32_t>(framebufferCursorPosition.x),
 				static_cast<std::int32_t>(framebufferCursorPosition.y)

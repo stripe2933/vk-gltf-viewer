@@ -37,8 +37,6 @@ auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
 auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(
     glm::dvec2 position
 ) -> void {
-    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse || appState.isUsingImGuizmo) return;
-
     static std::optional<glm::dvec2> lastMousePosition = std::nullopt;
 
     // Determine if dragging mouse, see linxx's answer.
@@ -46,13 +44,36 @@ auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(
     if (glfwGetMouseButton(pWindow, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && lastMousePosition) {
         const glm::vec2 delta = position - *lastMousePosition;
 
+        // TODO: look's like more explanation for below required for the intention.
+        // Get ratio of movement by window size, i.e. (delta) / (window size).
+        const glm::vec2 movementRatio = delta / glm::vec2 { getSize() };
+
+        // Get near plane size of the perspective frustrum, in world space.
+        // Top left point in clip space: (-1, -1, 1, 1) (we uses reverse Z)
+        //     -> inverseProjectionView * vec4(-1, -1, 1, 1) in world space.
+        // Top right point in clip space: (1, -1, 1, 1)
+        //     -> inverseProjectionView * vec4(1, -1, 1, 1) in world space.
+        // Therefore, the distance between two vector (=near plane width) is:
+        //     length(inverseProjectionView * vec4(1, -1, 1, 1) - inverseProjectionView * vec4(-1, -1, 1, 1))
+        //   = length(inverseProjectionView * vec4(2, 0, 0, 0))
+        //   = length(2 * inverseProjectionView[0])
+        //   = 2 * length(inverseProjectionView[0]).
+        // Similarly, the distance between bottom left and top left (=near plane height) would be:
+        //     2 * length(inverseProjectionView[1]).
+        const glm::mat4 inverseProjectionView = inverse(appState.camera.projection * appState.camera.view);
+        const float nearPlaneWidth  = 2.f * length(inverseProjectionView[0]),
+                    nearPlaneHeight = 2.f * length(inverseProjectionView[1]);
+
         const auto [right, up, front, eye] = appState.camera.getViewDecomposition();
-        constexpr float PANNING_SENSITIVITY = 5e-3f;
-        const glm::vec3 newEye = eye + PANNING_SENSITIVITY * ((-delta.x) * right + delta.y * up);
+        const glm::vec3 newEye = eye + (nearPlaneWidth * -movementRatio.x) * right + (nearPlaneHeight * movementRatio.y) * up;
         appState.camera.view = glm::gtc::lookAt(newEye, newEye + front, glm::vec3 { 0.f, 1.f, 0.f });
+
+        appState.isPanning = true;
     }
 
     lastMousePosition = position;
+
+    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse || appState.isUsingImGuizmo) return;
 }
 
 void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
@@ -66,6 +87,12 @@ void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
         }
         // All mouse button events that are related to ImGuizmo should be ignored.
         return;
+    }
+
+    if (appState.isPanning) {
+        if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+            appState.isPanning = false;
+        }
     }
 
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
