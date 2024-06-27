@@ -80,8 +80,10 @@ namespace vk_gltf_viewer::vulkan::inline frame {
 
     	// Descriptor sets.
     	pipelines::DepthRenderer::DescriptorSets depthSets { *gpu.device, *descriptorPool, sharedData->depthRenderer.descriptorSetLayouts };
+    	pipelines::AlphaMaskedDepthRenderer::DescriptorSets alphaMaskedDepthSets { *gpu.device, *descriptorPool, sharedData->alphaMaskedDepthRenderer.descriptorSetLayouts };
     	pipelines::JumpFloodComputer::DescriptorSets jumpFloodSets { *gpu.device, *descriptorPool, sharedData->jumpFloodComputer.descriptorSetLayouts };
     	pipelines::OutlineRenderer::DescriptorSets outlineSets { *gpu.device, *descriptorPool, sharedData->outlineRenderer.descriptorSetLayouts };
+    	// Note that we'll use the same descriptor sets for AlphaMaskedPrimitiveRenderer since it has same descriptor set layouts as PrimitiveRenderer.
     	pipelines::PrimitiveRenderer::DescriptorSets primitiveSets { *gpu.device, *descriptorPool, sharedData->primitiveRenderer.descriptorSetLayouts };
     	pipelines::Rec709Renderer::DescriptorSets rec709Sets { *gpu.device, *descriptorPool, sharedData->rec709Renderer.descriptorSetLayouts };
     	pipelines::SkyboxRenderer::DescriptorSets skyboxSets { *gpu.device, *descriptorPool, sharedData->skyboxRenderer.descriptorSetLayouts };

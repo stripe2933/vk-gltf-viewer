@@ -69,6 +69,8 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/frame/Frame.cpp
 	impl/vulkan/frame/SharedData.cpp
 	impl/vulkan/Gpu.cpp
+	impl/vulkan/pipelines/AlphaMaskedDepthRenderer.cpp
+	impl/vulkan/pipelines/AlphaMaskedPrimitiveRenderer.cpp
 	impl/vulkan/pipelines/BrdfmapComputer.cpp
 	impl/vulkan/pipelines/DepthRenderer.cpp
 	impl/vulkan/pipelines/JumpFloodComputer.cpp
@@ -108,6 +110,8 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/frame/Frame.cppm
 		interface/vulkan/frame/SharedData.cppm
 		interface/vulkan/Gpu.cppm
+		interface/vulkan/pipelines/AlphaMaskedDepthRenderer.cppm
+		interface/vulkan/pipelines/AlphaMaskedPrimitiveRenderer.cppm
 		interface/vulkan/pipelines/BrdfmapComputer.cppm
 		interface/vulkan/pipelines/DepthRenderer.cppm
 		interface/vulkan/pipelines/JumpFloodComputer.cppm

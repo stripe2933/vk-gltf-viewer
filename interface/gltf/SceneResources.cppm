@@ -1,10 +1,11 @@
 module;
 
+#include <cstdint>
 #include <compare>
 #include <map>
 #include <optional>
 
-#include <fastgltf/core.hpp>
+#include <fastgltf/types.hpp>
 
 export module vk_gltf_viewer:gltf.SceneResources;
 
@@ -33,10 +34,19 @@ namespace vk_gltf_viewer::gltf {
         };
 
         struct CommandSeparationCriteria {
+            fastgltf::AlphaMode alphaMode;
             bool doubleSided;
             std::optional<vk::IndexType> indexType;
 
-            [[nodiscard]] constexpr auto operator<=>(const CommandSeparationCriteria &) const noexcept -> std::strong_ordering = default;
+            constexpr auto operator<=>(const CommandSeparationCriteria &) const noexcept -> std::strong_ordering = default;
+        };
+
+        struct CommandSeparationCriteriaComparator {
+            using is_transparent = void;
+
+            static auto operator()(const CommandSeparationCriteria &lhs, const CommandSeparationCriteria &rhs) noexcept -> bool { return lhs < rhs; }
+            static auto operator()(const CommandSeparationCriteria &lhs, fastgltf::AlphaMode rhs) noexcept -> bool { return lhs.alphaMode < rhs; }
+            static auto operator()(fastgltf::AlphaMode lhs, const CommandSeparationCriteria &rhs) noexcept -> bool { return lhs < rhs.alphaMode; }
         };
 
         const AssetResources &assetResources;
@@ -46,7 +56,7 @@ namespace vk_gltf_viewer::gltf {
 
         vku::MappedBuffer nodeTransformBuffer;
         vku::MappedBuffer primitiveBuffer;
-        std::map<CommandSeparationCriteria, vku::MappedBuffer> indirectDrawCommandBuffers;
+        std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> indirectDrawCommandBuffers;
 
         SceneResources(const AssetResources &assetResources, const fastgltf::Scene &scene, const vulkan::Gpu &gpu);
 

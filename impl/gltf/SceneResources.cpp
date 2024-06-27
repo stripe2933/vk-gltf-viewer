@@ -128,6 +128,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
 
     for (std::uint32_t instanceCounter = 0; const AssetResources::PrimitiveInfo *pPrimitiveInfo : orderedNodePrimitiveInfoPtrs | values) {
         const CommandSeparationCriteria criteria {
+            .alphaMode = asset.materials[*pPrimitiveInfo->materialIndex].alphaMode,
             .doubleSided = asset.materials[*pPrimitiveInfo->materialIndex].doubleSided,
             .indexType = pPrimitiveInfo->indexInfo.transform([](const auto &info) { return info.type; }),
         };
@@ -158,7 +159,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
         ++instanceCounter;
     }
 
-    std::map<CommandSeparationCriteria, vku::MappedBuffer> result;
+    std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> result;
     for (const auto &[criteria, commands] : indexedCommandGroups) {
         result.try_emplace(
             criteria,

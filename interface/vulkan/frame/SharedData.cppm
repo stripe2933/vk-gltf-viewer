@@ -13,6 +13,8 @@ export import vku;
 import :gltf.AssetResources;
 import :gltf.SceneResources;
 export import :vulkan.Gpu;
+export import :vulkan.pipelines.AlphaMaskedDepthRenderer;
+export import :vulkan.pipelines.AlphaMaskedPrimitiveRenderer;
 export import :vulkan.pipelines.DepthRenderer;
 export import :vulkan.pipelines.JumpFloodComputer;
 export import :vulkan.pipelines.OutlineRenderer;
@@ -53,10 +55,12 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	std::optional<ImageBasedLightingResources> imageBasedLightingResources = std::nullopt;
 
 		// Pipelines.
+		pipelines::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler };
 		pipelines::DepthRenderer depthRenderer { gpu.device, compiler };
 		pipelines::JumpFloodComputer jumpFloodComputer { gpu.device, compiler };
 		pipelines::OutlineRenderer outlineRenderer { gpu.device, compiler };
 		pipelines::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler };
+    	pipelines::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, *primitiveRenderer.pipelineLayout, compiler };
     	pipelines::Rec709Renderer rec709Renderer { gpu.device, compiler };
 		pipelines::SkyboxRenderer skyboxRenderer { gpu, compiler };
 		pipelines::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu, compiler };

@@ -45,7 +45,14 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	// Update per-frame descriptor sets.
 	gpu.device.updateDescriptorSets(
 	    ranges::array_cat(
-	    	depthSets.getDescriptorWrites0(
+		    alphaMaskedDepthSets.getDescriptorWrites0(
+		    	{ *sharedData->primitiveRenderer.sampler, *sharedData->gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+				sharedData->assetResources.textures,
+		    	{ sharedData->assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
+		    alphaMaskedDepthSets.getDescriptorWrites1(
+		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
+		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
+		    depthSets.getDescriptorWrites0(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
 		    primitiveSets.getDescriptorWrites0(
@@ -310,7 +317,8 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::recordInit
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {
 	return {
 		gpu.device,
-		(vku::PoolSizes { sharedData->depthRenderer.descriptorSetLayouts }
+		(vku::PoolSizes { sharedData->alphaMaskedDepthRenderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData->depthRenderer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->jumpFloodComputer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->outlineRenderer.descriptorSetLayouts }
 		    + vku::PoolSizes { sharedData->primitiveRenderer.descriptorSetLayouts }
@@ -392,6 +400,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	passthruExtentDependentResources->depthPrepassAttachmentGroup.setViewport(cb, true);
 	passthruExtentDependentResources->depthPrepassAttachmentGroup.setScissor(cb);
 
+	// Render alphaMode=Opaque meshes.
 	sharedData->depthRenderer.bindPipeline(cb);
 	sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
 	sharedData->depthRenderer.pushConstants(cb, {
@@ -399,7 +408,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		task.hoveringNodeIndex.value_or(NO_INDEX),
 		task.selectedNodeIndex.value_or(NO_INDEX),
 	});
-	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
+	for (auto [begin, end] = sharedData->sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
+		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
@@ -410,6 +420,29 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
 		}
 	}
+
+	// Render alphaMode=Mask meshes.
+	sharedData->alphaMaskedDepthRenderer.bindPipeline(cb);
+	sharedData->alphaMaskedDepthRenderer.bindDescriptorSets(cb, alphaMaskedDepthSets);
+	sharedData->alphaMaskedDepthRenderer.pushConstants(cb, {
+		task.camera.projection * task.camera.view,
+		task.hoveringNodeIndex.value_or(NO_INDEX),
+		task.selectedNodeIndex.value_or(NO_INDEX),
+	});
+	for (auto [begin, end] = sharedData->sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
+		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
+
+		if (const auto &indexType = criteria.indexType) {
+			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+		}
+		else {
+			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+		}
+	}
+
+	// TODO: render alphaMode=Blend meshes.
 
 	cb.endRenderingKHR();
 
@@ -519,11 +552,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	passthruExtentDependentResources->primaryAttachmentGroup.setViewport(cb, true);
 	passthruExtentDependentResources->primaryAttachmentGroup.setScissor(cb);
 
-	// Draw glTF mesh.
+	// Render alphaMode=Opaque meshes.
 	sharedData->primitiveRenderer.bindPipeline(cb);
 	sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
 	sharedData->primitiveRenderer.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
-	for (const auto &[criteria, indirectDrawCommandBuffer] : sharedData->sceneResources.indirectDrawCommandBuffers) {
+	for (auto [begin, end] = sharedData->sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
+		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
@@ -534,6 +568,24 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
 		}
 	}
+
+	// Render alphaMode=Mask meshes.
+	sharedData->alphaMaskedPrimitiveRenderer.bindPipeline(cb);
+	// No need to have push constant, because it have same pipeline layout with PrimitiveRenderer.
+	for (auto [begin, end] = sharedData->sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
+		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
+
+		if (const auto &indexType = criteria.indexType) {
+			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+		}
+		else {
+			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+		}
+	}
+
+	// TODO: render alphaMode=Blend meshes.
 
 	// Draw skybox.
 	const glm::mat4 noTranslationView = { glm::mat3 { task.camera.view } };
