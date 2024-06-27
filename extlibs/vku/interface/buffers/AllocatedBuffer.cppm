@@ -17,7 +17,7 @@ namespace vku {
         AllocatedBuffer(
             vma::Allocator allocator,
             const vk::BufferCreateInfo &createInfo,
-            const vma::AllocationCreateInfo &allocationCreateInfo
+            const vma::AllocationCreateInfo &allocationCreateInfo = { {}, vma::MemoryUsage::eAutoPreferDevice }
         );
         AllocatedBuffer(const AllocatedBuffer&) = delete;
         AllocatedBuffer(AllocatedBuffer &&src) noexcept;

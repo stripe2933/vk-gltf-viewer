@@ -167,30 +167,23 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 		std::from_range, eqmapImageData.asSpan(),
 		vk::BufferUsageFlagBits::eTransferSrc);
 
-	vku::AllocatedImage eqmapImage {
-		gpu.allocator,
-		vk::ImageCreateInfo {
-			{},
-			vk::ImageType::e2D,
-			vk::Format::eR32G32B32A32Sfloat,
-			vk::Extent3D { eqmapImageData.width, eqmapImageData.height, 1 },
-			vku::Image::maxMipLevels({ eqmapImageData.width, eqmapImageData.height }), 1,
-			vk::SampleCountFlagBits::e1,
-			vk::ImageTiling::eOptimal,
-			vk::ImageUsageFlagBits::eTransferDst
-				| vk::ImageUsageFlagBits::eSampled /* cubemap generation */
-				| vk::ImageUsageFlagBits::eTransferSrc /* mipmap generation */,
-			vk::SharingMode::eConcurrent, vku::unsafeProxy(std::set {
-				gpu.queueFamilies.transfer,
-				gpu.queueFamilies.compute,
-				gpu.queueFamilies.graphicsPresent,
-			} | std::ranges::to<std::vector<std::uint32_t>>()),
-		},
-		vma::AllocationCreateInfo {
-			{},
-			vma::MemoryUsage::eAutoPreferDevice
-		},
-	};
+	vku::AllocatedImage eqmapImage { gpu.allocator, vk::ImageCreateInfo {
+		{},
+		vk::ImageType::e2D,
+		vk::Format::eR32G32B32A32Sfloat,
+		vk::Extent3D { eqmapImageData.width, eqmapImageData.height, 1 },
+		vku::Image::maxMipLevels({ eqmapImageData.width, eqmapImageData.height }), 1,
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eTransferDst
+			| vk::ImageUsageFlagBits::eSampled /* cubemap generation */
+			| vk::ImageUsageFlagBits::eTransferSrc /* mipmap generation */,
+		vk::SharingMode::eConcurrent, vku::unsafeProxy(std::set {
+			gpu.queueFamilies.transfer,
+			gpu.queueFamilies.compute,
+			gpu.queueFamilies.graphicsPresent,
+		} | std::ranges::to<std::vector<std::uint32_t>>()),
+	} };
 
 	// TODO: instead creating a temporary command pool, accept the transfer command buffer as a function parameter,
 	//  record all required comamnds, and submit (+ wait) once.

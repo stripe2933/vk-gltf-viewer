@@ -99,7 +99,7 @@ pbrenvmap::Generator::Generator(
         vk::ImageUsageFlagBits::eStorage // to be storage image in cubemap and mipmap generation
             | vk::ImageUsageFlagBits::eSampled // to be sampled for irradiance/prefiltered map generation
             | config.cubemap.usage,
-    }, vma::AllocationCreateInfo { {}, vma::MemoryUsage::eAutoPreferDevice, } },
+    } },
     sphericalHarmonicCoefficientsBuffer { allocator, vk::BufferCreateInfo {
         {},
         sizeof(float) * 27,
@@ -120,7 +120,7 @@ pbrenvmap::Generator::Generator(
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eStorage // to be used as storage image in prefiltered map generation
             | config.prefilteredmap.usage,
-    }, vma::AllocationCreateInfo { {}, vma::MemoryUsage::eAutoPreferDevice, } },
+    } },
     device { device },
     config { config },
     cubemapImageView { device, vk::ImageViewCreateInfo {
@@ -160,7 +160,7 @@ pbrenvmap::Generator::Generator(
         sizeof(float) * 27 * pipelines::SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
             getWorkgroupTotal(pipelines::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size))),
         vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
-    }, vma::AllocationCreateInfo { {}, vma::MemoryUsage::eAutoPreferDevice, } },
+    } },
     descriptorPool { device, vk::DescriptorPoolCreateInfo {
         vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind,
         6,

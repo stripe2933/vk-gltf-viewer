@@ -228,9 +228,6 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::createJump
 		vk::ImageTiling::eOptimal,
 		vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */
 			| vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer, read from OutlineRenderer */,
-	}, vma::AllocationCreateInfo {
-		{},
-		vma::MemoryUsage::eAutoPreferDevice,
 	} };
 }
 

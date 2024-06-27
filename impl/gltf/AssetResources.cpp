@@ -56,18 +56,11 @@ using namespace std::string_view_literals;
     vk::BufferUsageFlags dstBufferUsage,
     vk::CommandBuffer copyCommandBuffer
 ) -> vku::AllocatedBuffer {
-    vku::AllocatedBuffer dstBuffer {
-        allocator,
-        vk::BufferCreateInfo {
-            {},
-            srcBuffer.size,
-            dstBufferUsage | vk::BufferUsageFlagBits::eTransferDst,
-        },
-        vma::AllocationCreateInfo {
-            {},
-            vma::MemoryUsage::eAutoPreferDevice,
-        },
-    };
+    vku::AllocatedBuffer dstBuffer { allocator, vk::BufferCreateInfo {
+        {},
+        srcBuffer.size,
+        dstBufferUsage | vk::BufferUsageFlagBits::eTransferDst,
+    } };
     copyCommandBuffer.copyBuffer(
         srcBuffer, dstBuffer,
         vk::BufferCopy { 0, 0, srcBuffer.size });
@@ -83,18 +76,11 @@ using namespace std::string_view_literals;
     return copyInfos
         | transform([&](const auto &copyInfo) {
             const auto [srcOffset, copySize, dstBufferUsage] = copyInfo;
-            vku::AllocatedBuffer dstBuffer {
-                allocator,
-                vk::BufferCreateInfo {
-                    {},
-                    copySize,
-                    dstBufferUsage | vk::BufferUsageFlagBits::eTransferDst,
-                },
-                vma::AllocationCreateInfo {
-                    {},
-                    vma::MemoryUsage::eAutoPreferDevice,
-                },
-            };
+            vku::AllocatedBuffer dstBuffer { allocator, vk::BufferCreateInfo {
+                {},
+                copySize,
+                dstBufferUsage | vk::BufferUsageFlagBits::eTransferDst,
+            } };
             copyCommandBuffer.copyBuffer(
                 srcBuffer, dstBuffer,
                 vk::BufferCopy { srcOffset, 0, copySize });
@@ -294,23 +280,16 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
         | ranges::views::enumerate
         | transform([&](const auto &indexedResult) {
             const auto &[imageIndex, decodeResult] = indexedResult;
-            return vku::AllocatedImage {
-                allocator,
-                vk::ImageCreateInfo {
-                    {},
-                    vk::ImageType::e2D,
-                    srgbImageIndices.contains(imageIndex) ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm,
-                    vk::Extent3D { decodeResult.width, decodeResult.height, 1 },
-                    vku::Image::maxMipLevels({ decodeResult.width, decodeResult.height }), 1,
-                    vk::SampleCountFlagBits::e1,
-                    vk::ImageTiling::eOptimal,
-                    vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
-                },
-                vma::AllocationCreateInfo {
-                    {},
-                    vma::MemoryUsage::eAutoPreferDevice,
-                },
-            };
+            return vku::AllocatedImage { allocator, vk::ImageCreateInfo {
+                {},
+                vk::ImageType::e2D,
+                srgbImageIndices.contains(imageIndex) ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm,
+                vk::Extent3D { decodeResult.width, decodeResult.height, 1 },
+                vku::Image::maxMipLevels({ decodeResult.width, decodeResult.height }), 1,
+                vk::SampleCountFlagBits::e1,
+                vk::ImageTiling::eOptimal,
+                vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
+            } };
         })
         | std::ranges::to<std::vector<vku::AllocatedImage>>();
 }
@@ -420,18 +399,11 @@ auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
     vma::Allocator allocator
 ) const -> decltype(materialBuffer) {
     if (asset.materials.empty()) return std::nullopt;
-    return std::optional<vku::AllocatedBuffer> { std::in_place,
-        allocator,
-        vk::BufferCreateInfo {
-            {},
-            sizeof(GpuMaterial) * asset.materials.size(),
-            vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-        },
-        vma::AllocationCreateInfo {
-            {},
-            vma::MemoryUsage::eAutoPreferDevice,
-        },
-    };
+    return std::optional<vku::AllocatedBuffer> { std::in_place, allocator, vk::BufferCreateInfo {
+        {},
+        sizeof(GpuMaterial) * asset.materials.size(),
+        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    } };
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::stageImages(

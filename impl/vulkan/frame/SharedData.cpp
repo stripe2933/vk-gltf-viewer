@@ -266,9 +266,6 @@ auto vk_gltf_viewer::vulkan::SharedData::createGltfFallbackImage() const -> decl
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
 		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
-	}, vma::AllocationCreateInfo {
-        {},
-		vma::MemoryUsage::eAutoPreferDevice,
 	} };
 }
 
@@ -293,9 +290,6 @@ auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImage() const -> decltype(
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
 		vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
-	}, vma::AllocationCreateInfo {
-        {},
-		vma::MemoryUsage::eAutoPreferDevice,
 	} };
 }
 
