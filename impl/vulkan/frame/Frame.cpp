@@ -652,8 +652,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 	//	to ‘Load’. However, if Vulkan extensions such as VK_KHR_dynamic_rendering_local_read are available, a pipeline
 	//	barrier can be inserted within the dynamic rendering scope, thus avoiding the need for duplicated rendering.
 
-	// Start dynamic rendering with B8G8R8A8_UNORM format.
-	cb.beginRenderingKHR(sharedData->imGuiSwapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
+	// Start dynamic rendering with B8G8R8A8_SRGB format.
+	cb.beginRenderingKHR(sharedData->swapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
 		std::array {
 			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f } }
 		}));
@@ -726,7 +726,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		{}, {});
 
 	// Start dynamic rendering with B8G8R8A8_UNORM format.
-	cb.beginRenderingKHR(sharedData->swapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
+	cb.beginRenderingKHR(sharedData->imGuiSwapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
 		std::array {
 			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore }
 		}));
