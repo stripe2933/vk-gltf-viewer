@@ -82,11 +82,18 @@ vk_gltf_viewer::MainApp::~MainApp() {
 }
 
 auto vk_gltf_viewer::MainApp::run() -> void {
+	// Optionals that indicates frame should handle swapchain resize to the extent at the corresponding index.
+	std::array<std::optional<vk::Extent2D>, std::tuple_size_v<decltype(frames)>> shouldHandleSwapchainResize{};
+
 	float elapsedTime = 0.f;
 	for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % frames.size()) {
 		const float glfwTime = static_cast<float>(glfwGetTime());
 		const float timeDelta = glfwTime - std::exchange(elapsedTime, glfwTime);
-		const auto task = update(timeDelta);
+
+		vulkan::Frame::OnLoopTask task = update(timeDelta);
+		if (const auto &extent = std::exchange(shouldHandleSwapchainResize[frameIndex], std::nullopt)) {
+			task.swapchainResizeHandleInfo.emplace(*window.surface, *extent);
+		}
 
         const std::expected frameOnLoopResult = frames[frameIndex].onLoop(task);
 		if (frameOnLoopResult) handleOnLoopResult(*frameOnLoopResult);
@@ -101,10 +108,8 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			}
 
 			frameSharedData->handleSwapchainResize(*window.surface, { framebufferSize.x, framebufferSize.y });
-			for (vulkan::Frame &frame : frames) {
-				frame.handleSwapchainResize(*window.surface, { framebufferSize.x, framebufferSize.y });
-			}
-
+			// Frames should handle swapchain resize with extent=framebufferSize.
+			shouldHandleSwapchainResize.fill(vk::Extent2D { framebufferSize.x, framebufferSize.y });
 		}
 	}
 	gpu.device.waitIdle();

@@ -26,6 +26,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     		std::optional<vk::Offset2D> mouseCursorOffset;
     		std::optional<std::uint32_t> hoveringNodeIndex, selectedNodeIndex;
     		bool useBlurredSkybox;
+    		std::optional<std::pair<vk::SurfaceKHR, vk::Extent2D>> swapchainResizeHandleInfo;
     	};
 
 		struct OnLoopResult {
@@ -40,8 +41,6 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	Frame(const std::shared_ptr<SharedData> &sharedData, const Gpu &gpu);
 
     	[[nodiscard]] auto onLoop(const OnLoopTask &task) -> std::expected<OnLoopResult, OnLoopError>;
-
-    	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
     private:
     	class PassthruExtentDependentResources {
@@ -103,6 +102,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
+    	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
     	auto update(const OnLoopTask &task, OnLoopResult &result) -> void;
 
     	auto recordDepthPrepassCommands(vk::CommandBuffer cb, const OnLoopTask &task) const -> void;
