@@ -5,6 +5,7 @@ module;
 #include <stack>
 #include <variant>
 #include <vector>
+#include <version>
 
 #include <fastgltf/types.hpp>
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -223,24 +224,24 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                                     [](const std::pmr::vector<int64_t> &min, const std::pmr::vector<int64_t> &max) {
                                         assert(min.size() == max.size() && "Different min/max dimension");
                                         if (min.size() == 1) ImGui::Text("[%lld, %lld]", min[0], max[0]);
-#if __cpp_lib_range_format >= 202209L
+#if __cpp_lib_format_ranges >= 202207L
                                         else ImGui::TextUnformatted(std::format("{}x{}", min, max).c_str());
 #else
-                                        else if (min.size() == 2) ImGui::Text("[%lld, %lld]x[%lld, %lld]", min[0], max[0], min[1], max[1]);
-                                        else if (min.size() == 3) ImGui::Text("[%lld, %lld]x[%lld, %lld]x[%lld, %lld]", min[0], max[0], min[1], max[1], min[2], max[2]);
-                                        else if (min.size() == 4) ImGui::Text("[%lld, %lld]x[%lld, %lld]x[%lld, %lld]x[%lld, %lld]", min[0], max[0], min[1], max[1], min[2], max[2], min[3], max[3]);
+                                        else if (min.size() == 2) ImGui::Text("[%lld, %lld]x[%lld, %lld]", min[0], min[1], max[0], max[1]);
+                                        else if (min.size() == 3) ImGui::Text("[%lld, %lld, %lld]x[%lld, %lld, %lld]", min[0], min[1], min[2], max[0], max[1], max[2]);
+                                        else if (min.size() == 4) ImGui::Text("[%lld, %lld, %lld, %lld]x[%lld, %lld, %lld, %lld]", min[0], min[1], min[2], min[3], max[0], max[1], max[2], max[3]);
                                         else assert(false && "Unsupported min/max dimension");
 #endif
                                     },
                                     [](const std::pmr::vector<double> &min, const std::pmr::vector<double> &max) {
                                         assert(min.size() == max.size() && "Different min/max dimension");
                                         if (min.size() == 1) ImGui::Text("[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, max[0]);
-#if __cpp_lib_range_format >= 202209L
+#if __cpp_lib_format_ranges >= 202207L
                                         else ImGui::TextUnformatted(std::format("{::.{}f}x{::.{}f}", min, floatingPointPrecision, max, floatingPointPrecision).c_str());
 #else
-                                        else if (min.size() == 2) ImGui::Text("[%.*lf, %.*lf]x[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, max[0], floatingPointPrecision, min[1], floatingPointPrecision, max[1]);
-										else if (min.size() == 3) ImGui::Text("[%.*lf, %.*lf]x[%.*lf, %.*lf]x[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, max[0], floatingPointPrecision, min[1], floatingPointPrecision, max[1], floatingPointPrecision, min[2], floatingPointPrecision, max[2]);
-										else if (min.size() == 4) ImGui::Text("[%.*lf, %.*lf]x[%.*lf, %.*lf]x[%.*lf, %.*lf]x[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, max[0], floatingPointPrecision, min[1], floatingPointPrecision, max[1], floatingPointPrecision, min[2], floatingPointPrecision, max[2], floatingPointPrecision, min[3], floatingPointPrecision, max[3]);
+                                        else if (min.size() == 2) ImGui::Text("[%.*lf, %.*lf]x[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, max[0], floatingPointPrecision, max[1]);
+										else if (min.size() == 3) ImGui::Text("[%.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2]);
+										else if (min.size() == 4) ImGui::Text("[%.*lf, %.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], min[1], floatingPointPrecision, min[3], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2], floatingPointPrecision, max[3]);
 										else assert(false && "Unsupported min/max dimension");
 #endif
                                     },
