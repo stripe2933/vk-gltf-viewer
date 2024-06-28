@@ -13,6 +13,8 @@ module;
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <enum_flags.hpp>
+
 module vk_gltf_viewer;
 import :vulkan.frame.SharedData;
 
@@ -265,7 +267,7 @@ auto vk_gltf_viewer::vulkan::SharedData::createGltfFallbackImage() const -> decl
 		1, 1,
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+		ENUM_OR(vk::ImageUsageFlagBits, eTransferDst, eSampled),
 	} };
 }
 
@@ -289,7 +291,7 @@ auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImage() const -> decltype(
 		1, 1,
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
+		ENUM_OR(vk::ImageUsageFlagBits, eStorage, eSampled),
 	} };
 }
 

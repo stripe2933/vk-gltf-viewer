@@ -8,6 +8,8 @@ module;
 
 #include <fastgltf/core.hpp>
 
+#include <enum_flags.hpp>
+
 module vk_gltf_viewer;
 import :gltf.SceneResources;
 import :helpers.ranges;
@@ -165,14 +167,14 @@ auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
             criteria,
             allocator,
             std::from_range, commands,
-            vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer);
+            ENUM_OR(vk::BufferUsageFlagBits, eIndirectBuffer, eStorageBuffer));
     }
     for (const auto &[criteria, commands] : nonIndexedCommandGroups) {
         result.try_emplace(
             criteria,
             allocator,
             std::from_range, commands,
-            vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer);
+            ENUM_OR(vk::BufferUsageFlagBits, eIndirectBuffer, eStorageBuffer));
     }
 
     return result;

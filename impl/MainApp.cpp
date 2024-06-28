@@ -20,6 +20,8 @@ module;
 #include <ImGuizmo.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <enum_flags.hpp>
+
 module vk_gltf_viewer;
 import :MainApp;
 
@@ -175,9 +177,7 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 		vku::Image::maxMipLevels({ eqmapImageData.width, eqmapImageData.height }), 1,
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eTransferDst
-			| vk::ImageUsageFlagBits::eSampled /* cubemap generation */
-			| vk::ImageUsageFlagBits::eTransferSrc /* mipmap generation */,
+		ENUM_OR(vk::ImageUsageFlagBits, eTransferDst, eSampled /* cubemap generation */, eTransferSrc /* mipmap generation */),
 		vk::SharingMode::eConcurrent, vku::unsafeProxy(std::set {
 			gpu.queueFamilies.transfer,
 			gpu.queueFamilies.compute,

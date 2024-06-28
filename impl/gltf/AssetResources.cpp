@@ -27,6 +27,8 @@ module;
 #include <fastgltf/tools.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <enum_flags.hpp>
+
 module vk_gltf_viewer;
 import :gltf.AssetResources;
 
@@ -294,7 +296,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
                 vku::Image::maxMipLevels({ decodeResult.width, decodeResult.height }), 1,
                 vk::SampleCountFlagBits::e1,
                 vk::ImageTiling::eOptimal,
-                vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
+                ENUM_OR(vk::ImageUsageFlagBits, eTransferDst, eTransferSrc, eSampled),
             } };
         })
         | std::ranges::to<std::vector<vku::AllocatedImage>>();
@@ -408,7 +410,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
     return std::optional<vku::AllocatedBuffer> { std::in_place, allocator, vk::BufferCreateInfo {
         {},
         sizeof(GpuMaterial) * asset.materials.size(),
-        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+        ENUM_OR(vk::BufferUsageFlagBits, eTransferDst, eStorageBuffer),
     } };
 }
 
@@ -546,7 +548,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
             return std::tuple {
                 srcOffset,
                 bufferViewBytes.size(),
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                ENUM_OR(vk::BufferUsageFlagBits, eStorageBuffer, eShaderDeviceAddress),
             };
         }, attributeBufferViewBytes | values, copyOffsets),
         copyCommandBuffer);
@@ -660,11 +662,11 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMapping
         attributeType,
         createStagingDstBuffer(
             gpu.allocator, bufferPtrStagingBuffer,
-            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            ENUM_OR(vk::BufferUsageFlagBits, eStorageBuffer, eShaderDeviceAddress),
             copyCommandBuffer),
         createStagingDstBuffer(
             gpu.allocator, stridesStagingBuffer,
-            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            ENUM_OR(vk::BufferUsageFlagBits, eStorageBuffer, eShaderDeviceAddress),
             copyCommandBuffer)).first /* iterator */ ->second /* std::pair<vku::AllocatedBuffer, vku::AllocatedBuffer> */;
 
     const vk::DeviceAddress pBufferPtrsBuffer = gpu.device.getBufferAddress({ bufferPtrsBuffer.buffer }),
@@ -757,7 +759,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
     tangentBuffer.emplace(
         createStagingDstBuffer(
             gpu.allocator, stagingBuffer,
-            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            ENUM_OR(vk::BufferUsageFlagBits, eStorageBuffer, eShaderDeviceAddress),
             copyCommandBuffer));
     const vk::DeviceAddress pTangentBuffer = gpu.device.getBufferAddress({ tangentBuffer->buffer });
 

@@ -82,6 +82,7 @@ add_executable(vk-gltf-viewer
 	main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
+	include
 	${Stb_INCLUDE_DIR}
 )
 target_sources(vk-gltf-viewer PRIVATE
