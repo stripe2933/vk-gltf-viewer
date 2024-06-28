@@ -268,10 +268,10 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
     // Therefore, first traverse the asset and fetch the image index that must be in vk::Format::eR8G8B8A8Srgb.
     std::unordered_set<std::size_t> srgbImageIndices;
     for (const fastgltf::Material &material : asset.materials) {
-        if (const auto &baseColorTexture = material.pbrData.baseColorTexture; baseColorTexture) {
+        if (const auto &baseColorTexture = material.pbrData.baseColorTexture) {
             srgbImageIndices.emplace(asset.textures[baseColorTexture->textureIndex].imageIndex.value());
         }
-        if (const auto &emissiveTexture = material.emissiveTexture; emissiveTexture) {
+        if (const auto &emissiveTexture = material.emissiveTexture) {
             srgbImageIndices.emplace(asset.textures[emissiveTexture->textureIndex].imageIndex.value());
         }
     }
@@ -298,7 +298,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImageViews(
     const vk::raii::Device &device
 ) const -> decltype(imageViews) {
     return images
-        | transform([&](const vku::AllocatedImage &image) {
+        | transform([&](const vku::Image &image) {
             return vk::raii::ImageView { device, vk::ImageViewCreateInfo {
                 {},
                 image,
@@ -418,26 +418,25 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
         resourceBytes.images | transform([](const auto &image) { return image.asSpan(); }));
 
     // 1. Change image layouts to vk::ImageLayout::eTransferDstOptimal.
-    const std::vector imageMemoryBarriers
-        = images
-        | transform([](vk::Image image) {
-            return vk::ImageMemoryBarrier {
-                {}, vk::AccessFlagBits::eTransferWrite,
-                {}, vk::ImageLayout::eTransferDstOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                image, vku::fullSubresourceRange(),
-            };
-        })
-        | std::ranges::to<std::vector<vk::ImageMemoryBarrier>>();
     copyCommandBuffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-        {}, {}, {}, imageMemoryBarriers);
+        {}, {}, {},
+        images
+            | transform([](vk::Image image) {
+                return vk::ImageMemoryBarrier {
+                    {}, vk::AccessFlagBits::eTransferWrite,
+                    {}, vk::ImageLayout::eTransferDstOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    image, vku::fullSubresourceRange(),
+                };
+            })
+            | std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
 
     // 2. Copy image data from staging buffer to images.
     for (const auto &[image, copyOffset] : zip(images, copyOffsets)) {
         copyCommandBuffer.copyBufferToImage(
-            stagingBuffer, image,
-            vk::ImageLayout::eTransferDstOptimal,
+            stagingBuffer,
+            image, vk::ImageLayout::eTransferDstOptimal,
             vk::BufferImageCopy {
                 copyOffset, 0, 0,
                 vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
@@ -463,25 +462,25 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
                 .emissiveFactor = glm::gtc::make_vec3(material.emissiveFactor.data()),
             };
 
-            if (const auto &baseColorTexture = material.pbrData.baseColorTexture; baseColorTexture) {
+            if (const auto &baseColorTexture = material.pbrData.baseColorTexture) {
                 gpuMaterial.baseColorTexcoordIndex = baseColorTexture->texCoordIndex;
                 gpuMaterial.baseColorTextureIndex = static_cast<std::int16_t>(baseColorTexture->textureIndex);
             }
-            if (const auto &metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture; metallicRoughnessTexture) {
+            if (const auto &metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture) {
                 gpuMaterial.metallicRoughnessTexcoordIndex = metallicRoughnessTexture->texCoordIndex;
                 gpuMaterial.metallicRoughnessTextureIndex = static_cast<std::int16_t>(metallicRoughnessTexture->textureIndex);
             }
-            if (const auto &normalTexture = material.normalTexture; normalTexture) {
+            if (const auto &normalTexture = material.normalTexture) {
                 gpuMaterial.normalTexcoordIndex = normalTexture->texCoordIndex;
                 gpuMaterial.normalTextureIndex = static_cast<std::int16_t>(normalTexture->textureIndex);
                 gpuMaterial.normalScale = normalTexture->scale;
             }
-            if (const auto &occlusionTexture = material.occlusionTexture; occlusionTexture) {
+            if (const auto &occlusionTexture = material.occlusionTexture) {
                 gpuMaterial.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
                 gpuMaterial.occlusionTextureIndex = static_cast<std::int16_t>(occlusionTexture->textureIndex);
                 gpuMaterial.occlusionStrength = occlusionTexture->strength;
             }
-            if (const auto &emissiveTexture = material.emissiveTexture; emissiveTexture) {
+            if (const auto &emissiveTexture = material.emissiveTexture) {
                 gpuMaterial.emissiveTexcoordIndex = emissiveTexture->texCoordIndex;
                 gpuMaterial.emissiveTextureIndex = static_cast<std::int16_t>(emissiveTexture->textureIndex);
             }
