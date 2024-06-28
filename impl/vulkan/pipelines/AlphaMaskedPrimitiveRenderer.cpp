@@ -152,6 +152,7 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::AlphaMaskedPrimitiveRenderer
 #define MATERIAL materials[PRIMITIVE.materialIndex]
 
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
+const float ALPHA_CUTOFF = 0.5;
 
 struct SphericalHarmonicBasis{
     float band0[1];
@@ -245,7 +246,6 @@ vec3 computeDiffuseIrradiance(vec3 normal){
 
 void main(){
     vec4 baseColor = MATERIAL.baseColorFactor * texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], fragBaseColorTexcoord);
-    if (baseColor.a < 0.1) discard; // TODO: discard is very bad for performance...
 
     vec2 metallicRoughness = vec2(MATERIAL.metallicFactor, MATERIAL.roughnessFactor) * texture(textures[int(MATERIAL.metallicRoughnessTextureIndex) + 1], fragMetallicRoughnessTexcoord).bg;
     float metallic = metallicRoughness.x;
@@ -290,7 +290,12 @@ void main(){
         color = emissive;
     }
 
-    outColor = vec4(color, 1.0);
+    float alpha = baseColor.a;
+    // Apply sharpness to the alpha.
+    // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
+    alpha = (alpha - ALPHA_CUTOFF) / max(fwidth(alpha), 1e-4) + 0.5;
+
+    outColor = vec4(color, alpha);
 }
 )frag";
 
@@ -321,6 +326,12 @@ auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedPrimitiveRenderer::createPipe
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},
                 true, true, vk::CompareOp::eGreater, // Use reverse Z.
+            }))
+            .setPMultisampleState(vku::unsafeAddress(vk::PipelineMultisampleStateCreateInfo {
+                {},
+                vk::SampleCountFlagBits::e4,
+                {}, {}, {},
+                true,
             }))
             .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                 {},
