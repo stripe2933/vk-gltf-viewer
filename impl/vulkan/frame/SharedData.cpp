@@ -168,7 +168,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 							{}, vk::AccessFlagBits::eTransferRead,
 							{}, {},
 							gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-							image, vku::fullSubresourceRange(),
+							image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
 						};
 					})
 					| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
@@ -382,20 +382,31 @@ auto vk_gltf_viewer::vulkan::SharedData::recordImageMipmapGenerationCommands(
         const auto targetImages = std::ranges::subrange(begin, pImages.end()) | ranges::views::deref;
 
         // Make image barriers that transition the subresource at the srcLevel to TRANSFER_SRC_OPTIMAL.
-        graphicsCommandBuffer.pipelineBarrier(
-            vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
-            {}, {}, {},
-            targetImages
-                | std::views::transform([baseMipLevel = srcLevel](const vku::Image &image) {
-                    return vk::ImageMemoryBarrier {
-                        vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eTransferRead,
-                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        image,
-                        { vk::ImageAspectFlagBits::eColor, baseMipLevel, 1, 0, vk::RemainingArrayLayers },
-                    };
+        graphicsCommandBuffer.pipelineBarrier2KHR({
+            {},
+            {}, {},
+            vku::unsafeProxy(targetImages
+                | std::views::transform([&](const vku::Image &image) {
+                    return std::array {
+                    	vk::ImageMemoryBarrier2 {
+	                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+	                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
+	                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+	                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+	                        image, { vk::ImageAspectFlagBits::eColor, srcLevel, 1, 0, 1 },
+                    	},
+                    	vk::ImageMemoryBarrier2 {
+	                        {}, {},
+	                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
+	                        {}, vk::ImageLayout::eTransferDstOptimal,
+	                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+	                        image, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
+                    	},
+	                };
                 })
-                | std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
+        		| std::views::join
+                | std::ranges::to<std::vector<vk::ImageMemoryBarrier2>>()),
+        });
 
         // Blit from srcLevel to dstLevel.
         for (const vku::Image &image : targetImages) {

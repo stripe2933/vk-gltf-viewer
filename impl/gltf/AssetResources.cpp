@@ -423,7 +423,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
         allocator,
         resourceBytes.images | transform([](const auto &image) { return image.asSpan(); }));
 
-    // 1. Change image layouts to vk::ImageLayout::eTransferDstOptimal.
+    // 1. Change image[mipLevel=0] layouts to vk::ImageLayout::eTransferDstOptimal for staging.
     copyCommandBuffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
         {}, {}, {},
@@ -433,7 +433,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
                     {}, vk::AccessFlagBits::eTransferWrite,
                     {}, vk::ImageLayout::eTransferDstOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    image, vku::fullSubresourceRange(),
+                    image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
                 };
             })
             | std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
@@ -905,7 +905,7 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
                     vk::AccessFlagBits::eTransferWrite, {},
                     {}, {},
                     queueFamilies.transfer, queueFamilies.graphicsPresent,
-                    image, vku::fullSubresourceRange(),
+                    image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
                 };
             })
             | std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
