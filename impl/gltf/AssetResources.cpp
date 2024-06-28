@@ -24,6 +24,7 @@ module;
 
 #include <fastgltf/core.hpp>
 #include <mikktspace.h>
+#include <fastgltf/tools.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
@@ -195,13 +196,15 @@ auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createImages(
 vk_gltf_viewer::gltf::AssetResources::AssetResources(
     const fastgltf::Asset &asset,
     const std::filesystem::path &assetDir,
-    const vulkan::Gpu &gpu
-) : AssetResources { asset, ResourceBytes { asset, assetDir }, gpu } { }
+    const vulkan::Gpu &gpu,
+    const Config &config
+) : AssetResources { asset, ResourceBytes { asset, assetDir }, gpu, config } { }
 
 vk_gltf_viewer::gltf::AssetResources::AssetResources(
     const fastgltf::Asset &asset,
     const ResourceBytes &resourceBytes,
-    const vulkan::Gpu &gpu
+    const vulkan::Gpu &gpu,
+    const Config &config
 ) : asset { asset },
     primitiveInfos { createPrimitiveInfos(asset) },
     defaultSampler { createDefaultSampler(gpu.device) },
@@ -220,7 +223,7 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
         stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Texcoord, gpu, cb);
         stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Color, gpu, cb);
         stagePrimitiveTangentBuffers(resourceBytes, gpu, cb);
-        stagePrimitiveIndexBuffers(resourceBytes, gpu.allocator, cb);
+        stagePrimitiveIndexBuffers(resourceBytes, gpu.allocator, cb, config.supportUint8Index);
 
         releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
     });
@@ -766,7 +769,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
     const ResourceBytes &resourceBytes,
     vma::Allocator allocator,
-    vk::CommandBuffer copyCommandBuffer
+    vk::CommandBuffer copyCommandBuffer,
+    bool supportUint8Index
 ) -> void {
     // Primitive that are contains an indices accessor.
     auto indexedPrimitives = asset.meshes
@@ -774,8 +778,12 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
         | join
         | filter([](const fastgltf::Primitive &primitive) { return primitive.indicesAccessor.has_value(); });
 
+    // Index data is either
+    // - span of the buffer view region, or
+    // - vector of uint16 indices if accessor have unsigned byte component and native uint8 index is not supported.
+    std::unordered_map<vk::IndexType, std::vector<std::pair<const fastgltf::Primitive*, std::variant<std::span<const std::uint8_t>, std::vector<std::uint16_t>>>>> indexBufferBytesByType;
+
     // Get buffer view bytes from indexedPrimtives and group them by index type.
-    std::unordered_map<vk::IndexType, std::vector<std::pair<const fastgltf::Primitive*, std::span<const std::uint8_t>>>> indexBufferBytesByType;
     for (const fastgltf::Primitive &primitive : indexedPrimitives) {
         const fastgltf::Accessor &accessor = asset.accessors[*primitive.indicesAccessor];
 
@@ -792,17 +800,47 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
         }
         if (isIndexInterleaved) throw std::runtime_error { "Interleaved index buffer not supported" };
 
-        const vk::IndexType indexType = [&]() {
-            switch (accessor.componentType) {
-                case fastgltf::ComponentType::UnsignedShort: return vk::IndexType::eUint16;
-                case fastgltf::ComponentType::UnsignedInt: return vk::IndexType::eUint32;
-                default: throw std::runtime_error { "Unsupported index type" };
+        switch (accessor.componentType) {
+            case fastgltf::ComponentType::UnsignedByte: {
+                if (supportUint8Index) {
+                    indexBufferBytesByType[vk::IndexType::eUint8KHR].emplace_back(
+                        &primitive,
+                        resourceBytes.getBufferViewBytes(asset.bufferViews[*accessor.bufferViewIndex])
+                            .subspan(accessor.byteOffset, accessor.count * componentByteSize));
+                }
+                else {
+                    // Make vector of uint16 indices.
+                    std::vector<std::uint16_t> indices(accessor.count);
+                    iterateAccessorWithIndex<std::uint8_t>(asset, accessor, [&](std::size_t i, std::uint8_t index) {
+                        indices[i] = index; // Index converted from uint8 to uint16.
+                    }, [&](const fastgltf::Buffer &buffer) {
+                        const std::size_t bufferIndex = &buffer - asset.buffers.data();
+                        return std::visit([](std::span<const std::uint8_t> bytes) {
+                            return as_bytes(bytes).data();
+                        }, resourceBytes.bufferBytes[bufferIndex]);
+                    });
+
+                    indexBufferBytesByType[vk::IndexType::eUint16].emplace_back(
+                        &primitive,
+                        std::move(indices));
+                }
+                break;
             }
-        }();
-        indexBufferBytesByType[indexType].emplace_back(
-            &primitive,
-            resourceBytes.getBufferViewBytes(asset.bufferViews[*accessor.bufferViewIndex])
-                .subspan(accessor.byteOffset, accessor.count * componentByteSize));
+            case fastgltf::ComponentType::UnsignedShort:
+                indexBufferBytesByType[vk::IndexType::eUint16].emplace_back(
+                    &primitive,
+                    resourceBytes.getBufferViewBytes(asset.bufferViews[*accessor.bufferViewIndex])
+                        .subspan(accessor.byteOffset, accessor.count * componentByteSize));
+                break;
+            case fastgltf::ComponentType::UnsignedInt:
+                indexBufferBytesByType[vk::IndexType::eUint32].emplace_back(
+                    &primitive,
+                    resourceBytes.getBufferViewBytes(asset.bufferViews[*accessor.bufferViewIndex])
+                        .subspan(accessor.byteOffset, accessor.count * componentByteSize));
+                break;
+            default:
+                throw std::runtime_error { "Unsupported index type: index must be either unsigned byte/short/int." };
+        }
     }
 
     // Combine index data into a single staging buffer, and create GPU local buffers for each index data. Record copy
@@ -810,7 +848,14 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
     indexBuffers = indexBufferBytesByType
         | transform([&](const auto &keyValue) {
             const auto &[indexType, bufferBytes] = keyValue;
-            const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(allocator, bufferBytes | values);
+            const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
+                allocator,
+                bufferBytes | values | transform([](const auto &variant) {
+                    return std::visit(fastgltf::visitor {
+                        [](std::span<const std::uint8_t> bufferBytes) { return as_bytes(bufferBytes); },
+                        [](std::span<const std::uint16_t> indices) { return as_bytes(indices); },
+                    }, variant);
+                }));
             auto indexBuffer = createStagingDstBuffer(allocator, stagingBuffer, vk::BufferUsageFlagBits::eIndexBuffer, copyCommandBuffer);
 
             for (auto [pPrimitive, offset] : zip(bufferBytes | keys, copyOffsets)) {

@@ -29,7 +29,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	const vku::Image &eqmapImage
 ) : asset { asset },
 	gpu { gpu },
-	assetResources { asset, assetDir, gpu },
+	assetResources { asset, assetDir, gpu, { .supportUint8Index = false /* TODO: change this value depend on vk::PhysicalDeviceIndexTypeUint8FeaturesKHR */ } },
 	swapchain { createSwapchain(surface, swapchainExtent) },
 	swapchainExtent { swapchainExtent } {
 	{

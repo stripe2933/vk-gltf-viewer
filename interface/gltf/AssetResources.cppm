@@ -44,6 +44,10 @@ namespace vk_gltf_viewer::gltf {
         std::list<vku::MappedBuffer> stagingBuffers;
 
     public:
+        struct Config {
+            bool supportUint8Index;
+        };
+
         enum class IndexedAttribute { Texcoord, Color };
 
         struct PrimitiveInfo {
@@ -97,10 +101,10 @@ namespace vk_gltf_viewer::gltf {
         std::optional<vku::AllocatedBuffer> tangentBuffer;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
-        AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const vulkan::Gpu &gpu);
+        AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const vulkan::Gpu &gpu, const Config &config = {});
 
     private:
-        AssetResources(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu);
+        AssetResources(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, const Config &config);
 
         [[nodiscard]] auto createPrimitiveInfos(const fastgltf::Asset &asset) const -> decltype(primitiveInfos);
 
@@ -116,7 +120,7 @@ namespace vk_gltf_viewer::gltf {
         auto stagePrimitiveAttributeBuffers(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
         auto stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute attributeType, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
         auto stagePrimitiveTangentBuffers(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto stagePrimitiveIndexBuffers(const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto stagePrimitiveIndexBuffers(const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer, bool supportUint8Index) -> void;
 
         auto releaseResourceQueueFamilyOwnership(const vulkan::Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
 
