@@ -131,7 +131,7 @@ auto vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::createPipeline(
         vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
             .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                 {},
-                vk::False, vk::False,
+                false, false,
                 vk::PolygonMode::eFill,
                 vk::CullModeFlagBits::eNone, {},
                 {}, {}, {}, {},
@@ -139,7 +139,7 @@ auto vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::createPipeline(
             }))
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},
-                vk::True, vk::False, vk::CompareOp::eEqual,
+                true, false, vk::CompareOp::eEqual,
             })),
         vk::PipelineRenderingCreateInfo {
             {},

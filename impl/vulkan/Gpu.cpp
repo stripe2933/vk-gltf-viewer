@@ -113,30 +113,30 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 				vk::KHRSwapchainMutableFormatExtensionName, // For ImGui gamma correction.
 			}),
 			vku::unsafeAddress(vk::PhysicalDeviceFeatures{}
-				.setSamplerAnisotropy(vk::True)
-				.setShaderInt64(vk::True)
-				.setMultiDrawIndirect(vk::True)
-				.setDepthBiasClamp(vk::True)
-				.setShaderStorageImageWriteWithoutFormat(vk::True)),
+				.setSamplerAnisotropy(true)
+				.setShaderInt64(true)
+				.setMultiDrawIndirect(true)
+				.setDepthBiasClamp(true)
+				.setShaderStorageImageWriteWithoutFormat(true)),
 		},
 		vk::PhysicalDeviceVulkan11Features{}
-			.setShaderDrawParameters(vk::True)
-			.setStorageBuffer16BitAccess(vk::True)
-			.setUniformAndStorageBuffer16BitAccess(vk::True),
+			.setShaderDrawParameters(true)
+			.setStorageBuffer16BitAccess(true)
+			.setUniformAndStorageBuffer16BitAccess(true),
 		vk::PhysicalDeviceVulkan12Features{}
-			.setBufferDeviceAddress(vk::True)
-			.setDescriptorIndexing(vk::True)
-			.setDescriptorBindingSampledImageUpdateAfterBind(vk::True)
-			.setDescriptorBindingStorageImageUpdateAfterBind(vk::True)
-			.setImagelessFramebuffer(vk::True)
-			.setRuntimeDescriptorArray(vk::True)
-			.setStorageBuffer8BitAccess(vk::True)
-			.setUniformAndStorageBuffer8BitAccess(vk::True)
-            .setStoragePushConstant8(vk::True)
-			.setScalarBlockLayout(vk::True),
-		vk::PhysicalDeviceDynamicRenderingFeatures { vk::True },
-		vk::PhysicalDeviceSynchronization2Features { vk::True },
-		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { vk::True },
+			.setBufferDeviceAddress(true)
+			.setDescriptorIndexing(true)
+			.setDescriptorBindingSampledImageUpdateAfterBind(true)
+			.setDescriptorBindingStorageImageUpdateAfterBind(true)
+			.setImagelessFramebuffer(true)
+			.setRuntimeDescriptorArray(true)
+			.setStorageBuffer8BitAccess(true)
+			.setUniformAndStorageBuffer8BitAccess(true)
+            .setStoragePushConstant8(true)
+			.setScalarBlockLayout(true),
+		vk::PhysicalDeviceDynamicRenderingFeatures { true },
+		vk::PhysicalDeviceSynchronization2Features { true },
+		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true }
 	}.get() };
 }
 

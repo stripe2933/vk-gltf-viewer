@@ -260,7 +260,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createDefaultSampler(
         vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
         {}, {}, {},
         {},
-        vk::True, 16.f,
+        true, 16.f,
         {}, {},
         {}, vk::LodClampNone,
     } };
@@ -368,7 +368,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
                 {}, {}, {},
                 convertSamplerAddressMode(assetSampler.wrapS), convertSamplerAddressMode(assetSampler.wrapT), {},
                 {},
-                vk::True, 16.f,
+                true, 16.f,
                 {}, {},
                 {}, vk::LodClampNone,
             };
