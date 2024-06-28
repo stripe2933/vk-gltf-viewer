@@ -156,10 +156,6 @@ template <std::ranges::random_access_range R>
             {},
             copyOffsets.back() + segmentSizes.back(), // = sum(segmentSizes).
             vk::BufferUsageFlagBits::eTransferSrc,
-        },
-        vma::AllocationCreateInfo {
-            vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
-            vma::MemoryUsage::eAuto,
         });
 
     for (const auto &[segment, copyOffset] : std::views::zip(segments, copyOffsets)){
