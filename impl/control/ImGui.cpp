@@ -60,9 +60,8 @@ auto vk_gltf_viewer::control::imgui::hdriEnvironments(
 
         ImGui::SeparatorText("Cubemap");
         ImGui::Checkbox("Use blurred skybox", &appState.useBlurredSkybox);
-
-        ImGui::End();
     }
+    ImGui::End();
 }
 
 auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(
@@ -127,9 +126,8 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(
             }
             ImGui::PopID();
         }
-
-		ImGui::End();
 	}
+	ImGui::End();
 }
 
 auto vk_gltf_viewer::control::imgui::nodeInspector(
