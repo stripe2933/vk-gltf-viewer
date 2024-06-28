@@ -19,6 +19,7 @@ module;
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
+#include <variant>
 #include <vector>
 
 #include <fastgltf/core.hpp>
@@ -98,20 +99,22 @@ vk_gltf_viewer::gltf::AssetResources::ResourceBytes::ResourceBytes(
 auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::getBufferViewBytes(
     const fastgltf::BufferView &bufferView
 ) const noexcept -> std::span<const std::uint8_t> {
-    return bufferBytes[bufferView.bufferIndex].subspan(bufferView.byteOffset, bufferView.byteLength);
+    return std::visit([&](std::span<const std::uint8_t> bytes) {
+        return bytes.subspan(bufferView.byteOffset, bufferView.byteLength);
+    }, bufferBytes[bufferView.bufferIndex]);
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createBufferBytes(
     const fastgltf::Asset &asset,
     const std::filesystem::path &assetDir
-) -> decltype(bufferBytes) {
+) const -> decltype(bufferBytes) {
     return asset.buffers
         | transform([&](const fastgltf::Buffer &buffer) {
             return visit(fastgltf::visitor {
-                [](const fastgltf::sources::Array &array) -> std::span<const std::uint8_t> {
+                [](const fastgltf::sources::Array &array) -> std::variant<std::span<const std::uint8_t>, std::vector<std::uint8_t>> {
                     return array.bytes;
                 },
-                [&](const fastgltf::sources::URI &uri) -> std::span<const std::uint8_t> {
+                [&](const fastgltf::sources::URI &uri) -> std::variant<std::span<const std::uint8_t>, std::vector<std::uint8_t>> {
                     if (!uri.uri.isLocalPath()) throw std::runtime_error { "Non-local source URI not supported." };
 
                     std::ifstream file { assetDir / uri.uri.fspath(), std::ios::binary };
@@ -125,14 +128,14 @@ auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createBufferBytes(
                     file.seekg(uri.fileByteOffset);
                     file.read(reinterpret_cast<char*>(data.data()), data.size());
 
-                    return externalBufferBytes.emplace_back(std::move(data));
+                    return { std::move(data) };
                 },
-                [](const auto &) -> std::span<const std::uint8_t> {
+                [](const auto &) -> std::variant<std::span<const std::uint8_t>, std::vector<std::uint8_t>> {
                     throw std::runtime_error { "Unsupported source data type" };
                 },
             }, buffer.data);
         })
-        | std::ranges::to<std::vector<std::span<const std::uint8_t>>>();
+        | std::ranges::to<std::vector<std::variant<std::span<const std::uint8_t>, std::vector<std::uint8_t>>>>();
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createImages(
@@ -711,7 +714,9 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
                 asset.accessors[texcoordIt->second],
                 [&](const fastgltf::Buffer &buffer) {
                     const std::size_t bufferIndex = &buffer - asset.buffers.data();
-                    return as_bytes(resourceBytes.bufferBytes[bufferIndex]).data();
+                    return std::visit([](std::span<const std::uint8_t> bytes) {
+                        return as_bytes(bytes).data();
+                    }, resourceBytes.bufferBytes[bufferIndex]);
                 },
             };
         })

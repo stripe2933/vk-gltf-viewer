@@ -12,6 +12,7 @@ module;
 #include <ranges>
 #include <span>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include <fastgltf/core.hpp>
@@ -25,11 +26,10 @@ export import :vulkan.Gpu;
 namespace vk_gltf_viewer::gltf {
     export class AssetResources {
         class ResourceBytes {
-            // Load external buffer/image bytes.
-            std::list<std::vector<std::uint8_t>> externalBufferBytes;
-
         public:
-            std::vector<std::span<const std::uint8_t>> bufferBytes; // bufferBytes[i] -> asset.buffers[i].data
+            // glTF buffer may be embeded in data buffer, or at the external storage.
+            // Therefore, we use variant of span (embeded) and vector (externally loaded) to represent buffer data.
+            std::vector<std::variant<std::span<const std::uint8_t>, std::vector<std::uint8_t>>> bufferBytes; // bufferBytes[i] -> asset.buffers[i].data
             std::vector<io::StbDecoder<std::uint8_t>::DecodeResult> images; // images[i] -> decoded image data.
 
             ResourceBytes(const fastgltf::Asset &asset, const std::filesystem::path &assetDir);
@@ -37,7 +37,7 @@ namespace vk_gltf_viewer::gltf {
             [[nodiscard]] auto getBufferViewBytes(const fastgltf::BufferView &bufferView) const noexcept -> std::span<const std::uint8_t>;
 
         private:
-            auto createBufferBytes(const fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> decltype(bufferBytes);
+            auto createBufferBytes(const fastgltf::Asset &asset, const std::filesystem::path &assetDir) const -> decltype(bufferBytes);
             auto createImages(const fastgltf::Asset &asset, const std::filesystem::path &assetDir) const -> decltype(images);
         };
 
