@@ -151,16 +151,27 @@ vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::DescriptorSetLayout
     std::uint32_t textureCount
 ) : vku::DescriptorSetLayouts<2, 2> {
         device,
-        LayoutBindings {
-            vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1 + textureCount, vk::ShaderStageFlagBits::eFragment },
-            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
-            std::array { vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind }, vk::DescriptorBindingFlags{} },
-        },
-        LayoutBindings {
+        vk::StructureChain {
+            vk::DescriptorSetLayoutCreateInfo {
+                vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
+                vku::unsafeProxy({
+                    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1 + textureCount, vk::ShaderStageFlagBits::eFragment },
+                    vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+                }),
+            },
+            vk::DescriptorSetLayoutBindingFlagsCreateInfo {
+                vku::unsafeProxy({
+                    vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind },
+                    vk::DescriptorBindingFlags{},
+                }),
+            }
+        }.get(),
+        vk::DescriptorSetLayoutCreateInfo {
             {},
-            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
-            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+            vku::unsafeProxy({
+                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+                vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+            }),
         },
     } { }
 
@@ -209,7 +220,7 @@ auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::createPipeline
 ) const -> decltype(pipelineLayout) {
     return { device, vk::PipelineLayoutCreateInfo{
         {},
-        descriptorSetLayouts,
+        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eAllGraphics,

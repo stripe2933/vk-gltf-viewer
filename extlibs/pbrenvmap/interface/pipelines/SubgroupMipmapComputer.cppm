@@ -152,11 +152,22 @@ void main(){
 pbrenvmap::pipelines::SubgroupMipmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
     std::uint32_t mipImageCount
-) : vku::DescriptorSetLayouts<1> { device, LayoutBindings {
-    vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, mipImageCount, vk::ShaderStageFlagBits::eCompute },
-    std::array { vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind } },
-} } { }
+) : vku::DescriptorSetLayouts<1> {
+        device,
+        vk::StructureChain {
+            vk::DescriptorSetLayoutCreateInfo {
+                vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
+                vku::unsafeProxy({
+                    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, mipImageCount, vk::ShaderStageFlagBits::eCompute },
+                }),
+            },
+            vk::DescriptorSetLayoutBindingFlagsCreateInfo {
+                vku::unsafeProxy({
+                    vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind },
+                }),
+            },
+        }.get(),
+    } { }
 
 pbrenvmap::pipelines::SubgroupMipmapComputer::SubgroupMipmapComputer(
     const vk::raii::Device &device,
@@ -228,7 +239,7 @@ auto pbrenvmap::pipelines::SubgroupMipmapComputer::createPipelineLayout(
 ) const -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
-        descriptorSetLayouts,
+        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eCompute,

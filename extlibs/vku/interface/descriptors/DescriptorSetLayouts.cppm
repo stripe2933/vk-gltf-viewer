@@ -1,37 +1,18 @@
 module;
 
+#include <cassert>
 #include <array>
 #include <tuple>
+#include <ranges>
 
 export module vku:descriptors.DescriptorSetLayouts;
 
 export import vulkan_hpp;
-import :details.nofield;
-import :details.type_traits;
+import :details.ranges;
 
 namespace vku {
     export template <std::size_t... BindingCounts>
-    class DescriptorSetLayouts : public std::array<vk::DescriptorSetLayout, sizeof...(BindingCounts)> {
-    public:
-        template <std::size_t BindingCount, bool HasBindingFlags = false>
-        struct LayoutBindings {
-            vk::DescriptorSetLayoutCreateFlags flags = {};
-            std::array<vk::DescriptorSetLayoutBinding, BindingCount> bindings;
-#ifndef _MSC_VER
-            [[no_unique_address]]
-#endif
-            std::conditional_t<HasBindingFlags, std::array<vk::DescriptorBindingFlags, BindingCount>, nofield> bindingFlags;
-        };
-
-        // Type deductions.
-        // TODO: tricky deduction, might be ill-formed...
-        template <typename... Ts>
-        LayoutBindings(vk::DescriptorSetLayoutCreateFlags, Ts...) -> LayoutBindings<
-            type_traits::leading_n<vk::DescriptorSetLayoutBinding, Ts...>,
-            std::convertible_to<
-                type_traits::last_type<Ts...>,
-                std::array<vk::DescriptorBindingFlags, type_traits::leading_n<vk::DescriptorSetLayoutBinding, Ts...>>>>;
-
+    struct DescriptorSetLayouts : std::array<vk::raii::DescriptorSetLayout, sizeof...(BindingCounts)> {
         /// Number of descriptor sets in the descriptor set layouts.
         static constexpr std::size_t setCount = sizeof...(BindingCounts);
 
@@ -39,35 +20,22 @@ namespace vku {
         template <std::size_t SetIndex>
         static constexpr std::size_t bindingCount = get<SetIndex>(std::array { BindingCounts... }); // TODO.CXX26: use pack indexing.
 
-        std::tuple<std::array<vk::DescriptorSetLayoutBinding, BindingCounts>...> setLayouts;
+        std::tuple<std::array<vk::DescriptorSetLayoutBinding, BindingCounts>...> layoutBindingsPerSet;
 
+        template <std::convertible_to<vk::DescriptorSetLayoutCreateInfo>... CreateInfos>
+            requires (sizeof...(CreateInfos) == setCount)
         explicit DescriptorSetLayouts(
             const vk::raii::Device &device,
-            const auto &...layoutBindings
-        ) : setLayouts { layoutBindings.bindings... },
-            raiiLayouts { vk::raii::DescriptorSetLayout { device, getDescriptorSetLayoutCreateInfo(layoutBindings).get() }... } {
-            static_cast<std::array<vk::DescriptorSetLayout, setCount>&>(*this)
-                = std::apply([&](const auto &...x) { return std::array { *x... }; }, raiiLayouts);
+             const CreateInfos&...createInfos
+        ) : std::array<vk::raii::DescriptorSetLayout, setCount> { vk::raii::DescriptorSetLayout { device, createInfos }... },
+            layoutBindingsPerSet { std::views::counted(createInfos.pBindings, BindingCounts) | ranges::to_array<BindingCounts>()... } {
+            assert(((createInfos.bindingCount == BindingCounts) && ...) && "Binding counts mismatch!");
         }
 
-    private:
-        std::array<vk::raii::DescriptorSetLayout, setCount> raiiLayouts;
-
-        template <std::size_t BindingCount, bool HasBindingFlags>
-        [[nodiscard]] static auto getDescriptorSetLayoutCreateInfo(
-            const LayoutBindings<BindingCount, HasBindingFlags> &layoutBindings
-        ) noexcept {
-            if constexpr (HasBindingFlags) {
-                return vk::StructureChain {
-                    vk::DescriptorSetLayoutCreateInfo { layoutBindings.flags, layoutBindings.bindings },
-                    vk::DescriptorSetLayoutBindingFlagsCreateInfo { layoutBindings.bindingFlags },
-                };
-            }
-            else {
-                return vk::StructureChain {
-                    vk::DescriptorSetLayoutCreateInfo { layoutBindings.flags, layoutBindings.bindings },
-                };
-            }
+        [[nodiscard]] auto getHandles() const noexcept -> std::array<vk::DescriptorSetLayout, setCount> {
+            return std::apply([](const auto &...raiiHandles) {
+                return std::array { *raiiHandles... };
+            }, static_cast<const std::array<vk::raii::DescriptorSetLayout, setCount>&>(*this));
         }
     };
 }

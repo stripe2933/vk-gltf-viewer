@@ -4,6 +4,7 @@ module;
 #include <ranges>
 #include <span>
 #include <tuple>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -11,15 +12,15 @@ export module vku:descriptors.PoolSizes;
 
 export import vulkan_hpp;
 import :descriptors.DescriptorSetLayouts;
+import :details.concepts;
 import :utils.RefHolder;
 
 namespace vku {
     export class PoolSizes {
     public:
         PoolSizes() = default;
-        template <std::size_t... BindingCounts>
-        explicit PoolSizes(const DescriptorSetLayouts<BindingCounts...> &layouts)
-            : setCount { DescriptorSetLayouts<BindingCounts...>::setCount } {
+        explicit PoolSizes(concepts::derived_from_value_specialization_of<DescriptorSetLayouts> auto const &layouts)
+            : setCount { std::remove_cvref_t<decltype(layouts)>::setCount } {
             std::apply([this](const auto &...layoutBindings){
                 const auto accumBindings = [this](std::span<const vk::DescriptorSetLayoutBinding> bindings) {
                     for (const auto &binding : bindings) {
@@ -27,7 +28,7 @@ namespace vku {
                     }
                 };
                 (accumBindings(layoutBindings), ...);
-            }, layouts.setLayouts);
+            }, layouts.layoutBindingsPerSet);
         }
         PoolSizes(const PoolSizes&) = default;
         PoolSizes(PoolSizes&&) noexcept = default;

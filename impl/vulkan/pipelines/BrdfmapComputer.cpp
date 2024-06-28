@@ -130,10 +130,15 @@ void main(){
 
 vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<1> { device, LayoutBindings {
-        {},
-        vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
-    } } { }
+) : vku::DescriptorSetLayouts<1> {
+        device,
+        vk::DescriptorSetLayoutCreateInfo {
+            {},
+            vku::unsafeProxy({
+                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
+            }),
+        }
+    } { }
 
 vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::BrdfmapComputer(
     const vk::raii::Device &device,
@@ -158,7 +163,7 @@ auto vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::createPipelineLayout(
 ) const -> decltype(pipelineLayout) {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
-        descriptorSetLayouts,
+        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
     } };
 }
 

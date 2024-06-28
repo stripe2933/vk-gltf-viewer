@@ -176,11 +176,16 @@ void main(){
 
 pbrenvmap::pipelines::SphericalHarmonicsComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<2> { device, LayoutBindings {
-        {},
-        vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
-        vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute },
-    } } { }
+) : vku::DescriptorSetLayouts<2> {
+        device,
+        vk::DescriptorSetLayoutCreateInfo {
+            {},
+            vku::unsafeProxy({
+                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
+                vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute },
+            }),
+        },
+    } { }
 
 pbrenvmap::pipelines::SphericalHarmonicsComputer::SphericalHarmonicsComputer(
     const vk::raii::Device &device,
@@ -211,7 +216,7 @@ auto pbrenvmap::pipelines::SphericalHarmonicsComputer::createPipelineLayout(
 ) -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
-        descriptorSetLayouts,
+        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
     } };
 }
 

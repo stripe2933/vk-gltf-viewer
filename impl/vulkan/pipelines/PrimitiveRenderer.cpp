@@ -303,22 +303,35 @@ vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::DescriptorSetLayouts::Desc
     std::uint32_t textureCount
 ) : vku::DescriptorSetLayouts<3, 2, 2> {
         device,
-        LayoutBindings {
+        vk::DescriptorSetLayoutCreateInfo {
             {},
-            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
-            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
-            vk::DescriptorSetLayoutBinding { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
+            vku::unsafeProxy({
+                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
+                vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
+                vk::DescriptorSetLayoutBinding { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
+            }),
         },
-        LayoutBindings {
-            vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1 + textureCount, vk::ShaderStageFlagBits::eFragment },
-            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
-            std::array { vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind }, vk::DescriptorBindingFlags{} },
-        },
-        LayoutBindings {
+        vk::StructureChain {
+            vk::DescriptorSetLayoutCreateInfo {
+                vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
+                vku::unsafeProxy({
+                    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1 + textureCount, vk::ShaderStageFlagBits::eFragment },
+                    vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
+                }),
+            },
+            vk::DescriptorSetLayoutBindingFlagsCreateInfo {
+                vku::unsafeProxy({
+                    vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind },
+                    vk::DescriptorBindingFlags{},
+                }),
+            },
+        }.get(),
+        vk::DescriptorSetLayoutCreateInfo {
             {},
-            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
-            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+            vku::unsafeProxy({
+                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
+                vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+            }),
         },
     } { }
 
@@ -373,7 +386,7 @@ auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::createPipelineLayout(
 ) const -> decltype(pipelineLayout) {
     return { device, vk::PipelineLayoutCreateInfo{
         {},
-        descriptorSetLayouts,
+        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eAllGraphics,

@@ -56,9 +56,11 @@ vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::DescriptorSetLayouts::Descri
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<1> {
         device,
-        LayoutBindings {
+        vk::DescriptorSetLayoutCreateInfo {
             {},
-            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eFragment },
+            vku::unsafeProxy({
+                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eFragment },
+            }),
         },
     } { }
 
@@ -101,7 +103,7 @@ auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::createPipelineLayout(
 ) const -> decltype(pipelineLayout) {
     return { device, vk::PipelineLayoutCreateInfo{
         {},
-        descriptorSetLayouts,
+        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eFragment,

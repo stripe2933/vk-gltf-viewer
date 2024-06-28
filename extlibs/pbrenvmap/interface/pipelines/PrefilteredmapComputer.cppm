@@ -212,12 +212,24 @@ pbrenvmap::pipelines::PrefilteredmapComputer::DescriptorSetLayouts::DescriptorSe
     const vk::raii::Device &device,
     const vk::Sampler &sampler,
     std::uint32_t roughnessLevels
-) : vku::DescriptorSetLayouts<2> { device, LayoutBindings {
-    vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eCompute, &sampler },
-    vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageImage, roughnessLevels, vk::ShaderStageFlagBits::eCompute },
-    std::array { vk::DescriptorBindingFlags{}, vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind } },
-} } { }
+) : vku::DescriptorSetLayouts<2> {
+        device,
+        vk::StructureChain {
+            vk::DescriptorSetLayoutCreateInfo {
+                vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
+                vku::unsafeProxy({
+                    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eCompute, &sampler },
+                    vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageImage, roughnessLevels, vk::ShaderStageFlagBits::eCompute },
+                }),
+            },
+            vk::DescriptorSetLayoutBindingFlagsCreateInfo {
+                vku::unsafeProxy({
+                    vk::DescriptorBindingFlags{},
+                    vk::DescriptorBindingFlagBits::ePartiallyBound | vk::DescriptorBindingFlagBits::eUpdateAfterBind,
+                }),
+            },
+        }.get(),
+    } { }
 
 pbrenvmap::pipelines::PrefilteredmapComputer::PrefilteredmapComputer(
     const vk::raii::Device &device,
@@ -270,7 +282,7 @@ auto pbrenvmap::pipelines::PrefilteredmapComputer::createPipelineLayout(
 ) -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
-        descriptorSetLayouts,
+        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eCompute,

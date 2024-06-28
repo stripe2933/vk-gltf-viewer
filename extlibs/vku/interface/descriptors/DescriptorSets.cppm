@@ -10,6 +10,7 @@ export import vulkan_hpp;
 export import :descriptors.DescriptorSetLayouts;
 import :details.concepts;
 import :details.ranges;
+import :utils;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
@@ -22,17 +23,17 @@ namespace vku {
         DescriptorSets(
             vk::Device device,
             vk::DescriptorPool descriptorPool,
-            const Layouts &layouts
+            const Layouts &layouts [[clang::lifetimebound]]
         // TODO: seems MSVC C++20 module bug. Remove #ifdef guard and use the below version when fixed.
 #ifdef _MSC_VER
         ) : std::array<vk::DescriptorSet, Layouts::setCount> { ranges::to_array<Layouts::setCount>{}(device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
                 descriptorPool,
-                layouts,
+                vku::unsafeProxy(layouts.getHandles()),
             })) },
 #else
         ) : std::array<vk::DescriptorSet, Layouts::setCount> { device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo {
                 descriptorPool,
-                layouts,
+                vku::unsafeProxy(layouts.getHandles()),
             }) | ranges::to_array<Layouts::setCount>() },
 #endif
             layouts { layouts } { }
@@ -85,7 +86,7 @@ namespace vku {
                 Binding,
                 0,
                 {},
-                get<Binding>(get<Set>(layouts.setLayouts)).descriptorType, // Error in here: you specify binding index that exceeds the number of layout bindings in the set.
+                get<Binding>(get<Set>(layouts.layoutBindingsPerSet)).descriptorType, // Error in here: you specify binding index that exceeds the number of layout bindings in the set.
             };
         }
 

@@ -149,10 +149,15 @@ void main(){
 
 pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<1> { device, LayoutBindings {
-    {},
-    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute },
-} } { }
+) : vku::DescriptorSetLayouts<1> {
+        device,
+        vk::DescriptorSetLayoutCreateInfo {
+            {},
+            vku::unsafeProxy({
+                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute },
+            }),
+        },
+    } { }
 
 auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::DescriptorSets::getDescriptorWrites0(
     const vk::DescriptorBufferInfo &pingPongBufferInfo
@@ -208,7 +213,7 @@ auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::createPipel
 ) const -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
-        descriptorSetLayouts,
+        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eCompute,

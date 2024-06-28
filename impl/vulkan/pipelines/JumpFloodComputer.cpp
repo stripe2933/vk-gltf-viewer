@@ -73,10 +73,15 @@ void main(){
 
 vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<1> { device, LayoutBindings {
-        {},
-        vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 2, vk::ShaderStageFlagBits::eCompute },
-    } } { }
+) : vku::DescriptorSetLayouts<1> {
+        device,
+        vk::DescriptorSetLayoutCreateInfo {
+            {},
+            vku::unsafeProxy({
+                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 2, vk::ShaderStageFlagBits::eCompute },
+            }),
+        },
+    } { }
 
 vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::JumpFloodComputer(
     const vk::raii::Device &device,
@@ -120,7 +125,7 @@ auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::createPipelineLayout(
 ) const -> decltype(pipelineLayout) {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
-        descriptorSetLayouts,
+        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eCompute,
