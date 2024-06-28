@@ -36,9 +36,9 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         };
 
         struct PushConstant {
-            glm::vec3 outlineColor;
-            float outlineThickness;
+            glm::vec4 outlineColor;
             glm::i32vec2 passthruOffset;
+            float outlineThickness;
             vk::Bool32 useZwComponent;
         };
 

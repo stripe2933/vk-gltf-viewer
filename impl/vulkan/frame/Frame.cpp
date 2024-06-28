@@ -683,32 +683,32 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		}));
 
 	// Draw hovering/selected node outline if exists.
-	if (task.hoveringNodeIndex || task.selectedNodeIndex) {
+	if ((task.selectedNodeIndex && task.selectedNodeOutline) || (task.hoveringNodeIndex && task.hoveringNodeOutline)) {
 		sharedData->outlineRenderer.bindPipeline(cb);
 		sharedData->outlineRenderer.bindDescriptorSets(cb, outlineSets);
 
-		if (task.selectedNodeIndex) {
+		if (task.selectedNodeIndex && task.selectedNodeOutline) {
 			sharedData->outlineRenderer.pushConstants(cb, {
-				.outlineColor = { 0.f, 1.f, 0.2f },
-				.outlineThickness = 4.f,
+				.outlineColor = task.selectedNodeOutline->second,
 				.passthruOffset = { task.passthruRect.offset.x, task.passthruRect.offset.y },
+				.outlineThickness = task.selectedNodeOutline->first,
 				.useZwComponent = true,
 			});
 			sharedData->outlineRenderer.draw(cb);
 		}
-		if (task.hoveringNodeIndex &&
+		if ((task.hoveringNodeIndex && task.hoveringNodeOutline) &&
 			// If both selectedNodeIndex and hoveringNodeIndex exist and are the same, the outlines will overlap, so
 			// the latter one doesn’t need to be rendered.
-			(!task.selectedNodeIndex || *task.selectedNodeIndex != *task.hoveringNodeIndex)) {
-			if (task.selectedNodeIndex) {
+			(!(task.selectedNodeIndex && task.selectedNodeOutline) || *task.selectedNodeIndex != *task.hoveringNodeIndex)) {
+			if (task.selectedNodeIndex && task.selectedNodeOutline) {
 				// TODO: pipeline barrier required but because of the reason explained in above, it is not implemented.
 				//  Implement it when available.
 			}
 
 			sharedData->outlineRenderer.pushConstants(cb, {
-				.outlineColor = { 1.f, 0.5f, 0.2f },
-				.outlineThickness = 4.f,
+				.outlineColor = task.hoveringNodeOutline->second,
 				.passthruOffset = { task.passthruRect.offset.x, task.passthruRect.offset.y },
+				.outlineThickness = task.hoveringNodeOutline->first,
 				.useZwComponent = false,
 			});
 			sharedData->outlineRenderer.draw(cb);

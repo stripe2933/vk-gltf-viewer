@@ -378,6 +378,7 @@ auto vk_gltf_viewer::MainApp::update(
 			appState.camera.getNear(), appState.camera.getFar());
 	}
 
+	control::imgui::inputControlSetting(appState);
 	control::imgui::hdriEnvironments(eqmapImageImGuiDescriptorSet, { eqmapImage.extent.width, eqmapImage.extent.height }, appState);
 	control::imgui::assetSceneHierarchies(assetExpected.get(), appState);
 	control::imgui::nodeInspector(assetExpected.get(), appState);
@@ -410,6 +411,8 @@ auto vk_gltf_viewer::MainApp::update(
 		}(),
 		.hoveringNodeIndex = appState.hoveringNodeIndex,
 		.selectedNodeIndex = appState.selectedNodeIndex,
+		.hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
+		.selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
 		.useBlurredSkybox = appState.useBlurredSkybox,
 	};
 }

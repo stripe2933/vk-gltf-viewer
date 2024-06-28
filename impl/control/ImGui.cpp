@@ -292,6 +292,33 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
     ImGui::End();
 }
 
+auto vk_gltf_viewer::control::imgui::inputControlSetting(
+    AppState &appState
+) -> void {
+	if (ImGui::Begin("Input control")){
+	    ImGui::SeparatorText("Node selection");
+
+	    bool showHoveringNodeOutline = appState.hoveringNodeOutline.has_value();
+	    if (ImGui::Checkbox("Show outline for hovering node", &showHoveringNodeOutline)) {
+            appState.hoveringNodeOutline.set_active(showHoveringNodeOutline);
+	    }
+	    if (showHoveringNodeOutline){
+	        ImGui::DragFloat("Thickness#hoveringNodeOutline", &appState.hoveringNodeOutline->first, 1.f, 0.1f, FLT_MAX);
+            ImGui::ColorEdit4("Color#hoveringNodeOutline", glm::gtc::value_ptr(appState.hoveringNodeOutline->second));
+	    }
+
+	    bool showSelectedNodeOutline = appState.selectedNodeOutline.has_value();
+	    if (ImGui::Checkbox("Show outline for selected node", &showSelectedNodeOutline)) {
+            appState.selectedNodeOutline.set_active(showSelectedNodeOutline);
+	    }
+	    if (showSelectedNodeOutline){
+	        ImGui::DragFloat("Thickness#selectedNodeOutline", &appState.selectedNodeOutline->first, 1.f, 0.1f, FLT_MAX);
+            ImGui::ColorEdit4("Color#selectedNodeOutline", glm::gtc::value_ptr(appState.selectedNodeOutline->second));
+	    }
+	}
+	ImGui::End();
+}
+
 auto vk_gltf_viewer::control::imgui::viewManipulate(
     AppState &appState,
     const ImVec2 &passthruRectBR
