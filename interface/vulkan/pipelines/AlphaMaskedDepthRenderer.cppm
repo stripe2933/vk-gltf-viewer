@@ -3,6 +3,7 @@ module;
 #include <cstdint>
 #include <array>
 #include <compare>
+#include <span>
 #include <string_view>
 
 #include <shaderc/shaderc.hpp>
