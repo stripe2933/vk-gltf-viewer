@@ -44,9 +44,9 @@ namespace vk_gltf_viewer::gltf {
         struct CommandSeparationCriteriaComparator {
             using is_transparent = void;
 
-            static auto operator()(const CommandSeparationCriteria &lhs, const CommandSeparationCriteria &rhs) noexcept -> bool { return lhs < rhs; }
-            static auto operator()(const CommandSeparationCriteria &lhs, fastgltf::AlphaMode rhs) noexcept -> bool { return lhs.alphaMode < rhs; }
-            static auto operator()(fastgltf::AlphaMode lhs, const CommandSeparationCriteria &rhs) noexcept -> bool { return lhs < rhs.alphaMode; }
+            auto operator()(const CommandSeparationCriteria &lhs, const CommandSeparationCriteria &rhs) const noexcept -> bool { return lhs < rhs; }
+            auto operator()(const CommandSeparationCriteria &lhs, fastgltf::AlphaMode rhs) const noexcept -> bool { return lhs.alphaMode < rhs; }
+            auto operator()(fastgltf::AlphaMode lhs, const CommandSeparationCriteria &rhs) const noexcept -> bool { return lhs < rhs.alphaMode; }
         };
 
         const AssetResources &assetResources;
