@@ -79,7 +79,8 @@ namespace vk_gltf_viewer::gltf {
                          normalScale       = 1.f,
                          occlusionStrength = 1.f;
             glm::vec3    emissiveFactor = { 0.f, 0.f, 0.f };
-            char         padding1[4];
+            bool         doubleSided = false; // Would be converted as uint8_t in GLSL.
+            char         padding1[3];
         };
 
         const fastgltf::Asset &asset;

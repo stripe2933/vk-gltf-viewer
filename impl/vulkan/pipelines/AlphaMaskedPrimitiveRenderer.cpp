@@ -173,7 +173,8 @@ struct Material {
     float normalScale;
     float occlusionStrength;
     vec3 emissiveFactor;
-    uint8_t padding[4];
+    uint8_t doubleSided;
+    uint8_t padding[3];
 };
 
 struct Primitive {
@@ -266,6 +267,8 @@ void main(){
     vec3 emissive = MATERIAL.emissiveFactor * texture(textures[int(MATERIAL.emissiveTextureIndex) + 1], fragEmissiveTexcoord).rgb;
 
     vec3 V = normalize(pc.viewPosition - fragPosition);
+    // If material is double-sided and normal is not facing the camera, normal have to be flipped.
+    if (uint(MATERIAL.doubleSided) != 0U && dot(N, V) < 0.0) N = -N;
     vec3 R = reflect(-V, N);
 
     vec3 F0 = mix(vec3(0.04), baseColor.rgb, metallic);

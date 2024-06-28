@@ -468,6 +468,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
                 .metallicFactor = material.pbrData.metallicFactor,
                 .roughnessFactor = material.pbrData.roughnessFactor,
                 .emissiveFactor = glm::gtc::make_vec3(material.emissiveFactor.data()),
+                .doubleSided = material.doubleSided,
             };
 
             if (const auto &baseColorTexture = material.pbrData.baseColorTexture) {
