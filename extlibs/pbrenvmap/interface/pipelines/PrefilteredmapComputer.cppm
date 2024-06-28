@@ -225,7 +225,7 @@ pbrenvmap::pipelines::PrefilteredmapComputer::DescriptorSetLayouts::DescriptorSe
             vk::DescriptorSetLayoutBindingFlagsCreateInfo {
                 vku::unsafeProxy({
                     vk::DescriptorBindingFlags{},
-                    vk::DescriptorBindingFlagBits::ePartiallyBound | vk::DescriptorBindingFlagBits::eUpdateAfterBind,
+                    vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind },
                 }),
             },
         }.get(),
