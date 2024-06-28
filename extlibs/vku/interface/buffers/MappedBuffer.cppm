@@ -20,7 +20,10 @@ namespace vku {
         MappedBuffer(
             vma::Allocator allocator,
             const vk::BufferCreateInfo &createInfo,
-            const vma::AllocationCreateInfo &allocationCreateInfo
+            const vma::AllocationCreateInfo &allocationCreateInfo = {
+                vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+                vma::MemoryUsage::eAuto,
+            }
         );
         template <typename T> requires
             (!std::same_as<T, std::from_range_t>)
