@@ -2,9 +2,6 @@ module;
 
 #include <cstdint>
 #include <compare>
-#ifdef _MSC_VER
-#include <execution>
-#endif
 #include <filesystem>
 #include <list>
 #include <numeric>
@@ -165,18 +162,9 @@ template <std::ranges::random_access_range R>
             vma::MemoryUsage::eAuto,
         });
 
-#ifdef _MSC_VER
-    const auto segmentAndCopyOffsets = std::views::zip(segments, copyOffsets) | std::views::common;
-    std::for_each(std::execution::par_unseq, segmentAndCopyOffsets.begin(), segmentAndCopyOffsets.end(), [&](const auto &segmentAndCopyOffset) {
-        const auto &[segment, copyOffset] = segmentAndCopyOffset;
-		std::ranges::copy(segment, reinterpret_cast<value_type*>(static_cast<char*>(stagingBuffer.data) + copyOffset));
-	});
-#else
-    #pragma omp parallel for
     for (const auto &[segment, copyOffset] : std::views::zip(segments, copyOffsets)){
         std::ranges::copy(segment, reinterpret_cast<value_type*>(static_cast<char*>(stagingBuffer.data) + copyOffset));
     }
-#endif
 
     return { std::move(stagingBuffer), std::move(copyOffsets) };
 }
