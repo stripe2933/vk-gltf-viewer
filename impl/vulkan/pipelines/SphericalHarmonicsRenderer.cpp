@@ -1,5 +1,6 @@
 module;
 
+#include <array>
 #include <compare>
 #include <format>
 #include <string_view>
