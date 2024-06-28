@@ -5,7 +5,7 @@ module;
 #include <functional>
 #include <vector>
 
-#include <fastgltf/core.hpp>
+#include <fastgltf/types.hpp>
 #include <fastgltf/tools.hpp>
 #include <mikktspace.h>
 

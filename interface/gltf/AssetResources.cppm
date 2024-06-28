@@ -15,7 +15,7 @@ module;
 #include <variant>
 #include <vector>
 
-#include <fastgltf/core.hpp>
+#include <fastgltf/types.hpp>
 
 export module vk_gltf_viewer:gltf.AssetResources;
 

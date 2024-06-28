@@ -4,7 +4,7 @@ module;
 #include <optional>
 #include <vector>
 
-#include <fastgltf/core.hpp>
+#include <fastgltf/types.hpp>
 #include <shaderc/shaderc.hpp>
 
 export module vk_gltf_viewer:vulkan.frame.SharedData;
