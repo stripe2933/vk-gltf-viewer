@@ -506,9 +506,24 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodCalculationCommands(
 		    { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping */,
 		});
 
-	if (task.hoveringNodeIndex || task.selectedNodeIndex) {
+	if ((task.hoveringNodeIndex && task.hoveringNodeOutline) || (task.selectedNodeIndex && task.selectedNodeOutline)) {
 		auto forward = sharedData->jumpFloodComputer.compute(
-			cb, jumpFloodSets, vku::toExtent2D(passthruExtentDependentResources->jumpFloodImage.extent));
+			cb, jumpFloodSets,
+			std::max(
+				task.hoveringNodeOutline.transform([&](const auto &pair) {
+					return std::min(
+						std::bit_ceil(static_cast<std::uint32_t>(pair.first)),
+						// JFA sample offset greater than the visible region size is not affect to the result.
+						passthruExtentDependentResources->jumpFloodImage.extent.width);
+				}).value_or(1U),
+				task.selectedNodeOutline.transform([&](const auto &pair) {
+					return std::min(
+						std::bit_ceil(static_cast<std::uint32_t>(pair.first)),
+						// JFA sample offset greater than the visible region size is not affect to the result.
+						passthruExtentDependentResources->jumpFloodImage.extent.height);
+				}).value_or(1U)),
+			vku::toExtent2D(passthruExtentDependentResources->jumpFloodImage.extent));
+
 		// Release queue family ownership.
 		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
 			cb.pipelineBarrier(
@@ -626,7 +641,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		},
 	};
 	// Acquire jumpFloodImage queue family ownership, if necessary.
-	if ((task.hoveringNodeIndex || task.selectedNodeIndex) && gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
+	if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent &&
+		((task.hoveringNodeIndex && task.hoveringNodeOutline) || (task.selectedNodeIndex && task.selectedNodeOutline))) {
 		memoryBarriers.emplace_back(
 			vk::PipelineStageFlags2{}, vk::AccessFlags2{},
 			vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderStorageRead,

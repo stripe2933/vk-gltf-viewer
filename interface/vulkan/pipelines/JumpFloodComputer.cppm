@@ -49,7 +49,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
 
         JumpFloodComputer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
 
-        [[nodiscard]] auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const vk::Extent2D &imageExtent) const -> vk::Bool32;
+        [[nodiscard]] auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t initialSampleOffset, const vk::Extent2D &imageExtent) const -> vk::Bool32;
 
     private:
         struct PushConstant {

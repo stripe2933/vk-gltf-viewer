@@ -93,6 +93,7 @@ vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::JumpFloodComputer(
 auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::compute(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
+    std::uint32_t initialSampleOffset,
     const vk::Extent2D &imageExtent
 ) const -> vk::Bool32 {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
@@ -100,7 +101,7 @@ auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::compute(
 
     PushConstant pushConstant {
         .forward = true,
-        .sampleOffset = std::bit_floor(std::min(imageExtent.width, imageExtent.height)) >> 1U,
+        .sampleOffset = initialSampleOffset,
     };
     for (; pushConstant.sampleOffset > 0U; pushConstant.forward = !pushConstant.forward, pushConstant.sampleOffset >>= 1U) {
         commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
