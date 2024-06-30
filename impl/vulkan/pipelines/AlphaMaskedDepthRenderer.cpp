@@ -180,7 +180,7 @@ auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::DescriptorSets
     const vk::DescriptorBufferInfo &primitiveBufferInfo,
     const vk::DescriptorBufferInfo &nodeTransformBufferInfo
 ) const -> std::array<vk::WriteDescriptorSet, 2> {
-    return std::array {
+    return {
         getDescriptorWrite<1, 0>().setBufferInfo(primitiveBufferInfo),
         getDescriptorWrite<1, 1>().setBufferInfo(nodeTransformBufferInfo),
     };

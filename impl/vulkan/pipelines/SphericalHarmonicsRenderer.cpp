@@ -111,7 +111,7 @@ vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::DescriptorSetLayo
 auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::DescriptorSets::getDescriptorWrites0(
     const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo
 ) const -> std::array<vk::WriteDescriptorSet, 1> {
-    return std::array {
+    return {
         getDescriptorWrite<0, 0>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo),
     };
 }
