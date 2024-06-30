@@ -13,15 +13,18 @@ namespace vk_gltf_viewer::inline helpers {
     export template <std::default_initializable T>
     class full_optional {
     public:
-        full_optional() noexcept(std::is_nothrow_constructible_v<T>) = default;
-        full_optional(std::nullopt_t) noexcept(std::is_nothrow_constructible_v<T>) { }
+        constexpr full_optional() noexcept(std::is_nothrow_constructible_v<T>) = default;
+        constexpr full_optional(std::nullopt_t) noexcept(std::is_nothrow_constructible_v<T>) { }
+        constexpr full_optional(const full_optional&) noexcept(std::is_nothrow_constructible_v<T>) = default;
+        constexpr full_optional(full_optional&&) noexcept = default;
+        constexpr explicit full_optional(std::in_place_t, auto &&...args) noexcept(std::is_nothrow_constructible_v<T, decltype(args)...>)
+            : value { FWD(args)... }, _active { true } { }
         template <std::convertible_to<T> U>
-        full_optional(U &&initial) noexcept(std::is_nothrow_constructible_v<T, U>) : value { FWD(initial) }, _active { true } { }
-        full_optional(const full_optional&) noexcept(std::is_nothrow_constructible_v<T>) = default;
-        full_optional(full_optional&&) noexcept = default;
+        constexpr full_optional(U &&initial) noexcept(std::is_nothrow_constructible_v<T, U>)
+            : value { FWD(initial) }, _active { true } { }
 
-        auto operator=(const full_optional&) noexcept(std::is_nothrow_copy_assignable_v<T>) -> full_optional& = default;
-        auto operator=(full_optional&&) noexcept -> full_optional& = default;
+        constexpr auto operator=(const full_optional&) noexcept(std::is_nothrow_copy_assignable_v<T>) -> full_optional& = default;
+        constexpr auto operator=(full_optional&&) noexcept -> full_optional& = default;
 
         [[nodiscard]] auto operator*() const noexcept -> const T& { return value; }
         [[nodiscard]] auto operator*() noexcept -> T& { return value; }
@@ -33,7 +36,6 @@ namespace vk_gltf_viewer::inline helpers {
             if (_active) return value;
             throw std::bad_optional_access{};
         }
-
         [[nodiscard]] auto get() -> T& {
             if (_active) return value;
             throw std::bad_optional_access{};
