@@ -510,15 +510,15 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodCalculationCommands(
 		auto forward = sharedData->jumpFloodComputer.compute(
 			cb, jumpFloodSets,
 			std::max(
-				task.hoveringNodeOutline.transform([&](const auto &pair) {
+				task.hoveringNodeOutline.transform([&](const AppState::Outline &outline) {
 					return std::min(
-						std::bit_ceil(static_cast<std::uint32_t>(pair.first)),
+						std::bit_ceil(static_cast<std::uint32_t>(outline.thickness)),
 						// JFA sample offset greater than the visible region size is not affect to the result.
 						passthruExtentDependentResources->jumpFloodImage.extent.width);
 				}).value_or(1U),
-				task.selectedNodeOutline.transform([&](const auto &pair) {
+				task.selectedNodeOutline.transform([&](const AppState::Outline &outline) {
 					return std::min(
-						std::bit_ceil(static_cast<std::uint32_t>(pair.first)),
+						std::bit_ceil(static_cast<std::uint32_t>(outline.thickness)),
 						// JFA sample offset greater than the visible region size is not affect to the result.
 						passthruExtentDependentResources->jumpFloodImage.extent.height);
 				}).value_or(1U)),
@@ -705,9 +705,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 
 		if (task.selectedNodeIndex && task.selectedNodeOutline) {
 			sharedData->outlineRenderer.pushConstants(cb, {
-				.outlineColor = task.selectedNodeOutline->second,
+				.outlineColor = task.selectedNodeOutline->color,
 				.passthruOffset = { task.passthruRect.offset.x, task.passthruRect.offset.y },
-				.outlineThickness = task.selectedNodeOutline->first,
+				.outlineThickness = task.selectedNodeOutline->thickness,
 				.useZwComponent = true,
 			});
 			sharedData->outlineRenderer.draw(cb);
@@ -722,9 +722,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 			}
 
 			sharedData->outlineRenderer.pushConstants(cb, {
-				.outlineColor = task.hoveringNodeOutline->second,
+				.outlineColor = task.hoveringNodeOutline->color,
 				.passthruOffset = { task.passthruRect.offset.x, task.passthruRect.offset.y },
-				.outlineThickness = task.hoveringNodeOutline->first,
+				.outlineThickness = task.hoveringNodeOutline->thickness,
 				.useZwComponent = false,
 			});
 			sharedData->outlineRenderer.draw(cb);

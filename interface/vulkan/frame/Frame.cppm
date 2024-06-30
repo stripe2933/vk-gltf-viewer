@@ -14,6 +14,7 @@ module;
 export module vk_gltf_viewer:vulkan.frame.Frame;
 
 export import vku;
+export import :AppState;
 export import :vulkan.Gpu;
 export import :vulkan.frame.SharedData;
 
@@ -25,7 +26,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     		struct { glm::mat4 view, projection; } camera;
     		std::optional<vk::Offset2D> mouseCursorOffset;
     		std::optional<std::uint32_t> hoveringNodeIndex, selectedNodeIndex;
-    		std::optional<std::pair<float, glm::vec4>> hoveringNodeOutline, selectedNodeOutline;
+    		std::optional<AppState::Outline> hoveringNodeOutline, selectedNodeOutline;
     		bool useBlurredSkybox;
     		std::optional<std::pair<vk::SurfaceKHR, vk::Extent2D>> swapchainResizeHandleInfo;
     	};
