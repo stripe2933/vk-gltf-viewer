@@ -117,8 +117,8 @@ vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DescriptorSetLayouts::Descript
     } { }
 
 auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DescriptorSets::getDescriptorWrites0(
-    const vk::DescriptorBufferInfo &primitiveBufferInfo [[clang::lifetimebound]],
-    const vk::DescriptorBufferInfo &nodeTransformBufferInfo [[clang::lifetimebound]]
+    const vk::DescriptorBufferInfo &primitiveBufferInfo,
+    const vk::DescriptorBufferInfo &nodeTransformBufferInfo
 ) const -> std::array<vk::WriteDescriptorSet, 2> {
     return std::array {
         getDescriptorWrite<0, 0>().setBufferInfo(primitiveBufferInfo),
