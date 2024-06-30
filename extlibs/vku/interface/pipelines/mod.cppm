@@ -11,7 +11,7 @@ export import vulkan_hpp;
 export import :pipelines.Shader;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
-#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
+#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
 
 namespace vku {
     export template <std::convertible_to<Shader>... Shaders>
@@ -96,8 +96,6 @@ auto vku::getDefaultGraphicsPipelineCreateInfo(
     if (colorAttachmentCount > MAX_COLOR_ATTACHMENT_COUNT) {
         throw std::runtime_error { "Color attachment count exceeds maximum" };
     }
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-value"
     static constexpr std::array colorBlendAttachments
         = ARRAY_OF(MAX_COLOR_ATTACHMENT_COUNT + 1, vk::PipelineColorBlendAttachmentState {
             {},
@@ -105,7 +103,6 @@ auto vku::getDefaultGraphicsPipelineCreateInfo(
             {}, {}, {},
             vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
         });
-#pragma clang diagnostic pop
     static constexpr std::array colorBlendStates
         = INDEX_SEQ(Is, MAX_COLOR_ATTACHMENT_COUNT + 1, {
             return std::array {

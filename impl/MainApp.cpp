@@ -32,7 +32,7 @@ import :vulkan.frame.Frame;
 import :vulkan.frame.SharedData;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
-#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
+#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
 
 [[nodiscard]] auto createCommandPool(
 	const vk::raii::Device &device,
@@ -340,10 +340,7 @@ auto vk_gltf_viewer::MainApp::createFrameSharedData() -> decltype(frameSharedDat
 }
 
 auto vk_gltf_viewer::MainApp::createFrames() -> decltype(frames) {
-#pragma clang diagnostics push
-#pragma clang diagnostic ignored "-Wunused-value"
 	return ARRAY_OF(2, vulkan::Frame{ frameSharedData, gpu });
-#pragma clang diagnostics pop
 }
 
 auto vk_gltf_viewer::MainApp::update(

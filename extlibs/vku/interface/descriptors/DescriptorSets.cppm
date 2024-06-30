@@ -12,10 +12,6 @@ import :details.concepts;
 import :details.ranges;
 import :utils;
 
-#define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
-#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { (Is, __VA_ARGS__)... }; })
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-
 namespace vku {
     export template <concepts::derived_from_value_specialization_of<DescriptorSetLayouts> Layouts>
     class DescriptorSets : public std::array<vk::DescriptorSet, Layouts::setCount> {
