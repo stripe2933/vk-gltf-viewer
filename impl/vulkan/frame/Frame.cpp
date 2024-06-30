@@ -67,7 +67,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    	{ sharedData->assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
 		    primitiveSets.getDescriptorWrites2(
 		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }).get(),
+		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
 		    skyboxSets.getDescriptorWrites0(*sharedData->imageBasedLightingResources.value().cubemapImageView).get(),
 		    sphericalHarmonicsSets.getDescriptorWrites0(
 		    	{ sharedData->imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),

@@ -26,7 +26,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             [[nodiscard]] auto getDescriptorWrites0(
                 const vk::DescriptorImageInfo &fallbackTextureInfo,
                 std::span<const vk::DescriptorImageInfo> textureInfos,
-                const vk::DescriptorBufferInfo &materialBufferInfo
+                const vk::DescriptorBufferInfo &materialBufferInfo [[clang::lifetimebound]]
             ) const {
                 std::vector<vk::DescriptorImageInfo> combinedTextureInfos;
                 combinedTextureInfos.reserve(1 /* fallbackTextureInfo */ + textureInfos.size());
@@ -34,7 +34,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
                 combinedTextureInfos.append_range(textureInfos);
 
                 return vku::RefHolder {
-                    [this](std::span<const vk::DescriptorImageInfo> combinedTextureInfos, const vk::DescriptorBufferInfo &materialBufferInfo) {
+                    [&](std::span<const vk::DescriptorImageInfo> combinedTextureInfos) {
                         return std::array {
                             // TODO: Use following line causes C++ module error in MSVC, looks like related to
                             // https://developercommunity.visualstudio.com/t/error-C2028:-structunion-member-must-be/10488679?sort=newest&topics=Fixed-in%3A+Visual+Studio+2017+version+15.2.
@@ -45,7 +45,6 @@ namespace vk_gltf_viewer::vulkan::pipelines {
                         };
                     },
                     std::move(combinedTextureInfos),
-                    materialBufferInfo,
                 };
             }
 

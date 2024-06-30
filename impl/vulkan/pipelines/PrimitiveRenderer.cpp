@@ -338,6 +338,16 @@ vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::DescriptorSetLayouts::Desc
         },
     } { }
 
+auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::DescriptorSets::getDescriptorWrites2(
+    const vk::DescriptorBufferInfo &primitiveBufferInfo,
+    const vk::DescriptorBufferInfo &nodeTransformBufferInfo
+) const -> std::array<vk::WriteDescriptorSet, 2> {
+    return {
+        getDescriptorWrite<2, 0>().setBufferInfo(primitiveBufferInfo),
+        getDescriptorWrite<2, 1>().setBufferInfo(nodeTransformBufferInfo),
+    };
+}
+
 vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::PrimitiveRenderer(
     const vk::raii::Device &device,
     std::uint32_t textureCount,
