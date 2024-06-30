@@ -376,7 +376,7 @@ auto vk_gltf_viewer::MainApp::update(
 	}
 
 	control::imgui::inputControlSetting(appState);
-	control::imgui::hdriEnvironments(eqmapImageImGuiDescriptorSet, { eqmapImage.extent.width, eqmapImage.extent.height }, appState);
+	control::imgui::hdriEnvironments(eqmapImageImGuiDescriptorSet, appState);
 	control::imgui::assetSceneHierarchies(assetExpected.get(), appState);
 	control::imgui::nodeInspector(assetExpected.get(), appState);
 

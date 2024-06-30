@@ -9,7 +9,7 @@ import glm;
 export import :AppState;
 
 namespace vk_gltf_viewer::control::imgui {
-    auto hdriEnvironments(ImTextureID eqmapTextureId, const glm::uvec2 &eqmapDimension, AppState &appState) -> void;
+    auto hdriEnvironments(ImTextureID eqmapTextureId, AppState &appState) -> void;
     auto assetSceneHierarchies(const fastgltf::Asset &asset, AppState &appState) -> void;
     auto nodeInspector(const fastgltf::Asset &asset, AppState &appState) -> void;
     auto inputControlSetting(AppState &appState) -> void;

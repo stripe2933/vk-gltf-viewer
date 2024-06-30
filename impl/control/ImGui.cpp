@@ -30,16 +30,16 @@ import :helpers.ranges;
 
 auto vk_gltf_viewer::control::imgui::hdriEnvironments(
     ImTextureID eqmapTextureId,
-    const glm::uvec2 &eqmapDimension,
     AppState &appState
 ) -> void {
-    if (ImGui::Begin("HDRI environments info")) {
+    if (ImGui::Begin("HDRI environments info") && appState.imageBasedLightingProperties) {
+        const auto &iblProps = *appState.imageBasedLightingProperties;
+
         ImGui::SeparatorText("Equirectangular map");
-        ImGui::Text("File: %s", std::getenv("EQMAP_PATH"));
-        ImGui::Text("Dimension: %ux%u", eqmapDimension.x, eqmapDimension.y);
 
         const ImVec2 eqmapTexturePosition = ImGui::GetCursorScreenPos();
-        const ImVec2 eqmapTextureSize = ImVec2 { 1.f, static_cast<float>(eqmapDimension.y) / eqmapDimension.x } * ImGui::GetContentRegionAvail().x;
+        const float eqmapAspectRatio = static_cast<float>(iblProps.eqmap.dimension.y) / iblProps.eqmap.dimension.x;
+        const ImVec2 eqmapTextureSize = ImVec2 { 1.f, eqmapAspectRatio } * ImGui::GetContentRegionAvail().x;
         ImGui::Image(eqmapTextureId, eqmapTextureSize);
 
         // Show zoomed texture when hovering mouse over the eqmap texture.
@@ -58,8 +58,40 @@ auto vk_gltf_viewer::control::imgui::hdriEnvironments(
             ImGui::EndTooltip();
         }
 
+        ImGui::Text("File: %s", iblProps.eqmap.path.string().c_str());
+        ImGui::Text("Dimension: %ux%u", iblProps.eqmap.dimension.x, iblProps.eqmap.dimension.y);
+
         ImGui::SeparatorText("Cubemap");
+        ImGui::Text("Size: %u", iblProps.cubemap.size);
         ImGui::Checkbox("Use blurred skybox", &appState.useBlurredSkybox);
+
+        ImGui::SeparatorText("Diffuse irradiance");
+        ImGui::TextUnformatted("Spherical harmonic coefficients (up to 3rd band)");
+        if (ImGui::BeginTable("spherical_harmonic_coeffs", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders)) {
+            // Headers.
+            ImGui::TableSetupColumn("Band", ImGuiTableColumnFlags_None);
+            ImGui::TableSetupColumn("x", ImGuiTableColumnFlags_None);
+            ImGui::TableSetupColumn("y", ImGuiTableColumnFlags_None);
+            ImGui::TableSetupColumn("z", ImGuiTableColumnFlags_None);
+            ImGui::TableHeadersRow();
+
+            // Rows.
+            static constexpr auto bandLabels = { "L0", "L1_1", "L10", "L11", "L2_2", "L2_1", "L20", "L21", "L22" };
+            for (const auto &[label, coefficients] : std::views::zip(bandLabels, iblProps.diffuseIrradiance.sphericalHarmonicCoefficients)) {
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0); ImGui::TextUnformatted(label);
+                ImGui::TableSetColumnIndex(1); ImGui::Text("%.3f", coefficients.x);
+                ImGui::TableSetColumnIndex(2); ImGui::Text("%.3f", coefficients.y);
+                ImGui::TableSetColumnIndex(3); ImGui::Text("%.3f", coefficients.z);
+            }
+
+            ImGui::EndTable();
+        }
+
+        ImGui::SeparatorText("Prefiltered map");
+        ImGui::Text("Size: %u", iblProps.prefilteredmap.size);
+        ImGui::Text("Roughness levels: %u", iblProps.prefilteredmap.roughnessLevels);
+        ImGui::Text("Samples: %u", iblProps.prefilteredmap.sampleCount);
     }
     ImGui::End();
 }
