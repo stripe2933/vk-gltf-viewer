@@ -44,30 +44,20 @@ void main(){
         return;
     }
 
-    uvec2 closestSeedCoordXy, closestSeedCoordZw;
-    uint closestSeedDistanceSqXy = UINT_MAX, closestSeedDistanceSqZw = UINT_MAX;
+    uvec2 closestSeedCoord;
+    uint closestSeedDistanceSq = UINT_MAX;
     for (uint i = 0; i < 9; ++i){
-        uvec4 seedCoord = imageLoad(pingPongImages[uint(!pc.forward)], ivec2(gl_GlobalInvocationID.xy) + int(pc.sampleOffset) * normalizedOffsets[i]);
-        uvec2 seedCoordXy = seedCoord.xy, seedCoordZw = seedCoord.zw;
-        if (seedCoordXy != uvec2(0U)) {
-            uint seedDistanceSq = length2(seedCoordXy - gl_GlobalInvocationID.xy);
-            if (seedDistanceSq < closestSeedDistanceSqXy) {
-                closestSeedDistanceSqXy = seedDistanceSq;
-                closestSeedCoordXy = seedCoordXy;
-            }
-        }
-        if (seedCoordZw != uvec2(0U)) {
-            uint seedDistanceSq = length2(seedCoordZw - gl_GlobalInvocationID.xy);
-            if (seedDistanceSq < closestSeedDistanceSqZw) {
-                closestSeedDistanceSqZw = seedDistanceSq;
-                closestSeedCoordZw = seedCoordZw;
+        uvec2 seedCoord = imageLoad(pingPongImages[uint(!pc.forward)], ivec2(gl_GlobalInvocationID.xy) + int(pc.sampleOffset) * normalizedOffsets[i]).xy;
+        if (seedCoord != uvec2(0U)) {
+            uint seedDistanceSq = length2(seedCoord - gl_GlobalInvocationID.xy);
+            if (seedDistanceSq < closestSeedDistanceSq) {
+                closestSeedDistanceSq = seedDistanceSq;
+                closestSeedCoord = seedCoord;
             }
         }
     }
 
-    imageStore(pingPongImages[uint(pc.forward)], ivec2(gl_GlobalInvocationID.xy), uvec4(
-        closestSeedDistanceSqXy == UINT_MAX ? uvec2(0) : closestSeedCoordXy,
-        closestSeedDistanceSqZw == UINT_MAX ? uvec2(0) : closestSeedCoordZw));
+    imageStore(pingPongImages[uint(pc.forward)], ivec2(gl_GlobalInvocationID.xy), uvec4(closestSeedDistanceSq == UINT_MAX ? uvec2(0) : closestSeedCoord, 0, 0));
 }
 )comp";
 

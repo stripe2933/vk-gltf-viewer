@@ -39,7 +39,6 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             glm::vec4 outlineColor;
             glm::i32vec2 passthruOffset;
             float outlineThickness;
-            vk::Bool32 useZwComponent;
         };
 
         DescriptorSetLayouts descriptorSetLayouts;

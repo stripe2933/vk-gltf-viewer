@@ -45,13 +45,19 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	[[nodiscard]] auto onLoop(const OnLoopTask &task) -> std::expected<OnLoopResult, OnLoopError>;
 
     private:
+    	struct JumpFloodResources {
+    		vku::AllocatedImage image;
+    		vk::raii::ImageView pingImageView, pongImageView;
+
+    		JumpFloodResources(const Gpu &gpu, const vk::Extent2D &extent);
+    	};
+
     	class PassthruExtentDependentResources {
     	public:
 			vk::Extent2D extent; // Extent that used as the resources initialization.
 
-    		// Buffer, image and image views.
-    		vku::AllocatedImage jumpFloodImage;
-    		vk::raii::ImageView jumpFloodPingImageView, jumpFloodPongImageView;
+    		JumpFloodResources hoveringNodeOutlineJumpFloodResources,
+    						   selectedNodeOutlineJumpFloodResources;
 
     		// Attachment groups.
     		vku::AttachmentGroup     depthPrepassAttachmentGroup;
@@ -60,10 +66,8 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     		PassthruExtentDependentResources(const Gpu &gpu, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
 
     	private:
-    		[[nodiscard]] auto createJumpFloodImage(vma::Allocator allocator, const vk::Extent2D &extent) const -> decltype(jumpFloodImage);
-    		[[nodiscard]] auto createJumpFloodImageView(const vk::raii::Device &device, std::uint32_t arrayLayer) const -> vk::raii::ImageView;
-    		[[nodiscard]] auto createDepthPrepassAttachmentGroup(const Gpu &gpu, const vk::Extent2D &extent) const -> decltype(depthPrepassAttachmentGroup);
-    		[[nodiscard]] auto createPrimaryAttachmentGroup(const Gpu &gpu, const vk::Extent2D &extent) const -> decltype(primaryAttachmentGroup);
+    		[[nodiscard]] auto createDepthPrepassAttachmentGroup(const Gpu &gpu) const -> decltype(depthPrepassAttachmentGroup);
+    		[[nodiscard]] auto createPrimaryAttachmentGroup(const Gpu &gpu) const -> decltype(primaryAttachmentGroup);
 
     		auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
     	};
@@ -81,14 +85,16 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     						     graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
 
     	// Descriptor sets.
-    	pipelines::DepthRenderer::DescriptorSets depthSets { *gpu.device, *descriptorPool, sharedData->depthRenderer.descriptorSetLayouts };
-    	pipelines::AlphaMaskedDepthRenderer::DescriptorSets alphaMaskedDepthSets { *gpu.device, *descriptorPool, sharedData->alphaMaskedDepthRenderer.descriptorSetLayouts };
-    	pipelines::JumpFloodComputer::DescriptorSets jumpFloodSets { *gpu.device, *descriptorPool, sharedData->jumpFloodComputer.descriptorSetLayouts };
-    	pipelines::OutlineRenderer::DescriptorSets outlineSets { *gpu.device, *descriptorPool, sharedData->outlineRenderer.descriptorSetLayouts };
+    	pipelines::DepthRenderer::DescriptorSets              depthSets { *gpu.device, *descriptorPool, sharedData->depthRenderer.descriptorSetLayouts };
+    	pipelines::AlphaMaskedDepthRenderer::DescriptorSets   alphaMaskedDepthSets { *gpu.device, *descriptorPool, sharedData->alphaMaskedDepthRenderer.descriptorSetLayouts };
+    	pipelines::JumpFloodComputer::DescriptorSets          hoveringNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData->jumpFloodComputer.descriptorSetLayouts },
+												              selectedNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData->jumpFloodComputer.descriptorSetLayouts };
+    	pipelines::OutlineRenderer::DescriptorSets            hoveringNodeOutlineSets { *gpu.device, *descriptorPool, sharedData->outlineRenderer.descriptorSetLayouts },
+    											              selectedNodeOutlineSets { *gpu.device, *descriptorPool, sharedData->outlineRenderer.descriptorSetLayouts };
     	// Note that we'll use the same descriptor sets for AlphaMaskedPrimitiveRenderer since it has same descriptor set layouts as PrimitiveRenderer.
-    	pipelines::PrimitiveRenderer::DescriptorSets primitiveSets { *gpu.device, *descriptorPool, sharedData->primitiveRenderer.descriptorSetLayouts };
-    	pipelines::Rec709Renderer::DescriptorSets rec709Sets { *gpu.device, *descriptorPool, sharedData->rec709Renderer.descriptorSetLayouts };
-    	pipelines::SkyboxRenderer::DescriptorSets skyboxSets { *gpu.device, *descriptorPool, sharedData->skyboxRenderer.descriptorSetLayouts };
+    	pipelines::PrimitiveRenderer::DescriptorSets          primitiveSets { *gpu.device, *descriptorPool, sharedData->primitiveRenderer.descriptorSetLayouts };
+    	pipelines::Rec709Renderer::DescriptorSets             rec709Sets { *gpu.device, *descriptorPool, sharedData->rec709Renderer.descriptorSetLayouts };
+    	pipelines::SkyboxRenderer::DescriptorSets             skyboxSets { *gpu.device, *descriptorPool, sharedData->skyboxRenderer.descriptorSetLayouts };
     	pipelines::SphericalHarmonicsRenderer::DescriptorSets sphericalHarmonicsSets { *gpu.device, *descriptorPool, sharedData->sphericalHarmonicsRenderer.descriptorSetLayouts };
 
     	// Command buffers.
@@ -110,10 +116,18 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	auto update(const OnLoopTask &task, OnLoopResult &result) -> void;
 
     	auto recordDepthPrepassCommands(vk::CommandBuffer cb, const OnLoopTask &task) const -> void;
-    	// Return false if last jump flood calculation direction is forward (result is in pong buffer), true if
-    	// backward, nullopt if JFA not calculated (both hoveringNodeIndex and selectedNodeIndex is nullopt).
-		[[nodiscard]] auto recordJumpFloodCalculationCommands(vk::CommandBuffer cb, const OnLoopTask &task) const -> std::optional<bool>;
+    	// Return true if last jump flood calculation direction is forward (result is in pong image), false if backward.
+		[[nodiscard]] auto recordJumpFloodComputeCommands(
+			vk::CommandBuffer cb,
+			const vku::Image &image,
+			const pipelines::JumpFloodComputer::DescriptorSets &descriptorSets,
+			std::uint32_t initialSampleOffset) const -> bool;
     	auto recordGltfPrimitiveDrawCommands(vk::CommandBuffer cb, const OnLoopTask &task) const -> void;
-    	auto recordPostCompositionCommands(vk::CommandBuffer cb, std::optional<bool> isJumpFloodResultForward, std::uint32_t swapchainImageIndex, const OnLoopTask &task) const -> void;
+    	auto recordPostCompositionCommands(
+    		vk::CommandBuffer cb,
+    		std::optional<bool> hoveringNodeJumpFloodForward,
+    		std::optional<bool> selectedNodeJumpFloodForward,
+    		std::uint32_t swapchainImageIndex,
+    		const OnLoopTask &task) const -> void;
     };
 }

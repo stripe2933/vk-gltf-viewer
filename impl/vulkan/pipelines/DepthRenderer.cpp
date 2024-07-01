@@ -82,7 +82,8 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::DepthRenderer::frag = R"frag
 layout (location = 0) flat in uint primitiveNodeIndex;
 
 layout (location = 0) out uint outNodeIndex;
-layout (location = 1) out uvec4 jumpFloodCoord;
+layout (location = 1) out uvec2 hoveringNodeJumpFloodCoord;
+layout (location = 2) out uvec2 selectedNodeJumpFloodCoord;
 
 layout (push_constant, std430) uniform PushConstant {
     layout (offset = 64)
@@ -95,10 +96,10 @@ layout (early_fragment_tests) in;
 void main(){
     outNodeIndex = primitiveNodeIndex;
     if (outNodeIndex == pc.hoveringNodeIndex){
-        jumpFloodCoord.xy = uvec2(gl_FragCoord.xy);
+        hoveringNodeJumpFloodCoord = uvec2(gl_FragCoord.xy);
     }
     if (outNodeIndex == pc.selectedNodeIndex){
-        jumpFloodCoord.zw = uvec2(gl_FragCoord.xy);
+        selectedNodeJumpFloodCoord = uvec2(gl_FragCoord.xy);
     }
 }
 )frag";
@@ -180,7 +181,8 @@ auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::createPipeline(
                 device,
                 vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment }).get(),
-            *pipelineLayout, 2, true)
+            *pipelineLayout,
+            3, true)
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},
                 true, true, vk::CompareOp::eGreater, // Use reverse Z.
@@ -195,7 +197,7 @@ auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::createPipeline(
             })),
         vk::PipelineRenderingCreateInfo {
             {},
-            vku::unsafeProxy({ vk::Format::eR32Uint, vk::Format::eR16G16B16A16Uint }),
+            vku::unsafeProxy({ vk::Format::eR32Uint, vk::Format::eR16G16Uint, vk::Format::eR16G16Uint }),
             vk::Format::eD32Sfloat,
         }
     }.get() };

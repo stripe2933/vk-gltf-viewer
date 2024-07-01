@@ -34,19 +34,17 @@ std::string_view vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::frag = R"fr
 
 layout (location = 0) out vec4 outColor;
 
-layout (set = 0, binding = 0, rgba16ui) uniform readonly uimage2D jumpFloodImage;
+layout (set = 0, binding = 0, rg16ui) uniform readonly uimage2D jumpFloodImage;
 
 layout (push_constant, std430) uniform PushConstant {
     vec4 outlineColor;
     ivec2 passthruOffset;
     float outlineThickness;
-    bool useZwComponent;
 } pc;
 
 void main(){
     ivec2 sampleCoord = ivec2(gl_FragCoord.xy) - pc.passthruOffset;
-    uvec4 inputTexel = imageLoad(jumpFloodImage, sampleCoord);
-    float signedDistance = distance(pc.useZwComponent ? inputTexel.zw : inputTexel.xy, sampleCoord);
+    float signedDistance = distance(imageLoad(jumpFloodImage, sampleCoord).xy, sampleCoord);
     outColor = pc.outlineColor;
     outColor.a = (signedDistance > 1.0 ? outColor.a * smoothstep(pc.outlineThickness + 1.0, pc.outlineThickness, signedDistance) : 0.0);
 }
