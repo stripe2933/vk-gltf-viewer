@@ -86,7 +86,7 @@ export namespace vku {
             const vma::AllocationCreateInfo &allocationCreateInfo = { {}, vma::MemoryUsage::eAutoPreferDevice, {}, vk::MemoryPropertyFlagBits::eLazilyAllocated }
         ) const -> AllocatedImage;
 
-        auto getRenderingInfo(
+        [[nodiscard]] auto getRenderingInfo(
             std::span<const ColorAttachmentInfo> colorAttachmentInfos = {},
             const std::optional<DepthStencilAttachmentInfo> &depthStencilAttachmentInfo = {}
         ) const -> RefHolder<vk::RenderingInfo, std::vector<vk::RenderingAttachmentInfo>, std::optional<vk::RenderingAttachmentInfo>>;
