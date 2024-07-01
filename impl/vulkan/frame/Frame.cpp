@@ -672,7 +672,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 	// Start dynamic rendering with B8G8R8A8_SRGB format.
 	cb.beginRenderingKHR(sharedData->swapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
 		std::array {
-			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f } }
+			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0.f, 0.f, 0.f, 0.f } }
 		}));
 
 	// Set viewport and scissor.

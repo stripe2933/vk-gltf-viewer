@@ -87,9 +87,13 @@ export namespace vku {
         ) const -> AllocatedImage;
 
         [[nodiscard]] auto getRenderingInfo(
-            std::span<const ColorAttachmentInfo> colorAttachmentInfos = {},
-            const std::optional<DepthStencilAttachmentInfo> &depthStencilAttachmentInfo = {}
-        ) const -> RefHolder<vk::RenderingInfo, std::vector<vk::RenderingAttachmentInfo>, std::optional<vk::RenderingAttachmentInfo>>;
+            std::span<const ColorAttachmentInfo> colorAttachmentInfos
+        ) const -> RefHolder<vk::RenderingInfo, std::vector<vk::RenderingAttachmentInfo>>;
+
+        [[nodiscard]] auto getRenderingInfo(
+            std::span<const ColorAttachmentInfo> colorAttachmentInfos,
+            const DepthStencilAttachmentInfo &depthStencilAttachmentInfo
+        ) const -> RefHolder<vk::RenderingInfo, std::vector<vk::RenderingAttachmentInfo>, vk::RenderingAttachmentInfo>;
     };
 }
 
@@ -199,20 +203,18 @@ auto vku::AttachmentGroup::createDepthStencilImage(
 }
 
 auto vku::AttachmentGroup::getRenderingInfo(
-    std::span<const ColorAttachmentInfo> colorAttachmentInfos,
-    const std::optional<DepthStencilAttachmentInfo> &depthStencilAttachmentInfo
-) const -> RefHolder<vk::RenderingInfo, std::vector<vk::RenderingAttachmentInfo>, std::optional<vk::RenderingAttachmentInfo>> {
+    std::span<const ColorAttachmentInfo> colorAttachmentInfos
+) const -> RefHolder<vk::RenderingInfo, std::vector<vk::RenderingAttachmentInfo>> {
     assert(colorAttachments.size() == colorAttachmentInfos.size() && "Color attachment info count mismatch");
-    assert(depthStencilAttachment.has_value() == depthStencilAttachmentInfo.has_value() && "Depth-stencil attachment info mismatch");
+    assert(!depthStencilAttachment.has_value() && "Depth-stencil attachment info mismatch");
     return {
-        [this](std::span<const vk::RenderingAttachmentInfo> colorAttachmentInfos, const std::optional<vk::RenderingAttachmentInfo> &depthStencilAttachmentInfo) {
+        [this](std::span<const vk::RenderingAttachmentInfo> colorAttachmentInfos) {
             return vk::RenderingInfo {
                 {},
                 { { 0, 0 }, extent },
                 1,
                 {},
                 colorAttachmentInfos,
-                depthStencilAttachmentInfo.transform([](const auto& x) { return &x; }).value_or(nullptr),
             };
         },
         ranges::views::zip_transform([](const Attachment &attachment, const ColorAttachmentInfo &info) {
@@ -222,13 +224,37 @@ auto vku::AttachmentGroup::getRenderingInfo(
                 info.loadOp, info.storeOp, info.clearValue,
             };
         }, colorAttachments, colorAttachmentInfos) | std::ranges::to<std::vector>(),
-        depthStencilAttachment.transform([&](const Attachment &attachment) {
-            const auto& info = *depthStencilAttachmentInfo;
+    };
+}
+
+auto vku::AttachmentGroup::getRenderingInfo(
+    std::span<const ColorAttachmentInfo> colorAttachmentInfos,
+    const DepthStencilAttachmentInfo &depthStencilAttachmentInfo
+) const -> RefHolder<vk::RenderingInfo, std::vector<vk::RenderingAttachmentInfo>, vk::RenderingAttachmentInfo> {
+    assert(colorAttachments.size() == colorAttachmentInfos.size() && "Color attachment info count mismatch");
+    assert(depthStencilAttachment.has_value() && "Depth-stencil attachment info mismatch");
+    return {
+        [this](std::span<const vk::RenderingAttachmentInfo> colorAttachmentInfos, const vk::RenderingAttachmentInfo &depthStencilAttachmentInfo) {
+            return vk::RenderingInfo {
+                {},
+                { { 0, 0 }, extent },
+                1,
+                {},
+                colorAttachmentInfos,
+                &depthStencilAttachmentInfo,
+            };
+        },
+        ranges::views::zip_transform([](const Attachment &attachment, const ColorAttachmentInfo &info) {
             return vk::RenderingAttachmentInfo {
-                *attachment.view, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                *attachment.view, vk::ImageLayout::eColorAttachmentOptimal,
                 {}, {}, {},
                 info.loadOp, info.storeOp, info.clearValue,
             };
-        })
+        }, colorAttachments, colorAttachmentInfos) | std::ranges::to<std::vector>(),
+        vk::RenderingAttachmentInfo {
+            *depthStencilAttachment->view, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+            {}, {}, {},
+            depthStencilAttachmentInfo.loadOp, depthStencilAttachmentInfo.storeOp, depthStencilAttachmentInfo.clearValue,
+        },
     };
 }
