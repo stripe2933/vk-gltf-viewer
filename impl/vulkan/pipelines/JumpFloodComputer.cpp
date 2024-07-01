@@ -140,13 +140,11 @@ auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::createPipeline(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
 ) const -> decltype(pipeline) {
-    const auto [_, stages] = createStages(
-        device,
-        vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute });
-
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        get<0>(stages),
+        get<0>(vku::createPipelineStages(
+            device,
+            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()),
         *pipelineLayout,
     } };
 }

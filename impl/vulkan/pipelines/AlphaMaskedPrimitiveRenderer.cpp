@@ -319,13 +319,15 @@ auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedPrimitiveRenderer::createPipe
     vk::PipelineLayout primitiveRendererPipelineLayout,
     const shaderc::Compiler &compiler
 ) const -> decltype(pipeline) {
-    const auto [_, stages] = createStages(
-        device,
-        vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
-        vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment });
-
     return { device, nullptr, vk::StructureChain {
-        vku::getDefaultGraphicsPipelineCreateInfo(stages, primitiveRendererPipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
+        vku::getDefaultGraphicsPipelineCreateInfo(
+            vku::createPipelineStages(
+                device,
+                vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
+                vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment }).get(),
+            primitiveRendererPipelineLayout,
+            1, true,
+            vk::SampleCountFlagBits::e4)
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},
                 true, true, vk::CompareOp::eGreater, // Use reverse Z.

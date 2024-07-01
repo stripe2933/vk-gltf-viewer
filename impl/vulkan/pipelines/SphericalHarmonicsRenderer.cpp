@@ -155,13 +155,15 @@ auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::createPipeli
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
 ) const -> vk::raii::Pipeline {
-    const auto [_, stages] = createStages(
-        device,
-        vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
-        vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment });
-
     return { device, nullptr, vk::StructureChain {
-        vku::getDefaultGraphicsPipelineCreateInfo(stages, *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
+        vku::getDefaultGraphicsPipelineCreateInfo(
+            vku::createPipelineStages(
+                device,
+                vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
+                vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment }).get(),
+            *pipelineLayout,
+            1, true,
+            vk::SampleCountFlagBits::e4)
             .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                 {},
                 false, false,

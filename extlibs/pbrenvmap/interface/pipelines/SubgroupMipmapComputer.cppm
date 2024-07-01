@@ -254,12 +254,12 @@ auto pbrenvmap::pipelines::SubgroupMipmapComputer::createPipeline(
     std::uint32_t subgroupSize,
     const shaderc::Compiler &compiler
 ) const -> vk::raii::Pipeline {
-    // TODO: support for different subgroup sizes (current is based on 32).
-    const auto [_, stages] = vku::createStages(device,
-        vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute });
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        get<0>(stages),
+        get<0>(vku::createPipelineStages(
+            device,
+            // TODO: support for different subgroup sizes (current is based on 32).
+            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()),
         *pipelineLayout,
     } };
 }

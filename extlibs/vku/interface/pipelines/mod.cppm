@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <bit>
+#include <span>
 #include <stdexcept>
 #include <tuple>
 
@@ -9,32 +10,31 @@ export module vku:pipelines;
 
 export import vulkan_hpp;
 export import :pipelines.Shader;
+import :utils.RefHolder;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
 
 namespace vku {
     export template <std::convertible_to<Shader>... Shaders>
-    [[nodiscard]] auto createStages(
+    [[nodiscard]] auto createPipelineStages(
         const vk::raii::Device &device,
         const Shaders &...shaders
-    ) -> std::pair<std::array<vk::raii::ShaderModule, sizeof...(Shaders)>, std::array<vk::PipelineShaderStageCreateInfo, sizeof...(Shaders)>> {
-        std::pair result {
-            std::array { vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+    ) {
+        return RefHolder {
+            [&](const auto &...shaderModules) {
+                return std::array { vk::PipelineShaderStageCreateInfo {
+                    {},
+                    shaders.stage,
+                    *shaderModules,
+                    shaders.entryPoint,
+                }... };
+            },
+            vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
                 {},
                 shaders.code,
-            } }... },
-            std::array { vk::PipelineShaderStageCreateInfo {
-                {},
-                shaders.stage,
-                {},
-                shaders.entryPoint,
-            }... },
+            } }...
         };
-        INDEX_SEQ(Is, sizeof...(Shaders), {
-            (get<Is>(result.second).setModule(*get<Is>(result.first)), ...);
-        });
-        return result;
     }
 
     export

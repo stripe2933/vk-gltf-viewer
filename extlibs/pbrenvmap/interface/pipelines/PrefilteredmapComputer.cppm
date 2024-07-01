@@ -297,12 +297,12 @@ auto pbrenvmap::pipelines::PrefilteredmapComputer::createPipeline(
     const SpecializationConstants &specializationConstants,
     const shaderc::Compiler &compiler
 ) const -> vk::raii::Pipeline {
-    // TODO: handle specialization constants.
-    const auto [_, stages] = vku::createStages(device,
-        vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute });
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        get<0>(stages),
+        get<0>(vku::createPipelineStages(
+            device,
+            // TODO: handle specialization constants.
+            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()),
         *pipelineLayout,
     } };
 }

@@ -159,11 +159,11 @@ auto pbrenvmap::pipelines::CubemapComputer::createPipeline(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
 ) const -> vk::raii::Pipeline {
-    const auto [_, stages] = vku::createStages(device,
-        vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute });
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        get<0>(stages),
+        get<0>(vku::createPipelineStages(
+            device,
+            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()),
         *pipelineLayout,
     } };
 }
