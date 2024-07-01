@@ -50,9 +50,9 @@ namespace vku {
             const vk::raii::Device &device,
             const Image &image,
             const Image &resolveImage,
-            vk::Format format = {},
-            const vk::ImageSubresourceRange &subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-            const vk::ImageSubresourceRange &resolveSubresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }
+            vk::Format viewFormat = {},
+            const vk::ImageSubresourceRange &viewSubresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+            const vk::ImageSubresourceRange &resolveViewSubresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }
         ) -> const MsaaAttachment&;
 
         [[nodiscard]] auto createColorImage(
@@ -72,22 +72,22 @@ namespace vku {
         auto setDepthAttachment(
             const vk::raii::Device &device,
             const Image &image,
-            vk::Format format = {},
-            const vk::ImageSubresourceRange &subresourceRange = { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 }
+            vk::Format viewFormat = {},
+            const vk::ImageSubresourceRange &viewSubresourceRange = { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 }
         ) -> const Attachment&;
 
         auto setStencilAttachment(
             const vk::raii::Device &device,
             const Image &image,
-            vk::Format format = {},
-            const vk::ImageSubresourceRange &subresourceRange = { vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1 }
+            vk::Format viewFormat = {},
+            const vk::ImageSubresourceRange &viewSubresourceRange = { vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1 }
         ) -> const Attachment&;
 
         auto setDepthStencilAttachment(
             const vk::raii::Device &device,
             const Image &image,
-            vk::Format format = {},
-            const vk::ImageSubresourceRange &subresourceRange = { vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1 }
+            vk::Format viewFormat = {},
+            const vk::ImageSubresourceRange &viewSubresourceRange = { vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1 }
         ) -> const Attachment&;
 
         [[nodiscard]] auto createDepthStencilImage(
@@ -119,9 +119,10 @@ vku::MsaaAttachmentGroup::MsaaAttachmentGroup(
 auto vku::MsaaAttachmentGroup::addColorAttachment(
     const vk::raii::Device &device,
     const Image &image,
-    const Image &resolveImage, vk::Format format,
-    const vk::ImageSubresourceRange &subresourceRange,
-    const vk::ImageSubresourceRange &resolveSubresourceRange
+    const Image &resolveImage,
+    vk::Format viewFormat,
+    const vk::ImageSubresourceRange &viewSubresourceRange,
+    const vk::ImageSubresourceRange &resolveViewSubresourceRange
 ) -> const MsaaAttachment& {
     return colorAttachments.emplace_back(
         image,
@@ -129,18 +130,18 @@ auto vku::MsaaAttachmentGroup::addColorAttachment(
             {},
             image,
             vk::ImageViewType::e2D,
-            format == vk::Format::eUndefined ? image.format : format,
+            viewFormat == vk::Format::eUndefined ? image.format : viewFormat,
             {},
-            subresourceRange,
+            viewSubresourceRange,
         } },
         resolveImage,
         vk::raii::ImageView { device, vk::ImageViewCreateInfo {
             {},
             resolveImage,
             vk::ImageViewType::e2D,
-            format == vk::Format::eUndefined ? resolveImage.format : format,
+            viewFormat == vk::Format::eUndefined ? resolveImage.format : viewFormat,
             {},
-            resolveSubresourceRange,
+            resolveViewSubresourceRange,
         } }
     );
 }
@@ -161,13 +162,13 @@ auto vku::MsaaAttachmentGroup::createColorImage(
 
 auto vku::MsaaAttachmentGroup::createResolveImage(
     vma::Allocator allocator,
-    vk::Format format,
+    vk::Format viewFormat,
     vk::ImageUsageFlags usage,
     const vma::AllocationCreateInfo &allocationCreateInfo
 ) const -> AllocatedImage {
     return createAttachmentImage(
         allocator,
-        format,
+        viewFormat,
         vk::SampleCountFlagBits::e1,
         usage | vk::ImageUsageFlagBits::eColorAttachment,
         allocationCreateInfo);
@@ -176,8 +177,8 @@ auto vku::MsaaAttachmentGroup::createResolveImage(
 auto vku::MsaaAttachmentGroup::setDepthAttachment(
     const vk::raii::Device &device,
     const Image &image,
-    vk::Format format,
-    const vk::ImageSubresourceRange &subresourceRange
+    vk::Format viewFormat,
+    const vk::ImageSubresourceRange &viewSubresourceRange
 ) -> const Attachment& {
     return depthStencilAttachment.emplace(
         image,
@@ -185,17 +186,17 @@ auto vku::MsaaAttachmentGroup::setDepthAttachment(
             {},
             image,
             vk::ImageViewType::e2D,
-            format == vk::Format::eUndefined ? image.format : format,
+            viewFormat == vk::Format::eUndefined ? image.format : viewFormat,
             {},
-            subresourceRange,
+            viewSubresourceRange,
         } });
 }
 
 auto vku::MsaaAttachmentGroup::setStencilAttachment(
     const vk::raii::Device &device,
     const Image &image,
-    vk::Format format,
-    const vk::ImageSubresourceRange &subresourceRange
+    vk::Format viewFormat,
+    const vk::ImageSubresourceRange &viewSubresourceRange
 ) -> const Attachment& {
     return depthStencilAttachment.emplace(
         image,
@@ -203,17 +204,17 @@ auto vku::MsaaAttachmentGroup::setStencilAttachment(
             {},
             image,
             vk::ImageViewType::e2D,
-            format == vk::Format::eUndefined ? image.format : format,
+            viewFormat == vk::Format::eUndefined ? image.format : viewFormat,
             {},
-            subresourceRange,
+            viewSubresourceRange,
         } });
 }
 
 auto vku::MsaaAttachmentGroup::setDepthStencilAttachment(
     const vk::raii::Device &device,
     const Image &image,
-    vk::Format format,
-    const vk::ImageSubresourceRange &subresourceRange
+    vk::Format viewFormat,
+    const vk::ImageSubresourceRange &viewSubresourceRange
 ) -> const Attachment& {
     return depthStencilAttachment.emplace(
         image,
@@ -221,9 +222,9 @@ auto vku::MsaaAttachmentGroup::setDepthStencilAttachment(
             {},
             image,
             vk::ImageViewType::e2D,
-            format == vk::Format::eUndefined ? image.format : format,
+            viewFormat == vk::Format::eUndefined ? image.format : viewFormat,
             {},
-            subresourceRange,
+            viewSubresourceRange,
         } });
 }
 
