@@ -2,7 +2,6 @@ module;
 
 #include <array>
 #include <ranges>
-#include <vector>
 
 export module vku:descriptors.DescriptorSets;
 
@@ -32,49 +31,12 @@ namespace vku {
                 vku::unsafeProxy(layouts.getHandles()),
             }) | ranges::to_array<Layouts::setCount>() },
 #endif
-            layouts { layouts } { }
+            _layouts { std::cref(layouts) } { }
+        DescriptorSets(const DescriptorSets&) = delete;
+        DescriptorSets(DescriptorSets&&) noexcept = default;
+        DescriptorSets& operator=(const DescriptorSets&) = delete;
+        DescriptorSets& operator=(DescriptorSets&&) noexcept = default;
 
-        // For push descriptor usage.
-        explicit DescriptorSets(
-            const Layouts &layouts
-        ) : layouts { layouts } { }
-
-        template <typename Self>
-        [[nodiscard]] static auto allocateMultiple(
-            vk::Device device,
-            vk::DescriptorPool descriptorPool,
-            const Layouts &descriptorSetLayouts,
-            std::size_t n
-        ) -> std::vector<Self> {
-            std::vector<vk::DescriptorSetLayout> multipleSetLayouts;
-            multipleSetLayouts.reserve(descriptorSetLayouts.size() * n);
-            for (auto _ : std::views::iota(n)) {
-                multipleSetLayouts.append_range(descriptorSetLayouts);
-            }
-
-            const std::vector descriptorSets = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo {
-                descriptorPool,
-                multipleSetLayouts,
-            });
-            // TODO.CXX23: use std::views::chunk instead, like:
-            // return descriptorSets
-            //     | std::views::chunk(Layouts::setCount)
-            //     | std::views::transform([&](const auto &sets) {
-            //         return Self { descriptorSetLayouts, sets | ranges::to_array<Layouts::setCount>() };
-            //     })
-            //     | std::ranges::to<std::vector>();
-            return std::views::iota(0UZ, n)
-                | std::views::transform([&](std::size_t i) {
-                    return Self {
-                        descriptorSetLayouts,
-                        std::views::counted(descriptorSets.data() + i * Layouts::setCount, Layouts::setCount)
-                            | ranges::to_array<Layouts::setCount>(),
-                    };
-                })
-                | std::ranges::to<std::vector>();
-        }
-
-    protected:
         template <std::uint32_t Set, std::uint32_t Binding>
         [[nodiscard]] auto getDescriptorWrite() const -> vk::WriteDescriptorSet {
             return {
@@ -82,18 +44,11 @@ namespace vku {
                 Binding,
                 0,
                 {},
-                get<Binding>(get<Set>(layouts.layoutBindingsPerSet)).descriptorType, // Error in here: you specify binding index that exceeds the number of layout bindings in the set.
+                get<Binding>(get<Set>(_layouts.get().layoutBindingsPerSet)).descriptorType, // Error in here: you specify binding index that exceeds the number of layout bindings in the set.
             };
         }
 
     private:
-        const Layouts &layouts;
-
-        // For allocateMultiple.
-        DescriptorSets(
-            const Layouts &layouts,
-            const std::array<vk::DescriptorSet, Layouts::setCount> &descriptorSets
-        ) : std::array<vk::DescriptorSet, Layouts::setCount> { descriptorSets },
-            layouts { layouts } { }
+        std::reference_wrapper<const Layouts> _layouts;
     };
 }
