@@ -204,8 +204,8 @@ auto vk_gltf_viewer::gltf::AssetResources::createPrimitiveInfos(
         for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex].primitives){
             primitiveInfos.try_emplace(
                 &primitive,
-                [&]() -> std::optional<std::size_t> {
-                    if (primitive.materialIndex) return *primitive.materialIndex;
+                [&]() -> std::optional<std::uint32_t> {
+                    if (primitive.materialIndex) return static_cast<std::uint32_t>(*primitive.materialIndex);
                     return std::nullopt;
                 }());
         }

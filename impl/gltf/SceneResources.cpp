@@ -34,7 +34,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() 
                 mesh.primitives
                     | transform([&](const fastgltf::Primitive &primitive) {
                         const AssetResources::PrimitiveInfo &primitiveInfo = assetResources.primitiveInfos.at(&primitive);
-                        return std::pair { nodeIndex, &primitiveInfo };
+                        return std::pair { static_cast<std::uint32_t>(nodeIndex), &primitiveInfo };
                     }));
         }
         dfs.pop();

@@ -147,7 +147,7 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(
             if (ImGui::TreeNodeEx("", flags, "%s", std::format("{}", make_joiner<" / ">(nodeNames)).c_str())) {
 #endif
                 if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
-                    appState.selectedNodeIndex = nodeIndex;
+                    appState.selectedNodeIndex = static_cast<std::uint32_t>(nodeIndex);
                 }
                 dfs.push_range(node->children | std::views::reverse);
                 ImGui::TreePop();
