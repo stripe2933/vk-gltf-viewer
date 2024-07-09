@@ -1,21 +1,17 @@
 ﻿{
-    "version": 8,
-    "configurePresets": [
-        {
-            "name": "windows-x64",
-            "hidden": true,
-            "generator": "Visual Studio 17 2022",
-            "architecture": "x64",
-            "toolset": "v143",
-            "binaryDir": "${sourceDir}/build/${presetName}",
-            "condition": {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Windows"
-            },
-            "cacheVariables": {
-                 "VCPKG_OVERLAY_PORTS": "${sourceDir}/overlays"
-            }
-        }
-    ]
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default",
+      "generator": "Ninja",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "23",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_OVERLAY_PORTS": "${sourceDir}/overlays"
+      }
+    }
+  ]
 }
