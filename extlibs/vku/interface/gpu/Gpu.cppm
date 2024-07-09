@@ -27,7 +27,7 @@ namespace vku {
 
         struct DefaultPhysicalDeviceRater {
             std::span<const char*> requiredExtensions;
-            std::variant<const nofield*, const vk::PhysicalDeviceFeatures*> physicalDeviceFeatures;
+            std::variant<std::monostate, const vk::PhysicalDeviceFeatures*> physicalDeviceFeatures;
             std::function<QueueFamilies(vk::PhysicalDevice)> queueFamiliesGetter = DefaultQueueFamiliesGetter{};
 
             [[nodiscard]] auto operator()(
@@ -81,9 +81,9 @@ namespace vku {
         template <concepts::tuple_like PNextsTuple = std::tuple<>>
         struct Config {
             std::vector<const char*> extensions;
-            // If PNextsTuple has vk::PhysicalDeviceFeatures2 alternative, then physicalDeviceFeatures field set to details::nofield to pretend it is not exists.
+            // If PNextsTuple has vk::PhysicalDeviceFeatures2 alternative, then physicalDeviceFeatures field set to std::monostate to pretend it is not exists.
             // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDeviceCreateInfo.html#VUID-VkDeviceCreateInfo-pNext-00373
-            [[no_unique_address]] std::conditional_t<concepts::alternative_of<vk::PhysicalDeviceFeatures2, PNextsTuple>, nofield, vk::PhysicalDeviceFeatures> physicalDeviceFeatures;
+            [[no_unique_address]] std::conditional_t<concepts::alternative_of<vk::PhysicalDeviceFeatures2, PNextsTuple>, std::monostate, vk::PhysicalDeviceFeatures> physicalDeviceFeatures;
             std::function<QueueFamilies(vk::PhysicalDevice)> queueFamiliesGetter = DefaultQueueFamiliesGetter{};
             std::function<std::uint32_t(vk::PhysicalDevice)> physicalDeviceRater = DefaultPhysicalDeviceRater { extensions, &physicalDeviceFeatures, queueFamiliesGetter };
             PNextsTuple pNexts = std::tuple{};

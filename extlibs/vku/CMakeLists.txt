@@ -89,7 +89,6 @@ target_sources(vku PUBLIC
         interface/descriptors/PoolSizes.cppm
         interface/details/mod.cppm
         interface/details/concepts.cppm
-        interface/details/nofield.cppm
         interface/details/ranges.cppm
         interface/details/type_traits.cppm
         interface/gpu/mod.cppm
