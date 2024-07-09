@@ -4,3 +4,6 @@
 
 /.vs
 /build
+/CMakeUserPresets.json
+/out/build
+/vc140.pdb
