@@ -1,8 +1,10 @@
 module;
 
+#include <version>
+
 #include <fastgltf/core.hpp>
-#include <mikktspace.h>
 #include <fastgltf/tools.hpp>
+#include <mikktspace.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
@@ -17,19 +19,6 @@ import :io.StbDecoder;
 
 using namespace std::views;
 using namespace std::string_view_literals;
-
-#ifndef _MSC_VER
-[[nodiscard]] constexpr auto to_rvalue_range(std::ranges::input_range auto &&r) {
-    return FWD(r) | as_rvalue;
-}
-
-#pragma omp declare \
-    reduction(merge_vec \
-        : std::vector<vk_gltf_viewer::io::StbDecoder<std::uint8_t>::DecodeResult>, \
-          std::vector<vku::AllocatedImage> \
-        : omp_out.append_range(to_rvalue_range(omp_in))) \
-    initializer(omp_priv{})
-#endif
 
 [[nodiscard]] auto createStagingDstBuffer(
     vma::Allocator allocator,
@@ -154,20 +143,14 @@ auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createImages(
 
     if (asset.images.empty()) return {};
 
-#ifdef _MSC_VER
     std::vector<io::StbDecoder<std::uint8_t>::DecodeResult> images(asset.images.size());
+#if __cpp_lib_parallel_algorithm >= 201603L
     std::transform(std::execution::par_unseq, asset.images.begin(), asset.images.end(), images.begin(), [&](const fastgltf::Image& image) {
+#else
+    std::ranges::transform(asset.images, images.begin(), [&](const fastgltf::Image& image) {
+#endif
         return visit(visitor, image.data);
     });
-#else
-    std::vector<io::StbDecoder<std::uint8_t>::DecodeResult> images;
-    images.reserve(asset.images.size());
-
-    #pragma omp parallel for reduction(merge_vec: images)
-    for (const fastgltf::Image &image : asset.images) {
-        images.emplace_back(visit(visitor, image.data));
-    }
-#endif
 
     return images;
 }
@@ -706,30 +689,26 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
         | std::ranges::to<std::vector<algorithm::MikktSpaceMesh>>();
     if (missingTangentMeshes.empty()) return; // Skip if there's no missing tangent mesh.
 
-#ifdef _MSC_VER
+#if __cpp_lib_parallel_algorithm >= 201603L
     std::for_each(std::execution::par_unseq, missingTangentMeshes.begin(), missingTangentMeshes.end(), [&](algorithm::MikktSpaceMesh& mesh) {
 #else
-    #pragma omp parallel for
-    for (algorithm::MikktSpaceMesh& mesh : missingTangentMeshes) {
+    std::ranges::for_each(missingTangentMeshes, [&](algorithm::MikktSpaceMesh& mesh) {
 #endif
-        SMikkTSpaceInterface* const pInterface = [indexType = mesh.indicesAccessor.componentType]() -> SMikkTSpaceInterface* {
-            switch (indexType) {
-            case fastgltf::ComponentType::UnsignedShort:
-                return &algorithm::mikktSpaceInterface<std::uint16_t>;
-            case fastgltf::ComponentType::UnsignedInt:
-                return &algorithm::mikktSpaceInterface<std::uint32_t>;
-            default:
-                throw std::runtime_error{ "Unsupported index type" };
-            }
+        SMikkTSpaceInterface* const pInterface
+            = [indexType = mesh.indicesAccessor.componentType]() -> SMikkTSpaceInterface* {
+                switch (indexType) {
+                    case fastgltf::ComponentType::UnsignedShort:
+                        return &algorithm::mikktSpaceInterface<std::uint16_t>;
+                    case fastgltf::ComponentType::UnsignedInt:
+                        return &algorithm::mikktSpaceInterface<std::uint32_t>;
+                    default:
+                        throw std::runtime_error{ "Unsupported index type" };
+                }
             }();
         if (const SMikkTSpaceContext context{ pInterface, &mesh }; !genTangSpaceDefault(&context)) {
             throw std::runtime_error{ "Failed to generate tangent attributes" };
         }
-#ifdef _MSC_VER
     });
-#else
-    }
-#endif
 
     const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
         gpu.allocator,

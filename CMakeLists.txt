@@ -11,12 +11,6 @@ set(CMAKE_CXX_MODULE_STD 1)
 # External dependencies.
 # --------------------
 
-if (NOT MSVC) # For MSVC, use <execution> instead.
-	find_package(OpenMP REQUIRED)
-	# OpenMP must be linked to all C++ modules for definition consistency.
-	link_libraries(OpenMP::OpenMP_CXX) # Therefore it's in here.
-endif()
-
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
