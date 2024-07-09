@@ -45,7 +45,7 @@ namespace vku {
 auto vku::getDefaultGraphicsPipelineCreateInfo(
     vk::ArrayProxyNoTemporaries<const vk::PipelineShaderStageCreateInfo> stages,
     vk::PipelineLayout layout,
-    uint32_t colorAttachmentCount,
+    std::uint32_t colorAttachmentCount,
     bool hasDepthStencilAttachemnt,
     vk::SampleCountFlagBits multisample
 ) -> vk::GraphicsPipelineCreateInfo {
