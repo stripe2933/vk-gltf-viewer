@@ -153,7 +153,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 							0, vk::WholeSize,
 						};
 					})
-					| std::ranges::to<std::vector<vk::BufferMemoryBarrier>>(),
+					| std::ranges::to<std::vector>(),
 				assetResources.images
 					| std::views::transform([&](vk::Image image) {
 						return vk::ImageMemoryBarrier {
@@ -163,7 +163,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 							image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
 						};
 					})
-					| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
+					| std::ranges::to<std::vector>());
 		}
 
 		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
@@ -308,7 +308,7 @@ auto vk_gltf_viewer::vulkan::SharedData::createSwapchainAttachmentGroups(
 				mutableFormat);
 			return attachmentGroup;
 		})
-		| std::ranges::to<std::vector<vku::AttachmentGroup>>();
+		| std::ranges::to<std::vector>();
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::createCommandPool(
@@ -358,7 +358,7 @@ auto vk_gltf_viewer::vulkan::SharedData::recordImageMipmapGenerationCommands(
     std::vector pImages
         = assetResources.images
         | std::views::transform([](const vku::Image &image) { return &image; })
-        | std::ranges::to<std::vector<const vku::Image*>>();
+        | std::ranges::to<std::vector>();
     std::ranges::sort(pImages, {}, [](const vku::Image *pImage) { return pImage->mipLevels; });
 
     // 2. Generate mipmaps for each image, with global image memory barriers.
@@ -397,7 +397,7 @@ auto vk_gltf_viewer::vulkan::SharedData::recordImageMipmapGenerationCommands(
 	                };
                 })
         		| std::views::join
-                | std::ranges::to<std::vector<vk::ImageMemoryBarrier2>>()),
+                | std::ranges::to<std::vector>()),
         });
 
         // Blit from srcLevel to dstLevel.
@@ -430,7 +430,7 @@ auto vk_gltf_viewer::vulkan::SharedData::recordImageMipmapGenerationCommands(
                     vku::fullSubresourceRange(),
                 };
             })
-            | std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
+            | std::ranges::to<std::vector>());
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::recordInitialImageLayoutTransitionCommands(
@@ -449,5 +449,5 @@ auto vk_gltf_viewer::vulkan::SharedData::recordInitialImageLayoutTransitionComma
 					vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
 				};
 			})
-			| std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
+			| std::ranges::to<std::vector>());
 }

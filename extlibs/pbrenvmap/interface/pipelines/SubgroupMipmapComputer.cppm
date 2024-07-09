@@ -197,7 +197,7 @@ auto pbrenvmap::pipelines::SubgroupMipmapComputer::compute(
             std::views::iota(
                 static_cast<std::uint32_t>(std::max(1, endMipLevel - 5)),
                 static_cast<std::uint32_t>(endMipLevel))
-            | std::ranges::to<std::vector<std::uint32_t>>());
+            | std::ranges::to<std::vector>());
     }
     std::ranges::reverse(indexChunks);
 

@@ -92,7 +92,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 						queuePriorities,
 					};
 				})
-				| std::ranges::to<std::vector<vk::DeviceQueueCreateInfo>>()),
+				| std::ranges::to<std::vector>()),
 			{},
 			vku::unsafeProxy({
 #if __APPLE__

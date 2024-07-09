@@ -56,7 +56,7 @@ using namespace std::string_view_literals;
                 vk::BufferCopy { srcOffset, 0, copySize });
             return dstBuffer;
         })
-        | std::ranges::to<std::vector<vku::AllocatedBuffer>>();
+        | std::ranges::to<std::vector>();
 }
 
 vk_gltf_viewer::gltf::AssetResources::ResourceBytes::ResourceBytes(
@@ -104,7 +104,7 @@ auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createBufferBytes(
                 },
             }, buffer.data);
         })
-        | std::ranges::to<std::vector<std::variant<std::span<const std::uint8_t>, std::vector<std::uint8_t>>>>();
+        | std::ranges::to<std::vector>();
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createImages(
@@ -259,7 +259,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
                 vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
             } };
         })
-        | std::ranges::to<std::vector<vku::AllocatedImage>>();
+        | std::ranges::to<std::vector>();
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createImageViews(
@@ -276,7 +276,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImageViews(
                 vku::fullSubresourceRange(),
             } };
         })
-        | std::ranges::to<std::vector<vk::raii::ImageView>>();
+        | std::ranges::to<std::vector>();
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
@@ -345,7 +345,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
 
             return vk::raii::Sampler { device, createInfo };
         })
-        | std::ranges::to<std::vector<vk::raii::Sampler>>();
+        | std::ranges::to<std::vector>();
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createTextures() const -> decltype(textures) {
@@ -360,7 +360,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createTextures() const -> decltype(te
                 vk::ImageLayout::eShaderReadOnlyOptimal,
             };
         })
-        | std::ranges::to<std::vector<vk::DescriptorImageInfo>>();
+        | std::ranges::to<std::vector>();
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
@@ -398,7 +398,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
                     image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
                 };
             })
-            | std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
+            | std::ranges::to<std::vector>());
 
     // 2. Copy image data from staging buffer to images.
     for (const auto &[image, copyOffset] : zip(images, copyOffsets)) {
@@ -488,7 +488,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
 
             return *accessor.bufferViewIndex;
         })
-        | std::ranges::to<std::unordered_set<std::size_t>>();
+        | std::ranges::to<std::unordered_set>();
 
     // Ordered sequence of (bufferViewIndex, bufferViewBytes) pairs.
     const std::vector attributeBufferViewBytes
@@ -496,7 +496,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
         | transform([&](std::size_t bufferViewIndex) {
             return std::pair { bufferViewIndex, resourceBytes.getBufferViewBytes(asset.bufferViews[bufferViewIndex]) };
         })
-        | std::ranges::to<std::vector<std::pair<std::size_t, std::span<const std::uint8_t>>>>();
+        | std::ranges::to<std::vector>();
 
     // Create the combined staging buffer that contains all attributeBufferViewBytes.
     const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(gpu.allocator, attributeBufferViewBytes | values);
@@ -522,7 +522,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
             },
             attributeBufferViewBytes | keys,
             attributeBuffers)
-        | std::ranges::to<std::unordered_map<std::size_t, vk::DeviceAddress>>();
+        | std::ranges::to<std::unordered_map>();
 
     // Iterate over the primitives and set their attribute infos.
     for (const fastgltf::Primitive &primitive : primitives) {
@@ -590,9 +590,9 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMapping
                 | transform([&](std::size_t i) {
                     return ranges::value_or(targetAttributeInfoMap, i, {});
                 })
-                | std::ranges::to<std::vector<PrimitiveInfo::AttributeBufferInfo>>();
+                | std::ranges::to<std::vector>();
         })
-        | std::ranges::to<std::vector<std::vector<PrimitiveInfo::AttributeBufferInfo>>>();
+        | std::ranges::to<std::vector>();
 
     // If there's no attributeBufferInfo to process, skip processing.
     const std::size_t attributeBufferInfoCount = std::transform_reduce(
@@ -605,17 +605,17 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMapping
         | transform([](const auto &attributeBufferInfos) {
             return attributeBufferInfos
                 | transform(&PrimitiveInfo::AttributeBufferInfo::address)
-                | std::ranges::to<std::vector<vk::DeviceAddress>>();
+                | std::ranges::to<std::vector>();
         })
-        | std::ranges::to<std::vector<std::vector<vk::DeviceAddress>>>();
+        | std::ranges::to<std::vector>();
     const std::vector byteStrideSegments
         = attributeBufferInfos
         | transform([](const auto &attributeBufferInfos) {
             return attributeBufferInfos
                 | transform(&PrimitiveInfo::AttributeBufferInfo::byteStride)
-                | std::ranges::to<std::vector<std::uint8_t>>();
+                | std::ranges::to<std::vector>();
         })
-        | std::ranges::to<std::vector<std::vector<std::uint8_t>>>();
+        | std::ranges::to<std::vector>();
 
     const auto &[bufferPtrStagingBuffer, bufferPtrCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, addressSegments);
     const auto &[stridesStagingBuffer, strideCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, byteStrideSegments);
@@ -686,7 +686,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
                 },
             };
         })
-        | std::ranges::to<std::vector<algorithm::MikktSpaceMesh>>();
+        | std::ranges::to<std::vector>();
     if (missingTangentMeshes.empty()) return; // Skip if there's no missing tangent mesh.
 
 #if __cpp_lib_parallel_algorithm >= 201603L
@@ -825,7 +825,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
 
             return std::pair { indexType, std::move(indexBuffer) };
         })
-        | std::ranges::to<std::unordered_map<vk::IndexType, vku::AllocatedBuffer>>();
+        | std::ranges::to<std::unordered_map>();
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
@@ -857,7 +857,7 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
                     0, vk::WholeSize,
                 };
             })
-            | std::ranges::to<std::vector<vk::BufferMemoryBarrier>>(),
+            | std::ranges::to<std::vector>(),
         targetImages
             | transform([&](vk::Image image) {
                 return vk::ImageMemoryBarrier {
@@ -867,5 +867,5 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
                     image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
                 };
             })
-            | std::ranges::to<std::vector<vk::ImageMemoryBarrier>>());
+            | std::ranges::to<std::vector>());
 }

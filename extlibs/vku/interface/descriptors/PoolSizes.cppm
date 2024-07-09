@@ -99,6 +99,6 @@ auto vku::PoolSizes::getDescriptorPoolCreateInfo(
             | std::views::transform([](const auto &keyValue) {
                 return vk::DescriptorPoolSize { keyValue.first, keyValue.second };
             })
-            | std::ranges::to<std::vector<vk::DescriptorPoolSize>>(),
+            | std::ranges::to<std::vector>(),
     };
 }

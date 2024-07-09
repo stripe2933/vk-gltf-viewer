@@ -170,7 +170,7 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 			gpu.queueFamilies.transfer,
 			gpu.queueFamilies.compute,
 			gpu.queueFamilies.graphicsPresent,
-		} | std::ranges::to<std::vector<std::uint32_t>>()),
+		} | std::ranges::to<std::vector>()),
 	} };
 
 	// TODO: instead creating a temporary command pool, accept the transfer command buffer as a function parameter,
