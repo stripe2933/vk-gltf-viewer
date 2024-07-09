@@ -215,9 +215,10 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                 ImGui::Text("Mesh name: %s", mesh.name.c_str());
 
                 for (const auto &[primitiveIndex, primitive]: mesh.primitives | ranges::views::enumerate) {
-                    if (ImGui::CollapsingHeader(std::format("Primitive #{}", primitiveIndex).c_str())) {
+                    if (ImGui::CollapsingHeader(std::format("Primitive {}", primitiveIndex).c_str())) {
                         static int floatingPointPrecision = 2;
 
+                        ImGui::SeparatorText("Attributes");
                         constexpr ImGuiTableFlags tableFlags
                             = ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable
                             | ImGuiTableFlags_Reorderable | ImGuiTableFlags_SizingFixedFit;
@@ -303,6 +304,10 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                         if (ImGui::InputInt("Bound fp precision", &floatingPointPrecision)) {
                             floatingPointPrecision = std::clamp(floatingPointPrecision, 0, 9);
                         }
+
+                        ImGui::SeparatorText("Material");
+                        if (primitive.materialIndex) ImGui::Text("Material index: %zu", *primitive.materialIndex);
+                        else ImGui::TextUnformatted("Material index: -");
                     }
                 }
                 ImGui::EndTabItem();
