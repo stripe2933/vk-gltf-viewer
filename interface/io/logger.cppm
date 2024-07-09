@@ -1,13 +1,6 @@
-module;
-
-#include <chrono>
-#include <format>
-#include <print>
-#include <source_location>
-#include <thread>
-#include <type_traits>
-
 export module vk_gltf_viewer:io.logger;
+
+import std;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 

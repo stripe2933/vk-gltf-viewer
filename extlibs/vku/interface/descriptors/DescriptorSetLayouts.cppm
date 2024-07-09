@@ -1,12 +1,10 @@
 module;
 
 #include <cassert>
-#include <array>
-#include <ranges>
-#include <tuple>
 
 export module vku:descriptors.DescriptorSetLayouts;
 
+import std;
 export import vulkan_hpp;
 import :details.ranges;
 

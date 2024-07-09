@@ -1,16 +1,10 @@
 module;
 
-#include <cstdint>
-#include <array>
-#include <compare>
-#include <numbers>
-#include <ranges>
-#include <vector>
-
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module pbrenvmap;
 
+import std;
 export import vku;
 import :details.ranges;
 export import :pipelines.CubemapComputer;

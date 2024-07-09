@@ -1,12 +1,6 @@
-module;
-
-#include <concepts>
-#include <stdexcept>
-#include <tuple>
-#include <type_traits>
-#include <variant>
-
 export module vk_gltf_viewer:helpers.type_map;
+
+import std;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 

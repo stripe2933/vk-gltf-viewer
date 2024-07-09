@@ -1,10 +1,6 @@
-module;
-
-#include <concepts>
-#include <compare>
-
 export module vku:commands;
 
+import std;
 export import vulkan_hpp;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)

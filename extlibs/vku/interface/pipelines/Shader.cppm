@@ -1,12 +1,10 @@
 module;
 
-#include <format>
-#include <source_location>
-
 #include <shaderc/shaderc.hpp>
 
 export module vku:pipelines.Shader;
 
+import std;
 export import vulkan_hpp;
 
 template <>

@@ -1,9 +1,6 @@
-module;
-
-#include <type_traits>
-#include <tuple>
-
 export module vku:details.concepts;
+
+import std;
 
 namespace vku::concepts {
     template <typename>

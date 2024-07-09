@@ -1,30 +1,13 @@
 module;
 
-#include <cstdint>
-#include <algorithm>
-#include <array>
-#include <bit>
-#include <expected>
-#include <format>
-#include <limits>
-#include <memory>
-#include <optional>
-#include <ranges>
-#include <tuple>
-#include <stdexcept>
-#include <unordered_map>
-#include <utility>
-#include <vector>
-
 #include <fastgltf/core.hpp>
 #include <imgui_impl_vulkan.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-#include <enum_flags.hpp>
-
 module vk_gltf_viewer;
 import :vulkan.frame.Frame;
 
+import std;
 import :gltf.AssetResources;
 import :gltf.SceneResources;
 import :helpers.ranges;
@@ -234,7 +217,7 @@ vk_gltf_viewer::vulkan::Frame::JumpFloodResources::JumpFloodResources(
 		1, 2, // arrayLevels=0 for ping image, arrayLevels=1 for pong image.
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
-		ENUM_OR(vk::ImageUsageFlagBits, eColorAttachment /* write from DepthRenderer */, eStorage /* used as ping pong image in JumpFloodComputer, read from OutlineRenderer */),
+		vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */ | vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer | vk::ImageUsageFlagBits:read from OutlineRenderer */,
 	} },
 	pingImageView { gpu.device, vk::ImageViewCreateInfo {
 		{},
@@ -747,7 +730,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		{},
 		vk::MemoryBarrier {
 			vk::AccessFlagBits::eColorAttachmentWrite,
-			ENUM_OR(vk::AccessFlagBits, eColorAttachmentRead, eColorAttachmentWrite),
+			vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
 		},
 		{}, {});
 
@@ -795,7 +778,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		{},
 		vk::MemoryBarrier {
 			vk::AccessFlagBits::eColorAttachmentWrite,
-			ENUM_OR(vk::AccessFlagBits, eColorAttachmentRead, eColorAttachmentWrite),
+			vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
 		},
 		{}, {});
 

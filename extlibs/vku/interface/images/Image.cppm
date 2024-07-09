@@ -1,10 +1,6 @@
-module;
-
-#include <bit>
-#include <numeric>
-
 export module vku:images.Image;
 
+import std;
 export import vulkan_hpp;
 
 namespace vku {

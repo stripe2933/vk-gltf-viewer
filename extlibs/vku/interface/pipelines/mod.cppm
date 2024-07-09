@@ -1,13 +1,6 @@
-module;
-
-#include <array>
-#include <bit>
-#include <span>
-#include <stdexcept>
-#include <tuple>
-
 export module vku:pipelines;
 
+import std;
 export import vulkan_hpp;
 export import :pipelines.Shader;
 import :utils.RefHolder;

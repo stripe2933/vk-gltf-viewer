@@ -1,15 +1,12 @@
 module;
 
-#include <compare>
-#include <format>
-#include <string_view>
-
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
 import :vulkan.pipelines.AlphaMaskedPrimitiveRenderer;
 
+import std;
 import vku;
 
 // language=vert

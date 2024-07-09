@@ -1,14 +1,10 @@
 module;
 
-#include <array>
-#include <compare>
-#include <list>
-#include <memory>
-
 #include <fastgltf/core.hpp>
 
 export module vk_gltf_viewer:MainApp;
 
+import std;
 export import vulkan_hpp; // have to be exported for initializing DispatchLoader.
 import :control.AppWindow;
 import :control.Camera;

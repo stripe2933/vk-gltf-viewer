@@ -1,9 +1,11 @@
-﻿cmake_minimum_required (VERSION 3.28)
-project(vk-gltf-viewer
-	LANGUAGES CXX
-)
+﻿cmake_minimum_required (VERSION 3.30)
 
-set(CMAKE_CXX_STANDARD 23)
+# Enable CMake's experimental standard library module support.
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "0e5b6991-d74f-4b3d-a41c-cf096e0b2508")
+
+project(vk-gltf-viewer LANGUAGES CXX)
+
+set(CMAKE_CXX_MODULE_STD 1)
 
 # --------------------
 # External dependencies.
@@ -15,12 +17,10 @@ if (NOT MSVC) # For MSVC, use <execution> instead.
 	link_libraries(OpenMP::OpenMP_CXX) # Therefore it's in here.
 endif()
 
-find_package(Boost REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(ImGuizmo CONFIG REQUIRED)
-find_package(Ktx CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(Vulkan REQUIRED)
@@ -82,7 +82,6 @@ add_executable(vk-gltf-viewer
 	main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
-	include
 	${Stb_INCLUDE_DIR}
 )
 target_sources(vk-gltf-viewer PRIVATE
@@ -104,8 +103,6 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/helpers/full_optional.cppm
 		interface/helpers/ranges.cppm
 		interface/helpers/type_map.cppm
-		interface/io/ktxvk/DeviceInfo.cppm
-		interface/io/ktxvk/Texture.cppm
 		interface/io/logger.cppm
 		interface/io/StbDecoder.cppm
 		interface/MainApp.cppm
@@ -124,11 +121,9 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipelines/SphericalHarmonicsRenderer.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
-	Boost::boost
 	fastgltf::fastgltf
 	imgui::imgui
 	imguizmo::imguizmo
-	KTX::ktx
 	mikktspace::mikktspace
 	pbrenvmap
 	vku

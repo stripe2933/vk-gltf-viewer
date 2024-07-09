@@ -1,9 +1,6 @@
-module;
-
-#include <compare>
-
 export module vk_gltf_viewer:vulkan.Gpu;
 
+import std;
 export import vk_mem_alloc_hpp;
 export import vulkan_hpp;
 

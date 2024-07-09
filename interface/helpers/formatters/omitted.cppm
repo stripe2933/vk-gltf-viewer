@@ -1,10 +1,10 @@
 module;
 
-#include <format>
-#include <ranges>
 #include <version>
 
 export module vk_gltf_viewer:helpers.formatters.omitted;
+
+import std;
 
 namespace vk_gltf_viewer {
     export template <std::ranges::range R>

@@ -1,17 +1,12 @@
 module;
 
-#include <array>
-#include <compare>
-#include <format>
-#include <string_view>
-#include <vector>
-
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
 import :vulkan.pipelines.SkyboxRenderer;
 
+import std;
 import vku;
 
 // language=vert

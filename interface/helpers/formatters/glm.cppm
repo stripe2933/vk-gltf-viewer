@@ -1,9 +1,6 @@
-module;
-
-#include <format>
-
 export module vk_gltf_viewer:helpers.formatters.glm;
 
+import std;
 export import glm;
 
 export template <std::size_t L, typename T, glm::qualifier Q>

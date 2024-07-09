@@ -1,17 +1,11 @@
 module;
 
-#include <map>
-#include <ranges>
-#include <stack>
-#include <tuple>
-#include <vector>
-
 #include <fastgltf/core.hpp>
-
-#include <enum_flags.hpp>
 
 module vk_gltf_viewer;
 import :gltf.SceneResources;
+
+import std;
 import :helpers.ranges;
 
 using namespace std::views;
@@ -167,14 +161,14 @@ auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
             criteria,
             allocator,
             std::from_range, commands,
-            ENUM_OR(vk::BufferUsageFlagBits, eIndirectBuffer, eStorageBuffer));
+            vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer);
     }
     for (const auto &[criteria, commands] : nonIndexedCommandGroups) {
         result.try_emplace(
             criteria,
             allocator,
             std::from_range, commands,
-            ENUM_OR(vk::BufferUsageFlagBits, eIndirectBuffer, eStorageBuffer));
+            vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer);
     }
 
     return result;

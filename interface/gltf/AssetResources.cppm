@@ -1,21 +1,10 @@
 module;
 
-#include <cstdint>
-#include <compare>
-#include <filesystem>
-#include <list>
-#include <numeric>
-#include <optional>
-#include <ranges>
-#include <span>
-#include <unordered_map>
-#include <variant>
-#include <vector>
-
 #include <fastgltf/types.hpp>
 
 export module vk_gltf_viewer:gltf.AssetResources;
 
+import std;
 export import vku;
 import :io.StbDecoder;
 export import :vulkan.Gpu;

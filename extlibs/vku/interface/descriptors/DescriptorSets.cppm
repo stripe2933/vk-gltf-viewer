@@ -1,10 +1,6 @@
-module;
-
-#include <array>
-#include <ranges>
-
 export module vku:descriptors.DescriptorSets;
 
+import std;
 export import vulkan_hpp;
 export import :descriptors.DescriptorSetLayouts;
 import :details.concepts;

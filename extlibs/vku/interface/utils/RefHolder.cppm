@@ -1,8 +1,6 @@
-module;
-
-#include <tuple>
-
 export module vku:utils.RefHolder;
+
+import std;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 

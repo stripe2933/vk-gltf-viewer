@@ -1,7 +1,3 @@
-module;
-
-#include <compare>
-
 export module vku:rendering;
 
 export import :rendering.Attachment;

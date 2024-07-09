@@ -1,12 +1,10 @@
 module;
 
 #include <cassert>
-#include <concepts>
-#include <ranges>
-#include <type_traits>
 
 export module vku:buffers.MappedBuffer;
 
+import std;
 export import vk_mem_alloc_hpp;
 export import vulkan_hpp;
 export import :buffers.AllocatedBuffer;

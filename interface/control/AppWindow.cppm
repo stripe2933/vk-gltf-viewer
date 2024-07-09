@@ -1,10 +1,6 @@
-module;
-
-#include <compare>
-#include <optional>
-
 export module vk_gltf_viewer:control.AppWindow;
 
+import std;
 import vku;
 export import :AppState;
 

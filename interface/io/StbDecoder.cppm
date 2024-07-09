@@ -1,17 +1,11 @@
 module;
 
-#include <cstdint>
-#include <concepts>
-#include <format>
-#include <mdspan>
-#include <memory>
-#include <span>
-#include <stdexcept>
-
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 export module vk_gltf_viewer:io.StbDecoder;
+
+import std;
 
 namespace vk_gltf_viewer::io {
     export template <typename T>

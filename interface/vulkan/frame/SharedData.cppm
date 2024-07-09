@@ -1,14 +1,11 @@
 module;
 
-#include <compare>
-#include <optional>
-#include <vector>
-
 #include <fastgltf/types.hpp>
 #include <shaderc/shaderc.hpp>
 
 export module vk_gltf_viewer:vulkan.frame.SharedData;
 
+import std;
 export import vku;
 import :gltf.AssetResources;
 import :gltf.SceneResources;

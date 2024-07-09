@@ -1,12 +1,6 @@
-module;
-
-#include <compare>
-#include <concepts>
-#include <initializer_list>
-#include <ranges>
-
 export module vku:utils;
 
+import std;
 import vulkan_hpp;
 export import :utils.RefHolder;
 

@@ -1,9 +1,6 @@
-module;
-
-#include <concepts>
-#include <type_traits>
-
 export module vku:details.type_traits;
+
+import std;
 
 namespace vku::type_traits {
     export template <typename T, typename... Ts>

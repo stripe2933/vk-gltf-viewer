@@ -1,13 +1,10 @@
 module;
 
-#include <cstdint>
-#include <compare>
-#include <string_view>
-
 #include <shaderc/shaderc.hpp>
 
 export module vk_gltf_viewer:vulkan.pipelines.BrdfmapComputer;
 
+import std;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::pipelines {

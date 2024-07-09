@@ -12,18 +12,15 @@
       ]
     },
     "imguizmo",
-    {
-      "name": "ktx",
-      "features": [
-        "vulkan"
-      ]
-    },
     "mikktspace",
     "stb",
     {
-      "name": "vulkan-memory-allocator-hpp",
+      "name": "vulkan-memory-allocator",
       "version>=": "3.1.0"
     },
-    "boost-preprocessor"
+    {
+      "name": "vulkan-memory-allocator-hpp",
+      "version>=": "3.1.0"
+    }
   ]
 }

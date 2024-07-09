@@ -1,11 +1,10 @@
 module;
 
-#include <concepts>
-#include <ranges>
-#include <type_traits>
 #include <version>
 
 export module pbrenvmap:details.ranges;
+
+import std;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })

@@ -1,14 +1,10 @@
 module;
 
-#include <cstdint>
-#include <compare>
-#include <map>
-#include <optional>
-
 #include <fastgltf/types.hpp>
 
 export module vk_gltf_viewer:gltf.SceneResources;
 
+import std;
 export import glm;
 export import vku;
 export import :gltf.AssetResources;

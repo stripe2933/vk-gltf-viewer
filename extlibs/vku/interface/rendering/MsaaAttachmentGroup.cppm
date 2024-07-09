@@ -1,15 +1,10 @@
 module;
 
 #include <cassert>
-#include <compare>
-#include <optional>
-#include <ranges>
-#include <span>
-#include <tuple>
-#include <vector>
 
 export module vku:rendering.MsaaAttachmentGroup;
 
+import std;
 export import vk_mem_alloc_hpp;
 export import vulkan_hpp;
 import :details;

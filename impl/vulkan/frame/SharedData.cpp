@@ -1,23 +1,13 @@
 module;
 
-#include <cstdlib>
-#include <algorithm>
-#include <array>
-#include <charconv>
-#include <ranges>
-#include <tuple>
-#include <unordered_map>
-#include <vector>
-
 #include <fastgltf/core.hpp>
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-#include <enum_flags.hpp>
-
 module vk_gltf_viewer;
 import :vulkan.frame.SharedData;
 
+import std;
 import pbrenvmap;
 import :helpers.ranges;
 import :vulkan.pipelines.BrdfmapComputer;
@@ -267,7 +257,7 @@ auto vk_gltf_viewer::vulkan::SharedData::createGltfFallbackImage() const -> decl
 		1, 1,
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
-		ENUM_OR(vk::ImageUsageFlagBits, eTransferDst, eSampled),
+		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
 	} };
 }
 
@@ -291,7 +281,7 @@ auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImage() const -> decltype(
 		1, 1,
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
-		ENUM_OR(vk::ImageUsageFlagBits, eStorage, eSampled),
+		vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
 	} };
 }
 

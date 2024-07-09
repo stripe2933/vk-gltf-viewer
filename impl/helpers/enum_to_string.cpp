@@ -1,22 +1,47 @@
 module;
 
-#include <boost/preprocessor/stringize.hpp>
-#include <boost/preprocessor/seq/for_each.hpp>
-#include <boost/preprocessor/variadic/to_seq.hpp>
 #include <fastgltf/types.hpp>
 
 module vk_gltf_viewer;
 import :helpers.enum_to_string;
 
-#define ENUM_TO_STRING_CASE(R, EnumType, EnumValue) case EnumType::EnumValue: return BOOST_PP_STRINGIZE(EnumValue);
-#define ENUM_TO_STRING(EnumType, ...) \
-    auto vk_gltf_viewer::to_string(EnumType value) noexcept -> const char* { \
-        switch (value) { \
-            BOOST_PP_SEQ_FOR_EACH(ENUM_TO_STRING_CASE, EnumType, BOOST_PP_VARIADIC_TO_SEQ(__VA_ARGS__)) \
-        } \
-        std::unreachable(); \
+auto vk_gltf_viewer::to_string(fastgltf::PrimitiveType value) noexcept -> const char* {
+    switch (value) {
+        case fastgltf::PrimitiveType::Points: return "Points";
+        case fastgltf::PrimitiveType::Lines: return "Lines";
+        case fastgltf::PrimitiveType::LineLoop: return "LineLoop";
+        case fastgltf::PrimitiveType::LineStrip: return "LineStrip";
+        case fastgltf::PrimitiveType::Triangles: return "Triangles";
+        case fastgltf::PrimitiveType::TriangleStrip: return "TriangleStrip";
+        case fastgltf::PrimitiveType::TriangleFan: return "TriangleFan";
     }
+    std::unreachable();
+}
 
-ENUM_TO_STRING(fastgltf::PrimitiveType, Points, Lines, LineLoop, LineStrip, Triangles, TriangleStrip, TriangleFan);
-ENUM_TO_STRING(fastgltf::AccessorType, Invalid, Scalar, Vec2, Vec3, Vec4, Mat2, Mat3, Mat4);
-ENUM_TO_STRING(fastgltf::ComponentType, Byte, UnsignedByte, Short, UnsignedShort, UnsignedInt, Float, Invalid, Int, Double);
+auto vk_gltf_viewer::to_string(fastgltf::AccessorType value) noexcept -> const char* {
+    switch (value) {
+        case fastgltf::AccessorType::Invalid: return "Invalid";
+        case fastgltf::AccessorType::Scalar: return "Scalar";
+        case fastgltf::AccessorType::Vec2: return "Vec2";
+        case fastgltf::AccessorType::Vec3: return "Vec3";
+        case fastgltf::AccessorType::Mat2: return "Mat2";
+        case fastgltf::AccessorType::Mat3: return "Mat3";
+        case fastgltf::AccessorType::Mat4: return "Mat4";
+    }
+    std::unreachable();
+}
+
+auto vk_gltf_viewer::to_string(fastgltf::ComponentType value) noexcept -> const char* {
+    switch (value) {
+        case fastgltf::ComponentType::Byte: return "Byte";
+        case fastgltf::ComponentType::UnsignedByte: return "UnsignedByte";
+        case fastgltf::ComponentType::Short: return "Short";
+        case fastgltf::ComponentType::UnsignedShort: return "UnsignedShort";
+        case fastgltf::ComponentType::UnsignedInt: return "UnsignedInt";
+        case fastgltf::ComponentType::Float: return "Float";
+        case fastgltf::ComponentType::Invalid: return "Invalid";
+        case fastgltf::ComponentType::Int: return "Int";
+        case fastgltf::ComponentType::Double: return "Double";
+    }
+    std::unreachable();
+}

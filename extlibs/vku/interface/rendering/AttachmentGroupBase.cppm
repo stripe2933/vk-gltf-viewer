@@ -1,16 +1,10 @@
 module;
 
-#include <concepts>
-#include <memory>
-#include <optional>
-#include <span>
-#include <tuple>
-#include <vector>
-
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vku:rendering.AttachmentGroupBase;
 
+import std;
 export import vk_mem_alloc_hpp;
 export import vulkan_hpp;
 export import :images.AllocatedImage;

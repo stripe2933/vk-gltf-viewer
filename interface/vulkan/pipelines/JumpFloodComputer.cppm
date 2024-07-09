@@ -1,14 +1,10 @@
 module;
 
-#include <cstdint>
-#include <compare>
-#include <span>
-#include <string_view>
-
 #include <shaderc/shaderc.hpp>
 
 export module vk_gltf_viewer:vulkan.pipelines.JumpFloodComputer;
 
+import std;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::pipelines {

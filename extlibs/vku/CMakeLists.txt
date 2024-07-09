@@ -1,7 +1,11 @@
-cmake_minimum_required(VERSION 3.28)
-project(vku
-    LANGUAGES CXX
-)
+cmake_minimum_required(VERSION 3.30)
+
+# Enable CMake's experimental standard library module support.
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "0e5b6991-d74f-4b3d-a41c-cf096e0b2508")
+
+project(vku LANGUAGES CXX)
+
+set(CMAKE_CXX_MODULE_STD 1)
 
 # ----------------
 # External dependencies.

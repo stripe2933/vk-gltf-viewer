@@ -1,11 +1,7 @@
-module;
-
-#include <compare>
-#include <optional>
-
 module vk_gltf_viewer;
 import :AppState;
 
+import std;
 import glm;
 import vku;
 

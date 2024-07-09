@@ -1,15 +1,6 @@
-module;
-
-#include <cstdint>
-#include <ranges>
-#include <span>
-#include <tuple>
-#include <type_traits>
-#include <unordered_map>
-#include <vector>
-
 export module vku:descriptors.PoolSizes;
 
+import std;
 export import vulkan_hpp;
 import :descriptors.DescriptorSetLayouts;
 import :details.concepts;

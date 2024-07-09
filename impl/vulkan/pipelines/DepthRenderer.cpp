@@ -1,16 +1,12 @@
 module;
 
-#include <array>
-#include <compare>
-#include <format>
-#include <string_view>
-
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
 import :vulkan.pipelines.DepthRenderer;
 
+import std;
 import vku;
 
 // language=vert

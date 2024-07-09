@@ -1,16 +1,10 @@
 module;
 
-#include <algorithm>
-#include <concepts>
-#include <functional>
-#include <ranges>
-#include <stdexcept>
-#include <variant>
-
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vku:gpu.Gpu;
 
+import std;
 export import vulkan_hpp;
 export import vk_mem_alloc_hpp;
 import :details;
