@@ -89,10 +89,7 @@ auto vku::PoolSizes::getDescriptorPoolCreateInfo(
             return vk::DescriptorPoolCreateInfo {
                 flags,
                 setCount,
-                // TODO: directly passing poolSizes (automatically converted to vk::ArrayProxyNoTemporaries) causes a compiler error for MSVC,
-                // looks like C++20 module bug. Uncomment the following line when fixed.
-                // poolSizes,
-                static_cast<std::uint32_t>(poolSizes.size()), poolSizes.data(),
+                poolSizes,
             };
         },
         descriptorTypeCountMap

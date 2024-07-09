@@ -15,18 +15,10 @@ namespace vku {
             vk::Device device,
             vk::DescriptorPool descriptorPool,
             const Layouts &layouts [[clang::lifetimebound]]
-        // TODO: seems MSVC C++20 module bug. Remove #ifdef guard and use the below version when fixed.
-#ifdef _MSC_VER
-        ) : std::array<vk::DescriptorSet, Layouts::setCount> { ranges::to_array<Layouts::setCount>{}(device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
-                descriptorPool,
-                vku::unsafeProxy(layouts.getHandles()),
-            })) },
-#else
         ) : std::array<vk::DescriptorSet, Layouts::setCount> { device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo {
                 descriptorPool,
                 vku::unsafeProxy(layouts.getHandles()),
             }) | ranges::to_array<Layouts::setCount>() },
-#endif
             _layouts { std::cref(layouts) } { }
         DescriptorSets(const DescriptorSets&) = delete;
         DescriptorSets(DescriptorSets&&) noexcept = default;

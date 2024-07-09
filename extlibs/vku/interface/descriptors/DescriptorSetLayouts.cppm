@@ -26,13 +26,7 @@ namespace vku {
             const vk::raii::Device &device,
              const CreateInfos&...createInfos
         ) : std::array<vk::raii::DescriptorSetLayout, setCount> { vk::raii::DescriptorSetLayout { device, createInfos }... },
-#ifdef _MSC_VER
-            // Look's like MSVC C++20 module does not accept the range pipe syntax code in below.
-            // TODO: remove #ifdef when the issue fixed.
-            layoutBindingsPerSet{ ranges::to_array<BindingCounts>{}(std::views::counted(createInfos.pBindings, BindingCounts))... } {
-#else
             layoutBindingsPerSet{ std::views::counted(createInfos.pBindings, BindingCounts) | ranges::to_array<BindingCounts>()... } {
-#endif
             assert(((createInfos.bindingCount == BindingCounts) && ...) && "Binding counts mismatch!");
         }
 
