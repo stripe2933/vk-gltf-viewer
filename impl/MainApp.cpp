@@ -15,6 +15,7 @@ import :MainApp;
 import std;
 import vku;
 import :control.ImGui;
+import :helpers.ranges;
 import :io.StbDecoder;
 import :vulkan.frame.Frame;
 import :vulkan.frame.SharedData;
@@ -224,10 +225,7 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 
 	auto graphicsCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent);
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-		// TODO: use ranges::views::pairwise when it's available (look's like false-positive compiler error for Clang).
-		// for (auto [srcLevel, dstLevel] : std::views::iota(0U, eqmapImage.mipLevels) | ranges::views::pairwise) {
-		for (std::uint32_t srcLevel : std::views::iota(0U, eqmapImage.mipLevels - 1U)) {
-			const std::uint32_t dstLevel = srcLevel + 1;
+		for (auto [srcLevel, dstLevel] : std::views::iota(0U, eqmapImage.mipLevels) | ranges::views::pairwise) {
 			// Blit from srcLevel to dstLevel.
 			cb.blitImage(
 				eqmapImage, vk::ImageLayout::eTransferSrcOptimal,

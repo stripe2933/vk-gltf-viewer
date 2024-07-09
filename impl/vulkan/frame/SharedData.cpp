@@ -363,11 +363,7 @@ auto vk_gltf_viewer::vulkan::SharedData::recordImageMipmapGenerationCommands(
 
     // 2. Generate mipmaps for each image, with global image memory barriers.
     const std::uint32_t maxMipLevels = pImages.back()->mipLevels;
-	// TODO: use ranges::views::pairwise when it's available (look's like false-positive compiler error for Clang).
-    // for (auto [srcLevel, dstLevel] : std::views::iota(0U, maxMipLevels) | ranges::views::pairwise) {
-    for (std::uint32_t srcLevel : std::views::iota(0U, maxMipLevels - 1U)) {
-        const std::uint32_t dstLevel = srcLevel + 1;
-
+    for (auto [srcLevel, dstLevel] : std::views::iota(0U, maxMipLevels) | ranges::views::pairwise) {
         // Find the images that have the current mip level.
         auto begin = std::ranges::lower_bound(
             pImages, dstLevel + 1U, {}, [](const vku::Image *pImage) { return pImage->mipLevels; });
