@@ -24,6 +24,7 @@ auto vk_gltf_viewer::to_string(fastgltf::AccessorType value) noexcept -> const c
         case fastgltf::AccessorType::Scalar: return "Scalar";
         case fastgltf::AccessorType::Vec2: return "Vec2";
         case fastgltf::AccessorType::Vec3: return "Vec3";
+        case fastgltf::AccessorType::Vec4: return "Vec4";
         case fastgltf::AccessorType::Mat2: return "Mat2";
         case fastgltf::AccessorType::Mat3: return "Mat3";
         case fastgltf::AccessorType::Mat4: return "Mat4";
