@@ -267,14 +267,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImageViews(
 ) const -> decltype(imageViews) {
     return images
         | transform([&](const vku::Image &image) {
-            return vk::raii::ImageView { device, vk::ImageViewCreateInfo {
-                {},
-                image,
-                vk::ImageViewType::e2D,
-                image.format,
-                {},
-                vku::fullSubresourceRange(),
-            } };
+            return vk::raii::ImageView { device, image.getViewCreateInfo() };
         })
         | std::ranges::to<std::vector>();
 }

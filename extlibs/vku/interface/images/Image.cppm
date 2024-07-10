@@ -2,6 +2,7 @@ export module vku:images.Image;
 
 import std;
 export import vulkan_hpp;
+import :utils;
 
 namespace vku {
     export struct Image {
@@ -13,6 +14,13 @@ namespace vku {
 
         [[nodiscard]] operator vk::Image() const noexcept {
             return image;
+        }
+
+        [[nodiscard]] auto getViewCreateInfo(
+            vk::ImageViewType type = vk::ImageViewType::e2D,
+            const vk::ImageSubresourceRange &subresourceRange = fullSubresourceRange()
+        ) const noexcept -> vk::ImageViewCreateInfo {
+            return { {}, image, type, format, {}, subresourceRange };
         }
 
         [[nodiscard]] auto maxMipLevels() const noexcept -> vk::Extent2D {

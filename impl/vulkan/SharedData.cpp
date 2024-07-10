@@ -26,14 +26,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	swapchainExtent { swapchainExtent } {
 	{
 		// Create image view for eqmapImage.
-		const vk::raii::ImageView eqmapImageView { gpu.device, vk::ImageViewCreateInfo {
-			{},
-			eqmapImage,
-			vk::ImageViewType::e2D,
-			eqmapImage.format,
-			{},
-			{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-		} };
+		const vk::raii::ImageView eqmapImageView { gpu.device, eqmapImage.getViewCreateInfo(vk::ImageViewType::e2D, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) };
 
 		const pbrenvmap::Generator::Pipelines pbrenvmapPipelines {
 			.cubemapComputer = { gpu.device, compiler },
@@ -104,22 +97,8 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 		});
 		gpu.queues.compute.waitIdle();
 
-		vk::raii::ImageView cubemapImageView { gpu.device, vk::ImageViewCreateInfo {
-			{},
-			pbrenvmapGenerator.cubemapImage,
-			vk::ImageViewType::eCube,
-			pbrenvmapGenerator.cubemapImage.format,
-			{},
-			vku::fullSubresourceRange(),
-		} };
-		vk::raii::ImageView prefilteredmapImageView { gpu.device, vk::ImageViewCreateInfo {
-			{},
-			pbrenvmapGenerator.prefilteredmapImage,
-			vk::ImageViewType::eCube,
-			pbrenvmapGenerator.prefilteredmapImage.format,
-			{},
-			vku::fullSubresourceRange(),
-		} };
+		vk::raii::ImageView cubemapImageView { gpu.device, pbrenvmapGenerator.cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
+		vk::raii::ImageView prefilteredmapImageView { gpu.device, pbrenvmapGenerator.prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
 
 		imageBasedLightingResources.emplace(
 		    std::move(pbrenvmapGenerator.cubemapImage),
@@ -261,17 +240,6 @@ auto vk_gltf_viewer::vulkan::SharedData::createGltfFallbackImage() const -> decl
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::createGltfFallbackImageView() const -> decltype(gltfFallbackImageView) {
-	return { gpu.device, vk::ImageViewCreateInfo {
-        {},
-		gltfFallbackImage,
-		vk::ImageViewType::e2D,
-		gltfFallbackImage.format,
-		{},
-		vku::fullSubresourceRange(),
-	} };
-}
-
 auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImage() const -> decltype(brdfmapImage) {
 	return { gpu.allocator, vk::ImageCreateInfo {
         {},
@@ -282,17 +250,6 @@ auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImage() const -> decltype(
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
 		vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
-	} };
-}
-
-auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImageView() const -> decltype(brdfmapImageView) {
-	return { gpu.device, vk::ImageViewCreateInfo {
-        {},
-		brdfmapImage,
-		vk::ImageViewType::e2D,
-		brdfmapImage.format,
-		{},
-		vku::fullSubresourceRange(),
 	} };
 }
 

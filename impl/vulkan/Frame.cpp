@@ -219,22 +219,8 @@ vk_gltf_viewer::vulkan::Frame::JumpFloodResources::JumpFloodResources(
 		vk::ImageTiling::eOptimal,
 		vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */ | vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer | vk::ImageUsageFlagBits:read from OutlineRenderer */,
 	} },
-	pingImageView { gpu.device, vk::ImageViewCreateInfo {
-		{},
-		image,
-		vk::ImageViewType::e2D,
-		image.format,
-		{},
-		vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-	} },
-	pongImageView { gpu.device, vk::ImageViewCreateInfo {
-		{},
-		image,
-		vk::ImageViewType::e2D,
-		image.format,
-		{},
-		vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 },
-	} } { }
+	pingImageView { gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2D, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
+	pongImageView { gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2D, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 }) } { }
 
 auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
 	vk::SurfaceKHR surface,

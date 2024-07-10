@@ -34,7 +34,7 @@ namespace vk_gltf_viewer {
 
 		// Buffers, images, image views and samplers.
 		vku::AllocatedImage eqmapImage = createEqmapImage();
-		vk::raii::ImageView eqmapImageView = createEqmapImageView();
+		vk::raii::ImageView eqmapImageView { gpu.device, eqmapImage.getViewCreateInfo() };
 		vk::raii::Sampler eqmapSampler = createEqmapSampler();
 
 		// Descriptor/command pools.
@@ -47,7 +47,6 @@ namespace vk_gltf_viewer {
 
 		[[nodiscard]] auto createInstance() const -> decltype(instance);
 		[[nodiscard]] auto createEqmapImage() -> decltype(eqmapImage);
-		[[nodiscard]] auto createEqmapImageView() const -> decltype(eqmapImageView);
 		[[nodiscard]] auto createEqmapSampler() const -> decltype(eqmapSampler);
     	[[nodiscard]] auto createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool);
 

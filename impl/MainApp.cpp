@@ -289,17 +289,6 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 	return eqmapImage;
 }
 
-auto vk_gltf_viewer::MainApp::createEqmapImageView() const -> decltype(eqmapImageView) {
-	return { gpu.device, vk::ImageViewCreateInfo {
-		{},
-		eqmapImage,
-		vk::ImageViewType::e2D,
-		eqmapImage.format,
-		{},
-		vku::fullSubresourceRange(),
-	} };
-}
-
 auto vk_gltf_viewer::MainApp::createEqmapSampler() const -> decltype(eqmapSampler) {
 	return { gpu.device, vk::SamplerCreateInfo {
 		{},
