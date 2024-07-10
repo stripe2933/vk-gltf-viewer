@@ -9,7 +9,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
     export class SkyboxRenderer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1>{
-            DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler);
+            DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]], const vk::Sampler &sampler);
         };
 
         struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
@@ -39,7 +39,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::Pipeline pipeline;
         vku::MappedBuffer indexBuffer;
 
-        explicit SkyboxRenderer(const Gpu &gpu);
+        explicit SkyboxRenderer(const Gpu &gpu [[clang::lifetimebound]]);
 
         auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const PushConstant &pushConstant) const -> void;
 

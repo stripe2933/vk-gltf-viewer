@@ -15,7 +15,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
 
         vk::raii::Pipeline pipeline;
 
-        AlphaMaskedPrimitiveRenderer(const vk::raii::Device &device, vk::PipelineLayout primitiveRendererPipelineLayout);
+        AlphaMaskedPrimitiveRenderer(const vk::raii::Device &device [[clang::lifetimebound]], vk::PipelineLayout primitiveRendererPipelineLayout);
 
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
 

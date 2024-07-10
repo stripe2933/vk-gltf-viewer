@@ -8,7 +8,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
     export class PrimitiveRenderer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<3, 2, 2>{
-            DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler, std::uint32_t textureCount);
+            DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]], const vk::Sampler &sampler, std::uint32_t textureCount);
         };
 
         struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
@@ -73,7 +73,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        PrimitiveRenderer(const vk::raii::Device &device, std::uint32_t textureCount);
+        PrimitiveRenderer(const vk::raii::Device &device [[clang::lifetimebound]], std::uint32_t textureCount);
 
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
         auto bindDescriptorSets(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t firstSet = 0) const -> void;

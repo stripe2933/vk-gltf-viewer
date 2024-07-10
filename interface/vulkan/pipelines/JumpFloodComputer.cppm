@@ -7,7 +7,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
     export class JumpFloodComputer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1> {
-            explicit DescriptorSetLayouts(const vk::raii::Device &device);
+            explicit DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]]);
         };
 
         struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
@@ -39,7 +39,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        explicit JumpFloodComputer(const vk::raii::Device &device);
+        explicit JumpFloodComputer(const vk::raii::Device &device [[clang::lifetimebound]]);
 
         [[nodiscard]] auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t initialSampleOffset, const vk::Extent2D &imageExtent) const -> vk::Bool32;
 

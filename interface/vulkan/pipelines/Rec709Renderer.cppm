@@ -8,7 +8,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
     export class Rec709Renderer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1>{
-            explicit DescriptorSetLayouts(const vk::raii::Device &device);
+            explicit DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]]);
         };
 
         struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
@@ -32,7 +32,7 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        explicit Rec709Renderer(const vk::raii::Device &device);
+        explicit Rec709Renderer(const vk::raii::Device &device [[clang::lifetimebound]]);
 
         auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const vk::Offset2D &passthruOffset) const -> void;
 
