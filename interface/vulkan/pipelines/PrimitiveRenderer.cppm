@@ -1,7 +1,3 @@
-module;
-
-#include <shaderc/shaderc.hpp>
-
 export module vk_gltf_viewer:vulkan.pipelines.PrimitiveRenderer;
 
 import std;
@@ -77,17 +73,15 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        PrimitiveRenderer(const vk::raii::Device &device, std::uint32_t textureCount, const shaderc::Compiler &compiler);
+        PrimitiveRenderer(const vk::raii::Device &device, std::uint32_t textureCount);
 
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
         auto bindDescriptorSets(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t firstSet = 0) const -> void;
         auto pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const -> void;
 
     private:
-        static std::string_view vert, frag;
-
         [[nodiscard]] auto createSampler(const vk::raii::Device &device) const -> decltype(sampler);
         [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device, const shaderc::Compiler &compiler) const -> decltype(pipeline);
+        [[nodiscard]] auto createPipeline(const vk::raii::Device &device) const -> decltype(pipeline);
     };
 }

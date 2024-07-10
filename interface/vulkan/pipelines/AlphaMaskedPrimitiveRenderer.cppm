@@ -1,7 +1,3 @@
-module;
-
-#include <shaderc/shaderc.hpp>
-
 export module vk_gltf_viewer:vulkan.pipelines.AlphaMaskedPrimitiveRenderer;
 
 import std;
@@ -19,13 +15,11 @@ namespace vk_gltf_viewer::vulkan::pipelines {
 
         vk::raii::Pipeline pipeline;
 
-        AlphaMaskedPrimitiveRenderer(const vk::raii::Device &device, vk::PipelineLayout primitiveRendererPipelineLayout, const shaderc::Compiler &compiler);
+        AlphaMaskedPrimitiveRenderer(const vk::raii::Device &device, vk::PipelineLayout primitiveRendererPipelineLayout);
 
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
 
     private:
-        static std::string_view vert, frag;
-
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device, vk::PipelineLayout primitiveRendererPipelineLayout, const shaderc::Compiler &compiler) const -> decltype(pipeline);
+        [[nodiscard]] auto createPipeline(const vk::raii::Device &device, vk::PipelineLayout primitiveRendererPipelineLayout) const -> decltype(pipeline);
     };
 }

@@ -1,7 +1,3 @@
-module;
-
-#include <shaderc/shaderc.hpp>
-
 export module vk_gltf_viewer:vulkan.pipelines.BrdfmapComputer;
 
 import std;
@@ -39,14 +35,12 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        BrdfmapComputer(const vk::raii::Device &device, const shaderc::Compiler &compiler, const SpecializationConstants &specializationConstants = { 1024 });
+        BrdfmapComputer(const vk::raii::Device &device, const SpecializationConstants &specializationConstants = { 1024 });
 
         auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const vk::Extent2D &imageSize) const -> void;
 
     private:
-        static std::string_view comp;
-
         [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device, const shaderc::Compiler &compiler, const SpecializationConstants &specializationConstants) const -> decltype(pipeline);
+        [[nodiscard]] auto createPipeline(const vk::raii::Device &device, const SpecializationConstants &specializationConstants) const -> decltype(pipeline);
     };
 }

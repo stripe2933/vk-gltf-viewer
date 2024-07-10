@@ -53,15 +53,15 @@ namespace vk_gltf_viewer::vulkan {
     	std::optional<ImageBasedLightingResources> imageBasedLightingResources = std::nullopt;
 
 		// Pipelines.
-		pipelines::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler };
-		pipelines::DepthRenderer depthRenderer { gpu.device, compiler };
-		pipelines::JumpFloodComputer jumpFloodComputer { gpu.device, compiler };
-		pipelines::OutlineRenderer outlineRenderer { gpu.device, compiler };
-		pipelines::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()), compiler };
-    	pipelines::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, *primitiveRenderer.pipelineLayout, compiler };
-    	pipelines::Rec709Renderer rec709Renderer { gpu.device, compiler };
-		pipelines::SkyboxRenderer skyboxRenderer { gpu, compiler };
-		pipelines::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu, compiler };
+		pipelines::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()) };
+		pipelines::DepthRenderer depthRenderer { gpu.device };
+		pipelines::JumpFloodComputer jumpFloodComputer { gpu.device };
+		pipelines::OutlineRenderer outlineRenderer { gpu.device };
+		pipelines::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()) };
+    	pipelines::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, *primitiveRenderer.pipelineLayout };
+    	pipelines::Rec709Renderer rec709Renderer { gpu.device };
+		pipelines::SkyboxRenderer skyboxRenderer { gpu };
+		pipelines::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu };
 
     	// Attachment groups.
     	std::vector<SwapchainAttachmentGroup> swapchainAttachmentGroups = createSwapchainAttachmentGroups();

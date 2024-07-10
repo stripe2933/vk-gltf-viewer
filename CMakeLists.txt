@@ -124,3 +124,6 @@ target_link_libraries(vk-gltf-viewer PRIVATE
 	pbrenvmap
 	vku
 )
+target_compile_definitions(vk-gltf-viewer PRIVATE
+	COMPILED_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+)

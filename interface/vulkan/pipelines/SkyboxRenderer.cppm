@@ -1,7 +1,3 @@
-module;
-
-#include <shaderc/shaderc.hpp>
-
 export module vk_gltf_viewer:vulkan.pipelines.SkyboxRenderer;
 
 import std;
@@ -43,16 +39,14 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::Pipeline pipeline;
         vku::MappedBuffer indexBuffer;
 
-        SkyboxRenderer(const Gpu &gpu, const shaderc::Compiler &compiler);
+        explicit SkyboxRenderer(const Gpu &gpu);
 
         auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const PushConstant &pushConstant) const -> void;
 
     private:
-        static std::string_view vert, frag;
-
         [[nodiscard]] auto createSampler(const vk::raii::Device &device) const -> decltype(sampler);
         [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device, const shaderc::Compiler &compiler) const -> decltype(pipeline);
+        [[nodiscard]] auto createPipeline(const vk::raii::Device &device) const -> decltype(pipeline);
         [[nodiscard]] auto createIndexBuffer(vma::Allocator allocator) const -> decltype(indexBuffer);
     };
 }

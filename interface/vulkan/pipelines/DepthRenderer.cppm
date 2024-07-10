@@ -1,7 +1,3 @@
-module;
-
-#include <shaderc/shaderc.hpp>
-
 export module vk_gltf_viewer:vulkan.pipelines.DepthRenderer;
 
 import std;
@@ -34,16 +30,14 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        DepthRenderer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
+        explicit DepthRenderer(const vk::raii::Device &device);
 
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
         auto bindDescriptorSets(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t firstSet = 0) const -> void;
         auto pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const -> void;
 
     private:
-        static std::string_view vert, frag;
-
         [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device, const shaderc::Compiler &compiler) const -> decltype(pipeline);
+        [[nodiscard]] auto createPipeline(const vk::raii::Device &device) const -> decltype(pipeline);
     };
 }

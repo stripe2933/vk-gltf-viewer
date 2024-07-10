@@ -18,7 +18,7 @@ namespace vku {
     export struct Shader {
         vk::ShaderStageFlagBits stage;
         std::vector<std::uint32_t> code;
-        const char *entryPoint = "main";
+        const char *entryPoint;
 
         Shader(
             const shaderc::Compiler &compiler,
@@ -27,6 +27,7 @@ namespace vku {
             const char *entryPoint = "main",
             const char *identifier = std::format("{}", std::source_location{}).c_str()
         );
+        Shader(const std::filesystem::path &path, vk::ShaderStageFlagBits stage, const char *entryPoint = "main");
     };
 }
 
@@ -49,6 +50,22 @@ namespace vku {
         default:
             throw std::runtime_error { std::format("Unsupported shader stage: {}", to_string(stage)) };
     }
+}
+
+[[nodiscard]] auto loadFileAsBinary(const std::filesystem::path &path) -> std::vector<std::uint32_t> {
+    std::ifstream file { path, std::ios::binary };
+    if (!file) {
+        throw std::runtime_error { std::format("Failed to open file: {} (error code={})", std::strerror(errno), errno) };
+    }
+
+    file.seekg(0, std::ios::end);
+    const auto fileSize = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    std::vector<std::uint32_t> result(fileSize / sizeof(std::uint32_t));
+    file.read(reinterpret_cast<char*>(result.data()), fileSize);
+
+    return result;
 }
 
 vku::Shader::Shader(
@@ -76,3 +93,11 @@ vku::Shader::Shader(
 
     code = { std::from_range, result };
 }
+
+vku::Shader::Shader(
+    const std::filesystem::path &path,
+    vk::ShaderStageFlagBits stage,
+    const char *entryPoint
+) : stage { stage },
+    code { loadFileAsBinary(path) },
+    entryPoint { entryPoint } { }

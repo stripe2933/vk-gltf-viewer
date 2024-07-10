@@ -1,6 +1,5 @@
 module;
 
-#include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
@@ -8,53 +7,6 @@ import :vulkan.pipelines.JumpFloodComputer;
 
 import std;
 import vku;
-
-// language=comp
-std::string_view vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::comp = R"comp(
-#version 450
-
-const uint UINT_MAX = 4294967295U;
-const ivec2 normalizedOffsets[9] = ivec2[](
-    ivec2(-1, -1), ivec2(0, -1), ivec2(1, -1),
-    ivec2(-1,  0), ivec2(0,  0), ivec2(1,  0),
-    ivec2(-1,  1), ivec2(0,  1), ivec2(1,  1)
-);
-
-layout (set = 0, binding = 0, rg16ui) uniform uimage2D pingPongImages[2];
-
-layout (push_constant, std430) uniform PushConstant {
-    bool forward;
-    uint sampleOffset;
-} pc;
-
-layout (local_size_x = 16, local_size_y = 16) in;
-
-uint length2(uvec2 v) {
-    return v.x * v.x + v.y * v.y;
-}
-
-void main(){
-    uvec2 imageExtent = imageSize(pingPongImages[0]);
-    if (gl_GlobalInvocationID.x >= imageExtent.x || gl_GlobalInvocationID.y >= imageExtent.y) {
-        return;
-    }
-
-    uvec2 closestSeedCoord;
-    uint closestSeedDistanceSq = UINT_MAX;
-    for (uint i = 0; i < 9; ++i){
-        uvec2 seedCoord = imageLoad(pingPongImages[uint(!pc.forward)], ivec2(gl_GlobalInvocationID.xy) + int(pc.sampleOffset) * normalizedOffsets[i]).xy;
-        if (seedCoord != uvec2(0U)) {
-            uint seedDistanceSq = length2(seedCoord - gl_GlobalInvocationID.xy);
-            if (seedDistanceSq < closestSeedDistanceSq) {
-                closestSeedDistanceSq = seedDistanceSq;
-                closestSeedCoord = seedCoord;
-            }
-        }
-    }
-
-    imageStore(pingPongImages[uint(pc.forward)], ivec2(gl_GlobalInvocationID.xy), uvec4(closestSeedDistanceSq == UINT_MAX ? uvec2(0) : closestSeedCoord, 0, 0));
-}
-)comp";
 
 vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
@@ -69,11 +21,10 @@ vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::DescriptorSetLayouts::Desc
     } { }
 
 vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::JumpFloodComputer(
-    const vk::raii::Device &device,
-    const shaderc::Compiler &compiler
+    const vk::raii::Device &device
 ) : descriptorSetLayouts { device },
     pipelineLayout { createPipelineLayout(device) },
-    pipeline { createPipeline(device, compiler) } { }
+    pipeline { createPipeline(device) } { }
 
 auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::compute(
     vk::CommandBuffer commandBuffer,
@@ -122,14 +73,13 @@ auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::createPipelineLayout(
 }
 
 auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::createPipeline(
-    const vk::raii::Device &device,
-    const shaderc::Compiler &compiler
+    const vk::raii::Device &device
 ) const -> decltype(pipeline) {
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
         get<0>(vku::createPipelineStages(
             device,
-            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()),
+            vku::Shader { COMPILED_SHADER_DIR "/jump_flood.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()),
         *pipelineLayout,
     } };
 }

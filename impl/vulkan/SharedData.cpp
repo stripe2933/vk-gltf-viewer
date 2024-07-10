@@ -42,7 +42,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 			.prefilteredmap = { .usage = vk::ImageUsageFlagBits::eSampled },
 		} };
 
-		const pipelines::BrdfmapComputer brdfmapComputer { gpu.device, compiler };
+		const pipelines::BrdfmapComputer brdfmapComputer { gpu.device };
 
 		const vk::raii::DescriptorPool descriptorPool {
 			gpu.device,

@@ -1,6 +1,5 @@
 module;
 
-#include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
@@ -8,88 +7,6 @@ import :vulkan.pipelines.SphericalHarmonicsRenderer;
 
 import std;
 import vku;
-
-// language=vert
-std::string_view vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::vert = R"vert(
-#version 450
-
-const vec3[] positions = vec3[8](
-    vec3(-1.0, -1.0, -1.0),
-    vec3(-1.0, -1.0,  1.0),
-    vec3(-1.0,  1.0, -1.0),
-    vec3(-1.0,  1.0,  1.0),
-    vec3( 1.0, -1.0, -1.0),
-    vec3( 1.0, -1.0,  1.0),
-    vec3( 1.0,  1.0, -1.0),
-    vec3( 1.0,  1.0,  1.0)
-);
-
-layout (location = 0) out vec3 fragPosition;
-
-layout (push_constant) uniform PushConstant {
-    mat4 projectionView;
-} pc;
-
-void main() {
-    fragPosition = positions[gl_VertexIndex];
-    gl_Position = (pc.projectionView * vec4(fragPosition, 1.0));
-    gl_Position.z = 0.0; // Use reverse Z.
-}
-)vert";
-
-// language=frag
-std::string_view vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::frag = R"frag(
-#version 450
-
-#extension GL_EXT_scalar_block_layout : require
-
-struct SphericalHarmonicBasis{
-    float band0[1];
-    float band1[3];
-    float band2[5];
-};
-
-layout (location = 0) in vec3 fragPosition;
-
-layout (location = 0) out vec4 outColor;
-
-layout (set = 0, binding = 0, scalar) uniform SphericalHarmonicsBuffer {
-    vec3 coefficients[9];
-} sphericalHarmonics;
-
-layout (early_fragment_tests) in;
-
-// --------------------
-// Functions.
-// --------------------
-
-SphericalHarmonicBasis getSphericalHarmonicBasis(vec3 v){
-    return SphericalHarmonicBasis(
-        float[1](0.282095),
-        float[3](-0.488603 * v.y, 0.488603 * v.z, -0.488603 * v.x),
-        float[5](1.092548 * v.x * v.y, -1.092548 * v.y * v.z, 0.315392 * (3.0 * v.z * v.z - 1.0), -1.092548 * v.x * v.z, 0.546274 * (v.x * v.x - v.y * v.y))
-    );
-}
-
-vec3 computeDiffuseIrradiance(vec3 normal){
-    SphericalHarmonicBasis basis = getSphericalHarmonicBasis(normal);
-    vec3 irradiance
-        = 3.141593 * (sphericalHarmonics.coefficients[0] * basis.band0[0])
-        + 2.094395 * (sphericalHarmonics.coefficients[1] * basis.band1[0]
-                   +  sphericalHarmonics.coefficients[2] * basis.band1[1]
-                   +  sphericalHarmonics.coefficients[3] * basis.band1[2])
-        + 0.785398 * (sphericalHarmonics.coefficients[4] * basis.band2[0]
-                   +  sphericalHarmonics.coefficients[5] * basis.band2[1]
-                   +  sphericalHarmonics.coefficients[6] * basis.band2[2]
-                   +  sphericalHarmonics.coefficients[7] * basis.band2[3]
-                   +  sphericalHarmonics.coefficients[8] * basis.band2[4]);
-    return irradiance / 3.141593;
-}
-
-void main() {
-    outColor = vec4(computeDiffuseIrradiance(normalize(fragPosition)), 1.0);
-}
-)frag";
 
 vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
@@ -112,11 +29,10 @@ auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::DescriptorSe
 }
 
 vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::SphericalHarmonicsRenderer(
-    const Gpu &gpu,
-    const shaderc::Compiler &compiler
+    const Gpu &gpu
 ) : descriptorSetLayouts { gpu.device },
     pipelineLayout { createPipelineLayout(gpu.device) },
-    pipeline { createPipeline(gpu.device, compiler) },
+    pipeline { createPipeline(gpu.device) },
     indexBuffer { createIndexBuffer(gpu.allocator) } { }
 
 auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::draw(
@@ -147,15 +63,14 @@ auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::createPipeli
 }
 
 auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::createPipeline(
-    const vk::raii::Device &device,
-    const shaderc::Compiler &compiler
+    const vk::raii::Device &device
 ) const -> vk::raii::Pipeline {
     return { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             vku::createPipelineStages(
                 device,
-                vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
-                vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment }).get(),
+                vku::Shader { COMPILED_SHADER_DIR "/spherical_harmonics.vert.spv", vk::ShaderStageFlagBits::eVertex },
+                vku::Shader { COMPILED_SHADER_DIR "/spherical_harmonics.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
             *pipelineLayout,
             1, true,
             vk::SampleCountFlagBits::e4)

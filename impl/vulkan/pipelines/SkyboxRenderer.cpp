@@ -1,6 +1,5 @@
 module;
 
-#include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
@@ -8,51 +7,6 @@ import :vulkan.pipelines.SkyboxRenderer;
 
 import std;
 import vku;
-
-// language=vert
-std::string_view vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::vert = R"vert(
-#version 450
-
-const vec3[] positions = vec3[8](
-    vec3(-1.0, -1.0, -1.0),
-    vec3(-1.0, -1.0,  1.0),
-    vec3(-1.0,  1.0, -1.0),
-    vec3(-1.0,  1.0,  1.0),
-    vec3( 1.0, -1.0, -1.0),
-    vec3( 1.0, -1.0,  1.0),
-    vec3( 1.0,  1.0, -1.0),
-    vec3( 1.0,  1.0,  1.0)
-);
-
-layout (location = 0) out vec3 fragPosition;
-
-layout (push_constant) uniform PushConstant {
-    mat4 projectionView;
-} pc;
-
-void main() {
-    fragPosition = positions[gl_VertexIndex];
-    gl_Position = (pc.projectionView * vec4(fragPosition, 1.0));
-    gl_Position.z = 0.0; // Use reverse Z.
-}
-)vert";
-
-// language=frag
-std::string_view vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::frag = R"frag(
-#version 450
-
-layout (location = 0) in vec3 fragPosition;
-
-layout (location = 0) out vec4 outColor;
-
-layout (set = 0, binding = 0) uniform samplerCube cubemapSampler;
-
-layout (early_fragment_tests) in;
-
-void main() {
-    outColor = vec4(textureLod(cubemapSampler, fragPosition, 0.0).rgb, 1.0);
-}
-)frag";
 
 vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
@@ -68,12 +22,11 @@ vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::DescriptorSetLayouts::Descrip
     } { }
 
 vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::SkyboxRenderer(
-    const Gpu &gpu,
-    const shaderc::Compiler &compiler
+    const Gpu &gpu
 ) : sampler { createSampler(gpu.device) },
     descriptorSetLayouts { gpu.device, *sampler },
     pipelineLayout { createPipelineLayout(gpu.device) },
-    pipeline { createPipeline(gpu.device, compiler) },
+    pipeline { createPipeline(gpu.device) },
     indexBuffer { createIndexBuffer(gpu.allocator) } { }
 
 auto vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::draw(
@@ -118,15 +71,14 @@ auto vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::createPipelineLayout(
 }
 
 auto vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::createPipeline(
-    const vk::raii::Device &device,
-    const shaderc::Compiler &compiler
+    const vk::raii::Device &device
 ) const -> vk::raii::Pipeline {
     return { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             vku::createPipelineStages(
                 device,
-                vku::Shader { compiler, vert, vk::ShaderStageFlagBits::eVertex },
-                vku::Shader { compiler, frag, vk::ShaderStageFlagBits::eFragment }).get(),
+                vku::Shader { COMPILED_SHADER_DIR "/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex },
+                vku::Shader { COMPILED_SHADER_DIR "/skybox.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
             *pipelineLayout,
             1, true,
             vk::SampleCountFlagBits::e4)
