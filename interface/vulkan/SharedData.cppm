@@ -9,6 +9,7 @@ import std;
 export import vku;
 import :gltf.AssetResources;
 import :gltf.SceneResources;
+import :vulkan.attachment_groups;
 export import :vulkan.Gpu;
 export import :vulkan.pipelines.AlphaMaskedDepthRenderer;
 export import :vulkan.pipelines.AlphaMaskedPrimitiveRenderer;
@@ -63,8 +64,8 @@ namespace vk_gltf_viewer::vulkan {
 		pipelines::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu, compiler };
 
     	// Attachment groups.
-    	std::vector<vku::AttachmentGroup> swapchainAttachmentGroups = createSwapchainAttachmentGroups();
-    	std::vector<vku::AttachmentGroup> imGuiSwapchainAttachmentGroups = createSwapchainAttachmentGroups(vk::Format::eB8G8R8A8Unorm);
+    	std::vector<SwapchainAttachmentGroup> swapchainAttachmentGroups = createSwapchainAttachmentGroups();
+    	std::vector<vku::AttachmentGroup> imGuiSwapchainAttachmentGroups = createImGuiSwapchainAttachmentGroups();
 
     	// Descriptor/command pools.
     	vk::raii::CommandPool graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
@@ -77,7 +78,8 @@ namespace vk_gltf_viewer::vulkan {
     	[[nodiscard]] auto createSwapchain(vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain);
     	[[nodiscard]] auto createGltfFallbackImage() const -> decltype(gltfFallbackImage);
     	[[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
-    	[[nodiscard]] auto createSwapchainAttachmentGroups(vk::Format mutableFormat = {}) const -> decltype(swapchainAttachmentGroups);
+    	[[nodiscard]] auto createSwapchainAttachmentGroups() const -> decltype(swapchainAttachmentGroups);
+    	[[nodiscard]] auto createImGuiSwapchainAttachmentGroups() const -> decltype(imGuiSwapchainAttachmentGroups);
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto recordGltfFallbackImageClearCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;

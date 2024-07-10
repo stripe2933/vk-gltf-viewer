@@ -60,6 +60,7 @@ add_executable(vk-gltf-viewer
 	impl/gltf/SceneResources.cpp
 	impl/helpers/enum_to_string.cpp
 	impl/MainApp.cpp
+	impl/vulkan/attachment_groups.cpp
 	impl/vulkan/Frame.cpp
 	impl/vulkan/Gpu.cpp
 	impl/vulkan/pipelines/AlphaMaskedDepthRenderer.cpp
@@ -100,6 +101,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/io/logger.cppm
 		interface/io/StbDecoder.cppm
 		interface/MainApp.cppm
+		interface/vulkan/attachment_groups.cppm
 		interface/vulkan/Frame.cppm
 		interface/vulkan/Gpu.cppm
 		interface/vulkan/pipelines/AlphaMaskedDepthRenderer.cppm

@@ -236,49 +236,9 @@ vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::PassthruExtentD
 ) : extent { extent },
 	hoveringNodeOutlineJumpFloodResources { gpu, extent },
 	selectedNodeOutlineJumpFloodResources { gpu, extent },
-	depthPrepassAttachmentGroup { createDepthPrepassAttachmentGroup(gpu) },
-	primaryAttachmentGroup { createPrimaryAttachmentGroup(gpu) } {
+	depthPrepassAttachmentGroup { gpu, hoveringNodeOutlineJumpFloodResources.image, selectedNodeOutlineJumpFloodResources.image, extent },
+	primaryAttachmentGroup { gpu, extent } {
 	recordInitialImageLayoutTransitionCommands(graphicsCommandBuffer);
-}
-
-auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::createDepthPrepassAttachmentGroup(
-	const Gpu &gpu
-) const -> decltype(depthPrepassAttachmentGroup) {
-	vku::AttachmentGroup attachmentGroup { extent };
-	attachmentGroup.addColorAttachment(
-		gpu.device,
-		attachmentGroup.storeImage(
-			attachmentGroup.createColorImage(gpu.allocator, vk::Format::eR32Uint, vk::ImageUsageFlagBits::eTransferSrc)));
-	attachmentGroup.addColorAttachment(
-		gpu.device,
-		hoveringNodeOutlineJumpFloodResources.image, hoveringNodeOutlineJumpFloodResources.image.format,
-		{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image subresource */);
-	attachmentGroup.addColorAttachment(
-		gpu.device,
-		selectedNodeOutlineJumpFloodResources.image, selectedNodeOutlineJumpFloodResources.image.format,
-		{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image subresource */);
-	attachmentGroup.setDepthAttachment(
-		gpu.device,
-		attachmentGroup.storeImage(
-			attachmentGroup.createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
-	return attachmentGroup;
-}
-
-auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::createPrimaryAttachmentGroup(
-	const Gpu &gpu
-) const -> decltype(primaryAttachmentGroup) {
-	vku::MsaaAttachmentGroup attachmentGroup { extent, vk::SampleCountFlagBits::e4 };
-	attachmentGroup.addColorAttachment(
-		gpu.device,
-		attachmentGroup.storeImage(
-			attachmentGroup.createColorImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat)),
-		attachmentGroup.storeImage(
-			attachmentGroup.createResolveImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eStorage)));
-	attachmentGroup.setDepthAttachment(
-		gpu.device,
-		attachmentGroup.storeImage(
-			attachmentGroup.createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
-	return attachmentGroup;
 }
 
 auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::recordInitialImageLayoutTransitionCommands(

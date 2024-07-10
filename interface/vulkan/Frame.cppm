@@ -9,6 +9,7 @@ export import vku;
 export import :AppState;
 export import :vulkan.Gpu;
 export import :vulkan.SharedData;
+import :vulkan.attachment_groups;
 
 namespace vk_gltf_viewer::vulkan {
     export class Frame {
@@ -52,8 +53,8 @@ namespace vk_gltf_viewer::vulkan {
     						   selectedNodeOutlineJumpFloodResources;
 
     		// Attachment groups.
-    		vku::AttachmentGroup     depthPrepassAttachmentGroup;
-    		vku::MsaaAttachmentGroup primaryAttachmentGroup;
+    		DepthPrepassAttachmentGroup depthPrepassAttachmentGroup;
+    		PrimaryAttachmentGroup primaryAttachmentGroup;
 
     		PassthruExtentDependentResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
 

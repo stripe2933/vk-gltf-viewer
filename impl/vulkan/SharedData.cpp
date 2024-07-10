@@ -186,8 +186,8 @@ auto vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(
 	swapchainExtent = newExtent;
 	swapchainImages = swapchain.getImages();
 
-	swapchainAttachmentGroups = createSwapchainAttachmentGroups(vk::Format::eB8G8R8A8Srgb);
-	imGuiSwapchainAttachmentGroups = createSwapchainAttachmentGroups(vk::Format::eB8G8R8A8Unorm);
+	swapchainAttachmentGroups = createSwapchainAttachmentGroups();
+	imGuiSwapchainAttachmentGroups = createImGuiSwapchainAttachmentGroups();
 
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
 		recordInitialImageLayoutTransitionCommands(cb);
@@ -253,19 +253,16 @@ auto vk_gltf_viewer::vulkan::SharedData::createBrdfmapImage() const -> decltype(
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::createSwapchainAttachmentGroups(
-	vk::Format mutableFormat
-) const -> decltype(swapchainAttachmentGroups) {
-	return swapchainImages
-		| std::views::transform([&](vk::Image image) {
-			vku::AttachmentGroup attachmentGroup { swapchainExtent };
-			attachmentGroup.addColorAttachment(
-				gpu.device,
-				{ image, vk::Extent3D { swapchainExtent, 1 }, vk::Format::eB8G8R8A8Srgb, 1, 1 },
-				mutableFormat);
-			return attachmentGroup;
-		})
-		| std::ranges::to<std::vector>();
+auto vk_gltf_viewer::vulkan::SharedData::createSwapchainAttachmentGroups() const -> decltype(swapchainAttachmentGroups) {
+	return { std::from_range, swapchainImages | std::views::transform([&](vk::Image image) {
+		return SwapchainAttachmentGroup { gpu.device, image, swapchainExtent };
+	}) };
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::createImGuiSwapchainAttachmentGroups() const -> decltype(imGuiSwapchainAttachmentGroups) {
+	return { std::from_range, swapchainImages | std::views::transform([&](vk::Image image) {
+		return ImGuiSwapchainAttachmentGroup { gpu.device, image, swapchainExtent };
+	}) };
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::createCommandPool(
