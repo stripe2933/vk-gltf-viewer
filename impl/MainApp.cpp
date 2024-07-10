@@ -139,7 +139,7 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 	const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 	extensions.append_range(std::views::counted(glfwExtensions, glfwExtensionCount));
 
-	return { context, vk::InstanceCreateInfo{
+	vk::raii::Instance instance { context, vk::InstanceCreateInfo{
 #if __APPLE__
 		vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR,
 #else
@@ -157,6 +157,8 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 		}),
 		extensions,
 	} };
+	VULKAN_HPP_DEFAULT_DISPATCHER.init(*instance);
+	return instance;
 }
 
 auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {

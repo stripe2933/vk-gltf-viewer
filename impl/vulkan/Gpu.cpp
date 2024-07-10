@@ -75,13 +75,12 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(
 	const vk::raii::Instance &instance,
 	vk::SurfaceKHR surface
 ) const -> decltype(physicalDevice) {
-	VULKAN_HPP_DEFAULT_DISPATCHER.init(*instance);
 	return instance.enumeratePhysicalDevices().front();
 }
 
 auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 	constexpr std::array queuePriorities{ 1.0f };
-	return { physicalDevice, vk::StructureChain {
+	vk::raii::Device device { physicalDevice, vk::StructureChain {
 		vk::DeviceCreateInfo{
 			{},
 			vku::unsafeProxy(std::set { queueFamilies.compute, queueFamilies.graphicsPresent, queueFamilies.transfer }
@@ -133,12 +132,13 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 		vk::PhysicalDeviceSynchronization2Features { true },
 		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true }
 	}.get() };
+	VULKAN_HPP_DEFAULT_DISPATCHER.init(*device);
+	return device;
 }
 
 auto vk_gltf_viewer::vulkan::Gpu::createAllocator(
 	const vk::raii::Instance &instance
 ) const -> decltype(allocator) {
-	VULKAN_HPP_DEFAULT_DISPATCHER.init(*device);
 	return vma::createAllocator(vma::AllocatorCreateInfo{
 		vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
 		*physicalDevice,
