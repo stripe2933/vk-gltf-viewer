@@ -1,20 +1,16 @@
-#version 450
+#version 460
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_8bit_storage : require
 #extension GL_EXT_scalar_block_layout : require
+
+#include "spherical_harmonics.glsl"
 
 // For convinience.
 #define PRIMITIVE primitives[baseInstance]
 #define MATERIAL materials[PRIMITIVE.materialIndex]
 
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
-
-struct SphericalHarmonicBasis{
-    float band0[1];
-    float band1[3];
-    float band2[5];
-};
 
 struct Material {
     uint8_t VERTEX_DATA[6];
@@ -80,27 +76,9 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness){
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-SphericalHarmonicBasis getSphericalHarmonicBasis(vec3 v){
-    return SphericalHarmonicBasis(
-    float[1](0.282095),
-    float[3](-0.488603 * v.y, 0.488603 * v.z, -0.488603 * v.x),
-    float[5](1.092548 * v.x * v.y, -1.092548 * v.y * v.z, 0.315392 * (3.0 * v.z * v.z - 1.0), -1.092548 * v.x * v.z, 0.546274 * (v.x * v.x - v.y * v.y))
-    );
-}
-
-vec3 computeDiffuseIrradiance(vec3 normal){
-    SphericalHarmonicBasis basis = getSphericalHarmonicBasis(normal);
-    vec3 irradiance
-    = 3.141593 * (sphericalHarmonics.coefficients[0] * basis.band0[0])
-    + 2.094395 * (sphericalHarmonics.coefficients[1] * basis.band1[0]
-    +  sphericalHarmonics.coefficients[2] * basis.band1[1]
-    +  sphericalHarmonics.coefficients[3] * basis.band1[2])
-    + 0.785398 * (sphericalHarmonics.coefficients[4] * basis.band2[0]
-    +  sphericalHarmonics.coefficients[5] * basis.band2[1]
-    +  sphericalHarmonics.coefficients[6] * basis.band2[2]
-    +  sphericalHarmonics.coefficients[7] * basis.band2[3]
-    +  sphericalHarmonics.coefficients[8] * basis.band2[4]);
-    return irradiance / 3.141593;
+vec3 diffuseIrradiance(vec3 normal){
+    SphericalHarmonicBasis basis = SphericalHarmonicBasis_construct(normal);
+    return SphericalHarmonicBasis_restore(basis, sphericalHarmonics.coefficients) / 3.141593;
 }
 
 void main(){
@@ -135,7 +113,7 @@ void main(){
     vec3 kS = F;
     vec3 kD = (1.0 - kS) * (1.0 - metallic);
 
-    vec3 irradiance = computeDiffuseIrradiance(N);
+    vec3 irradiance = diffuseIrradiance(N);
     vec3 diffuse    = irradiance * baseColor.rgb;
 
     uint prefilteredmapMipLevels = textureQueryLevels(prefilteredmap);

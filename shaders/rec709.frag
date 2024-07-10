@@ -1,4 +1,4 @@
-#version 450
+#version 460
 
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 

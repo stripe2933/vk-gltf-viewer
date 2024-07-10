@@ -1,11 +1,11 @@
-#version 450
+#version 460
 
 const uint UINT_MAX = 4294967295U;
-const ivec2 normalizedOffsets[9] = ivec2[](
-    ivec2(-1, -1), ivec2(0, -1), ivec2(1, -1),
-    ivec2(-1,  0), ivec2(0,  0), ivec2(1,  0),
-    ivec2(-1,  1), ivec2(0,  1), ivec2(1,  1)
-);
+const ivec2 normalizedOffsets[9] = {
+    { -1, -1 }, { 0, -1 }, { 1, -1 },
+    { -1,  0 }, { 0,  0 }, { 1,  0 },
+    { -1,  1 }, { 0,  1 }, { 1,  1 }
+};
 
 layout (set = 0, binding = 0, rg16ui) uniform uimage2D pingPongImages[2];
 
