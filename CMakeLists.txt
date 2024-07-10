@@ -60,8 +60,7 @@ add_executable(vk-gltf-viewer
 	impl/gltf/SceneResources.cpp
 	impl/helpers/enum_to_string.cpp
 	impl/MainApp.cpp
-	impl/vulkan/frame/Frame.cpp
-	impl/vulkan/frame/SharedData.cpp
+	impl/vulkan/Frame.cpp
 	impl/vulkan/Gpu.cpp
 	impl/vulkan/pipelines/AlphaMaskedDepthRenderer.cpp
 	impl/vulkan/pipelines/AlphaMaskedPrimitiveRenderer.cpp
@@ -73,6 +72,7 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/pipelines/Rec709Renderer.cpp
 	impl/vulkan/pipelines/SkyboxRenderer.cpp
 	impl/vulkan/pipelines/SphericalHarmonicsRenderer.cpp
+	impl/vulkan/SharedData.cpp
 	main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
@@ -100,8 +100,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/io/logger.cppm
 		interface/io/StbDecoder.cppm
 		interface/MainApp.cppm
-		interface/vulkan/frame/Frame.cppm
-		interface/vulkan/frame/SharedData.cppm
+		interface/vulkan/Frame.cppm
 		interface/vulkan/Gpu.cppm
 		interface/vulkan/pipelines/AlphaMaskedDepthRenderer.cppm
 		interface/vulkan/pipelines/AlphaMaskedPrimitiveRenderer.cppm
@@ -113,6 +112,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipelines/Rec709Renderer.cppm
 		interface/vulkan/pipelines/SkyboxRenderer.cppm
 		interface/vulkan/pipelines/SphericalHarmonicsRenderer.cppm
+		interface/vulkan/SharedData.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
 	fastgltf::fastgltf

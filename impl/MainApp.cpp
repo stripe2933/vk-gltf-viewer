@@ -17,8 +17,8 @@ import vku;
 import :control.ImGui;
 import :helpers.ranges;
 import :io.StbDecoder;
-import :vulkan.frame.Frame;
-import :vulkan.frame.SharedData;
+import :vulkan.Frame;
+import :vulkan.SharedData;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
@@ -54,8 +54,8 @@ vk_gltf_viewer::MainApp::MainApp() {
 		.Device = *gpu.device,
 		.Queue = gpu.queues.graphicsPresent,
 		.DescriptorPool = *imGuiDescriptorPool,
-		.MinImageCount = static_cast<std::uint32_t>(frames.size()),
-		.ImageCount = static_cast<std::uint32_t>(frames.size()),
+		.MinImageCount = 2,
+		.ImageCount = 2,
 		.UseDynamicRendering = true,
 		.ColorAttachmentFormat = VK_FORMAT_B8G8R8A8_UNORM,
 	};
@@ -73,6 +73,14 @@ vk_gltf_viewer::MainApp::~MainApp() {
 }
 
 auto vk_gltf_viewer::MainApp::run() -> void {
+	const glm::u32vec2 framebufferSize = window.getFramebufferSize();
+	vulkan::SharedData sharedData {
+		assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(),
+		gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y },
+		eqmapImage
+	};
+	std::array frames = ARRAY_OF(2, vulkan::Frame{ gpu, sharedData });
+
 	// Optionals that indicates frame should handle swapchain resize to the extent at the corresponding index.
 	std::array<std::optional<vk::Extent2D>, std::tuple_size_v<decltype(frames)>> shouldHandleSwapchainResize{};
 
@@ -98,7 +106,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 				std::this_thread::yield();
 			}
 
-			frameSharedData->handleSwapchainResize(*window.surface, { framebufferSize.x, framebufferSize.y });
+			sharedData.handleSwapchainResize(*window.surface, { framebufferSize.x, framebufferSize.y });
 			// Frames should handle swapchain resize with extent=framebufferSize.
 			shouldHandleSwapchainResize.fill(vk::Extent2D { framebufferSize.x, framebufferSize.y });
 		}
@@ -315,18 +323,6 @@ auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() const -> decltype(imGu
 			},
 		}),
 	} };
-}
-
-auto vk_gltf_viewer::MainApp::createFrameSharedData() -> decltype(frameSharedData) {
-	const glm::u32vec2 framebufferSize = window.getFramebufferSize();
-	return std::make_shared<vulkan::SharedData>(
-		assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(),
-		gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y },
-		eqmapImage);
-}
-
-auto vk_gltf_viewer::MainApp::createFrames() -> decltype(frames) {
-	return ARRAY_OF(2, vulkan::Frame{ frameSharedData, gpu });
 }
 
 auto vk_gltf_viewer::MainApp::update(

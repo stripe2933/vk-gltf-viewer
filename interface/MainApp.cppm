@@ -5,10 +5,10 @@ module;
 export module vk_gltf_viewer:MainApp;
 
 import std;
+import vku;
 export import vulkan_hpp; // have to be exported for initializing DispatchLoader.
 import :control.AppWindow;
-import :control.Camera;
-import :vulkan.frame.Frame;
+import :vulkan.Frame;
 import :vulkan.Gpu;
 
 namespace vk_gltf_viewer {
@@ -43,10 +43,6 @@ namespace vk_gltf_viewer {
 		// Descriptor sets.
 		vk::DescriptorSet eqmapImageImGuiDescriptorSet;
 
-		// Frame related stuffs.
-		std::shared_ptr<vulkan::frame::SharedData> frameSharedData = createFrameSharedData();
-		std::array<vulkan::frame::Frame, 2> frames = createFrames();
-
     	[[nodiscard]] auto loadAsset(const std::filesystem::path &path) -> decltype(assetExpected);
 
 		[[nodiscard]] auto createInstance() const -> decltype(instance);
@@ -54,8 +50,6 @@ namespace vk_gltf_viewer {
 		[[nodiscard]] auto createEqmapImageView() const -> decltype(eqmapImageView);
 		[[nodiscard]] auto createEqmapSampler() const -> decltype(eqmapSampler);
     	[[nodiscard]] auto createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool);
-    	[[nodiscard]] auto createFrameSharedData() -> decltype(frameSharedData);
-		[[nodiscard]] auto createFrames() -> decltype(frames);
 
 		[[nodiscard]] auto update(float timeDelta) -> vulkan::Frame::OnLoopTask;
 		auto handleOnLoopResult(const vulkan::Frame::OnLoopResult &onLoopResult) -> void;

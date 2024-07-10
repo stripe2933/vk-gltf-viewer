@@ -2,15 +2,15 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:vulkan.frame.Frame;
+export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
 export import vku;
 export import :AppState;
 export import :vulkan.Gpu;
-export import :vulkan.frame.SharedData;
+export import :vulkan.SharedData;
 
-namespace vk_gltf_viewer::vulkan::inline frame {
+namespace vk_gltf_viewer::vulkan {
     export class Frame {
     public:
     	struct OnLoopTask {
@@ -32,7 +32,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     		SwapchainAcquireFailed,
     	};
 
-    	Frame(const std::shared_ptr<SharedData> &sharedData, const Gpu &gpu);
+    	Frame(const Gpu &gpu [[clang::lifetimebound]], const SharedData &sharedData [[clang::lifetimebound]]);
 
     	[[nodiscard]] auto onLoop(const OnLoopTask &task) -> std::expected<OnLoopResult, OnLoopError>;
 
@@ -41,7 +41,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     		vku::AllocatedImage image;
     		vk::raii::ImageView pingImageView, pongImageView;
 
-    		JumpFloodResources(const Gpu &gpu, const vk::Extent2D &extent);
+    		JumpFloodResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent);
     	};
 
     	class PassthruExtentDependentResources {
@@ -55,7 +55,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     		vku::AttachmentGroup     depthPrepassAttachmentGroup;
     		vku::MsaaAttachmentGroup primaryAttachmentGroup;
 
-    		PassthruExtentDependentResources(const Gpu &gpu, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
+    		PassthruExtentDependentResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
 
     	private:
     		[[nodiscard]] auto createDepthPrepassAttachmentGroup(const Gpu &gpu) const -> decltype(depthPrepassAttachmentGroup);
@@ -64,8 +64,8 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     		auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
     	};
 
-    	std::shared_ptr<SharedData> sharedData;
     	const Gpu &gpu;
+    	const SharedData &sharedData;
 
     	// Buffer, image and image views.
     	vku::MappedBuffer hoveringNodeIndexBuffer;
@@ -77,17 +77,17 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     						     graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
 
     	// Descriptor sets.
-    	pipelines::DepthRenderer::DescriptorSets              depthSets { *gpu.device, *descriptorPool, sharedData->depthRenderer.descriptorSetLayouts };
-    	pipelines::AlphaMaskedDepthRenderer::DescriptorSets   alphaMaskedDepthSets { *gpu.device, *descriptorPool, sharedData->alphaMaskedDepthRenderer.descriptorSetLayouts };
-    	pipelines::JumpFloodComputer::DescriptorSets          hoveringNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData->jumpFloodComputer.descriptorSetLayouts },
-												              selectedNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData->jumpFloodComputer.descriptorSetLayouts };
-    	pipelines::OutlineRenderer::DescriptorSets            hoveringNodeOutlineSets { *gpu.device, *descriptorPool, sharedData->outlineRenderer.descriptorSetLayouts },
-    											              selectedNodeOutlineSets { *gpu.device, *descriptorPool, sharedData->outlineRenderer.descriptorSetLayouts };
+    	pipelines::DepthRenderer::DescriptorSets              depthSets { *gpu.device, *descriptorPool, sharedData.depthRenderer.descriptorSetLayouts };
+    	pipelines::AlphaMaskedDepthRenderer::DescriptorSets   alphaMaskedDepthSets { *gpu.device, *descriptorPool, sharedData.alphaMaskedDepthRenderer.descriptorSetLayouts };
+    	pipelines::JumpFloodComputer::DescriptorSets          hoveringNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData.jumpFloodComputer.descriptorSetLayouts },
+												              selectedNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData.jumpFloodComputer.descriptorSetLayouts };
+    	pipelines::OutlineRenderer::DescriptorSets            hoveringNodeOutlineSets { *gpu.device, *descriptorPool, sharedData.outlineRenderer.descriptorSetLayouts },
+    											              selectedNodeOutlineSets { *gpu.device, *descriptorPool, sharedData.outlineRenderer.descriptorSetLayouts };
     	// Note that we'll use the same descriptor sets for AlphaMaskedPrimitiveRenderer since it has same descriptor set layouts as PrimitiveRenderer.
-    	pipelines::PrimitiveRenderer::DescriptorSets          primitiveSets { *gpu.device, *descriptorPool, sharedData->primitiveRenderer.descriptorSetLayouts };
-    	pipelines::Rec709Renderer::DescriptorSets             rec709Sets { *gpu.device, *descriptorPool, sharedData->rec709Renderer.descriptorSetLayouts };
-    	pipelines::SkyboxRenderer::DescriptorSets             skyboxSets { *gpu.device, *descriptorPool, sharedData->skyboxRenderer.descriptorSetLayouts };
-    	pipelines::SphericalHarmonicsRenderer::DescriptorSets sphericalHarmonicsSets { *gpu.device, *descriptorPool, sharedData->sphericalHarmonicsRenderer.descriptorSetLayouts };
+    	pipelines::PrimitiveRenderer::DescriptorSets          primitiveSets { *gpu.device, *descriptorPool, sharedData.primitiveRenderer.descriptorSetLayouts };
+    	pipelines::Rec709Renderer::DescriptorSets             rec709Sets { *gpu.device, *descriptorPool, sharedData.rec709Renderer.descriptorSetLayouts };
+    	pipelines::SkyboxRenderer::DescriptorSets             skyboxSets { *gpu.device, *descriptorPool, sharedData.skyboxRenderer.descriptorSetLayouts };
+    	pipelines::SphericalHarmonicsRenderer::DescriptorSets sphericalHarmonicsSets { *gpu.device, *descriptorPool, sharedData.sphericalHarmonicsRenderer.descriptorSetLayouts };
 
     	// Command buffers.
     	vk::CommandBuffer depthPrepassCommandBuffer, drawCommandBuffer, compositeCommandBuffer;

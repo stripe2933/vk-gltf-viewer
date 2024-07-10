@@ -5,7 +5,7 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.frame.Frame;
+import :vulkan.Frame;
 
 import std;
 import :gltf.AssetResources;
@@ -15,8 +15,8 @@ import :helpers.ranges;
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
 
 vk_gltf_viewer::vulkan::Frame::Frame(
-	const std::shared_ptr<SharedData> &sharedData,
-	const Gpu &gpu
+	const Gpu &gpu,
+	const SharedData &sharedData
 ) : sharedData { sharedData },
     gpu { gpu },
 	hoveringNodeIndexBuffer {
@@ -32,29 +32,29 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	gpu.device.updateDescriptorSets(
 	    ranges::array_cat(
 		    alphaMaskedDepthSets.getDescriptorWrites0(
-		    	{ *sharedData->primitiveRenderer.sampler, *sharedData->gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
-				sharedData->assetResources.textures,
-		    	{ sharedData->assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
+		    	{ *sharedData.primitiveRenderer.sampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+				sharedData.assetResources.textures,
+		    	{ sharedData.assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
 		    alphaMaskedDepthSets.getDescriptorWrites1(
-		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
+		    	{ sharedData.sceneResources.primitiveBuffer, 0, vk::WholeSize },
+		    	{ sharedData.sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
 		    depthSets.getDescriptorWrites0(
-		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
+		    	{ sharedData.sceneResources.primitiveBuffer, 0, vk::WholeSize },
+		    	{ sharedData.sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
 		    primitiveSets.getDescriptorWrites0(
-		    	{ sharedData->imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
-		    	*sharedData->imageBasedLightingResources.value().prefilteredmapImageView,
-		    	*sharedData->brdfmapImageView).get(),
+		    	{ sharedData.imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
+		    	*sharedData.imageBasedLightingResources.value().prefilteredmapImageView,
+		    	*sharedData.brdfmapImageView).get(),
 		    primitiveSets.getDescriptorWrites1(
-                { *sharedData->primitiveRenderer.sampler, *sharedData->gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
-				sharedData->assetResources.textures,
-		    	{ sharedData->assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
+                { *sharedData.primitiveRenderer.sampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+				sharedData.assetResources.textures,
+		    	{ sharedData.assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
 		    primitiveSets.getDescriptorWrites2(
-		    	{ sharedData->sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		    	{ sharedData->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
-		    skyboxSets.getDescriptorWrites0(*sharedData->imageBasedLightingResources.value().cubemapImageView).get(),
+		    	{ sharedData.sceneResources.primitiveBuffer, 0, vk::WholeSize },
+		    	{ sharedData.sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
+		    skyboxSets.getDescriptorWrites0(*sharedData.imageBasedLightingResources.value().cubemapImageView).get(),
 		    sphericalHarmonicsSets.getDescriptorWrites0(
-		    	{ sharedData->imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
+		    	{ sharedData.imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
 		{});
 
 	// Allocate per-frame command buffers.
@@ -97,7 +97,7 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 	// Acquire the next swapchain image.
 	std::uint32_t imageIndex;
 	try {
-		imageIndex = (*gpu.device).acquireNextImageKHR(*sharedData->swapchain, MAX_TIMEOUT, *swapchainImageAcquireSema).value;
+		imageIndex = (*gpu.device).acquireNextImageKHR(*sharedData.swapchain, MAX_TIMEOUT, *swapchainImageAcquireSema).value;
 	}
 	catch (const vk::OutOfDateKHRError&) {
 		return std::unexpected { OnLoopError::SwapchainAcquireFailed };
@@ -194,7 +194,7 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 	try {
 		// The result codes VK_ERROR_OUT_OF_DATE_KHR and VK_SUBOPTIMAL_KHR have the same meaning when
 		// returned by vkQueuePresentKHR as they do when returned by vkAcquireNextImageKHR.
-		if (gpu.queues.graphicsPresent.presentKHR({ *compositeFinishSema, *sharedData->swapchain, imageIndex }) == vk::Result::eSuboptimalKHR) {
+		if (gpu.queues.graphicsPresent.presentKHR({ *compositeFinishSema, *sharedData.swapchain, imageIndex }) == vk::Result::eSuboptimalKHR) {
 			throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
 		}
 		result.presentSuccess = true;
@@ -327,14 +327,14 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruExtentDependentResources::recordInit
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {
 	return {
 		gpu.device,
-		(vku::PoolSizes { sharedData->alphaMaskedDepthRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->depthRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->jumpFloodComputer.descriptorSetLayouts } * 2
-		    + vku::PoolSizes { sharedData->outlineRenderer.descriptorSetLayouts } * 2
-		    + vku::PoolSizes { sharedData->primitiveRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->rec709Renderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->skyboxRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData->sphericalHarmonicsRenderer.descriptorSetLayouts })
+		(vku::PoolSizes { sharedData.alphaMaskedDepthRenderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData.depthRenderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData.jumpFloodComputer.descriptorSetLayouts } * 2
+		    + vku::PoolSizes { sharedData.outlineRenderer.descriptorSetLayouts } * 2
+		    + vku::PoolSizes { sharedData.primitiveRenderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData.rec709Renderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData.skyboxRenderer.descriptorSetLayouts }
+		    + vku::PoolSizes { sharedData.sphericalHarmonicsRenderer.descriptorSetLayouts })
 		.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
 	};
 }
@@ -422,19 +422,19 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	passthruExtentDependentResources->depthPrepassAttachmentGroup.setScissor(cb);
 
 	// Render alphaMode=Opaque meshes.
-	sharedData->depthRenderer.bindPipeline(cb);
-	sharedData->depthRenderer.bindDescriptorSets(cb, depthSets);
-	sharedData->depthRenderer.pushConstants(cb, {
+	sharedData.depthRenderer.bindPipeline(cb);
+	sharedData.depthRenderer.bindDescriptorSets(cb, depthSets);
+	sharedData.depthRenderer.pushConstants(cb, {
 		task.camera.projection * task.camera.view,
 		task.hoveringNodeIndex.value_or(NO_INDEX),
 		task.selectedNodeIndex.value_or(NO_INDEX),
 	});
-	for (auto [begin, end] = sharedData->sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
+	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.bindIndexBuffer(sharedData.assetResources.indexBuffers.at(*indexType), 0, *indexType);
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
 		else {
@@ -443,19 +443,19 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	}
 
 	// Render alphaMode=Mask meshes.
-	sharedData->alphaMaskedDepthRenderer.bindPipeline(cb);
-	sharedData->alphaMaskedDepthRenderer.bindDescriptorSets(cb, alphaMaskedDepthSets);
-	sharedData->alphaMaskedDepthRenderer.pushConstants(cb, {
+	sharedData.alphaMaskedDepthRenderer.bindPipeline(cb);
+	sharedData.alphaMaskedDepthRenderer.bindDescriptorSets(cb, alphaMaskedDepthSets);
+	sharedData.alphaMaskedDepthRenderer.pushConstants(cb, {
 		task.camera.projection * task.camera.view,
 		task.hoveringNodeIndex.value_or(NO_INDEX),
 		task.selectedNodeIndex.value_or(NO_INDEX),
 	});
-	for (auto [begin, end] = sharedData->sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
+	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.bindIndexBuffer(sharedData.assetResources.indexBuffers.at(*indexType), 0, *indexType);
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
 		else {
@@ -553,7 +553,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
 	}
 
 	// Compute jump flood and get the last execution direction.
-	auto forward = sharedData->jumpFloodComputer.compute(cb, descriptorSets, initialSampleOffset, vku::toExtent2D(image.extent));
+	auto forward = sharedData.jumpFloodComputer.compute(cb, descriptorSets, initialSampleOffset, vku::toExtent2D(image.extent));
 
 	// Release queue family ownership.
 	if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
@@ -596,15 +596,15 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	passthruExtentDependentResources->primaryAttachmentGroup.setScissor(cb);
 
 	// Render alphaMode=Opaque meshes.
-	sharedData->primitiveRenderer.bindPipeline(cb);
-	sharedData->primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
-	sharedData->primitiveRenderer.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
-	for (auto [begin, end] = sharedData->sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
+	sharedData.primitiveRenderer.bindPipeline(cb);
+	sharedData.primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
+	sharedData.primitiveRenderer.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
+	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.bindIndexBuffer(sharedData.assetResources.indexBuffers.at(*indexType), 0, *indexType);
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
 		else {
@@ -613,14 +613,14 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	}
 
 	// Render alphaMode=Mask meshes.
-	sharedData->alphaMaskedPrimitiveRenderer.bindPipeline(cb);
+	sharedData.alphaMaskedPrimitiveRenderer.bindPipeline(cb);
 	// No need to have push constant, because it have same pipeline layout with PrimitiveRenderer.
-	for (auto [begin, end] = sharedData->sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
+	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(sharedData->assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.bindIndexBuffer(sharedData.assetResources.indexBuffers.at(*indexType), 0, *indexType);
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
 		else {
@@ -633,12 +633,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	// Draw skybox.
 	const glm::mat4 noTranslationView = { glm::mat3 { task.camera.view } };
 	if (task.useBlurredSkybox) {
-		sharedData->sphericalHarmonicsRenderer.draw(cb, sphericalHarmonicsSets, {
+		sharedData.sphericalHarmonicsRenderer.draw(cb, sphericalHarmonicsSets, {
 			task.camera.projection * noTranslationView,
 		});
 	}
 	else {
-		sharedData->skyboxRenderer.draw(cb, skyboxSets, {
+		sharedData.skyboxRenderer.draw(cb, skyboxSets, {
 			task.camera.projection * noTranslationView,
 		});
 	}
@@ -668,7 +668,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 			vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
 			vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			sharedData->swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
+			sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
 		},
 	};
 	// Acquire jumpFloodImage queue family ownership, if necessary.
@@ -711,7 +711,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 	//	barrier can be inserted within the dynamic rendering scope, thus avoiding the need for duplicated rendering.
 
 	// Start dynamic rendering with B8G8R8A8_SRGB format.
-	cb.beginRenderingKHR(sharedData->swapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
+	cb.beginRenderingKHR(sharedData.swapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
 		std::array {
 			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0.f, 0.f, 0.f, 0.f } }
 		}));
@@ -721,7 +721,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 	cb.setScissor(0, passthruScissor);
 
 	// Draw primitive rendering image to swapchain, with Rec709 tone mapping.
-	sharedData->rec709Renderer.draw(cb, rec709Sets, task.passthruRect.offset);
+	sharedData.rec709Renderer.draw(cb, rec709Sets, task.passthruRect.offset);
 
 	cb.endRenderingKHR();
 
@@ -734,23 +734,23 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		},
 		{}, {});
 
-	cb.beginRenderingKHR(sharedData->swapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
+	cb.beginRenderingKHR(sharedData.swapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
 		std::array {
 			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore }
 		}));
 
 	// Draw hovering/selected node outline if exists.
 	if ((task.selectedNodeIndex && task.selectedNodeOutline) || (task.hoveringNodeIndex && task.hoveringNodeOutline)) {
-		sharedData->outlineRenderer.bindPipeline(cb);
+		sharedData.outlineRenderer.bindPipeline(cb);
 
 		if (task.selectedNodeIndex && task.selectedNodeOutline) {
-			sharedData->outlineRenderer.bindDescriptorSets(cb, selectedNodeOutlineSets);
-			sharedData->outlineRenderer.pushConstants(cb, {
+			sharedData.outlineRenderer.bindDescriptorSets(cb, selectedNodeOutlineSets);
+			sharedData.outlineRenderer.pushConstants(cb, {
 				.outlineColor = task.selectedNodeOutline->color,
 				.passthruOffset = { task.passthruRect.offset.x, task.passthruRect.offset.y },
 				.outlineThickness = task.selectedNodeOutline->thickness,
 			});
-			sharedData->outlineRenderer.draw(cb);
+			sharedData.outlineRenderer.draw(cb);
 		}
 		if ((task.hoveringNodeIndex && task.hoveringNodeOutline) &&
 			// If both selectedNodeIndex and hoveringNodeIndex exist and are the same, the outlines will overlap, so
@@ -761,13 +761,13 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 				//  Implement it when available.
 			}
 
-			sharedData->outlineRenderer.bindDescriptorSets(cb, hoveringNodeOutlineSets);
-			sharedData->outlineRenderer.pushConstants(cb, {
+			sharedData.outlineRenderer.bindDescriptorSets(cb, hoveringNodeOutlineSets);
+			sharedData.outlineRenderer.pushConstants(cb, {
 				.outlineColor = task.hoveringNodeOutline->color,
 				.passthruOffset = { task.passthruRect.offset.x, task.passthruRect.offset.y },
 				.outlineThickness = task.hoveringNodeOutline->thickness,
 			});
-			sharedData->outlineRenderer.draw(cb);
+			sharedData.outlineRenderer.draw(cb);
 		}
 	}
 
@@ -783,7 +783,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		{}, {});
 
 	// Start dynamic rendering with B8G8R8A8_UNORM format.
-	cb.beginRenderingKHR(sharedData->imGuiSwapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
+	cb.beginRenderingKHR(sharedData.imGuiSwapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
 		std::array {
 			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore }
 		}));
@@ -801,6 +801,6 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 			vk::AccessFlagBits::eColorAttachmentWrite, {},
 			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			sharedData->swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
+			sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
 		});
 }

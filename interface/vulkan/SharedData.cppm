@@ -3,7 +3,7 @@ module;
 #include <fastgltf/types.hpp>
 #include <shaderc/shaderc.hpp>
 
-export module vk_gltf_viewer:vulkan.frame.SharedData;
+export module vk_gltf_viewer:vulkan.SharedData;
 
 import std;
 export import vku;
@@ -27,7 +27,7 @@ struct ImageBasedLightingResources {
 	vku::AllocatedImage prefilteredmapImage; vk::raii::ImageView prefilteredmapImageView;
 };
 
-namespace vk_gltf_viewer::vulkan::inline frame {
+namespace vk_gltf_viewer::vulkan {
     export class SharedData {
     public:
 		// CPU resources.
@@ -69,7 +69,7 @@ namespace vk_gltf_viewer::vulkan::inline frame {
     	// Descriptor/command pools.
     	vk::raii::CommandPool graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
 
-    	SharedData(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent, const vku::Image &eqmapImage);
+    	SharedData(const fastgltf::Asset &asset [[clang::lifetimebound]], const std::filesystem::path &assetDir, const Gpu &gpu [[clang::lifetimebound]], vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent, const vku::Image &eqmapImage);
 
     	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
