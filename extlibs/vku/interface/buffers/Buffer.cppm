@@ -8,7 +8,7 @@ namespace vku {
         vk::Buffer buffer;
         vk::DeviceSize size;
 
-        constexpr operator vk::Buffer() const noexcept {
+        [[nodiscard]] operator vk::Buffer() const noexcept {
             return buffer;
         }
     };

@@ -11,15 +11,15 @@ namespace vku {
         std::uint32_t mipLevels;
         std::uint32_t arrayLayers;
 
-        constexpr operator vk::Image() const noexcept {
+        [[nodiscard]] operator vk::Image() const noexcept {
             return image;
         }
 
-        [[nodiscard]] constexpr auto maxMipLevels() const noexcept -> vk::Extent2D {
+        [[nodiscard]] auto maxMipLevels() const noexcept -> vk::Extent2D {
             return maxMipLevels({ extent.width, extent.height });
         }
 
-        [[nodiscard]] constexpr auto mipExtent(
+        [[nodiscard]] auto mipExtent(
             std::uint32_t mipLevel
         ) const noexcept -> vk::Extent2D {
             return mipExtent({ extent.width, extent.height }, mipLevel);
