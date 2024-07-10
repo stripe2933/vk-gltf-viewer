@@ -144,11 +144,7 @@ auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createImages(
     if (asset.images.empty()) return {};
 
     std::vector<io::StbDecoder<std::uint8_t>::DecodeResult> images(asset.images.size());
-#if __cpp_lib_parallel_algorithm >= 201603L
     std::transform(std::execution::par_unseq, asset.images.begin(), asset.images.end(), images.begin(), [&](const fastgltf::Image& image) {
-#else
-    std::ranges::transform(asset.images, images.begin(), [&](const fastgltf::Image& image) {
-#endif
         return visit(visitor, image.data);
     });
 
@@ -682,11 +678,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
         | std::ranges::to<std::vector>();
     if (missingTangentMeshes.empty()) return; // Skip if there's no missing tangent mesh.
 
-#if __cpp_lib_parallel_algorithm >= 201603L
     std::for_each(std::execution::par_unseq, missingTangentMeshes.begin(), missingTangentMeshes.end(), [&](algorithm::MikktSpaceMesh& mesh) {
-#else
-    std::ranges::for_each(missingTangentMeshes, [&](algorithm::MikktSpaceMesh& mesh) {
-#endif
         SMikkTSpaceInterface* const pInterface
             = [indexType = mesh.indicesAccessor.componentType]() -> SMikkTSpaceInterface* {
                 switch (indexType) {
