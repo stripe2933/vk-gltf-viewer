@@ -118,10 +118,10 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(
             ImGui::EndCombo();
         }
 
-        for (std::stack dfs { std::from_range, asset.scenes[selectedSceneIndex].nodeIndices | std::views::reverse }; !dfs.empty();) {
-            std::size_t nodeIndex = dfs.top(); dfs.pop();
-            const std::size_t ancestorNodeIndex = nodeIndex;
-            const fastgltf::Node *node = &asset.nodes[nodeIndex];
+	    // TODO.CXX23: Clang currently cannot handle explicit object parameter well with ref-captured lambda, therefore
+	    //  it passes the asset and appState as lambda parameters. Use default capture when bug fixed.
+	    constexpr auto processNode = [](this const auto &self, std::size_t nodeIndex, const fastgltf::Asset &asset, AppState &appState) -> void {
+	        const fastgltf::Node *node = &asset.nodes[nodeIndex];
 
             std::vector nodeNames { node->name.c_str() };
             if (mergeSingleChildNode) {
@@ -132,29 +132,29 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(
                 }
             }
 
-            // Why use ancestorNodeIndex for here?
-            // If use nodeIndex (which is the descendent for mergeSingleChildNode == true), all nodes will be collapsed
-            // when set mergeSingleChildNode from true to false, because the ancestor node index is never pushed to the
-            // ImGui ID stack. To prevent this, ancestorNodeIndex is used.
-            ImGui::PushID(ancestorNodeIndex);
-            const ImGuiTreeNodeFlags flags
-                = ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_OpenOnArrow
-                | (appState.selectedNodeIndex && *appState.selectedNodeIndex == nodeIndex ? ImGuiTreeNodeFlags_Selected : 0)
-                | (node->children.empty() ? ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet : 0);
+            ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_OpenOnArrow;
+            if (appState.selectedNodeIndex && *appState.selectedNodeIndex == nodeIndex) flags |= ImGuiTreeNodeFlags_Selected;
+            if (node->children.empty()) flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet;
+
 #if __cpp_lib_format_ranges >= 202207L
-            if (ImGui::TreeNodeEx("", flags, "%s", std::format("{::s}", make_joiner<" / ">(nodeNames)).c_str())) {
+	        if (ImGui::TreeNodeEx(node, flags, "%s", std::format("{::s}", make_joiner<" / ">(nodeNames)).c_str()) &&
 #else
-            // It will use stopgap std::formatter<joiner<T, Delimiter>>, therefore format specification for T is not supported.
-            if (ImGui::TreeNodeEx("", flags, "%s", std::format("{}", make_joiner<" / ">(nodeNames)).c_str())) {
+	        // It will use stopgap std::formatter<joiner<T, Delimiter>>, therefore format specification for T is not supported.
+            if (ImGui::TreeNodeEx(node, flags, "%s", std::format("{}", make_joiner<" / ">(nodeNames)).c_str()) &&
 #endif
+	            (ImGui::SameLine(), ImGui::TextDisabled("(%zu)", nodeIndex), true)) {
                 if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
                     appState.selectedNodeIndex = static_cast<std::uint32_t>(nodeIndex);
                 }
-                dfs.push_range(node->children | std::views::reverse);
+                for (std::size_t childNodeIndex : node->children) {
+                    self(childNodeIndex, asset, appState);
+                }
                 ImGui::TreePop();
             }
-            ImGui::PopID();
-        }
+	    };
+	    for (std::size_t nodeIndex : asset.scenes[selectedSceneIndex].nodeIndices) {
+	        processNode(nodeIndex, asset, appState);
+	    }
 	}
 	ImGui::End();
 }
