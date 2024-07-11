@@ -7,3 +7,4 @@
 /CMakeUserPresets.json
 /out/build
 /vc140.pdb
+/shaders/*.spv
