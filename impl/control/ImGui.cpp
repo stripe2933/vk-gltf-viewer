@@ -1,6 +1,7 @@
 module;
 
 #include <cassert>
+#include <version>
 
 #include <fastgltf/types.hpp>
 #define IMGUI_DEFINE_MATH_OPERATORS
