@@ -14,19 +14,19 @@ namespace vk_gltf_viewer::gltf {
     export class SceneResources {
     public:
         struct GpuPrimitive {
-            vk::DeviceAddress pPositionBuffer,
-                              pNormalBuffer,
-                              pTangentBuffer,
-                              pTexcoordBufferPtrsBuffer,
-                              pColorBufferPtrsBuffer;
-            std::uint8_t      positionByteStride,
-                              normalByteStride,
-                              tangentByteStride;
-            char              padding[5];
-            vk::DeviceAddress pTexcoordByteStridesBuffer,
-                              pColorByteStridesBuffer;
-            std::uint32_t     nodeIndex,
-                              materialIndex;
+            vk::DeviceAddress pPositionBuffer;
+            vk::DeviceAddress pNormalBuffer;
+            vk::DeviceAddress pTangentBuffer;
+            vk::DeviceAddress pTexcoordBufferPtrsBuffer;
+            vk::DeviceAddress pColorBufferPtrsBuffer;
+            std::uint8_t positionByteStride;
+            std::uint8_t normalByteStride;
+            std::uint8_t tangentByteStride;
+            char padding[5];
+            vk::DeviceAddress pTexcoordByteStridesBuffer;
+            vk::DeviceAddress pColorByteStridesBuffer;
+            std::uint32_t nodeIndex;
+            std::uint32_t materialIndex;
         };
 
         struct CommandSeparationCriteria {

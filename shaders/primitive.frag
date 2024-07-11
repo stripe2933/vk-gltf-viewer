@@ -25,8 +25,7 @@ struct Material {
     float normalScale;
     float occlusionStrength;
     vec3 emissiveFactor;
-    uint8_t doubleSided;
-    uint8_t padding[3];
+    bool doubleSided;
 };
 
 struct Primitive {
