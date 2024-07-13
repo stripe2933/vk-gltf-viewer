@@ -119,10 +119,9 @@ auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
     const fastgltf::Asset &asset,
     vma::Allocator allocator
 ) const -> decltype(indirectDrawCommandBuffers) {
-    std::map<CommandSeparationCriteria, std::vector<vk::DrawIndexedIndirectCommand>> indexedCommandGroups;
-    std::map<CommandSeparationCriteria, std::vector<vk::DrawIndirectCommand>> nonIndexedCommandGroups;
+    std::map<CommandSeparationCriteria, std::vector<std::variant<vk::DrawIndexedIndirectCommand, vk::DrawIndirectCommand>>> commandGroups;
 
-    for (std::uint32_t instanceCounter = 0; const AssetResources::PrimitiveInfo *pPrimitiveInfo : orderedNodePrimitiveInfoPtrs | values) {
+    for (auto [firstInstance, pPrimitiveInfo] : orderedNodePrimitiveInfoPtrs | values | ranges::views::enumerate) {
         const CommandSeparationCriteria criteria {
             .alphaMode = asset.materials[*pPrimitiveInfo->materialIndex].alphaMode,
             .doubleSided = asset.materials[*pPrimitiveInfo->materialIndex].doubleSided,
@@ -138,39 +137,35 @@ auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
                 }
             }();
 
-            indexedCommandGroups[criteria].emplace_back(
-                pPrimitiveInfo->drawCount,
-                1,
-                static_cast<std::uint32_t>(pPrimitiveInfo->indexInfo->offset / indexByteSize),
-                0,
-                instanceCounter);
+            const std::uint32_t vertexOffset = static_cast<std::uint32_t>(pPrimitiveInfo->indexInfo->offset / indexByteSize);
+            commandGroups[criteria].emplace_back(
+                std::in_place_type<vk::DrawIndexedIndirectCommand>,
+                pPrimitiveInfo->drawCount, 1, vertexOffset, 0, firstInstance);
         }
         else {
-            nonIndexedCommandGroups[criteria].emplace_back(
-                pPrimitiveInfo->drawCount,
-                1,
-                0,
-                instanceCounter);
+            commandGroups[criteria].emplace_back(
+                std::in_place_type<vk::DrawIndirectCommand>,
+                pPrimitiveInfo->drawCount, 1, 0, firstInstance);
         }
-
-        ++instanceCounter;
     }
 
-    std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> result;
-    for (const auto &[criteria, commands] : indexedCommandGroups) {
-        result.try_emplace(
-            criteria,
-            allocator,
-            std::from_range, commands,
-            vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer);
-    }
-    for (const auto &[criteria, commands] : nonIndexedCommandGroups) {
-        result.try_emplace(
-            criteria,
-            allocator,
-            std::from_range, commands,
-            vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer);
-    }
+    return { std::from_range, commandGroups | transform([allocator](const auto &pair) {
+        const auto &[criteria, commands] = pair;
 
-    return result;
+        // Flatten vector of variants to the bytes.
+        const std::vector commandBytes
+            = commands
+            | transform([](const auto &variant) {
+                return visit([](const auto &v) {
+                    return std::span { reinterpret_cast<const std::byte*>(&v), sizeof(v) };
+                }, variant);
+            })
+            | join
+            | std::ranges::to<std::vector>();
+        return std::pair<CommandSeparationCriteria, vku::MappedBuffer> {
+            std::piecewise_construct,
+            std::tie(criteria),
+            std::forward_as_tuple(allocator, std::from_range, std::move(commandBytes), vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer),
+        };
+    }) };
 }

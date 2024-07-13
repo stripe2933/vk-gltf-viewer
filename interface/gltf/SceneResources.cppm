@@ -12,6 +12,11 @@ export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::gltf {
     export class SceneResources {
+        const AssetResources &assetResources;
+        const fastgltf::Scene &scene;
+
+        std::vector<std::pair<std::uint32_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs = createOrderedNodePrimitiveInfoPtrs();
+
     public:
         struct GpuPrimitive {
             vk::DeviceAddress pPositionBuffer;
@@ -45,16 +50,11 @@ namespace vk_gltf_viewer::gltf {
             auto operator()(fastgltf::AlphaMode lhs, const CommandSeparationCriteria &rhs) const noexcept -> bool { return lhs < rhs.alphaMode; }
         };
 
-        const AssetResources &assetResources;
-        const fastgltf::Scene &scene;
-
-        std::vector<std::pair<std::uint32_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs = createOrderedNodePrimitiveInfoPtrs();
-
         vku::MappedBuffer nodeTransformBuffer;
         vku::MappedBuffer primitiveBuffer;
         std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> indirectDrawCommandBuffers;
 
-        SceneResources(const AssetResources &assetResources, const fastgltf::Scene &scene, const vulkan::Gpu &gpu);
+        SceneResources(const AssetResources &assetResources [[clang::lifetimebound]], const fastgltf::Scene &scene, const vulkan::Gpu &gpu [[clang::lifetimebound]]);
 
     private:
         [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> decltype(orderedNodePrimitiveInfoPtrs);
