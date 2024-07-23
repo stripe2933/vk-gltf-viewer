@@ -26,7 +26,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	swapchainExtent { swapchainExtent } {
 	{
 		// Create image view for eqmapImage.
-		const vk::raii::ImageView eqmapImageView { gpu.device, eqmapImage.getViewCreateInfo(vk::ImageViewType::e2D, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) };
+		const vk::raii::ImageView eqmapImageView { gpu.device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) };
 
 		const pbrenvmap::Generator::Pipelines pbrenvmapPipelines {
 			.cubemapComputer = { gpu.device, compiler },

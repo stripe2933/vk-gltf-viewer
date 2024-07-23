@@ -1,0 +1,24 @@
+{
+  "name": "vku",
+  "version": "0.1.0",
+  "homepage": "https://github.com/stripe2933/vku",
+  "description": "Vulkan simplifications.",
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name" : "vcpkg-cmake",
+      "host" : true
+    },
+    {
+      "name" : "vcpkg-cmake-config",
+      "host" : true
+    },
+    "vulkan-memory-allocator",
+    "vulkan-memory-allocator-hpp"
+  ],
+  "features": {
+    "std-module": { "description": "Use standard library module for the library compilation" },
+    "shaderc": { "description": "Enable runtime GLSL compilation feature using shaderc" },
+    "dynamic-dispatcher": { "description": "Use vk::DispatchLoaderDynamic as the default dispatcher" }
+  }
+}

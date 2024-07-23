@@ -5,6 +5,7 @@ module;
 export module vk_gltf_viewer:gltf.AssetResources;
 
 import std;
+export import glm;
 export import vku;
 import :io.StbDecoder;
 export import :vulkan.Gpu;

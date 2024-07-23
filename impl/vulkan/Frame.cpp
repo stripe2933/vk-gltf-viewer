@@ -219,8 +219,8 @@ vk_gltf_viewer::vulkan::Frame::JumpFloodResources::JumpFloodResources(
 		vk::ImageTiling::eOptimal,
 		vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */ | vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer | vk::ImageUsageFlagBits:read from OutlineRenderer */,
 	} },
-	pingImageView { gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2D, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
-	pongImageView { gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2D, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 }) } { }
+	pingImageView { gpu.device, image.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
+	pongImageView { gpu.device, image.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 }) } { }
 
 auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
 	vk::SurfaceKHR surface,
@@ -364,8 +364,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		},
 		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0.f, 0U } }));
 
-	passthruExtentDependentResources->depthPrepassAttachmentGroup.setViewport(cb, true);
-	passthruExtentDependentResources->depthPrepassAttachmentGroup.setScissor(cb);
+	cb.setViewport(0, passthruExtentDependentResources->depthPrepassAttachmentGroup.getViewport(true));
+	cb.setScissor(0, passthruExtentDependentResources->depthPrepassAttachmentGroup.getScissor());
 
 	// Render alphaMode=Opaque meshes.
 	sharedData.depthRenderer.bindPipeline(cb);
@@ -538,8 +538,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 		},
 		vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 
-	passthruExtentDependentResources->primaryAttachmentGroup.setViewport(cb, true);
-	passthruExtentDependentResources->primaryAttachmentGroup.setScissor(cb);
+	cb.setViewport(0, passthruExtentDependentResources->primaryAttachmentGroup.getViewport(true));
+	cb.setScissor(0, passthruExtentDependentResources->primaryAttachmentGroup.getScissor());
 
 	// Render alphaMode=Opaque meshes.
 	sharedData.primitiveRenderer.bindPipeline(cb);

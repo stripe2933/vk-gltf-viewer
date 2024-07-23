@@ -8,6 +8,11 @@ import :vulkan.pipelines.JumpFloodComputer;
 import std;
 import vku;
 
+template <std::unsigned_integral T>
+[[nodiscard]] constexpr auto divCeil(T num, T denom) noexcept -> T {
+    return (num / denom) + (num % denom != 0);
+}
+
 vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<1> {
@@ -42,8 +47,8 @@ auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::compute(
     for (; pushConstant.sampleOffset > 0U; pushConstant.forward = !pushConstant.forward, pushConstant.sampleOffset >>= 1U) {
         commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
         commandBuffer.dispatch(
-            vku::divCeil(imageExtent.width, 16U),
-            vku::divCeil(imageExtent.height, 16U),
+            divCeil(imageExtent.width, 16U),
+            divCeil(imageExtent.height, 16U),
             1);
 
         if (pushConstant.sampleOffset != 1U) {

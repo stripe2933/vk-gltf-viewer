@@ -76,7 +76,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 	const glm::u32vec2 framebufferSize = window.getFramebufferSize();
 	vulkan::SharedData sharedData {
 		assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(),
-		gpu, *window.surface, vk::Extent2D { framebufferSize.x, framebufferSize.y },
+		gpu, window.getSurface(), vk::Extent2D { framebufferSize.x, framebufferSize.y },
 		eqmapImage
 	};
 	std::array frames = ARRAY_OF(2, vulkan::Frame{ gpu, sharedData });
@@ -91,7 +91,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
 		vulkan::Frame::OnLoopTask task = update(timeDelta);
 		if (const auto &extent = std::exchange(shouldHandleSwapchainResize[frameIndex], std::nullopt)) {
-			task.swapchainResizeHandleInfo.emplace(*window.surface, *extent);
+			task.swapchainResizeHandleInfo.emplace(window.getSurface(), *extent);
 		}
 
         const std::expected frameOnLoopResult = frames[frameIndex].onLoop(task);
@@ -106,7 +106,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 				std::this_thread::yield();
 			}
 
-			sharedData.handleSwapchainResize(*window.surface, { framebufferSize.x, framebufferSize.y });
+			sharedData.handleSwapchainResize(window.getSurface(), { framebufferSize.x, framebufferSize.y });
 			// Frames should handle swapchain resize with extent=framebufferSize.
 			shouldHandleSwapchainResize.fill(vk::Extent2D { framebufferSize.x, framebufferSize.y });
 		}
@@ -344,7 +344,7 @@ auto vk_gltf_viewer::MainApp::update(
 	if (vk::Rect2D oldPassthruRect = std::exchange(previousPassthruRect, passthruRect); oldPassthruRect != passthruRect) {
 		appState.camera.projection = glm::gtc::perspective(
 			appState.camera.getFov(),
-			vku::aspect(passthruRect.extent),
+			static_cast<float>(passthruRect.extent.width) / passthruRect.extent.height,
 			appState.camera.getNear(), appState.camera.getFar());
 	}
 

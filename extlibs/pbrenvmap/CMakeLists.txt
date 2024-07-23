@@ -26,5 +26,5 @@ target_sources(pbrenvmap PUBLIC
         interface/pipelines/SubgroupMipmapComputer.cppm
 )
 target_link_libraries(pbrenvmap PUBLIC
-    vku
+    vku::vku
 )

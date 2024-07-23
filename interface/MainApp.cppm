@@ -28,7 +28,7 @@ namespace vk_gltf_viewer {
 		vk::raii::Context context;
 		vk::raii::Instance instance = createInstance();
 		control::AppWindow window { instance, appState };
-		vulkan::Gpu gpu { instance, *window.surface };
+		vulkan::Gpu gpu { instance, window.getSurface() };
 
 		std::list<vku::MappedBuffer> stagingBuffers{};
 

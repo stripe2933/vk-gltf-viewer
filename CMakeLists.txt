@@ -17,36 +17,29 @@ find_package(imgui CONFIG REQUIRED)
 find_package(ImGuizmo CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(Stb REQUIRED)
-find_package(Vulkan REQUIRED)
+find_package(vku CONFIG REQUIRED)
+find_package(Vulkan COMPONENTS shaderc_combined REQUIRED)
 
-set(VKU_USE_GLFW ON)
 add_subdirectory(extlibs)
 
 # --------------------
 # Module configurations for the external dependencies.
 # --------------------
 
-target_compile_definitions(Vulkan-Hpp_module
-PUBLIC
-	VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
-PRIVATE
-	VULKAN_HPP_NO_SMART_HANDLE
-	$<$<PLATFORM_ID:Darwin>:VK_ENABLE_BETA_EXTENSIONS>
-)
+if (NOT TARGET glm_module)
+	add_library(glm_module)
+	target_sources(glm_module PUBLIC
+		FILE_SET CXX_MODULES
+		FILES extlibs/module-ports/glm.cppm
+	)
+	target_link_libraries(glm_module PUBLIC glm::glm)
+	target_compile_definitions(glm_module PUBLIC
+		GLM_FORCE_DEPTH_ZERO_TO_ONE
+		GLM_FORCE_XYZW_ONLY
+	)
 
-target_compile_definitions(VulkanMemoryAllocator-Hpp_module PRIVATE
-	VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
-	VULKAN_HPP_NO_SMART_HANDLE
-	$<$<PLATFORM_ID:Darwin>:VK_ENABLE_BETA_EXTENSIONS>
-	VMA_STATIC_VULKAN_FUNCTIONS=0
-	VMA_DYNAMIC_VULKAN_FUNCTIONS=1
-	VMA_VULKAN_VERSION=1002000 # MoltenVK supports Vulkan 1.2.
-)
-
-target_compile_definitions(glm_module PUBLIC
-	GLM_FORCE_DEPTH_ZERO_TO_ONE
-	GLM_FORCE_XYZW_ONLY
-)
+	add_library(glm::module ALIAS glm_module)
+endif()
 
 # --------------------
 # Project targets.
@@ -118,12 +111,14 @@ target_sources(vk-gltf-viewer PRIVATE
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
 	fastgltf::fastgltf
+	glm::module
 	imgui::imgui
 	imguizmo::imguizmo
 	mikktspace::mikktspace
 	pbrenvmap
-	vku
+	vku::vku
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE
+	GLFW_INCLUDE_NONE
 	COMPILED_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
 )

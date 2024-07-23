@@ -142,6 +142,11 @@ void main(){
 }
 )comp";
 
+template <std::unsigned_integral T>
+[[nodiscard]] constexpr auto divCeil(T num, T denom) noexcept -> T {
+    return (num / denom) + (num % denom != 0);
+}
+
 pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<1> {
@@ -179,9 +184,9 @@ auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::compute(
 
     while (true) {
         commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
-        commandBuffer.dispatch(vku::divCeil(pushConstant.count, 256U), 1, 1);
+        commandBuffer.dispatch(divCeil(pushConstant.count, 256U), 1, 1);
 
-        pushConstant.count = vku::divCeil(pushConstant.count, 256U);
+        pushConstant.count = divCeil(pushConstant.count, 256U);
         if (pushConstant.count == 1U) {
             return pushConstant.dstOffset; // Return the offset that contains the sum result.
         }
@@ -200,7 +205,7 @@ auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::compute(
 auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
     std::uint32_t elementCount
 ) noexcept -> std::uint32_t {
-    return elementCount + vku::divCeil(elementCount, 256U);
+    return elementCount + divCeil(elementCount, 256U);
 }
 
 auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::createPipelineLayout(

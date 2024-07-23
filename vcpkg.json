@@ -21,6 +21,13 @@
     {
       "name": "vulkan-memory-allocator-hpp",
       "version>=": "3.1.0"
+    },
+    {
+      "name": "vku",
+      "features": [
+        "shaderc",
+        "dynamic-dispatcher"
+      ]
     }
   ]
 }

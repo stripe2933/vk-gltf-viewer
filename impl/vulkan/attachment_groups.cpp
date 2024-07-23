@@ -9,16 +9,18 @@ vk_gltf_viewer::vulkan::DepthPrepassAttachmentGroup::DepthPrepassAttachmentGroup
 ) : AttachmentGroup { extent } {
     addColorAttachment(
         gpu.device,
-        storeImage(createColorImage(gpu.allocator, vk::Format::eR32Uint, vk::ImageUsageFlagBits::eTransferSrc)));
+        storeImage(createColorImage(gpu.allocator, vk::Format::eR32Uint, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc)));
     addColorAttachment(
         gpu.device,
-        hoveringNodeJumpFloodImage, hoveringNodeJumpFloodImage.format,
-        { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image subresource */);
+        hoveringNodeJumpFloodImage,
+        hoveringNodeJumpFloodImage.getViewCreateInfo(
+            { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image subresource */));
     addColorAttachment(
         gpu.device,
-        selectedNodeJumpFloodImage, selectedNodeJumpFloodImage.format,
-        { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image subresource */);
-    setDepthAttachment(
+        selectedNodeJumpFloodImage,
+        selectedNodeJumpFloodImage.getViewCreateInfo(
+            { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image subresource */));
+    setDepthStencilAttachment(
         gpu.device,
         storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
 }
@@ -30,8 +32,8 @@ vk_gltf_viewer::vulkan::PrimaryAttachmentGroup::PrimaryAttachmentGroup(
     addColorAttachment(
         gpu.device,
         storeImage(createColorImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat)),
-        storeImage(createResolveImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eStorage)));
-    setDepthAttachment(
+        storeImage(createResolveImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eStorage)));
+    setDepthStencilAttachment(
         gpu.device,
         storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
 }

@@ -73,6 +73,11 @@ void main(){
 }
 )comp";
 
+template <std::unsigned_integral T>
+[[nodiscard]] constexpr auto divCeil(T num, T denom) noexcept -> T {
+    return (num / denom) + (num % denom != 0);
+}
+
 pbrenvmap::pipelines::MultiplyComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<2> {
@@ -111,7 +116,7 @@ auto pbrenvmap::pipelines::MultiplyComputer::compute(
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSets, {});
     commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
-    commandBuffer.dispatch(vku::divCeil(pushConstant.numCount, 256U), 1, 1);
+    commandBuffer.dispatch(divCeil(pushConstant.numCount, 256U), 1, 1);
 }
 
 auto pbrenvmap::pipelines::MultiplyComputer::createPipelineLayout(

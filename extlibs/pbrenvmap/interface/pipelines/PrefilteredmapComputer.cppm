@@ -200,6 +200,11 @@ void main(){
 }
 )comp";
 
+template <std::unsigned_integral T>
+[[nodiscard]] constexpr auto divCeil(T num, T denom) noexcept -> T {
+    return (num / denom) + (num % denom != 0);
+}
+
 pbrenvmap::pipelines::PrefilteredmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
     const vk::Sampler &sampler,
@@ -249,8 +254,8 @@ auto pbrenvmap::pipelines::PrefilteredmapComputer::compute(
             commandBuffer.pushConstants<std::uint32_t>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, offsetof(PushConstant, mipLevel), mipLevel);
         }
         commandBuffer.dispatch(
-            vku::divCeil(prefilteredmapSize >> mipLevel, 16U),
-            vku::divCeil(prefilteredmapSize >> mipLevel, 16U),
+            divCeil(prefilteredmapSize >> mipLevel, 16U),
+            divCeil(prefilteredmapSize >> mipLevel, 16U),
             6);
     }
 }
