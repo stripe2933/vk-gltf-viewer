@@ -87,7 +87,7 @@ namespace vk_gltf_viewer::gltf {
         std::optional<vku::AllocatedBuffer> tangentBuffer;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
-        AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const vulkan::Gpu &gpu, const Config &config = {});
+        AssetResources(const fastgltf::Asset &asset [[clang::lifetimebound]], const std::filesystem::path &assetDir, const vulkan::Gpu &gpu [[clang::lifetimebound]], const Config &config = {});
 
     private:
         AssetResources(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, const Config &config);
