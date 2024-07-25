@@ -75,7 +75,33 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(
 	const vk::raii::Instance &instance,
 	vk::SurfaceKHR surface
 ) const -> decltype(physicalDevice) {
-	return instance.enumeratePhysicalDevices().front();
+    auto adequatePhysicalDevices
+        = instance.enumeratePhysicalDevices()
+        | std::views::filter([&](const vk::raii::PhysicalDevice &physicalDevice) {
+            try {
+                std::ignore = QueueFamilies { physicalDevice, surface };
+                return true;
+            }
+            catch (const std::runtime_error&) {
+                return false;
+            }
+        });
+    if (adequatePhysicalDevices.empty()) {
+        throw std::runtime_error { "No suitable GPU for the application" };
+    }
+
+    return *std::ranges::max_element(adequatePhysicalDevices, {}, [&](const vk::raii::PhysicalDevice &physicalDevice) {
+        std::uint32_t score = 0;
+
+        const vk::PhysicalDeviceProperties properties = physicalDevice.getProperties();
+        if (properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
+            score += 1000;
+        }
+
+        score += properties.limits.maxImageDimension2D;
+
+        return score;
+    });
 }
 
 auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
