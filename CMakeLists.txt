@@ -14,7 +14,7 @@ set(CMAKE_CXX_MODULE_STD 1)
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
-find_package(ImGuizmo CONFIG REQUIRED)
+find_package(unofficial-imguizmo CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(vku CONFIG REQUIRED)
@@ -115,7 +115,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
 	fastgltf::fastgltf
 	glm::module
 	imgui::imgui
-	imguizmo::imguizmo
+	unofficial::imguizmo::imguizmo
 	mikktspace::mikktspace
 	pbrenvmap
 	vku::vku

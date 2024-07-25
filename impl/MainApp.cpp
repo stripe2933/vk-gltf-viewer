@@ -49,6 +49,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 	io.Fonts->AddFontFromFileTTF("/Library/Fonts/Arial Unicode.ttf", 16.f * io.DisplayFramebufferScale.x);
 
 	ImGui_ImplGlfw_InitForVulkan(window, true);
+	const auto colorAttachmentFormats = { vk::Format::eB8G8R8A8Unorm };
 	ImGui_ImplVulkan_InitInfo initInfo {
 		.Instance = *instance,
 		.PhysicalDevice = *gpu.physicalDevice,
@@ -58,9 +59,12 @@ vk_gltf_viewer::MainApp::MainApp() {
 		.MinImageCount = 2,
 		.ImageCount = 2,
 		.UseDynamicRendering = true,
-		.ColorAttachmentFormat = VK_FORMAT_B8G8R8A8_UNORM,
+		.PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
+			{},
+			colorAttachmentFormats,
+		},
 	};
-	ImGui_ImplVulkan_Init(&initInfo, nullptr);
+	ImGui_ImplVulkan_Init(&initInfo);
 
 	eqmapImageImGuiDescriptorSet = ImGui_ImplVulkan_AddTexture(*eqmapSampler, *eqmapImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
