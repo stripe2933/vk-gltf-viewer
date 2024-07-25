@@ -95,6 +95,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/io/logger.cppm
 		interface/io/StbDecoder.cppm
 		interface/MainApp.cppm
+		interface/mipmap.cppm
 		interface/vulkan/attachment_groups.cppm
 		interface/vulkan/Frame.cppm
 		interface/vulkan/Gpu.cppm

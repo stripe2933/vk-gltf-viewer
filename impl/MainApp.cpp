@@ -16,6 +16,7 @@ import std;
 import vku;
 import :control.ImGui;
 import :helpers.ranges;
+import :mipmap;
 import :io.StbDecoder;
 import :vulkan.Frame;
 import :vulkan.SharedData;
@@ -231,54 +232,25 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 
 	auto graphicsCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent);
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-		for (auto [srcLevel, dstLevel] : std::views::iota(0U, eqmapImage.mipLevels) | ranges::views::pairwise) {
-			// Blit from srcLevel to dstLevel.
-			cb.blitImage(
-				eqmapImage, vk::ImageLayout::eTransferSrcOptimal,
-				eqmapImage, vk::ImageLayout::eTransferDstOptimal,
-				vk::ImageBlit {
-					{ vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
-					{ vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(eqmapImage.extent.width >> srcLevel), static_cast<std::int32_t>(eqmapImage.extent.height >> srcLevel), 1 } },
-					{ vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-					{ vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(eqmapImage.extent.width >> dstLevel), static_cast<std::int32_t>(eqmapImage.extent.height >> dstLevel), 1 } },
-				},
-				vk::Filter::eLinear);
+		recordMipmapGenerationCommand(cb, eqmapImage);
 
-			cb.pipelineBarrier2KHR({
-	            {},
-				{}, {},
-				vku::unsafeProxy({
-					// Change eqmapImage layout.
-					// - mipLevel=srcLevel: TransferSrcOptimal -> ShaderReadOnlyOptimal
-					// - mipLevel=dstLevel:
-					//   dstLevel is last mip level -> TransferDstOptimal -> ShaderReadOnlyOptimal
-					//   otherwise -> TransferDstOptimal -> TransferSrcOptimal
-					vk::ImageMemoryBarrier2 {
-			            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
-						vk::PipelineStageFlagBits2::eAllCommands, {},
-						vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						eqmapImage, { vk::ImageAspectFlagBits::eColor, srcLevel, 1, 0, 1 },
-					},
-					dstLevel == (eqmapImage.mipLevels - 1U)
-						? vk::ImageMemoryBarrier2 {
-							vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-							vk::PipelineStageFlagBits2::eAllCommands, {},
-							vk::ImageLayout::eTransferDstOptimal,
-							vk::ImageLayout::eShaderReadOnlyOptimal,
-							vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-							eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
-						}
-						: vk::ImageMemoryBarrier2 {
-				            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-							vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
-							vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-							vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-							eqmapImage, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
-						},
-				}),
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+			{}, {}, {},
+			{
+				vk::ImageMemoryBarrier {
+					vk::AccessFlagBits::eTransferRead, {},
+					vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, eqmapImage.mipLevels - 1U, 0, 1 },
+				},
+				vk::ImageMemoryBarrier {
+					vk::AccessFlagBits::eTransferRead, {},
+					vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					eqmapImage, { vk::ImageAspectFlagBits::eColor, eqmapImage.mipLevels - 1U, 1, 0, 1 },
+				},
 			});
-		}
 	});
 	gpu.queues.graphicsPresent.waitIdle();
 

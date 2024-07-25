@@ -10,6 +10,7 @@ import :vulkan.SharedData;
 import std;
 import pbrenvmap;
 import :helpers.ranges;
+import :mipmap;
 import :vulkan.pipelines.BrdfmapComputer;
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(
@@ -308,79 +309,53 @@ auto vk_gltf_viewer::vulkan::SharedData::recordImageMipmapGenerationCommands(
 ) const -> void {
 	if (assetResources.images.empty()) return;
 
-    // 1. Sort image by their mip levels in ascending order.
-    std::vector pImages
-        = assetResources.images
-        | std::views::transform([](const vku::Image &image) { return &image; })
-        | std::ranges::to<std::vector>();
-    std::ranges::sort(pImages, {}, [](const vku::Image *pImage) { return pImage->mipLevels; });
+	graphicsCommandBuffer.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+		{}, {}, {},
+		assetResources.images
+			| std::views::transform([](vk::Image image) {
+				return std::array {
+					vk::ImageMemoryBarrier {
+						{}, vk::AccessFlagBits::eTransferRead,
+						vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+					},
+					vk::ImageMemoryBarrier {
+						{}, vk::AccessFlagBits::eTransferWrite,
+						{}, vk::ImageLayout::eTransferDstOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						image, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingArrayLayers, 0, 1 },
+					},
+				};
+			})
+			| std::views::join
+			| std::ranges::to<std::vector>());
 
-    // 2. Generate mipmaps for each image, with global image memory barriers.
-    const std::uint32_t maxMipLevels = pImages.back()->mipLevels;
-    for (auto [srcLevel, dstLevel] : std::views::iota(0U, maxMipLevels) | ranges::views::pairwise) {
-        // Find the images that have the current mip level.
-        auto begin = std::ranges::lower_bound(
-            pImages, dstLevel + 1U, {}, [](const vku::Image *pImage) { return pImage->mipLevels; });
-        const auto targetImages = std::ranges::subrange(begin, pImages.end()) | ranges::views::deref;
+	recordBatchedMipmapGenerationCommand(graphicsCommandBuffer, assetResources.images);
 
-        // Make image barriers that transition the subresource at the srcLevel to TRANSFER_SRC_OPTIMAL.
-        graphicsCommandBuffer.pipelineBarrier2KHR({
-            {},
-            {}, {},
-            vku::unsafeProxy(targetImages
-                | std::views::transform([&](const vku::Image &image) {
-                    return std::array {
-                    	vk::ImageMemoryBarrier2 {
-	                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-	                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
-	                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-	                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-	                        image, { vk::ImageAspectFlagBits::eColor, srcLevel, 1, 0, 1 },
-                    	},
-                    	vk::ImageMemoryBarrier2 {
-	                        {}, {},
-	                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
-	                        {}, vk::ImageLayout::eTransferDstOptimal,
-	                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-	                        image, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 },
-                    	},
-	                };
-                })
-        		| std::views::join
-                | std::ranges::to<std::vector>()),
-        });
-
-        // Blit from srcLevel to dstLevel.
-        for (const vku::Image &image : targetImages) {
-        	const vk::Extent2D srcMipExtent = image.mipExtent(srcLevel), dstMipExtent = image.mipExtent(dstLevel);
-            graphicsCommandBuffer.blitImage(
-                image, vk::ImageLayout::eTransferSrcOptimal,
-                image, vk::ImageLayout::eTransferDstOptimal,
-                vk::ImageBlit {
-                    { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
-                    { vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(srcMipExtent.width), static_cast<std::int32_t>(srcMipExtent.height), 1 } },
-					{ vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-					{ vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(dstMipExtent.width), static_cast<std::int32_t>(dstMipExtent.height), 1 } },
-                },
-                vk::Filter::eLinear);
-        }
-    }
-
-    // Change image layouts for sampling.
-    graphicsCommandBuffer.pipelineBarrier(
-        vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-        {}, {}, {},
-        assetResources.images
-            | std::views::transform([](vk::Image image) {
-                return vk::ImageMemoryBarrier {
-                    vk::AccessFlagBits::eTransferWrite, {},
-                    {}, vk::ImageLayout::eShaderReadOnlyOptimal,
-                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    image,
-                    vku::fullSubresourceRange(),
-                };
-            })
-            | std::ranges::to<std::vector>());
+	graphicsCommandBuffer.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+		{}, {}, {},
+		assetResources.images
+			| std::views::transform([](const vku::Image &image) {
+				return std::array {
+					vk::ImageMemoryBarrier {
+						vk::AccessFlagBits::eTransferRead, {},
+						vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						image, { vk::ImageAspectFlagBits::eColor, 0, image.mipLevels - 1U, 0, 1 },
+					},
+					vk::ImageMemoryBarrier {
+						vk::AccessFlagBits::eTransferWrite, {},
+						vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						image, { vk::ImageAspectFlagBits::eColor, image.mipLevels - 1U, 1, 0, 1 },
+					},
+				};
+			})
+			| std::views::join
+			| std::ranges::to<std::vector>());
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::recordInitialImageLayoutTransitionCommands(
