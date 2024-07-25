@@ -7,11 +7,7 @@ import :vulkan.pipelines.JumpFloodComputer;
 
 import std;
 import vku;
-
-template <std::unsigned_integral T>
-[[nodiscard]] constexpr auto divCeil(T num, T denom) noexcept -> T {
-    return (num / denom) + (num % denom != 0);
-}
+import :helpers.extended_arithmetic;
 
 vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device

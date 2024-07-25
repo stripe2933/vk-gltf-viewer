@@ -85,6 +85,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/gltf/SceneResources.cppm
 		interface/AppState.cppm
 		interface/helpers/enum_to_string.cppm
+		interface/helpers/extended_arithmetic.cppm
 		interface/helpers/formatters/glm.cppm
 		interface/helpers/formatters/joiner.cppm
 		interface/helpers/formatters/omitted.cppm
