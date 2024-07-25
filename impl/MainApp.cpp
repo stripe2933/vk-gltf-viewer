@@ -177,11 +177,7 @@ auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
 		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled /* cubemap generation */ | vk::ImageUsageFlagBits::eTransferSrc /* mipmap generation */,
-		vk::SharingMode::eConcurrent, vku::unsafeProxy(std::set {
-			gpu.queueFamilies.transfer,
-			gpu.queueFamilies.compute,
-			gpu.queueFamilies.graphicsPresent,
-		} | std::ranges::to<std::vector>()),
+		vk::SharingMode::eConcurrent, vku::unsafeProxy(gpu.queueFamilies.getUniqueIndices()),
 	} };
 
 	// TODO: instead creating a temporary command pool, accept the transfer command buffer as a function parameter,

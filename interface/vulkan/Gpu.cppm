@@ -11,6 +11,8 @@ namespace vk_gltf_viewer::vulkan {
 			std::uint32_t compute, graphicsPresent, transfer;
 
 			QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface);
+
+			[[nodiscard]] auto getUniqueIndices() const noexcept -> std::vector<std::uint32_t>;
 		};
 
 		struct Queues {

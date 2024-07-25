@@ -52,6 +52,15 @@ TRANSFER:
 	else std::unreachable(); // Vulkan instance always have at least one compute capable queue family (therefore transfer capable).
 }
 
+auto vk_gltf_viewer::vulkan::Gpu::QueueFamilies::getUniqueIndices() const noexcept -> std::vector<std::uint32_t> {
+	std::vector indices { compute, graphicsPresent, transfer };
+	std::ranges::sort(indices);
+
+	const auto ret = std::ranges::unique(indices);
+	indices.erase(ret.begin(), ret.end());
+
+	return indices;
+}
 
 vk_gltf_viewer::vulkan::Gpu::Queues::Queues(
 	vk::Device device,
@@ -109,7 +118,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 	vk::raii::Device device { physicalDevice, vk::StructureChain {
 		vk::DeviceCreateInfo{
 			{},
-			vku::unsafeProxy(std::set { queueFamilies.compute, queueFamilies.graphicsPresent, queueFamilies.transfer }
+			vku::unsafeProxy(queueFamilies.getUniqueIndices()
 				| std::views::transform([&](std::uint32_t queueFamilyIndex) {
 					return vk::DeviceQueueCreateInfo{
 						{},
