@@ -277,127 +277,6 @@ auto assetOcclusionTextureInfo(const fastgltf::OcclusionTextureInfo &textureInfo
     }
 }
 
-auto assetNodeInTable(const fastgltf::Asset &asset, std::size_t nodeIndex, bool mergeSingleChildNodes, vk_gltf_viewer::AppState &appState) -> void {
-    std::size_t descendentNodeIndex = nodeIndex;
-
-    std::vector<std::string> directDescendentNodeNames;
-    while (true) {
-        const fastgltf::Node &descendentNode = asset.nodes[descendentNodeIndex];
-        if (const auto &descendentNodeName = descendentNode.name; descendentNodeName.empty()) {
-            directDescendentNodeNames.emplace_back(std::format("<Unnamed node {}>", descendentNodeIndex));
-        }
-        else {
-            directDescendentNodeNames.emplace_back(descendentNodeName);
-        }
-
-        if (!mergeSingleChildNodes || descendentNode.children.size() != 1) {
-            break;
-        }
-
-        descendentNodeIndex = descendentNode.children[0];
-    }
-
-    const fastgltf::Node &descendentNode = asset.nodes[descendentNodeIndex];
-
-    ImGui::TableNextRow();
-
-    ImGui::TableSetColumnIndex(0);
-    ImGui::AlignTextToFramePadding();
-    const ImGuiTreeNodeFlags flags
-        = ImGuiTreeNodeFlags_DefaultOpen | /*ImGuiTreeNodeFlags_SpanAllWidth*/ ImGuiTreeNodeFlags_SpanTextWidth | ImGuiTreeNodeFlags_OpenOnArrow
-        | ((appState.selectedNodeIndex && *appState.selectedNodeIndex == descendentNodeIndex) ? ImGuiTreeNodeFlags_Selected : 0)
-        | (descendentNode.children.empty() ? (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet) : 0);
-    ImGui::PushID(descendentNodeIndex);
-    const bool isTreeNodeOpen = ImGui::TreeNodeEx("", flags);
-    if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
-        appState.selectedNodeIndex = static_cast<std::uint32_t>(descendentNodeIndex);
-    }
-
-    static std::vector<std::optional<bool>> visibilities(asset.nodes.size(), true);
-    static std::vector parentNodeIndices = [&]() {
-        std::vector<std::size_t> parentNodeIndices(asset.nodes.size());
-        for (std::size_t i = 0; i < asset.nodes.size(); ++i) {
-            for (std::size_t childIndex : asset.nodes[i].children) {
-                parentNodeIndices[childIndex] = i;
-            }
-        }
-        return parentNodeIndices;
-    }();
-
-    ImGui::PushItemFlag(ImGuiItemFlags_MixedValue, !visibilities[nodeIndex]);
-    ImGui::SameLine();
-    if (ImGui::Checkbox("##visibility", &*visibilities[nodeIndex])) {
-        if (!visibilities[nodeIndex]) {
-            visibilities[nodeIndex] = true;
-        }
-
-        vk_gltf_viewer::tristate::propagateTopDown([&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
-        vk_gltf_viewer::tristate::propagateBottomUp([&](auto i) { return parentNodeIndices[i]; }, [&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
-    }
-    ImGui::PopItemFlag();
-
-    ImGui::TableSetColumnIndex(1);
-    ImGui::TextUnformatted(std::format("{::s}", vk_gltf_viewer::make_joiner<" / ">(directDescendentNodeNames)));
-
-    ImGui::TableSetColumnIndex(2);
-    visit(fastgltf::visitor {
-        [](const fastgltf::TRS &trs) {
-            std::vector<std::string> transformComponents;
-            if (trs.translation != std::array { 0.f, 0.f, 0.f }) {
-                transformComponents.emplace_back(std::format("T{::.2f}", trs.translation));
-            }
-            if (trs.rotation != std::array { 0.f, 0.f, 0.f, 1.f }) {
-                transformComponents.emplace_back(std::format("R{::.2f}", trs.rotation));
-            }
-            if (trs.scale != std::array { 1.f, 1.f, 1.f }) {
-                transformComponents.emplace_back(std::format("S{::.2f}", trs.scale));
-            }
-
-            if (!transformComponents.empty()) {
-                ImGui::TextUnformatted(std::format("{::s}", vk_gltf_viewer::make_joiner<" * ">(transformComponents)));
-            }
-        },
-        [](const fastgltf::Node::TransformMatrix &transformMatrix) {
-            constexpr fastgltf::Node::TransformMatrix identity { 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f };
-            if (transformMatrix != identity) {
-                // TODO.CXX23: use chunk when libc++ support it.
-                ImGui::TextUnformatted(std::format("{:::.2f}", transformMatrix | std::views::chunk_by([i = 0](float, float) mutable { return ++i % 4 != 0; })));
-            }
-        },
-    }, descendentNode.transform);
-
-    if (const auto &meshIndex = descendentNode.meshIndex) {
-        ImGui::TableSetColumnIndex(3);
-        if (ImGui::HyperLink(visit(identity<std::string_view>, str_or(asset.meshes[*meshIndex].name, [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })))) {
-            // TODO
-        }
-    }
-
-    if (const auto &lightIndex = descendentNode.lightIndex) {
-        ImGui::TableSetColumnIndex(4);
-        if (ImGui::HyperLink(visit(identity<std::string_view>, str_or(asset.lights[*lightIndex].name, [&] { return std::format("<Unnamed light {}>", *lightIndex); })))) {
-            // TODO
-        }
-    }
-
-    if (const auto &cameraIndex = descendentNode.cameraIndex) {
-        ImGui::TableSetColumnIndex(5);
-        if (ImGui::HyperLink(visit(identity<std::string_view>, str_or(asset.cameras[*cameraIndex].name, [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })))) {
-            // TODO
-        }
-    }
-
-    if (isTreeNodeOpen) {
-        for (std::size_t childNodeIndex : descendentNode.children) {
-            assetNodeInTable(asset, childNodeIndex, mergeSingleChildNodes, appState);
-        }
-
-        ImGui::TreePop();
-    }
-
-    ImGui::PopID();
-}
-
 auto assetInfos(fastgltf::Asset &asset) -> void {
     if (auto &assetInfo = asset.assetInfo) {
         ImGui::InputTextWithHint("glTF Version", "<empty>", &assetInfo->gltfVersion);
@@ -767,6 +646,149 @@ auto assetSceneHierarchies(const fastgltf::Asset &asset, vk_gltf_viewer::AppStat
     static bool mergeSingleChildNodes = true;
     ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
 
+    static std::vector<std::optional<bool>> visibilities(asset.nodes.size(), true);
+    static std::vector parentNodeIndices = [&]() {
+        std::vector<std::size_t> parentNodeIndices(asset.nodes.size());
+        for (std::size_t i = 0; i < asset.nodes.size(); ++i) {
+            for (std::size_t childIndex : asset.nodes[i].children) {
+                parentNodeIndices[childIndex] = i;
+            }
+        }
+        return parentNodeIndices;
+    }();
+
+    static bool useTristateVisibility = true;
+    if (ImGui::Checkbox("Use tristate visibility", &useTristateVisibility)) {
+        if (useTristateVisibility) {
+            // TODO: how to handle this?
+        }
+        else {
+            // If tristate visibility disabled, all indeterminate visibilities are set to true.
+            for (auto &visibility : visibilities) {
+                if (!visibility) {
+                    visibility = true;
+                }
+            }
+        }
+    }
+
+    // TODO.CXX23: const fastgltf::Asset& doesn't have to be passed, but it does since Clang 18's explicit parameter object
+    //  bug. Remove it when it fixed.
+    const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
+        std::size_t descendentNodeIndex = nodeIndex;
+
+        std::vector<std::string> directDescendentNodeNames;
+        while (true) {
+            const fastgltf::Node &descendentNode = asset.nodes[descendentNodeIndex];
+            if (const auto &descendentNodeName = descendentNode.name; descendentNodeName.empty()) {
+                directDescendentNodeNames.emplace_back(std::format("<Unnamed node {}>", descendentNodeIndex));
+            }
+            else {
+                directDescendentNodeNames.emplace_back(descendentNodeName);
+            }
+
+            if (!mergeSingleChildNodes || descendentNode.children.size() != 1) {
+                break;
+            }
+
+            descendentNodeIndex = descendentNode.children[0];
+        }
+
+        const fastgltf::Node &descendentNode = asset.nodes[descendentNodeIndex];
+
+        ImGui::TableNextRow();
+
+        ImGui::TableSetColumnIndex(0);
+        ImGui::AlignTextToFramePadding();
+        const ImGuiTreeNodeFlags flags
+            = ImGuiTreeNodeFlags_DefaultOpen | /*ImGuiTreeNodeFlags_SpanAllWidth*/ ImGuiTreeNodeFlags_SpanTextWidth | ImGuiTreeNodeFlags_OpenOnArrow
+            | ((appState.selectedNodeIndex && *appState.selectedNodeIndex == descendentNodeIndex) ? ImGuiTreeNodeFlags_Selected : 0)
+            | (descendentNode.children.empty() ? (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet) : 0);
+        ImGui::PushID(descendentNodeIndex);
+        const bool isTreeNodeOpen = ImGui::TreeNodeEx("", flags);
+        if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
+            appState.selectedNodeIndex = static_cast<std::uint32_t>(descendentNodeIndex);
+        }
+
+        ImGui::SameLine();
+        if (useTristateVisibility) {
+            ImGui::PushItemFlag(ImGuiItemFlags_MixedValue, !visibilities[nodeIndex]);
+            if (ImGui::Checkbox("##visibility", &*visibilities[nodeIndex])) {
+                if (!visibilities[nodeIndex]) {
+                    visibilities[nodeIndex] = true;
+                }
+
+                vk_gltf_viewer::tristate::propagateTopDown([&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
+                vk_gltf_viewer::tristate::propagateBottomUp([&](auto i) { return parentNodeIndices[i]; }, [&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
+            }
+            ImGui::PopItemFlag();
+        }
+        else {
+            ImGui::Checkbox("##visibility", &*visibilities[nodeIndex]);
+        }
+
+        ImGui::TableSetColumnIndex(1);
+        ImGui::TextUnformatted(std::format("{::s}", vk_gltf_viewer::make_joiner<" / ">(directDescendentNodeNames)));
+
+        ImGui::TableSetColumnIndex(2);
+        visit(fastgltf::visitor {
+            [](const fastgltf::TRS &trs) {
+                std::vector<std::string> transformComponents;
+                if (trs.translation != std::array { 0.f, 0.f, 0.f }) {
+                    transformComponents.emplace_back(std::format("T{::.2f}", trs.translation));
+                }
+                if (trs.rotation != std::array { 0.f, 0.f, 0.f, 1.f }) {
+                    transformComponents.emplace_back(std::format("R{::.2f}", trs.rotation));
+                }
+                if (trs.scale != std::array { 1.f, 1.f, 1.f }) {
+                    transformComponents.emplace_back(std::format("S{::.2f}", trs.scale));
+                }
+
+                if (!transformComponents.empty()) {
+                    ImGui::TextUnformatted(std::format("{::s}", vk_gltf_viewer::make_joiner<" * ">(transformComponents)));
+                }
+            },
+            [](const fastgltf::Node::TransformMatrix &transformMatrix) {
+                constexpr fastgltf::Node::TransformMatrix identity { 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f };
+                if (transformMatrix != identity) {
+                    // TODO.CXX23: use chunk when libc++ support it.
+                    ImGui::TextUnformatted(std::format("{:::.2f}", transformMatrix | std::views::chunk_by([i = 0](float, float) mutable { return ++i % 4 != 0; })));
+                }
+            },
+        }, descendentNode.transform);
+
+        if (const auto &meshIndex = descendentNode.meshIndex) {
+            ImGui::TableSetColumnIndex(3);
+            if (ImGui::HyperLink(visit(identity<std::string_view>, str_or(asset.meshes[*meshIndex].name, [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })))) {
+                // TODO
+            }
+        }
+
+        if (const auto &lightIndex = descendentNode.lightIndex) {
+            ImGui::TableSetColumnIndex(4);
+            if (ImGui::HyperLink(visit(identity<std::string_view>, str_or(asset.lights[*lightIndex].name, [&] { return std::format("<Unnamed light {}>", *lightIndex); })))) {
+                // TODO
+            }
+        }
+
+        if (const auto &cameraIndex = descendentNode.cameraIndex) {
+            ImGui::TableSetColumnIndex(5);
+            if (ImGui::HyperLink(visit(identity<std::string_view>, str_or(asset.cameras[*cameraIndex].name, [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })))) {
+                // TODO
+            }
+        }
+
+        if (isTreeNodeOpen) {
+            for (std::size_t childNodeIndex : descendentNode.children) {
+                self(asset, childNodeIndex);
+            }
+
+            ImGui::TreePop();
+        }
+
+        ImGui::PopID();
+    };
+
     const fastgltf::Scene &scene = asset.scenes[sceneIndex];
     if (ImGui::BeginTable("scene-hierarchy-table", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
         ImGui::TableSetupScrollFreeze(0, 1);
@@ -779,7 +801,7 @@ auto assetSceneHierarchies(const fastgltf::Asset &asset, vk_gltf_viewer::AppStat
         ImGui::TableHeadersRow();
 
         for (std::size_t nodeIndex : scene.nodeIndices) {
-            assetNodeInTable(asset, nodeIndex, mergeSingleChildNodes, appState);
+            addChildNode(asset, nodeIndex);
         }
 
         ImGui::EndTable();
