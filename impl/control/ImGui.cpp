@@ -140,27 +140,53 @@ namespace ImGui {
     }
 }
 
-[[nodiscard]] auto str_or(const std::string &str [[clang::lifetimebound]], auto &&fallback) -> std::variant<std::string_view, std::string> {
+/**
+ * Return \p str if it is not empty, otherwise return the result of \p fallback.
+ * @param str String to check. Must be alive during the lifetime of the returned variant.
+ * @param fallback Fallback function to call if \p str is empty.
+ * @return A variant that contains either the string view of the original \p str, or string of the result of \p fallback.
+ */
+[[nodiscard]] auto nonempty_or(
+    const std::string &str [[clang::lifetimebound]],
+    std::invocable auto &&fallback
+) -> std::variant<std::string_view, std::string> {
     if (str.empty()) {
         return std::variant<std::string_view, std::string> { std::in_place_type<std::string>, fallback() };
     }
-    else {
-        return std::variant<std::string_view, std::string> { std::in_place_type<std::string_view>, str };
-    }
+    return std::variant<std::string_view, std::string> { std::in_place_type<std::string_view>, str };
 }
 
-[[nodiscard]] auto str_or(const std::pmr::string &str [[clang::lifetimebound]], auto &&fallback) -> std::variant<std::string_view, std::string> {
+/**
+ * Return \p str if it is not empty, otherwise return the result of \p fallback.
+ * @param str String to check. Must be alive during the lifetime of the returned variant.
+ * @param fallback Fallback function to call if \p str is empty.
+ * @return A variant that contains either the string view of the original \p str, or string of the result of \p fallback.
+ */
+[[nodiscard]] auto nonempty_or(
+    const std::pmr::string &str [[clang::lifetimebound]],
+    std::invocable auto &&fallback
+) -> std::variant<std::string_view, std::string> {
     if (str.empty()) {
         return std::variant<std::string_view, std::string> { std::in_place_type<std::string>, fallback() };
     }
-    else {
-        return std::variant<std::string_view, std::string> { std::in_place_type<std::string_view>, str };
-    }
+    return std::variant<std::string_view, std::string> { std::in_place_type<std::string_view>, str };
 }
 
-template <typename T>
-[[nodiscard]] auto identity(T value) -> T {
-    return value;
+/**
+ * Visit \p v as \p T, and return the result.
+ * @tparam T Visited type.
+ * @tparam Ts Types of \p v's alternatives. These types must be convertible to \p T.
+ * @param v Variant to visit.
+ * @return Visited value.
+ * @example
+ * @code
+ * visit_as<float>(std::variant<int, float>{ 3 }); // Returns 3.f
+ * @endcode
+ */
+template <typename T, std::convertible_to<T>... Ts>
+[[nodiscard]] auto visit_as(const std::variant<Ts...> &v) -> T {
+    return std::visit([](T x) { return x; }, v);
+
 }
 
 template <std::integral T>
@@ -307,7 +333,7 @@ auto assetBufferViews(fastgltf::Asset &asset) -> void {
             ImGui::SetNextItemWidth(-FLT_MIN);
             ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
             ImGui::TableSetColumnIndex(2);
-            if (ImGui::HyperLink(visit(identity<std::string_view>, str_or(asset.buffers[bufferView.bufferIndex].name, [&] { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })))) {
+            if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.buffers[bufferView.bufferIndex].name, [&] { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })))) {
                 // TODO
             }
             ImGui::PopID();
@@ -487,10 +513,10 @@ auto assetSamplers(fastgltf::Asset &asset) -> void {
 
 auto assetMaterials(const fastgltf::Asset &asset, std::span<const ImTextureID> assetTextureIds) -> void {
     static int materialIndex = asset.materials.empty() ? -1 : 0;
-    if (ImGui::BeginCombo("Material", materialIndex == -1 ? "<empty>" : visit([](const auto &str) { return str.data(); }, str_or(asset.materials[materialIndex].name, [&] { return std::format("<Unnamed material {}>", materialIndex); })))) {
+    if (ImGui::BeginCombo("Material", materialIndex == -1 ? "<empty>" : visit([](const auto &str) { return str.data(); }, nonempty_or(asset.materials[materialIndex].name, [&] { return std::format("<Unnamed material {}>", materialIndex); })))) {
         for (const auto &[i, material] : asset.materials | vk_gltf_viewer::ranges::views::enumerate) {
             const bool isSelected = i == materialIndex;
-            if (ImGui::Selectable(visit([](const auto &str) { return str.data(); }, str_or(material.name, [&] { return std::format("<Unnamed material {}>", i); })), isSelected)) {
+            if (ImGui::Selectable(visit([](const auto &str) { return str.data(); }, nonempty_or(material.name, [&] { return std::format("<Unnamed material {}>", i); })), isSelected)) {
                 materialIndex = i;
             }
             if (isSelected) {
@@ -629,10 +655,10 @@ auto assetMaterials(const fastgltf::Asset &asset, std::span<const ImTextureID> a
 
 auto assetSceneHierarchies(const fastgltf::Asset &asset, vk_gltf_viewer::AppState &appState) -> void {
     static int sceneIndex = asset.defaultScene.value_or(0);
-    if (ImGui::BeginCombo("Scene", visit([](const auto &str) { return str.data(); }, str_or(asset.scenes[sceneIndex].name, [&] { return std::format("<Unnamed scene {}>", sceneIndex); })))) {
+    if (ImGui::BeginCombo("Scene", visit([](const auto &str) { return str.data(); }, nonempty_or(asset.scenes[sceneIndex].name, [&] { return std::format("<Unnamed scene {}>", sceneIndex); })))) {
         for (const auto &[i, scene] : asset.scenes | vk_gltf_viewer::ranges::views::enumerate) {
             const bool isSelected = i == sceneIndex;
-            if (ImGui::Selectable(visit([](const auto &str) { return str.data(); }, str_or(scene.name, [&] { return std::format("<Unnamed scene {}>", i); })), isSelected)) {
+            if (ImGui::Selectable(visit([](const auto &str) { return str.data(); }, nonempty_or(scene.name, [&] { return std::format("<Unnamed scene {}>", i); })), isSelected)) {
                 sceneIndex = i;
             }
             if (isSelected) {
@@ -759,21 +785,21 @@ auto assetSceneHierarchies(const fastgltf::Asset &asset, vk_gltf_viewer::AppStat
 
         if (const auto &meshIndex = descendentNode.meshIndex) {
             ImGui::TableSetColumnIndex(3);
-            if (ImGui::HyperLink(visit(identity<std::string_view>, str_or(asset.meshes[*meshIndex].name, [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })))) {
+            if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.meshes[*meshIndex].name, [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })))) {
                 // TODO
             }
         }
 
         if (const auto &lightIndex = descendentNode.lightIndex) {
             ImGui::TableSetColumnIndex(4);
-            if (ImGui::HyperLink(visit(identity<std::string_view>, str_or(asset.lights[*lightIndex].name, [&] { return std::format("<Unnamed light {}>", *lightIndex); })))) {
+            if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.lights[*lightIndex].name, [&] { return std::format("<Unnamed light {}>", *lightIndex); })))) {
                 // TODO
             }
         }
 
         if (const auto &cameraIndex = descendentNode.cameraIndex) {
             ImGui::TableSetColumnIndex(5);
-            if (ImGui::HyperLink(visit(identity<std::string_view>, str_or(asset.cameras[*cameraIndex].name, [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })))) {
+            if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.cameras[*cameraIndex].name, [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })))) {
                 // TODO
             }
         }
@@ -1095,7 +1121,7 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                         }
                         if (primitive.materialIndex) {
                             ImGui::PushID(*primitive.materialIndex);
-                            if (ImGui::WithLabel("Material"sv, [&]() { return ImGui::HyperLink(visit(identity<std::string_view>, str_or(asset.materials[*primitive.materialIndex].name, [&] { return std::format("<Unnamed material {}>", *primitive.materialIndex); }))); })) {
+                            if (ImGui::WithLabel("Material"sv, [&]() { return ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.materials[*primitive.materialIndex].name, [&] { return std::format("<Unnamed material {}>", *primitive.materialIndex); }))); })) {
                                 // TODO.
                             }
                             ImGui::PopID();
