@@ -1,7 +1,3 @@
-module;
-
-#include <imgui_internal.h>
-
 export module vk_gltf_viewer:AppState;
 
 import std;
@@ -47,7 +43,6 @@ namespace vk_gltf_viewer {
         control::Camera camera;
         std::optional<std::uint32_t> hoveringNodeIndex = std::nullopt, selectedNodeIndex = std::nullopt;
         bool useBlurredSkybox = false;
-        bool isUsingImGuizmo = false;
         bool isPanning = false;
         full_optional<Outline> hoveringNodeOutline { std::in_place, 2.f, glm::vec4 { 1.f, 0.5f, 0.2f, 1.f } },
                                selectedNodeOutline { std::in_place, 2.f, glm::vec4 { 0.f, 1.f, 0.2f, 1.f } };

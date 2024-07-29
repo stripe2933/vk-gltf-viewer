@@ -359,14 +359,13 @@ auto vk_gltf_viewer::control::imgui::viewManipulate(
 ) -> void {
 	constexpr ImVec2 size { 64.f, 64.f };
 	constexpr ImU32 background = 0x00000000; // Transparent.
-	const glm::mat4 oldView = appState.camera.view;
-	ImGuizmo::ViewManipulate(
-		glm::gtc::value_ptr(appState.camera.view),
-		distance(appState.camera.getEye(), glm::vec3 { 0.f, 0.35f, 0.f } /* TODO: match to appState.camera */),
-		passthruRectBR - size, size,
-		background);
+	const glm::mat4 oldView = appState.camera.getViewMatrix();
+	glm::mat4 newView = oldView;
+	ImGuizmo::ViewManipulate(value_ptr(newView), length(appState.camera.position), passthruRectBR - size, size, background);
 
-	if (appState.camera.view != oldView) {
-	    appState.isUsingImGuizmo = true;
+	if (newView != oldView) {
+	    const glm::mat4 inverseView = inverse(newView);
+	    appState.camera.position = inverseView[3];
+	    appState.camera.direction = -inverseView[2];
 	}
 }

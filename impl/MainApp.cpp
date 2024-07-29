@@ -135,15 +135,6 @@ auto vk_gltf_viewer::MainApp::loadAsset(
 }
 
 auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
-	std::vector<const char*> extensions{
-#if __APPLE__
-		vk::KHRPortabilityEnumerationExtensionName,
-#endif
-	};
-	std::uint32_t glfwExtensionCount;
-	const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-	extensions.append_range(std::views::counted(glfwExtensions, glfwExtensionCount));
-
 	vk::raii::Instance instance { context, vk::InstanceCreateInfo{
 #if __APPLE__
 		vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR,
@@ -155,12 +146,26 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 			nullptr, 0,
 			vk::makeApiVersion(0, 1, 2, 0),
 		}),
-		vku::unsafeProxy<const char* const>({
 #ifndef NDEBUG
+		vku::unsafeProxy<const char* const>({
 			"VK_LAYER_KHRONOS_validation",
-#endif
 		}),
-		extensions,
+#else
+		{},
+#endif
+		vku::unsafeProxy([]() {
+			std::vector<const char*> extensions{
+#if __APPLE__
+				vk::KHRPortabilityEnumerationExtensionName,
+#endif
+			};
+
+			std::uint32_t glfwExtensionCount;
+			const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+			extensions.append_range(std::views::counted(glfwExtensions, glfwExtensionCount));
+
+			return extensions;
+		}()),
 	} };
 	VULKAN_HPP_DEFAULT_DISPATCHER.init(*instance);
 	return instance;
@@ -298,7 +303,7 @@ auto vk_gltf_viewer::MainApp::update(
 	ImGui::NewFrame();
 
 	// Enable global docking.
-	const ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
+	const ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
 
 	// Get central node region.
 	const ImRect centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpaceId)->Rect();
@@ -314,31 +319,28 @@ auto vk_gltf_viewer::MainApp::update(
 	// Assign the passthruRect to appState.passthruRect. Handle stuffs that are dependent to the it.
 	static vk::Rect2D previousPassthruRect{};
 	if (vk::Rect2D oldPassthruRect = std::exchange(previousPassthruRect, passthruRect); oldPassthruRect != passthruRect) {
-		appState.camera.projection = glm::gtc::perspective(
-			appState.camera.getFov(),
-			static_cast<float>(passthruRect.extent.width) / passthruRect.extent.height,
-			appState.camera.getNear(), appState.camera.getFar());
+		appState.camera.aspectRatio = static_cast<float>(passthruRect.extent.width) / passthruRect.extent.height;
 	}
 
 	control::imgui::inputControlSetting(appState);
 	control::imgui::hdriEnvironments(eqmapImageImGuiDescriptorSet, appState);
 	control::imgui::assetSceneHierarchies(assetExpected.get(), appState);
+	control::imgui::assetMaterials(assetExpected.get(), {});
 	control::imgui::nodeInspector(assetExpected.get(), appState);
 
 	ImGuizmo::BeginFrame();
 
 	// Capture mouse when using ViewManipulate.
 	control::imgui::viewManipulate(appState, centerNodeRect.Max);
-	glfwSetInputMode(window, GLFW_CURSOR, appState.isUsingImGuizmo ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
 
 	ImGui::Render();
 
 	return {
 		.passthruRect = passthruRect,
-		.camera = { appState.camera.view, appState.camera.projection },
+		.camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
 		.mouseCursorOffset = [&]() -> std::optional<vk::Offset2D> {
 			// If using ImGuizmo, cursor is locked to it, so no need to check cursor position.
-			if (appState.isUsingImGuizmo || appState.isPanning) return std::nullopt;
+			if (appState.isPanning) return std::nullopt;
 
 			// If cursor is outside the framebuffer, cursor position is undefined.
 			const glm::vec2 framebufferCursorPosition

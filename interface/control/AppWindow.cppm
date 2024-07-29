@@ -20,6 +20,7 @@ namespace vk_gltf_viewer::control {
         [[nodiscard]] operator GLFWwindow*() const noexcept;
 
         [[nodiscard]] auto getSurface() const noexcept -> vk::SurfaceKHR;
+
         [[nodiscard]] auto getSize() const -> glm::ivec2;
         [[nodiscard]] auto getFramebufferSize() const -> glm::ivec2;
         [[nodiscard]] auto getCursorPos() const -> glm::dvec2;

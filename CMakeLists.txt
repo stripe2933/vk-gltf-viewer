@@ -36,6 +36,10 @@ if (NOT TARGET glm_module)
 	target_compile_definitions(glm_module PUBLIC
 		GLM_FORCE_DEPTH_ZERO_TO_ONE
 		GLM_FORCE_XYZW_ONLY
+		GLM_ENABLE_EXPERIMENTAL
+		GLM_GTC_INLINE_NAMESPACE
+		GLM_EXT_INLINE_NAMESPACE
+		GLM_GTX_INLINE_NAMESPACE
 	)
 
 	add_library(glm::module ALIAS glm_module)

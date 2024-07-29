@@ -53,9 +53,9 @@ auto vk_gltf_viewer::gltf::SceneResources::createNodeTransformBuffer(
             const fastgltf::Node &node = assetResources.asset.nodes[nodeIndex];
             transform *= visit(fastgltf::visitor {
                 [](const fastgltf::TRS &trs) {
-                    return glm::gtc::translate(glm::mat4 { 1.f }, glm::gtc::make_vec3(trs.translation.data()))
-                        * glm::gtc::mat4_cast(glm::gtc::make_quat(trs.rotation.data()))
-                        * glm::gtc::scale(glm::mat4 { 1.f }, glm::gtc::make_vec3(trs.scale.data()));
+                    return translate(glm::mat4 { 1.f }, glm::gtc::make_vec3(trs.translation.data()))
+                        * mat4_cast(glm::gtc::make_quat(trs.rotation.data()))
+                        * scale(glm::mat4 { 1.f }, glm::gtc::make_vec3(trs.scale.data()));
                 },
                 [](const fastgltf::Node::TransformMatrix &mat) {
                     return glm::gtc::make_mat4(mat.data());
