@@ -19,13 +19,11 @@ namespace vk_gltf_viewer::vulkan::pipeline {
             ) const {
                 return vku::RefHolder {
                     [this](std::span<const vk::DescriptorImageInfo, 2> pingPongImageInfos) {
-                        return std::array {
-                            // TODO: Use following line causes C++ module error in MSVC, looks like related to
-                            // https://developercommunity.visualstudio.com/t/error-C2028:-structunion-member-must-be/10488679?sort=newest&topics=Fixed-in%3A+Visual+Studio+2017+version+15.2.
-                            // Use setPImageInfo method when available in MSVC.
-                            // getDescriptorWrite<0, 0>().setImageInfo(pingPongImageInfos),
-                            getDescriptorWrite<0, 0>().setDescriptorCount(pingPongImageInfos.size()).setPImageInfo(pingPongImageInfos.data()),
-                        };
+                        // TODO: Use following line causes C++ module error in MSVC, looks like related to
+                        // https://developercommunity.visualstudio.com/t/error-C2028:-structunion-member-must-be/10488679?sort=newest&topics=Fixed-in%3A+Visual+Studio+2017+version+15.2.
+                        // Use setPImageInfo method when available in MSVC.
+                        // getDescriptorWrite<0, 0>().setImageInfo(pingPongImageInfos),
+                        return getDescriptorWrite<0, 0>().setDescriptorCount(pingPongImageInfos.size()).setPImageInfo(pingPongImageInfos.data());
                     },
                     std::array {
                         vk::DescriptorImageInfo { {}, pingImageView, vk::ImageLayout::eGeneral },

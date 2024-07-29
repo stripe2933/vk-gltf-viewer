@@ -18,9 +18,7 @@ namespace vk_gltf_viewer::vulkan::pipeline {
             ) const {
                 return vku::RefHolder {
                     [this](const vk::DescriptorImageInfo &jumpFloodImageInfo) {
-                        return std::array {
-                            getDescriptorWrite<0, 0>().setImageInfo(jumpFloodImageInfo),
-                        };
+                        return getDescriptorWrite<0, 0>().setImageInfo(jumpFloodImageInfo);
                     },
                     vk::DescriptorImageInfo { {}, jumpFloodImageView, vk::ImageLayout::eGeneral },
                 };

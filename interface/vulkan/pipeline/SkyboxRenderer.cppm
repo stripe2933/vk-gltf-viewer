@@ -20,9 +20,7 @@ namespace vk_gltf_viewer::vulkan::pipeline {
             ) const {
                 return vku::RefHolder {
                     [this](const vk::DescriptorImageInfo &skyboxInfo) {
-                        return std::array {
-                            getDescriptorWrite<0, 0>().setImageInfo(skyboxInfo),
-                        };
+                        return getDescriptorWrite<0, 0>().setImageInfo(skyboxInfo);
                     },
                     vk::DescriptorImageInfo { {}, skyboxImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
                 };

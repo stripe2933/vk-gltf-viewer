@@ -31,14 +31,19 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	// Update per-frame descriptor sets.
 	gpu.device.updateDescriptorSets(
 	    ranges::array_cat(
+	    	std::array {
+			    skyboxSets.getDescriptorWrites0(*sharedData.imageBasedLightingResources.value().cubemapImageView).get(),
+			    sphericalHarmonicsSets.getDescriptorWrites0(
+			        { sharedData.imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
+	    	},
+		    depthSets.getDescriptorWrites0(
+		        { sharedData.sceneResources.primitiveBuffer, 0, vk::WholeSize },
+		        { sharedData.sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
 		    alphaMaskedDepthSets.getDescriptorWrites0(
 		    	{ *sharedData.primitiveRenderer.sampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
 				sharedData.assetResources.textures,
 		    	{ sharedData.assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
 		    alphaMaskedDepthSets.getDescriptorWrites1(
-		    	{ sharedData.sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		    	{ sharedData.sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
-		    depthSets.getDescriptorWrites0(
 		    	{ sharedData.sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		    	{ sharedData.sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
 		    primitiveSets.getDescriptorWrites0(
@@ -51,10 +56,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    	{ sharedData.assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
 		    primitiveSets.getDescriptorWrites2(
 		    	{ sharedData.sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		    	{ sharedData.sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
-		    skyboxSets.getDescriptorWrites0(*sharedData.imageBasedLightingResources.value().cubemapImageView).get(),
-		    sphericalHarmonicsSets.getDescriptorWrites0(
-		    	{ sharedData.imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
+		    	{ sharedData.sceneResources.nodeTransformBuffer, 0, vk::WholeSize })),
 		{});
 
 	// Allocate per-frame command buffers.
@@ -311,17 +313,16 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 		});
 		gpu.queues.graphicsPresent.waitIdle(); // TODO: idling while frame execution is very inefficient.
 
-		gpu.device.updateDescriptorSets(
-			ranges::array_cat(
-				hoveringNodeJumpFloodSets.getDescriptorWrites0(
-					*passthruExtentDependentResources->hoveringNodeOutlineJumpFloodResources.pingImageView,
-					*passthruExtentDependentResources->hoveringNodeOutlineJumpFloodResources.pongImageView).get(),
-				selectedNodeJumpFloodSets.getDescriptorWrites0(
-					*passthruExtentDependentResources->selectedNodeOutlineJumpFloodResources.pingImageView,
-					*passthruExtentDependentResources->selectedNodeOutlineJumpFloodResources.pongImageView).get(),
-				rec709Sets.getDescriptorWrites0(
-					*passthruExtentDependentResources->primaryAttachmentGroup.colorAttachments[0].resolveView).get()),
-			{});
+		gpu.device.updateDescriptorSets({
+			hoveringNodeJumpFloodSets.getDescriptorWrites0(
+				*passthruExtentDependentResources->hoveringNodeOutlineJumpFloodResources.pingImageView,
+				*passthruExtentDependentResources->hoveringNodeOutlineJumpFloodResources.pongImageView).get(),
+			selectedNodeJumpFloodSets.getDescriptorWrites0(
+				*passthruExtentDependentResources->selectedNodeOutlineJumpFloodResources.pingImageView,
+				*passthruExtentDependentResources->selectedNodeOutlineJumpFloodResources.pongImageView).get(),
+			rec709Sets.getDescriptorWrites0(
+				*passthruExtentDependentResources->primaryAttachmentGroup.colorAttachments[0].resolveView).get()
+		}, {});
 	}
 }
 

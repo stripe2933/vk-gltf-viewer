@@ -19,9 +19,7 @@ namespace vk_gltf_viewer::vulkan::pipeline {
             ) const {
                 return vku::RefHolder {
                     [this](const vk::DescriptorImageInfo &hdriImageInfo) {
-                        return std::array {
-                            getDescriptorWrite<0, 0>().setImageInfo(hdriImageInfo),
-                        };
+                        return getDescriptorWrite<0, 0>().setImageInfo(hdriImageInfo);
                     },
                     vk::DescriptorImageInfo { {}, hdriImageView, vk::ImageLayout::eGeneral },
                 };

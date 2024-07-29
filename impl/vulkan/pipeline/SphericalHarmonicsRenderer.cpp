@@ -21,10 +21,8 @@ vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::DescriptorSetLayou
 
 auto vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::DescriptorSets::getDescriptorWrites0(
     const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo
-) const -> std::array<vk::WriteDescriptorSet, 1> {
-    return {
-        getDescriptorWrite<0, 0>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo),
-    };
+) const -> vk::WriteDescriptorSet {
+    return getDescriptorWrite<0, 0>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo);
 }
 
 vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::SphericalHarmonicsRenderer(

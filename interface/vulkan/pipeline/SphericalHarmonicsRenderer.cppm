@@ -17,7 +17,7 @@ namespace vk_gltf_viewer::vulkan::pipeline {
 
             [[nodiscard]] auto getDescriptorWrites0(
                 const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo [[clang::lifetimebound]]
-            ) const -> std::array<vk::WriteDescriptorSet, 1>;
+            ) const -> vk::WriteDescriptorSet;
         };
 
         struct PushConstant {

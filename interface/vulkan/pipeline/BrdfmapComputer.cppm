@@ -17,9 +17,7 @@ namespace vk_gltf_viewer::vulkan::pipeline {
             ) const {
                 return vku::RefHolder {
                     [this](const vk::DescriptorImageInfo &brdfmapInfo) {
-                        return std::array {
-                            getDescriptorWrite<0, 0>().setImageInfo(brdfmapInfo),
-                        };
+                        return getDescriptorWrite<0, 0>().setImageInfo(brdfmapInfo);
                     },
                     vk::DescriptorImageInfo { {}, brdfmapImageView, vk::ImageLayout::eGeneral },
                 };
