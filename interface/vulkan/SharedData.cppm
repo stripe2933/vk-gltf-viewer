@@ -51,6 +51,7 @@ namespace vk_gltf_viewer::vulkan {
     	vku::AllocatedImage brdfmapImage = createBrdfmapImage();
     	vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
     	std::optional<ImageBasedLightingResources> imageBasedLightingResources = std::nullopt;
+    	buffer::CubeIndices cubeIndices { gpu.allocator };
 
 		// Pipelines.
 		pipeline::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()) };
@@ -60,8 +61,8 @@ namespace vk_gltf_viewer::vulkan {
 		pipeline::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()) };
     	pipeline::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, *primitiveRenderer.pipelineLayout };
     	pipeline::Rec709Renderer rec709Renderer { gpu.device };
-		pipeline::SkyboxRenderer skyboxRenderer { gpu };
-		pipeline::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu };
+		pipeline::SkyboxRenderer skyboxRenderer { gpu, cubeIndices };
+		pipeline::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu, cubeIndices };
 
     	// Attachment groups.
     	std::vector<SwapchainAttachmentGroup> swapchainAttachmentGroups = createSwapchainAttachmentGroups();

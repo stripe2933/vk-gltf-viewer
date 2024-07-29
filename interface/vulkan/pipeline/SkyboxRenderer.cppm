@@ -2,11 +2,12 @@ export module vk_gltf_viewer:vulkan.pipeline.SkyboxRenderer;
 
 import std;
 export import glm;
-export import vku;
+export import :vulkan.buffer.CubeIndices;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::pipeline {
-    export struct SkyboxRenderer {
+    export class SkyboxRenderer {
+    public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1>{
             DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]], const vk::Sampler &sampler);
         };
@@ -36,10 +37,12 @@ namespace vk_gltf_viewer::vulkan::pipeline {
         DescriptorSetLayouts descriptorSetLayouts;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
-        vku::MappedBuffer indexBuffer;
 
-        explicit SkyboxRenderer(const Gpu &gpu [[clang::lifetimebound]]);
+        SkyboxRenderer(const Gpu &gpu [[clang::lifetimebound]], const buffer::CubeIndices &cubeIndices [[clang::lifetimebound]]);
 
         auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const PushConstant &pushConstant) const -> void;
+
+    private:
+        const buffer::CubeIndices &cubeIndices;
     };
 }
