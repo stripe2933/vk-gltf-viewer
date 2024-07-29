@@ -41,9 +41,9 @@ namespace vk_gltf_viewer {
         };
 
         control::Camera camera;
+        std::optional<glm::vec2> hoveringMousePosition;
         std::optional<std::uint32_t> hoveringNodeIndex = std::nullopt, selectedNodeIndex = std::nullopt;
         bool useBlurredSkybox = false;
-        bool isPanning = false;
         full_optional<Outline> hoveringNodeOutline { std::in_place, 2.f, glm::vec4 { 1.f, 0.5f, 0.2f, 1.f } },
                                selectedNodeOutline { std::in_place, 2.f, glm::vec4 { 0.f, 1.f, 0.2f, 1.f } };
         std::optional<ImageBasedLighting> imageBasedLightingProperties = ImageBasedLighting{};

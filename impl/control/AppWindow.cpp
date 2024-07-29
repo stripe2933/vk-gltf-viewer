@@ -20,6 +20,9 @@ vk_gltf_viewer::control::AppWindow::AppWindow(
     glfwSetKeyCallback(window, [](GLFWwindow *window, int key, int scancode, int action, int mods) {
         static_cast<AppWindow*>(glfwGetWindowUserPointer(window))->onKeyCallback(key, scancode, action, mods);
     });
+    glfwSetCursorPosCallback(window, [](GLFWwindow *window, double xpos, double ypos) {
+        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))->onCursorPosCallback({ xpos, ypos });
+    });
     glfwSetMouseButtonCallback(window, [](GLFWwindow *window, int button, int action, int mods) {
         static_cast<AppWindow*>(glfwGetWindowUserPointer(window))->onMouseButtonCallback(button, action, mods);
     });
@@ -90,6 +93,17 @@ auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
     appState.camera.position *= std::powf(1.01f, -static_cast<float>(offset.y));
 }
 
+auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(
+    glm::dvec2 position
+) -> void {
+    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) {
+        appState.hoveringMousePosition.reset();
+        return;
+    }
+
+    appState.hoveringMousePosition = position;
+}
+
 void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
     int button,
     int action,
@@ -106,7 +120,7 @@ void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
                 appState.selectedNodeIndex = appState.hoveringNodeIndex;
                 lastMouseDownPosition = std::nullopt;
             }
-        };
+        }
     }
 }
 

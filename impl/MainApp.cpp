@@ -324,8 +324,7 @@ auto vk_gltf_viewer::MainApp::update(
 
 	control::imgui::inputControlSetting(appState);
 	control::imgui::hdriEnvironments(eqmapImageImGuiDescriptorSet, appState);
-	control::imgui::assetSceneHierarchies(assetExpected.get(), appState);
-	control::imgui::assetMaterials(assetExpected.get(), {});
+	control::imgui::assetInspector(assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), appState);
 	control::imgui::nodeInspector(assetExpected.get(), appState);
 
 	ImGuizmo::BeginFrame();
@@ -338,21 +337,16 @@ auto vk_gltf_viewer::MainApp::update(
 	return {
 		.passthruRect = passthruRect,
 		.camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
-		.mouseCursorOffset = [&]() -> std::optional<vk::Offset2D> {
-			// If using ImGuizmo, cursor is locked to it, so no need to check cursor position.
-			if (appState.isPanning) return std::nullopt;
-
+		.mouseCursorOffset = appState.hoveringMousePosition.and_then([&](const glm::vec2 &position) -> std::optional<vk::Offset2D> {
 			// If cursor is outside the framebuffer, cursor position is undefined.
-			const glm::vec2 framebufferCursorPosition
-				= glm::vec2 { window.getCursorPos() } * glm::vec2 { window.getFramebufferSize() } / glm::vec2 { window.getSize() };
-			if (glm::vec2 framebufferSize = window.getFramebufferSize();
-				framebufferCursorPosition.x >= framebufferSize.x || framebufferCursorPosition.y >= framebufferSize.y) return std::nullopt;
+			const glm::vec2 framebufferCursorPosition = position * glm::vec2 { window.getFramebufferSize() } / glm::vec2 { window.getSize() };
+			if (glm::vec2 framebufferSize = window.getFramebufferSize(); framebufferCursorPosition.x >= framebufferSize.x || framebufferCursorPosition.y >= framebufferSize.y) return std::nullopt;
 
 			return vk::Offset2D {
 				static_cast<std::int32_t>(framebufferCursorPosition.x),
 				static_cast<std::int32_t>(framebufferCursorPosition.y)
 			};
-		}(),
+		}),
 		.hoveringNodeIndex = appState.hoveringNodeIndex,
 		.selectedNodeIndex = appState.selectedNodeIndex,
 		.hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),

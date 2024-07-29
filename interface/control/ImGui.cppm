@@ -5,13 +5,14 @@ module;
 
 export module vk_gltf_viewer:control.ImGui;
 
-import glm;
+import std;
+export import vulkan_hpp;
 export import :AppState;
 
 namespace vk_gltf_viewer::control::imgui {
     auto hdriEnvironments(ImTextureID eqmapTextureId, AppState &appState) -> void;
-    auto assetSceneHierarchies(const fastgltf::Asset &asset, AppState &appState) -> void;
-    auto nodeInspector(const fastgltf::Asset &asset, AppState &appState) -> void;
+    auto assetInspector(fastgltf::Asset &asset, const std::filesystem::path &assetDir, AppState &appState) -> void;
+    auto nodeInspector(fastgltf::Asset &asset, AppState &appState) -> void;
     auto inputControlSetting(AppState &appState) -> void;
 
     /**
