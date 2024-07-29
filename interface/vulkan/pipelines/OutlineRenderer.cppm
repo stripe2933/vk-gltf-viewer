@@ -5,8 +5,7 @@ export import glm;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::pipelines {
-    export class OutlineRenderer {
-    public:
+    export struct OutlineRenderer {
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1>{
             explicit DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]]);
         };
@@ -44,9 +43,5 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         auto bindDescriptorSets(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets) const -> void;
         auto pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const -> void;
         auto draw(vk::CommandBuffer commandBuffer) const -> void;
-
-    private:
-        [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device) const -> decltype(pipeline);
     };
 }

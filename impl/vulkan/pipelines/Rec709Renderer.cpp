@@ -23,27 +23,7 @@ vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::DescriptorSetLayouts::Descrip
 vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::Rec709Renderer(
     const vk::raii::Device &device
 ) : descriptorSetLayouts { device },
-    pipelineLayout { createPipelineLayout(device) },
-    pipeline { createPipeline(device) } { }
-
-auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::draw(
-    vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
-    const vk::Offset2D &passthruOffset
-) const -> void {
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-    commandBuffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
-    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, PushConstant {
-        .hdriImageOffset = { passthruOffset.x, passthruOffset.y },
-    });
-    commandBuffer.draw(3, 1, 0, 0);
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipelineLayout(
-    const vk::raii::Device &device
-) const -> decltype(pipelineLayout) {
-    return { device, vk::PipelineLayoutCreateInfo{
+    pipelineLayout { device, vk::PipelineLayoutCreateInfo{
         {},
         vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
@@ -52,13 +32,8 @@ auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipelineLayout(
                 0, sizeof(PushConstant),
             },
         }),
-    } };
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipeline(
-    const vk::raii::Device &device
-) const -> decltype(pipeline) {
-    return { device, nullptr, vk::StructureChain {
+    } },
+    pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             vku::createPipelineStages(
                 device,
@@ -78,5 +53,18 @@ auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::createPipeline(
             {},
             vku::unsafeProxy({ vk::Format::eB8G8R8A8Srgb }),
         },
-    }.get() };
+    }.get() } { }
+
+auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::draw(
+    vk::CommandBuffer commandBuffer,
+    const DescriptorSets &descriptorSets,
+    const vk::Offset2D &passthruOffset
+) const -> void {
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
+    commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, PushConstant {
+        .hdriImageOffset = { passthruOffset.x, passthruOffset.y },
+    });
+    commandBuffer.draw(3, 1, 0, 0);
 }

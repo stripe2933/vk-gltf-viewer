@@ -5,8 +5,7 @@ export import glm;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::pipelines {
-    export class AlphaMaskedDepthRenderer {
-    public:
+    export struct AlphaMaskedDepthRenderer {
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<2, 2>{
             explicit DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]], std::uint32_t textureCount);
         };
@@ -60,9 +59,5 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
         auto bindDescriptorSets(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t firstSet = 0) const -> void;
         auto pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const -> void;
-
-    private:
-        [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device) const -> decltype(pipeline);
     };
 }

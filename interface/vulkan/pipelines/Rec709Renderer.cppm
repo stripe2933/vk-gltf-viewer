@@ -40,8 +40,5 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         struct PushConstant {
             glm::i32vec2 hdriImageOffset;
         };
-
-        [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device) const -> decltype(pipeline);
     };
 }

@@ -24,8 +24,23 @@ vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::DescriptorSetLayouts::Desc
 vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::JumpFloodComputer(
     const vk::raii::Device &device
 ) : descriptorSetLayouts { device },
-    pipelineLayout { createPipelineLayout(device) },
-    pipeline { createPipeline(device) } { }
+    pipelineLayout { device, vk::PipelineLayoutCreateInfo {
+        {},
+        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        vku::unsafeProxy({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eCompute,
+                0, sizeof(PushConstant),
+            },
+        }),
+    } },
+    pipeline { device, nullptr, vk::ComputePipelineCreateInfo {
+        {},
+        get<0>(vku::createPipelineStages(
+            device,
+            vku::Shader { COMPILED_SHADER_DIR "/jump_flood.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()),
+        *pipelineLayout,
+    } } { }
 
 auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::compute(
     vk::CommandBuffer commandBuffer,
@@ -56,31 +71,4 @@ auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::compute(
         }
     }
     return pushConstant.forward;
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::createPipelineLayout(
-    const vk::raii::Device &device
-) const -> decltype(pipelineLayout) {
-    return { device, vk::PipelineLayoutCreateInfo {
-        {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
-        vku::unsafeProxy({
-            vk::PushConstantRange {
-                vk::ShaderStageFlagBits::eCompute,
-                0, sizeof(PushConstant),
-            },
-        }),
-    } };
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::createPipeline(
-    const vk::raii::Device &device
-) const -> decltype(pipeline) {
-    return { device, nullptr, vk::ComputePipelineCreateInfo {
-        {},
-        get<0>(vku::createPipelineStages(
-            device,
-            vku::Shader { COMPILED_SHADER_DIR "/jump_flood.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()),
-        *pipelineLayout,
-    } };
 }

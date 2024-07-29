@@ -51,35 +51,7 @@ vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::AlphaMaskedDepthRen
     const vk::raii::Device &device,
     std::uint32_t textureCount
 ) : descriptorSetLayouts { device, textureCount },
-    pipelineLayout { createPipelineLayout(device) },
-    pipeline { createPipeline(device) } { }
-
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::bindPipeline(
-    vk::CommandBuffer commandBuffer
-) const -> void {
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::bindDescriptorSets(
-    vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
-    std::uint32_t firstSet
-) const -> void {
-    commandBuffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics, *pipelineLayout, firstSet, descriptorSets, {});
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::pushConstants(
-    vk::CommandBuffer commandBuffer,
-    const PushConstant &pushConstant
-) const -> void {
-    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::createPipelineLayout(
-    const vk::raii::Device &device
-) const -> decltype(pipelineLayout) {
-    return { device, vk::PipelineLayoutCreateInfo{
+    pipelineLayout { device, vk::PipelineLayoutCreateInfo{
         {},
         vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
@@ -88,13 +60,8 @@ auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::createPipeline
                 0, sizeof(PushConstant),
             },
         }),
-    } };
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::createPipeline(
-    const vk::raii::Device &device
-) const -> decltype(pipeline) {
-    return { device, nullptr, vk::StructureChain {
+    } },
+    pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             vku::createPipelineStages(
                 device,
@@ -119,5 +86,26 @@ auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::createPipeline
             vku::unsafeProxy({ vk::Format::eR32Uint, vk::Format::eR16G16Uint, vk::Format::eR16G16Uint }),
             vk::Format::eD32Sfloat,
         }
-    }.get() };
+    }.get() } { }
+
+auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::bindPipeline(
+    vk::CommandBuffer commandBuffer
+) const -> void {
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
+}
+
+auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::bindDescriptorSets(
+    vk::CommandBuffer commandBuffer,
+    const DescriptorSets &descriptorSets,
+    std::uint32_t firstSet
+) const -> void {
+    commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics, *pipelineLayout, firstSet, descriptorSets, {});
+}
+
+auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::pushConstants(
+    vk::CommandBuffer commandBuffer,
+    const PushConstant &pushConstant
+) const -> void {
+    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
 }

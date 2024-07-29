@@ -31,26 +31,7 @@ auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::DescriptorSe
 vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::SphericalHarmonicsRenderer(
     const Gpu &gpu
 ) : descriptorSetLayouts { gpu.device },
-    pipelineLayout { createPipelineLayout(gpu.device) },
-    pipeline { createPipeline(gpu.device) },
-    indexBuffer { createIndexBuffer(gpu.allocator) } { }
-
-auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::draw(
-    vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
-    const PushConstant &pushConstant
-) const -> void {
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
-    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
-    commandBuffer.bindIndexBuffer(indexBuffer, 0, vk::IndexType::eUint16);
-    commandBuffer.drawIndexed(36, 1, 0, 0, 0);
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::createPipelineLayout(
-    const vk::raii::Device &device
-) const -> vk::raii::PipelineLayout {
-    return { device, vk::PipelineLayoutCreateInfo {
+    pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
         {},
         vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
@@ -59,16 +40,11 @@ auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::createPipeli
                 0, sizeof(PushConstant),
             },
         }),
-    } };
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::createPipeline(
-    const vk::raii::Device &device
-) const -> vk::raii::Pipeline {
-    return { device, nullptr, vk::StructureChain {
+    } },
+    pipeline { gpu.device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             vku::createPipelineStages(
-                device,
+                gpu.device,
                 vku::Shader { COMPILED_SHADER_DIR "/spherical_harmonics.vert.spv", vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { COMPILED_SHADER_DIR "/spherical_harmonics.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
             *pipelineLayout,
@@ -91,18 +67,24 @@ auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::createPipeli
             vku::unsafeProxy({ vk::Format::eR16G16B16A16Sfloat }),
             vk::Format::eD32Sfloat,
         },
-    }.get() };
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::createIndexBuffer(
-    vma::Allocator allocator
-) const -> decltype(indexBuffer) {
-    return {
-        allocator,
+    }.get() },
+    indexBuffer {
+        gpu.allocator,
         std::from_range, std::vector<std::uint16_t> {
             2, 6, 7, 2, 3, 7, 0, 4, 5, 0, 1, 5, 0, 2, 6, 0, 4, 6,
             1, 3, 7, 1, 5, 7, 0, 2, 3, 0, 1, 3, 4, 6, 7, 4, 5, 7,
         },
         vk::BufferUsageFlagBits::eIndexBuffer,
-    };
+    } { }
+
+auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::draw(
+    vk::CommandBuffer commandBuffer,
+    const DescriptorSets &descriptorSets,
+    const PushConstant &pushConstant
+) const -> void {
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
+    commandBuffer.bindIndexBuffer(indexBuffer, 0, vk::IndexType::eUint16);
+    commandBuffer.drawIndexed(36, 1, 0, 0, 0);
 }

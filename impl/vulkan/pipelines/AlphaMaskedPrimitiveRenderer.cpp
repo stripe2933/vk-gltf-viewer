@@ -11,19 +11,7 @@ import vku;
 vk_gltf_viewer::vulkan::pipelines::AlphaMaskedPrimitiveRenderer::AlphaMaskedPrimitiveRenderer(
     const vk::raii::Device &device,
     vk::PipelineLayout primitiveRendererPipelineLayout
-) : pipeline { createPipeline(device, primitiveRendererPipelineLayout) } { }
-
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedPrimitiveRenderer::bindPipeline(
-    vk::CommandBuffer commandBuffer
-) const -> void {
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedPrimitiveRenderer::createPipeline(
-    const vk::raii::Device &device,
-    vk::PipelineLayout primitiveRendererPipelineLayout
-) const -> decltype(pipeline) {
-    return { device, nullptr, vk::StructureChain {
+) : pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             vku::createPipelineStages(
                 device,
@@ -55,5 +43,10 @@ auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedPrimitiveRenderer::createPipe
             vku::unsafeProxy({ vk::Format::eR16G16B16A16Sfloat }),
             vk::Format::eD32Sfloat,
         }
-    }.get() };
+    }.get() } { }
+
+auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedPrimitiveRenderer::bindPipeline(
+    vk::CommandBuffer commandBuffer
+) const -> void {
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
 }

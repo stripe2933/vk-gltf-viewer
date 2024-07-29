@@ -4,8 +4,7 @@ import std;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::pipelines {
-    export class BrdfmapComputer {
-    public:
+    export struct BrdfmapComputer {
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1> {
             explicit DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]]);
         };
@@ -38,9 +37,5 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         BrdfmapComputer(const vk::raii::Device &device [[clang::lifetimebound]], const SpecializationConstants &specializationConstants = { 1024 });
 
         auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const vk::Extent2D &imageSize) const -> void;
-
-    private:
-        [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device, const SpecializationConstants &specializationConstants) const -> decltype(pipeline);
     };
 }

@@ -6,8 +6,7 @@ export import vku;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::pipelines {
-    export class SphericalHarmonicsRenderer {
-    public:
+    export struct SphericalHarmonicsRenderer {
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1>{
             explicit DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]]);
         };
@@ -32,10 +31,5 @@ namespace vk_gltf_viewer::vulkan::pipelines {
         explicit SphericalHarmonicsRenderer(const Gpu &gpu [[clang::lifetimebound]]);
 
         auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const PushConstant &pushConstant) const -> void;
-
-    private:
-        [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device) const -> decltype(pipeline);
-        [[nodiscard]] auto createIndexBuffer(vma::Allocator allocator) const -> decltype(indexBuffer);
     };
 }

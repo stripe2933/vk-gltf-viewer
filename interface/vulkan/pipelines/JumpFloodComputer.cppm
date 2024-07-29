@@ -48,8 +48,5 @@ namespace vk_gltf_viewer::vulkan::pipelines {
             vk::Bool32 forward;
             std::uint32_t sampleOffset;
         };
-
-        [[nodiscard]] auto createPipelineLayout(const vk::raii::Device &device) const -> decltype(pipelineLayout);
-        [[nodiscard]] auto createPipeline(const vk::raii::Device &device) const -> decltype(pipeline);
     };
 }

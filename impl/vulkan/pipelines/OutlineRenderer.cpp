@@ -23,40 +23,7 @@ vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::DescriptorSetLayouts::Descri
 vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::OutlineRenderer(
     const vk::raii::Device &device
 ) : descriptorSetLayouts { device },
-    pipelineLayout { createPipelineLayout(device) },
-    pipeline { createPipeline(device) } { }
-
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::bindPipeline(
-    vk::CommandBuffer commandBuffer
-) const -> void {
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::bindDescriptorSets(
-    vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets
-) const -> void {
-    commandBuffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::pushConstants(
-    vk::CommandBuffer commandBuffer,
-    const PushConstant &pushConstant
-) const -> void {
-    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, pushConstant);
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::draw(
-    vk::CommandBuffer commandBuffer
-) const -> void {
-    commandBuffer.draw(3, 1, 0, 0);
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::createPipelineLayout(
-    const vk::raii::Device &device
-) const -> decltype(pipelineLayout) {
-    return { device, vk::PipelineLayoutCreateInfo{
+    pipelineLayout { device, vk::PipelineLayoutCreateInfo{
         {},
         vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
@@ -65,13 +32,8 @@ auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::createPipelineLayout(
                 0, sizeof(PushConstant),
             },
         }),
-    } };
-}
-
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::createPipeline(
-    const vk::raii::Device &device
-) const -> decltype(pipeline) {
-    return { device, nullptr, vk::StructureChain {
+    } },
+    pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             vku::createPipelineStages(
                 device,
@@ -103,5 +65,31 @@ auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::createPipeline(
             {},
             vku::unsafeProxy({ vk::Format::eB8G8R8A8Srgb }),
         },
-    }.get() };
+    }.get() } { }
+
+auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::bindPipeline(
+    vk::CommandBuffer commandBuffer
+) const -> void {
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
+}
+
+auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::bindDescriptorSets(
+    vk::CommandBuffer commandBuffer,
+    const DescriptorSets &descriptorSets
+) const -> void {
+    commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
+}
+
+auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::pushConstants(
+    vk::CommandBuffer commandBuffer,
+    const PushConstant &pushConstant
+) const -> void {
+    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, pushConstant);
+}
+
+auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::draw(
+    vk::CommandBuffer commandBuffer
+) const -> void {
+    commandBuffer.draw(3, 1, 0, 0);
 }
