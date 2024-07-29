@@ -17,6 +17,7 @@ import glm;
 import :helpers.enum_to_string;
 import :helpers.formatters.joiner;
 import :helpers.ranges;
+import :helpers.tristate;
 
 using namespace std::string_view_literals;
 
@@ -303,14 +304,37 @@ auto assetNodeInTable(const fastgltf::Asset &asset, std::size_t nodeIndex, bool 
     ImGui::TableSetColumnIndex(0);
     ImGui::AlignTextToFramePadding();
     const ImGuiTreeNodeFlags flags
-        = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAllColumns | ImGuiTreeNodeFlags_OpenOnArrow
+        = ImGuiTreeNodeFlags_DefaultOpen | /*ImGuiTreeNodeFlags_SpanAllWidth*/ ImGuiTreeNodeFlags_SpanTextWidth | ImGuiTreeNodeFlags_OpenOnArrow
         | ((appState.selectedNodeIndex && *appState.selectedNodeIndex == descendentNodeIndex) ? ImGuiTreeNodeFlags_Selected : 0)
         | (descendentNode.children.empty() ? (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet) : 0);
     ImGui::PushID(descendentNodeIndex);
-    const bool isTreeNodeOpen = ImGui::TreeNodeEx("##node", flags);
+    const bool isTreeNodeOpen = ImGui::TreeNodeEx("", flags);
     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
         appState.selectedNodeIndex = static_cast<std::uint32_t>(descendentNodeIndex);
     }
+
+    static std::vector<std::optional<bool>> visibilities(asset.nodes.size(), true);
+    static std::vector parentNodeIndices = [&]() {
+        std::vector<std::size_t> parentNodeIndices(asset.nodes.size());
+        for (std::size_t i = 0; i < asset.nodes.size(); ++i) {
+            for (std::size_t childIndex : asset.nodes[i].children) {
+                parentNodeIndices[childIndex] = i;
+            }
+        }
+        return parentNodeIndices;
+    }();
+
+    ImGui::PushItemFlag(ImGuiItemFlags_MixedValue, !visibilities[nodeIndex]);
+    ImGui::SameLine();
+    if (ImGui::Checkbox("##visibility", &*visibilities[nodeIndex])) {
+        if (!visibilities[nodeIndex]) {
+            visibilities[nodeIndex] = true;
+        }
+
+        vk_gltf_viewer::tristate::propagateTopDown([&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
+        vk_gltf_viewer::tristate::propagateBottomUp([&](auto i) { return parentNodeIndices[i]; }, [&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
+    }
+    ImGui::PopItemFlag();
 
     ImGui::TableSetColumnIndex(1);
     ImGui::TextUnformatted(std::format("{::s}", vk_gltf_viewer::make_joiner<" / ">(directDescendentNodeNames)));

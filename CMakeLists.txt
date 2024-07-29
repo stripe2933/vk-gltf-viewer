@@ -95,6 +95,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/helpers/formatters/omitted.cppm
 		interface/helpers/full_optional.cppm
 		interface/helpers/ranges.cppm
+		interface/helpers/tristate.cppm
 		interface/helpers/type_map.cppm
 		interface/io/logger.cppm
 		interface/io/StbDecoder.cppm
