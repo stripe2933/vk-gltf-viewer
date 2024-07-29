@@ -18,12 +18,12 @@ target_sources(pbrenvmap PUBLIC
     FILES
         interface/mod.cppm
         interface/details/ranges.cppm
-        interface/pipelines/CubemapComputer.cppm
-        interface/pipelines/MultiplyComputer.cppm
-        interface/pipelines/PrefilteredmapComputer.cppm
-        interface/pipelines/SphericalHarmonicCoefficientsSumComputer.cppm
-        interface/pipelines/SphericalHarmonicsComputer.cppm
-        interface/pipelines/SubgroupMipmapComputer.cppm
+        interface/pipeline/CubemapComputer.cppm
+        interface/pipeline/MultiplyComputer.cppm
+        interface/pipeline/PrefilteredmapComputer.cppm
+        interface/pipeline/SphericalHarmonicCoefficientsSumComputer.cppm
+        interface/pipeline/SphericalHarmonicsComputer.cppm
+        interface/pipeline/SubgroupMipmapComputer.cppm
 )
 target_link_libraries(pbrenvmap PUBLIC
     vku::vku

@@ -1,11 +1,11 @@
-export module vk_gltf_viewer:vulkan.pipelines.AlphaMaskedPrimitiveRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.AlphaMaskedPrimitiveRenderer;
 
 import std;
 export import glm;
 export import vku;
-export import :vulkan.pipelines.PrimitiveRenderer;
+export import :vulkan.pipeline.PrimitiveRenderer;
 
-namespace vk_gltf_viewer::vulkan::pipelines {
+namespace vk_gltf_viewer::vulkan::pipeline {
     export struct AlphaMaskedPrimitiveRenderer {
         struct PushConstant {
             glm::mat4 projectionView;

@@ -493,7 +493,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
 	vk::CommandBuffer cb,
 	const vku::Image &image,
-	const pipelines::JumpFloodComputer::DescriptorSets &descriptorSets,
+	const pipeline::JumpFloodComputer::DescriptorSets &descriptorSets,
 	std::uint32_t initialSampleOffset
 ) const -> bool {
 	// Acquire queue family ownerships (from graphics to compute).

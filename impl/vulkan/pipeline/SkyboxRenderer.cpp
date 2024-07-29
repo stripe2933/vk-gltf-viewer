@@ -3,12 +3,12 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipelines.SkyboxRenderer;
+import :vulkan.pipeline.SkyboxRenderer;
 
 import std;
 import vku;
 
-vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
     const vk::Sampler &sampler
 ) : vku::DescriptorSetLayouts<1> {
@@ -21,7 +21,7 @@ vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::DescriptorSetLayouts::Descrip
         },
     } { }
 
-vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::SkyboxRenderer(
+vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
     const Gpu &gpu
 ) : sampler { gpu.device, vk::SamplerCreateInfo {
         {},
@@ -79,7 +79,7 @@ vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::SkyboxRenderer(
         vk::BufferUsageFlagBits::eIndexBuffer,
     } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::SkyboxRenderer::draw(
+auto vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::draw(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     const PushConstant &pushConstant

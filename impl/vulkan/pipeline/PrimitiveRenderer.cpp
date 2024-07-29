@@ -3,12 +3,12 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipelines.PrimitiveRenderer;
+import :vulkan.pipeline.PrimitiveRenderer;
 
 import std;
 import vku;
 
-vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
     const vk::Sampler &sampler,
     std::uint32_t textureCount
@@ -46,7 +46,7 @@ vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::DescriptorSetLayouts::Desc
         },
     } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::DescriptorSets::getDescriptorWrites2(
+auto vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::DescriptorSets::getDescriptorWrites2(
     const vk::DescriptorBufferInfo &primitiveBufferInfo,
     const vk::DescriptorBufferInfo &nodeTransformBufferInfo
 ) const -> std::array<vk::WriteDescriptorSet, 2> {
@@ -56,7 +56,7 @@ auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::DescriptorSets::getDe
     };
 }
 
-vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::PrimitiveRenderer(
+vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::PrimitiveRenderer(
     const vk::raii::Device &device,
     std::uint32_t textureCount
 ) : sampler { device, vk::SamplerCreateInfo {
@@ -107,13 +107,13 @@ vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::PrimitiveRenderer(
         }
     }.get() } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::bindPipeline(
+auto vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::bindPipeline(
     vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
 }
 
-auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::bindDescriptorSets(
+auto vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::bindDescriptorSets(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     std::uint32_t firstSet
@@ -123,7 +123,7 @@ auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::bindDescriptorSets(
         firstSet, std::span { descriptorSets }.subspan(firstSet), {});
 }
 
-auto vk_gltf_viewer::vulkan::pipelines::PrimitiveRenderer::pushConstants(
+auto vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::pushConstants(
     vk::CommandBuffer commandBuffer,
     const PushConstant &pushConstant
 ) const -> void {

@@ -60,16 +60,16 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/attachment_groups.cpp
 	impl/vulkan/Frame.cpp
 	impl/vulkan/Gpu.cpp
-	impl/vulkan/pipelines/AlphaMaskedDepthRenderer.cpp
-	impl/vulkan/pipelines/AlphaMaskedPrimitiveRenderer.cpp
-	impl/vulkan/pipelines/BrdfmapComputer.cpp
-	impl/vulkan/pipelines/DepthRenderer.cpp
-	impl/vulkan/pipelines/JumpFloodComputer.cpp
-	impl/vulkan/pipelines/OutlineRenderer.cpp
-	impl/vulkan/pipelines/PrimitiveRenderer.cpp
-	impl/vulkan/pipelines/Rec709Renderer.cpp
-	impl/vulkan/pipelines/SkyboxRenderer.cpp
-	impl/vulkan/pipelines/SphericalHarmonicsRenderer.cpp
+	impl/vulkan/pipeline/AlphaMaskedDepthRenderer.cpp
+	impl/vulkan/pipeline/AlphaMaskedPrimitiveRenderer.cpp
+	impl/vulkan/pipeline/BrdfmapComputer.cpp
+	impl/vulkan/pipeline/DepthRenderer.cpp
+	impl/vulkan/pipeline/JumpFloodComputer.cpp
+	impl/vulkan/pipeline/OutlineRenderer.cpp
+	impl/vulkan/pipeline/PrimitiveRenderer.cpp
+	impl/vulkan/pipeline/Rec709Renderer.cpp
+	impl/vulkan/pipeline/SkyboxRenderer.cpp
+	impl/vulkan/pipeline/SphericalHarmonicsRenderer.cpp
 	impl/vulkan/SharedData.cpp
 	main.cpp
 )
@@ -104,16 +104,16 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/attachment_groups.cppm
 		interface/vulkan/Frame.cppm
 		interface/vulkan/Gpu.cppm
-		interface/vulkan/pipelines/AlphaMaskedDepthRenderer.cppm
-		interface/vulkan/pipelines/AlphaMaskedPrimitiveRenderer.cppm
-		interface/vulkan/pipelines/BrdfmapComputer.cppm
-		interface/vulkan/pipelines/DepthRenderer.cppm
-		interface/vulkan/pipelines/JumpFloodComputer.cppm
-		interface/vulkan/pipelines/OutlineRenderer.cppm
-		interface/vulkan/pipelines/PrimitiveRenderer.cppm
-		interface/vulkan/pipelines/Rec709Renderer.cppm
-		interface/vulkan/pipelines/SkyboxRenderer.cppm
-		interface/vulkan/pipelines/SphericalHarmonicsRenderer.cppm
+		interface/vulkan/pipeline/AlphaMaskedDepthRenderer.cppm
+		interface/vulkan/pipeline/AlphaMaskedPrimitiveRenderer.cppm
+		interface/vulkan/pipeline/BrdfmapComputer.cppm
+		interface/vulkan/pipeline/DepthRenderer.cppm
+		interface/vulkan/pipeline/JumpFloodComputer.cppm
+		interface/vulkan/pipeline/OutlineRenderer.cppm
+		interface/vulkan/pipeline/PrimitiveRenderer.cppm
+		interface/vulkan/pipeline/Rec709Renderer.cppm
+		interface/vulkan/pipeline/SkyboxRenderer.cppm
+		interface/vulkan/pipeline/SphericalHarmonicsRenderer.cppm
 		interface/vulkan/SharedData.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE

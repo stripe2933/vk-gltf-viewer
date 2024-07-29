@@ -1,11 +1,11 @@
-export module vk_gltf_viewer:vulkan.pipelines.SphericalHarmonicsRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.SphericalHarmonicsRenderer;
 
 import std;
 export import glm;
 export import vku;
 export import :vulkan.Gpu;
 
-namespace vk_gltf_viewer::vulkan::pipelines {
+namespace vk_gltf_viewer::vulkan::pipeline {
     export struct SphericalHarmonicsRenderer {
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1>{
             explicit DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]]);

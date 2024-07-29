@@ -3,13 +3,13 @@ module;
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module pbrenvmap:pipelines.MultiplyComputer;
+export module pbrenvmap:pipeline.MultiplyComputer;
 
 import std;
 import vku;
 export import vulkan_hpp;
 
-namespace pbrenvmap::pipelines {
+namespace pbrenvmap::pipeline {
     export class MultiplyComputer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<2> {
@@ -49,7 +49,7 @@ namespace pbrenvmap::pipelines {
 // module :private;
 
 // language=comp
-std::string_view pbrenvmap::pipelines::MultiplyComputer::comp = R"comp(
+std::string_view pbrenvmap::pipeline::MultiplyComputer::comp = R"comp(
 #version 450
 
 layout (set = 0, binding = 0) readonly buffer ReadonlyFloatBuffer {
@@ -78,7 +78,7 @@ template <std::unsigned_integral T>
     return (num / denom) + (num % denom != 0);
 }
 
-pbrenvmap::pipelines::MultiplyComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+pbrenvmap::pipeline::MultiplyComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<2> {
         device,
@@ -91,7 +91,7 @@ pbrenvmap::pipelines::MultiplyComputer::DescriptorSetLayouts::DescriptorSetLayou
         },
     } { }
 
-auto pbrenvmap::pipelines::MultiplyComputer::DescriptorSets::getDescriptorWrites0(
+auto pbrenvmap::pipeline::MultiplyComputer::DescriptorSets::getDescriptorWrites0(
     const vk::DescriptorBufferInfo &srcBufferInfo,
     const vk::DescriptorBufferInfo &dstBufferInfo
 ) const -> std::array<vk::WriteDescriptorSet, 2> {
@@ -101,14 +101,14 @@ auto pbrenvmap::pipelines::MultiplyComputer::DescriptorSets::getDescriptorWrites
     };
 }
 
-pbrenvmap::pipelines::MultiplyComputer::MultiplyComputer(
+pbrenvmap::pipeline::MultiplyComputer::MultiplyComputer(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
 ) : descriptorSetLayouts { device },
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
-auto pbrenvmap::pipelines::MultiplyComputer::compute(
+auto pbrenvmap::pipeline::MultiplyComputer::compute(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     const PushConstant &pushConstant
@@ -119,7 +119,7 @@ auto pbrenvmap::pipelines::MultiplyComputer::compute(
     commandBuffer.dispatch(divCeil(pushConstant.numCount, 256U), 1, 1);
 }
 
-auto pbrenvmap::pipelines::MultiplyComputer::createPipelineLayout(
+auto pbrenvmap::pipeline::MultiplyComputer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
@@ -134,7 +134,7 @@ auto pbrenvmap::pipelines::MultiplyComputer::createPipelineLayout(
     } };
 }
 
-auto pbrenvmap::pipelines::MultiplyComputer::createPipeline(
+auto pbrenvmap::pipeline::MultiplyComputer::createPipeline(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
     ) const -> vk::raii::Pipeline {

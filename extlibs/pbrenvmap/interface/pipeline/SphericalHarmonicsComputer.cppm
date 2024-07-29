@@ -3,13 +3,13 @@ module;
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module pbrenvmap:pipelines.SphericalHarmonicsComputer;
+export module pbrenvmap:pipeline.SphericalHarmonicsComputer;
 
 import std;
 import vku;
 export import vulkan_hpp;
 
-namespace pbrenvmap::pipelines {
+namespace pbrenvmap::pipeline {
     class SphericalHarmonicsComputer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<2> {
@@ -56,7 +56,7 @@ namespace pbrenvmap::pipelines {
 // module :private;
 
 // language=comp
-std::string_view pbrenvmap::pipelines::SphericalHarmonicsComputer::comp = R"comp(
+std::string_view pbrenvmap::pipeline::SphericalHarmonicsComputer::comp = R"comp(
 #version 450
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_scalar_block_layout : require
@@ -169,7 +169,7 @@ void main(){
 }
 )comp";
 
-pbrenvmap::pipelines::SphericalHarmonicsComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+pbrenvmap::pipeline::SphericalHarmonicsComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<2> {
         device,
@@ -182,14 +182,14 @@ pbrenvmap::pipelines::SphericalHarmonicsComputer::DescriptorSetLayouts::Descript
         },
     } { }
 
-pbrenvmap::pipelines::SphericalHarmonicsComputer::SphericalHarmonicsComputer(
+pbrenvmap::pipeline::SphericalHarmonicsComputer::SphericalHarmonicsComputer(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
 ) : descriptorSetLayouts { device },
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
-auto pbrenvmap::pipelines::SphericalHarmonicsComputer::compute(
+auto pbrenvmap::pipeline::SphericalHarmonicsComputer::compute(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     std::uint32_t cubemapSize
@@ -200,13 +200,13 @@ auto pbrenvmap::pipelines::SphericalHarmonicsComputer::compute(
     commandBuffer.dispatch(get<0>(workgroupCount), get<1>(workgroupCount), get<2>(workgroupCount));
 }
 
-auto pbrenvmap::pipelines::SphericalHarmonicsComputer::getWorkgroupCount(
+auto pbrenvmap::pipeline::SphericalHarmonicsComputer::getWorkgroupCount(
     std::uint32_t cubemapSize
 ) noexcept -> std::array<std::uint32_t, 3> {
     return { cubemapSize / 16U, cubemapSize / 16U, 1 };
 }
 
-auto pbrenvmap::pipelines::SphericalHarmonicsComputer::createPipelineLayout(
+auto pbrenvmap::pipeline::SphericalHarmonicsComputer::createPipelineLayout(
     const vk::raii::Device &device
 ) -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
@@ -215,7 +215,7 @@ auto pbrenvmap::pipelines::SphericalHarmonicsComputer::createPipelineLayout(
     } };
 }
 
-auto pbrenvmap::pipelines::SphericalHarmonicsComputer::createPipeline(
+auto pbrenvmap::pipeline::SphericalHarmonicsComputer::createPipeline(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
 ) const -> vk::raii::Pipeline {

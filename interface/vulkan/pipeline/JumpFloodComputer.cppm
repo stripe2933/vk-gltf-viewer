@@ -1,9 +1,9 @@
-export module vk_gltf_viewer:vulkan.pipelines.JumpFloodComputer;
+export module vk_gltf_viewer:vulkan.pipeline.JumpFloodComputer;
 
 import std;
 export import vku;
 
-namespace vk_gltf_viewer::vulkan::pipelines {
+namespace vk_gltf_viewer::vulkan::pipeline {
     export class JumpFloodComputer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1> {

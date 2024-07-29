@@ -3,12 +3,12 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipelines.BrdfmapComputer;
+import :vulkan.pipeline.BrdfmapComputer;
 
 import std;
 import vku;
 
-vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<1> {
         device,
@@ -20,7 +20,7 @@ vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::DescriptorSetLayouts::Descri
         }
     } { }
 
-vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::BrdfmapComputer(
+vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::BrdfmapComputer(
     const vk::raii::Device &device,
     const SpecializationConstants &specializationConstants
 ) : descriptorSetLayouts { device },
@@ -37,7 +37,7 @@ vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::BrdfmapComputer(
         *pipelineLayout,
     } } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::BrdfmapComputer::compute(
+auto vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::compute(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     const vk::Extent2D &imageSize

@@ -3,7 +3,7 @@ module;
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module pbrenvmap:pipelines.SubgroupMipmapComputer;
+export module pbrenvmap:pipeline.SubgroupMipmapComputer;
 
 import std;
 import vku;
@@ -12,7 +12,7 @@ import :details.ranges;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
-namespace pbrenvmap::pipelines {
+namespace pbrenvmap::pipeline {
     export class SubgroupMipmapComputer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1> {
@@ -63,7 +63,7 @@ namespace pbrenvmap::pipelines {
 
 // TODO: support for different subgroup sizes (current is based on 32).
 // language=comp
-std::string_view pbrenvmap::pipelines::SubgroupMipmapComputer::comp = R"comp(
+std::string_view pbrenvmap::pipeline::SubgroupMipmapComputer::comp = R"comp(
 #version 450
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_KHR_shader_subgroup_shuffle : require
@@ -140,7 +140,7 @@ void main(){
 }
 )comp";
 
-pbrenvmap::pipelines::SubgroupMipmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+pbrenvmap::pipeline::SubgroupMipmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
     std::uint32_t mipImageCount
 ) : vku::DescriptorSetLayouts<1> {
@@ -160,7 +160,7 @@ pbrenvmap::pipelines::SubgroupMipmapComputer::DescriptorSetLayouts::DescriptorSe
         }.get(),
     } { }
 
-pbrenvmap::pipelines::SubgroupMipmapComputer::SubgroupMipmapComputer(
+pbrenvmap::pipeline::SubgroupMipmapComputer::SubgroupMipmapComputer(
     const vk::raii::Device &device,
     std::uint32_t mipImageCount,
     std::uint32_t subgroupSize,
@@ -169,7 +169,7 @@ pbrenvmap::pipelines::SubgroupMipmapComputer::SubgroupMipmapComputer(
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, subgroupSize, compiler) } { }
 
-auto pbrenvmap::pipelines::SubgroupMipmapComputer::compute(
+auto pbrenvmap::pipeline::SubgroupMipmapComputer::compute(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     const vk::Extent2D &baseImageExtent,
@@ -225,7 +225,7 @@ auto pbrenvmap::pipelines::SubgroupMipmapComputer::compute(
     }
 }
 
-auto pbrenvmap::pipelines::SubgroupMipmapComputer::createPipelineLayout(
+auto pbrenvmap::pipeline::SubgroupMipmapComputer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
@@ -240,7 +240,7 @@ auto pbrenvmap::pipelines::SubgroupMipmapComputer::createPipelineLayout(
     } };
 }
 
-auto pbrenvmap::pipelines::SubgroupMipmapComputer::createPipeline(
+auto pbrenvmap::pipeline::SubgroupMipmapComputer::createPipeline(
     const vk::raii::Device &device,
     std::uint32_t subgroupSize,
     const shaderc::Compiler &compiler

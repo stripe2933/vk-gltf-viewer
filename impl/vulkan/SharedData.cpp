@@ -10,7 +10,7 @@ import std;
 import pbrenvmap;
 import :helpers.ranges;
 import :mipmap;
-import :vulkan.pipelines.BrdfmapComputer;
+import :vulkan.pipeline.BrdfmapComputer;
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(
     const fastgltf::Asset &asset,
@@ -42,14 +42,14 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 			.prefilteredmap = { .usage = vk::ImageUsageFlagBits::eSampled },
 		} };
 
-		const pipelines::BrdfmapComputer brdfmapComputer { gpu.device };
+		const pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
 
 		const vk::raii::DescriptorPool descriptorPool {
 			gpu.device,
 			vku::PoolSizes { brdfmapComputer.descriptorSetLayouts }.getDescriptorPoolCreateInfo()
 		};
 
-		const pipelines::BrdfmapComputer::DescriptorSets brdfmapSets { *gpu.device, *descriptorPool, brdfmapComputer.descriptorSetLayouts };
+		const pipeline::BrdfmapComputer::DescriptorSets brdfmapSets { *gpu.device, *descriptorPool, brdfmapComputer.descriptorSetLayouts };
 		gpu.device.updateDescriptorSets(brdfmapSets.getDescriptorWrites0(*brdfmapImageView).get(), {});
 
 		const auto computeCommandPool = createCommandPool(gpu.queueFamilies.compute);

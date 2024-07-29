@@ -3,13 +3,13 @@ module;
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module pbrenvmap:pipelines.SphericalHarmonicCoefficientsSumComputer;
+export module pbrenvmap:pipeline.SphericalHarmonicCoefficientsSumComputer;
 
 import std;
 import vku;
 export import vulkan_hpp;
 
-namespace pbrenvmap::pipelines {
+namespace pbrenvmap::pipeline {
     export class SphericalHarmonicCoefficientsSumComputer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1> {
@@ -51,7 +51,7 @@ namespace pbrenvmap::pipelines {
 // module :private;
 
 // language=comp
-std::string_view pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::comp = R"comp(
+std::string_view pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::comp = R"comp(
 #version 450
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
@@ -147,7 +147,7 @@ template <std::unsigned_integral T>
     return (num / denom) + (num % denom != 0);
 }
 
-pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<1> {
         device,
@@ -159,7 +159,7 @@ pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::DescriptorSetLay
         },
     } { }
 
-auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::DescriptorSets::getDescriptorWrites0(
+auto pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::DescriptorSets::getDescriptorWrites0(
     const vk::DescriptorBufferInfo &pingPongBufferInfo
 ) const -> std::array<vk::WriteDescriptorSet, 1> {
     return std::array {
@@ -167,14 +167,14 @@ auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::DescriptorS
     };
 }
 
-pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::SphericalHarmonicCoefficientsSumComputer(
+pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::SphericalHarmonicCoefficientsSumComputer(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
 ) : descriptorSetLayouts { device },
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
-auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::compute(
+auto pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::compute(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     PushConstant pushConstant
@@ -202,13 +202,13 @@ auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::compute(
     }
 }
 
-auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
+auto pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
     std::uint32_t elementCount
 ) noexcept -> std::uint32_t {
     return elementCount + divCeil(elementCount, 256U);
 }
 
-auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::createPipelineLayout(
+auto pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
@@ -223,7 +223,7 @@ auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::createPipel
     } };
 }
 
-auto pbrenvmap::pipelines::SphericalHarmonicCoefficientsSumComputer::createPipeline(
+auto pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::createPipeline(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
     ) const -> vk::raii::Pipeline {

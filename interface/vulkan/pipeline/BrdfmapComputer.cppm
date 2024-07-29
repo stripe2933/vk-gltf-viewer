@@ -1,9 +1,9 @@
-export module vk_gltf_viewer:vulkan.pipelines.BrdfmapComputer;
+export module vk_gltf_viewer:vulkan.pipeline.BrdfmapComputer;
 
 import std;
 export import vku;
 
-namespace vk_gltf_viewer::vulkan::pipelines {
+namespace vk_gltf_viewer::vulkan::pipeline {
     export struct BrdfmapComputer {
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1> {
             explicit DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]]);

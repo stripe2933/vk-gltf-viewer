@@ -3,13 +3,13 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipelines.JumpFloodComputer;
+import :vulkan.pipeline.JumpFloodComputer;
 
 import std;
 import vku;
 import :helpers.extended_arithmetic;
 
-vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<1> {
         device,
@@ -21,7 +21,7 @@ vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::DescriptorSetLayouts::Desc
         },
     } { }
 
-vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::JumpFloodComputer(
+vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::JumpFloodComputer(
     const vk::raii::Device &device
 ) : descriptorSetLayouts { device },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo {
@@ -42,7 +42,7 @@ vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::JumpFloodComputer(
         *pipelineLayout,
     } } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::JumpFloodComputer::compute(
+auto vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::compute(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     std::uint32_t initialSampleOffset,

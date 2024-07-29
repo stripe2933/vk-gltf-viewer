@@ -1,10 +1,10 @@
-export module vk_gltf_viewer:vulkan.pipelines.DepthRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.DepthRenderer;
 
 import std;
 export import glm;
 export import vku;
 
-namespace vk_gltf_viewer::vulkan::pipelines {
+namespace vk_gltf_viewer::vulkan::pipeline {
     export struct DepthRenderer {
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<2>{
             explicit DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]]);

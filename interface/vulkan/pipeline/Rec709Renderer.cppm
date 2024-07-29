@@ -1,10 +1,10 @@
-export module vk_gltf_viewer:vulkan.pipelines.Rec709Renderer;
+export module vk_gltf_viewer:vulkan.pipeline.Rec709Renderer;
 
 import std;
 export import glm;
 export import vku;
 
-namespace vk_gltf_viewer::vulkan::pipelines {
+namespace vk_gltf_viewer::vulkan::pipeline {
     export class Rec709Renderer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1>{

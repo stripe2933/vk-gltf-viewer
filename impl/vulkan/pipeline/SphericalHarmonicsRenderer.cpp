@@ -3,12 +3,12 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipelines.SphericalHarmonicsRenderer;
+import :vulkan.pipeline.SphericalHarmonicsRenderer;
 
 import std;
 import vku;
 
-vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<1> {
         device,
@@ -20,7 +20,7 @@ vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::DescriptorSetLayo
         },
     } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::DescriptorSets::getDescriptorWrites0(
+auto vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::DescriptorSets::getDescriptorWrites0(
     const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo
 ) const -> std::array<vk::WriteDescriptorSet, 1> {
     return {
@@ -28,7 +28,7 @@ auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::DescriptorSe
     };
 }
 
-vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::SphericalHarmonicsRenderer(
+vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::SphericalHarmonicsRenderer(
     const Gpu &gpu
 ) : descriptorSetLayouts { gpu.device },
     pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
@@ -77,7 +77,7 @@ vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::SphericalHarmonic
         vk::BufferUsageFlagBits::eIndexBuffer,
     } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::SphericalHarmonicsRenderer::draw(
+auto vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::draw(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     const PushConstant &pushConstant

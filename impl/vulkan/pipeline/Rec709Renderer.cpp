@@ -3,12 +3,12 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipelines.Rec709Renderer;
+import :vulkan.pipeline.Rec709Renderer;
 
 import std;
 import vku;
 
-vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<1> {
         device,
@@ -20,7 +20,7 @@ vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::DescriptorSetLayouts::Descrip
         },
     } { }
 
-vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::Rec709Renderer(
+vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::Rec709Renderer(
     const vk::raii::Device &device
 ) : descriptorSetLayouts { device },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo{
@@ -55,7 +55,7 @@ vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::Rec709Renderer(
         },
     }.get() } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::Rec709Renderer::draw(
+auto vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::draw(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     const vk::Offset2D &passthruOffset

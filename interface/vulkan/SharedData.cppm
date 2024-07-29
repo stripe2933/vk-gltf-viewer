@@ -11,15 +11,15 @@ import :gltf.AssetResources;
 import :gltf.SceneResources;
 import :vulkan.attachment_groups;
 export import :vulkan.Gpu;
-export import :vulkan.pipelines.AlphaMaskedDepthRenderer;
-export import :vulkan.pipelines.AlphaMaskedPrimitiveRenderer;
-export import :vulkan.pipelines.DepthRenderer;
-export import :vulkan.pipelines.JumpFloodComputer;
-export import :vulkan.pipelines.OutlineRenderer;
-export import :vulkan.pipelines.PrimitiveRenderer;
-export import :vulkan.pipelines.Rec709Renderer;
-export import :vulkan.pipelines.SkyboxRenderer;
-export import :vulkan.pipelines.SphericalHarmonicsRenderer;
+export import :vulkan.pipeline.AlphaMaskedDepthRenderer;
+export import :vulkan.pipeline.AlphaMaskedPrimitiveRenderer;
+export import :vulkan.pipeline.DepthRenderer;
+export import :vulkan.pipeline.JumpFloodComputer;
+export import :vulkan.pipeline.OutlineRenderer;
+export import :vulkan.pipeline.PrimitiveRenderer;
+export import :vulkan.pipeline.Rec709Renderer;
+export import :vulkan.pipeline.SkyboxRenderer;
+export import :vulkan.pipeline.SphericalHarmonicsRenderer;
 
 // TODO: this should not be in here... use proper namespace.
 struct ImageBasedLightingResources {
@@ -53,15 +53,15 @@ namespace vk_gltf_viewer::vulkan {
     	std::optional<ImageBasedLightingResources> imageBasedLightingResources = std::nullopt;
 
 		// Pipelines.
-		pipelines::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()) };
-		pipelines::DepthRenderer depthRenderer { gpu.device };
-		pipelines::JumpFloodComputer jumpFloodComputer { gpu.device };
-		pipelines::OutlineRenderer outlineRenderer { gpu.device };
-		pipelines::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()) };
-    	pipelines::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, *primitiveRenderer.pipelineLayout };
-    	pipelines::Rec709Renderer rec709Renderer { gpu.device };
-		pipelines::SkyboxRenderer skyboxRenderer { gpu };
-		pipelines::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu };
+		pipeline::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()) };
+		pipeline::DepthRenderer depthRenderer { gpu.device };
+		pipeline::JumpFloodComputer jumpFloodComputer { gpu.device };
+		pipeline::OutlineRenderer outlineRenderer { gpu.device };
+		pipeline::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()) };
+    	pipeline::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, *primitiveRenderer.pipelineLayout };
+    	pipeline::Rec709Renderer rec709Renderer { gpu.device };
+		pipeline::SkyboxRenderer skyboxRenderer { gpu };
+		pipeline::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu };
 
     	// Attachment groups.
     	std::vector<SwapchainAttachmentGroup> swapchainAttachmentGroups = createSwapchainAttachmentGroups();

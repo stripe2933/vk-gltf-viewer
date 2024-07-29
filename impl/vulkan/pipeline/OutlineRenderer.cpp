@@ -3,12 +3,12 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipelines.OutlineRenderer;
+import :vulkan.pipeline.OutlineRenderer;
 
 import std;
 import vku;
 
-vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<1> {
         device,
@@ -20,7 +20,7 @@ vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::DescriptorSetLayouts::Descri
         },
     } { }
 
-vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::OutlineRenderer(
+vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::OutlineRenderer(
     const vk::raii::Device &device
 ) : descriptorSetLayouts { device },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo{
@@ -67,13 +67,13 @@ vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::OutlineRenderer(
         },
     }.get() } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::bindPipeline(
+auto vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::bindPipeline(
     vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
 }
 
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::bindDescriptorSets(
+auto vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::bindDescriptorSets(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets
 ) const -> void {
@@ -81,14 +81,14 @@ auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
 }
 
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::pushConstants(
+auto vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::pushConstants(
     vk::CommandBuffer commandBuffer,
     const PushConstant &pushConstant
 ) const -> void {
     commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, pushConstant);
 }
 
-auto vk_gltf_viewer::vulkan::pipelines::OutlineRenderer::draw(
+auto vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::draw(
     vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.draw(3, 1, 0, 0);

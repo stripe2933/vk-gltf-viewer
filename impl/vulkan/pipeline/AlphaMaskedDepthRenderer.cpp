@@ -3,12 +3,12 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipelines.AlphaMaskedDepthRenderer;
+import :vulkan.pipeline.AlphaMaskedDepthRenderer;
 
 import std;
 import vku;
 
-vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
     std::uint32_t textureCount
 ) : vku::DescriptorSetLayouts<2, 2> {
@@ -37,7 +37,7 @@ vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::DescriptorSetLayout
         },
     } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::DescriptorSets::getDescriptorWrites1(
+auto vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::DescriptorSets::getDescriptorWrites1(
     const vk::DescriptorBufferInfo &primitiveBufferInfo,
     const vk::DescriptorBufferInfo &nodeTransformBufferInfo
 ) const -> std::array<vk::WriteDescriptorSet, 2> {
@@ -47,7 +47,7 @@ auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::DescriptorSets
     };
 }
 
-vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::AlphaMaskedDepthRenderer(
+vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::AlphaMaskedDepthRenderer(
     const vk::raii::Device &device,
     std::uint32_t textureCount
 ) : descriptorSetLayouts { device, textureCount },
@@ -88,13 +88,13 @@ vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::AlphaMaskedDepthRen
         }
     }.get() } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::bindPipeline(
+auto vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::bindPipeline(
     vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
 }
 
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::bindDescriptorSets(
+auto vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::bindDescriptorSets(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     std::uint32_t firstSet
@@ -103,7 +103,7 @@ auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::bindDescriptor
         vk::PipelineBindPoint::eGraphics, *pipelineLayout, firstSet, descriptorSets, {});
 }
 
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedDepthRenderer::pushConstants(
+auto vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::pushConstants(
     vk::CommandBuffer commandBuffer,
     const PushConstant &pushConstant
 ) const -> void {

@@ -3,14 +3,14 @@ module;
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module pbrenvmap:pipelines.CubemapComputer;
+export module pbrenvmap:pipeline.CubemapComputer;
 
 import std;
 import vku;
 export import vulkan_hpp;
 import :details.ranges;
 
-namespace pbrenvmap::pipelines {
+namespace pbrenvmap::pipeline {
     export class CubemapComputer {
     public:
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<2> {
@@ -58,7 +58,7 @@ namespace pbrenvmap::pipelines {
 // module :private;
 
 // language=comp
-std::string_view pbrenvmap::pipelines::CubemapComputer::comp = R"comp(
+std::string_view pbrenvmap::pipeline::CubemapComputer::comp = R"comp(
 #version 450
 
 const vec2 INV_ATAN = vec2(0.1591, 0.3183);
@@ -95,7 +95,7 @@ void main(){
 }
 )comp";
 
-pbrenvmap::pipelines::CubemapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+pbrenvmap::pipeline::CubemapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
     const vk::Sampler &sampler
 ) : vku::DescriptorSetLayouts<2> {
@@ -109,7 +109,7 @@ pbrenvmap::pipelines::CubemapComputer::DescriptorSetLayouts::DescriptorSetLayout
         },
     } { }
 
-pbrenvmap::pipelines::CubemapComputer::CubemapComputer(
+pbrenvmap::pipeline::CubemapComputer::CubemapComputer(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
 ) : eqmapSampler { createEqmapSampler(device) } ,
@@ -117,7 +117,7 @@ pbrenvmap::pipelines::CubemapComputer::CubemapComputer(
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
-auto pbrenvmap::pipelines::CubemapComputer::compute(
+auto pbrenvmap::pipeline::CubemapComputer::compute(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     std::uint32_t cubemapSize
@@ -127,7 +127,7 @@ auto pbrenvmap::pipelines::CubemapComputer::compute(
     commandBuffer.dispatch(cubemapSize / 16, cubemapSize / 16, 6);
 }
 
-auto pbrenvmap::pipelines::CubemapComputer::createEqmapSampler(
+auto pbrenvmap::pipeline::CubemapComputer::createEqmapSampler(
     const vk::raii::Device &device
 ) const -> decltype(eqmapSampler) {
     return { device, vk::SamplerCreateInfo {
@@ -141,7 +141,7 @@ auto pbrenvmap::pipelines::CubemapComputer::createEqmapSampler(
     } };
 }
 
-auto pbrenvmap::pipelines::CubemapComputer::createPipelineLayout(
+auto pbrenvmap::pipeline::CubemapComputer::createPipelineLayout(
     const vk::raii::Device &device
 ) const -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
@@ -150,7 +150,7 @@ auto pbrenvmap::pipelines::CubemapComputer::createPipelineLayout(
     } };
 }
 
-auto pbrenvmap::pipelines::CubemapComputer::createPipeline(
+auto pbrenvmap::pipeline::CubemapComputer::createPipeline(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
 ) const -> vk::raii::Pipeline {

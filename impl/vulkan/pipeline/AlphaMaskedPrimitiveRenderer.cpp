@@ -3,12 +3,12 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipelines.AlphaMaskedPrimitiveRenderer;
+import :vulkan.pipeline.AlphaMaskedPrimitiveRenderer;
 
 import std;
 import vku;
 
-vk_gltf_viewer::vulkan::pipelines::AlphaMaskedPrimitiveRenderer::AlphaMaskedPrimitiveRenderer(
+vk_gltf_viewer::vulkan::pipeline::AlphaMaskedPrimitiveRenderer::AlphaMaskedPrimitiveRenderer(
     const vk::raii::Device &device,
     vk::PipelineLayout primitiveRendererPipelineLayout
 ) : pipeline { device, nullptr, vk::StructureChain {
@@ -45,7 +45,7 @@ vk_gltf_viewer::vulkan::pipelines::AlphaMaskedPrimitiveRenderer::AlphaMaskedPrim
         }
     }.get() } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::AlphaMaskedPrimitiveRenderer::bindPipeline(
+auto vk_gltf_viewer::vulkan::pipeline::AlphaMaskedPrimitiveRenderer::bindPipeline(
     vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);

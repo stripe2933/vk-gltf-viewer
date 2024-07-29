@@ -7,23 +7,23 @@ export module pbrenvmap;
 import std;
 export import vku;
 import :details.ranges;
-export import :pipelines.CubemapComputer;
-export import :pipelines.MultiplyComputer;
-export import :pipelines.PrefilteredmapComputer;
-export import :pipelines.SphericalHarmonicsComputer;
-export import :pipelines.SphericalHarmonicCoefficientsSumComputer;
-export import :pipelines.SubgroupMipmapComputer;
+export import :pipeline.CubemapComputer;
+export import :pipeline.MultiplyComputer;
+export import :pipeline.PrefilteredmapComputer;
+export import :pipeline.SphericalHarmonicsComputer;
+export import :pipeline.SphericalHarmonicCoefficientsSumComputer;
+export import :pipeline.SubgroupMipmapComputer;
 
 namespace pbrenvmap {
     export class Generator {
     public:
         struct Pipelines {
-            const pipelines::CubemapComputer &cubemapComputer;
-            const pipelines::SubgroupMipmapComputer &subgroupMipmapComputer;
-            const pipelines::SphericalHarmonicsComputer &sphericalHarmonicsComputer;
-            const pipelines::SphericalHarmonicCoefficientsSumComputer &sphericalHarmonicCoefficientsSumComputer;
-            const pipelines::PrefilteredmapComputer &prefilteredmapComputer;
-            const pipelines::MultiplyComputer &multiplyComputer;
+            const pipeline::CubemapComputer &cubemapComputer;
+            const pipeline::SubgroupMipmapComputer &subgroupMipmapComputer;
+            const pipeline::SphericalHarmonicsComputer &sphericalHarmonicsComputer;
+            const pipeline::SphericalHarmonicCoefficientsSumComputer &sphericalHarmonicCoefficientsSumComputer;
+            const pipeline::PrefilteredmapComputer &prefilteredmapComputer;
+            const pipeline::MultiplyComputer &multiplyComputer;
         };
 
         struct Config {
@@ -54,7 +54,7 @@ namespace pbrenvmap {
 
         Generator(const vk::raii::Device &device, vma::Allocator allocator, const Config &config);
 
-        auto recordCommands(vk::CommandBuffer computeCommandBuffer, const Pipelines &pipelines, vk::ImageView eqmapImageView) const -> void;
+        auto recordCommands(vk::CommandBuffer computeCommandBuffer, const Pipelines &pipeline, vk::ImageView eqmapImageView) const -> void;
 
     private:
         const vk::raii::Device &device;
@@ -151,8 +151,8 @@ pbrenvmap::Generator::Generator(
     },
     sphericalHarmonicsReductionBuffer { allocator, vk::BufferCreateInfo {
         {},
-        sizeof(float) * 27 * pipelines::SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
-            getWorkgroupTotal(pipelines::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size))),
+        sizeof(float) * 27 * pipeline::SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
+            getWorkgroupTotal(pipeline::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size))),
         vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
     } },
     descriptorPool { device, vk::DescriptorPoolCreateInfo {
@@ -169,30 +169,30 @@ pbrenvmap::Generator::Generator(
 
 auto pbrenvmap::Generator::recordCommands(
     vk::CommandBuffer computeCommandBuffer,
-    const Pipelines &pipelines,
+    const Pipelines &pipeline,
     vk::ImageView eqmapImageView
 ) const -> void {
     ////////////////////
     // Descriptor sets.
     ////////////////////
 
-    const pipelines::CubemapComputer::DescriptorSets cubemapDescriptorSets {
-        *device, *descriptorPool, pipelines.cubemapComputer.descriptorSetLayouts
+    const pipeline::CubemapComputer::DescriptorSets cubemapDescriptorSets {
+        *device, *descriptorPool, pipeline.cubemapComputer.descriptorSetLayouts
     };
-    const pipelines::SphericalHarmonicsComputer::DescriptorSets sphericalHarmonicsDescriptorSets {
-        *device, *descriptorPool, pipelines.sphericalHarmonicsComputer.descriptorSetLayouts
+    const pipeline::SphericalHarmonicsComputer::DescriptorSets sphericalHarmonicsDescriptorSets {
+        *device, *descriptorPool, pipeline.sphericalHarmonicsComputer.descriptorSetLayouts
     };
-    const pipelines::SphericalHarmonicCoefficientsSumComputer::DescriptorSets sphericalHarmonicCoefficientsSumDescriptorSets {
-        *device, *descriptorPool, pipelines.sphericalHarmonicCoefficientsSumComputer.descriptorSetLayouts
+    const pipeline::SphericalHarmonicCoefficientsSumComputer::DescriptorSets sphericalHarmonicCoefficientsSumDescriptorSets {
+        *device, *descriptorPool, pipeline.sphericalHarmonicCoefficientsSumComputer.descriptorSetLayouts
     };
-    const pipelines::SubgroupMipmapComputer::DescriptorSets subgroupMipmapDescriptorSets {
-        *device, *descriptorPool, pipelines.subgroupMipmapComputer.descriptorSetLayouts
+    const pipeline::SubgroupMipmapComputer::DescriptorSets subgroupMipmapDescriptorSets {
+        *device, *descriptorPool, pipeline.subgroupMipmapComputer.descriptorSetLayouts
     };
-    const pipelines::PrefilteredmapComputer::DescriptorSets prefilteredmapDescriptorSets {
-        *device, *descriptorPool, pipelines.prefilteredmapComputer.descriptorSetLayouts
+    const pipeline::PrefilteredmapComputer::DescriptorSets prefilteredmapDescriptorSets {
+        *device, *descriptorPool, pipeline.prefilteredmapComputer.descriptorSetLayouts
     };
-    const pipelines::MultiplyComputer::DescriptorSets multiplyDescriptorSets {
-        *device, *descriptorPool, pipelines.multiplyComputer.descriptorSetLayouts
+    const pipeline::MultiplyComputer::DescriptorSets multiplyDescriptorSets {
+        *device, *descriptorPool, pipeline.multiplyComputer.descriptorSetLayouts
     };
     device.updateDescriptorSets(
         ranges::array_cat(
@@ -205,7 +205,7 @@ auto pbrenvmap::Generator::recordCommands(
                     sphericalHarmonicsReductionBuffer,
                     0,
                     sizeof(float) * 27 * getWorkgroupTotal(
-                        pipelines::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size)),
+                        pipeline::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size)),
                 }).get(),
             sphericalHarmonicCoefficientsSumDescriptorSets.getDescriptorWrites0(
                 { sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
@@ -229,7 +229,7 @@ auto pbrenvmap::Generator::recordCommands(
         });
 
     // Compute cubemap.
-    pipelines.cubemapComputer.compute(computeCommandBuffer, cubemapDescriptorSets, config.cubemap.size);
+    pipeline.cubemapComputer.compute(computeCommandBuffer, cubemapDescriptorSets, config.cubemap.size);
 
     // Ensures cubemap generation finish.
     computeCommandBuffer.pipelineBarrier(
@@ -241,10 +241,10 @@ auto pbrenvmap::Generator::recordCommands(
         {}, {});
 
     // Compute spherical harmonic coefficients.
-    pipelines.sphericalHarmonicsComputer.compute(computeCommandBuffer, sphericalHarmonicsDescriptorSets, config.cubemap.size);
+    pipeline.sphericalHarmonicsComputer.compute(computeCommandBuffer, sphericalHarmonicsDescriptorSets, config.cubemap.size);
 
     // Create cubemap mipmaps.
-    pipelines.subgroupMipmapComputer.compute(
+    pipeline.subgroupMipmapComputer.compute(
         computeCommandBuffer, subgroupMipmapDescriptorSets, vku::toExtent2D(cubemapImage.extent), cubemapImage.mipLevels);
 
     // Layout transition for prefiltered map computation and irradiance buffer reduction.
@@ -257,7 +257,7 @@ auto pbrenvmap::Generator::recordCommands(
             sphericalHarmonicsReductionBuffer,
             0,
             sizeof(float) * 27 * getWorkgroupTotal(
-                pipelines::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size)),
+                pipeline::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size)),
         },
         {
             vk::ImageMemoryBarrier {
@@ -277,13 +277,13 @@ auto pbrenvmap::Generator::recordCommands(
         });
 
     // Compute prefiltered map.
-    pipelines.prefilteredmapComputer.compute(computeCommandBuffer, prefilteredmapDescriptorSets, config.cubemap.size, config.prefilteredmap.size);
+    pipeline.prefilteredmapComputer.compute(computeCommandBuffer, prefilteredmapDescriptorSets, config.cubemap.size, config.prefilteredmap.size);
 
     // Compute spherical harmonic coefficients sum.
-    const std::uint32_t workgroupTotal = getWorkgroupTotal(pipelines::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size));
-    const std::uint32_t dstOffset = pipelines.sphericalHarmonicCoefficientsSumComputer.compute(
+    const std::uint32_t workgroupTotal = getWorkgroupTotal(pipeline::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size));
+    const std::uint32_t dstOffset = pipeline.sphericalHarmonicCoefficientsSumComputer.compute(
         computeCommandBuffer, sphericalHarmonicCoefficientsSumDescriptorSets,
-        pipelines::SphericalHarmonicCoefficientsSumComputer::PushConstant {
+        pipeline::SphericalHarmonicCoefficientsSumComputer::PushConstant {
             .srcOffset = 0,
             .count = workgroupTotal,
             .dstOffset = workgroupTotal,
@@ -308,7 +308,7 @@ auto pbrenvmap::Generator::recordCommands(
         {});
 
     // Copy from sphericalHarmonicsReductionBuffer to sphericalHarmonicCoefficientsBuffer with normalization multiplier.
-    pipelines.multiplyComputer.compute(computeCommandBuffer, multiplyDescriptorSets, pipelines::MultiplyComputer::PushConstant {
+    pipeline.multiplyComputer.compute(computeCommandBuffer, multiplyDescriptorSets, pipeline::MultiplyComputer::PushConstant {
         .numCount = 27,
         .multiplier = 4.f * std::numbers::pi_v<float> / (6U * config.cubemap.size * config.cubemap.size),
     });

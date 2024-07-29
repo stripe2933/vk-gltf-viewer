@@ -3,12 +3,12 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipelines.DepthRenderer;
+import :vulkan.pipeline.DepthRenderer;
 
 import std;
 import vku;
 
-vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::DepthRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayouts<2> {
         device,
@@ -21,7 +21,7 @@ vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DescriptorSetLayouts::Descript
         },
     } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DescriptorSets::getDescriptorWrites0(
+auto vk_gltf_viewer::vulkan::pipeline::DepthRenderer::DescriptorSets::getDescriptorWrites0(
     const vk::DescriptorBufferInfo &primitiveBufferInfo,
     const vk::DescriptorBufferInfo &nodeTransformBufferInfo
 ) const -> std::array<vk::WriteDescriptorSet, 2> {
@@ -31,7 +31,7 @@ auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DescriptorSets::getDescri
     };
 }
 
-vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DepthRenderer(
+vk_gltf_viewer::vulkan::pipeline::DepthRenderer::DepthRenderer(
     const vk::raii::Device &device
 ) : descriptorSetLayouts { device },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo{
@@ -71,13 +71,13 @@ vk_gltf_viewer::vulkan::pipelines::DepthRenderer::DepthRenderer(
         }
     }.get() } { }
 
-auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::bindPipeline(
+auto vk_gltf_viewer::vulkan::pipeline::DepthRenderer::bindPipeline(
     vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
 }
 
-auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::bindDescriptorSets(
+auto vk_gltf_viewer::vulkan::pipeline::DepthRenderer::bindDescriptorSets(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     std::uint32_t firstSet
@@ -86,7 +86,7 @@ auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics, *pipelineLayout, firstSet, descriptorSets, {});
 }
 
-auto vk_gltf_viewer::vulkan::pipelines::DepthRenderer::pushConstants(
+auto vk_gltf_viewer::vulkan::pipeline::DepthRenderer::pushConstants(
     vk::CommandBuffer commandBuffer,
     const PushConstant &pushConstant
 ) const -> void {

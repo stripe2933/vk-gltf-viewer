@@ -3,7 +3,7 @@ module;
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module pbrenvmap:pipelines.PrefilteredmapComputer;
+export module pbrenvmap:pipeline.PrefilteredmapComputer;
 
 import std;
 import vku;
@@ -11,7 +11,7 @@ export import vulkan_hpp;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
-namespace pbrenvmap::pipelines {
+namespace pbrenvmap::pipeline {
     export class PrefilteredmapComputer {
     public:
         struct SpecializationConstants {
@@ -72,7 +72,7 @@ namespace pbrenvmap::pipelines {
 // module :private;
 
 // language=comp
-std::string_view pbrenvmap::pipelines::PrefilteredmapComputer::comp = R"comp(
+std::string_view pbrenvmap::pipeline::PrefilteredmapComputer::comp = R"comp(
 #version 450
 
 layout (constant_id = 0) const uint ROUGHNESS_LEVELS = 8;
@@ -205,7 +205,7 @@ template <std::unsigned_integral T>
     return (num / denom) + (num % denom != 0);
 }
 
-pbrenvmap::pipelines::PrefilteredmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+pbrenvmap::pipeline::PrefilteredmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
     const vk::Sampler &sampler,
     std::uint32_t roughnessLevels
@@ -228,7 +228,7 @@ pbrenvmap::pipelines::PrefilteredmapComputer::DescriptorSetLayouts::DescriptorSe
         }.get(),
     } { }
 
-pbrenvmap::pipelines::PrefilteredmapComputer::PrefilteredmapComputer(
+pbrenvmap::pipeline::PrefilteredmapComputer::PrefilteredmapComputer(
     const vk::raii::Device &device,
     const SpecializationConstants &specializationConstants,
     const shaderc::Compiler &compiler
@@ -238,7 +238,7 @@ pbrenvmap::pipelines::PrefilteredmapComputer::PrefilteredmapComputer(
     roughnessLevels { specializationConstants.roughnessLevels },
     pipeline { createPipeline(device, specializationConstants, compiler) } { }
 
-auto pbrenvmap::pipelines::PrefilteredmapComputer::compute(
+auto pbrenvmap::pipeline::PrefilteredmapComputer::compute(
     vk::CommandBuffer commandBuffer,
     const DescriptorSets &descriptorSets,
     std::uint32_t cubemapSize,
@@ -260,7 +260,7 @@ auto pbrenvmap::pipelines::PrefilteredmapComputer::compute(
     }
 }
 
-auto pbrenvmap::pipelines::PrefilteredmapComputer::createCubemapSampler(
+auto pbrenvmap::pipeline::PrefilteredmapComputer::createCubemapSampler(
     const vk::raii::Device &device
 ) const -> decltype(cubemapSampler) {
     return { device, vk::SamplerCreateInfo {
@@ -274,7 +274,7 @@ auto pbrenvmap::pipelines::PrefilteredmapComputer::createCubemapSampler(
     } };
 }
 
-auto pbrenvmap::pipelines::PrefilteredmapComputer::createPipelineLayout(
+auto pbrenvmap::pipeline::PrefilteredmapComputer::createPipelineLayout(
     const vk::raii::Device &device
 ) -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
@@ -289,7 +289,7 @@ auto pbrenvmap::pipelines::PrefilteredmapComputer::createPipelineLayout(
     } };
 }
 
-auto pbrenvmap::pipelines::PrefilteredmapComputer::createPipeline(
+auto pbrenvmap::pipeline::PrefilteredmapComputer::createPipeline(
     const vk::raii::Device &device,
     const SpecializationConstants &specializationConstants,
     const shaderc::Compiler &compiler

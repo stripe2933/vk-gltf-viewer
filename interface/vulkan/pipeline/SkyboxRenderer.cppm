@@ -1,11 +1,11 @@
-export module vk_gltf_viewer:vulkan.pipelines.SkyboxRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.SkyboxRenderer;
 
 import std;
 export import glm;
 export import vku;
 export import :vulkan.Gpu;
 
-namespace vk_gltf_viewer::vulkan::pipelines {
+namespace vk_gltf_viewer::vulkan::pipeline {
     export struct SkyboxRenderer {
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1>{
             DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]], const vk::Sampler &sampler);

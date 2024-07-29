@@ -1,10 +1,10 @@
-export module vk_gltf_viewer:vulkan.pipelines.OutlineRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.OutlineRenderer;
 
 import std;
 export import glm;
 export import vku;
 
-namespace vk_gltf_viewer::vulkan::pipelines {
+namespace vk_gltf_viewer::vulkan::pipeline {
     export struct OutlineRenderer {
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1>{
             explicit DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]]);
