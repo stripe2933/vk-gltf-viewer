@@ -368,15 +368,21 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	cb.setScissor(0, passthruExtentDependentResources->depthPrepassAttachmentGroup.getScissor());
 
 	// Render alphaMode=Opaque meshes.
-	sharedData.depthRenderer.bindPipeline(cb);
-	sharedData.depthRenderer.bindDescriptorSets(cb, depthSets);
-	sharedData.depthRenderer.pushConstants(cb, {
-		task.camera.projection * task.camera.view,
-		task.hoveringNodeIndex.value_or(NO_INDEX),
-		task.selectedNodeIndex.value_or(NO_INDEX),
-	});
+	bool depthRendererBound = false;
 	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+		if (!depthRendererBound) {
+			sharedData.depthRenderer.bindPipeline(cb);
+			sharedData.depthRenderer.bindDescriptorSets(cb, depthSets);
+			sharedData.depthRenderer.pushConstants(cb, {
+				task.camera.projection * task.camera.view,
+				task.hoveringNodeIndex.value_or(NO_INDEX),
+				task.selectedNodeIndex.value_or(NO_INDEX),
+			});
+
+			depthRendererBound = true;
+		}
+
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
@@ -389,15 +395,21 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	}
 
 	// Render alphaMode=Mask meshes.
-	sharedData.alphaMaskedDepthRenderer.bindPipeline(cb);
-	sharedData.alphaMaskedDepthRenderer.bindDescriptorSets(cb, alphaMaskedDepthSets);
-	sharedData.alphaMaskedDepthRenderer.pushConstants(cb, {
-		task.camera.projection * task.camera.view,
-		task.hoveringNodeIndex.value_or(NO_INDEX),
-		task.selectedNodeIndex.value_or(NO_INDEX),
-	});
+	bool alphaMaskedDepthRendererBound = false;
 	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+		if (!alphaMaskedDepthRendererBound) {
+			sharedData.alphaMaskedDepthRenderer.bindPipeline(cb);
+			sharedData.alphaMaskedDepthRenderer.bindDescriptorSets(cb, alphaMaskedDepthSets);
+			sharedData.alphaMaskedDepthRenderer.pushConstants(cb, {
+				task.camera.projection * task.camera.view,
+				task.hoveringNodeIndex.value_or(NO_INDEX),
+				task.selectedNodeIndex.value_or(NO_INDEX),
+			});
+
+			alphaMaskedDepthRendererBound = true;
+		}
+
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
@@ -542,11 +554,17 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	cb.setScissor(0, passthruExtentDependentResources->primaryAttachmentGroup.getScissor());
 
 	// Render alphaMode=Opaque meshes.
-	sharedData.primitiveRenderer.bindPipeline(cb);
-	sharedData.primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
-	sharedData.primitiveRenderer.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
+	bool primitiveRendererBound = false;
 	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+		if (!primitiveRendererBound) {
+			sharedData.primitiveRenderer.bindPipeline(cb);
+			sharedData.primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
+			sharedData.primitiveRenderer.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
+
+			primitiveRendererBound = true;
+		}
+
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
@@ -559,10 +577,16 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	}
 
 	// Render alphaMode=Mask meshes.
-	sharedData.alphaMaskedPrimitiveRenderer.bindPipeline(cb);
-	// No need to have push constant, because it have same pipeline layout with PrimitiveRenderer.
+	bool alphaMaskedPrimitiveRendererBound = false;
 	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+		if (!alphaMaskedPrimitiveRendererBound) {
+			sharedData.alphaMaskedPrimitiveRenderer.bindPipeline(cb);
+			// No need to have push constant, because it have same pipeline layout with PrimitiveRenderer.
+
+			alphaMaskedPrimitiveRendererBound = true;
+		}
+
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
