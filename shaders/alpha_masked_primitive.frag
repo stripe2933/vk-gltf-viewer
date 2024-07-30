@@ -101,12 +101,17 @@ void main(){
     vec3 emissive = MATERIAL.emissiveFactor * texture(textures[int(MATERIAL.emissiveTextureIndex) + 1], fragEmissiveTexcoord).rgb;
 
     vec3 V = normalize(pc.viewPosition - fragPosition);
+    float NdotV = dot(N, V);
     // If material is double-sided and normal is not facing the camera, normal have to be flipped.
-    if (uint(MATERIAL.doubleSided) != 0U && dot(N, V) < 0.0) N = -N;
+    if (!MATERIAL.doubleSided && NdotV < 0.0) {
+        N = -N;
+        NdotV = -NdotV;
+    }
     vec3 R = reflect(-V, N);
 
     vec3 F0 = mix(vec3(0.04), baseColor.rgb, metallic);
-    vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+    float maxNdotV = max(NdotV, 0.0);
+    vec3 F = fresnelSchlickRoughness(maxNdotV, F0, roughness);
 
     vec3 kS = F;
     vec3 kD = (1.0 - kS) * (1.0 - metallic);
@@ -116,7 +121,7 @@ void main(){
 
     uint prefilteredmapMipLevels = textureQueryLevels(prefilteredmap);
     vec3 prefilteredColor = textureLod(prefilteredmap, R, roughness * (prefilteredmapMipLevels - 1U)).rgb;
-    vec2 brdf  = texture(brdfmap, vec2(max(dot(N, V), 0.0), roughness)).rg;
+    vec2 brdf  = texture(brdfmap, vec2(maxNdotV, roughness)).rg;
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
     vec3 color = (kD * diffuse + specular) * occlusion;
