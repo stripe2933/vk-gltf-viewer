@@ -201,9 +201,9 @@ template <std::integral T>
     return numStrings[value].c_str();
 }
 
-auto hoverableImage(ImTextureID textureId, const ImVec2 &size, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f}) -> void {
+auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f}) -> void {
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
-    ImGui::Image(textureId, size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
+    ImGui::Image(static_cast<vk::DescriptorSet::CType>(texture), size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
 
     if (ImGui::BeginItemTooltip()) {
         const ImGuiIO &io = ImGui::GetIO();
@@ -214,7 +214,7 @@ auto hoverableImage(ImTextureID textureId, const ImVec2 &size, const ImVec4 &tin
         region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
 
         constexpr float zoomScale = 4.0f;
-        ImGui::Image(textureId, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size, tint);
+        ImGui::Image(static_cast<vk::DescriptorSet::CType>(texture), zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size, tint);
         ImGui::Text("Showing: [%.0f, %.0f]x[%.0f, %.0f]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y);
 
         ImGui::EndTooltip();
@@ -233,9 +233,9 @@ auto assetTextureTransform(const fastgltf::TextureTransform &textureTransform) -
     }
 }
 
-auto assetTextureInfo(const fastgltf::TextureInfo &textureInfo, std::span<const ImTextureID> assetTextureIds, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f }) -> void {
-    hoverableImage(assetTextureIds[textureInfo.textureIndex], { 128.f, 128.f }, tint);
-    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetTextureIds.size())) {
+auto assetTextureInfo(const fastgltf::TextureInfo &textureInfo, std::span<const vk::DescriptorSet> assetAssetTextures, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f }) -> void {
+    hoverableImage(assetAssetTextures[textureInfo.textureIndex], { 128.f, 128.f }, tint);
+    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetAssetTextures.size())) {
         // textureInfo.textureIndex = textureIndex; // TODO
     }
     ImGui::LabelText("Texture coordinate Index", "%zu", textureInfo.transform && textureInfo.transform->texCoordIndex ? *textureInfo.transform->texCoordIndex : textureInfo.texCoordIndex);
@@ -254,9 +254,9 @@ auto assetTextureInfo(const fastgltf::TextureInfo &textureInfo, std::span<const 
     }
 }
 
-auto assetNormalTextureInfo(const fastgltf::NormalTextureInfo &textureInfo, std::span<const ImTextureID> assetTextureIds) -> void {
-    hoverableImage(assetTextureIds[textureInfo.textureIndex], { 128.f, 128.f });
-    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetTextureIds.size())) {
+auto assetNormalTextureInfo(const fastgltf::NormalTextureInfo &textureInfo, std::span<const vk::DescriptorSet> assetAssetTextures) -> void {
+    hoverableImage(assetAssetTextures[textureInfo.textureIndex], { 128.f, 128.f });
+    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetAssetTextures.size())) {
         // textureInfo.textureIndex = textureIndex; // TODO
     }
     ImGui::LabelText("Texture coordinate Index", "%zu", textureInfo.transform && textureInfo.transform->texCoordIndex ? *textureInfo.transform->texCoordIndex : textureInfo.texCoordIndex);
@@ -278,10 +278,10 @@ auto assetNormalTextureInfo(const fastgltf::NormalTextureInfo &textureInfo, std:
     }
 }
 
-auto assetOcclusionTextureInfo(const fastgltf::OcclusionTextureInfo &textureInfo, std::span<const ImTextureID> assetTextureIds) -> void {
+auto assetOcclusionTextureInfo(const fastgltf::OcclusionTextureInfo &textureInfo, std::span<const vk::DescriptorSet> assetAssetTextures) -> void {
     // Occlusion texture is in red channel.
-    hoverableImage(assetTextureIds[textureInfo.textureIndex], { 128.f, 128.f }, { 1.f, 0.f, 0.f, 1.f });
-    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetTextureIds.size())) {
+    hoverableImage(assetAssetTextures[textureInfo.textureIndex], { 128.f, 128.f }, { 1.f, 0.f, 0.f, 1.f });
+    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetAssetTextures.size())) {
         // textureInfo.textureIndex = textureIndex; // TODO
     }
     ImGui::LabelText("Texture coordinate Index", "%zu", textureInfo.transform && textureInfo.transform->texCoordIndex ? *textureInfo.transform->texCoordIndex : textureInfo.texCoordIndex);
@@ -511,7 +511,7 @@ auto assetSamplers(fastgltf::Asset &asset) -> void {
     }
 }
 
-auto assetMaterials(const fastgltf::Asset &asset, std::span<const ImTextureID> assetTextureIds) -> void {
+auto assetMaterials(const fastgltf::Asset &asset, std::span<const vk::DescriptorSet> assetAssetTextures) -> void {
     static int materialIndex = asset.materials.empty() ? -1 : 0;
     if (ImGui::BeginCombo("Material", materialIndex == -1 ? "<empty>" : visit([](const auto &str) { return str.data(); }, nonempty_or(asset.materials[materialIndex].name, [&] { return std::format("<Unnamed material {}>", materialIndex); })))) {
         for (const auto &[i, material] : asset.materials | vk_gltf_viewer::ranges::views::enumerate) {
@@ -547,11 +547,11 @@ auto assetMaterials(const fastgltf::Asset &asset, std::span<const ImTextureID> a
 
                 if (const auto &texture = material.pbrData.baseColorTexture; ImGui::TreeNodeEx("Texture", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
                     if (texture) {
-                        assetTextureInfo(*texture, assetTextureIds);
+                        assetTextureInfo(*texture, assetAssetTextures);
                     }
                     else {
                         ImGui::BeginDisabled();
-                        assetTextureInfo({}, assetTextureIds);
+                        assetTextureInfo({}, assetAssetTextures);
                         ImGui::EndDisabled();
                     }
 
@@ -571,11 +571,11 @@ auto assetMaterials(const fastgltf::Asset &asset, std::span<const ImTextureID> a
                 if (const auto &texture = material.pbrData.metallicRoughnessTexture; ImGui::TreeNodeEx("Texture", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
                     // Metallic/roughness textures are in the blue/green channels, respectively.
                     if (texture) {
-                        assetTextureInfo(*texture, assetTextureIds, { 0.f, 1.f, 1.f, 1.f });
+                        assetTextureInfo(*texture, assetAssetTextures, { 0.f, 1.f, 1.f, 1.f });
                     }
                     else {
                         ImGui::BeginDisabled();
-                        assetTextureInfo({}, assetTextureIds, { 0.f, 1.f, 1.f, 1.f });
+                        assetTextureInfo({}, assetAssetTextures, { 0.f, 1.f, 1.f, 1.f });
                         ImGui::EndDisabled();
                     }
 
@@ -595,11 +595,11 @@ auto assetMaterials(const fastgltf::Asset &asset, std::span<const ImTextureID> a
 
             if (const auto &texture = material.emissiveTexture; ImGui::TreeNodeEx("Texture", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
                 if (texture) {
-                    assetTextureInfo(*texture, assetTextureIds);
+                    assetTextureInfo(*texture, assetAssetTextures);
                 }
                 else {
                     ImGui::BeginDisabled();
-                    assetTextureInfo({}, assetTextureIds);
+                    assetTextureInfo({}, assetAssetTextures);
                     ImGui::EndDisabled();
                 }
 
@@ -619,11 +619,11 @@ auto assetMaterials(const fastgltf::Asset &asset, std::span<const ImTextureID> a
 
         if (const auto &texture = material.normalTexture; ImGui::TreeNodeEx("Normal Mapping", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
             if (texture) {
-                assetNormalTextureInfo(*texture, assetTextureIds);
+                assetNormalTextureInfo(*texture, assetAssetTextures);
             }
             else {
                 ImGui::BeginDisabled();
-                assetNormalTextureInfo({}, assetTextureIds);
+                assetNormalTextureInfo({}, assetAssetTextures);
                 ImGui::EndDisabled();
             }
             ImGui::TreePop();
@@ -631,11 +631,11 @@ auto assetMaterials(const fastgltf::Asset &asset, std::span<const ImTextureID> a
 
         if (const auto &texture = material.occlusionTexture; ImGui::TreeNodeEx("Occlusion Mapping", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
             if (texture) {
-                assetOcclusionTextureInfo(*texture, assetTextureIds);
+                assetOcclusionTextureInfo(*texture, assetAssetTextures);
             }
             else {
                 ImGui::BeginDisabled();
-                assetOcclusionTextureInfo({}, assetTextureIds);
+                assetOcclusionTextureInfo({}, assetAssetTextures);
                 ImGui::EndDisabled();
             }
             ImGui::TreePop();
@@ -835,7 +835,7 @@ auto assetSceneHierarchies(const fastgltf::Asset &asset, vk_gltf_viewer::AppStat
 }
 
 auto vk_gltf_viewer::control::imgui::hdriEnvironments(
-    ImTextureID eqmapTextureId,
+    vk::DescriptorSet eqmapTexture,
     AppState &appState
 ) -> void {
     if (ImGui::Begin("HDRI environments info") && appState.imageBasedLightingProperties) {
@@ -845,7 +845,7 @@ auto vk_gltf_viewer::control::imgui::hdriEnvironments(
 
         const float eqmapAspectRatio = static_cast<float>(iblProps.eqmap.dimension.y) / iblProps.eqmap.dimension.x;
         const ImVec2 eqmapTextureSize = ImVec2 { 1.f, eqmapAspectRatio } * ImGui::GetContentRegionAvail().x;
-        hoverableImage(eqmapTextureId, eqmapTextureSize);
+        hoverableImage(eqmapTexture, eqmapTextureSize);
 
         if (ImGui::WithLabel("File"sv, [&]() { return ImGui::HyperLink(iblProps.eqmap.path.string()); })) {
             system(std::format("open -R \"{}\"", iblProps.eqmap.path.string()).c_str());
@@ -890,6 +890,7 @@ auto vk_gltf_viewer::control::imgui::hdriEnvironments(
 auto vk_gltf_viewer::control::imgui::assetInspector(
     fastgltf::Asset &asset,
     const std::filesystem::path &assetDir,
+    std::span<vk::DescriptorSet> assetTextures,
     AppState &appState
 ) -> void {
     if (ImGui::Begin("Asset")) {
@@ -918,7 +919,7 @@ auto vk_gltf_viewer::control::imgui::assetInspector(
     ImGui::End();
 
     if (ImGui::Begin("Materials")) {
-        /*assetMaterials(asset, assetGlTextures);*/ // TODO
+        assetMaterials(asset, assetTextures);
     }
     ImGui::End();
 
@@ -927,127 +928,6 @@ auto vk_gltf_viewer::control::imgui::assetInspector(
     }
     ImGui::End();
 }
-
-/*auto vk_gltf_viewer::control::imgui::assetMaterials(
-    fastgltf::Asset &asset,
-    std::span<const vk::DescriptorSet> assetTextureImGuiDescriptorSets
-) -> void {
-    if (ImGui::Begin("Asset materials")) {
-        static int selectedIndex = -1;
-
-        ImGui::PushItemWidth(120);
-        ImGui::BeginListBox("##materials");
-        for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
-            const bool isSelected = i == selectedIndex;
-            if (ImGui::Selectable(material.name.c_str(), isSelected)) {
-                selectedIndex = i;
-            }
-
-            if (isSelected) {
-                ImGui::SetItemDefaultFocus();
-            }
-        }
-        ImGui::EndListBox();
-        ImGui::PopItemWidth();
-
-        if (selectedIndex != -1 && ImGui::BeginTable("##split", 2, ImGuiTableFlags_PadOuterX | ImGuiTableFlags_ScrollY)) {
-            fastgltf::Material &selectedMaterial = asset.materials[selectedIndex];
-
-            // Header.
-            ImGui::TableSetupScrollFreeze(0, 1);
-            ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableHeadersRow();
-
-            ImGui::TableNextRow();
-
-            // Name.
-            ImGui::TableSetColumnIndex(0);
-            ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted("Name");
-            ImGui::TableSetColumnIndex(1);
-            ImGui::SetNextItemWidth(-FLT_MIN);
-            ImGui::InputText("##name", &selectedMaterial.name);
-
-            ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
-
-            // PBR.
-            ImGui::TableSetColumnIndex(0);
-            if (ImGui::TreeNodeEx("Physically Based Rendering", ImGuiTreeNodeFlags_NoTreePushOnOpen)) {
-                ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
-
-                ImGui::TableSetColumnIndex(0);
-                if (ImGui::TreeNodeEx("Base color")) {
-                    ImGui::TableNextRow();
-
-                    ImGui::TableSetColumnIndex(0);
-                    ImGui::TextUnformatted("Texture");
-                    ImGui::TableSetColumnIndex(1);
-                    ImGui::SetNextItemWidth(-FLT_MIN);
-                    if (const auto &texture = selectedMaterial.pbrData.baseColorTexture) {
-                        ImGui::Text("%zu", texture->textureIndex);
-                        /*const float textureWidth = ImGui::GetContentRegionAvail().x;
-                        ImGui::Image(assetTextureImGuiDescriptorSets[texture->textureIndex], { textureWidth, textureWidth });#1#
-                    }
-                    else ImGui::TextUnformatted("-");
-
-                    ImGui::TableNextRow();
-
-                    ImGui::TableSetColumnIndex(0);
-                    ImGui::AlignTextToFramePadding();
-                    ImGui::TextUnformatted("Factor");
-                    ImGui::TableSetColumnIndex(1);
-                    ImGui::SetNextItemWidth(-FLT_MIN);
-                    ImGui::DragFloat4("##factor", &selectedMaterial.pbrData.baseColorFactor[0], 1.f, 0.f, 1.f);
-
-                    ImGui::TreePop();
-                }
-
-                ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
-
-                ImGui::TableSetColumnIndex(0);
-                if (ImGui::TreeNodeEx("Metallic/Roughness")) {
-                    ImGui::TableNextRow();
-
-                    ImGui::TableSetColumnIndex(0);
-                    ImGui::TextUnformatted("Texture");
-                    ImGui::TableSetColumnIndex(1);
-                    ImGui::SetNextItemWidth(-FLT_MIN);
-                    if (const auto &texture = selectedMaterial.pbrData.metallicRoughnessTexture) {
-                        ImGui::Text("%zu", texture->textureIndex);
-                        /*const float textureWidth = ImGui::GetContentRegionAvail().x;
-                        ImGui::Image(assetTextureImGuiDescriptorSets[texture->textureIndex], { textureWidth, textureWidth });#1#
-                    }
-                    else ImGui::TextUnformatted("-");
-
-
-                    ImGui::TableNextRow();
-
-                    ImGui::TableSetColumnIndex(0);
-                    ImGui::AlignTextToFramePadding();
-                    ImGui::TextUnformatted("Metallic Factor");
-                    ImGui::TableSetColumnIndex(1);
-                    ImGui::SetNextItemWidth(-FLT_MIN);
-                    ImGui::DragFloat("##metallic_factor", &selectedMaterial.pbrData.metallicFactor, 1.f, 0.f, 1.f);
-
-                    ImGui::TableNextRow();
-
-                    ImGui::TableSetColumnIndex(0);
-                    ImGui::AlignTextToFramePadding();
-                    ImGui::TextUnformatted("Roughness Factor");
-                    ImGui::TableSetColumnIndex(1);
-                    ImGui::SetNextItemWidth(-FLT_MIN);
-                    ImGui::DragFloat("##roughness_factor", &selectedMaterial.pbrData.roughnessFactor, 1.f, 0.f, 1.f);
-
-                    ImGui::TreePop();
-                }
-            }
-
-            ImGui::EndTable();
-        }
-    }
-    ImGui::End();
-}*/
 
 auto vk_gltf_viewer::control::imgui::nodeInspector(
     fastgltf::Asset &asset,

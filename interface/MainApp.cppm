@@ -44,6 +44,7 @@ namespace vk_gltf_viewer {
 
 		// Descriptor sets.
 		vk::DescriptorSet eqmapImageImGuiDescriptorSet;
+		std::vector<vk::DescriptorSet> assetTextureDescriptorSets;
 
     	[[nodiscard]] auto loadAsset(const std::filesystem::path &path) -> decltype(assetExpected);
 

@@ -10,8 +10,8 @@ export import vulkan_hpp;
 export import :AppState;
 
 namespace vk_gltf_viewer::control::imgui {
-    auto hdriEnvironments(ImTextureID eqmapTextureId, AppState &appState) -> void;
-    auto assetInspector(fastgltf::Asset &asset, const std::filesystem::path &assetDir, AppState &appState) -> void;
+    auto hdriEnvironments(vk::DescriptorSet eqmapTexture, AppState &appState) -> void;
+    auto assetInspector(fastgltf::Asset &asset, const std::filesystem::path &assetDir, std::span<vk::DescriptorSet> assetTextures, AppState &appState) -> void;
     auto nodeInspector(fastgltf::Asset &asset, AppState &appState) -> void;
     auto inputControlSetting(AppState &appState) -> void;
 

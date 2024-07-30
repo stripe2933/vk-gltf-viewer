@@ -117,9 +117,18 @@ vk_gltf_viewer::MainApp::MainApp() {
 	ImGui_ImplVulkan_Init(&initInfo);
 
 	eqmapImageImGuiDescriptorSet = ImGui_ImplVulkan_AddTexture(*eqmapSampler, *eqmapImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	// TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
+	assetTextureDescriptorSets = assetResources.textures
+		| std::views::transform([&](const vk::DescriptorImageInfo &textureInfo) -> vk::DescriptorSet {
+			return ImGui_ImplVulkan_AddTexture(textureInfo.sampler, textureInfo.imageView, static_cast<VkImageLayout>(textureInfo.imageLayout));
+		})
+		| std::ranges::to<std::vector>();
 }
 
 vk_gltf_viewer::MainApp::~MainApp() {
+	for (vk::DescriptorSet textureDescriptorSet : assetTextureDescriptorSets) {
+		ImGui_ImplVulkan_RemoveTexture(textureDescriptorSet);
+	}
 	ImGui_ImplVulkan_RemoveTexture(eqmapImageImGuiDescriptorSet);
 
 	ImGui_ImplVulkan_Shutdown();
@@ -256,12 +265,14 @@ auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() const -> decltype(imGu
 	return { gpu.device, vk::DescriptorPoolCreateInfo {
 		vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
 		1 /* Default ImGui rendering */
-			+ 1 /* equirectangular texture */,
+			+ 1 /* equirectangular texture */
+			+ static_cast<std::uint32_t>(assetResources.textures.size()) /* material textures */,
 		vku::unsafeProxy({
 			vk::DescriptorPoolSize {
 				vk::DescriptorType::eCombinedImageSampler,
 				1 /* Default ImGui rendering */
 					+ 1 /* equirectangular texture */
+					+ static_cast<std::uint32_t>(assetResources.textures.size()) /* material textures */
 			},
 		}),
 	} };
@@ -388,7 +399,7 @@ auto vk_gltf_viewer::MainApp::update(
 
 	control::imgui::inputControlSetting(appState);
 	control::imgui::hdriEnvironments(eqmapImageImGuiDescriptorSet, appState);
-	control::imgui::assetInspector(assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), appState);
+	control::imgui::assetInspector(assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), assetTextureDescriptorSets, appState);
 	control::imgui::nodeInspector(assetExpected.get(), appState);
 
 	ImGuizmo::BeginFrame();
