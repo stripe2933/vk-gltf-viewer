@@ -7,7 +7,6 @@ export module vk_gltf_viewer:vulkan.Frame;
 import std;
 export import vku;
 export import :AppState;
-export import :vulkan.Gpu;
 export import :vulkan.SharedData;
 import :vulkan.attachment_groups;
 
@@ -45,23 +44,18 @@ namespace vk_gltf_viewer::vulkan {
     		JumpFloodResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent);
     	};
 
-    	class PassthruExtentDependentResources {
+    	class PassthruResources {
     	public:
-			vk::Extent2D extent; // Extent that used as the resources initialization.
-
-    		JumpFloodResources hoveringNodeOutlineJumpFloodResources,
-    						   selectedNodeOutlineJumpFloodResources;
+    		JumpFloodResources hoveringNodeOutlineJumpFloodResources;
+    		JumpFloodResources selectedNodeOutlineJumpFloodResources;
 
     		// Attachment groups.
     		DepthPrepassAttachmentGroup depthPrepassAttachmentGroup;
     		PrimaryAttachmentGroup primaryAttachmentGroup;
 
-    		PassthruExtentDependentResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
+    		PassthruResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
 
     	private:
-    		[[nodiscard]] auto createDepthPrepassAttachmentGroup(const Gpu &gpu) const -> decltype(depthPrepassAttachmentGroup);
-    		[[nodiscard]] auto createPrimaryAttachmentGroup(const Gpu &gpu) const -> decltype(primaryAttachmentGroup);
-
     		auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
     	};
 
@@ -70,40 +64,42 @@ namespace vk_gltf_viewer::vulkan {
 
     	// Buffer, image and image views.
     	vku::MappedBuffer hoveringNodeIndexBuffer;
-		std::optional<PassthruExtentDependentResources> passthruExtentDependentResources = std::nullopt;
+    	std::optional<vk::Extent2D> passthruExtent = std::nullopt;
+		std::optional<PassthruResources> passthruResources = std::nullopt;
 
         // Descriptor/command pools.
-    	vk::raii::DescriptorPool descriptorPool      = createDescriptorPool();
-        vk::raii::CommandPool    computeCommandPool  = createCommandPool(gpu.queueFamilies.compute),
-    						     graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
+    	vk::raii::DescriptorPool descriptorPool = createDescriptorPool();
+        vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
+    	vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
 
     	// Descriptor sets.
-    	pipeline::DepthRenderer::DescriptorSets              depthSets { *gpu.device, *descriptorPool, sharedData.depthRenderer.descriptorSetLayouts };
-    	pipeline::AlphaMaskedDepthRenderer::DescriptorSets   alphaMaskedDepthSets { *gpu.device, *descriptorPool, sharedData.alphaMaskedDepthRenderer.descriptorSetLayouts };
-    	pipeline::JumpFloodComputer::DescriptorSets          hoveringNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData.jumpFloodComputer.descriptorSetLayouts },
-												              selectedNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData.jumpFloodComputer.descriptorSetLayouts };
-    	pipeline::OutlineRenderer::DescriptorSets            hoveringNodeOutlineSets { *gpu.device, *descriptorPool, sharedData.outlineRenderer.descriptorSetLayouts },
-    											              selectedNodeOutlineSets { *gpu.device, *descriptorPool, sharedData.outlineRenderer.descriptorSetLayouts };
+    	pipeline::DepthRenderer::DescriptorSets depthSets { *gpu.device, *descriptorPool, sharedData.depthRenderer.descriptorSetLayouts };
+    	pipeline::AlphaMaskedDepthRenderer::DescriptorSets alphaMaskedDepthSets { *gpu.device, *descriptorPool, sharedData.alphaMaskedDepthRenderer.descriptorSetLayouts };
+    	pipeline::JumpFloodComputer::DescriptorSets hoveringNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData.jumpFloodComputer.descriptorSetLayouts };
+		pipeline::JumpFloodComputer::DescriptorSets selectedNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData.jumpFloodComputer.descriptorSetLayouts };
+    	pipeline::OutlineRenderer::DescriptorSets hoveringNodeOutlineSets { *gpu.device, *descriptorPool, sharedData.outlineRenderer.descriptorSetLayouts };
+    	pipeline::OutlineRenderer::DescriptorSets selectedNodeOutlineSets { *gpu.device, *descriptorPool, sharedData.outlineRenderer.descriptorSetLayouts };
     	// Note that we'll use the same descriptor sets for AlphaMaskedPrimitiveRenderer since it has same descriptor set layouts as PrimitiveRenderer.
-    	pipeline::PrimitiveRenderer::DescriptorSets          primitiveSets { *gpu.device, *descriptorPool, sharedData.primitiveRenderer.descriptorSetLayouts };
-    	pipeline::Rec709Renderer::DescriptorSets             rec709Sets { *gpu.device, *descriptorPool, sharedData.rec709Renderer.descriptorSetLayouts };
-    	pipeline::SkyboxRenderer::DescriptorSets             skyboxSets { *gpu.device, *descriptorPool, sharedData.skyboxRenderer.descriptorSetLayouts };
+    	pipeline::PrimitiveRenderer::DescriptorSets primitiveSets { *gpu.device, *descriptorPool, sharedData.primitiveRenderer.descriptorSetLayouts };
+    	pipeline::Rec709Renderer::DescriptorSets rec709Sets { *gpu.device, *descriptorPool, sharedData.rec709Renderer.descriptorSetLayouts };
+    	pipeline::SkyboxRenderer::DescriptorSets skyboxSets { *gpu.device, *descriptorPool, sharedData.skyboxRenderer.descriptorSetLayouts };
     	pipeline::SphericalHarmonicsRenderer::DescriptorSets sphericalHarmonicsSets { *gpu.device, *descriptorPool, sharedData.sphericalHarmonicsRenderer.descriptorSetLayouts };
 
     	// Command buffers.
-    	vk::CommandBuffer depthPrepassCommandBuffer, drawCommandBuffer, compositeCommandBuffer;
+    	vk::CommandBuffer depthPrepassCommandBuffer;
+    	vk::CommandBuffer drawCommandBuffer;
+    	vk::CommandBuffer compositeCommandBuffer;
     	vk::CommandBuffer jumpFloodCommandBuffer;
 
 		// Synchronization stuffs.
-		vk::raii::Semaphore depthPrepassFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
-    					    swapchainImageAcquireSema { gpu.device, vk::SemaphoreCreateInfo{} },
-    						drawFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
-    						compositeFinishSema { gpu.device, vk::SemaphoreCreateInfo{} },
-    						jumpFloodFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
-		vk::raii::Fence     inFlightFence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } };
+		vk::raii::Semaphore depthPrepassFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
+    	vk::raii::Semaphore swapchainImageAcquireSema { gpu.device, vk::SemaphoreCreateInfo{} };
+    	vk::raii::Semaphore drawFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
+    	vk::raii::Semaphore compositeFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
+    	vk::raii::Semaphore jumpFloodFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
+		vk::raii::Fence inFlightFence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } };
 
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
-    	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
     	auto update(const ExecutionTask &task, ExecutionResult &result) -> void;
