@@ -7,8 +7,6 @@ export module vk_gltf_viewer:vulkan.SharedData;
 
 import std;
 export import vku;
-import :gltf.AssetResources;
-import :gltf.SceneResources;
 import :vulkan.attachment_groups;
 export import :vulkan.Gpu;
 export import :vulkan.pipeline.AlphaMaskedDepthRenderer;
@@ -30,16 +28,13 @@ struct ImageBasedLightingResources {
 
 namespace vk_gltf_viewer::vulkan {
     export class SharedData {
-    public:
 		// CPU resources.
     	const fastgltf::Asset &asset;
     	shaderc::Compiler compiler;
 
 		const Gpu &gpu;
 
-		gltf::AssetResources assetResources;
-    	gltf::SceneResources sceneResources { assetResources, asset.scenes[asset.defaultScene.value_or(0)], gpu };
-
+    public:
     	// Swapchain.
 		vk::raii::SwapchainKHR swapchain;
 		vk::Extent2D swapchainExtent;
@@ -54,11 +49,11 @@ namespace vk_gltf_viewer::vulkan {
     	buffer::CubeIndices cubeIndices { gpu.allocator };
 
 		// Pipelines.
-		pipeline::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()) };
+		pipeline::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, static_cast<std::uint32_t>(asset.textures.size()) };
 		pipeline::DepthRenderer depthRenderer { gpu.device };
 		pipeline::JumpFloodComputer jumpFloodComputer { gpu.device };
 		pipeline::OutlineRenderer outlineRenderer { gpu.device };
-		pipeline::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(assetResources.textures.size()) };
+		pipeline::PrimitiveRenderer primitiveRenderer { gpu.device, static_cast<std::uint32_t>(asset.textures.size()) };
     	pipeline::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, *primitiveRenderer.pipelineLayout };
     	pipeline::Rec709Renderer rec709Renderer { gpu.device };
 		pipeline::SkyboxRenderer skyboxRenderer { gpu, cubeIndices };
@@ -71,7 +66,7 @@ namespace vk_gltf_viewer::vulkan {
     	// Descriptor/command pools.
     	vk::raii::CommandPool graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
 
-    	SharedData(const fastgltf::Asset &asset [[clang::lifetimebound]], const std::filesystem::path &assetDir, const Gpu &gpu [[clang::lifetimebound]], vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent, const vku::Image &eqmapImage);
+    	SharedData(const fastgltf::Asset &asset [[clang::lifetimebound]], const Gpu &gpu [[clang::lifetimebound]], vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent, const vku::Image &eqmapImage);
 
     	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 
@@ -84,7 +79,6 @@ namespace vk_gltf_viewer::vulkan {
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto recordGltfFallbackImageClearCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
-    	auto recordImageMipmapGenerationCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
     	auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
     };
 }

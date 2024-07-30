@@ -7,6 +7,8 @@ export module vk_gltf_viewer:vulkan.Frame;
 import std;
 export import vku;
 export import :AppState;
+export import :gltf.AssetResources;
+export import :gltf.SceneResources;
 export import :vulkan.SharedData;
 import :vulkan.attachment_groups;
 
@@ -32,7 +34,7 @@ namespace vk_gltf_viewer::vulkan {
     		SwapchainAcquireFailed,
     	};
 
-    	Frame(const Gpu &gpu [[clang::lifetimebound]], const SharedData &sharedData [[clang::lifetimebound]]);
+    	Frame(const Gpu &gpu [[clang::lifetimebound]], const SharedData &sharedData [[clang::lifetimebound]], const gltf::AssetResources &assetResources [[clang::lifetimebound]], const gltf::SceneResources &sceneResources [[clang::lifetimebound]]);
 
     	[[nodiscard]] auto execute(const ExecutionTask &task) -> std::expected<ExecutionResult, ExecutionError>;
 
@@ -61,6 +63,8 @@ namespace vk_gltf_viewer::vulkan {
 
     	const Gpu &gpu;
     	const SharedData &sharedData;
+    	const gltf::AssetResources &assetResources;
+    	const gltf::SceneResources &sceneResources;
 
     	// Buffer, image and image views.
     	vku::MappedBuffer hoveringNodeIndexBuffer;

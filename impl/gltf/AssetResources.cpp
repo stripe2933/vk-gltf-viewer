@@ -384,7 +384,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
                     {}, vk::AccessFlagBits::eTransferWrite,
                     {}, vk::ImageLayout::eTransferDstOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                    image, vku::fullSubresourceRange(),
                 };
             })
             | std::ranges::to<std::vector>());

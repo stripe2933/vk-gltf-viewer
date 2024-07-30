@@ -6,7 +6,6 @@ export module vk_gltf_viewer:MainApp;
 
 import std;
 import vku;
-export import vulkan_hpp; // have to be exported for initializing DispatchLoader.
 import :control.AppWindow;
 import :vulkan.Frame;
 import :vulkan.Gpu;
@@ -32,6 +31,9 @@ namespace vk_gltf_viewer {
 
 		std::list<vku::MappedBuffer> stagingBuffers{};
 
+		gltf::AssetResources assetResources { assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), gpu, { .supportUint8Index = false /* TODO: change this value depend on vk::PhysicalDeviceIndexTypeUint8FeaturesKHR */ } };
+    	gltf::SceneResources sceneResources { assetResources, assetExpected->scenes[assetExpected->defaultScene.value_or(0)], gpu };
+
 		// Buffers, images, image views and samplers.
 		vku::AllocatedImage eqmapImage = createEqmapImage();
 		vk::raii::ImageView eqmapImageView { gpu.device, eqmapImage.getViewCreateInfo() };
@@ -49,6 +51,9 @@ namespace vk_gltf_viewer {
 		[[nodiscard]] auto createEqmapImage() -> decltype(eqmapImage);
 		[[nodiscard]] auto createEqmapSampler() const -> decltype(eqmapSampler);
     	[[nodiscard]] auto createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool);
+
+		auto recordEqmapStagingCommands(vk::CommandBuffer transferCommandBuffer) -> void;
+		auto recordImageMipmapGenerationCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
 
 		[[nodiscard]] auto update(float timeDelta) -> vulkan::Frame::ExecutionTask;
 		auto handleExecutionResult(const vulkan::Frame::ExecutionResult &onLoopResult) -> void;

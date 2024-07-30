@@ -8,17 +8,19 @@ module vk_gltf_viewer;
 import :vulkan.Frame;
 
 import std;
-import :gltf.AssetResources;
-import :gltf.SceneResources;
 import :helpers.ranges;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
 
 vk_gltf_viewer::vulkan::Frame::Frame(
 	const Gpu &gpu,
-	const SharedData &sharedData
+	const SharedData &sharedData,
+	const gltf::AssetResources &assetResources,
+	const gltf::SceneResources &sceneResources
 ) : sharedData { sharedData },
     gpu { gpu },
+	assetResources { assetResources },
+	sceneResources { sceneResources },
 	hoveringNodeIndexBuffer {
 		gpu.allocator,
 		std::numeric_limits<std::uint32_t>::max(),
@@ -37,26 +39,26 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 			        { sharedData.imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
 	    	},
 		    depthSets.getDescriptorWrites0(
-		        { sharedData.sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		        { sharedData.sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
+		        { sceneResources.primitiveBuffer, 0, vk::WholeSize },
+		        { sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
 		    alphaMaskedDepthSets.getDescriptorWrites0(
 		    	{ *sharedData.primitiveRenderer.sampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
-				sharedData.assetResources.textures,
-		    	{ sharedData.assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
+				assetResources.textures,
+		    	{ assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
 		    alphaMaskedDepthSets.getDescriptorWrites1(
-		    	{ sharedData.sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		    	{ sharedData.sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
+		    	{ sceneResources.primitiveBuffer, 0, vk::WholeSize },
+		    	{ sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
 		    primitiveSets.getDescriptorWrites0(
 		    	{ sharedData.imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
 		    	*sharedData.imageBasedLightingResources.value().prefilteredmapImageView,
 		    	*sharedData.brdfmapImageView).get(),
 		    primitiveSets.getDescriptorWrites1(
                 { *sharedData.primitiveRenderer.sampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
-				sharedData.assetResources.textures,
-		    	{ sharedData.assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
+				assetResources.textures,
+		    	{ assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
 		    primitiveSets.getDescriptorWrites2(
-		    	{ sharedData.sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		    	{ sharedData.sceneResources.nodeTransformBuffer, 0, vk::WholeSize })),
+		    	{ sceneResources.primitiveBuffer, 0, vk::WholeSize },
+		    	{ sceneResources.nodeTransformBuffer, 0, vk::WholeSize })),
 		{});
 
 	// Allocate per-frame command buffers.
@@ -357,7 +359,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 
 	// Render alphaMode=Opaque meshes.
 	bool depthRendererBound = false;
-	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
+	for (auto [begin, end] = sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!depthRendererBound) {
 			sharedData.depthRenderer.bindPipeline(cb);
@@ -374,7 +376,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(sharedData.assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
 		else {
@@ -384,7 +386,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 
 	// Render alphaMode=Mask meshes.
 	bool alphaMaskedDepthRendererBound = false;
-	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
+	for (auto [begin, end] = sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!alphaMaskedDepthRendererBound) {
 			sharedData.alphaMaskedDepthRenderer.bindPipeline(cb);
@@ -401,7 +403,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(sharedData.assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
 		else {
@@ -543,7 +545,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 
 	// Render alphaMode=Opaque meshes.
 	bool primitiveRendererBound = false;
-	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
+	for (auto [begin, end] = sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!primitiveRendererBound) {
 			sharedData.primitiveRenderer.bindPipeline(cb);
@@ -556,7 +558,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(sharedData.assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
 		else {
@@ -566,7 +568,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 
 	// Render alphaMode=Mask meshes.
 	bool alphaMaskedPrimitiveRendererBound = false;
-	for (auto [begin, end] = sharedData.sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
+	for (auto [begin, end] = sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!alphaMaskedPrimitiveRendererBound) {
 			sharedData.alphaMaskedPrimitiveRenderer.bindPipeline(cb);
@@ -578,7 +580,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
 		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(sharedData.assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
 		else {
