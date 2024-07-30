@@ -1110,6 +1110,21 @@ auto vk_gltf_viewer::control::imgui::inputControlSetting(
     AppState &appState
 ) -> void {
 	if (ImGui::Begin("Input control")){
+	    ImGui::SeparatorText("Camera");
+
+	    ImGui::DragFloat3("Position", value_ptr(appState.camera.position), 0.1f);
+	    if (ImGui::DragFloat3("Direction", value_ptr(appState.camera.direction), 0.1f, -1.f, 1.f)) {
+	        appState.camera.direction = normalize(appState.camera.direction);
+	    }
+	    if (ImGui::DragFloat3("Up", value_ptr(appState.camera.up), 0.1f, -1.f, 1.f)) {
+            appState.camera.up = normalize(appState.camera.up);
+        }
+
+	    if (float fovInDegree = glm::degrees(appState.camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
+	        appState.camera.fov = glm::radians(fovInDegree);
+	    }
+	    ImGui::DragFloatRange2("Near/Far", &appState.camera.zMin, &appState.camera.zMax, 1e-6f, 1e-4f, 1e6, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+
 	    ImGui::SeparatorText("Node selection");
 
 	    bool showHoveringNodeOutline = appState.hoveringNodeOutline.has_value();
