@@ -233,9 +233,9 @@ auto assetTextureTransform(const fastgltf::TextureTransform &textureTransform) -
     }
 }
 
-auto assetTextureInfo(const fastgltf::TextureInfo &textureInfo, std::span<const vk::DescriptorSet> assetAssetTextures, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f }) -> void {
-    hoverableImage(assetAssetTextures[textureInfo.textureIndex], { 128.f, 128.f }, tint);
-    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetAssetTextures.size())) {
+auto assetTextureInfo(const fastgltf::TextureInfo &textureInfo, std::span<const vk::DescriptorSet> assetTextures, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f }) -> void {
+    hoverableImage(assetTextures[textureInfo.textureIndex], { 128.f, 128.f }, tint);
+    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetTextures.size())) {
         // textureInfo.textureIndex = textureIndex; // TODO
     }
     ImGui::LabelText("Texture coordinate Index", "%zu", textureInfo.transform && textureInfo.transform->texCoordIndex ? *textureInfo.transform->texCoordIndex : textureInfo.texCoordIndex);
@@ -254,9 +254,9 @@ auto assetTextureInfo(const fastgltf::TextureInfo &textureInfo, std::span<const 
     }
 }
 
-auto assetNormalTextureInfo(const fastgltf::NormalTextureInfo &textureInfo, std::span<const vk::DescriptorSet> assetAssetTextures) -> void {
-    hoverableImage(assetAssetTextures[textureInfo.textureIndex], { 128.f, 128.f });
-    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetAssetTextures.size())) {
+auto assetNormalTextureInfo(const fastgltf::NormalTextureInfo &textureInfo, std::span<const vk::DescriptorSet> assetTextures) -> void {
+    hoverableImage(assetTextures[textureInfo.textureIndex], { 128.f, 128.f });
+    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetTextures.size())) {
         // textureInfo.textureIndex = textureIndex; // TODO
     }
     ImGui::LabelText("Texture coordinate Index", "%zu", textureInfo.transform && textureInfo.transform->texCoordIndex ? *textureInfo.transform->texCoordIndex : textureInfo.texCoordIndex);
@@ -278,10 +278,10 @@ auto assetNormalTextureInfo(const fastgltf::NormalTextureInfo &textureInfo, std:
     }
 }
 
-auto assetOcclusionTextureInfo(const fastgltf::OcclusionTextureInfo &textureInfo, std::span<const vk::DescriptorSet> assetAssetTextures) -> void {
+auto assetOcclusionTextureInfo(const fastgltf::OcclusionTextureInfo &textureInfo, std::span<const vk::DescriptorSet> assetTextures) -> void {
     // Occlusion texture is in red channel.
-    hoverableImage(assetAssetTextures[textureInfo.textureIndex], { 128.f, 128.f }, { 1.f, 0.f, 0.f, 1.f });
-    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetAssetTextures.size())) {
+    hoverableImage(assetTextures[textureInfo.textureIndex], { 128.f, 128.f }, { 1.f, 0.f, 0.f, 1.f });
+    if (int textureIndex = textureInfo.textureIndex; ImGui::Combo("Index", &textureIndex, [](auto*, int i) { return to_string(i); }, nullptr, assetTextures.size())) {
         // textureInfo.textureIndex = textureIndex; // TODO
     }
     ImGui::LabelText("Texture coordinate Index", "%zu", textureInfo.transform && textureInfo.transform->texCoordIndex ? *textureInfo.transform->texCoordIndex : textureInfo.texCoordIndex);
@@ -300,537 +300,6 @@ auto assetOcclusionTextureInfo(const fastgltf::OcclusionTextureInfo &textureInfo
         }
 
         ImGui::TreePop();
-    }
-}
-
-auto assetInfos(fastgltf::Asset &asset) -> void {
-    if (auto &assetInfo = asset.assetInfo) {
-        ImGui::InputTextWithHint("glTF Version", "<empty>", &assetInfo->gltfVersion);
-        ImGui::InputTextWithHint("Generator", "<empty>", &assetInfo->generator);
-        ImGui::InputTextWithHint("Copyright", "<empty>", &assetInfo->copyright);
-    }
-}
-
-auto assetBufferViews(fastgltf::Asset &asset) -> void {
-    if (ImGui::BeginTable("gltf-buffer-views-table", 7, ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
-        ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Buffer", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Offset", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Length", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Stride", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Target", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableHeadersRow();
-
-        for (const auto &[i, bufferView] : asset.bufferViews | vk_gltf_viewer::ranges::views::enumerate) {
-            ImGui::TableNextRow();
-            ImGui::AlignTextToFramePadding();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::Text("%zu", i);
-            ImGui::PushID(i);
-            ImGui::TableSetColumnIndex(1);
-            ImGui::SetNextItemWidth(-FLT_MIN);
-            ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
-            ImGui::TableSetColumnIndex(2);
-            if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.buffers[bufferView.bufferIndex].name, [&] { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })))) {
-                // TODO
-            }
-            ImGui::PopID();
-            ImGui::TableSetColumnIndex(3);
-            ImGui::Text("%zu", bufferView.byteOffset);
-            ImGui::TableSetColumnIndex(4);
-            ImGui::Text("%zu", bufferView.byteLength);
-            ImGui::TableSetColumnIndex(5);
-            if (const auto &byteStride = bufferView.byteStride) {
-                ImGui::Text("%zu", *byteStride);
-            }
-            else {
-                ImGui::TextDisabled("-");
-            }
-            ImGui::TableSetColumnIndex(6);
-            if (const auto &bufferViewTarget = bufferView.target) {
-                ImGui::TextUnformatted(vk_gltf_viewer::to_string(*bufferViewTarget));
-            }
-            else {
-                ImGui::TextDisabled("-");
-            }
-        }
-
-        ImGui::EndTable();
-    }
-}
-
-auto assetBuffers(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void {
-    if (ImGui::BeginTable("gltf-buffers-table", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
-        ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Length", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("MIME", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Location", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableHeadersRow();
-
-        for (const auto &[i, buffer] : asset.buffers | vk_gltf_viewer::ranges::views::enumerate) {
-            ImGui::TableNextRow();
-            ImGui::AlignTextToFramePadding();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::Text("%zu", i);
-            ImGui::TableSetColumnIndex(1);
-            ImGui::PushID(i);
-            ImGui::SetNextItemWidth(-FLT_MIN);
-            ImGui::InputTextWithHint("##name", "<empty>", &buffer.name);
-            ImGui::PopID();
-            ImGui::TableSetColumnIndex(2);
-            ImGui::Text("%zu", buffer.byteLength);
-            ImGui::TableSetColumnIndex(3);
-            visit(fastgltf::visitor {
-                [](const auto &source) requires requires { source.mimeType -> fastgltf::MimeType; } {
-                    ImGui::TextUnformatted(vk_gltf_viewer::to_string(source.mimeType));
-                },
-                [](const auto&) {
-                    ImGui::TextDisabled("-");
-                },
-            }, buffer.data);
-            ImGui::TableSetColumnIndex(4);
-            visit(fastgltf::visitor {
-                [](const fastgltf::sources::Array&) {
-                    ImGui::TextUnformatted("Embedded (Array)"sv);
-                },
-                [](const fastgltf::sources::BufferView &bufferView) {
-                    ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
-                },
-                [&](const fastgltf::sources::URI &uri) {
-                    if (ImGui::HyperLink(uri.uri.fspath().string())) {
-                        system(std::format("open -R \"{}\"", (assetDir / uri.uri.fspath()).string()).c_str());
-                    }
-                },
-                [](const auto&) {
-                    ImGui::TextDisabled("-");
-                }
-            }, buffer.data);
-        }
-
-        ImGui::EndTable();
-    }
-}
-
-auto assetImages(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void {
-    if (ImGui::BeginTable("gltf-images-table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
-        ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("MIME", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Location", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableHeadersRow();
-
-        for (const auto &[i, image] : asset.images | vk_gltf_viewer::ranges::views::enumerate) {
-            ImGui::TableNextRow();
-            ImGui::AlignTextToFramePadding();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::Text("%zu", i);
-            ImGui::TableSetColumnIndex(1);
-            ImGui::PushID(i);
-            ImGui::SetNextItemWidth(-FLT_MIN);
-            ImGui::InputTextWithHint("##name", "<empty>", &image.name);
-            ImGui::PopID();
-            ImGui::TableSetColumnIndex(2);
-            visit(fastgltf::visitor {
-                [](const auto &source) requires requires { source.mimeType -> fastgltf::MimeType; } {
-                    ImGui::TextUnformatted(vk_gltf_viewer::to_string(source.mimeType));
-                },
-                [](const auto&) {
-                    ImGui::TextDisabled("-");
-                },
-            }, image.data);
-            ImGui::TableSetColumnIndex(3);
-            visit(fastgltf::visitor {
-                [](const fastgltf::sources::Array&) {
-                    ImGui::TextUnformatted("Embedded (Array)"sv);
-                },
-                [](const fastgltf::sources::BufferView &bufferView) {
-                    ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
-                },
-                [&](const fastgltf::sources::URI &uri) {
-                    if (ImGui::HyperLink(uri.uri.fspath().string())) {
-                        system(std::format("open -R \"{}\"", (assetDir / uri.uri.fspath()).string()).c_str());
-                    }
-                },
-                [](const auto&) {
-                    ImGui::TextDisabled("-");
-                }
-            }, image.data);
-        }
-
-        ImGui::EndTable();
-    }
-}
-
-auto assetSamplers(fastgltf::Asset &asset) -> void {
-    if (ImGui::BeginTable("gltf-samplers-table", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
-        ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Mag filter", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Min filter", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Wrap S", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Wrap T", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableHeadersRow();
-
-        for (const auto &[i, sampler] : asset.samplers | vk_gltf_viewer::ranges::views::enumerate) {
-            ImGui::TableNextRow();
-            ImGui::AlignTextToFramePadding();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::Text("%zu", i);
-            ImGui::TableSetColumnIndex(1);
-            ImGui::PushID(i);
-            ImGui::SetNextItemWidth(-FLT_MIN);
-            ImGui::InputTextWithHint("##name", "<empty>", &sampler.name);
-            ImGui::PopID();
-            ImGui::TableSetColumnIndex(2);
-            if (sampler.magFilter) {
-                ImGui::TextUnformatted(vk_gltf_viewer::to_string(*sampler.magFilter));
-            }
-            else {
-                ImGui::TextDisabled("-");
-            }
-            ImGui::TableSetColumnIndex(3);
-            if (sampler.minFilter) {
-                ImGui::TextUnformatted(vk_gltf_viewer::to_string(*sampler.minFilter));
-            }
-            else {
-                ImGui::TextDisabled("-");
-            }
-            ImGui::TableSetColumnIndex(4);
-            ImGui::TextUnformatted(vk_gltf_viewer::to_string(sampler.wrapS));
-            ImGui::TableSetColumnIndex(5);
-            ImGui::TextUnformatted(vk_gltf_viewer::to_string(sampler.wrapT));
-        }
-
-        ImGui::EndTable();
-    }
-}
-
-auto assetMaterials(const fastgltf::Asset &asset, std::span<const vk::DescriptorSet> assetAssetTextures) -> void {
-    static int materialIndex = asset.materials.empty() ? -1 : 0;
-    if (ImGui::BeginCombo("Material", materialIndex == -1 ? "<empty>" : visit([](const auto &str) { return str.data(); }, nonempty_or(asset.materials[materialIndex].name, [&] { return std::format("<Unnamed material {}>", materialIndex); })))) {
-        for (const auto &[i, material] : asset.materials | vk_gltf_viewer::ranges::views::enumerate) {
-            const bool isSelected = i == materialIndex;
-            if (ImGui::Selectable(visit([](const auto &str) { return str.data(); }, nonempty_or(material.name, [&] { return std::format("<Unnamed material {}>", i); })), isSelected)) {
-                materialIndex = i;
-            }
-            if (isSelected) {
-                ImGui::SetItemDefaultFocus();
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-
-    if (materialIndex != -1) {
-        const fastgltf::Material &material = asset.materials[materialIndex];
-
-        if (auto doubleSided = material.doubleSided; ImGui::Checkbox("Double sided", &doubleSided)) {
-            // material.doubleSided = doubleSided; // TODO
-        }
-
-        constexpr std::array alphaModes { "Opaque", "Mask", "Blend" };
-        if (int alphaMode = static_cast<int>(material.alphaMode); ImGui::Combo("Alpha mode", &alphaMode, alphaModes.data(), alphaModes.size())) {
-            // material.alphaMode = static_cast<fastgltf::AlphaMode>(alphaMode); // TODO
-        }
-
-        if (ImGui::TreeNodeEx("Physically Based Rendering", ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (ImGui::TreeNodeEx("Base Color", ImGuiTreeNodeFlags_DefaultOpen)) {
-                if (auto baseColorFactor = material.pbrData.baseColorFactor; ImGui::DragFloat4("Factor", baseColorFactor.data(), 0.01f, 0.f, 1.f)) {
-                    // material.pbrData.baseColorFactor = baseColorFactor; // TODO
-                }
-
-                if (const auto &texture = material.pbrData.baseColorTexture; ImGui::TreeNodeEx("Texture", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-                    if (texture) {
-                        assetTextureInfo(*texture, assetAssetTextures);
-                    }
-                    else {
-                        ImGui::BeginDisabled();
-                        assetTextureInfo({}, assetAssetTextures);
-                        ImGui::EndDisabled();
-                    }
-
-                    ImGui::TreePop();
-                }
-
-                ImGui::TreePop();
-            }
-            if (ImGui::TreeNodeEx("Metallic/Roughness", ImGuiTreeNodeFlags_DefaultOpen)) {
-                if (auto factor = material.pbrData.metallicFactor; ImGui::DragFloat("Factor (Metallic)", &factor, 0.01f, 0.f, 1.f)) {
-                    // material.pbrData.metallicFactor = factor; // TODO
-                }
-                if (auto factor = material.pbrData.roughnessFactor; ImGui::DragFloat("Factor (roughness)", &factor, 0.01f, 0.f, 1.f)) {
-                    // material.pbrData.roughnessFactor = factor; // TODO
-                }
-
-                if (const auto &texture = material.pbrData.metallicRoughnessTexture; ImGui::TreeNodeEx("Texture", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-                    // Metallic/roughness textures are in the blue/green channels, respectively.
-                    if (texture) {
-                        assetTextureInfo(*texture, assetAssetTextures, { 0.f, 1.f, 1.f, 1.f });
-                    }
-                    else {
-                        ImGui::BeginDisabled();
-                        assetTextureInfo({}, assetAssetTextures, { 0.f, 1.f, 1.f, 1.f });
-                        ImGui::EndDisabled();
-                    }
-
-                    ImGui::TreePop();
-                }
-
-                ImGui::TreePop();
-            }
-
-            ImGui::TreePop();
-        }
-
-        if (ImGui::TreeNodeEx("Emissive", ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (auto factor = material.emissiveFactor; ImGui::DragFloat3("Factor", factor.data(), 0.01f, 0.f, FLT_MAX)) {
-                // material.emissiveFactor = factor; // TODO
-            }
-
-            if (const auto &texture = material.emissiveTexture; ImGui::TreeNodeEx("Texture", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-                if (texture) {
-                    assetTextureInfo(*texture, assetAssetTextures);
-                }
-                else {
-                    ImGui::BeginDisabled();
-                    assetTextureInfo({}, assetAssetTextures);
-                    ImGui::EndDisabled();
-                }
-
-                ImGui::TreePop();
-            }
-
-            if (auto isExtensionUsed = std::ranges::find(asset.extensionsUsed, "KHR_materials_emissive_strength") != asset.extensionsUsed.end(); ImGui::TreeNodeEx("KHR_materials_emissive_strength", isExtensionUsed ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-                if (auto strength = material.emissiveStrength; ImGui::DragFloat("Strength", &strength, 0.01f, 0.f, FLT_MAX)) {
-                    // material.emissiveStrength = strength; // TODO
-                }
-
-                ImGui::TreePop();
-            }
-
-            ImGui::TreePop();
-        }
-
-        if (const auto &texture = material.normalTexture; ImGui::TreeNodeEx("Normal Mapping", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-            if (texture) {
-                assetNormalTextureInfo(*texture, assetAssetTextures);
-            }
-            else {
-                ImGui::BeginDisabled();
-                assetNormalTextureInfo({}, assetAssetTextures);
-                ImGui::EndDisabled();
-            }
-            ImGui::TreePop();
-        }
-
-        if (const auto &texture = material.occlusionTexture; ImGui::TreeNodeEx("Occlusion Mapping", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-            if (texture) {
-                assetOcclusionTextureInfo(*texture, assetAssetTextures);
-            }
-            else {
-                ImGui::BeginDisabled();
-                assetOcclusionTextureInfo({}, assetAssetTextures);
-                ImGui::EndDisabled();
-            }
-            ImGui::TreePop();
-        }
-
-        if (auto isExtensionUsed = std::ranges::find(asset.extensionsUsed, "KHR_materials_unlit") != asset.extensionsUsed.end(); ImGui::TreeNodeEx("KHR_materials_unlit", isExtensionUsed ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-            ImGui::BeginDisabled(!isExtensionUsed);
-            if (auto unlit = material.unlit; ImGui::Checkbox("Unlit", &unlit)) {
-                // material.unlit = unlit; // TODO
-            }
-            ImGui::EndDisabled();
-
-            ImGui::TreePop();
-        }
-    }
-}
-
-auto assetSceneHierarchies(const fastgltf::Asset &asset, vk_gltf_viewer::AppState &appState) -> void {
-    static int sceneIndex = asset.defaultScene.value_or(0);
-    if (ImGui::BeginCombo("Scene", visit([](const auto &str) { return str.data(); }, nonempty_or(asset.scenes[sceneIndex].name, [&] { return std::format("<Unnamed scene {}>", sceneIndex); })))) {
-        for (const auto &[i, scene] : asset.scenes | vk_gltf_viewer::ranges::views::enumerate) {
-            const bool isSelected = i == sceneIndex;
-            if (ImGui::Selectable(visit([](const auto &str) { return str.data(); }, nonempty_or(scene.name, [&] { return std::format("<Unnamed scene {}>", i); })), isSelected)) {
-                sceneIndex = i;
-            }
-            if (isSelected) {
-                ImGui::SetItemDefaultFocus();
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-
-    static bool mergeSingleChildNodes = true;
-    ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
-
-    static std::vector<std::optional<bool>> visibilities(asset.nodes.size(), true);
-    static std::vector parentNodeIndices = [&]() {
-        std::vector<std::size_t> parentNodeIndices(asset.nodes.size());
-        for (std::size_t i = 0; i < asset.nodes.size(); ++i) {
-            for (std::size_t childIndex : asset.nodes[i].children) {
-                parentNodeIndices[childIndex] = i;
-            }
-        }
-        return parentNodeIndices;
-    }();
-
-    static bool useTristateVisibility = true;
-    if (ImGui::Checkbox("Use tristate visibility", &useTristateVisibility)) {
-        if (useTristateVisibility) {
-            // TODO: how to handle this?
-        }
-        else {
-            // If tristate visibility disabled, all indeterminate visibilities are set to true.
-            for (auto &visibility : visibilities) {
-                if (!visibility) {
-                    visibility = true;
-                }
-            }
-        }
-    }
-
-    // TODO.CXX23: const fastgltf::Asset& doesn't have to be passed, but it does since Clang 18's explicit parameter object
-    //  bug. Remove it when it fixed.
-    const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
-        std::size_t descendentNodeIndex = nodeIndex;
-
-        std::vector<std::string> directDescendentNodeNames;
-        while (true) {
-            const fastgltf::Node &descendentNode = asset.nodes[descendentNodeIndex];
-            if (const auto &descendentNodeName = descendentNode.name; descendentNodeName.empty()) {
-                directDescendentNodeNames.emplace_back(std::format("<Unnamed node {}>", descendentNodeIndex));
-            }
-            else {
-                directDescendentNodeNames.emplace_back(descendentNodeName);
-            }
-
-            if (!mergeSingleChildNodes || descendentNode.children.size() != 1) {
-                break;
-            }
-
-            descendentNodeIndex = descendentNode.children[0];
-        }
-
-        const fastgltf::Node &descendentNode = asset.nodes[descendentNodeIndex];
-
-        ImGui::TableNextRow();
-
-        ImGui::TableSetColumnIndex(0);
-        ImGui::AlignTextToFramePadding();
-        const ImGuiTreeNodeFlags flags
-            = ImGuiTreeNodeFlags_DefaultOpen | /*ImGuiTreeNodeFlags_SpanAllWidth*/ ImGuiTreeNodeFlags_SpanTextWidth | ImGuiTreeNodeFlags_OpenOnArrow
-            | ((appState.selectedNodeIndex && *appState.selectedNodeIndex == descendentNodeIndex) ? ImGuiTreeNodeFlags_Selected : 0)
-            | (descendentNode.children.empty() ? (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet) : 0);
-        ImGui::PushID(descendentNodeIndex);
-        const bool isTreeNodeOpen = ImGui::TreeNodeEx("", flags);
-        if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
-            appState.selectedNodeIndex = static_cast<std::uint32_t>(descendentNodeIndex);
-        }
-
-        ImGui::SameLine();
-        if (useTristateVisibility) {
-            ImGui::PushItemFlag(ImGuiItemFlags_MixedValue, !visibilities[nodeIndex]);
-            if (ImGui::Checkbox("##visibility", &*visibilities[nodeIndex])) {
-                if (!visibilities[nodeIndex]) {
-                    visibilities[nodeIndex] = true;
-                }
-
-                vk_gltf_viewer::tristate::propagateTopDown([&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
-                vk_gltf_viewer::tristate::propagateBottomUp([&](auto i) { return parentNodeIndices[i]; }, [&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
-            }
-            ImGui::PopItemFlag();
-        }
-        else {
-            ImGui::Checkbox("##visibility", &*visibilities[nodeIndex]);
-        }
-
-        ImGui::TableSetColumnIndex(1);
-        ImGui::TextUnformatted(std::format("{::s}", vk_gltf_viewer::make_joiner<" / ">(directDescendentNodeNames)));
-
-        ImGui::TableSetColumnIndex(2);
-        visit(fastgltf::visitor {
-            [](const fastgltf::TRS &trs) {
-                std::vector<std::string> transformComponents;
-                if (trs.translation != std::array { 0.f, 0.f, 0.f }) {
-                    transformComponents.emplace_back(std::format("T{::.2f}", trs.translation));
-                }
-                if (trs.rotation != std::array { 0.f, 0.f, 0.f, 1.f }) {
-                    transformComponents.emplace_back(std::format("R{::.2f}", trs.rotation));
-                }
-                if (trs.scale != std::array { 1.f, 1.f, 1.f }) {
-                    transformComponents.emplace_back(std::format("S{::.2f}", trs.scale));
-                }
-
-                if (!transformComponents.empty()) {
-                    ImGui::TextUnformatted(std::format("{::s}", vk_gltf_viewer::make_joiner<" * ">(transformComponents)));
-                }
-            },
-            [](const fastgltf::Node::TransformMatrix &transformMatrix) {
-                constexpr fastgltf::Node::TransformMatrix identity { 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f };
-                if (transformMatrix != identity) {
-                    // TODO.CXX23: use chunk when libc++ support it.
-                    ImGui::TextUnformatted(std::format("{:::.2f}", transformMatrix | std::views::chunk_by([i = 0](float, float) mutable { return ++i % 4 != 0; })));
-                }
-            },
-        }, descendentNode.transform);
-
-        if (const auto &meshIndex = descendentNode.meshIndex) {
-            ImGui::TableSetColumnIndex(3);
-            if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.meshes[*meshIndex].name, [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })))) {
-                // TODO
-            }
-        }
-
-        if (const auto &lightIndex = descendentNode.lightIndex) {
-            ImGui::TableSetColumnIndex(4);
-            if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.lights[*lightIndex].name, [&] { return std::format("<Unnamed light {}>", *lightIndex); })))) {
-                // TODO
-            }
-        }
-
-        if (const auto &cameraIndex = descendentNode.cameraIndex) {
-            ImGui::TableSetColumnIndex(5);
-            if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.cameras[*cameraIndex].name, [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })))) {
-                // TODO
-            }
-        }
-
-        if (isTreeNodeOpen) {
-            for (std::size_t childNodeIndex : descendentNode.children) {
-                self(asset, childNodeIndex);
-            }
-
-            ImGui::TreePop();
-        }
-
-        ImGui::PopID();
-    };
-
-    const fastgltf::Scene &scene = asset.scenes[sceneIndex];
-    if (ImGui::BeginTable("scene-hierarchy-table", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
-        ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableSetupColumn("##node", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide | ImGuiTableColumnFlags_NoReorder | ImGuiTableColumnFlags_NoResize);
-        ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Transform", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Mesh", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Light", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Camera", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableHeadersRow();
-
-        for (std::size_t nodeIndex : scene.nodeIndices) {
-            addChildNode(asset, nodeIndex);
-        }
-
-        ImGui::EndTable();
     }
 }
 
@@ -887,44 +356,556 @@ auto vk_gltf_viewer::control::imgui::hdriEnvironments(
     ImGui::End();
 }
 
-auto vk_gltf_viewer::control::imgui::assetInspector(
-    fastgltf::Asset &asset,
-    const std::filesystem::path &assetDir,
-    std::span<vk::DescriptorSet> assetTextures,
-    AppState &appState
-) -> void {
+auto vk_gltf_viewer::control::imgui::assetInfos(fastgltf::Asset &asset) -> void {
     if (ImGui::Begin("Asset")) {
-        assetInfos(asset);
+        if (auto &assetInfo = asset.assetInfo) {
+            ImGui::InputTextWithHint("glTF Version", "<empty>", &assetInfo->gltfVersion);
+            ImGui::InputTextWithHint("Generator", "<empty>", &assetInfo->generator);
+            ImGui::InputTextWithHint("Copyright", "<empty>", &assetInfo->copyright);
+        }
     }
     ImGui::End();
+}
 
+auto vk_gltf_viewer::control::imgui::assetBufferViews(fastgltf::Asset &asset) -> void {
     if (ImGui::Begin("Buffer Views")) {
-        assetBufferViews(asset);
+        if (ImGui::BeginTable("gltf-buffer-views-table", 7, ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
+            ImGui::TableSetupScrollFreeze(0, 1);
+            ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Buffer", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Offset", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Length", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Stride", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Target", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableHeadersRow();
+
+            for (const auto &[i, bufferView] : asset.bufferViews | ranges::views::enumerate) {
+                ImGui::TableNextRow();
+                ImGui::AlignTextToFramePadding();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::Text("%zu", i);
+                ImGui::PushID(i);
+                ImGui::TableSetColumnIndex(1);
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
+                ImGui::TableSetColumnIndex(2);
+                if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.buffers[bufferView.bufferIndex].name, [&] { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })))) {
+                    // TODO
+                }
+                ImGui::PopID();
+                ImGui::TableSetColumnIndex(3);
+                ImGui::Text("%zu", bufferView.byteOffset);
+                ImGui::TableSetColumnIndex(4);
+                ImGui::Text("%zu", bufferView.byteLength);
+                ImGui::TableSetColumnIndex(5);
+                if (const auto &byteStride = bufferView.byteStride) {
+                    ImGui::Text("%zu", *byteStride);
+                }
+                else {
+                    ImGui::TextDisabled("-");
+                }
+                ImGui::TableSetColumnIndex(6);
+                if (const auto &bufferViewTarget = bufferView.target) {
+                    ImGui::TextUnformatted(to_string(*bufferViewTarget));
+                }
+                else {
+                    ImGui::TextDisabled("-");
+                }
+            }
+
+            ImGui::EndTable();
+        }
     }
     ImGui::End();
+}
 
+auto vk_gltf_viewer::control::imgui::assetBuffers(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void {
     if (ImGui::Begin("Buffers")) {
-        assetBuffers(asset, assetDir);
+        if (ImGui::BeginTable("gltf-buffers-table", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
+            ImGui::TableSetupScrollFreeze(0, 1);
+            ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Length", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("MIME", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Location", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableHeadersRow();
+
+            for (const auto &[i, buffer] : asset.buffers | ranges::views::enumerate) {
+                ImGui::TableNextRow();
+                ImGui::AlignTextToFramePadding();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::Text("%zu", i);
+                ImGui::TableSetColumnIndex(1);
+                ImGui::PushID(i);
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::InputTextWithHint("##name", "<empty>", &buffer.name);
+                ImGui::PopID();
+                ImGui::TableSetColumnIndex(2);
+                ImGui::Text("%zu", buffer.byteLength);
+                ImGui::TableSetColumnIndex(3);
+                visit(fastgltf::visitor {
+                    [](const auto &source) requires requires { source.mimeType -> fastgltf::MimeType; } {
+                        ImGui::TextUnformatted(to_string(source.mimeType));
+                    },
+                    [](const auto&) {
+                        ImGui::TextDisabled("-");
+                    },
+                }, buffer.data);
+                ImGui::TableSetColumnIndex(4);
+                visit(fastgltf::visitor {
+                    [](const fastgltf::sources::Array&) {
+                        ImGui::TextUnformatted("Embedded (Array)"sv);
+                    },
+                    [](const fastgltf::sources::BufferView &bufferView) {
+                        ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
+                    },
+                    [&](const fastgltf::sources::URI &uri) {
+                        if (ImGui::HyperLink(uri.uri.fspath().string())) {
+                            system(std::format("open -R \"{}\"", (assetDir / uri.uri.fspath()).string()).c_str());
+                        }
+                    },
+                    [](const auto&) {
+                        ImGui::TextDisabled("-");
+                    }
+                }, buffer.data);
+            }
+
+            ImGui::EndTable();
+        }
     }
     ImGui::End();
+}
 
+auto vk_gltf_viewer::control::imgui::assetImages(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void {
     if (ImGui::Begin("Images")) {
-        assetImages(asset, assetDir);
+        if (ImGui::BeginTable("gltf-images-table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
+            ImGui::TableSetupScrollFreeze(0, 1);
+            ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("MIME", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Location", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableHeadersRow();
+
+            for (const auto &[i, image] : asset.images | ranges::views::enumerate) {
+                ImGui::TableNextRow();
+                ImGui::AlignTextToFramePadding();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::Text("%zu", i);
+                ImGui::TableSetColumnIndex(1);
+                ImGui::PushID(i);
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::InputTextWithHint("##name", "<empty>", &image.name);
+                ImGui::PopID();
+                ImGui::TableSetColumnIndex(2);
+                visit(fastgltf::visitor {
+                    [](const auto &source) requires requires { source.mimeType -> fastgltf::MimeType; } {
+                        ImGui::TextUnformatted(to_string(source.mimeType));
+                    },
+                    [](const auto&) {
+                        ImGui::TextDisabled("-");
+                    },
+                }, image.data);
+                ImGui::TableSetColumnIndex(3);
+                visit(fastgltf::visitor {
+                    [](const fastgltf::sources::Array&) {
+                        ImGui::TextUnformatted("Embedded (Array)"sv);
+                    },
+                    [](const fastgltf::sources::BufferView &bufferView) {
+                        ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
+                    },
+                    [&](const fastgltf::sources::URI &uri) {
+                        if (ImGui::HyperLink(uri.uri.fspath().string())) {
+                            system(std::format("open -R \"{}\"", (assetDir / uri.uri.fspath()).string()).c_str());
+                        }
+                    },
+                    [](const auto&) {
+                        ImGui::TextDisabled("-");
+                    }
+                }, image.data);
+            }
+
+            ImGui::EndTable();
+        }
     }
     ImGui::End();
+}
 
+auto vk_gltf_viewer::control::imgui::assetSamplers(fastgltf::Asset &asset) -> void {
     if (ImGui::Begin("Samplers")) {
-        assetSamplers(asset);
+        if (ImGui::BeginTable("gltf-samplers-table", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
+            ImGui::TableSetupScrollFreeze(0, 1);
+            ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Mag filter", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Min filter", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Wrap S", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Wrap T", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableHeadersRow();
+
+            for (const auto &[i, sampler] : asset.samplers | ranges::views::enumerate) {
+                ImGui::TableNextRow();
+                ImGui::AlignTextToFramePadding();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::Text("%zu", i);
+                ImGui::TableSetColumnIndex(1);
+                ImGui::PushID(i);
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::InputTextWithHint("##name", "<empty>", &sampler.name);
+                ImGui::PopID();
+                ImGui::TableSetColumnIndex(2);
+                if (sampler.magFilter) {
+                    ImGui::TextUnformatted(to_string(*sampler.magFilter));
+                }
+                else {
+                    ImGui::TextDisabled("-");
+                }
+                ImGui::TableSetColumnIndex(3);
+                if (sampler.minFilter) {
+                    ImGui::TextUnformatted(to_string(*sampler.minFilter));
+                }
+                else {
+                    ImGui::TextDisabled("-");
+                }
+                ImGui::TableSetColumnIndex(4);
+                ImGui::TextUnformatted(to_string(sampler.wrapS));
+                ImGui::TableSetColumnIndex(5);
+                ImGui::TextUnformatted(to_string(sampler.wrapT));
+            }
+
+            ImGui::EndTable();
+        }
     }
     ImGui::End();
+}
 
+auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, std::span<const vk::DescriptorSet> assetTextures) -> void {
     if (ImGui::Begin("Materials")) {
-        assetMaterials(asset, assetTextures);
+        static int materialIndex = asset.materials.empty() ? -1 : 0;
+        if (ImGui::BeginCombo("Material", materialIndex == -1 ? "<empty>" : visit([](const auto &str) { return str.data(); }, nonempty_or(asset.materials[materialIndex].name, [&] { return std::format("<Unnamed material {}>", materialIndex); })))) {
+            for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
+                const bool isSelected = i == materialIndex;
+                if (ImGui::Selectable(visit([](const auto &str) { return str.data(); }, nonempty_or(material.name, [&] { return std::format("<Unnamed material {}>", i); })), isSelected)) {
+                    materialIndex = i;
+                }
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        if (materialIndex != -1) {
+            fastgltf::Material &material = asset.materials[materialIndex];
+
+            ImGui::InputTextWithHint("Name", "<empty>", &material.name);
+
+            if (auto doubleSided = material.doubleSided; ImGui::Checkbox("Double sided", &doubleSided)) {
+                // material.doubleSided = doubleSided; // TODO
+            }
+
+            constexpr std::array alphaModes { "Opaque", "Mask", "Blend" };
+            if (int alphaMode = static_cast<int>(material.alphaMode); ImGui::Combo("Alpha mode", &alphaMode, alphaModes.data(), alphaModes.size())) {
+                // material.alphaMode = static_cast<fastgltf::AlphaMode>(alphaMode); // TODO
+            }
+
+            if (ImGui::TreeNodeEx("Physically Based Rendering", ImGuiTreeNodeFlags_DefaultOpen)) {
+                if (ImGui::TreeNodeEx("Base Color", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    if (auto baseColorFactor = material.pbrData.baseColorFactor; ImGui::DragFloat4("Factor", baseColorFactor.data(), 0.01f, 0.f, 1.f)) {
+                        // material.pbrData.baseColorFactor = baseColorFactor; // TODO
+                    }
+
+                    if (const auto &texture = material.pbrData.baseColorTexture; ImGui::TreeNodeEx("Texture", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+                        if (texture) {
+                            assetTextureInfo(*texture, assetTextures);
+                        }
+                        else {
+                            ImGui::BeginDisabled();
+                            assetTextureInfo({}, assetTextures);
+                            ImGui::EndDisabled();
+                        }
+
+                        ImGui::TreePop();
+                    }
+
+                    ImGui::TreePop();
+                }
+                if (ImGui::TreeNodeEx("Metallic/Roughness", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    if (auto factor = material.pbrData.metallicFactor; ImGui::DragFloat("Factor (Metallic)", &factor, 0.01f, 0.f, 1.f)) {
+                        // material.pbrData.metallicFactor = factor; // TODO
+                    }
+                    if (auto factor = material.pbrData.roughnessFactor; ImGui::DragFloat("Factor (roughness)", &factor, 0.01f, 0.f, 1.f)) {
+                        // material.pbrData.roughnessFactor = factor; // TODO
+                    }
+
+                    if (const auto &texture = material.pbrData.metallicRoughnessTexture; ImGui::TreeNodeEx("Texture", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+                        // Metallic/roughness textures are in the blue/green channels, respectively.
+                        if (texture) {
+                            assetTextureInfo(*texture, assetTextures, { 0.f, 1.f, 1.f, 1.f });
+                        }
+                        else {
+                            ImGui::BeginDisabled();
+                            assetTextureInfo({}, assetTextures, { 0.f, 1.f, 1.f, 1.f });
+                            ImGui::EndDisabled();
+                        }
+
+                        ImGui::TreePop();
+                    }
+
+                    ImGui::TreePop();
+                }
+
+                ImGui::TreePop();
+            }
+
+            if (ImGui::TreeNodeEx("Emissive", ImGuiTreeNodeFlags_DefaultOpen)) {
+                if (auto factor = material.emissiveFactor; ImGui::DragFloat3("Factor", factor.data(), 0.01f, 0.f, FLT_MAX)) {
+                    // material.emissiveFactor = factor; // TODO
+                }
+
+                if (const auto &texture = material.emissiveTexture; ImGui::TreeNodeEx("Texture", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+                    if (texture) {
+                        assetTextureInfo(*texture, assetTextures);
+                    }
+                    else {
+                        ImGui::BeginDisabled();
+                        assetTextureInfo({}, assetTextures);
+                        ImGui::EndDisabled();
+                    }
+
+                    ImGui::TreePop();
+                }
+
+                if (auto isExtensionUsed = std::ranges::find(asset.extensionsUsed, "KHR_materials_emissive_strength") != asset.extensionsUsed.end(); ImGui::TreeNodeEx("KHR_materials_emissive_strength", isExtensionUsed ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+                    if (auto strength = material.emissiveStrength; ImGui::DragFloat("Strength", &strength, 0.01f, 0.f, FLT_MAX)) {
+                        // material.emissiveStrength = strength; // TODO
+                    }
+
+                    ImGui::TreePop();
+                }
+
+                ImGui::TreePop();
+            }
+
+            if (const auto &texture = material.normalTexture; ImGui::TreeNodeEx("Normal Mapping", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+                if (texture) {
+                    assetNormalTextureInfo(*texture, assetTextures);
+                }
+                else {
+                    ImGui::BeginDisabled();
+                    assetNormalTextureInfo({}, assetTextures);
+                    ImGui::EndDisabled();
+                }
+                ImGui::TreePop();
+            }
+
+            if (const auto &texture = material.occlusionTexture; ImGui::TreeNodeEx("Occlusion Mapping", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+                if (texture) {
+                    assetOcclusionTextureInfo(*texture, assetTextures);
+                }
+                else {
+                    ImGui::BeginDisabled();
+                    assetOcclusionTextureInfo({}, assetTextures);
+                    ImGui::EndDisabled();
+                }
+                ImGui::TreePop();
+            }
+
+            if (auto isExtensionUsed = std::ranges::find(asset.extensionsUsed, "KHR_materials_unlit") != asset.extensionsUsed.end(); ImGui::TreeNodeEx("KHR_materials_unlit", isExtensionUsed ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+                ImGui::BeginDisabled(!isExtensionUsed);
+                if (auto unlit = material.unlit; ImGui::Checkbox("Unlit", &unlit)) {
+                    // material.unlit = unlit; // TODO
+                }
+                ImGui::EndDisabled();
+
+                ImGui::TreePop();
+            }
+        }
     }
     ImGui::End();
+}
 
+auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset &asset, AppState &appState) -> void {
     if (ImGui::Begin("Scene hierarchies")) {
-        assetSceneHierarchies(asset, appState);
+        static int sceneIndex = asset.defaultScene.value_or(0);
+        if (ImGui::BeginCombo("Scene", visit([](const auto &str) { return str.data(); }, nonempty_or(asset.scenes[sceneIndex].name, [&] { return std::format("<Unnamed scene {}>", sceneIndex); })))) {
+            for (const auto &[i, scene] : asset.scenes | ranges::views::enumerate) {
+                const bool isSelected = i == sceneIndex;
+                if (ImGui::Selectable(visit([](const auto &str) { return str.data(); }, nonempty_or(scene.name, [&] { return std::format("<Unnamed scene {}>", i); })), isSelected)) {
+                    sceneIndex = i;
+                }
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        static bool mergeSingleChildNodes = true;
+        ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
+
+        static std::vector<std::optional<bool>> visibilities(asset.nodes.size(), true);
+        static std::vector parentNodeIndices = [&]() {
+            std::vector<std::size_t> parentNodeIndices(asset.nodes.size());
+            for (std::size_t i = 0; i < asset.nodes.size(); ++i) {
+                for (std::size_t childIndex : asset.nodes[i].children) {
+                    parentNodeIndices[childIndex] = i;
+                }
+            }
+            return parentNodeIndices;
+        }();
+
+        static bool useTristateVisibility = true;
+        if (ImGui::Checkbox("Use tristate visibility", &useTristateVisibility)) {
+            if (useTristateVisibility) {
+                // TODO: how to handle this?
+            }
+            else {
+                // If tristate visibility disabled, all indeterminate visibilities are set to true.
+                for (auto &visibility : visibilities) {
+                    if (!visibility) {
+                        visibility = true;
+                    }
+                }
+            }
+        }
+
+        // TODO.CXX23: const fastgltf::Asset& doesn't have to be passed, but it does since Clang 18's explicit parameter object
+        //  bug. Remove it when it fixed.
+        const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
+            std::size_t descendentNodeIndex = nodeIndex;
+
+            std::vector<std::string> directDescendentNodeNames;
+            while (true) {
+                const fastgltf::Node &descendentNode = asset.nodes[descendentNodeIndex];
+                if (const auto &descendentNodeName = descendentNode.name; descendentNodeName.empty()) {
+                    directDescendentNodeNames.emplace_back(std::format("<Unnamed node {}>", descendentNodeIndex));
+                }
+                else {
+                    directDescendentNodeNames.emplace_back(descendentNodeName);
+                }
+
+                if (!mergeSingleChildNodes || descendentNode.children.size() != 1) {
+                    break;
+                }
+
+                descendentNodeIndex = descendentNode.children[0];
+            }
+
+            const fastgltf::Node &descendentNode = asset.nodes[descendentNodeIndex];
+
+            ImGui::TableNextRow();
+
+            ImGui::TableSetColumnIndex(0);
+            ImGui::AlignTextToFramePadding();
+            const ImGuiTreeNodeFlags flags
+                = ImGuiTreeNodeFlags_DefaultOpen | /*ImGuiTreeNodeFlags_SpanAllWidth*/ ImGuiTreeNodeFlags_SpanTextWidth | ImGuiTreeNodeFlags_OpenOnArrow
+                | ((appState.selectedNodeIndex && *appState.selectedNodeIndex == descendentNodeIndex) ? ImGuiTreeNodeFlags_Selected : 0)
+                | (descendentNode.children.empty() ? (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet) : 0);
+            ImGui::PushID(descendentNodeIndex);
+            const bool isTreeNodeOpen = ImGui::TreeNodeEx("", flags);
+            if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
+                appState.selectedNodeIndex = static_cast<std::uint32_t>(descendentNodeIndex);
+            }
+
+            ImGui::SameLine();
+            if (useTristateVisibility) {
+                ImGui::PushItemFlag(ImGuiItemFlags_MixedValue, !visibilities[nodeIndex]);
+                if (ImGui::Checkbox("##visibility", &*visibilities[nodeIndex])) {
+                    if (!visibilities[nodeIndex]) {
+                        visibilities[nodeIndex] = true;
+                    }
+
+                    tristate::propagateTopDown([&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
+                    tristate::propagateBottomUp([&](auto i) { return parentNodeIndices[i]; }, [&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
+                }
+                ImGui::PopItemFlag();
+            }
+            else {
+                ImGui::Checkbox("##visibility", &*visibilities[nodeIndex]);
+            }
+
+            ImGui::TableSetColumnIndex(1);
+            ImGui::TextUnformatted(std::format("{::s}", make_joiner<" / ">(directDescendentNodeNames)));
+
+            ImGui::TableSetColumnIndex(2);
+            visit(fastgltf::visitor {
+                [](const fastgltf::TRS &trs) {
+                    std::vector<std::string> transformComponents;
+                    if (trs.translation != std::array { 0.f, 0.f, 0.f }) {
+                        transformComponents.emplace_back(std::format("T{::.2f}", trs.translation));
+                    }
+                    if (trs.rotation != std::array { 0.f, 0.f, 0.f, 1.f }) {
+                        transformComponents.emplace_back(std::format("R{::.2f}", trs.rotation));
+                    }
+                    if (trs.scale != std::array { 1.f, 1.f, 1.f }) {
+                        transformComponents.emplace_back(std::format("S{::.2f}", trs.scale));
+                    }
+
+                    if (!transformComponents.empty()) {
+                        ImGui::TextUnformatted(std::format("{::s}", make_joiner<" * ">(transformComponents)));
+                    }
+                },
+                [](const fastgltf::Node::TransformMatrix &transformMatrix) {
+                    constexpr fastgltf::Node::TransformMatrix identity { 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f };
+                    if (transformMatrix != identity) {
+                        // TODO.CXX23: use chunk when libc++ support it.
+                        ImGui::TextUnformatted(std::format("{:::.2f}", transformMatrix | std::views::chunk_by([i = 0](float, float) mutable { return ++i % 4 != 0; })));
+                    }
+                },
+            }, descendentNode.transform);
+
+            if (const auto &meshIndex = descendentNode.meshIndex) {
+                ImGui::TableSetColumnIndex(3);
+                if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.meshes[*meshIndex].name, [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })))) {
+                    // TODO
+                }
+            }
+
+            if (const auto &lightIndex = descendentNode.lightIndex) {
+                ImGui::TableSetColumnIndex(4);
+                if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.lights[*lightIndex].name, [&] { return std::format("<Unnamed light {}>", *lightIndex); })))) {
+                    // TODO
+                }
+            }
+
+            if (const auto &cameraIndex = descendentNode.cameraIndex) {
+                ImGui::TableSetColumnIndex(5);
+                if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.cameras[*cameraIndex].name, [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })))) {
+                    // TODO
+                }
+            }
+
+            if (isTreeNodeOpen) {
+                for (std::size_t childNodeIndex : descendentNode.children) {
+                    self(asset, childNodeIndex);
+                }
+
+                ImGui::TreePop();
+            }
+
+            ImGui::PopID();
+        };
+
+        const fastgltf::Scene &scene = asset.scenes[sceneIndex];
+        if (ImGui::BeginTable("scene-hierarchy-table", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
+            ImGui::TableSetupScrollFreeze(0, 1);
+            ImGui::TableSetupColumn("##node", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide | ImGuiTableColumnFlags_NoReorder | ImGuiTableColumnFlags_NoResize);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Transform", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Mesh", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Light", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Camera", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableHeadersRow();
+
+            for (std::size_t nodeIndex : scene.nodeIndices) {
+                addChildNode(asset, nodeIndex);
+            }
+
+            ImGui::EndTable();
+        }
     }
     ImGui::End();
 }

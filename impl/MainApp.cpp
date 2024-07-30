@@ -398,8 +398,21 @@ auto vk_gltf_viewer::MainApp::update(
 	}
 
 	control::imgui::inputControlSetting(appState);
+
 	control::imgui::hdriEnvironments(eqmapImageImGuiDescriptorSet, appState);
-	control::imgui::assetInspector(assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), assetTextureDescriptorSets, appState);
+
+	// Asset inspection.
+	fastgltf::Asset &asset = assetExpected.get();
+	const auto assetDir = std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path();
+	control::imgui::assetInfos(asset);
+	control::imgui::assetBufferViews(asset);
+	control::imgui::assetBuffers(asset, assetDir);
+	control::imgui::assetImages(asset, assetDir);
+	control::imgui::assetSamplers(asset);
+	control::imgui::assetMaterials(asset, assetTextureDescriptorSets);
+	control::imgui::assetSceneHierarchies(asset, appState);
+
+	// Node inspection.
 	control::imgui::nodeInspector(assetExpected.get(), appState);
 
 	ImGuizmo::BeginFrame();

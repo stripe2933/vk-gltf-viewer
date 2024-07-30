@@ -11,7 +11,16 @@ export import :AppState;
 
 namespace vk_gltf_viewer::control::imgui {
     auto hdriEnvironments(vk::DescriptorSet eqmapTexture, AppState &appState) -> void;
-    auto assetInspector(fastgltf::Asset &asset, const std::filesystem::path &assetDir, std::span<vk::DescriptorSet> assetTextures, AppState &appState) -> void;
+
+    // fastgltf Asset related.
+    auto assetInfos(fastgltf::Asset &asset) -> void;
+    auto assetBufferViews(fastgltf::Asset &asset) -> void;
+    auto assetBuffers(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void;
+    auto assetImages(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void;
+    auto assetSamplers(fastgltf::Asset &asset) -> void;
+    auto assetMaterials(fastgltf::Asset &asset, std::span<const vk::DescriptorSet> assetTextures) -> void;
+    auto assetSceneHierarchies(const fastgltf::Asset &asset, AppState &appState) -> void;
+
     auto nodeInspector(fastgltf::Asset &asset, AppState &appState) -> void;
     auto inputControlSetting(AppState &appState) -> void;
 
