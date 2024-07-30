@@ -505,12 +505,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
 
     // Hashmap that can get buffer device address by corresponding buffer view index.
     const std::unordered_map bufferDeviceAddressMappings
-        = ranges::views::zip_transform(
-            [&](std::size_t bufferViewIndex, vk::Buffer buffer) {
-                return std::pair { bufferViewIndex, gpu.device.getBufferAddress({ buffer }) };
-            },
-            attributeBufferViewBytes | keys,
-            attributeBuffers)
+        = zip(attributeBufferViewBytes | keys, attributeBuffers | transform([&](vk::Buffer buffer) { return gpu.device.getBufferAddress({ buffer }); }))
         | std::ranges::to<std::unordered_map>();
 
     // Iterate over the primitives and set their attribute infos.
