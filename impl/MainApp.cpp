@@ -94,15 +94,15 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		const float glfwTime = static_cast<float>(glfwGetTime());
 		const float timeDelta = glfwTime - std::exchange(elapsedTime, glfwTime);
 
-		vulkan::Frame::OnLoopTask task = update(timeDelta);
+		vulkan::Frame::ExecutionTask task = update(timeDelta);
 		if (const auto &extent = std::exchange(shouldHandleSwapchainResize[frameIndex], std::nullopt)) {
 			task.swapchainResizeHandleInfo.emplace(window.getSurface(), *extent);
 		}
 
-        const std::expected frameOnLoopResult = frames[frameIndex].onLoop(task);
-		if (frameOnLoopResult) handleOnLoopResult(*frameOnLoopResult);
+        const std::expected frameExecutionResult = frames[frameIndex].execute(task);
+		if (frameExecutionResult) handleExecutionResult(*frameExecutionResult);
 
-		if (!frameOnLoopResult || !frameOnLoopResult->presentSuccess) {
+		if (!frameExecutionResult || !frameExecutionResult->presentSuccess) {
 			gpu.device.waitIdle();
 
 			// Yield while window is minimized.
@@ -295,7 +295,7 @@ auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() const -> decltype(imGu
 
 auto vk_gltf_viewer::MainApp::update(
     float timeDelta
-) -> vulkan::Frame::OnLoopTask {
+) -> vulkan::Frame::ExecutionTask {
 	window.handleEvents(timeDelta);
 
 	ImGui_ImplVulkan_NewFrame();
@@ -355,8 +355,8 @@ auto vk_gltf_viewer::MainApp::update(
 	};
 }
 
-auto vk_gltf_viewer::MainApp::handleOnLoopResult(
-	const vulkan::Frame::OnLoopResult &onLoopResult
+auto vk_gltf_viewer::MainApp::handleExecutionResult(
+	const vulkan::Frame::ExecutionResult &executionResult
 ) -> void {
-	appState.hoveringNodeIndex = onLoopResult.hoveringNodeIndex;
+	appState.hoveringNodeIndex = executionResult.hoveringNodeIndex;
 }

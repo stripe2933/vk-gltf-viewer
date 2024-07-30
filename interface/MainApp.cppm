@@ -50,7 +50,7 @@ namespace vk_gltf_viewer {
 		[[nodiscard]] auto createEqmapSampler() const -> decltype(eqmapSampler);
     	[[nodiscard]] auto createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool);
 
-		[[nodiscard]] auto update(float timeDelta) -> vulkan::Frame::OnLoopTask;
-		auto handleOnLoopResult(const vulkan::Frame::OnLoopResult &onLoopResult) -> void;
+		[[nodiscard]] auto update(float timeDelta) -> vulkan::Frame::ExecutionTask;
+		auto handleExecutionResult(const vulkan::Frame::ExecutionResult &onLoopResult) -> void;
 	};
 }

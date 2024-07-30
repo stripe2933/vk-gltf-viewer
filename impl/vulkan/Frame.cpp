@@ -76,9 +76,9 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		| ranges::to_array<3>();
 }
 
-auto vk_gltf_viewer::vulkan::Frame::onLoop(
-	const OnLoopTask &task
-) -> std::expected<OnLoopResult, OnLoopError> {
+auto vk_gltf_viewer::vulkan::Frame::execute(
+	const ExecutionTask &task
+) -> std::expected<ExecutionResult, ExecutionError> {
 	constexpr std::uint64_t MAX_TIMEOUT = std::numeric_limits<std::uint64_t>::max();
 
 	// Wait for the previous frame execution to finish.
@@ -87,7 +87,7 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 	}
 	gpu.device.resetFences(*inFlightFence);
 
-	OnLoopResult result{};
+	ExecutionResult result{};
 
 	if (task.swapchainResizeHandleInfo) {
 		handleSwapchainResize(task.swapchainResizeHandleInfo->first, task.swapchainResizeHandleInfo->second);
@@ -102,7 +102,7 @@ auto vk_gltf_viewer::vulkan::Frame::onLoop(
 		imageIndex = (*gpu.device).acquireNextImageKHR(*sharedData.swapchain, MAX_TIMEOUT, *swapchainImageAcquireSema).value;
 	}
 	catch (const vk::OutOfDateKHRError&) {
-		return std::unexpected { OnLoopError::SwapchainAcquireFailed };
+		return std::unexpected { ExecutionError::SwapchainAcquireFailed };
 	}
 
 	// Record commands.
@@ -297,8 +297,8 @@ auto vk_gltf_viewer::vulkan::Frame::createCommandPool(
 }
 
 auto vk_gltf_viewer::vulkan::Frame::update(
-    const OnLoopTask &task,
-	OnLoopResult &result
+    const ExecutionTask &task,
+	ExecutionResult &result
 ) -> void {
 	// Get node index under the cursor from hoveringNodeIndexBuffer.
 	// If it is not NO_INDEX (i.e. node index is found), update hoveringNodeIndex.
@@ -328,7 +328,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 
 auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	vk::CommandBuffer cb,
-	const OnLoopTask &task
+	const ExecutionTask &task
 ) const -> void {
 	// Change color attachment layout to ColorAttachmentOptimal.
 	cb.pipelineBarrier(

@@ -14,7 +14,7 @@ import :vulkan.attachment_groups;
 namespace vk_gltf_viewer::vulkan {
     export class Frame {
     public:
-    	struct OnLoopTask {
+    	struct ExecutionTask {
     		vk::Rect2D passthruRect;
     		struct { glm::mat4 view, projection; } camera;
     		std::optional<vk::Offset2D> mouseCursorOffset;
@@ -24,18 +24,18 @@ namespace vk_gltf_viewer::vulkan {
     		std::optional<std::pair<vk::SurfaceKHR, vk::Extent2D>> swapchainResizeHandleInfo;
     	};
 
-		struct OnLoopResult {
+		struct ExecutionResult {
 			std::optional<std::uint32_t> hoveringNodeIndex;
 			bool presentSuccess;
 		};
 
-    	enum class OnLoopError {
+    	enum class ExecutionError {
     		SwapchainAcquireFailed,
     	};
 
     	Frame(const Gpu &gpu [[clang::lifetimebound]], const SharedData &sharedData [[clang::lifetimebound]]);
 
-    	[[nodiscard]] auto onLoop(const OnLoopTask &task) -> std::expected<OnLoopResult, OnLoopError>;
+    	[[nodiscard]] auto execute(const ExecutionTask &task) -> std::expected<ExecutionResult, ExecutionError>;
 
     private:
     	struct JumpFloodResources {
@@ -106,21 +106,21 @@ namespace vk_gltf_viewer::vulkan {
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
-    	auto update(const OnLoopTask &task, OnLoopResult &result) -> void;
+    	auto update(const ExecutionTask &task, ExecutionResult &result) -> void;
 
-    	auto recordDepthPrepassCommands(vk::CommandBuffer cb, const OnLoopTask &task) const -> void;
+    	auto recordDepthPrepassCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
     	// Return true if last jump flood calculation direction is forward (result is in pong image), false if backward.
 		[[nodiscard]] auto recordJumpFloodComputeCommands(
 			vk::CommandBuffer cb,
 			const vku::Image &image,
 			const pipeline::JumpFloodComputer::DescriptorSets &descriptorSets,
 			std::uint32_t initialSampleOffset) const -> bool;
-    	auto recordGltfPrimitiveDrawCommands(vk::CommandBuffer cb, const OnLoopTask &task) const -> void;
+    	auto recordGltfPrimitiveDrawCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
     	auto recordPostCompositionCommands(
     		vk::CommandBuffer cb,
     		std::optional<bool> hoveringNodeJumpFloodForward,
     		std::optional<bool> selectedNodeJumpFloodForward,
     		std::uint32_t swapchainImageIndex,
-    		const OnLoopTask &task) const -> void;
+    		const ExecutionTask &task) const -> void;
     };
 }
