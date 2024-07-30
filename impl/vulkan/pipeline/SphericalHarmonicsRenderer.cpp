@@ -26,10 +26,10 @@ auto vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::DescriptorSet
 }
 
 vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::SphericalHarmonicsRenderer(
-    const Gpu &gpu,
+    const vk::raii::Device &device,
     const buffer::CubeIndices &cubeIndices
-) : descriptorSetLayouts { gpu.device },
-    pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
+) : descriptorSetLayouts { device },
+    pipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
         vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
@@ -39,10 +39,10 @@ vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::SphericalHarmonics
             },
         }),
     } },
-    pipeline { gpu.device, nullptr, vk::StructureChain {
+    pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             vku::createPipelineStages(
-                gpu.device,
+                device,
                 vku::Shader { COMPILED_SHADER_DIR "/spherical_harmonics.vert.spv", vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { COMPILED_SHADER_DIR "/spherical_harmonics.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
             *pipelineLayout,

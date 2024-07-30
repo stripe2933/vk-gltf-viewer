@@ -115,6 +115,9 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipeline/Rec709Renderer.cppm
 		interface/vulkan/pipeline/SkyboxRenderer.cppm
 		interface/vulkan/pipeline/SphericalHarmonicsRenderer.cppm
+		interface/vulkan/sampler/BrdfLutSampler.cppm
+		interface/vulkan/sampler/CubemapSampler.cppm
+		interface/vulkan/sampler/SingleTexelSampler.cppm
 		interface/vulkan/SharedData.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE

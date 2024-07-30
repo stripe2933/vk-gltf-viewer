@@ -42,7 +42,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		        { sceneResources.primitiveBuffer, 0, vk::WholeSize },
 		        { sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
 		    alphaMaskedDepthSets.getDescriptorWrites0(
-		    	{ *sharedData.primitiveRenderer.sampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+		    	{ *sharedData.singleTexelSampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
 				assetResources.textures,
 		    	{ assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
 		    alphaMaskedDepthSets.getDescriptorWrites1(
@@ -53,7 +53,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		    	*sharedData.imageBasedLightingResources.value().prefilteredmapImageView,
 		    	*sharedData.brdfmapImageView).get(),
 		    primitiveSets.getDescriptorWrites1(
-                { *sharedData.primitiveRenderer.sampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+                { *sharedData.singleTexelSampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
 				assetResources.textures,
 		    	{ assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
 		    primitiveSets.getDescriptorWrites2(

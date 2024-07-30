@@ -3,11 +3,17 @@ export module vk_gltf_viewer:vulkan.pipeline.PrimitiveRenderer;
 import std;
 export import glm;
 export import vku;
+export import :vulkan.sampler.BrdfLutSampler;
+export import :vulkan.sampler.CubemapSampler;
 
 namespace vk_gltf_viewer::vulkan::pipeline {
     export struct PrimitiveRenderer {
         struct DescriptorSetLayouts : vku::DescriptorSetLayouts<3, 2, 2>{
-            DescriptorSetLayouts(const vk::raii::Device &device [[clang::lifetimebound]], const vk::Sampler &sampler, std::uint32_t textureCount);
+            DescriptorSetLayouts(
+                const vk::raii::Device &device [[clang::lifetimebound]],
+                const BrdfLutSampler &brdfLutSampler [[clang::lifetimebound]],
+                const CubemapSampler &cubemapSampler [[clang::lifetimebound]],
+                std::uint32_t textureCount);
         };
 
         struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
@@ -67,12 +73,15 @@ namespace vk_gltf_viewer::vulkan::pipeline {
             glm::vec3 viewPosition;
         };
 
-        vk::raii::Sampler sampler;
         DescriptorSetLayouts descriptorSetLayouts;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        PrimitiveRenderer(const vk::raii::Device &device [[clang::lifetimebound]], std::uint32_t textureCount);
+        PrimitiveRenderer(
+            const vk::raii::Device &device [[clang::lifetimebound]],
+            const BrdfLutSampler &brdfLutSampler [[clang::lifetimebound]],
+            const CubemapSampler &cubemapSampler [[clang::lifetimebound]],
+            std::uint32_t textureCount);
 
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
         auto bindDescriptorSets(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t firstSet = 0) const -> void;

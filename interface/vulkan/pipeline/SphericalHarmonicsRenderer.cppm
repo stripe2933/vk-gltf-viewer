@@ -3,7 +3,6 @@ export module vk_gltf_viewer:vulkan.pipeline.SphericalHarmonicsRenderer;
 import std;
 export import glm;
 export import :vulkan.buffer.CubeIndices;
-export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::pipeline {
     export class SphericalHarmonicsRenderer {
@@ -28,7 +27,7 @@ namespace vk_gltf_viewer::vulkan::pipeline {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        SphericalHarmonicsRenderer(const Gpu &gpu [[clang::lifetimebound]], const buffer::CubeIndices &cubeIndices [[clang::lifetimebound]]);
+        SphericalHarmonicsRenderer(const vk::raii::Device &device [[clang::lifetimebound]], const buffer::CubeIndices &cubeIndices [[clang::lifetimebound]]);
 
         auto draw(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const PushConstant &pushConstant) const -> void;
 

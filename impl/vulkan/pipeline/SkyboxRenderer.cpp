@@ -9,31 +9,23 @@ import std;
 
 vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
-    const vk::Sampler &sampler
+    const CubemapSampler &sampler
 ) : vku::DescriptorSetLayouts<1> {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
             vku::unsafeProxy({
-                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
+                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &*sampler },
             }),
         },
     } { }
 
 vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
-    const Gpu &gpu,
+    const vk::raii::Device &device,
+    const CubemapSampler &sampler,
     const buffer::CubeIndices &cubeIndices
-) : sampler { gpu.device, vk::SamplerCreateInfo {
-        {},
-        vk::Filter::eLinear, vk::Filter::eLinear, {},
-        {}, {}, {},
-        {},
-        {}, {},
-        {}, {},
-        0.f, vk::LodClampNone,
-    } },
-    descriptorSetLayouts { gpu.device, *sampler },
-    pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
+) : descriptorSetLayouts { device, sampler },
+    pipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
         vku::unsafeProxy(descriptorSetLayouts.getHandles()),
         vku::unsafeProxy({
@@ -43,10 +35,10 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
             },
         }),
     } },
-    pipeline { gpu.device, nullptr, vk::StructureChain {
+    pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             vku::createPipelineStages(
-                gpu.device,
+                device,
                 vku::Shader { COMPILED_SHADER_DIR "/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { COMPILED_SHADER_DIR "/skybox.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
             *pipelineLayout,

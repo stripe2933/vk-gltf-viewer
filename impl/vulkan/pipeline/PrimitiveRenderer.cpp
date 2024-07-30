@@ -6,11 +6,11 @@ module vk_gltf_viewer;
 import :vulkan.pipeline.PrimitiveRenderer;
 
 import std;
-import vku;
 
 vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
     const vk::raii::Device &device,
-    const vk::Sampler &sampler,
+    const BrdfLutSampler &brdfLutSampler,
+    const CubemapSampler &cubemapSampler,
     std::uint32_t textureCount
 ) : vku::DescriptorSetLayouts<3, 2, 2> {
         device,
@@ -18,8 +18,8 @@ vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::DescriptorSetLayouts::Descr
             {},
             vku::unsafeProxy({
                 vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
-                vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
-                vk::DescriptorSetLayoutBinding { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &sampler },
+                vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &*brdfLutSampler },
+                vk::DescriptorSetLayoutBinding { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &*cubemapSampler },
             }),
         },
         vk::StructureChain {
@@ -58,17 +58,10 @@ auto vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::DescriptorSets::getDes
 
 vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::PrimitiveRenderer(
     const vk::raii::Device &device,
+    const BrdfLutSampler &brdfLutSampler,
+    const CubemapSampler &cubemapSampler,
     std::uint32_t textureCount
-) : sampler { device, vk::SamplerCreateInfo {
-        {},
-        vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
-        {}, {}, {},
-        {},
-        false, {},
-        {}, {},
-        {}, vk::LodClampNone,
-    } },
-    descriptorSetLayouts { device, *sampler, textureCount },
+) : descriptorSetLayouts { device, brdfLutSampler, cubemapSampler, textureCount },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo{
         {},
         vku::unsafeProxy(descriptorSetLayouts.getHandles()),
