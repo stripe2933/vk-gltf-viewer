@@ -5,11 +5,10 @@
       "name": "default",
       "displayName": "Default",
       "generator": "Ninja",
-      "hidden": true,
       "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
         "CMAKE_CXX_STANDARD": "23",
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_OVERLAY_PORTS": "${sourceDir}/overlays"
       }
     }
