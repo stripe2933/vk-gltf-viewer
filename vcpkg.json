@@ -14,8 +14,6 @@
     "imguizmo",
     "mikktspace",
     "stb",
-    "vulkan-memory-allocator",
-    "vulkan-memory-allocator-hpp",
     {
       "name": "vku",
       "features": [
