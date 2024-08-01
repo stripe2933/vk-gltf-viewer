@@ -21,15 +21,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
     gpu { gpu },
 	assetResources { assetResources },
 	sceneResources { sceneResources },
-	hoveringNodeIndexBuffer {
-		gpu.allocator,
-		std::numeric_limits<std::uint32_t>::max(),
-		vk::BufferUsageFlagBits::eTransferDst,
-		vma::AllocationCreateInfo {
-			vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
-			vma::MemoryUsage::eAuto,
-		},
-	} {
+	hoveringNodeIndexBuffer { gpu.allocator, std::numeric_limits<std::uint32_t>::max(), vk::BufferUsageFlagBits::eTransferDst, vku::allocation::hostRead } {
 	// Update per-frame descriptor sets.
 	gpu.device.updateDescriptorSets(
 	    ranges::array_cat(

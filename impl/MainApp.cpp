@@ -394,7 +394,7 @@ auto vk_gltf_viewer::MainApp::update(
 	// Assign the passthruRect to appState.passthruRect. Handle stuffs that are dependent to the it.
 	static vk::Rect2D previousPassthruRect{};
 	if (vk::Rect2D oldPassthruRect = std::exchange(previousPassthruRect, passthruRect); oldPassthruRect != passthruRect) {
-		appState.camera.aspectRatio = static_cast<float>(passthruRect.extent.width) / passthruRect.extent.height;
+		appState.camera.aspectRatio = vku::aspect(passthruRect.extent);
 	}
 
 	control::imgui::inputControlSetting(appState);

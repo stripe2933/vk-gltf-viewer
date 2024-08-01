@@ -25,9 +25,9 @@ namespace vk_gltf_viewer {
                 image, vk::ImageLayout::eTransferDstOptimal,
                 vk::ImageBlit {
                     { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
-                    { vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(srcMipExtent.width), static_cast<std::int32_t>(srcMipExtent.height), 1 } },
+                    { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(srcMipExtent), 1 } },
                     { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-                    { vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(dstMipExtent.width), static_cast<std::int32_t>(dstMipExtent.height), 1 } },
+                    { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(dstMipExtent), 1 } },
                 },
                 vk::Filter::eLinear);
 
@@ -82,9 +82,9 @@ namespace vk_gltf_viewer {
                     image, vk::ImageLayout::eTransferDstOptimal,
                     vk::ImageBlit {
                         { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
-                        { vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(srcMipExtent.width), static_cast<std::int32_t>(srcMipExtent.height), 1 } },
+                        { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(srcMipExtent), 1 } },
 					    { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-					    { vk::Offset3D{}, vk::Offset3D { static_cast<std::int32_t>(dstMipExtent.width), static_cast<std::int32_t>(dstMipExtent.height), 1 } },
+					    { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(dstMipExtent), 1 } },
                     },
                     vk::Filter::eLinear);
             }

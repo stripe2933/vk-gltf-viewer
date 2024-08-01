@@ -99,10 +99,7 @@ pbrenvmap::Generator::Generator(
         sizeof(float) * 27,
         vk::BufferUsageFlagBits::eStorageBuffer // to be used as copy destination from reduction buffer
             | config.sphericalHarmonicCoefficients.usage,
-    }, vma::AllocationCreateInfo {
-        vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
-        vma::MemoryUsage::eAutoPreferHost,
-    } },
+    }, vku::allocation::hostRead },
     prefilteredmapImage { allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
         vk::ImageType::e2D,
