@@ -6,7 +6,7 @@ export import vku;
 
 namespace vk_gltf_viewer::vulkan::pipeline {
     export struct OutlineRenderer {
-        struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage>{
+        struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage>{
             explicit DescriptorSetLayout(const vk::raii::Device &device [[clang::lifetimebound]]);
         };
 

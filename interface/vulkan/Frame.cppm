@@ -45,15 +45,15 @@ namespace vk_gltf_viewer::vulkan {
     	[[nodiscard]] auto execute(const ExecutionTask &task) -> std::expected<ExecutionResult, ExecutionError>;
 
     private:
-    	struct JumpFloodResources {
-    		vku::AllocatedImage image;
-    		vk::raii::ImageView pingImageView, pongImageView;
-
-    		JumpFloodResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent);
-    	};
-
     	class PassthruResources {
     	public:
+    		struct JumpFloodResources {
+    			vku::AllocatedImage image;
+    			vk::raii::ImageView pingImageView, pongImageView;
+
+    			JumpFloodResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent);
+    		};
+
     		JumpFloodResources hoveringNodeOutlineJumpFloodResources;
     		JumpFloodResources selectedNodeOutlineJumpFloodResources;
 
