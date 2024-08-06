@@ -3,7 +3,7 @@
 
 layout (location = 0) out vec4 outColor;
 
-layout (set = 0, binding = 0) uniform texture2D jumpFloodImage;
+layout (set = 0, binding = 0) uniform utexture2D jumpFloodImage;
 
 layout (push_constant, std430) uniform PushConstant {
     vec4 outlineColor;

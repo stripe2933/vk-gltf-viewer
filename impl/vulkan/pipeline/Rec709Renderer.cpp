@@ -14,12 +14,12 @@ struct vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::PushConstant {
 
 vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
+) : vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage> {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
             vku::unsafeProxy({
-                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eFragment },
+                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eSampledImage, 1, vk::ShaderStageFlagBits::eFragment },
             }),
         },
     } { }

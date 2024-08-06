@@ -32,7 +32,7 @@ vk_gltf_viewer::vulkan::PrimaryAttachmentGroup::PrimaryAttachmentGroup(
     addColorAttachment(
         gpu.device,
         storeImage(createColorImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat)),
-        storeImage(createResolveImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eStorage)));
+        storeImage(createResolveImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled)));
     setDepthStencilAttachment(
         gpu.device,
         storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));

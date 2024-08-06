@@ -100,7 +100,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 				*hoveringNodeJumpFloodForward
 					? *passthruResources->hoveringNodeOutlineJumpFloodResources.pingImageView
 					: *passthruResources->hoveringNodeOutlineJumpFloodResources.pongImageView,
-				vk::ImageLayout::eGeneral,
+				vk::ImageLayout::eShaderReadOnlyOptimal,
 			})),
 			{});
 	}
@@ -116,7 +116,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 				*selectedNodeJumpFloodForward
 					? *passthruResources->selectedNodeOutlineJumpFloodResources.pingImageView
 					: *passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView,
-				vk::ImageLayout::eGeneral,
+				vk::ImageLayout::eShaderReadOnlyOptimal,
 			})),
 			{});
 	}
@@ -239,10 +239,12 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutT
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
 		{}, {}, {},
 		{
+			layoutTransitionBarrier(vk::ImageLayout::eGeneral, hoveringNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
+			layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
 			layoutTransitionBarrier(vk::ImageLayout::eTransferSrcOptimal, depthPrepassAttachmentGroup.colorAttachments[0].image),
 			layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, depthPrepassAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
 			layoutTransitionBarrier(vk::ImageLayout::eColorAttachmentOptimal, primaryAttachmentGroup.colorAttachments[0].image),
-			layoutTransitionBarrier(vk::ImageLayout::eGeneral, primaryAttachmentGroup.colorAttachments[0].resolveImage),
+			layoutTransitionBarrier(vk::ImageLayout::eShaderReadOnlyOptimal, primaryAttachmentGroup.colorAttachments[0].resolveImage),
 			layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, primaryAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
 		});
 }
@@ -284,7 +286,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 				vk::DescriptorImageInfo { {}, *passthruResources->selectedNodeOutlineJumpFloodResources.pingImageView, vk::ImageLayout::eGeneral },
 				vk::DescriptorImageInfo { {}, *passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView, vk::ImageLayout::eGeneral },
 			})),
-			rec709Sets.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *passthruResources->primaryAttachmentGroup.colorAttachments[0].resolveView, vk::ImageLayout::eGeneral })),
+			rec709Sets.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *passthruResources->primaryAttachmentGroup.colorAttachments[0].resolveView, vk::ImageLayout::eShaderReadOnlyOptimal })),
 		}, {});
 	}
 }
@@ -435,17 +437,15 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
 		{
 			vk::ImageMemoryBarrier {
 				{}, vk::AccessFlagBits::eShaderRead,
-				vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
+				{}, vk::ImageLayout::eGeneral,
 				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				passthruResources->hoveringNodeOutlineJumpFloodResources.image,
-				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */
+				passthruResources->hoveringNodeOutlineJumpFloodResources.image, vku::fullSubresourceRange(),
 			},
 			vk::ImageMemoryBarrier {
 				{}, vk::AccessFlagBits::eShaderRead,
-				vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
+				{}, vk::ImageLayout::eGeneral,
 				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				passthruResources->selectedNodeOutlineJumpFloodResources.image,
-				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */
+				passthruResources->selectedNodeOutlineJumpFloodResources.image, vku::fullSubresourceRange(),
 			},
 		});
 
@@ -463,7 +463,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 		{}, {}, {},
 		vk::ImageMemoryBarrier {
 			{}, vk::AccessFlagBits::eColorAttachmentWrite,
-			vk::ImageLayout::eGeneral, vk::ImageLayout::eColorAttachmentOptimal,
+			vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal,
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 			passthruResources->primaryAttachmentGroup.colorAttachments[0].resolveImage, vku::fullSubresourceRange(),
 		});
@@ -551,8 +551,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		// Change PrimaryAttachmentGroup's resolve image layout from ColorAttachmentOptimal to General.
 		vk::ImageMemoryBarrier2 {
 			{}, {},
-			vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderStorageRead,
-			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
+			vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderSampledRead,
+			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 			passthruResources->primaryAttachmentGroup.colorAttachments[0].resolveImage, vku::fullSubresourceRange(),
 		},
@@ -569,21 +569,19 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 	if (hoveringNodeJumpFloodForward) {
 		memoryBarriers.push_back({
 			{}, {},
-			vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderStorageRead,
+			vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,
 			{}, vk::ImageLayout::eShaderReadOnlyOptimal,
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			passthruResources->hoveringNodeOutlineJumpFloodResources.image,
-			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *hoveringNodeJumpFloodForward, 1 },
+			passthruResources->hoveringNodeOutlineJumpFloodResources.image, vku::fullSubresourceRange(),
 		});
 	}
 	if (selectedNodeJumpFloodForward) {
 		memoryBarriers.push_back({
 			{}, {},
-			vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderStorageRead,
+			vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,
 			{}, vk::ImageLayout::eShaderReadOnlyOptimal,
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			passthruResources->selectedNodeOutlineJumpFloodResources.image,
-			vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, *hoveringNodeJumpFloodForward, 1 },
+			passthruResources->selectedNodeOutlineJumpFloodResources.image, vku::fullSubresourceRange(),
 		});
 	}
 	cb.pipelineBarrier2KHR({
