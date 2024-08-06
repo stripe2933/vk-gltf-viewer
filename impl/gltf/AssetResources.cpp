@@ -24,12 +24,15 @@ using namespace std::string_view_literals;
     vma::Allocator allocator,
     const vku::Buffer &srcBuffer,
     vk::BufferUsageFlags dstBufferUsage,
+    std::span<const std::uint32_t> queueFamilyIndices,
     vk::CommandBuffer copyCommandBuffer
 ) -> vku::AllocatedBuffer {
     vku::AllocatedBuffer dstBuffer { allocator, vk::BufferCreateInfo {
         {},
         srcBuffer.size,
         dstBufferUsage | vk::BufferUsageFlagBits::eTransferDst,
+        queueFamilyIndices.size() == 1 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+        queueFamilyIndices,
     } };
     copyCommandBuffer.copyBuffer(
         srcBuffer, dstBuffer,
@@ -41,6 +44,7 @@ using namespace std::string_view_literals;
     vma::Allocator allocator,
     vk::Buffer srcBuffer,
     std::ranges::random_access_range auto &&copyInfos,
+    std::span<const std::uint32_t> queueFamilyIndices,
     vk::CommandBuffer copyCommandBuffer
 ) -> std::vector<vku::AllocatedBuffer> {
     return copyInfos
@@ -50,6 +54,8 @@ using namespace std::string_view_literals;
                 {},
                 copySize,
                 dstBufferUsage | vk::BufferUsageFlagBits::eTransferDst,
+                queueFamilyIndices.size() == 1 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+                queueFamilyIndices,
             } };
             copyCommandBuffer.copyBuffer(
                 srcBuffer, dstBuffer,
@@ -181,7 +187,7 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
         stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Texcoord, gpu, cb);
         stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Color, gpu, cb);
         stagePrimitiveTangentBuffers(resourceBytes, gpu, cb);
-        stagePrimitiveIndexBuffers(resourceBytes, gpu.allocator, cb, config.supportUint8Index);
+        stagePrimitiveIndexBuffers(resourceBytes, gpu, cb, config.supportUint8Index);
 
         releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
     });
@@ -501,6 +507,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
                 vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
             };
         }, attributeBufferViewBytes | values, copyOffsets),
+        gpu.queueFamilies.getUniqueIndices(),
         copyCommandBuffer);
 
     // Hashmap that can get buffer device address by corresponding buffer view index.
@@ -608,10 +615,12 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMapping
         createStagingDstBuffer(
             gpu.allocator, bufferPtrStagingBuffer,
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            gpu.queueFamilies.getUniqueIndices(),
             copyCommandBuffer),
         createStagingDstBuffer(
             gpu.allocator, stridesStagingBuffer,
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            gpu.queueFamilies.getUniqueIndices(),
             copyCommandBuffer)).first /* iterator */ ->second /* std::pair<vku::AllocatedBuffer, vku::AllocatedBuffer> */;
 
     const vk::DeviceAddress pBufferPtrsBuffer = gpu.device.getBufferAddress({ bufferPtrsBuffer.buffer }),
@@ -697,6 +706,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
         createStagingDstBuffer(
             gpu.allocator, stagingBuffer,
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            gpu.queueFamilies.getUniqueIndices(),
             copyCommandBuffer));
     const vk::DeviceAddress pTangentBuffer = gpu.device.getBufferAddress({ tangentBuffer->buffer });
 
@@ -707,7 +717,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
 
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
     const ResourceBytes &resourceBytes,
-    vma::Allocator allocator,
+    const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer,
     bool supportUint8Index
 ) -> void {
@@ -788,14 +798,14 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
         | transform([&](const auto &keyValue) {
             const auto &[indexType, bufferBytes] = keyValue;
             const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
-                allocator,
+                gpu.allocator,
                 bufferBytes | values | transform([](const auto &variant) {
                     return std::visit(fastgltf::visitor {
                         [](std::span<const std::uint8_t> bufferBytes) { return as_bytes(bufferBytes); },
                         [](std::span<const std::uint16_t> indices) { return as_bytes(indices); },
                     }, variant);
                 }));
-            auto indexBuffer = createStagingDstBuffer(allocator, stagingBuffer, vk::BufferUsageFlagBits::eIndexBuffer, copyCommandBuffer);
+            auto indexBuffer = createStagingDstBuffer(gpu.allocator, stagingBuffer, vk::BufferUsageFlagBits::eIndexBuffer, gpu.queueFamilies.getUniqueIndices(), copyCommandBuffer);
 
             for (auto [pPrimitive, offset] : zip(bufferBytes | keys, copyOffsets)) {
                 PrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
@@ -814,31 +824,10 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
 ) const -> void {
     if (queueFamilies.transfer == queueFamilies.graphicsPresent) return;
 
-    std::vector<vk::Buffer> targetBuffers { std::from_range, attributeBuffers };
-    if (materialBuffer) targetBuffers.emplace_back(*materialBuffer);
-    targetBuffers.append_range(indexBuffers | values);
-    for (const auto &[bufferPtrsBuffer, byteStridesBuffer] : indexedAttributeMappingBuffers | values) {
-        targetBuffers.emplace_back(bufferPtrsBuffer);
-        targetBuffers.emplace_back(byteStridesBuffer);
-    }
-    if (tangentBuffer) targetBuffers.emplace_back(*tangentBuffer);
-
-    std::vector<vk::Image> targetImages { std::from_range, images };
-
     commandBuffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllCommands,
-        {}, {},
-        targetBuffers
-            | transform([&](vk::Buffer buffer) {
-                return vk::BufferMemoryBarrier {
-                    vk::AccessFlagBits::eTransferWrite, {},
-                    queueFamilies.transfer, queueFamilies.graphicsPresent,
-                    buffer,
-                    0, vk::WholeSize,
-                };
-            })
-            | std::ranges::to<std::vector>(),
-        targetImages
+        {}, {}, {},
+        images
             | transform([&](vk::Image image) {
                 return vk::ImageMemoryBarrier {
                     vk::AccessFlagBits::eTransferWrite, {},

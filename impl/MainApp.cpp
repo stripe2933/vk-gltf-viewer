@@ -48,28 +48,9 @@ vk_gltf_viewer::MainApp::MainApp() {
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
 		// Acquire resource queue family ownerships.
 		if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
-			std::vector<vk::Buffer> targetBuffers { std::from_range, assetResources.attributeBuffers };
-			if (assetResources.materialBuffer) targetBuffers.emplace_back(*assetResources.materialBuffer);
-			targetBuffers.append_range(assetResources.indexBuffers | std::views::values);
-            for (const auto &[bufferPtrsBuffer, byteStridesBuffer] : assetResources.indexedAttributeMappingBuffers | std::views::values) {
-                targetBuffers.emplace_back(bufferPtrsBuffer);
-                targetBuffers.emplace_back(byteStridesBuffer);
-            }
-			if (assetResources.tangentBuffer) targetBuffers.emplace_back(*assetResources.tangentBuffer);
-
 			cb.pipelineBarrier(
 				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-				{}, {},
-				targetBuffers
-					| std::views::transform([&](vk::Buffer buffer) {
-						return vk::BufferMemoryBarrier {
-							{}, {},
-							gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-							buffer,
-							0, vk::WholeSize,
-						};
-					})
-					| std::ranges::to<std::vector>(),
+				{}, {}, {},
 				assetResources.images
 					| std::views::transform([&](vk::Image image) {
 						return vk::ImageMemoryBarrier {
