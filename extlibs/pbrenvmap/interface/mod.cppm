@@ -244,15 +244,9 @@ auto pbrenvmap::Generator::recordCommands(
     // Layout transition for prefiltered map computation and irradiance buffer reduction.
     computeCommandBuffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
-        {}, {},
-        vk::BufferMemoryBarrier {
-            vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead,
-            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-            sphericalHarmonicsReductionBuffer,
-            0,
-            sizeof(float) * 27 * getWorkgroupTotal(
-                pipeline::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size)),
-        },
+        {},
+        vk::MemoryBarrier { vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead },
+        {},
         {
             vk::ImageMemoryBarrier {
                 vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead,
@@ -291,13 +285,9 @@ auto pbrenvmap::Generator::recordCommands(
     // Ensure reduction finish.
     computeCommandBuffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eTransfer,
-        {}, {},
-        vk::BufferMemoryBarrier {
-            vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eTransferRead,
-            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-            sphericalHarmonicsReductionBuffer,
-            sizeof(float) * 27 * dstOffset, sizeof(float) * 27,
-        },
+        {},
+        vk::MemoryBarrier { vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eTransferRead },
+        {},
         {});
 
     // Copy from sphericalHarmonicsReductionBuffer to sphericalHarmonicCoefficientsBuffer with normalization multiplier.
