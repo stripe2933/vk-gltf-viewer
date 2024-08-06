@@ -3,8 +3,8 @@ vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO stripe2933/vku
-    REF v0.1.0-test14
-    SHA512 e13921e0a3b1bef9e55a441b9e831f573671b9f2b21f1955354a627e3832fe693f7edfcf1937d75ddc82155ed557c38d9af8bb37442b643a50d5e140a382338b
+    REF v0.1.0-test18
+    SHA512 240952862e4620653b1a1265505ffd102d6c89cac7c6ed916fd525f686d0f3707ff0caf319860c6a3f6d6be829b8dde8002528d73fcfeafca4cb44becefedbdb
     HEAD_REF module
     PATCHES vcpkg-deps.patch
 )

@@ -11,6 +11,8 @@ export import :gltf.AssetResources;
 export import :gltf.SceneResources;
 export import :vulkan.SharedData;
 import :vulkan.attachment_groups;
+export import :vulkan.dsl.Asset;
+export import :vulkan.dsl.Scene;
 
 namespace vk_gltf_viewer::vulkan {
     export class Frame {
@@ -22,6 +24,10 @@ namespace vk_gltf_viewer::vulkan {
     		std::optional<std::uint32_t> hoveringNodeIndex, selectedNodeIndex;
     		std::optional<AppState::Outline> hoveringNodeOutline, selectedNodeOutline;
     		bool useBlurredSkybox;
+    		vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
+    		vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
+    		vku::DescriptorSet<dsl::Scene> sceneDescriptorSet;
+    		vku::DescriptorSet<pipeline::SkyboxRenderer::DescriptorSetLayout> skyboxDescriptorSet;
     		std::optional<std::pair<vk::SurfaceKHR, vk::Extent2D>> swapchainResizeHandleInfo;
     	};
 
@@ -77,17 +83,11 @@ namespace vk_gltf_viewer::vulkan {
     	vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
 
     	// Descriptor sets.
-    	pipeline::DepthRenderer::DescriptorSets depthSets { *gpu.device, *descriptorPool, sharedData.depthRenderer.descriptorSetLayouts };
-    	pipeline::AlphaMaskedDepthRenderer::DescriptorSets alphaMaskedDepthSets { *gpu.device, *descriptorPool, sharedData.alphaMaskedDepthRenderer.descriptorSetLayouts };
-    	pipeline::JumpFloodComputer::DescriptorSets hoveringNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData.jumpFloodComputer.descriptorSetLayouts };
-		pipeline::JumpFloodComputer::DescriptorSets selectedNodeJumpFloodSets { *gpu.device, *descriptorPool, sharedData.jumpFloodComputer.descriptorSetLayouts };
-    	pipeline::OutlineRenderer::DescriptorSets hoveringNodeOutlineSets { *gpu.device, *descriptorPool, sharedData.outlineRenderer.descriptorSetLayouts };
-    	pipeline::OutlineRenderer::DescriptorSets selectedNodeOutlineSets { *gpu.device, *descriptorPool, sharedData.outlineRenderer.descriptorSetLayouts };
-    	// Note that we'll use the same descriptor sets for AlphaMaskedPrimitiveRenderer since it has same descriptor set layouts as PrimitiveRenderer.
-    	pipeline::PrimitiveRenderer::DescriptorSets primitiveSets { *gpu.device, *descriptorPool, sharedData.primitiveRenderer.descriptorSetLayouts };
-    	pipeline::Rec709Renderer::DescriptorSets rec709Sets { *gpu.device, *descriptorPool, sharedData.rec709Renderer.descriptorSetLayouts };
-    	pipeline::SkyboxRenderer::DescriptorSets skyboxSets { *gpu.device, *descriptorPool, sharedData.skyboxRenderer.descriptorSetLayouts };
-    	pipeline::SphericalHarmonicsRenderer::DescriptorSets sphericalHarmonicsSets { *gpu.device, *descriptorPool, sharedData.sphericalHarmonicsRenderer.descriptorSetLayouts };
+    	vku::DescriptorSet<pipeline::JumpFloodComputer::DescriptorSetLayout> hoveringNodeJumpFloodSets;
+		vku::DescriptorSet<pipeline::JumpFloodComputer::DescriptorSetLayout> selectedNodeJumpFloodSets;
+    	vku::DescriptorSet<pipeline::OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSets;
+    	vku::DescriptorSet<pipeline::OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSets;
+    	vku::DescriptorSet<pipeline::Rec709Renderer::DescriptorSetLayout> rec709Sets;
 
     	// Command buffers.
     	vk::CommandBuffer depthPrepassCommandBuffer;
@@ -113,7 +113,7 @@ namespace vk_gltf_viewer::vulkan {
 		[[nodiscard]] auto recordJumpFloodComputeCommands(
 			vk::CommandBuffer cb,
 			const vku::Image &image,
-			const pipeline::JumpFloodComputer::DescriptorSets &descriptorSets,
+			vku::DescriptorSet<pipeline::JumpFloodComputer::DescriptorSetLayout> descriptorSets,
 			std::uint32_t initialSampleOffset) const -> bool;
     	auto recordGltfPrimitiveDrawCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
     	auto recordPostCompositionCommands(

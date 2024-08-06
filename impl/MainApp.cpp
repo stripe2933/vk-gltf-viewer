@@ -7,6 +7,7 @@ module;
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 #include <ImGuizmo.h>
+#include <shaderc/shaderc.hpp>
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
@@ -14,13 +15,13 @@ module vk_gltf_viewer;
 import :MainApp;
 
 import std;
-import vku;
+import pbrenvmap;
 import :control.ImGui;
 import :helpers.ranges;
-import :mipmap;
 import :io.StbDecoder;
+import :mipmap;
 import :vulkan.Frame;
-import :vulkan.SharedData;
+import :vulkan.pipeline.BrdfmapComputer;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
@@ -85,6 +86,124 @@ vk_gltf_viewer::MainApp::MainApp() {
 	});
 	gpu.queues.graphicsPresent.waitIdle();
 
+	{
+    	shaderc::Compiler compiler;
+
+		// Create image view for eqmapImage.
+		const vk::raii::ImageView eqmapImageView { gpu.device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) };
+
+		const pbrenvmap::Generator::Pipelines pbrenvmapPipelines {
+			.cubemapComputer = { gpu.device, compiler },
+			.subgroupMipmapComputer = { gpu.device, vku::Image::maxMipLevels(1024U), 32U /* TODO */, compiler },
+			.sphericalHarmonicsComputer = { gpu.device, compiler },
+			.sphericalHarmonicCoefficientsSumComputer = { gpu.device, compiler },
+			.prefilteredmapComputer = { gpu.device, { vku::Image::maxMipLevels(256U), 1024 }, compiler },
+			.multiplyComputer = { gpu.device, compiler },
+		};
+		pbrenvmap::Generator pbrenvmapGenerator { gpu.device, gpu.allocator, pbrenvmap::Generator::Config {
+			.cubemap = { .usage = vk::ImageUsageFlagBits::eSampled },
+			.sphericalHarmonicCoefficients = { .usage = vk::BufferUsageFlagBits::eUniformBuffer },
+			.prefilteredmap = { .usage = vk::ImageUsageFlagBits::eSampled },
+		} };
+
+		const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
+
+		const vk::raii::DescriptorPool descriptorPool {
+			gpu.device,
+			brdfmapComputer.descriptorSetLayout.getPoolSize().getDescriptorPoolCreateInfo(),
+		};
+
+		const auto [brdfmapSets] = allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(brdfmapComputer.descriptorSetLayout));
+		gpu.device.updateDescriptorSets(
+			brdfmapSets.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *brdfmapImageView, vk::ImageLayout::eGeneral })),
+			{});
+
+		const auto computeCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.compute);
+		vku::executeSingleCommand(*gpu.device, *computeCommandPool, gpu.queues.compute, [&](vk::CommandBuffer cb) {
+			pbrenvmapGenerator.recordCommands(cb, pbrenvmapPipelines, *eqmapImageView);
+
+			// Change brdfmapImage layout to GENERAL.
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eComputeShader,
+				{}, {}, {},
+				vk::ImageMemoryBarrier {
+					{}, vk::AccessFlagBits::eShaderWrite,
+					{}, vk::ImageLayout::eGeneral,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					brdfmapImage, vku::fullSubresourceRange(),
+				});
+
+			// Compute BRDF.
+			brdfmapComputer.compute(cb, brdfmapSets, vku::toExtent2D(brdfmapImage.extent));
+
+			// Image layout transitions \w optional queue family ownership transfer.
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eBottomOfPipe,
+				{}, {}, {},
+				{
+					vk::ImageMemoryBarrier {
+						vk::AccessFlagBits::eShaderWrite, {},
+						vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+						gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+						pbrenvmapGenerator.cubemapImage, vku::fullSubresourceRange(),
+					},
+					vk::ImageMemoryBarrier {
+						vk::AccessFlagBits::eShaderWrite, {},
+						vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+						gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+						pbrenvmapGenerator.prefilteredmapImage, vku::fullSubresourceRange(),
+					},
+					vk::ImageMemoryBarrier {
+						vk::AccessFlagBits::eShaderWrite, {},
+						vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+						gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+						brdfmapImage, vku::fullSubresourceRange(),
+					},
+				});
+		});
+		gpu.queues.compute.waitIdle();
+
+		vk::raii::ImageView cubemapImageView { gpu.device, pbrenvmapGenerator.cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
+		vk::raii::ImageView prefilteredmapImageView { gpu.device, pbrenvmapGenerator.prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
+
+		imageBasedLightingResources.emplace(
+		    std::move(pbrenvmapGenerator.cubemapImage),
+		    std::move(cubemapImageView),
+		    std::move(pbrenvmapGenerator.sphericalHarmonicCoefficientsBuffer),
+		    std::move(pbrenvmapGenerator.prefilteredmapImage),
+		    std::move(prefilteredmapImageView));
+	}
+
+	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+		// Acquire resource queue family ownerships.
+		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
+				{}, {}, {},
+				{
+					vk::ImageMemoryBarrier {
+						{}, {},
+						vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+						gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+						imageBasedLightingResources.value().cubemapImage, vku::fullSubresourceRange(),
+					},
+					vk::ImageMemoryBarrier {
+						{}, {},
+						vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+						gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+						imageBasedLightingResources.value().prefilteredmapImage, vku::fullSubresourceRange(),
+					},
+					vk::ImageMemoryBarrier {
+						{}, {},
+						vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+						gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+						brdfmapImage, vku::fullSubresourceRange(),
+					},
+				});
+		}
+	});
+	gpu.queues.graphicsPresent.waitIdle();
+
 	// Init ImGui.
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -138,28 +257,132 @@ vk_gltf_viewer::MainApp::~MainApp() {
 
 auto vk_gltf_viewer::MainApp::run() -> void {
 	const glm::u32vec2 framebufferSize = window.getFramebufferSize();
-	vulkan::SharedData sharedData {
-		assetExpected.get(),
-		gpu, window.getSurface(), vk::Extent2D { framebufferSize.x, framebufferSize.y },
-		eqmapImage
-	};
+	vulkan::SharedData sharedData { assetExpected.get(), gpu, window.getSurface(), vk::Extent2D { framebufferSize.x, framebufferSize.y } };
 	std::array frames = ARRAY_OF(2, vulkan::Frame{ gpu, sharedData, assetResources, sceneResources });
 
 	// Optionals that indicates frame should handle swapchain resize to the extent at the corresponding index.
 	std::array<std::optional<vk::Extent2D>, std::tuple_size_v<decltype(frames)>> shouldHandleSwapchainResize{};
+
+	const vk::raii::DescriptorPool descriptorPool {
+		gpu.device,
+		getPoolSizes(
+			sharedData.imageBasedLightingDescriptorSetLayout,
+			sharedData.assetDescriptorSetLayout,
+			sharedData.sceneDescriptorSetLayout,
+			sharedData.skyboxRenderer.descriptorSetLayout)
+		.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind),
+	};
+	const auto [imageBasedLightingDescriptorSet, assetDescriptorSet, sceneDescriptorSet, skyboxDescriptorSet]
+		= allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
+			// TODO: requiring explicit const cast looks bad. vku::allocateDescriptorSets signature should be fixed.
+			std::as_const(sharedData.imageBasedLightingDescriptorSetLayout),
+			std::as_const(sharedData.assetDescriptorSetLayout),
+			std::as_const(sharedData.sceneDescriptorSetLayout),
+			std::as_const(sharedData.skyboxRenderer.descriptorSetLayout)));
+
+	std::vector<vk::DescriptorImageInfo> assetTextures;
+	assetTextures.emplace_back(*sharedData.singleTexelSampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+	assetTextures.append_range(assetResources.textures);
+
+	gpu.device.updateDescriptorSets({
+		imageBasedLightingDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { imageBasedLightingResources->cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
+		imageBasedLightingDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *imageBasedLightingResources->prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+		imageBasedLightingDescriptorSet.getWrite<2>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+		assetDescriptorSet.getWrite<0>(assetTextures),
+		assetDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { assetResources.materialBuffer.value(), 0, vk::WholeSize })),
+		sceneDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { sceneResources.primitiveBuffer, 0, vk::WholeSize })),
+		sceneDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { sceneResources.nodeTransformBuffer, 0, vk::WholeSize })),
+		skyboxDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *imageBasedLightingResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+	}, {});
 
 	float elapsedTime = 0.f;
 	for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % frames.size()) {
 		const float glfwTime = static_cast<float>(glfwGetTime());
 		const float timeDelta = glfwTime - std::exchange(elapsedTime, glfwTime);
 
-		vulkan::Frame::ExecutionTask task = update(timeDelta);
+		window.handleEvents(timeDelta);
+
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		// Enable global docking.
+		const ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
+
+		// Get central node region.
+		const ImRect centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpaceId)->Rect();
+
+		// Calculate framebuffer coordinate based passthru rect.
+		const ImVec2 imGuiViewportSize = ImGui::GetIO().DisplaySize;
+		const glm::vec2 scaleFactor = glm::vec2 { window.getFramebufferSize() } / glm::vec2 { imGuiViewportSize.x, imGuiViewportSize.y };
+		const vk::Rect2D passthruRect {
+		    { static_cast<std::int32_t>(centerNodeRect.Min.x * scaleFactor.x), static_cast<std::int32_t>(centerNodeRect.Min.y * scaleFactor.y) },
+		    { static_cast<std::uint32_t>(centerNodeRect.GetWidth() * scaleFactor.x), static_cast<std::uint32_t>(centerNodeRect.GetHeight() * scaleFactor.y) },
+		};
+
+		// Assign the passthruRect to appState.passthruRect. Handle stuffs that are dependent to the it.
+		static vk::Rect2D previousPassthruRect{};
+		if (vk::Rect2D oldPassthruRect = std::exchange(previousPassthruRect, passthruRect); oldPassthruRect != passthruRect) {
+			appState.camera.aspectRatio = vku::aspect(passthruRect.extent);
+		}
+
+		control::imgui::inputControlSetting(appState);
+
+		control::imgui::hdriEnvironments(eqmapImageImGuiDescriptorSet, appState);
+
+		// Asset inspection.
+		fastgltf::Asset &asset = assetExpected.get();
+		const auto assetDir = std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path();
+		control::imgui::assetInfos(asset);
+		control::imgui::assetBufferViews(asset);
+		control::imgui::assetBuffers(asset, assetDir);
+		control::imgui::assetImages(asset, assetDir);
+		control::imgui::assetSamplers(asset);
+		control::imgui::assetMaterials(asset, assetTextureDescriptorSets);
+		control::imgui::assetSceneHierarchies(asset, appState);
+
+		// Node inspection.
+		control::imgui::nodeInspector(assetExpected.get(), appState);
+
+		ImGuizmo::BeginFrame();
+
+		// Capture mouse when using ViewManipulate.
+		control::imgui::viewManipulate(appState, centerNodeRect.Max);
+
+		ImGui::Render();
+
+		vulkan::Frame::ExecutionTask task {
+			.passthruRect = passthruRect,
+			.camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
+			.mouseCursorOffset = appState.hoveringMousePosition.and_then([&](const glm::vec2 &position) -> std::optional<vk::Offset2D> {
+				// If cursor is outside the framebuffer, cursor position is undefined.
+				const glm::vec2 framebufferCursorPosition = position * glm::vec2 { window.getFramebufferSize() } / glm::vec2 { window.getSize() };
+				if (glm::vec2 framebufferSize = window.getFramebufferSize(); framebufferCursorPosition.x >= framebufferSize.x || framebufferCursorPosition.y >= framebufferSize.y) return std::nullopt;
+
+				return vk::Offset2D {
+					static_cast<std::int32_t>(framebufferCursorPosition.x),
+					static_cast<std::int32_t>(framebufferCursorPosition.y)
+				};
+			}),
+			.hoveringNodeIndex = appState.hoveringNodeIndex,
+			.selectedNodeIndex = appState.selectedNodeIndex,
+			.hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
+			.selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
+			.useBlurredSkybox = appState.useBlurredSkybox,
+			.imageBasedLightingDescriptorSet = imageBasedLightingDescriptorSet,
+			.assetDescriptorSet = assetDescriptorSet,
+			.sceneDescriptorSet = sceneDescriptorSet,
+			.skyboxDescriptorSet = skyboxDescriptorSet,
+		};
 		if (const auto &extent = std::exchange(shouldHandleSwapchainResize[frameIndex], std::nullopt)) {
 			task.swapchainResizeHandleInfo.emplace(window.getSurface(), *extent);
 		}
 
         const std::expected frameExecutionResult = frames[frameIndex].execute(task);
-		if (frameExecutionResult) handleExecutionResult(*frameExecutionResult);
+		if (frameExecutionResult) {
+			// Handle execution result.
+			appState.hoveringNodeIndex = frameExecutionResult->hoveringNodeIndex;
+		}
 
 		if (!frameExecutionResult || !frameExecutionResult->presentSuccess) {
 			gpu.device.waitIdle();
@@ -258,6 +481,19 @@ auto vk_gltf_viewer::MainApp::createEqmapSampler() const -> decltype(eqmapSample
 		{}, {},
 		{}, {},
 		0, vk::LodClampNone,
+	} };
+}
+
+auto vk_gltf_viewer::MainApp::createBrdfmapImage() const -> decltype(brdfmapImage) {
+	return { gpu.allocator, vk::ImageCreateInfo {
+        {},
+		vk::ImageType::e2D,
+		vk::Format::eR16G16Unorm,
+		vk::Extent3D { 512, 512, 1 },
+		1, 1,
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
 	} };
 }
 
@@ -366,85 +602,4 @@ auto vk_gltf_viewer::MainApp::recordImageMipmapGenerationCommands(
 
 			return barriers;
 		}());
-}
-
-auto vk_gltf_viewer::MainApp::update(
-    float timeDelta
-) -> vulkan::Frame::ExecutionTask {
-	window.handleEvents(timeDelta);
-
-	ImGui_ImplVulkan_NewFrame();
-	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();
-
-	// Enable global docking.
-	const ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
-
-	// Get central node region.
-	const ImRect centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpaceId)->Rect();
-
-	// Calculate framebuffer coordinate based passthru rect.
-	const ImVec2 imGuiViewportSize = ImGui::GetIO().DisplaySize;
-	const glm::vec2 scaleFactor = glm::vec2 { window.getFramebufferSize() } / glm::vec2 { imGuiViewportSize.x, imGuiViewportSize.y };
-	const vk::Rect2D passthruRect {
-	    { static_cast<std::int32_t>(centerNodeRect.Min.x * scaleFactor.x), static_cast<std::int32_t>(centerNodeRect.Min.y * scaleFactor.y) },
-	    { static_cast<std::uint32_t>(centerNodeRect.GetWidth() * scaleFactor.x), static_cast<std::uint32_t>(centerNodeRect.GetHeight() * scaleFactor.y) },
-	};
-
-	// Assign the passthruRect to appState.passthruRect. Handle stuffs that are dependent to the it.
-	static vk::Rect2D previousPassthruRect{};
-	if (vk::Rect2D oldPassthruRect = std::exchange(previousPassthruRect, passthruRect); oldPassthruRect != passthruRect) {
-		appState.camera.aspectRatio = vku::aspect(passthruRect.extent);
-	}
-
-	control::imgui::inputControlSetting(appState);
-
-	control::imgui::hdriEnvironments(eqmapImageImGuiDescriptorSet, appState);
-
-	// Asset inspection.
-	fastgltf::Asset &asset = assetExpected.get();
-	const auto assetDir = std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path();
-	control::imgui::assetInfos(asset);
-	control::imgui::assetBufferViews(asset);
-	control::imgui::assetBuffers(asset, assetDir);
-	control::imgui::assetImages(asset, assetDir);
-	control::imgui::assetSamplers(asset);
-	control::imgui::assetMaterials(asset, assetTextureDescriptorSets);
-	control::imgui::assetSceneHierarchies(asset, appState);
-
-	// Node inspection.
-	control::imgui::nodeInspector(assetExpected.get(), appState);
-
-	ImGuizmo::BeginFrame();
-
-	// Capture mouse when using ViewManipulate.
-	control::imgui::viewManipulate(appState, centerNodeRect.Max);
-
-	ImGui::Render();
-
-	return {
-		.passthruRect = passthruRect,
-		.camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
-		.mouseCursorOffset = appState.hoveringMousePosition.and_then([&](const glm::vec2 &position) -> std::optional<vk::Offset2D> {
-			// If cursor is outside the framebuffer, cursor position is undefined.
-			const glm::vec2 framebufferCursorPosition = position * glm::vec2 { window.getFramebufferSize() } / glm::vec2 { window.getSize() };
-			if (glm::vec2 framebufferSize = window.getFramebufferSize(); framebufferCursorPosition.x >= framebufferSize.x || framebufferCursorPosition.y >= framebufferSize.y) return std::nullopt;
-
-			return vk::Offset2D {
-				static_cast<std::int32_t>(framebufferCursorPosition.x),
-				static_cast<std::int32_t>(framebufferCursorPosition.y)
-			};
-		}),
-		.hoveringNodeIndex = appState.hoveringNodeIndex,
-		.selectedNodeIndex = appState.selectedNodeIndex,
-		.hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
-		.selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
-		.useBlurredSkybox = appState.useBlurredSkybox,
-	};
-}
-
-auto vk_gltf_viewer::MainApp::handleExecutionResult(
-	const vulkan::Frame::ExecutionResult &executionResult
-) -> void {
-	appState.hoveringNodeIndex = executionResult.hoveringNodeIndex;
 }

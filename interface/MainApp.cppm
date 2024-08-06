@@ -7,7 +7,8 @@ export module vk_gltf_viewer:MainApp;
 import std;
 import vku;
 import :control.AppWindow;
-import :vulkan.Frame;
+import :gltf.AssetResources;
+import :gltf.SceneResources;
 import :vulkan.Gpu;
 
 namespace vk_gltf_viewer {
@@ -19,6 +20,12 @@ namespace vk_gltf_viewer {
 		auto run() -> void;
 
 	private:
+		struct ImageBasedLightingResources {
+			vku::AllocatedImage cubemapImage; vk::raii::ImageView cubemapImageView;
+			vku::MappedBuffer cubemapSphericalHarmonicsBuffer;
+			vku::AllocatedImage prefilteredmapImage; vk::raii::ImageView prefilteredmapImageView;
+		};
+
 	    AppState appState;
 
 		fastgltf::GltfDataBuffer gltfDataBuffer{};
@@ -33,6 +40,9 @@ namespace vk_gltf_viewer {
 
 		gltf::AssetResources assetResources { assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), gpu, { .supportUint8Index = false /* TODO: change this value depend on vk::PhysicalDeviceIndexTypeUint8FeaturesKHR */ } };
     	gltf::SceneResources sceneResources { assetResources, assetExpected->scenes[assetExpected->defaultScene.value_or(0)], gpu };
+		std::optional<ImageBasedLightingResources> imageBasedLightingResources{};
+		vku::AllocatedImage brdfmapImage = createBrdfmapImage();
+		vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
 
 		// Buffers, images, image views and samplers.
 		vku::AllocatedImage eqmapImage = createEqmapImage();
@@ -51,12 +61,10 @@ namespace vk_gltf_viewer {
 		[[nodiscard]] auto createInstance() const -> decltype(instance);
 		[[nodiscard]] auto createEqmapImage() -> decltype(eqmapImage);
 		[[nodiscard]] auto createEqmapSampler() const -> decltype(eqmapSampler);
+    	[[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
     	[[nodiscard]] auto createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool);
 
 		auto recordEqmapStagingCommands(vk::CommandBuffer transferCommandBuffer) -> void;
 		auto recordImageMipmapGenerationCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
-
-		[[nodiscard]] auto update(float timeDelta) -> vulkan::Frame::ExecutionTask;
-		auto handleExecutionResult(const vulkan::Frame::ExecutionResult &onLoopResult) -> void;
 	};
 }

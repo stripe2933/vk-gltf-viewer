@@ -7,31 +7,13 @@ import :vulkan.pipeline.SphericalHarmonicsRenderer;
 
 import std;
 
-vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
-    const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<1> {
-        device,
-        vk::DescriptorSetLayoutCreateInfo {
-            {},
-            vku::unsafeProxy({
-                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
-            }),
-        },
-    } { }
-
-auto vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::DescriptorSets::getDescriptorWrites0(
-    const vk::DescriptorBufferInfo &cubemapSphericalHarmonicsBufferInfo
-) const -> vk::WriteDescriptorSet {
-    return getDescriptorWrite<0, 0>().setBufferInfo(cubemapSphericalHarmonicsBufferInfo);
-}
-
 vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::SphericalHarmonicsRenderer(
     const vk::raii::Device &device,
+    const dsl::ImageBasedLighting &descriptorSetLayout,
     const buffer::CubeIndices &cubeIndices
-) : descriptorSetLayouts { device },
-    pipelineLayout { device, vk::PipelineLayoutCreateInfo {
+) : pipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        *descriptorSetLayout,
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eAllGraphics,
@@ -41,7 +23,7 @@ vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::SphericalHarmonics
     } },
     pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
-            vku::createPipelineStages(
+            createPipelineStages(
                 device,
                 vku::Shader { COMPILED_SHADER_DIR "/spherical_harmonics.vert.spv", vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { COMPILED_SHADER_DIR "/spherical_harmonics.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
@@ -70,7 +52,7 @@ vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::SphericalHarmonics
 
 auto vk_gltf_viewer::vulkan::pipeline::SphericalHarmonicsRenderer::draw(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
+    vku::DescriptorSet<dsl::ImageBasedLighting> descriptorSets,
     const PushConstant &pushConstant
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);

@@ -103,6 +103,9 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/mipmap.cppm
 		interface/vulkan/attachment_groups.cppm
 		interface/vulkan/buffer/CubeIndices.cppm
+		interface/vulkan/dsl/Asset.cppm
+		interface/vulkan/dsl/ImageBasedLighting.cppm
+		interface/vulkan/dsl/Scene.cppm
 		interface/vulkan/Frame.cppm
 		interface/vulkan/Gpu.cppm
 		interface/vulkan/pipeline/AlphaMaskedDepthRenderer.cppm

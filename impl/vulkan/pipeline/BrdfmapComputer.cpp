@@ -8,9 +8,9 @@ import :vulkan.pipeline.BrdfmapComputer;
 import std;
 import vku;
 
-vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<1> {
+) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
@@ -23,26 +23,26 @@ vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::DescriptorSetLayouts::Descrip
 vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::BrdfmapComputer(
     const vk::raii::Device &device,
     const SpecializationConstants &specializationConstants
-) : descriptorSetLayouts { device },
+) : descriptorSetLayout { device },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        *descriptorSetLayout,
     } },
     pipeline { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        get<0>(vku::createPipelineStages(
+        createPipelineStages(
             device,
             // TODO: apply specializationConstants.
-            vku::Shader { COMPILED_SHADER_DIR "/brdfmap.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()),
+            vku::Shader { COMPILED_SHADER_DIR "/brdfmap.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()[0],
         *pipelineLayout,
     } } { }
 
 auto vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::compute(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
+    vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
     const vk::Extent2D &imageSize
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
     commandBuffer.dispatch(imageSize.width / 16, imageSize.height / 16, 1);
 }

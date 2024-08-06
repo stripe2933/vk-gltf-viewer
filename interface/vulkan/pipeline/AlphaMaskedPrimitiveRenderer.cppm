@@ -12,9 +12,12 @@ namespace vk_gltf_viewer::vulkan::pipeline {
             glm::vec3 viewPosition;
         };
 
+        vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        AlphaMaskedPrimitiveRenderer(const vk::raii::Device &device [[clang::lifetimebound]], vk::PipelineLayout primitiveRendererPipelineLayout);
+        AlphaMaskedPrimitiveRenderer(
+            const vk::raii::Device &device [[clang::lifetimebound]],
+            std::tuple<const dsl::ImageBasedLighting&, const dsl::Asset&, const dsl::Scene&> descriptorSetLayouts [[clang::lifetimebound]]);
 
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
     };

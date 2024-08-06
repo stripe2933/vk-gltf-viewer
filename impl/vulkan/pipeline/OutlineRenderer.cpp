@@ -6,11 +6,10 @@ module vk_gltf_viewer;
 import :vulkan.pipeline.OutlineRenderer;
 
 import std;
-import vku;
 
-vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<1> {
+) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
@@ -22,10 +21,10 @@ vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::DescriptorSetLayouts::Descrip
 
 vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::OutlineRenderer(
     const vk::raii::Device &device
-) : descriptorSetLayouts { device },
+) : descriptorSetLayout { device },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo{
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        *descriptorSetLayout,
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eFragment,
@@ -35,7 +34,7 @@ vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::OutlineRenderer(
     } },
     pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
-            vku::createPipelineStages(
+            createPipelineStages(
                 device,
                 vku::Shader { COMPILED_SHADER_DIR "/outline.vert.spv", vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { COMPILED_SHADER_DIR "/outline.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
@@ -75,10 +74,10 @@ auto vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::bindPipeline(
 
 auto vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::bindDescriptorSets(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets
+    vku::DescriptorSet<DescriptorSetLayout> descriptorSet
 ) const -> void {
     commandBuffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
+        vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSet, {});
 }
 
 auto vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::pushConstants(

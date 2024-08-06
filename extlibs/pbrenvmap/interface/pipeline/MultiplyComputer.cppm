@@ -12,17 +12,8 @@ export import vulkan_hpp;
 namespace pbrenvmap::pipeline {
     export class MultiplyComputer {
     public:
-        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<2> {
-            explicit DescriptorSetLayouts(const vk::raii::Device &device);
-        };
-
-        struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
-            using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
-
-            [[nodiscard]] auto getDescriptorWrites0(
-                const vk::DescriptorBufferInfo &srcBufferInfo [[clang::lifetimebound]],
-                const vk::DescriptorBufferInfo &dstBufferInfo [[clang::lifetimebound]]
-            ) const -> std::array<vk::WriteDescriptorSet, 2>;
+        struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer> {
+            explicit DescriptorSetLayout(const vk::raii::Device &device);
         };
 
         struct PushConstant {
@@ -30,13 +21,13 @@ namespace pbrenvmap::pipeline {
             float multiplier;
         };
 
-        DescriptorSetLayouts descriptorSetLayouts;
+        DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
         MultiplyComputer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
 
-        auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const PushConstant &pushConstant) const -> void;
+        auto compute(vk::CommandBuffer commandBuffer, const vku::DescriptorSet<DescriptorSetLayout> &descriptorSet, const PushConstant &pushConstant) const -> void;
 
     private:
         static std::string_view comp;
@@ -78,9 +69,9 @@ template <std::unsigned_integral T>
     return (num / denom) + (num % denom != 0);
 }
 
-pbrenvmap::pipeline::MultiplyComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+pbrenvmap::pipeline::MultiplyComputer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<2> {
+) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer> {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
@@ -91,30 +82,20 @@ pbrenvmap::pipeline::MultiplyComputer::DescriptorSetLayouts::DescriptorSetLayout
         },
     } { }
 
-auto pbrenvmap::pipeline::MultiplyComputer::DescriptorSets::getDescriptorWrites0(
-    const vk::DescriptorBufferInfo &srcBufferInfo,
-    const vk::DescriptorBufferInfo &dstBufferInfo
-) const -> std::array<vk::WriteDescriptorSet, 2> {
-    return std::array {
-        getDescriptorWrite<0, 0>().setBufferInfo(srcBufferInfo),
-        getDescriptorWrite<0, 1>().setBufferInfo(dstBufferInfo),
-    };
-}
-
 pbrenvmap::pipeline::MultiplyComputer::MultiplyComputer(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
-) : descriptorSetLayouts { device },
+) : descriptorSetLayout { device },
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
 auto pbrenvmap::pipeline::MultiplyComputer::compute(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
+    const vku::DescriptorSet<DescriptorSetLayout> &descriptorSet,
     const PushConstant &pushConstant
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
     commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
     commandBuffer.dispatch(divCeil(pushConstant.numCount, 256U), 1, 1);
 }
@@ -124,7 +105,7 @@ auto pbrenvmap::pipeline::MultiplyComputer::createPipelineLayout(
 ) const -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        *descriptorSetLayout,
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eCompute,
@@ -140,9 +121,9 @@ auto pbrenvmap::pipeline::MultiplyComputer::createPipeline(
     ) const -> vk::raii::Pipeline {
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        get<0>(vku::createPipelineStages(
+        createPipelineStages(
             device,
-            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()),
+            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
         *pipelineLayout,
     } };
 }

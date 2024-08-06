@@ -7,10 +7,10 @@ import :vulkan.pipeline.SkyboxRenderer;
 
 import std;
 
-vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
+vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device,
     const CubemapSampler &sampler
-) : vku::DescriptorSetLayouts<1> {
+) : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler> {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
@@ -24,10 +24,10 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
     const vk::raii::Device &device,
     const CubemapSampler &sampler,
     const buffer::CubeIndices &cubeIndices
-) : descriptorSetLayouts { device, sampler },
+) : descriptorSetLayout { device, sampler },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        *descriptorSetLayout,
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eAllGraphics,
@@ -37,7 +37,7 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
     } },
     pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
-            vku::createPipelineStages(
+            createPipelineStages(
                 device,
                 vku::Shader { COMPILED_SHADER_DIR "/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { COMPILED_SHADER_DIR "/skybox.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
@@ -66,11 +66,11 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
 
 auto vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::draw(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
+    vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
     const PushConstant &pushConstant
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSet, {});
     commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
     commandBuffer.bindIndexBuffer(cubeIndices, 0, vk::IndexType::eUint16);
     commandBuffer.drawIndexed(36, 1, 0, 0, 0);

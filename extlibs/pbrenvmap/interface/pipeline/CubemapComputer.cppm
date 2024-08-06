@@ -13,38 +13,18 @@ import :details.ranges;
 namespace pbrenvmap::pipeline {
     export class CubemapComputer {
     public:
-        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<2> {
-            explicit DescriptorSetLayouts(const vk::raii::Device &device, const vk::Sampler &sampler);
-        };
-
-        struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
-            using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
-
-            [[nodiscard]] auto getDescriptorWrites0(
-                vk::ImageView eqmapImageView,
-                vk::ImageView cubemapImageView
-            ) const {
-                return vku::RefHolder {
-                    [this](const vk::DescriptorImageInfo &eqmapImageInfo, const vk::DescriptorImageInfo &cubemapImageInfo) {
-                        return std::array {
-                            getDescriptorWrite<0, 0>().setImageInfo(eqmapImageInfo),
-                            getDescriptorWrite<0, 1>().setImageInfo(cubemapImageInfo),
-                        };
-                    },
-                    vk::DescriptorImageInfo { {}, eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
-                    vk::DescriptorImageInfo { {}, cubemapImageView, vk::ImageLayout::eGeneral },
-                };
-            }
+        struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> {
+            explicit DescriptorSetLayout(const vk::raii::Device &device, const vk::Sampler &sampler);
         };
 
         vk::raii::Sampler eqmapSampler;
-        DescriptorSetLayouts descriptorSetLayouts;
+        DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
         CubemapComputer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
 
-        auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t cubemapSize) const -> void;
+        auto compute(vk::CommandBuffer commandBuffer, const vku::DescriptorSet<DescriptorSetLayout> &descriptorSets, std::uint32_t cubemapSize) const -> void;
 
     private:
         static std::string_view comp;
@@ -95,10 +75,10 @@ void main(){
 }
 )comp";
 
-pbrenvmap::pipeline::CubemapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+pbrenvmap::pipeline::CubemapComputer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device,
     const vk::Sampler &sampler
-) : vku::DescriptorSetLayouts<2> {
+) : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
@@ -113,17 +93,17 @@ pbrenvmap::pipeline::CubemapComputer::CubemapComputer(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
 ) : eqmapSampler { createEqmapSampler(device) } ,
-    descriptorSetLayouts { device, *eqmapSampler },
+    descriptorSetLayout { device, *eqmapSampler },
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
 auto pbrenvmap::pipeline::CubemapComputer::compute(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
+    const vku::DescriptorSet<DescriptorSetLayout> &descriptorSet,
     std::uint32_t cubemapSize
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
     commandBuffer.dispatch(cubemapSize / 16, cubemapSize / 16, 6);
 }
 
@@ -146,7 +126,7 @@ auto pbrenvmap::pipeline::CubemapComputer::createPipelineLayout(
 ) const -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        *descriptorSetLayout,
     } };
 }
 
@@ -156,9 +136,9 @@ auto pbrenvmap::pipeline::CubemapComputer::createPipeline(
 ) const -> vk::raii::Pipeline {
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        get<0>(vku::createPipelineStages(
+        createPipelineStages(
             device,
-            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()),
+            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
         *pipelineLayout,
     } };
 }

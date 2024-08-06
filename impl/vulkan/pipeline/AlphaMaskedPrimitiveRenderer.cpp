@@ -10,16 +10,24 @@ import vku;
 
 vk_gltf_viewer::vulkan::pipeline::AlphaMaskedPrimitiveRenderer::AlphaMaskedPrimitiveRenderer(
     const vk::raii::Device &device,
-    vk::PipelineLayout primitiveRendererPipelineLayout
-) : pipeline { device, nullptr, vk::StructureChain {
+            std::tuple<const dsl::ImageBasedLighting&, const dsl::Asset&, const dsl::Scene&> descriptorSetLayouts
+) : pipelineLayout { device, vk::PipelineLayoutCreateInfo {
+        {},
+        vku::unsafeProxy(std::apply([](const auto &...x) { return std::array { *x... }; }, descriptorSetLayouts)),
+        vku::unsafeProxy({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eAllGraphics,
+                0, sizeof(PushConstant),
+            },
+        }),
+    } },
+    pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
-            vku::createPipelineStages(
+            createPipelineStages(
                 device,
                 vku::Shader { COMPILED_SHADER_DIR "/alpha_masked_primitive.vert.spv", vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { COMPILED_SHADER_DIR "/alpha_masked_primitive.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
-            primitiveRendererPipelineLayout,
-            1, true,
-            vk::SampleCountFlagBits::e4)
+            *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},
                 true, true, vk::CompareOp::eGreater, // Use reverse Z.

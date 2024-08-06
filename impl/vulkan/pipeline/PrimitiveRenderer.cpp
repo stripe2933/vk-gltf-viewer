@@ -7,64 +7,12 @@ import :vulkan.pipeline.PrimitiveRenderer;
 
 import std;
 
-vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::DescriptorSetLayouts::DescriptorSetLayouts(
-    const vk::raii::Device &device,
-    const BrdfLutSampler &brdfLutSampler,
-    const CubemapSampler &cubemapSampler,
-    std::uint32_t textureCount
-) : vku::DescriptorSetLayouts<3, 2, 2> {
-        device,
-        vk::DescriptorSetLayoutCreateInfo {
-            {},
-            vku::unsafeProxy({
-                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
-                vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &*brdfLutSampler },
-                vk::DescriptorSetLayoutBinding { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &*cubemapSampler },
-            }),
-        },
-        vk::StructureChain {
-            vk::DescriptorSetLayoutCreateInfo {
-                vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-                vku::unsafeProxy({
-                    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1 + textureCount, vk::ShaderStageFlagBits::eFragment },
-                    vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
-                }),
-            },
-            vk::DescriptorSetLayoutBindingFlagsCreateInfo {
-                vku::unsafeProxy({
-                    vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind },
-                    vk::DescriptorBindingFlags{},
-                }),
-            },
-        }.get(),
-        vk::DescriptorSetLayoutCreateInfo {
-            {},
-            vku::unsafeProxy({
-                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eAllGraphics },
-                vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
-            }),
-        },
-    } { }
-
-auto vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::DescriptorSets::getDescriptorWrites2(
-    const vk::DescriptorBufferInfo &primitiveBufferInfo,
-    const vk::DescriptorBufferInfo &nodeTransformBufferInfo
-) const -> std::array<vk::WriteDescriptorSet, 2> {
-    return {
-        getDescriptorWrite<2, 0>().setBufferInfo(primitiveBufferInfo),
-        getDescriptorWrite<2, 1>().setBufferInfo(nodeTransformBufferInfo),
-    };
-}
-
 vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::PrimitiveRenderer(
     const vk::raii::Device &device,
-    const BrdfLutSampler &brdfLutSampler,
-    const CubemapSampler &cubemapSampler,
-    std::uint32_t textureCount
-) : descriptorSetLayouts { device, brdfLutSampler, cubemapSampler, textureCount },
-    pipelineLayout { device, vk::PipelineLayoutCreateInfo{
+    std::tuple<const dsl::ImageBasedLighting&, const dsl::Asset&, const dsl::Scene&> descriptorSetLayouts
+) : pipelineLayout { device, vk::PipelineLayoutCreateInfo{
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        vku::unsafeProxy(std::apply([](const auto &...x) { return std::array { *x... }; }, descriptorSetLayouts)),
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eAllGraphics,
@@ -74,7 +22,7 @@ vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::PrimitiveRenderer(
     } },
     pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
-            vku::createPipelineStages(
+            createPipelineStages(
                 device,
                 vku::Shader { COMPILED_SHADER_DIR "/primitive.vert.spv", vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { COMPILED_SHADER_DIR "/primitive.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
@@ -104,16 +52,6 @@ auto vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::bindPipeline(
     vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
-}
-
-auto vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::bindDescriptorSets(
-    vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
-    std::uint32_t firstSet
-) const -> void {
-    commandBuffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics, *pipelineLayout,
-        firstSet, std::span { descriptorSets }.subspan(firstSet), {});
 }
 
 auto vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderer::pushConstants(

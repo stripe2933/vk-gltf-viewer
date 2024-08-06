@@ -52,7 +52,7 @@ layout (location = 5) out vec2 fragMetallicRoughnessTexcoord;
 layout (location = 6) out vec2 fragNormalTexcoord;
 layout (location = 7) out vec2 fragOcclusionTexcoord;
 layout (location = 8) out vec2 fragEmissiveTexcoord;
-layout (location = 9) flat out uint baseInstance;
+layout (location = 9) flat out uint materialIndex;
 
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
@@ -117,7 +117,7 @@ void main(){
     if (int(MATERIAL.emissiveTextureIndex) != -1){
         fragEmissiveTexcoord = getTexcoord(uint(MATERIAL.emissiveTexcoordIndex));
     }
-    baseInstance = gl_BaseInstance;
+    materialIndex = PRIMITIVE.materialIndex;
 
     gl_Position = pc.projectionView * vec4(fragPosition, 1.0);
 }

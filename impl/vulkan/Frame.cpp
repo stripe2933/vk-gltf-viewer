@@ -17,41 +17,19 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	const SharedData &sharedData,
 	const gltf::AssetResources &assetResources,
 	const gltf::SceneResources &sceneResources
-) : sharedData { sharedData },
-    gpu { gpu },
-	assetResources { assetResources },
+) : gpu { gpu },
+    hoveringNodeIndexBuffer { gpu.allocator, std::numeric_limits<std::uint32_t>::max(), vk::BufferUsageFlagBits::eTransferDst, vku::allocation::hostRead },
 	sceneResources { sceneResources },
-	hoveringNodeIndexBuffer { gpu.allocator, std::numeric_limits<std::uint32_t>::max(), vk::BufferUsageFlagBits::eTransferDst, vku::allocation::hostRead } {
-	// Update per-frame descriptor sets.
-	gpu.device.updateDescriptorSets(
-	    ranges::array_cat(
-	    	std::array {
-			    skyboxSets.getDescriptorWrites0(*sharedData.imageBasedLightingResources.value().cubemapImageView).get(),
-			    sphericalHarmonicsSets.getDescriptorWrites0(
-			        { sharedData.imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
-	    	},
-		    depthSets.getDescriptorWrites0(
-		        { sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		        { sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
-		    alphaMaskedDepthSets.getDescriptorWrites0(
-		    	{ *sharedData.singleTexelSampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
-				assetResources.textures,
-		    	{ assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
-		    alphaMaskedDepthSets.getDescriptorWrites1(
-		    	{ sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		    	{ sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
-		    primitiveSets.getDescriptorWrites0(
-		    	{ sharedData.imageBasedLightingResources.value().cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize },
-		    	*sharedData.imageBasedLightingResources.value().prefilteredmapImageView,
-		    	*sharedData.brdfmapImageView).get(),
-		    primitiveSets.getDescriptorWrites1(
-                { *sharedData.singleTexelSampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
-				assetResources.textures,
-		    	{ assetResources.materialBuffer.value(), 0, vk::WholeSize }).get(),
-		    primitiveSets.getDescriptorWrites2(
-		    	{ sceneResources.primitiveBuffer, 0, vk::WholeSize },
-		    	{ sceneResources.nodeTransformBuffer, 0, vk::WholeSize })),
-		{});
+	assetResources { assetResources },
+	sharedData { sharedData } {
+	// Allocate descriptor sets.
+	std::tie(hoveringNodeJumpFloodSets, selectedNodeJumpFloodSets, hoveringNodeOutlineSets, selectedNodeOutlineSets, rec709Sets)
+		= allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
+			sharedData.jumpFloodComputer.descriptorSetLayout,
+			sharedData.jumpFloodComputer.descriptorSetLayout,
+			sharedData.outlineRenderer.descriptorSetLayout,
+			sharedData.outlineRenderer.descriptorSetLayout,
+			sharedData.rec709Renderer.descriptorSetLayout));
 
 	// Allocate per-frame command buffers.
 	std::tie(jumpFloodCommandBuffer)
@@ -117,10 +95,13 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 			hoveringNodeJumpFloodSets,
 			std::bit_ceil(static_cast<std::uint32_t>(task.hoveringNodeOutline->thickness)));
 		gpu.device.updateDescriptorSets(
-			hoveringNodeOutlineSets.getDescriptorWrites0(
+			hoveringNodeOutlineSets.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo {
+				{},
 				*hoveringNodeJumpFloodForward
 					? *passthruResources->hoveringNodeOutlineJumpFloodResources.pingImageView
-					: *passthruResources->hoveringNodeOutlineJumpFloodResources.pongImageView).get(),
+					: *passthruResources->hoveringNodeOutlineJumpFloodResources.pongImageView,
+				vk::ImageLayout::eGeneral,
+			})),
 			{});
 	}
 	if (task.selectedNodeIndex && task.selectedNodeOutline) {
@@ -130,10 +111,13 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 			selectedNodeJumpFloodSets,
 			std::bit_ceil(static_cast<std::uint32_t>(task.selectedNodeOutline->thickness)));
 		gpu.device.updateDescriptorSets(
-			selectedNodeOutlineSets.getDescriptorWrites0(
+			selectedNodeOutlineSets.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo {
+				{},
 				*selectedNodeJumpFloodForward
 					? *passthruResources->selectedNodeOutlineJumpFloodResources.pingImageView
-					: *passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView).get(),
+					: *passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView,
+				vk::ImageLayout::eGeneral,
+			})),
 			{});
 	}
 	jumpFloodCommandBuffer.end();
@@ -264,15 +248,10 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutT
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {
 	return {
 		gpu.device,
-		(vku::PoolSizes { sharedData.alphaMaskedDepthRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData.depthRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData.jumpFloodComputer.descriptorSetLayouts } * 2
-		    + vku::PoolSizes { sharedData.outlineRenderer.descriptorSetLayouts } * 2
-		    + vku::PoolSizes { sharedData.primitiveRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData.rec709Renderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData.skyboxRenderer.descriptorSetLayouts }
-		    + vku::PoolSizes { sharedData.sphericalHarmonicsRenderer.descriptorSetLayouts })
-		.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
+		(sharedData.rec709Renderer.descriptorSetLayout.getPoolSize()
+			+ sharedData.jumpFloodComputer.descriptorSetLayout.getPoolSize() * 2
+			+ sharedData.outlineRenderer.descriptorSetLayout.getPoolSize() * 2)
+			.getDescriptorPoolCreateInfo(),
 	};
 }
 
@@ -295,14 +274,15 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 		gpu.queues.graphicsPresent.waitIdle(); // TODO: idling while frame execution is very inefficient.
 
 		gpu.device.updateDescriptorSets({
-			hoveringNodeJumpFloodSets.getDescriptorWrites0(
-				*passthruResources->hoveringNodeOutlineJumpFloodResources.pingImageView,
-				*passthruResources->hoveringNodeOutlineJumpFloodResources.pongImageView).get(),
-			selectedNodeJumpFloodSets.getDescriptorWrites0(
-				*passthruResources->selectedNodeOutlineJumpFloodResources.pingImageView,
-				*passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView).get(),
-			rec709Sets.getDescriptorWrites0(
-				*passthruResources->primaryAttachmentGroup.colorAttachments[0].resolveView).get()
+			hoveringNodeJumpFloodSets.getWrite<0>(vku::unsafeProxy({
+				vk::DescriptorImageInfo { {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.pingImageView, vk::ImageLayout::eGeneral },
+				vk::DescriptorImageInfo { {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.pongImageView, vk::ImageLayout::eGeneral },
+			})),
+			selectedNodeJumpFloodSets.getWrite<0>(vku::unsafeProxy({
+				vk::DescriptorImageInfo { {}, *passthruResources->selectedNodeOutlineJumpFloodResources.pingImageView, vk::ImageLayout::eGeneral },
+				vk::DescriptorImageInfo { {}, *passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView, vk::ImageLayout::eGeneral },
+			})),
+			rec709Sets.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *passthruResources->primaryAttachmentGroup.colorAttachments[0].resolveView, vk::ImageLayout::eGeneral })),
 		}, {});
 	}
 }
@@ -346,8 +326,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		},
 		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0.f, 0U } }));
 
-	cb.setViewport(0, passthruResources->depthPrepassAttachmentGroup.getViewport(true));
-	cb.setScissor(0, passthruResources->depthPrepassAttachmentGroup.getScissor());
+	cb.setViewport(0, vku::toViewport(*passthruExtent, true));
+	cb.setScissor(0, vk::Rect2D { { 0, 0 }, *passthruExtent });
 
 	// Render alphaMode=Opaque meshes.
 	bool depthRendererBound = false;
@@ -355,7 +335,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!depthRendererBound) {
 			sharedData.depthRenderer.bindPipeline(cb);
-			sharedData.depthRenderer.bindDescriptorSets(cb, depthSets);
+			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.depthRenderer.pipelineLayout, 0, task.sceneDescriptorSet, {});
 			sharedData.depthRenderer.pushConstants(cb, {
 				task.camera.projection * task.camera.view,
 				task.hoveringNodeIndex.value_or(NO_INDEX),
@@ -382,7 +362,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!alphaMaskedDepthRendererBound) {
 			sharedData.alphaMaskedDepthRenderer.bindPipeline(cb);
-			sharedData.alphaMaskedDepthRenderer.bindDescriptorSets(cb, alphaMaskedDepthSets);
+			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.alphaMaskedDepthRenderer.pipelineLayout,
+				0, { task.assetDescriptorSet, task.sceneDescriptorSet }, {});
 			sharedData.alphaMaskedDepthRenderer.pushConstants(cb, {
 				task.camera.projection * task.camera.view,
 				task.hoveringNodeIndex.value_or(NO_INDEX),
@@ -475,7 +456,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
 	vk::CommandBuffer cb,
 	const vku::Image &image,
-	const pipeline::JumpFloodComputer::DescriptorSets &descriptorSets,
+	vku::DescriptorSet<pipeline::JumpFloodComputer::DescriptorSetLayout> descriptorSets,
 	std::uint32_t initialSampleOffset
 ) const -> bool {
 	// Acquire queue family ownerships (from graphics to compute).
@@ -532,8 +513,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 		},
 		vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 
-	cb.setViewport(0, passthruResources->primaryAttachmentGroup.getViewport(true));
-	cb.setScissor(0, passthruResources->primaryAttachmentGroup.getScissor());
+	cb.setViewport(0, vku::toViewport(*passthruExtent, true));
+	cb.setScissor(0, vk::Rect2D { { 0, 0 }, *passthruExtent });
 
 	// Render alphaMode=Opaque meshes.
 	bool primitiveRendererBound = false;
@@ -541,7 +522,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!primitiveRendererBound) {
 			sharedData.primitiveRenderer.bindPipeline(cb);
-			sharedData.primitiveRenderer.bindDescriptorSets(cb, primitiveSets);
+			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveRenderer.pipelineLayout, 0, { task.imageBasedLightingDescriptorSet, task.assetDescriptorSet, task.sceneDescriptorSet }, {});
 			sharedData.primitiveRenderer.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
 
 			primitiveRendererBound = true;
@@ -585,12 +566,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	// Draw skybox.
 	const glm::mat4 noTranslationView = { glm::mat3 { task.camera.view } };
 	if (task.useBlurredSkybox) {
-		sharedData.sphericalHarmonicsRenderer.draw(cb, sphericalHarmonicsSets, {
+		sharedData.sphericalHarmonicsRenderer.draw(cb, task.imageBasedLightingDescriptorSet, {
 			task.camera.projection * noTranslationView,
 		});
 	}
 	else {
-		sharedData.skyboxRenderer.draw(cb, skyboxSets, {
+		sharedData.skyboxRenderer.draw(cb, task.skyboxDescriptorSet, {
 			task.camera.projection * noTranslationView,
 		});
 	}

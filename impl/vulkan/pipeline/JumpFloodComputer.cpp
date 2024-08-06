@@ -6,12 +6,16 @@ module vk_gltf_viewer;
 import :vulkan.pipeline.JumpFloodComputer;
 
 import std;
-import vku;
 import :helpers.extended_arithmetic;
 
-vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+struct vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::PushConstant {
+    vk::Bool32 forward;
+    std::uint32_t sampleOffset;
+};
+
+vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<1> {
+) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
@@ -23,10 +27,10 @@ vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::DescriptorSetLayouts::Descr
 
 vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::JumpFloodComputer(
     const vk::raii::Device &device
-) : descriptorSetLayouts { device },
+) : descriptorSetLayout { device },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        *descriptorSetLayout,
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eCompute,
@@ -36,25 +40,23 @@ vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::JumpFloodComputer(
     } },
     pipeline { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        get<0>(vku::createPipelineStages(
+        createPipelineStages(
             device,
-            vku::Shader { COMPILED_SHADER_DIR "/jump_flood.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()),
+            vku::Shader { COMPILED_SHADER_DIR "/jump_flood.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()[0],
         *pipelineLayout,
     } } { }
 
 auto vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::compute(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
+    vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
     std::uint32_t initialSampleOffset,
     const vk::Extent2D &imageExtent
 ) const -> vk::Bool32 {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
 
-    PushConstant pushConstant {
-        .forward = true,
-        .sampleOffset = initialSampleOffset,
-    };
+    PushConstant pushConstant { .forward = true, .sampleOffset = initialSampleOffset };
+
     for (; pushConstant.sampleOffset > 0U; pushConstant.forward = !pushConstant.forward, pushConstant.sampleOffset >>= 1U) {
         commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
         commandBuffer.dispatch(

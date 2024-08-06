@@ -12,16 +12,8 @@ export import vulkan_hpp;
 namespace pbrenvmap::pipeline {
     export class SphericalHarmonicCoefficientsSumComputer {
     public:
-        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1> {
-            explicit DescriptorSetLayouts(const vk::raii::Device &device);
-        };
-
-        struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
-            using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
-
-            [[nodiscard]] auto getDescriptorWrites0(
-                const vk::DescriptorBufferInfo &pingPongBufferInfo [[clang::lifetimebound]]
-            ) const -> std::array<vk::WriteDescriptorSet, 1>;
+        struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer> {
+            explicit DescriptorSetLayout(const vk::raii::Device &device);
         };
 
         struct PushConstant {
@@ -30,13 +22,13 @@ namespace pbrenvmap::pipeline {
             std::uint32_t dstOffset;
         };
 
-        DescriptorSetLayouts descriptorSetLayouts;
+        DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
         SphericalHarmonicCoefficientsSumComputer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
 
-        [[nodiscard]] auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, PushConstant pushConstant) const -> std::uint32_t;
+        [[nodiscard]] auto compute(vk::CommandBuffer commandBuffer, const vku::DescriptorSet<DescriptorSetLayout> &descriptorSet, PushConstant pushConstant) const -> std::uint32_t;
 
         [[nodiscard]] static auto getPingPongBufferElementCount(std::uint32_t elementCount) noexcept -> std::uint32_t;
 
@@ -147,9 +139,9 @@ template <std::unsigned_integral T>
     return (num / denom) + (num % denom != 0);
 }
 
-pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<1> {
+) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer> {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
@@ -159,28 +151,20 @@ pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::DescriptorSetLayo
         },
     } { }
 
-auto pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::DescriptorSets::getDescriptorWrites0(
-    const vk::DescriptorBufferInfo &pingPongBufferInfo
-) const -> std::array<vk::WriteDescriptorSet, 1> {
-    return std::array {
-        getDescriptorWrite<0, 0>().setBufferInfo(pingPongBufferInfo),
-    };
-}
-
 pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::SphericalHarmonicCoefficientsSumComputer(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
-) : descriptorSetLayouts { device },
+) : descriptorSetLayout { device },
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
 auto pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::compute(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
+    const vku::DescriptorSet<DescriptorSetLayout> &descriptorSet,
     PushConstant pushConstant
 ) const -> std::uint32_t {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
 
     while (true) {
         commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
@@ -213,7 +197,7 @@ auto pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::createPipeli
 ) const -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        *descriptorSetLayout,
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eCompute,
@@ -229,9 +213,9 @@ auto pbrenvmap::pipeline::SphericalHarmonicCoefficientsSumComputer::createPipeli
     ) const -> vk::raii::Pipeline {
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        get<0>(vku::createPipelineStages(
+        createPipelineStages(
             device,
-            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()),
+            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
         *pipelineLayout,
     } };
 }

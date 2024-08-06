@@ -48,24 +48,24 @@ auto vk_gltf_viewer::gltf::SceneResources::createNodeTransformBuffer(
     vma::Allocator allocator
 ) const -> decltype(nodeTransformBuffer) {
     std::vector<glm::mat4> nodeTransforms(assetResources.asset.nodes.size());
-    const auto calculateNodeTransformsRecursive
-        = [&](this const auto &self, std::size_t nodeIndex, glm::mat4 transform) -> void {
-            const fastgltf::Node &node = assetResources.asset.nodes[nodeIndex];
-            transform *= visit(fastgltf::visitor {
-                [](const fastgltf::TRS &trs) {
-                    return translate(glm::mat4 { 1.f }, glm::gtc::make_vec3(trs.translation.data()))
-                        * mat4_cast(glm::gtc::make_quat(trs.rotation.data()))
-                        * scale(glm::mat4 { 1.f }, glm::gtc::make_vec3(trs.scale.data()));
-                },
-                [](const fastgltf::Node::TransformMatrix &mat) {
-                    return glm::gtc::make_mat4(mat.data());
-                },
-            }, node.transform);
-            nodeTransforms[nodeIndex] = transform;
-            for (std::size_t childIndex : node.children) {
-                self(childIndex, transform);
-            }
-        };
+    const auto calculateNodeTransformsRecursive = [&](this const auto &self, std::size_t nodeIndex, glm::mat4 transform) -> void {
+        const fastgltf::Node &node = assetResources.asset.nodes[nodeIndex];
+        transform *= visit(fastgltf::visitor {
+            [](const fastgltf::TRS &trs) {
+                return translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data()))
+                    * mat4_cast(glm::make_quat(trs.rotation.data()))
+                    * scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
+            },
+            [](const fastgltf::Node::TransformMatrix &mat) {
+                return glm::make_mat4(mat.data());
+            },
+        }, node.transform);
+        nodeTransforms[nodeIndex] = transform;
+
+        for (std::size_t childIndex : node.children) {
+            self(childIndex, transform);
+        }
+    };
     for (std::size_t nodeIndex : scene.nodeIndices) {
         calculateNodeTransformsRecursive(nodeIndex, { 1.f });
     }

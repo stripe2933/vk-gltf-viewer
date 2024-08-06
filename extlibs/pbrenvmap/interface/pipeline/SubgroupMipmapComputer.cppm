@@ -15,27 +15,8 @@ import :details.ranges;
 namespace pbrenvmap::pipeline {
     export class SubgroupMipmapComputer {
     public:
-        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<1> {
-            explicit DescriptorSetLayouts(const vk::raii::Device &device, std::uint32_t mipImageCount);
-        };
-
-        struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
-            using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
-
-            [[nodiscard]] auto getDescriptorWrites0(
-                auto &&mipImageViews
-            ) const noexcept {
-                return vku::RefHolder {
-                    [this](std::span<const vk::DescriptorImageInfo> imageInfos) {
-                        return std::array {
-                            getDescriptorWrite<0, 0>().setImageInfo(imageInfos),
-                        };
-                    },
-                    std::vector { std::from_range, FWD(mipImageViews) | std::views::transform([](vk::ImageView imageView) {
-                        return vk::DescriptorImageInfo { {}, imageView, vk::ImageLayout::eGeneral };
-                    }) },
-                };
-            }
+        struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
+            explicit DescriptorSetLayout(const vk::raii::Device &device, std::uint32_t mipImageCount);
         };
 
         struct PushConstant {
@@ -43,13 +24,13 @@ namespace pbrenvmap::pipeline {
             std::uint32_t remainingMipLevels;
         };
 
-        DescriptorSetLayouts descriptorSetLayouts;
+        DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
         SubgroupMipmapComputer(const vk::raii::Device &device, std::uint32_t mipImageCount, std::uint32_t subgroupSize, const shaderc::Compiler &compiler);
 
-        auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, const vk::Extent2D &baseImageExtent, std::uint32_t mipLevels) const -> void;
+        auto compute(vk::CommandBuffer commandBuffer, const vku::DescriptorSet<DescriptorSetLayout> &descriptorSet, const vk::Extent2D &baseImageExtent, std::uint32_t mipLevels) const -> void;
 
     private:
         static std::string_view comp;
@@ -140,10 +121,10 @@ void main(){
 }
 )comp";
 
-pbrenvmap::pipeline::SubgroupMipmapComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+pbrenvmap::pipeline::SubgroupMipmapComputer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device,
     std::uint32_t mipImageCount
-) : vku::DescriptorSetLayouts<1> {
+) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
         device,
         vk::StructureChain {
             vk::DescriptorSetLayoutCreateInfo {
@@ -165,13 +146,13 @@ pbrenvmap::pipeline::SubgroupMipmapComputer::SubgroupMipmapComputer(
     std::uint32_t mipImageCount,
     std::uint32_t subgroupSize,
     const shaderc::Compiler &compiler
-) : descriptorSetLayouts { device, mipImageCount },
+) : descriptorSetLayout { device, mipImageCount },
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, subgroupSize, compiler) } { }
 
 auto pbrenvmap::pipeline::SubgroupMipmapComputer::compute(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
+    const vku::DescriptorSet<DescriptorSetLayout> &descriptorSet,
     const vk::Extent2D &baseImageExtent,
     std::uint32_t mipLevels
 ) const -> void {
@@ -202,7 +183,7 @@ auto pbrenvmap::pipeline::SubgroupMipmapComputer::compute(
     std::ranges::reverse(indexChunks);
 
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
     for (const auto &[idx, mipIndices] : indexChunks | ranges::views::enumerate) {
         if (idx != 0) {
             commandBuffer.pipelineBarrier(
@@ -230,7 +211,7 @@ auto pbrenvmap::pipeline::SubgroupMipmapComputer::createPipelineLayout(
 ) const -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        *descriptorSetLayout,
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eCompute,
@@ -247,10 +228,10 @@ auto pbrenvmap::pipeline::SubgroupMipmapComputer::createPipeline(
 ) const -> vk::raii::Pipeline {
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        get<0>(vku::createPipelineStages(
+        createPipelineStages(
             device,
             // TODO: support for different subgroup sizes (current is based on 32).
-            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()),
+            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
         *pipelineLayout,
     } };
 }

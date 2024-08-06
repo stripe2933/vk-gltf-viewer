@@ -6,11 +6,15 @@ module vk_gltf_viewer;
 import :vulkan.pipeline.Rec709Renderer;
 
 import std;
-import vku;
+import glm;
 
-vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::DescriptorSetLayouts::DescriptorSetLayouts(
+struct vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::PushConstant {
+    glm::i32vec2 hdriImageOffset;
+};
+
+vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<1> {
+) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
@@ -22,10 +26,10 @@ vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::DescriptorSetLayouts::Descript
 
 vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::Rec709Renderer(
     const vk::raii::Device &device
-) : descriptorSetLayouts { device },
+) : descriptorSetLayout { device },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo{
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        *descriptorSetLayout,
         vku::unsafeProxy({
             vk::PushConstantRange {
                 vk::ShaderStageFlagBits::eFragment,
@@ -35,7 +39,7 @@ vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::Rec709Renderer(
     } },
     pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
-            vku::createPipelineStages(
+            createPipelineStages(
                 device,
                 vku::Shader { COMPILED_SHADER_DIR "/rec709.vert.spv", vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { COMPILED_SHADER_DIR "/rec709.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
@@ -57,12 +61,12 @@ vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::Rec709Renderer(
 
 auto vk_gltf_viewer::vulkan::pipeline::Rec709Renderer::draw(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
+    vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
     const vk::Offset2D &passthruOffset
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
     commandBuffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSets, {});
+        vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSet, {});
     commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, PushConstant {
         .hdriImageOffset = { passthruOffset.x, passthruOffset.y },
     });

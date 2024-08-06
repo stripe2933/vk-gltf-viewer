@@ -173,41 +173,38 @@ auto pbrenvmap::Generator::recordCommands(
     // Descriptor sets.
     ////////////////////
 
-    const pipeline::CubemapComputer::DescriptorSets cubemapDescriptorSets {
-        *device, *descriptorPool, pipeline.cubemapComputer.descriptorSetLayouts
-    };
-    const pipeline::SphericalHarmonicsComputer::DescriptorSets sphericalHarmonicsDescriptorSets {
-        *device, *descriptorPool, pipeline.sphericalHarmonicsComputer.descriptorSetLayouts
-    };
-    const pipeline::SphericalHarmonicCoefficientsSumComputer::DescriptorSets sphericalHarmonicCoefficientsSumDescriptorSets {
-        *device, *descriptorPool, pipeline.sphericalHarmonicCoefficientsSumComputer.descriptorSetLayouts
-    };
-    const pipeline::SubgroupMipmapComputer::DescriptorSets subgroupMipmapDescriptorSets {
-        *device, *descriptorPool, pipeline.subgroupMipmapComputer.descriptorSetLayouts
-    };
-    const pipeline::PrefilteredmapComputer::DescriptorSets prefilteredmapDescriptorSets {
-        *device, *descriptorPool, pipeline.prefilteredmapComputer.descriptorSetLayouts
-    };
-    const pipeline::MultiplyComputer::DescriptorSets multiplyDescriptorSets {
-        *device, *descriptorPool, pipeline.multiplyComputer.descriptorSetLayouts
-    };
-    device.updateDescriptorSets(
-        ranges::array_cat(
-            cubemapDescriptorSets.getDescriptorWrites0(eqmapImageView, *cubemapMipImageViews[0]).get(),
-            subgroupMipmapDescriptorSets.getDescriptorWrites0(
-                cubemapMipImageViews | ranges::views::deref).get(),
-            sphericalHarmonicsDescriptorSets.getDescriptorWrites0(
-                *cubemapImageView,
-                {
-                    sphericalHarmonicsReductionBuffer,
-                    0,
-                    sizeof(float) * 27 * getWorkgroupTotal(
-                        pipeline::SphericalHarmonicsComputer::getWorkgroupCount(config.cubemap.size)),
-                }).get(),
-            sphericalHarmonicCoefficientsSumDescriptorSets.getDescriptorWrites0(
-                { sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
-            prefilteredmapDescriptorSets.getDescriptorWrites0(*cubemapImageView, prefilteredmapMipImageViews | ranges::views::deref).get()),
-        {});
+    const auto [cubemapDescriptorSets, sphericalHarmonicsDescriptorSets, sphericalHarmonicCoefficientsSumDescriptorSets,
+        subgroupMipmapDescriptorSets, prefilteredmapDescriptorSets, multiplyDescriptorSets]
+        = vku::allocateDescriptorSets(*device, *descriptorPool, std::tie(
+            pipeline.cubemapComputer.descriptorSetLayout,
+            pipeline.sphericalHarmonicsComputer.descriptorSetLayout,
+            pipeline.sphericalHarmonicCoefficientsSumComputer.descriptorSetLayout,
+            pipeline.subgroupMipmapComputer.descriptorSetLayout,
+            pipeline.prefilteredmapComputer.descriptorSetLayout,
+            pipeline.multiplyComputer.descriptorSetLayout
+        ));
+    device.updateDescriptorSets({
+        cubemapDescriptorSets.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+        cubemapDescriptorSets.getWrite<1>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *cubemapMipImageViews[0], vk::ImageLayout::eGeneral })),
+        subgroupMipmapDescriptorSets.getWrite<0>(vku::unsafeProxy(
+            cubemapMipImageViews
+                | ranges::views::deref
+                | std::views::transform([](vk::ImageView imageView) {
+                    return vk::DescriptorImageInfo { {}, imageView, vk::ImageLayout::eGeneral };
+                })
+                | std::ranges::to<std::vector>())),
+        sphericalHarmonicsDescriptorSets.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *cubemapImageView, vk::ImageLayout::eGeneral })),
+        sphericalHarmonicsDescriptorSets.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { sphericalHarmonicsReductionBuffer, 0, vk::WholeSize })),
+        sphericalHarmonicCoefficientsSumDescriptorSets.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { sphericalHarmonicsReductionBuffer, 0, vk::WholeSize })),
+        prefilteredmapDescriptorSets.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+        prefilteredmapDescriptorSets.getWrite<1>(vku::unsafeProxy(
+            prefilteredmapMipImageViews
+                | ranges::views::deref
+                | std::views::transform([](vk::ImageView imageView) {
+                    return vk::DescriptorImageInfo { {}, imageView, vk::ImageLayout::eGeneral };
+                })
+                | std::ranges::to<std::vector>())),
+    }, {});
 
     ////////////////////
     // Command recordings.
@@ -286,11 +283,10 @@ auto pbrenvmap::Generator::recordCommands(
             .dstOffset = workgroupTotal,
         });
 
-    device.updateDescriptorSets(
-        multiplyDescriptorSets.getDescriptorWrites0(
-            { sphericalHarmonicsReductionBuffer, sizeof(float) * 27 * dstOffset, sizeof(float) * 27 },
-            { sphericalHarmonicCoefficientsBuffer, 0, vk::WholeSize }),
-        {});
+    device.updateDescriptorSets({
+        multiplyDescriptorSets.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { sphericalHarmonicsReductionBuffer, sizeof(float) * 27 * dstOffset, sizeof(float) * 27 })),
+        multiplyDescriptorSets.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { sphericalHarmonicCoefficientsBuffer, 0, vk::WholeSize })),
+    }, {});
 
     // Ensure reduction finish.
     computeCommandBuffer.pipelineBarrier(

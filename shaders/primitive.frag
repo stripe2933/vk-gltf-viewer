@@ -7,8 +7,7 @@
 #include "spherical_harmonics.glsl"
 
 // For convinience.
-#define PRIMITIVE primitives[baseInstance]
-#define MATERIAL materials[PRIMITIVE.materialIndex]
+#define MATERIAL materials[materialIndex]
 
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
@@ -28,12 +27,6 @@ struct Material {
     bool doubleSided;
 };
 
-struct Primitive {
-    uint8_t VERTEX_DATA[64];
-    uint nodeIndex;
-    uint materialIndex;
-};
-
 layout (location = 0) in vec3 fragPosition;
 layout (location = 1) in mat3 fragTBN;
 layout (location = 4) in vec2 fragBaseColorTexcoord;
@@ -41,7 +34,7 @@ layout (location = 5) in vec2 fragMetallicRoughnessTexcoord;
 layout (location = 6) in vec2 fragNormalTexcoord;
 layout (location = 7) in vec2 fragOcclusionTexcoord;
 layout (location = 8) in vec2 fragEmissiveTexcoord;
-layout (location = 9) flat in uint baseInstance;
+layout (location = 9) flat in uint materialIndex;
 
 layout (location = 0) out vec4 outColor;
 
@@ -54,10 +47,6 @@ layout (set = 0, binding = 2) uniform sampler2D brdfmap;
 layout (set = 1, binding = 0) uniform sampler2D textures[];
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
-};
-
-layout (set = 2, binding = 0) readonly buffer PrimitiveBuffer {
-    Primitive primitives[];
 };
 
 layout (push_constant, std430) uniform PushConstant {

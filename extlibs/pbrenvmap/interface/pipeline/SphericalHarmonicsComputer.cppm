@@ -12,36 +12,17 @@ export import vulkan_hpp;
 namespace pbrenvmap::pipeline {
     class SphericalHarmonicsComputer {
     public:
-        struct DescriptorSetLayouts : vku::DescriptorSetLayouts<2> {
-            explicit DescriptorSetLayouts(const vk::raii::Device &device);
+        struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage, vk::DescriptorType::eStorageBuffer> {
+            explicit DescriptorSetLayout(const vk::raii::Device &device);
         };
 
-        struct DescriptorSets : vku::DescriptorSets<DescriptorSetLayouts> {
-            using vku::DescriptorSets<DescriptorSetLayouts>::DescriptorSets;
-
-            [[nodiscard]] auto getDescriptorWrites0(
-                vk::ImageView cubemapImageView,
-                const vk::DescriptorBufferInfo &reductionBufferInfo [[clang::lifetimebound]]
-            ) const {
-                return vku::RefHolder {
-                    [&](const vk::DescriptorImageInfo &cubemapImageInfo) {
-                        return std::array {
-                            getDescriptorWrite<0, 0>().setImageInfo(cubemapImageInfo),
-                            getDescriptorWrite<0, 1>().setBufferInfo(reductionBufferInfo),
-                        };
-                    },
-                    vk::DescriptorImageInfo { {}, cubemapImageView, vk::ImageLayout::eGeneral },
-                };
-            }
-        };
-
-        DescriptorSetLayouts descriptorSetLayouts;
+        DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
         SphericalHarmonicsComputer(const vk::raii::Device &device, const shaderc::Compiler &compiler);
 
-        auto compute(vk::CommandBuffer commandBuffer, const DescriptorSets &descriptorSets, std::uint32_t cubemapSize) const -> void;
+        auto compute(vk::CommandBuffer commandBuffer, const vku::DescriptorSet<DescriptorSetLayout> &descriptorSet, std::uint32_t cubemapSize) const -> void;
 
         [[nodiscard]] static auto getWorkgroupCount(std::uint32_t cubemapSize) noexcept -> std::array<std::uint32_t, 3>;
 
@@ -169,9 +150,9 @@ void main(){
 }
 )comp";
 
-pbrenvmap::pipeline::SphericalHarmonicsComputer::DescriptorSetLayouts::DescriptorSetLayouts(
+pbrenvmap::pipeline::SphericalHarmonicsComputer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device
-) : vku::DescriptorSetLayouts<2> {
+) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage, vk::DescriptorType::eStorageBuffer> {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
@@ -185,17 +166,17 @@ pbrenvmap::pipeline::SphericalHarmonicsComputer::DescriptorSetLayouts::Descripto
 pbrenvmap::pipeline::SphericalHarmonicsComputer::SphericalHarmonicsComputer(
     const vk::raii::Device &device,
     const shaderc::Compiler &compiler
-) : descriptorSetLayouts { device },
+) : descriptorSetLayout { device },
     pipelineLayout { createPipelineLayout(device) },
     pipeline { createPipeline(device, compiler) } { }
 
 auto pbrenvmap::pipeline::SphericalHarmonicsComputer::compute(
     vk::CommandBuffer commandBuffer,
-    const DescriptorSets &descriptorSets,
+    const vku::DescriptorSet<DescriptorSetLayout> &descriptorSet,
     std::uint32_t cubemapSize
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSets, {});
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
     const std::array workgroupCount = getWorkgroupCount(cubemapSize);
     commandBuffer.dispatch(get<0>(workgroupCount), get<1>(workgroupCount), get<2>(workgroupCount));
 }
@@ -211,7 +192,7 @@ auto pbrenvmap::pipeline::SphericalHarmonicsComputer::createPipelineLayout(
 ) -> vk::raii::PipelineLayout {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy(descriptorSetLayouts.getHandles()),
+        *descriptorSetLayout,
     } };
 }
 
@@ -221,9 +202,9 @@ auto pbrenvmap::pipeline::SphericalHarmonicsComputer::createPipeline(
 ) const -> vk::raii::Pipeline {
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        get<0>(vku::createPipelineStages(
+        createPipelineStages(
             device,
-            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()),
+            vku::Shader { compiler, comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
         *pipelineLayout,
     } };
 }
