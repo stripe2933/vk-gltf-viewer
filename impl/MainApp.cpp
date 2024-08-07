@@ -73,19 +73,20 @@ vk_gltf_viewer::MainApp::MainApp() {
 		// Create image view for eqmapImage.
 		const vk::raii::ImageView eqmapImageView { gpu.device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) };
 
-		const pbrenvmap::Generator::Pipelines pbrenvmapPipelines {
-			.cubemapComputer = { gpu.device, compiler },
-			.subgroupMipmapComputer = { gpu.device, vku::Image::maxMipLevels(1024U), 32U /* TODO */, compiler },
-			.sphericalHarmonicsComputer = { gpu.device, compiler },
-			.sphericalHarmonicCoefficientsSumComputer = { gpu.device, compiler },
-			.prefilteredmapComputer = { gpu.device, { vku::Image::maxMipLevels(256U), 1024 }, compiler },
-			.multiplyComputer = { gpu.device, compiler },
-		};
-		pbrenvmap::Generator pbrenvmapGenerator { gpu.device, gpu.allocator, pbrenvmap::Generator::Config {
+		const pbrenvmap::Generator::Config config {
 			.cubemap = { .usage = vk::ImageUsageFlagBits::eSampled },
 			.sphericalHarmonicCoefficients = { .usage = vk::BufferUsageFlagBits::eUniformBuffer },
 			.prefilteredmap = { .usage = vk::ImageUsageFlagBits::eSampled },
-		} };
+		};
+		const pbrenvmap::Generator::Pipelines pbrenvmapPipelines {
+			.cubemapComputer = { gpu.device, compiler },
+			.subgroupMipmapComputer = { gpu.device, vku::Image::maxMipLevels(config.cubemap.size), 32U /* TODO */, compiler },
+			.sphericalHarmonicsComputer = { gpu.device, compiler },
+			.sphericalHarmonicCoefficientsSumComputer = { gpu.device, compiler },
+			.prefilteredmapComputer = { gpu.device, { vku::Image::maxMipLevels(config.prefilteredmap.size), config.prefilteredmap.roughnessLevels }, compiler },
+			.multiplyComputer = { gpu.device, compiler },
+		};
+		pbrenvmap::Generator pbrenvmapGenerator { gpu.device, gpu.allocator, config };
 
 		const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
 
@@ -153,6 +154,27 @@ vk_gltf_viewer::MainApp::MainApp() {
 		    std::move(pbrenvmapGenerator.sphericalHarmonicCoefficientsBuffer),
 		    std::move(pbrenvmapGenerator.prefilteredmapImage),
 		    std::move(prefilteredmapImageView));
+
+		std::array<glm::vec3, 9> sphericalHarmonicCoefficients;
+		std::ranges::copy_n(pbrenvmapGenerator.sphericalHarmonicCoefficientsBuffer.asRange<const glm::vec3>().data(), 9, sphericalHarmonicCoefficients.data());
+
+		appState.imageBasedLightingProperties = AppState::ImageBasedLighting {
+			.eqmap = {
+				.path = std::getenv("EQMAP_PATH"),
+				.dimension = { eqmapImage.extent.width, eqmapImage.extent.height },
+			},
+			.cubemap = {
+				.size = config.cubemap.size,
+			},
+			.diffuseIrradiance = {
+				sphericalHarmonicCoefficients,
+			},
+			.prefilteredmap = {
+				.size = config.prefilteredmap.size,
+				.roughnessLevels = config.prefilteredmap.roughnessLevels,
+				.sampleCount = config.prefilteredmap.samples,
+			}
+		};
 	}
 
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {

@@ -327,7 +327,7 @@ auto vk_gltf_viewer::control::imgui::hdriEnvironments(
 
         ImGui::SeparatorText("Diffuse irradiance");
         ImGui::TextUnformatted("Spherical harmonic coefficients (up to 3rd band)"sv);
-        if (ImGui::BeginTable("spherical_harmonic_coeffs", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
+        if (ImGui::BeginTable("spherical_harmonic_coeffs", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable)) {
             // Headers.
             ImGui::TableSetupColumn("Band");
             ImGui::TableSetupColumn("x");
