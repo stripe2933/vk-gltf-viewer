@@ -51,15 +51,15 @@ layout (location = 1) flat out uint primitiveNodeIndex;
 layout (location = 2) out float baseColorAlphaFactor;
 layout (location = 3) flat out int baseColorTextureIndex;
 
-layout (set = 0, binding = 1) readonly buffer MaterialBuffer {
-    Material materials[];
-};
-
-layout (set = 1, binding = 0) readonly buffer PrimitiveBuffer {
+layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
-layout (set = 1, binding = 1) readonly buffer NodeTransformBuffer {
+layout (set = 0, binding = 1) readonly buffer NodeTransformBuffer {
     mat4 nodeTransforms[];
+};
+
+layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
+    Material materials[];
 };
 
 layout (push_constant, std430) uniform PushConstant {

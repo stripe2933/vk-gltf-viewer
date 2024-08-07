@@ -48,7 +48,7 @@ namespace vk_gltf_viewer::vulkan {
     	dsl::Scene sceneDescriptorSetLayout { gpu.device };
 
 		// Pipelines.
-		pipeline::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+		pipeline::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
 		pipeline::DepthRenderer depthRenderer { gpu.device, std::tie(sceneDescriptorSetLayout) };
 		pipeline::JumpFloodComputer jumpFloodComputer { gpu.device };
 		pipeline::OutlineRenderer outlineRenderer { gpu.device };

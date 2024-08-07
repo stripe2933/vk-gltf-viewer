@@ -10,7 +10,7 @@ layout (location = 0) out uint outNodeIndex;
 layout (location = 1) out uvec2 hoveringNodeJumpFloodCoord;
 layout (location = 2) out uvec2 selectedNodeJumpFloodCoord;
 
-layout (set = 0, binding = 0) uniform sampler2D textures[];
+layout (set = 1, binding = 0) uniform sampler2D textures[];
 
 layout (push_constant, std430) uniform PushConstant {
     layout (offset = 64)

@@ -328,10 +328,15 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
 			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
 		},
-		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0.f, 0U } }));
+		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 
 	cb.setViewport(0, vku::toViewport(*passthruExtent, true));
 	cb.setScissor(0, vk::Rect2D { { 0, 0 }, *passthruExtent });
+
+	// DepthRenderer and AlphaMaskedDepthRenderer have compatible scene descriptor set in set #0.
+	// Also they have same push constant range.
+	bool sceneDescriptorSetBound = false;
+	bool pushConstantBound = false;
 
 	// Render alphaMode=Opaque meshes.
 	bool depthRendererBound = false;
@@ -339,14 +344,21 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!depthRendererBound) {
 			sharedData.depthRenderer.bindPipeline(cb);
+			depthRendererBound = true;
+		}
+
+		if (!sceneDescriptorSetBound) {
 			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.depthRenderer.pipelineLayout, 0, task.sceneDescriptorSet, {});
+			sceneDescriptorSetBound = true;
+		}
+
+		if (!pushConstantBound) {
 			sharedData.depthRenderer.pushConstants(cb, {
 				task.camera.projection * task.camera.view,
 				task.hoveringNodeIndex.value_or(NO_INDEX),
 				task.selectedNodeIndex.value_or(NO_INDEX),
 			});
-
-			depthRendererBound = true;
+			pushConstantBound = true;
 		}
 
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
@@ -366,15 +378,28 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!alphaMaskedDepthRendererBound) {
 			sharedData.alphaMaskedDepthRenderer.bindPipeline(cb);
+			alphaMaskedDepthRendererBound = true;
+		}
+
+		if (!sceneDescriptorSetBound) {
 			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.alphaMaskedDepthRenderer.pipelineLayout,
-				0, { task.assetDescriptorSet, task.sceneDescriptorSet }, {});
+				0, { task.sceneDescriptorSet, task.assetDescriptorSet }, {});
+			sceneDescriptorSetBound = true;
+		}
+		else {
+			// Scene descriptor set already bound by DepthRenderer, therefore binding only asset descriptor set (in set #1)
+			// is enough.
+			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.alphaMaskedDepthRenderer.pipelineLayout,
+				1, task.assetDescriptorSet, {});
+		}
+
+		if (!pushConstantBound) {
 			sharedData.alphaMaskedDepthRenderer.pushConstants(cb, {
 				task.camera.projection * task.camera.view,
 				task.hoveringNodeIndex.value_or(NO_INDEX),
 				task.selectedNodeIndex.value_or(NO_INDEX),
 			});
-
-			alphaMaskedDepthRendererBound = true;
+			pushConstantBound = true;
 		}
 
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
@@ -477,16 +502,26 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	cb.setViewport(0, vku::toViewport(*passthruExtent, true));
 	cb.setScissor(0, vk::Rect2D { { 0, 0 }, *passthruExtent });
 
+	// Both PrimitiveRenderer and AlphaMaskedPrimitiveRender have comaptible descriptor set layouts and push constant range,
+	// therefore they only need to be bound once.
+	bool descriptorBound = false;
+	bool pushConstantBound = false;
+
 	// Render alphaMode=Opaque meshes.
 	bool primitiveRendererBound = false;
 	for (auto [begin, end] = sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!primitiveRendererBound) {
 			sharedData.primitiveRenderer.bindPipeline(cb);
-			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveRenderer.pipelineLayout, 0, { task.imageBasedLightingDescriptorSet, task.assetDescriptorSet, task.sceneDescriptorSet }, {});
-			sharedData.primitiveRenderer.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
-
 			primitiveRendererBound = true;
+		}
+		if (!descriptorBound) {
+			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveRenderer.pipelineLayout, 0, { task.imageBasedLightingDescriptorSet, task.assetDescriptorSet, task.sceneDescriptorSet }, {});
+			descriptorBound = true;
+		}
+		if (!pushConstantBound) {
+			sharedData.primitiveRenderer.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
+			pushConstantBound = true;
 		}
 
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
@@ -506,9 +541,15 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!alphaMaskedPrimitiveRendererBound) {
 			sharedData.alphaMaskedPrimitiveRenderer.bindPipeline(cb);
-			// No need to have push constant, because it have same pipeline layout with PrimitiveRenderer.
-
 			alphaMaskedPrimitiveRendererBound = true;
+		}
+		if (!descriptorBound) {
+			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveRenderer.pipelineLayout, 0, { task.imageBasedLightingDescriptorSet, task.assetDescriptorSet, task.sceneDescriptorSet }, {});
+			descriptorBound = true;
+		}
+		if (!pushConstantBound) {
+			sharedData.primitiveRenderer.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
+			pushConstantBound = true;
 		}
 
 		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);

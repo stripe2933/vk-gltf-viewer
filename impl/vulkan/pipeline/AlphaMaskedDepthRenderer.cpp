@@ -10,7 +10,7 @@ import vku;
 
 vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::AlphaMaskedDepthRenderer(
     const vk::raii::Device &device,
-    std::tuple<const dsl::Asset&, const dsl::Scene&> descriptorSetLayouts
+    std::tuple<const dsl::Scene&, const dsl::Asset&> descriptorSetLayouts
 ) : pipelineLayout { device, vk::PipelineLayoutCreateInfo{
         {},
         vku::unsafeProxy(std::apply([](const auto &...x) { return std::array { *x... }; }, descriptorSetLayouts)),

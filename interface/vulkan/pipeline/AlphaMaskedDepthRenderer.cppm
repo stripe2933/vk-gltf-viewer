@@ -19,7 +19,7 @@ namespace vk_gltf_viewer::vulkan::pipeline {
 
         AlphaMaskedDepthRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
-            std::tuple<const dsl::Asset&, const dsl::Scene&> descriptorSetLayouts [[clang::lifetimebound]]);
+            std::tuple<const dsl::Scene&, const dsl::Asset&> descriptorSetLayouts [[clang::lifetimebound]]);
 
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
         auto pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const -> void;
