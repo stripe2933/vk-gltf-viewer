@@ -30,7 +30,7 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
         *descriptorSetLayout,
         vku::unsafeProxy({
             vk::PushConstantRange {
-                vk::ShaderStageFlagBits::eAllGraphics,
+                vk::ShaderStageFlagBits::eVertex,
                 0, sizeof(PushConstant),
             },
         }),
@@ -71,7 +71,7 @@ auto vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::draw(
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSet, {});
-    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
+    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, pushConstant);
     commandBuffer.bindIndexBuffer(cubeIndices, 0, vk::IndexType::eUint16);
     commandBuffer.drawIndexed(36, 1, 0, 0, 0);
 }
