@@ -10,8 +10,6 @@ layout (location = 0) out vec4 outColor;
 layout (set = 0, binding = 0, scalar) uniform SphericalHarmonicsBuffer {
     vec3 coefficients[9];
 } sphericalHarmonics;
-/*layout (set = 0, binding = 1) uniform samplerCube prefilteredmap;
-layout (set = 0, binding = 2) uniform sampler2D brdfmap;*/
 
 layout (early_fragment_tests) in;
 
