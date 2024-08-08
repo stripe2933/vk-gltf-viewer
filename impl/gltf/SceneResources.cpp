@@ -25,7 +25,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() 
 
     // Collect glTF mesh primitives.
     std::vector<std::pair<std::uint32_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> nodePrimitiveInfoPtrs;
-    for (std::stack dfs { std::from_range, asset.scenes[asset.defaultScene.value_or(0)].nodeIndices | reverse }; !dfs.empty(); ) {
+    for (std::stack dfs { std::from_range, scene.nodeIndices | reverse }; !dfs.empty(); ) {
         const std::size_t nodeIndex = dfs.top();
         const fastgltf::Node &node = asset.nodes[nodeIndex];
         if (node.meshIndex) {
