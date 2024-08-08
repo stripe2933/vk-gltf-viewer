@@ -223,7 +223,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
                     if (uri.mimeType != fastgltf::MimeType::JPEG && uri.mimeType != fastgltf::MimeType::PNG) {
                         // As the glTF specification, uri source may doesn't have MIME type. In this case, we can determine
                         // the MIME type from the file extension.
-                        if (auto extension = uri.uri.fspath().extension(); extension == ".jpg" || extension == ".png") {
+                        if (auto extension = uri.uri.fspath().extension(); extension == ".jpg" || extension == ".jpeg" || extension == ".png") {
                             return;
                         }
                         throw std::runtime_error { "Unsupported image MIME type" };
