@@ -3,23 +3,11 @@ import :vulkan.attachment_groups;
 
 vk_gltf_viewer::vulkan::DepthPrepassAttachmentGroup::DepthPrepassAttachmentGroup(
     const Gpu &gpu,
-    const vku::Image &hoveringNodeJumpFloodImage,
-    const vku::Image &selectedNodeJumpFloodImage,
     const vk::Extent2D &extent
 ) : AttachmentGroup { extent } {
     addColorAttachment(
         gpu.device,
         storeImage(createColorImage(gpu.allocator, vk::Format::eR32Uint, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc)));
-    addColorAttachment(
-        gpu.device,
-        hoveringNodeJumpFloodImage,
-        hoveringNodeJumpFloodImage.getViewCreateInfo(
-            { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image subresource */));
-    addColorAttachment(
-        gpu.device,
-        selectedNodeJumpFloodImage,
-        selectedNodeJumpFloodImage.getViewCreateInfo(
-            { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image subresource */));
     setDepthStencilAttachment(
         gpu.device,
         storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));

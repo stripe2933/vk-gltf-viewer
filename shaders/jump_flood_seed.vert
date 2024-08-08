@@ -29,8 +29,6 @@ struct Primitive {
     uint materialIndex;
 };
 
-layout (location = 0) flat out uint nodeIndex;
-
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
@@ -51,8 +49,6 @@ vec3 getVec3(uint64_t address){
 }
 
 void main(){
-    nodeIndex = PRIMITIVE.nodeIndex;
-
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }

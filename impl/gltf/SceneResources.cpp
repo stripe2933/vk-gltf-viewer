@@ -17,8 +17,77 @@ vk_gltf_viewer::gltf::SceneResources::SceneResources(
 ) : assetResources { assetResources },
     scene { scene },
     nodeTransformBuffer { createNodeTransformBuffer(gpu.allocator) },
-    primitiveBuffer { createPrimitiveBuffer(gpu) },
-    indirectDrawCommandBuffers { createIndirectDrawCommandBuffer(assetResources.asset, gpu.allocator) } { }
+    primitiveBuffer { createPrimitiveBuffer(gpu) } { }
+
+auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffers(
+    vma::Allocator allocator,
+    const std::unordered_set<std::size_t> &nodeIndices
+) const -> std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> {
+    std::map<CommandSeparationCriteria, std::vector<std::variant<vk::DrawIndexedIndirectCommand, vk::DrawIndirectCommand>>> commandGroups;
+
+    for (auto [primitiveIndex, nodePrimitiveInfo] : orderedNodePrimitiveInfoPtrs | ranges::views::enumerate) {
+        const auto [nodeIndex, pPrimitiveInfo] = nodePrimitiveInfo;
+        if (!nodeIndices.contains(nodeIndex)) {
+            continue;
+        }
+
+        const fastgltf::Material &material = assetResources.asset.materials[pPrimitiveInfo->materialIndex.value()];
+        const CommandSeparationCriteria criteria {
+            .alphaMode = material.alphaMode,
+            .doubleSided = material.doubleSided,
+            .indexType = pPrimitiveInfo->indexInfo.transform([](const auto &info) { return info.type; }),
+        };
+        if (const auto &indexInfo = pPrimitiveInfo->indexInfo) {
+            const std::size_t indexByteSize = [=]() {
+                switch (indexInfo->type) {
+                    case vk::IndexType::eUint8KHR: return sizeof(std::uint8_t);
+                    case vk::IndexType::eUint16: return sizeof(std::uint16_t);
+                    case vk::IndexType::eUint32: return sizeof(std::uint32_t);
+                    default: throw std::runtime_error{ "Unsupported index type: only Uint8KHR, Uint16 and Uint32 are supported" };
+                }
+            }();
+
+            const std::uint32_t vertexOffset = static_cast<std::uint32_t>(pPrimitiveInfo->indexInfo->offset / indexByteSize);
+            commandGroups[criteria].emplace_back(std::in_place_type<vk::DrawIndexedIndirectCommand>, pPrimitiveInfo->drawCount, 1, vertexOffset, 0, primitiveIndex);
+        }
+        else {
+            commandGroups[criteria].emplace_back(std::in_place_type<vk::DrawIndirectCommand>, pPrimitiveInfo->drawCount, 1, 0, primitiveIndex);
+        }
+    }
+
+    return { std::from_range, commandGroups | transform([allocator](const auto &pair) {
+        const auto &[criteria, commands] = pair;
+
+        // Flatten vector of variants to the bytes.
+        const std::vector commandBytes
+            = commands
+            | transform([](const auto &variant) {
+                return visit([](const auto &v) {
+                    return std::span { reinterpret_cast<const std::byte*>(&v), sizeof(v) };
+                }, variant);
+            })
+            | join
+            | std::ranges::to<std::vector>();
+        return std::pair<CommandSeparationCriteria, vku::MappedBuffer> {
+            std::piecewise_construct,
+            std::tie(criteria),
+            std::forward_as_tuple(allocator, std::from_range, std::move(commandBytes), vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer),
+        };
+    }) };
+}
+
+auto vk_gltf_viewer::gltf::SceneResources::getParentNodeIndices() const -> std::vector<std::size_t> {
+    const fastgltf::Asset &asset = assetResources.asset;
+
+    // If node is root node, its parent index is itself.
+    std::vector parentNodeIndices { std::from_range, std::views::iota(0UZ, asset.nodes.size()) };
+    for (const auto &[i, node] : asset.nodes | ranges::views::enumerate) {
+        for (std::size_t childIndex : node.children) {
+            parentNodeIndices[childIndex] = i;
+        }
+    }
+    return parentNodeIndices;
+}
 
 auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() const -> decltype(orderedNodePrimitiveInfoPtrs) {
     const fastgltf::Asset &asset = assetResources.asset;
@@ -113,59 +182,4 @@ auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
         }),
         vk::BufferUsageFlagBits::eStorageBuffer,
     };
-}
-
-auto vk_gltf_viewer::gltf::SceneResources::createIndirectDrawCommandBuffer(
-    const fastgltf::Asset &asset,
-    vma::Allocator allocator
-) const -> decltype(indirectDrawCommandBuffers) {
-    std::map<CommandSeparationCriteria, std::vector<std::variant<vk::DrawIndexedIndirectCommand, vk::DrawIndirectCommand>>> commandGroups;
-
-    for (auto [firstInstance, pPrimitiveInfo] : orderedNodePrimitiveInfoPtrs | values | ranges::views::enumerate) {
-        const CommandSeparationCriteria criteria {
-            .alphaMode = asset.materials[*pPrimitiveInfo->materialIndex].alphaMode,
-            .doubleSided = asset.materials[*pPrimitiveInfo->materialIndex].doubleSided,
-            .indexType = pPrimitiveInfo->indexInfo.transform([](const auto &info) { return info.type; }),
-        };
-        if (const auto &indexInfo = pPrimitiveInfo->indexInfo) {
-            const std::size_t indexByteSize = [=]() {
-                switch (indexInfo->type) {
-                    case vk::IndexType::eUint8KHR: return sizeof(std::uint8_t);
-                    case vk::IndexType::eUint16: return sizeof(std::uint16_t);
-                    case vk::IndexType::eUint32: return sizeof(std::uint32_t);
-                    default: throw std::runtime_error{ "Unsupported index type: only Uint8KHR, Uint16 and Uint32 are supported" };
-                }
-            }();
-
-            const std::uint32_t vertexOffset = static_cast<std::uint32_t>(pPrimitiveInfo->indexInfo->offset / indexByteSize);
-            commandGroups[criteria].emplace_back(
-                std::in_place_type<vk::DrawIndexedIndirectCommand>,
-                pPrimitiveInfo->drawCount, 1, vertexOffset, 0, firstInstance);
-        }
-        else {
-            commandGroups[criteria].emplace_back(
-                std::in_place_type<vk::DrawIndirectCommand>,
-                pPrimitiveInfo->drawCount, 1, 0, firstInstance);
-        }
-    }
-
-    return { std::from_range, commandGroups | transform([allocator](const auto &pair) {
-        const auto &[criteria, commands] = pair;
-
-        // Flatten vector of variants to the bytes.
-        const std::vector commandBytes
-            = commands
-            | transform([](const auto &variant) {
-                return visit([](const auto &v) {
-                    return std::span { reinterpret_cast<const std::byte*>(&v), sizeof(v) };
-                }, variant);
-            })
-            | join
-            | std::ranges::to<std::vector>();
-        return std::pair<CommandSeparationCriteria, vku::MappedBuffer> {
-            std::piecewise_construct,
-            std::tie(criteria),
-            std::forward_as_tuple(allocator, std::from_range, std::move(commandBytes), vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer),
-        };
-    }) };
 }

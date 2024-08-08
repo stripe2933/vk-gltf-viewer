@@ -9,14 +9,12 @@ namespace vk_gltf_viewer::vulkan::pipeline {
     export struct DepthRenderer {
         struct PushConstant {
             glm::mat4 projectionView;
-            std::uint32_t hoveringNodeIndex;
-            std::uint32_t selectedNodeIndex;
         };
 
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        DepthRenderer(const vk::raii::Device &device [[clang::lifetimebound]], std::tuple<const dsl::Scene&> descriptorSetLayouts [[clang::lifetimebound]]);
+        DepthRenderer(const vk::raii::Device &device [[clang::lifetimebound]], const dsl::Scene& descriptorSetLayout [[clang::lifetimebound]]);
 
         auto bindPipeline(vk::CommandBuffer commandBuffer) const -> void;
         auto pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const -> void;

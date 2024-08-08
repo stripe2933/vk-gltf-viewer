@@ -5,7 +5,7 @@ export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::inline attachment_groups {
     struct DepthPrepassAttachmentGroup final : vku::AttachmentGroup {
-        DepthPrepassAttachmentGroup(const Gpu &gpu [[clang::lifetimebound]], const vku::Image &hoveringNodeJumpFloodImage [[clang::lifetimebound]], const vku::Image &selectedNodeJumpFloodImage [[clang::lifetimebound]], const vk::Extent2D &extent);
+        DepthPrepassAttachmentGroup(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent);
     };
 
     struct PrimaryAttachmentGroup final : vku::MsaaAttachmentGroup {

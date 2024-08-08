@@ -47,7 +47,7 @@ struct Primitive {
 };
 
 layout (location = 0) out vec2 fragBaseColorTexcoord;
-layout (location = 1) flat out uint primitiveNodeIndex;
+layout (location = 1) flat out uint nodeIndex;
 layout (location = 2) out float baseColorAlphaFactor;
 layout (location = 3) flat out int baseColorTextureIndex;
 
@@ -62,7 +62,7 @@ layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
-layout (push_constant, std430) uniform PushConstant {
+layout (push_constant) uniform PushConstant {
     mat4 projectionView;
 } pc;
 
@@ -86,7 +86,7 @@ void main(){
     if (int(MATERIAL.baseColorTextureIndex) != -1){
         fragBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
     }
-    primitiveNodeIndex = PRIMITIVE.nodeIndex;
+    nodeIndex = PRIMITIVE.nodeIndex;
     baseColorAlphaFactor = MATERIAL.baseColorFactor.a;
     baseColorTextureIndex = MATERIAL.baseColorTextureIndex;
 

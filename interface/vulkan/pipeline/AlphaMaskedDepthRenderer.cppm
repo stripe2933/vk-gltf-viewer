@@ -10,8 +10,6 @@ namespace vk_gltf_viewer::vulkan::pipeline {
     export struct AlphaMaskedDepthRenderer {
         struct PushConstant {
             glm::mat4 projectionView;
-            std::uint32_t hoveringNodeIndex;
-            std::uint32_t selectedNodeIndex;
         };
 
         vk::raii::PipelineLayout pipelineLayout;

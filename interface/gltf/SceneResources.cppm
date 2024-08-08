@@ -52,14 +52,14 @@ namespace vk_gltf_viewer::gltf {
 
         vku::MappedBuffer nodeTransformBuffer;
         vku::MappedBuffer primitiveBuffer;
-        std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> indirectDrawCommandBuffers;
 
         SceneResources(const AssetResources &assetResources [[clang::lifetimebound]], const fastgltf::Scene &scene, const vulkan::Gpu &gpu [[clang::lifetimebound]]);
+
+        [[nodiscard]] auto createIndirectDrawCommandBuffers(vma::Allocator allocator, const std::unordered_set<std::size_t> &nodeIndices) const -> std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator>;
 
     private:
         [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> decltype(orderedNodePrimitiveInfoPtrs);
         [[nodiscard]] auto createNodeTransformBuffer(vma::Allocator allocator) const -> decltype(nodeTransformBuffer);
         [[nodiscard]] auto createPrimitiveBuffer(const vulkan::Gpu &gpu) -> decltype(primitiveBuffer);
-        [[nodiscard]] auto createIndirectDrawCommandBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const -> decltype(indirectDrawCommandBuffers);
     };
 }

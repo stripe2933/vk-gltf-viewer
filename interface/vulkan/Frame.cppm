@@ -10,6 +10,7 @@ export import :AppState;
 export import :gltf.AssetResources;
 export import :gltf.SceneResources;
 export import :vulkan.SharedData;
+import :vulkan.ag.JumpFloodSeed;
 import :vulkan.attachment_groups;
 export import :vulkan.dsl.Asset;
 export import :vulkan.dsl.Scene;
@@ -59,6 +60,8 @@ namespace vk_gltf_viewer::vulkan {
 
     		// Attachment groups.
     		DepthPrepassAttachmentGroup depthPrepassAttachmentGroup;
+    		ag::JumpFloodSeed hoveringNodeJumpFloodSeedAttachmentGroup;
+    		ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
     		PrimaryAttachmentGroup primaryAttachmentGroup;
 
     		PassthruResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
@@ -73,6 +76,9 @@ namespace vk_gltf_viewer::vulkan {
     	const gltf::SceneResources &sceneResources;
 
     	// Buffer, image and image views.
+    	std::map<gltf::SceneResources::CommandSeparationCriteria, vku::MappedBuffer, gltf::SceneResources::CommandSeparationCriteriaComparator> renderingNodeIndirectDrawCommandBuffers; /// Draw commands for rendering nodes (in both depth prepass and main pass)
+    	std::map<gltf::SceneResources::CommandSeparationCriteria, vku::MappedBuffer, gltf::SceneResources::CommandSeparationCriteriaComparator> hoveringNodeIndirectDrawCommandBuffers; /// Depth prepass draw commands for hovering nodes
+    	std::map<gltf::SceneResources::CommandSeparationCriteria, vku::MappedBuffer, gltf::SceneResources::CommandSeparationCriteriaComparator> selectedNodeIndirectDrawCommandBuffers; /// Depth prepass draw commands for selected nodes
     	vku::MappedBuffer hoveringNodeIndexBuffer;
     	std::optional<vk::Extent2D> passthruExtent = std::nullopt;
 		std::optional<PassthruResources> passthruResources = std::nullopt;

@@ -101,6 +101,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/io/StbDecoder.cppm
 		interface/MainApp.cppm
 		interface/mipmap.cppm
+		interface/vulkan/attachment_group/JumpFloodSeed.cppm
 		interface/vulkan/attachment_groups.cppm
 		interface/vulkan/buffer/CubeIndices.cppm
 		interface/vulkan/dsl/Asset.cppm
@@ -109,10 +110,12 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/Frame.cppm
 		interface/vulkan/Gpu.cppm
 		interface/vulkan/pipeline/AlphaMaskedDepthRenderer.cppm
+		interface/vulkan/pipeline/AlphaMaskedJumpFloodSeedRenderer.cppm
 		interface/vulkan/pipeline/AlphaMaskedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/BrdfmapComputer.cppm
 		interface/vulkan/pipeline/DepthRenderer.cppm
 		interface/vulkan/pipeline/JumpFloodComputer.cppm
+		interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
 		interface/vulkan/pipeline/OutlineRenderer.cppm
 		interface/vulkan/pipeline/PrimitiveRenderer.cppm
 		interface/vulkan/pipeline/Rec709Renderer.cppm

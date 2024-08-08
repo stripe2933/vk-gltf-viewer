@@ -12,6 +12,11 @@ import :helpers.ranges;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
 
+template <typename ...Fs>
+struct multilambda : Fs... {
+    using Fs::operator()...;
+};
+
 vk_gltf_viewer::vulkan::Frame::Frame(
 	const Gpu &gpu,
 	const SharedData &sharedData,
@@ -215,7 +220,9 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
 	vk::CommandBuffer graphicsCommandBuffer
 ) : hoveringNodeOutlineJumpFloodResources { gpu, extent },
 	selectedNodeOutlineJumpFloodResources { gpu, extent },
-	depthPrepassAttachmentGroup { gpu, hoveringNodeOutlineJumpFloodResources.image, selectedNodeOutlineJumpFloodResources.image, extent },
+	depthPrepassAttachmentGroup { gpu, extent },
+	hoveringNodeJumpFloodSeedAttachmentGroup { gpu, hoveringNodeOutlineJumpFloodResources.image },
+	selectedNodeJumpFloodSeedAttachmentGroup { gpu, selectedNodeOutlineJumpFloodResources.image },
 	primaryAttachmentGroup { gpu, extent } {
 	recordInitialImageLayoutTransitionCommands(graphicsCommandBuffer);
 }
@@ -239,10 +246,11 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutT
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
 		{}, {}, {},
 		{
-			layoutTransitionBarrier(vk::ImageLayout::eGeneral, hoveringNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
-			layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
-			layoutTransitionBarrier(vk::ImageLayout::eTransferSrcOptimal, depthPrepassAttachmentGroup.colorAttachments[0].image),
 			layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, depthPrepassAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
+			layoutTransitionBarrier(vk::ImageLayout::eGeneral, hoveringNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
+			layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, hoveringNodeJumpFloodSeedAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
+			layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
+			layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, selectedNodeJumpFloodSeedAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
 			layoutTransitionBarrier(vk::ImageLayout::eColorAttachmentOptimal, primaryAttachmentGroup.colorAttachments[0].image),
 			layoutTransitionBarrier(vk::ImageLayout::eShaderReadOnlyOptimal, primaryAttachmentGroup.colorAttachments[0].resolveImage),
 			layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, primaryAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
@@ -267,6 +275,14 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 	// If it is not NO_INDEX (i.e. node index is found), update hoveringNodeIndex.
 	if (auto value = std::exchange(hoveringNodeIndexBuffer.asValue<std::uint32_t>(), NO_INDEX); value != NO_INDEX) {
 		result.hoveringNodeIndex = value;
+	}
+
+	renderingNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers(gpu.allocator, std::views::iota(0UZ, assetResources.asset.nodes.size()) | std::ranges::to<std::unordered_set>());
+	if (task.hoveringNodeIndex && task.hoveringNodeOutline) {
+		hoveringNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers(gpu.allocator, { *task.hoveringNodeIndex });
+	}
+	if (task.hoveringNodeIndex && task.hoveringNodeOutline) {
+		selectedNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers(gpu.allocator, { *task.selectedNodeIndex });
 	}
 
 	// If passthru extent is different from the current's, dependent images have to be recreated.
@@ -295,139 +311,172 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	vk::CommandBuffer cb,
 	const ExecutionTask &task
 ) const -> void {
-	// Change color attachment layout to ColorAttachmentOptimal.
-	cb.pipelineBarrier(
-		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-		{}, {}, {},
-		{
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eColorAttachmentWrite,
-				vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eColorAttachmentOptimal,
-				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				passthruResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
-			},
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eColorAttachmentWrite,
-				{}, vk::ImageLayout::eColorAttachmentOptimal,
-				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				passthruResources->hoveringNodeOutlineJumpFloodResources.image,
-				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
-			},
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eColorAttachmentWrite,
-				{}, vk::ImageLayout::eColorAttachmentOptimal,
-				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				passthruResources->selectedNodeOutlineJumpFloodResources.image,
-				{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
-			},
+	std::vector memoryBarriers {
+		// Regardless whether mouse cursor is inside the passthru rect or not, attachment layout transition depth
+		// prepass must be done (for future use).
+		vk::ImageMemoryBarrier {
+			{}, vk::AccessFlagBits::eColorAttachmentWrite,
+			{}, vk::ImageLayout::eColorAttachmentOptimal,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			passthruResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
+		},
+	};
+
+	// If hovering node's outline have to be rendered, prepare attachment layout transition for jump flood seeding.
+	const auto addJumpFloodSeedImageMemoryBarrier = [&](vk::Image image) {
+		memoryBarriers.push_back({
+			{}, vk::AccessFlagBits::eColorAttachmentWrite,
+			{}, vk::ImageLayout::eColorAttachmentOptimal,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
 		});
 
-	cb.beginRenderingKHR(passthruResources->depthPrepassAttachmentGroup.getRenderingInfo(
-		std::array {
-			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { std::numeric_limits<std::uint32_t>::max(), 0U, 0U, 0U } },
-			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
-			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
-		},
-		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
+	};
+	if (task.hoveringNodeIndex && task.hoveringNodeOutline) {
+		addJumpFloodSeedImageMemoryBarrier(passthruResources->hoveringNodeOutlineJumpFloodResources.image);
+	}
+	// Same holds for selected node's outline.
+	if (task.selectedNodeIndex && task.selectedNodeOutline) {
+		addJumpFloodSeedImageMemoryBarrier(passthruResources->selectedNodeOutlineJumpFloodResources.image);
+	}
+
+	// Attachment layout transitions.
+	cb.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+		{}, {}, {}, memoryBarriers);
 
 	cb.setViewport(0, vku::toViewport(*passthruExtent, true));
 	cb.setScissor(0, vk::Rect2D { { 0, 0 }, *passthruExtent });
 
-	// DepthRenderer and AlphaMaskedDepthRenderer have compatible scene descriptor set in set #0.
-	// Also they have same push constant range.
-	bool sceneDescriptorSetBound = false;
-	bool pushConstantBound = false;
+	struct ResourceBindingState {
+		enum class PipelineType { DepthRenderer, AlphaMaskedDepthRenderer, JumpFloodSeedRenderer, AlphaMaskedJumpFloodSeedRenderer };
 
-	// Render alphaMode=Opaque meshes.
-	bool depthRendererBound = false;
-	for (auto [begin, end] = sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
-		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
-		if (!depthRendererBound) {
-			sharedData.depthRenderer.bindPipeline(cb);
-			depthRendererBound = true;
-		}
+		std::optional<PipelineType> boundPipeline{};
 
-		if (!sceneDescriptorSetBound) {
-			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.depthRenderer.pipelineLayout, 0, task.sceneDescriptorSet, {});
-			sceneDescriptorSetBound = true;
-		}
+		// DepthRenderer, AlphaMaskedDepthRenderer, JumpFloodSeedRenderer and AlphaMaskedJumpFloodSeedRenderer have:
+		// - compatible scene descriptor set in set #0,
+		// - compatible asset descriptor set in set #1 (AlphaMaskedDepthRenderer and AlphaMaskedJumpFloodSeedRenderer only),
+		// - compatible push constant range.
+		bool sceneDescriptorSetBound = false;
+		bool assetDescriptorSetBound = false;
+		bool pushConstantBound = false;
+	};
+	ResourceBindingState resourceBindingState{};
+	const auto drawPrimitives
+		= [&](const decltype(renderingNodeIndirectDrawCommandBuffers) &indirectDrawCommandBuffers, const auto &opaqueRenderer, const auto &maskedRenderer) {
+			constexpr auto getPipelineType = multilambda {
+				[](const pipeline::DepthRenderer&) { return ResourceBindingState::PipelineType::DepthRenderer; },
+				[](const pipeline::AlphaMaskedDepthRenderer&) { return ResourceBindingState::PipelineType::AlphaMaskedDepthRenderer; },
+				[](const pipeline::JumpFloodSeedRenderer&) { return ResourceBindingState::PipelineType::JumpFloodSeedRenderer; },
+				[](const pipeline::AlphaMaskedJumpFloodSeedRenderer&) { return ResourceBindingState::PipelineType::AlphaMaskedJumpFloodSeedRenderer; },
+			};
+			const ResourceBindingState::PipelineType opaqueRendererType = getPipelineType(opaqueRenderer);
+			const ResourceBindingState::PipelineType maskedRendererType = getPipelineType(maskedRenderer);
 
-		if (!pushConstantBound) {
-			sharedData.depthRenderer.pushConstants(cb, {
-				task.camera.projection * task.camera.view,
-				task.hoveringNodeIndex.value_or(NO_INDEX),
-				task.selectedNodeIndex.value_or(NO_INDEX),
-			});
-			pushConstantBound = true;
-		}
+			// Render alphaMode=Opaque meshes.
+			for (auto [begin, end] = indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
+				 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+				if (!resourceBindingState.boundPipeline || resourceBindingState.boundPipeline != opaqueRendererType) {
+					opaqueRenderer.bindPipeline(cb);
+					resourceBindingState.boundPipeline = opaqueRendererType;
+				}
 
-		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
+				if (!resourceBindingState.sceneDescriptorSetBound) {
+					cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *opaqueRenderer.pipelineLayout, 0, task.sceneDescriptorSet, {});
+					resourceBindingState.sceneDescriptorSetBound = true;
+				}
 
-		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
-			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-		}
-		else {
-			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-		}
-	}
+				if (!resourceBindingState.pushConstantBound) {
+					opaqueRenderer.pushConstants(cb, {
+						task.camera.projection * task.camera.view,
+					});
+					resourceBindingState.pushConstantBound = true;
+				}
 
-	// Render alphaMode=Mask meshes.
-	bool alphaMaskedDepthRendererBound = false;
-	for (auto [begin, end] = sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
-		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
-		if (!alphaMaskedDepthRendererBound) {
-			sharedData.alphaMaskedDepthRenderer.bindPipeline(cb);
-			alphaMaskedDepthRendererBound = true;
-		}
+				cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
-		if (!sceneDescriptorSetBound) {
-			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.alphaMaskedDepthRenderer.pipelineLayout,
-				0, { task.sceneDescriptorSet, task.assetDescriptorSet }, {});
-			sceneDescriptorSetBound = true;
-		}
-		else {
-			// Scene descriptor set already bound by DepthRenderer, therefore binding only asset descriptor set (in set #1)
-			// is enough.
-			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.alphaMaskedDepthRenderer.pipelineLayout,
-				1, task.assetDescriptorSet, {});
-		}
+				if (const auto &indexType = criteria.indexType) {
+					cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+					cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+				}
+				else {
+					cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+				}
+			}
 
-		if (!pushConstantBound) {
-			sharedData.alphaMaskedDepthRenderer.pushConstants(cb, {
-				task.camera.projection * task.camera.view,
-				task.hoveringNodeIndex.value_or(NO_INDEX),
-				task.selectedNodeIndex.value_or(NO_INDEX),
-			});
-			pushConstantBound = true;
-		}
+			// Render alphaMode=Mask meshes.
+			for (auto [begin, end] = indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
+				 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+				if (!resourceBindingState.boundPipeline || resourceBindingState.boundPipeline != maskedRendererType) {
+					maskedRenderer.bindPipeline(cb);
+					resourceBindingState.boundPipeline = maskedRendererType;
+				}
 
-		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
+				if (!resourceBindingState.sceneDescriptorSetBound) {
+					cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *maskedRenderer.pipelineLayout,
+						0, { task.sceneDescriptorSet, task.assetDescriptorSet }, {});
+					resourceBindingState.sceneDescriptorSetBound = true;
+				}
+				else if (!resourceBindingState.assetDescriptorSetBound) {
+					// Scene descriptor set already bound by DepthRenderer, therefore binding only asset descriptor set (in set #1)
+					// is enough.
+					cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *maskedRenderer.pipelineLayout,
+						1, task.assetDescriptorSet, {});
+					resourceBindingState.assetDescriptorSetBound = true;
+				}
 
-		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
-			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-		}
-		else {
-			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-		}
-	}
+				if (!resourceBindingState.pushConstantBound) {
+					maskedRenderer.pushConstants(cb, {
+						task.camera.projection * task.camera.view,
+					});
+					resourceBindingState.pushConstantBound = true;
+				}
 
-	// TODO: render alphaMode=Blend meshes.
+				cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
 
+				if (const auto &indexType = criteria.indexType) {
+					cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+					cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+				}
+				else {
+					cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+				}
+			}
+
+			// TODO: render alphaMode=Blend meshes.
+		};
+
+	cb.beginRenderingKHR(passthruResources->depthPrepassAttachmentGroup.getRenderingInfo(
+		std::array {
+			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { std::numeric_limits<std::uint32_t>::max(), 0U, 0U, 0U } },
+		},
+		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
+	drawPrimitives(renderingNodeIndirectDrawCommandBuffers, sharedData.depthRenderer, sharedData.alphaMaskedDepthRenderer);
 	cb.endRenderingKHR();
 
-	cb.pipelineBarrier(
-		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer,
-		{}, {}, {},
-		// For copying to hoveringNodeIndexBuffer.
-		vk::ImageMemoryBarrier {
-			vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
-			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
-			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			passthruResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
-		});
+	// Seeding jump flood initial image for hovering node.
+	if (task.hoveringNodeIndex && task.hoveringNodeOutline) {
+		cb.beginRenderingKHR(passthruResources->hoveringNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
+			std::array {
+				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
+			},
+			vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
+		drawPrimitives(hoveringNodeIndirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.alphaMaskedJumpFloodSeedRenderer);
+		cb.endRenderingKHR();
+	}
 
+	// Seeding jump flood initial image for selected node.
+	if (task.selectedNodeIndex && task.selectedNodeOutline) {
+		cb.beginRenderingKHR(passthruResources->selectedNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
+			std::array {
+				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
+			},
+			vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
+		drawPrimitives(selectedNodeIndirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.alphaMaskedJumpFloodSeedRenderer);
+		cb.endRenderingKHR();
+	}
+
+	// If cursor is in the passthru rect, do mouse picking.
 	const auto cursorPosFromPassthruRectTopLeft
 		= task.mouseCursorOffset.transform([&](const vk::Offset2D &offset) {
 			return vk::Offset2D { offset.x - task.passthruRect.offset.x, offset.y - task.passthruRect.offset.y };
@@ -438,6 +487,17 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 			    && 0 <= offset.y && offset.y < task.passthruRect.extent.height;
 		});
 	if (isCursorInPassthruRect.value_or(false)) {
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer,
+			{}, {}, {},
+			// For copying to hoveringNodeIndexBuffer.
+			vk::ImageMemoryBarrier {
+				vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
+				vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				passthruResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
+			});
+
 		cb.copyImageToBuffer(
 			passthruResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vk::ImageLayout::eTransferSrcOptimal,
 			hoveringNodeIndexBuffer,
@@ -509,7 +569,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 
 	// Render alphaMode=Opaque meshes.
 	bool primitiveRendererBound = false;
-	for (auto [begin, end] = sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
+	for (auto [begin, end] = renderingNodeIndirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!primitiveRendererBound) {
 			sharedData.primitiveRenderer.bindPipeline(cb);
@@ -537,7 +597,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 
 	// Render alphaMode=Mask meshes.
 	bool alphaMaskedPrimitiveRendererBound = false;
-	for (auto [begin, end] = sceneResources.indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
+	for (auto [begin, end] = renderingNodeIndirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 		if (!alphaMaskedPrimitiveRendererBound) {
 			sharedData.alphaMaskedPrimitiveRenderer.bindPipeline(cb);

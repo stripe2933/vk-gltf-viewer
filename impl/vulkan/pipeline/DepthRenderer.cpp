@@ -6,17 +6,16 @@ module vk_gltf_viewer;
 import :vulkan.pipeline.DepthRenderer;
 
 import std;
-import vku;
 
 vk_gltf_viewer::vulkan::pipeline::DepthRenderer::DepthRenderer(
     const vk::raii::Device &device,
-    std::tuple<const dsl::Scene&> descriptorSetLayouts
+    const dsl::Scene& descriptorSetLayout
 ) : pipelineLayout { device, vk::PipelineLayoutCreateInfo{
         {},
-        vku::unsafeProxy(std::apply([](const auto &...x) { return std::array { *x... }; }, descriptorSetLayouts)),
+        *descriptorSetLayout,
         vku::unsafeProxy({
             vk::PushConstantRange {
-                vk::ShaderStageFlagBits::eAllGraphics,
+                vk::ShaderStageFlagBits::eVertex,
                 0, sizeof(PushConstant),
             },
         }),
@@ -27,8 +26,7 @@ vk_gltf_viewer::vulkan::pipeline::DepthRenderer::DepthRenderer(
                 device,
                 vku::Shader { COMPILED_SHADER_DIR "/depth.vert.spv", vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { COMPILED_SHADER_DIR "/depth.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
-            *pipelineLayout,
-            3, true)
+            *pipelineLayout, 1, true)
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},
                 true, true, vk::CompareOp::eGreater, // Use reverse Z.
@@ -43,7 +41,7 @@ vk_gltf_viewer::vulkan::pipeline::DepthRenderer::DepthRenderer(
             })),
         vk::PipelineRenderingCreateInfo {
             {},
-            vku::unsafeProxy({ vk::Format::eR32Uint, vk::Format::eR16G16Uint, vk::Format::eR16G16Uint }),
+            vku::unsafeProxy({ vk::Format::eR32Uint }),
             vk::Format::eD32Sfloat,
         }
     }.get() } { }
@@ -58,5 +56,5 @@ auto vk_gltf_viewer::vulkan::pipeline::DepthRenderer::pushConstants(
     vk::CommandBuffer commandBuffer,
     const PushConstant &pushConstant
 ) const -> void {
-    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eAllGraphics, 0, pushConstant);
+    commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, pushConstant);
 }

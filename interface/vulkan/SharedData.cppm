@@ -9,9 +9,11 @@ export import vku;
 import :vulkan.attachment_groups;
 export import :vulkan.Gpu;
 export import :vulkan.pipeline.AlphaMaskedDepthRenderer;
+export import :vulkan.pipeline.AlphaMaskedJumpFloodSeedRenderer;
 export import :vulkan.pipeline.AlphaMaskedPrimitiveRenderer;
 export import :vulkan.pipeline.DepthRenderer;
 export import :vulkan.pipeline.JumpFloodComputer;
+export import :vulkan.pipeline.JumpFloodSeedRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
 export import :vulkan.pipeline.PrimitiveRenderer;
 export import :vulkan.pipeline.Rec709Renderer;
@@ -49,11 +51,13 @@ namespace vk_gltf_viewer::vulkan {
 
 		// Pipelines.
 		pipeline::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-		pipeline::DepthRenderer depthRenderer { gpu.device, std::tie(sceneDescriptorSetLayout) };
+    	pipeline::AlphaMaskedJumpFloodSeedRenderer alphaMaskedJumpFloodSeedRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+    	pipeline::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+		pipeline::DepthRenderer depthRenderer { gpu.device, sceneDescriptorSetLayout };
 		pipeline::JumpFloodComputer jumpFloodComputer { gpu.device };
+    	pipeline::JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, sceneDescriptorSetLayout };
 		pipeline::OutlineRenderer outlineRenderer { gpu.device };
 		pipeline::PrimitiveRenderer primitiveRenderer { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
-    	pipeline::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
     	pipeline::Rec709Renderer rec709Renderer { gpu.device };
 		pipeline::SkyboxRenderer skyboxRenderer { gpu.device, cubemapSampler, cubeIndices };
 		pipeline::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu.device, imageBasedLightingDescriptorSetLayout, cubeIndices };
