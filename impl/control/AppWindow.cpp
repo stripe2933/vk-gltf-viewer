@@ -117,7 +117,19 @@ void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
         }
         else if (action == GLFW_RELEASE) {
             if (lastMouseDownPosition) {
-                appState.selectedNodeIndex = appState.hoveringNodeIndex;
+                if (mods == GLFW_MOD_CONTROL) {
+                    if (appState.hoveringNodeIndex) {
+                        appState.selectedNodeIndices.emplace(*appState.hoveringNodeIndex);
+                    }
+                }
+                else{
+                    if (appState.hoveringNodeIndex) {
+                        appState.selectedNodeIndices = { *appState.hoveringNodeIndex };
+                    }
+                    else {
+                        appState.selectedNodeIndices.clear();
+                    }
+                }
                 lastMouseDownPosition = std::nullopt;
             }
         }

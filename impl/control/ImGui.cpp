@@ -802,12 +802,13 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
             ImGui::AlignTextToFramePadding();
             const ImGuiTreeNodeFlags flags
                 = ImGuiTreeNodeFlags_DefaultOpen | /*ImGuiTreeNodeFlags_SpanAllWidth*/ ImGuiTreeNodeFlags_SpanTextWidth | ImGuiTreeNodeFlags_OpenOnArrow
-                | ((appState.selectedNodeIndex && *appState.selectedNodeIndex == descendentNodeIndex) ? ImGuiTreeNodeFlags_Selected : 0)
+                | (appState.selectedNodeIndices.contains(descendentNodeIndex) ? ImGuiTreeNodeFlags_Selected : 0)
                 | (descendentNode.children.empty() ? (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet) : 0);
             ImGui::PushID(descendentNodeIndex);
             const bool isTreeNodeOpen = ImGui::TreeNodeEx("", flags);
             if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
-                appState.selectedNodeIndex = static_cast<std::uint32_t>(descendentNodeIndex);
+                // TODO: uncommenting this line in Clang causes internal compiler error...
+                // appState.selectedNodeIndices.emplace(descendentNodeIndex);
             }
 
             ImGui::SameLine();
@@ -914,193 +915,201 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
     fastgltf::Asset &asset,
     AppState &appState
 ) -> void {
-    if (ImGui::Begin("Node inspector") && appState.selectedNodeIndex) {
-        fastgltf::Node &node = asset.nodes[*appState.selectedNodeIndex];
-        ImGui::InputTextWithHint("Name", "<empty>", &node.name);
-
-        ImGui::SeparatorText("Transform");
-
-        if (bool isTrs = holds_alternative<fastgltf::TRS>(node.transform); ImGui::BeginCombo("Local transform", isTrs ? "TRS" : "Transform Matrix")) {
-            if (ImGui::Selectable("TRS", isTrs)) {
-                std::array<float, 3> translation, scale;
-                std::array<float, 4> rotation;
-                fastgltf::decomposeTransformMatrix(get<fastgltf::Node::TransformMatrix>(node.transform), scale, rotation, translation);
-
-                node.transform = fastgltf::TRS { translation, rotation, scale };
-            }
-            if (ImGui::Selectable("Transform Matrix", !isTrs)) {
-                const auto &trs = get<fastgltf::TRS>(node.transform);
-                const glm::mat4 matrix = glm::translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data())) * glm::mat4_cast(glm::make_quat(trs.rotation.data())) * glm::scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
-
-                fastgltf::Node::TransformMatrix transform;
-                std::copy_n(glm::value_ptr(matrix), 16, transform.data());
-                node.transform = transform;
-            }
-            ImGui::EndCombo();
+    if (ImGui::Begin("Node inspector")) {
+        if (appState.selectedNodeIndices.empty()) {
+            ImGui::TextUnformatted("No node selected.");
         }
-        std::visit(fastgltf::visitor {
-            [](fastgltf::TRS trs) {
-                // | operator cannot be chained, because of the short circuit evaulation.
-                bool transformChanged = ImGui::DragFloat3("Translation", trs.translation.data());
-                transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.data());
-                transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
+        else if (appState.selectedNodeIndices.size() == 1) {
+            fastgltf::Node &node = asset.nodes[*appState.selectedNodeIndices.begin()];
+            ImGui::InputTextWithHint("Name", "<empty>", &node.name);
 
-                if (transformChanged) {
-                    // TODO.
+            ImGui::SeparatorText("Transform");
+
+            if (bool isTrs = holds_alternative<fastgltf::TRS>(node.transform); ImGui::BeginCombo("Local transform", isTrs ? "TRS" : "Transform Matrix")) {
+                if (ImGui::Selectable("TRS", isTrs)) {
+                    std::array<float, 3> translation, scale;
+                    std::array<float, 4> rotation;
+                    fastgltf::decomposeTransformMatrix(get<fastgltf::Node::TransformMatrix>(node.transform), scale, rotation, translation);
+
+                    node.transform = fastgltf::TRS { translation, rotation, scale };
                 }
-            },
-            [](fastgltf::Node::TransformMatrix matrix) {
-                // | operator cannot be chained, because of the short circuit evaulation.
-                bool transformChanged = ImGui::DragFloat4("Column 0", &matrix[0]);
-                transformChanged |= ImGui::DragFloat4("Column 1", &matrix[4]);
-                transformChanged |= ImGui::DragFloat4("Column 2", &matrix[8]);
-                transformChanged |= ImGui::DragFloat4("Column 3", &matrix[12]);
+                if (ImGui::Selectable("Transform Matrix", !isTrs)) {
+                    const auto &trs = get<fastgltf::TRS>(node.transform);
+                    const glm::mat4 matrix = glm::translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data())) * glm::mat4_cast(glm::make_quat(trs.rotation.data())) * glm::scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
 
-                if (transformChanged) {
-                    // TODO.
+                    fastgltf::Node::TransformMatrix transform;
+                    std::copy_n(glm::value_ptr(matrix), 16, transform.data());
+                    node.transform = transform;
                 }
-            },
-        }, node.transform);
+                ImGui::EndCombo();
+            }
+            std::visit(fastgltf::visitor {
+                [](fastgltf::TRS trs) {
+                    // | operator cannot be chained, because of the short circuit evaulation.
+                    bool transformChanged = ImGui::DragFloat3("Translation", trs.translation.data());
+                    transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.data());
+                    transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
 
-        /*ImGui::TextUnformatted("Global transform");
-        const glm::mat4 &globalTransform = nodeGlobalTransforms[*selectedNodeIndex][0];
-        INDEX_SEQ(Is, 4, {
-            (ImGui::Text("Column %zu: (%.2f, %.2f, %.2f, %.2f)",
-                Is, globalTransform[Is].x, globalTransform[Is].y, globalTransform[Is].z, globalTransform[Is].w
-            ), ...);
-        });*/
+                    if (transformChanged) {
+                        // TODO.
+                    }
+                },
+                [](fastgltf::Node::TransformMatrix matrix) {
+                    // | operator cannot be chained, because of the short circuit evaulation.
+                    bool transformChanged = ImGui::DragFloat4("Column 0", &matrix[0]);
+                    transformChanged |= ImGui::DragFloat4("Column 1", &matrix[4]);
+                    transformChanged |= ImGui::DragFloat4("Column 2", &matrix[8]);
+                    transformChanged |= ImGui::DragFloat4("Column 3", &matrix[12]);
 
-        if (ImGui::BeginTabBar("node-tab-bar")) {
-            if (node.meshIndex && ImGui::BeginTabItem("Mesh")) {
-                fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-                ImGui::InputTextWithHint("Name", "<empty>", &mesh.name);
+                    if (transformChanged) {
+                        // TODO.
+                    }
+                },
+            }, node.transform);
 
-                for (auto &&[primitiveIndex, primitive]: mesh.primitives | ranges::views::enumerate) {
-                    if (ImGui::CollapsingHeader(std::format("Primitive {}", primitiveIndex).c_str())) {
-                        if (int type = static_cast<int>(primitive.type); ImGui::Combo("Type", &type, [](auto*, int i) { return to_string(static_cast<fastgltf::PrimitiveType>(i)); }, nullptr, 7)) {
-                            // TODO.
-                        }
-                        if (primitive.materialIndex) {
-                            ImGui::PushID(*primitive.materialIndex);
-                            if (ImGui::WithLabel("Material"sv, [&]() { return ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.materials[*primitive.materialIndex].name, [&] { return std::format("<Unnamed material {}>", *primitive.materialIndex); }))); })) {
+            /*ImGui::TextUnformatted("Global transform");
+            const glm::mat4 &globalTransform = nodeGlobalTransforms[*selectedNodeIndices.begin()][0];
+            INDEX_SEQ(Is, 4, {
+                (ImGui::Text("Column %zu: (%.2f, %.2f, %.2f, %.2f)",
+                    Is, globalTransform[Is].x, globalTransform[Is].y, globalTransform[Is].z, globalTransform[Is].w
+                ), ...);
+            });*/
+
+            if (ImGui::BeginTabBar("node-tab-bar")) {
+                if (node.meshIndex && ImGui::BeginTabItem("Mesh")) {
+                    fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+                    ImGui::InputTextWithHint("Name", "<empty>", &mesh.name);
+
+                    for (auto &&[primitiveIndex, primitive]: mesh.primitives | ranges::views::enumerate) {
+                        if (ImGui::CollapsingHeader(std::format("Primitive {}", primitiveIndex).c_str())) {
+                            if (int type = static_cast<int>(primitive.type); ImGui::Combo("Type", &type, [](auto*, int i) { return to_string(static_cast<fastgltf::PrimitiveType>(i)); }, nullptr, 7)) {
                                 // TODO.
                             }
-                            ImGui::PopID();
-                        }
-                        else {
-                            ImGui::BeginDisabled();
-                            ImGui::LabelText("Material", "-");
-                            ImGui::EndDisabled();
-                        }
-
-                        static int floatingPointPrecision = 2;
-                        if (ImGui::BeginTable("attributes-table", 8, ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_SizingFixedFit)) {
-                            // Headers.
-                            ImGui::TableSetupColumn("Attribute");
-                            ImGui::TableSetupColumn("Type");
-                            ImGui::TableSetupColumn("ComponentType");
-                            ImGui::TableSetupColumn("Count");
-                            ImGui::TableSetupColumn("Bound");
-                            ImGui::TableSetupColumn("Normalized");
-                            ImGui::TableSetupColumn("Sparse");
-                            ImGui::TableSetupColumn("BufferViewIndex");
-                            ImGui::TableHeadersRow();
-
-                            // Rows.
-                            constexpr auto addRow = [](std::string_view attributeName, const fastgltf::Accessor &accessor) {
-                                ImGui::PushID(attributeName.cbegin(), attributeName.cend());
-
-                                ImGui::TableNextRow();
-
-                                ImGui::TableSetColumnIndex(0);
-                                ImGui::TextUnformatted(attributeName);
-
-                                ImGui::TableSetColumnIndex(1);
-                                ImGui::TextUnformatted(to_string(accessor.type));
-
-                                ImGui::TableSetColumnIndex(2);
-                                ImGui::TextUnformatted(to_string(accessor.componentType));
-
-                                ImGui::TableSetColumnIndex(3);
-                                ImGui::Text("%zu", accessor.count);
-
-                                ImGui::TableSetColumnIndex(4);
-                                std::visit(fastgltf::visitor {
-                                    [](const std::pmr::vector<int64_t> &min, const std::pmr::vector<int64_t> &max) {
-                                        assert(min.size() == max.size() && "Different min/max dimension");
-                                        if (min.size() == 1) ImGui::Text("[%lld, %lld]", min[0], max[0]);
-#if __cpp_lib_format_ranges >= 202207L
-                                        else ImGui::TextUnformatted(std::format("{}x{}", min, max));
-#else
-                                        else if (min.size() == 2) ImGui::Text("[%lld, %lld]x[%lld, %lld]", min[0], min[1], max[0], max[1]);
-                                        else if (min.size() == 3) ImGui::Text("[%lld, %lld, %lld]x[%lld, %lld, %lld]", min[0], min[1], min[2], max[0], max[1], max[2]);
-                                        else if (min.size() == 4) ImGui::Text("[%lld, %lld, %lld, %lld]x[%lld, %lld, %lld, %lld]", min[0], min[1], min[2], min[3], max[0], max[1], max[2], max[3]);
-                                        else assert(false && "Unsupported min/max dimension");
-#endif
-                                    },
-                                    [](const std::pmr::vector<double> &min, const std::pmr::vector<double> &max) {
-                                        assert(min.size() == max.size() && "Different min/max dimension");
-                                        if (min.size() == 1) ImGui::Text("[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, max[0]);
-#if __cpp_lib_format_ranges >= 202207L
-                                        else ImGui::TextUnformatted(std::format("{0::.{2}f}x{1::.{2}f}", min, max, floatingPointPrecision));
-#else
-                                        else if (min.size() == 2) ImGui::Text("[%.*lf, %.*lf]x[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, max[0], floatingPointPrecision, max[1]);
-										else if (min.size() == 3) ImGui::Text("[%.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2]);
-										else if (min.size() == 4) ImGui::Text("[%.*lf, %.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], min[1], floatingPointPrecision, min[3], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2], floatingPointPrecision, max[3]);
-										else assert(false && "Unsupported min/max dimension");
-#endif
-                                    },
-                                    [](const auto&...) {
-                                        ImGui::TextUnformatted("-"sv);
-                                    }
-                                }, accessor.min, accessor.max);
-
-                                ImGui::TableSetColumnIndex(5);
-                                ImGui::TextUnformatted(accessor.normalized ? "Yes"sv : "No"sv);
-
-                                ImGui::TableSetColumnIndex(6);
-                                ImGui::TextUnformatted(accessor.sparse ? "Yes"sv : "No"sv);
-
-                                ImGui::TableSetColumnIndex(7);
-                                if (accessor.bufferViewIndex) {
-                                    if (ImGui::HyperLink(::to_string(*accessor.bufferViewIndex))) {
-                                        // TODO.
-                                    }
+                            if (primitive.materialIndex) {
+                                ImGui::PushID(*primitive.materialIndex);
+                                if (ImGui::WithLabel("Material"sv, [&]() { return ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.materials[*primitive.materialIndex].name, [&] { return std::format("<Unnamed material {}>", *primitive.materialIndex); }))); })) {
+                                    // TODO.
                                 }
-                                else {
-                                    ImGui::TextDisabled("-");
-                                }
-
                                 ImGui::PopID();
-                            };
-                            if (primitive.indicesAccessor) {
-                                addRow("Index"sv, asset.accessors[*primitive.indicesAccessor]);
                             }
-                            for (const auto &[attributeName, accessorIndex] : primitive.attributes) {
-                                addRow(attributeName, asset.accessors[accessorIndex]);
+                            else {
+                                ImGui::BeginDisabled();
+                                ImGui::LabelText("Material", "-");
+                                ImGui::EndDisabled();
                             }
-                            ImGui::EndTable();
-                        }
 
-                        if (ImGui::InputInt("Bound fp precision", &floatingPointPrecision)) {
-                            floatingPointPrecision = std::clamp(floatingPointPrecision, 0, 9);
+                            static int floatingPointPrecision = 2;
+                            if (ImGui::BeginTable("attributes-table", 8, ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_SizingFixedFit)) {
+                                // Headers.
+                                ImGui::TableSetupColumn("Attribute");
+                                ImGui::TableSetupColumn("Type");
+                                ImGui::TableSetupColumn("ComponentType");
+                                ImGui::TableSetupColumn("Count");
+                                ImGui::TableSetupColumn("Bound");
+                                ImGui::TableSetupColumn("Normalized");
+                                ImGui::TableSetupColumn("Sparse");
+                                ImGui::TableSetupColumn("BufferViewIndex");
+                                ImGui::TableHeadersRow();
+
+                                // Rows.
+                                constexpr auto addRow = [](std::string_view attributeName, const fastgltf::Accessor &accessor) {
+                                    ImGui::PushID(attributeName.cbegin(), attributeName.cend());
+
+                                    ImGui::TableNextRow();
+
+                                    ImGui::TableSetColumnIndex(0);
+                                    ImGui::TextUnformatted(attributeName);
+
+                                    ImGui::TableSetColumnIndex(1);
+                                    ImGui::TextUnformatted(to_string(accessor.type));
+
+                                    ImGui::TableSetColumnIndex(2);
+                                    ImGui::TextUnformatted(to_string(accessor.componentType));
+
+                                    ImGui::TableSetColumnIndex(3);
+                                    ImGui::Text("%zu", accessor.count);
+
+                                    ImGui::TableSetColumnIndex(4);
+                                    std::visit(fastgltf::visitor {
+                                        [](const std::pmr::vector<int64_t> &min, const std::pmr::vector<int64_t> &max) {
+                                            assert(min.size() == max.size() && "Different min/max dimension");
+                                            if (min.size() == 1) ImGui::Text("[%lld, %lld]", min[0], max[0]);
+#if __cpp_lib_format_ranges >= 202207L
+                                            else ImGui::TextUnformatted(std::format("{}x{}", min, max));
+#else
+                                            else if (min.size() == 2) ImGui::Text("[%lld, %lld]x[%lld, %lld]", min[0], min[1], max[0], max[1]);
+                                            else if (min.size() == 3) ImGui::Text("[%lld, %lld, %lld]x[%lld, %lld, %lld]", min[0], min[1], min[2], max[0], max[1], max[2]);
+                                            else if (min.size() == 4) ImGui::Text("[%lld, %lld, %lld, %lld]x[%lld, %lld, %lld, %lld]", min[0], min[1], min[2], min[3], max[0], max[1], max[2], max[3]);
+                                            else assert(false && "Unsupported min/max dimension");
+#endif
+                                        },
+                                        [](const std::pmr::vector<double> &min, const std::pmr::vector<double> &max) {
+                                            assert(min.size() == max.size() && "Different min/max dimension");
+                                            if (min.size() == 1) ImGui::Text("[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, max[0]);
+#if __cpp_lib_format_ranges >= 202207L
+                                            else ImGui::TextUnformatted(std::format("{0::.{2}f}x{1::.{2}f}", min, max, floatingPointPrecision));
+#else
+                                            else if (min.size() == 2) ImGui::Text("[%.*lf, %.*lf]x[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, max[0], floatingPointPrecision, max[1]);
+										    else if (min.size() == 3) ImGui::Text("[%.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2]);
+										    else if (min.size() == 4) ImGui::Text("[%.*lf, %.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], min[1], floatingPointPrecision, min[3], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2], floatingPointPrecision, max[3]);
+										    else assert(false && "Unsupported min/max dimension");
+#endif
+                                        },
+                                        [](const auto&...) {
+                                            ImGui::TextUnformatted("-"sv);
+                                        }
+                                    }, accessor.min, accessor.max);
+
+                                    ImGui::TableSetColumnIndex(5);
+                                    ImGui::TextUnformatted(accessor.normalized ? "Yes"sv : "No"sv);
+
+                                    ImGui::TableSetColumnIndex(6);
+                                    ImGui::TextUnformatted(accessor.sparse ? "Yes"sv : "No"sv);
+
+                                    ImGui::TableSetColumnIndex(7);
+                                    if (accessor.bufferViewIndex) {
+                                        if (ImGui::HyperLink(::to_string(*accessor.bufferViewIndex))) {
+                                            // TODO.
+                                        }
+                                    }
+                                    else {
+                                        ImGui::TextDisabled("-");
+                                    }
+
+                                    ImGui::PopID();
+                                };
+                                if (primitive.indicesAccessor) {
+                                    addRow("Index"sv, asset.accessors[*primitive.indicesAccessor]);
+                                }
+                                for (const auto &[attributeName, accessorIndex] : primitive.attributes) {
+                                    addRow(attributeName, asset.accessors[accessorIndex]);
+                                }
+                                ImGui::EndTable();
+                            }
+
+                            if (ImGui::InputInt("Bound fp precision", &floatingPointPrecision)) {
+                                floatingPointPrecision = std::clamp(floatingPointPrecision, 0, 9);
+                            }
                         }
                     }
+                    ImGui::EndTabItem();
                 }
-                ImGui::EndTabItem();
-            }
-            if (node.cameraIndex && ImGui::BeginTabItem("Camera")) {
-                fastgltf::Camera &camera = asset.cameras[*node.cameraIndex];
-                ImGui::InputTextWithHint("Name", "<empty>", &camera.name);
-                ImGui::EndTabItem();
-            }
-            if (node.lightIndex && ImGui::BeginTabItem("Light")) {
-                fastgltf::Light &light = asset.lights[*node.lightIndex];
-                ImGui::InputTextWithHint("Name", "<empty>", &light.name);
-                ImGui::EndTabItem();
-            }
+                if (node.cameraIndex && ImGui::BeginTabItem("Camera")) {
+                    fastgltf::Camera &camera = asset.cameras[*node.cameraIndex];
+                    ImGui::InputTextWithHint("Name", "<empty>", &camera.name);
+                    ImGui::EndTabItem();
+                }
+                if (node.lightIndex && ImGui::BeginTabItem("Light")) {
+                    fastgltf::Light &light = asset.lights[*node.lightIndex];
+                    ImGui::InputTextWithHint("Name", "<empty>", &light.name);
+                    ImGui::EndTabItem();
+                }
 
-            ImGui::EndTabBar();
+                ImGui::EndTabBar();
+            }
+        }
+        else {
+            ImGui::TextUnformatted("Multiple nodes selected.");
         }
     }
     ImGui::End();

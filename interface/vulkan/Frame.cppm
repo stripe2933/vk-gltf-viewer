@@ -1,5 +1,6 @@
 module;
 
+#include <fastgltf/types.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vk_gltf_viewer:vulkan.Frame;
@@ -22,7 +23,8 @@ namespace vk_gltf_viewer::vulkan {
     		vk::Rect2D passthruRect;
     		struct { glm::mat4 view, projection; } camera;
     		std::optional<vk::Offset2D> mouseCursorOffset;
-    		std::optional<std::uint32_t> hoveringNodeIndex, selectedNodeIndex;
+    		std::optional<std::uint32_t> hoveringNodeIndex;
+    		std::unordered_set<std::size_t> selectedNodeIndices;
     		std::optional<AppState::Outline> hoveringNodeOutline, selectedNodeOutline;
     		bool useBlurredSkybox;
     		vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
@@ -46,6 +48,22 @@ namespace vk_gltf_viewer::vulkan {
     	[[nodiscard]] auto execute(const ExecutionTask &task) -> std::expected<ExecutionResult, ExecutionError>;
 
     private:
+        struct CommandSeparationCriteria {
+            fastgltf::AlphaMode alphaMode;
+            bool doubleSided;
+            std::optional<vk::IndexType> indexType;
+
+            [[nodiscard]] constexpr auto operator<=>(const CommandSeparationCriteria&) const noexcept -> std::strong_ordering = default;
+        };
+
+		struct CommandSeparationCriteriaComparator {
+			using is_transparent = void;
+
+			[[nodiscard]] auto operator()(const CommandSeparationCriteria &lhs, const CommandSeparationCriteria &rhs) const noexcept -> bool { return lhs < rhs; }
+			[[nodiscard]] auto operator()(const CommandSeparationCriteria &lhs, fastgltf::AlphaMode rhs) const noexcept -> bool { return lhs.alphaMode < rhs; }
+			[[nodiscard]] auto operator()(fastgltf::AlphaMode lhs, const CommandSeparationCriteria &rhs) const noexcept -> bool { return lhs < rhs.alphaMode; }
+		};
+
     	class PassthruResources {
     	public:
     		struct JumpFloodResources {
@@ -76,9 +94,9 @@ namespace vk_gltf_viewer::vulkan {
     	const gltf::SceneResources &sceneResources;
 
     	// Buffer, image and image views.
-    	std::map<gltf::SceneResources::CommandSeparationCriteria, vku::MappedBuffer, gltf::SceneResources::CommandSeparationCriteriaComparator> renderingNodeIndirectDrawCommandBuffers; /// Draw commands for rendering nodes (in both depth prepass and main pass)
-    	std::map<gltf::SceneResources::CommandSeparationCriteria, vku::MappedBuffer, gltf::SceneResources::CommandSeparationCriteriaComparator> hoveringNodeIndirectDrawCommandBuffers; /// Depth prepass draw commands for hovering nodes
-    	std::map<gltf::SceneResources::CommandSeparationCriteria, vku::MappedBuffer, gltf::SceneResources::CommandSeparationCriteriaComparator> selectedNodeIndirectDrawCommandBuffers; /// Depth prepass draw commands for selected nodes
+    	std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> renderingNodeIndirectDrawCommandBuffers; /// Draw commands for rendering nodes (in both depth prepass and main pass)
+    	std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> hoveringNodeIndirectDrawCommandBuffers; /// Depth prepass draw commands for hovering nodes
+    	std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> selectedNodeIndirectDrawCommandBuffers; /// Depth prepass draw commands for selected nodes
     	vku::MappedBuffer hoveringNodeIndexBuffer;
     	std::optional<vk::Extent2D> passthruExtent = std::nullopt;
 		std::optional<PassthruResources> passthruResources = std::nullopt;
