@@ -6,26 +6,24 @@ export module vk_gltf_viewer:gltf.AssetResources;
 
 import std;
 export import glm;
+import thread_pool;
 export import vku;
-import :io.StbDecoder;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::gltf {
     export class AssetResources {
         class ResourceBytes {
+            std::list<std::vector<std::uint8_t>> cache;
+
         public:
-            // glTF buffer may be embeded in data buffer, or at the external storage.
-            // Therefore, we use variant of span (embeded) and vector (externally loaded) to represent buffer data.
-            std::vector<std::variant<std::span<const std::uint8_t>, std::vector<std::uint8_t>>> bufferBytes; // bufferBytes[i] -> asset.buffers[i].data
-            std::vector<io::StbDecoder<std::uint8_t>::DecodeResult> images; // images[i] -> decoded image data.
+            std::vector<std::span<const std::uint8_t>> bufferBytes;
 
             ResourceBytes(const fastgltf::Asset &asset, const std::filesystem::path &assetDir);
 
             [[nodiscard]] auto getBufferViewBytes(const fastgltf::BufferView &bufferView) const noexcept -> std::span<const std::uint8_t>;
 
         private:
-            auto createBufferBytes(const fastgltf::Asset &asset, const std::filesystem::path &assetDir) const -> decltype(bufferBytes);
-            auto createImages(const fastgltf::Asset &asset, const std::filesystem::path &assetDir) const -> decltype(images);
+            [[nodiscard]] auto createBufferBytes(const fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> decltype(bufferBytes);
         };
 
         std::list<vku::MappedBuffer> stagingBuffers;
@@ -91,22 +89,22 @@ namespace vk_gltf_viewer::gltf {
         AssetResources(const fastgltf::Asset &asset [[clang::lifetimebound]], const std::filesystem::path &assetDir, const vulkan::Gpu &gpu [[clang::lifetimebound]], const Config &config = {});
 
     private:
-        AssetResources(const fastgltf::Asset &asset, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, const Config &config);
+        AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, const Config &config, BS::thread_pool threadPool = {});
 
         [[nodiscard]] auto createPrimitiveInfos(const fastgltf::Asset &asset) const -> decltype(primitiveInfos);
 
         [[nodiscard]] auto createDefaultSampler(const vk::raii::Device &device) const -> decltype(defaultSampler);
-        [[nodiscard]] auto createImages(const ResourceBytes &resourceBytes, vma::Allocator allocator) const -> decltype(images);
+        [[nodiscard]] auto createImages(const std::filesystem::path &assetDir, const ResourceBytes &resourceBytes, vma::Allocator allocator, BS::thread_pool &threadPool) const -> decltype(images);
         [[nodiscard]] auto createImageViews(const vk::raii::Device &device) const -> decltype(imageViews);
         [[nodiscard]] auto createSamplers(const vk::raii::Device &device) const -> decltype(samplers);
         [[nodiscard]] auto createTextures() const -> decltype(textures);
         [[nodiscard]] auto createMaterialBuffer(vma::Allocator allocator) const -> decltype(materialBuffer);
 
-        auto stageImages(const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto stageImages(const std::filesystem::path &assetDir, const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer, BS::thread_pool &threadPool) -> void;
         auto stageMaterials(vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;
         auto stagePrimitiveAttributeBuffers(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
         auto stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute attributeType, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
-        auto stagePrimitiveTangentBuffers(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
+        auto stagePrimitiveTangentBuffers(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer, BS::thread_pool &threadPool) -> void;
         auto stagePrimitiveIndexBuffers(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer, bool supportUint8Index) -> void;
 
         auto releaseResourceQueueFamilyOwnership(const vulkan::Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;

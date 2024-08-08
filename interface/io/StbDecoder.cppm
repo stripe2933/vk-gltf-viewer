@@ -1,6 +1,5 @@
 module;
 
-#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 export module vk_gltf_viewer:io.StbDecoder;

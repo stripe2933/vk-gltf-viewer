@@ -50,6 +50,7 @@ endif()
 # --------------------
 
 add_executable(vk-gltf-viewer
+	impl.cpp
 	impl/control/AppWindow.cpp
     impl/AppState.cpp
     impl/control/ImGui.cpp
@@ -78,8 +79,8 @@ target_include_directories(vk-gltf-viewer PRIVATE
 )
 target_sources(vk-gltf-viewer PRIVATE
 	FILE_SET CXX_MODULES
-	BASE_DIRS interface
 	FILES
+		extlibs/thread_pool.cppm
 		interface/mod.cppm
 		interface/control/AppWindow.cppm
 		interface/control/Camera.cppm
