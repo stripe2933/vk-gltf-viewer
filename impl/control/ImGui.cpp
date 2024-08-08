@@ -890,6 +890,13 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
             ImGui::PopID();
         };
 
+        appState.renderingNodeIndices
+            = visibilities
+            | ranges::views::enumerate
+            | std::views::filter([](const auto &pair) { return pair.second.value_or(false); })
+            | std::views::keys
+            | std::ranges::to<std::unordered_set<std::size_t>>();
+
         const fastgltf::Scene &scene = asset.scenes[sceneIndex];
         if (ImGui::BeginTable("scene-hierarchy-table", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
             ImGui::TableSetupScrollFreeze(0, 1);

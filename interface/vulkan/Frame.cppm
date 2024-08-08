@@ -25,6 +25,7 @@ namespace vk_gltf_viewer::vulkan {
     		std::optional<vk::Offset2D> mouseCursorOffset;
     		std::optional<std::uint32_t> hoveringNodeIndex;
     		std::unordered_set<std::size_t> selectedNodeIndices;
+    		std::unordered_set<std::size_t> renderingNodeIndices;
     		std::optional<AppState::Outline> hoveringNodeOutline, selectedNodeOutline;
     		bool useBlurredSkybox;
     		vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;

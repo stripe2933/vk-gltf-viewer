@@ -286,7 +286,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 		};
 	};
 
-	renderingNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, std::views::iota(0UZ, assetResources.asset.nodes.size()) | std::ranges::to<std::unordered_set>());
+	renderingNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.renderingNodeIndices);
 	if (task.hoveringNodeIndex && task.hoveringNodeOutline) {
 		hoveringNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *task.hoveringNodeIndex });
 	}

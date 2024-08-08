@@ -369,6 +369,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			}),
 			.hoveringNodeIndex = appState.hoveringNodeIndex,
 			.selectedNodeIndices = appState.selectedNodeIndices,
+			.renderingNodeIndices = appState.renderingNodeIndices,
 			.hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
 			.selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
 			.useBlurredSkybox = appState.useBlurredSkybox,
