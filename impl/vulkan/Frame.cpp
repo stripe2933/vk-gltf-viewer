@@ -511,9 +511,21 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 			// TODO: render alphaMode=Blend meshes.
 		};
 
+	const auto cursorPosFromPassthruRectTopLeft
+		= task.mouseCursorOffset.transform([&](const vk::Offset2D &offset) {
+			return vk::Offset2D { offset.x - task.passthruRect.offset.x, offset.y - task.passthruRect.offset.y };
+		});
+	const bool isCursorInPassthruRect
+		= cursorPosFromPassthruRectTopLeft
+		.transform([&](const vk::Offset2D &offset) {
+			return 0 <= offset.x && offset.x < task.passthruRect.extent.width
+			    && 0 <= offset.y && offset.y < task.passthruRect.extent.height;
+		})
+		.value_or(false);
+
 	cb.beginRenderingKHR(passthruResources->depthPrepassAttachmentGroup.getRenderingInfo(
 		std::array {
-			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { NO_INDEX, 0U, 0U, 0U } },
+			vku::AttachmentGroup::ColorAttachmentInfo { isCursorInPassthruRect ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare, isCursorInPassthruRect ? vk::AttachmentStoreOp::eStore : vk::AttachmentStoreOp::eDontCare, { NO_INDEX, 0U, 0U, 0U } },
 		},
 		vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 	drawPrimitives(renderingNodeIndirectDrawCommandBuffers, sharedData.depthRenderer, sharedData.alphaMaskedDepthRenderer);
@@ -542,16 +554,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	}
 
 	// If cursor is in the passthru rect, do mouse picking.
-	const auto cursorPosFromPassthruRectTopLeft
-		= task.mouseCursorOffset.transform([&](const vk::Offset2D &offset) {
-			return vk::Offset2D { offset.x - task.passthruRect.offset.x, offset.y - task.passthruRect.offset.y };
-		});
-	const auto isCursorInPassthruRect
-		= cursorPosFromPassthruRectTopLeft.transform([&](const vk::Offset2D &offset) {
-			return 0 <= offset.x && offset.x < task.passthruRect.extent.width
-			    && 0 <= offset.y && offset.y < task.passthruRect.extent.height;
-		});
-	if (isCursorInPassthruRect.value_or(false)) {
+	if (isCursorInPassthruRect) {
 		cb.pipelineBarrier(
 			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer,
 			{}, {}, {},
