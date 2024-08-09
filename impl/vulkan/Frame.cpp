@@ -115,7 +115,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 	// TODO: If there are multiple compute queues, distribute the tasks to avoid the compute pipeline stalling.
 	std::optional<bool> hoveringNodeJumpFloodForward{}, selectedNodeJumpFloodForward{};
 	jumpFloodCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
-	if (task.hoveringNodeIndex && task.hoveringNodeOutline) {
+	if (hoveringNodeIndex && task.hoveringNodeOutline) {
 		hoveringNodeJumpFloodForward = recordJumpFloodComputeCommands(
 			jumpFloodCommandBuffer,
 			passthruResources->hoveringNodeOutlineJumpFloodResources.image,
@@ -131,7 +131,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 			})),
 			{});
 	}
-	if (!task.selectedNodeIndices.empty() && task.selectedNodeOutline) {
+	if (!selectedNodeIndices.empty() && task.selectedNodeOutline) {
 		selectedNodeJumpFloodForward = recordJumpFloodComputeCommands(
 			jumpFloodCommandBuffer,
 			passthruResources->selectedNodeOutlineJumpFloodResources.image,
@@ -343,12 +343,17 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 		};
 	};
 
-	renderingNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.renderingNodeIndices);
-	if (task.hoveringNodeIndex && task.hoveringNodeOutline) {
-		hoveringNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *task.hoveringNodeIndex });
+	if (renderingNodeIndices != task.renderingNodeIndices) {
+		renderingNodeIndices = std::move(task.renderingNodeIndices);
+		renderingNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, renderingNodeIndices);
 	}
-	if (!task.selectedNodeIndices.empty() && task.selectedNodeOutline) {
-		selectedNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.selectedNodeIndices);
+	if (hoveringNodeIndex != task.hoveringNodeIndex) {
+		hoveringNodeIndex = task.hoveringNodeIndex;
+		hoveringNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *hoveringNodeIndex });
+	}
+	if (selectedNodeIndices != task.selectedNodeIndices) {
+		selectedNodeIndices = task.selectedNodeIndices;
+		selectedNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, selectedNodeIndices);
 	}
 
 	// If passthru extent is different from the current's, dependent images have to be recreated.
@@ -397,11 +402,11 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		});
 
 	};
-	if (task.hoveringNodeIndex && task.hoveringNodeOutline) {
+	if (hoveringNodeIndex && task.hoveringNodeOutline) {
 		addJumpFloodSeedImageMemoryBarrier(passthruResources->hoveringNodeOutlineJumpFloodResources.image);
 	}
 	// Same holds for selected nodes' outline.
-	if (!task.selectedNodeIndices.empty() && task.selectedNodeOutline) {
+	if (!selectedNodeIndices.empty() && task.selectedNodeOutline) {
 		addJumpFloodSeedImageMemoryBarrier(passthruResources->selectedNodeOutlineJumpFloodResources.image);
 	}
 
@@ -532,7 +537,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	cb.endRenderingKHR();
 
 	// Seeding jump flood initial image for hovering node.
-	if (task.hoveringNodeIndex && task.hoveringNodeOutline) {
+	if (hoveringNodeIndex && task.hoveringNodeOutline) {
 		cb.beginRenderingKHR(passthruResources->hoveringNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
 			std::array {
 				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
@@ -543,7 +548,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	}
 
 	// Seeding jump flood initial image for selected node.
-	if (!task.selectedNodeIndices.empty() && task.selectedNodeOutline) {
+	if (!selectedNodeIndices.empty() && task.selectedNodeOutline) {
 		cb.beginRenderingKHR(passthruResources->selectedNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
 			std::array {
 				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
@@ -766,7 +771,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 
 	// Draw hovering/selected node outline if exists.
 	bool pipelineBound = false;
-	if (!task.selectedNodeIndices.empty() && task.selectedNodeOutline) {
+	if (!selectedNodeIndices.empty() && task.selectedNodeOutline) {
 		if (!pipelineBound) {
 			sharedData.outlineRenderer.bindPipeline(cb);
 			pipelineBound = true;
@@ -779,10 +784,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		});
 		sharedData.outlineRenderer.draw(cb);
 	}
-	if (task.hoveringNodeIndex && task.hoveringNodeOutline &&
-		(!task.selectedNodeIndices.contains(*task.hoveringNodeIndex) /* If mouse is hovering over the selected nodes, hovering node outline doesn't have to be rendered. */ ||
+	if (hoveringNodeIndex && task.hoveringNodeOutline &&
+		(!selectedNodeIndices.contains(*hoveringNodeIndex) /* If mouse is hovering over the selected nodes, hovering node outline doesn't have to be rendered. */ ||
 			!task.selectedNodeOutline /* If selected node outline rendering is disabled, hovering node should be rendered even if it is contained in the selectedNodeIndices. */)) {
-		if (!task.selectedNodeIndices.empty() && task.selectedNodeOutline) {
+		if (!selectedNodeIndices.empty() && task.selectedNodeOutline) {
 			// TODO: pipeline barrier required.
 		}
 

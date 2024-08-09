@@ -95,8 +95,11 @@ namespace vk_gltf_viewer::vulkan {
     	const gltf::SceneResources &sceneResources;
 
     	// Buffer, image and image views.
+    	std::unordered_set<std::size_t> renderingNodeIndices;
     	std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> renderingNodeIndirectDrawCommandBuffers; /// Draw commands for rendering nodes (in both depth prepass and main pass)
+    	std::optional<std::uint32_t> hoveringNodeIndex;
     	std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> hoveringNodeIndirectDrawCommandBuffers; /// Depth prepass draw commands for hovering nodes
+    	std::unordered_set<std::size_t> selectedNodeIndices;
     	std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> selectedNodeIndirectDrawCommandBuffers; /// Depth prepass draw commands for selected nodes
     	vku::MappedBuffer hoveringNodeIndexBuffer;
     	std::optional<vk::Extent2D> passthruExtent = std::nullopt;
