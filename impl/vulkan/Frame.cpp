@@ -290,7 +290,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 	if (task.hoveringNodeIndex && task.hoveringNodeOutline) {
 		hoveringNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *task.hoveringNodeIndex });
 	}
-	if (task.hoveringNodeIndex && task.hoveringNodeOutline) {
+	if (!task.selectedNodeIndices.empty() && task.selectedNodeOutline) {
 		selectedNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.selectedNodeIndices);
 	}
 
