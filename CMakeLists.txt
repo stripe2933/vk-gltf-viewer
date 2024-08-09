@@ -58,6 +58,7 @@ add_executable(vk-gltf-viewer
 	impl/gltf/SceneResources.cpp
 	impl/helpers/enum_to_string.cpp
 	impl/MainApp.cpp
+	impl/mod.cpp
 	impl/vulkan/attachment_groups.cpp
 	impl/vulkan/Frame.cpp
 	impl/vulkan/Gpu.cpp

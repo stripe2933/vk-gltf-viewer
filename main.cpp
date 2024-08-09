@@ -2,6 +2,7 @@
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 import vk_gltf_viewer;
+import vulkan_hpp;
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
@@ -11,7 +12,7 @@ int main() {
 
 	VULKAN_HPP_DEFAULT_DISPATCHER.init();
 
-	vk_gltf_viewer::MainApp{}.run();
+	vk_gltf_viewer::run();
 
 	glfwTerminate();
 }

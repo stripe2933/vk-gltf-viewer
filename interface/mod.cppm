@@ -1,3 +1,5 @@
 export module vk_gltf_viewer;
 
-export import :MainApp;
+namespace vk_gltf_viewer {
+    export auto run() -> void;
+}
