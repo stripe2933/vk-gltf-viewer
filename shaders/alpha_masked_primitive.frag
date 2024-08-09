@@ -117,8 +117,14 @@ void main(){
 
     // Compare the luminance of color and emissive.
     // If emissive is brighter, use it.
-    if (dot(emissive, REC_709_LUMA) > dot(color, REC_709_LUMA)){
-        color = emissive;
+    float colorLuminance = dot(color, REC_709_LUMA);
+    float emissiveLuminance = dot(emissive, REC_709_LUMA);
+    vec3 correctedColor;
+    if (emissiveLuminance > colorLuminance){
+        correctedColor = emissive / (1.0 + emissiveLuminance);
+    }
+    else {
+        correctedColor = color / (1.0 + colorLuminance);
     }
 
     float alpha = baseColor.a;
@@ -126,5 +132,5 @@ void main(){
     // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
     alpha = (alpha - ALPHA_CUTOFF) / max(fwidth(alpha), 1e-4) + 0.5;
 
-    outColor = vec4(color, alpha);
+    outColor = vec4(correctedColor, alpha);
 }

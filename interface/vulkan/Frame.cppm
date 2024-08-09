@@ -12,6 +12,7 @@ export import :gltf.AssetResources;
 export import :gltf.SceneResources;
 export import :vulkan.SharedData;
 import :vulkan.ag.JumpFloodSeed;
+import :vulkan.ag.Scene;
 import :vulkan.attachment_groups;
 export import :vulkan.dsl.Asset;
 export import :vulkan.dsl.Scene;
@@ -81,7 +82,6 @@ namespace vk_gltf_viewer::vulkan {
     		DepthPrepassAttachmentGroup depthPrepassAttachmentGroup;
     		ag::JumpFloodSeed hoveringNodeJumpFloodSeedAttachmentGroup;
     		ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
-    		PrimaryAttachmentGroup primaryAttachmentGroup;
 
     		PassthruResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
 
@@ -101,6 +101,11 @@ namespace vk_gltf_viewer::vulkan {
     	vku::MappedBuffer hoveringNodeIndexBuffer;
     	std::optional<vk::Extent2D> passthruExtent = std::nullopt;
 		std::optional<PassthruResources> passthruResources = std::nullopt;
+    	vku::AllocatedImage sceneMsaaImage = createSceneMsaaImage();
+    	vku::AllocatedImage sceneDepthImage = createSceneDepthImage();
+
+    	// Attachment groups.
+    	std::vector<ag::Scene> sceneAttachmentGroups = createSceneAttachmentGroups();
 
         // Descriptor/command pools.
     	vk::raii::DescriptorPool descriptorPool = createDescriptorPool();
@@ -112,7 +117,6 @@ namespace vk_gltf_viewer::vulkan {
 		vku::DescriptorSet<pipeline::JumpFloodComputer::DescriptorSetLayout> selectedNodeJumpFloodSets;
     	vku::DescriptorSet<pipeline::OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSets;
     	vku::DescriptorSet<pipeline::OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSets;
-    	vku::DescriptorSet<pipeline::Rec709Renderer::DescriptorSetLayout> rec709Sets;
 
     	// Command buffers.
     	vk::CommandBuffer depthPrepassCommandBuffer;
@@ -128,6 +132,9 @@ namespace vk_gltf_viewer::vulkan {
     	vk::raii::Semaphore jumpFloodFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
 		vk::raii::Fence inFlightFence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } };
 
+    	[[nodiscard]] auto createSceneMsaaImage() const -> vku::AllocatedImage;
+    	[[nodiscard]] auto createSceneDepthImage() const -> vku::AllocatedImage;
+    	[[nodiscard]] auto createSceneAttachmentGroups() const -> std::vector<ag::Scene>;
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
 
     	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
@@ -135,17 +142,8 @@ namespace vk_gltf_viewer::vulkan {
 
     	auto recordDepthPrepassCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
     	// Return true if last jump flood calculation direction is forward (result is in pong image), false if backward.
-		[[nodiscard]] auto recordJumpFloodComputeCommands(
-			vk::CommandBuffer cb,
-			const vku::Image &image,
-			vku::DescriptorSet<pipeline::JumpFloodComputer::DescriptorSetLayout> descriptorSets,
-			std::uint32_t initialSampleOffset) const -> bool;
-    	auto recordGltfPrimitiveDrawCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
-    	auto recordPostCompositionCommands(
-    		vk::CommandBuffer cb,
-    		std::optional<bool> hoveringNodeJumpFloodForward,
-    		std::optional<bool> selectedNodeJumpFloodForward,
-    		std::uint32_t swapchainImageIndex,
-    		const ExecutionTask &task) const -> void;
+		[[nodiscard]] auto recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<pipeline::JumpFloodComputer::DescriptorSetLayout> descriptorSets, std::uint32_t initialSampleOffset) const -> bool;
+    	auto recordGltfPrimitiveDrawCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex, const ExecutionTask &task) const -> void;
+    	auto recordPostCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward, std::uint32_t swapchainImageIndex, const ExecutionTask &task) const -> void;
     };
 }

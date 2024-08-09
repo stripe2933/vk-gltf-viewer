@@ -118,9 +118,12 @@ void main(){
 
     // Compare the luminance of color and emissive.
     // If emissive is brighter, use it.
-    if (dot(emissive, REC_709_LUMA) > dot(color, REC_709_LUMA)){
-        color = emissive;
+    float colorLuminance = dot(color, REC_709_LUMA);
+    float emissiveLuminance = dot(emissive, REC_709_LUMA);
+    if (emissiveLuminance > colorLuminance){
+        outColor = vec4(emissive / (1.0 + emissiveLuminance), 1.0);
     }
-
-    outColor = vec4(color, 1.0);
+    else {
+        outColor = vec4(color / (1.0 + colorLuminance), 1.0);
+    }
 }

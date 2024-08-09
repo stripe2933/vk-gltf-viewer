@@ -58,7 +58,7 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
             })),
         vk::PipelineRenderingCreateInfo {
             {},
-            vku::unsafeProxy({ vk::Format::eR16G16B16A16Sfloat }),
+            vku::unsafeProxy({ vk::Format::eB8G8R8A8Srgb }),
             vk::Format::eD32Sfloat,
         },
     }.get() },

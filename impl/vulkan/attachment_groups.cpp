@@ -13,19 +13,6 @@ vk_gltf_viewer::vulkan::DepthPrepassAttachmentGroup::DepthPrepassAttachmentGroup
         storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
 }
 
-vk_gltf_viewer::vulkan::PrimaryAttachmentGroup::PrimaryAttachmentGroup(
-    const Gpu &gpu,
-    const vk::Extent2D &extent
-) : MsaaAttachmentGroup { extent, vk::SampleCountFlagBits::e4 } {
-    addColorAttachment(
-        gpu.device,
-        storeImage(createColorImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat)),
-        storeImage(createResolveImage(gpu.allocator, vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled)));
-    setDepthStencilAttachment(
-        gpu.device,
-        storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
-}
-
 vk_gltf_viewer::vulkan::SwapchainAttachmentGroup::SwapchainAttachmentGroup(
     const vk::raii::Device &device,
     vk::Image swapchainImage,

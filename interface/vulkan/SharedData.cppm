@@ -16,7 +16,6 @@ export import :vulkan.pipeline.JumpFloodComputer;
 export import :vulkan.pipeline.JumpFloodSeedRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
 export import :vulkan.pipeline.PrimitiveRenderer;
-export import :vulkan.pipeline.Rec709Renderer;
 export import :vulkan.pipeline.SkyboxRenderer;
 export import :vulkan.pipeline.SphericalHarmonicsRenderer;
 import :vulkan.sampler.SingleTexelSampler;
@@ -58,7 +57,6 @@ namespace vk_gltf_viewer::vulkan {
     	pipeline::JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, sceneDescriptorSetLayout };
 		pipeline::OutlineRenderer outlineRenderer { gpu.device };
 		pipeline::PrimitiveRenderer primitiveRenderer { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
-    	pipeline::Rec709Renderer rec709Renderer { gpu.device };
 		pipeline::SkyboxRenderer skyboxRenderer { gpu.device, cubemapSampler, cubeIndices };
 		pipeline::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu.device, imageBasedLightingDescriptorSetLayout, cubeIndices };
 

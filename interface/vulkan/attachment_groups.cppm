@@ -8,10 +8,6 @@ namespace vk_gltf_viewer::vulkan::inline attachment_groups {
         DepthPrepassAttachmentGroup(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent);
     };
 
-    struct PrimaryAttachmentGroup final : vku::MsaaAttachmentGroup {
-        PrimaryAttachmentGroup(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent);
-    };
-
     struct SwapchainAttachmentGroup final : vku::AttachmentGroup {
         SwapchainAttachmentGroup(const vk::raii::Device &device [[clang::lifetimebound]], vk::Image swapchainImage, const vk::Extent2D &extent);
     };

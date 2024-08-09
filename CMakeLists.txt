@@ -69,7 +69,6 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/pipeline/JumpFloodComputer.cpp
 	impl/vulkan/pipeline/OutlineRenderer.cpp
 	impl/vulkan/pipeline/PrimitiveRenderer.cpp
-	impl/vulkan/pipeline/Rec709Renderer.cpp
 	impl/vulkan/pipeline/SkyboxRenderer.cpp
 	impl/vulkan/pipeline/SphericalHarmonicsRenderer.cpp
 	impl/vulkan/SharedData.cpp
@@ -104,6 +103,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/MainApp.cppm
 		interface/mipmap.cppm
 		interface/vulkan/attachment_group/JumpFloodSeed.cppm
+		interface/vulkan/attachment_group/Scene.cppm
 		interface/vulkan/attachment_groups.cppm
 		interface/vulkan/buffer/CubeIndices.cppm
 		interface/vulkan/dsl/Asset.cppm
@@ -120,7 +120,6 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
 		interface/vulkan/pipeline/OutlineRenderer.cppm
 		interface/vulkan/pipeline/PrimitiveRenderer.cppm
-		interface/vulkan/pipeline/Rec709Renderer.cppm
 		interface/vulkan/pipeline/SkyboxRenderer.cppm
 		interface/vulkan/pipeline/SphericalHarmonicsRenderer.cppm
 		interface/vulkan/sampler/BrdfLutSampler.cppm
