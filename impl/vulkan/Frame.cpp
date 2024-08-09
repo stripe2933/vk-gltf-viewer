@@ -759,8 +759,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordPostCompositionCommands(
 		});
 		sharedData.outlineRenderer.draw(cb);
 	}
-	// If mouse is hovering over the selected nodes, hovering node outline doesn't have to be rendered.
-	if (task.hoveringNodeIndex && task.hoveringNodeOutline && !task.selectedNodeIndices.contains(*task.hoveringNodeIndex)) {
+	if (task.hoveringNodeIndex && task.hoveringNodeOutline &&
+		(!task.selectedNodeIndices.contains(*task.hoveringNodeIndex) /* If mouse is hovering over the selected nodes, hovering node outline doesn't have to be rendered. */ ||
+			!task.selectedNodeOutline /* If selected node outline rendering is disabled, hovering node should be rendered even if it is contained in the selectedNodeIndices. */)) {
 		if (!task.selectedNodeIndices.empty() && task.selectedNodeOutline) {
 			// TODO: pipeline barrier required.
 		}
