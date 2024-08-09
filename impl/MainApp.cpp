@@ -44,29 +44,6 @@ vk_gltf_viewer::MainApp::MainApp() {
 	gpu.queues.transfer.waitIdle();
 	stagingBuffers.clear();
 
-	const auto graphicsCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent);
-	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-		// Acquire resource queue family ownerships.
-		if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
-			cb.pipelineBarrier(
-				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-				{}, {}, {},
-				assetResources.images
-					| std::views::transform([&](vk::Image image) {
-						return vk::ImageMemoryBarrier {
-							{}, vk::AccessFlagBits::eTransferRead,
-							{}, {},
-							gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-							image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-						};
-					})
-					| std::ranges::to<std::vector>());
-		}
-
-		recordImageMipmapGenerationCommands(cb);
-	});
-	gpu.queues.graphicsPresent.waitIdle();
-
 	{
     	shaderc::Compiler compiler;
 
@@ -177,33 +154,50 @@ vk_gltf_viewer::MainApp::MainApp() {
 		};
 	}
 
+	const auto graphicsCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent);
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
 		// Acquire resource queue family ownerships.
-		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
-			cb.pipelineBarrier(
-				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-				{}, {}, {},
-				{
-					vk::ImageMemoryBarrier {
-						{}, {},
-						vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-						gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-						imageBasedLightingResources.value().cubemapImage, vku::fullSubresourceRange(),
-					},
-					vk::ImageMemoryBarrier {
-						{}, {},
-						vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
-						gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-						imageBasedLightingResources.value().prefilteredmapImage, vku::fullSubresourceRange(),
-					},
-					vk::ImageMemoryBarrier {
-						{}, {},
-						vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
-						gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-						brdfmapImage, vku::fullSubresourceRange(),
-					},
-				});
+		std::vector<vk::ImageMemoryBarrier2> memoryBarriers;
+		if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
+			memoryBarriers.append_range(assetResources.images | std::views::transform([&](vk::Image image) {
+				return vk::ImageMemoryBarrier2 {
+					{}, {},
+					vk::PipelineStageFlagBits2::eCopy, vk::AccessFlagBits2::eTransferRead,
+					{}, {},
+					gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
+					image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+				};
+			}));
 		}
+		if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
+			memoryBarriers.push_back({
+				{}, {},
+				vk::PipelineStageFlagBits2::eAllCommands, {},
+				vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+				gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+				imageBasedLightingResources.value().cubemapImage, vku::fullSubresourceRange(),
+			});
+			memoryBarriers.push_back({
+				{}, {},
+				vk::PipelineStageFlagBits2::eAllCommands, {},
+				vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+				gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+				imageBasedLightingResources.value().prefilteredmapImage, vku::fullSubresourceRange(),
+			});
+			memoryBarriers.push_back({
+				{}, {},
+				vk::PipelineStageFlagBits2::eAllCommands, {},
+				vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+				gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+				brdfmapImage, vku::fullSubresourceRange(),
+			});
+		}
+
+		if (!memoryBarriers.empty()) {
+			cb.pipelineBarrier2KHR({ {}, {}, {}, memoryBarriers });
+		}
+
+		recordImageMipmapGenerationCommands(cb);
 	});
 	gpu.queues.graphicsPresent.waitIdle();
 
