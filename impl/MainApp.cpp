@@ -37,13 +37,133 @@ import :vulkan.pipeline.BrdfmapComputer;
 }
 
 vk_gltf_viewer::MainApp::MainApp() {
-	const auto transferCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.transfer);
-	vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
-		recordEqmapStagingCommands(cb);
-	});
-	gpu.queues.transfer.waitIdle();
-	stagingBuffers.clear();
+	// Load equirectangular map image and stage it into eqmapImage.
+	int width, height;
+	if (!stbi_info(std::getenv("EQMAP_PATH"), &width, &height, nullptr)) {
+		throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
+	}
 
+	vku::AllocatedImage eqmapImage { gpu.allocator, vk::ImageCreateInfo {
+		{},
+		vk::ImageType::e2D,
+		vk::Format::eR32G32B32A32Sfloat,
+		vk::Extent3D { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), 1 },
+		vku::Image::maxMipLevels({ static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) }), 1,
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled /* cubemap generation */ | vk::ImageUsageFlagBits::eTransferSrc /* mipmap generation */,
+		vk::SharingMode::eConcurrent, vku::unsafeProxy(gpu.queueFamilies.getUniqueIndices()),
+	} };
+
+	{
+		const auto transferCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.transfer);
+		std::unique_ptr<vku::AllocatedBuffer> eqmapStagingBuffer;
+		vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
+			eqmapStagingBuffer = std::make_unique<vku::AllocatedBuffer>(vku::MappedBuffer {
+				gpu.allocator,
+				std::from_range, io::StbDecoder<float>::fromFile(std::getenv("EQMAP_PATH"), 4).asSpan(),
+				vk::BufferUsageFlagBits::eTransferSrc
+			}.unmap());
+
+			// eqmapImage layout transition for copy destination.
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+				{}, {}, {},
+				vk::ImageMemoryBarrier {
+					{}, vk::AccessFlagBits::eTransferWrite,
+					{}, vk::ImageLayout::eTransferDstOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					eqmapImage, vku::fullSubresourceRange(),
+				});
+
+			cb.copyBufferToImage(
+				*eqmapStagingBuffer,
+				eqmapImage, vk::ImageLayout::eTransferDstOptimal,
+				vk::BufferImageCopy {
+					0, {}, {},
+					{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+					{ 0, 0, 0 },
+					eqmapImage.extent,
+				});
+		});
+		gpu.queues.transfer.waitIdle();
+	}
+
+	const auto graphicsCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent);
+	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+		// Generate eqmapImage mipmaps.
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+			{}, {}, {},
+			vk::ImageMemoryBarrier {
+				{}, vk::AccessFlagBits::eTransferRead,
+				vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+			});
+		recordMipmapGenerationCommand(cb, eqmapImage);
+
+		// Blit from eqmapImage to reducedEqmapImage.
+		cb.pipelineBarrier2KHR({
+			{}, {}, {},
+			vku::unsafeProxy({
+				vk::ImageMemoryBarrier2 {
+					vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+					vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
+					vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					eqmapImage, { vk::ImageAspectFlagBits::eColor, eqmapImage.mipLevels - 1, 1, 0, 1 },
+				},
+				vk::ImageMemoryBarrier2 {
+					{}, {},
+					vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
+					{}, vk::ImageLayout::eTransferDstOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					reducedEqmapImage, vku::fullSubresourceRange(),
+				},
+			}),
+		});
+
+		// Calculate the blitting mip level ranges by comparing eqmapImage's extent and reducedEqmapImage's extent.
+		std::uint32_t blitStartMipLevel = 0;
+		for (std::uint32_t width = eqmapImage.extent.width; width != reducedEqmapImage.extent.width; width >>= 1, ++blitStartMipLevel);
+
+		cb.blitImage(
+			eqmapImage, vk::ImageLayout::eTransferSrcOptimal,
+			reducedEqmapImage, vk::ImageLayout::eTransferDstOptimal,
+			std::views::iota(0U, reducedEqmapImage.mipLevels)
+				| std::views::transform([&](auto mipLevel) {
+					return vk::ImageBlit {
+						{ vk::ImageAspectFlagBits::eColor, blitStartMipLevel + mipLevel, 0, 1 },
+						{ vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(eqmapImage.mipExtent(blitStartMipLevel + mipLevel)), 1 } },
+						{ vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1 },
+						{ vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(reducedEqmapImage.mipExtent(mipLevel)), 1 } },
+					};
+				})
+				| std::ranges::to<std::vector>(),
+			vk::Filter::eLinear);
+
+		// eqmapImage and reducedEqmapImage will be used as sampled image.
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+			{}, {}, {},
+			{
+				vk::ImageMemoryBarrier {
+					vk::AccessFlagBits::eTransferRead, {},
+					{}, vk::ImageLayout::eShaderReadOnlyOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					eqmapImage, vku::fullSubresourceRange(),
+				},
+				vk::ImageMemoryBarrier {
+					vk::AccessFlagBits::eTransferWrite, {},
+					vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					reducedEqmapImage, vku::fullSubresourceRange(),
+				},
+			});
+	});
+
+	// Generate IBL resources.
 	{
     	shaderc::Compiler compiler;
 
@@ -154,7 +274,6 @@ vk_gltf_viewer::MainApp::MainApp() {
 		};
 	}
 
-	const auto graphicsCommandPool = createCommandPool(gpu.device, gpu.queueFamilies.graphicsPresent);
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
 		// Acquire resource queue family ownerships.
 		std::vector<vk::ImageMemoryBarrier2> memoryBarriers;
@@ -192,12 +311,40 @@ vk_gltf_viewer::MainApp::MainApp() {
 				brdfmapImage, vku::fullSubresourceRange(),
 			});
 		}
-
 		if (!memoryBarriers.empty()) {
 			cb.pipelineBarrier2KHR({ {}, {}, {}, memoryBarriers });
 		}
 
-		recordImageMipmapGenerationCommands(cb);
+		// Generate asset resource images' mipmaps.
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+			{}, {}, {},
+			assetResources.images
+				| std::views::transform([](vk::Image image) {
+					return vk::ImageMemoryBarrier {
+						{}, vk::AccessFlagBits::eTransferRead,
+						vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+					};
+				})
+				| std::ranges::to<std::vector>());
+
+		recordBatchedMipmapGenerationCommand(cb, assetResources.images);
+
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+			{}, {}, {},
+			assetResources.images
+				| std::views::transform([](vk::Image image) {
+					return vk::ImageMemoryBarrier {
+						vk::AccessFlagBits::eTransferWrite, {},
+						{}, vk::ImageLayout::eShaderReadOnlyOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						image, vku::fullSubresourceRange(),
+					};
+				})
+				| std::ranges::to<std::vector>());
 	});
 	gpu.queues.graphicsPresent.waitIdle();
 
@@ -232,7 +379,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 	};
 	ImGui_ImplVulkan_Init(&initInfo);
 
-	eqmapImageImGuiDescriptorSet = ImGui_ImplVulkan_AddTexture(*eqmapSampler, *eqmapImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	eqmapImageImGuiDescriptorSet = ImGui_ImplVulkan_AddTexture(*reducedEqmapSampler, *reducedEqmapImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	// TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
 	assetTextureDescriptorSets = assetResources.textures
 		| std::views::transform([&](const vk::DescriptorImageInfo &textureInfo) -> vk::DescriptorSet {
@@ -427,7 +574,7 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 			vk::makeApiVersion(0, 1, 2, 0),
 		}),
 #ifndef NDEBUG
-		vku::unsafeProxy<const char* const>({
+		vku::unsafeProxy({
 			"VK_LAYER_KHRONOS_validation",
 		}),
 #else
@@ -451,26 +598,28 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 	return instance;
 }
 
-auto vk_gltf_viewer::MainApp::createEqmapImage() -> decltype(eqmapImage) {
-	int width, height;
-	if (!stbi_info(std::getenv("EQMAP_PATH"), &width, &height, nullptr)) {
-		throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
+auto vk_gltf_viewer::MainApp::createReducedEqmapImage(
+	const vk::Extent2D &eqmapImageExtent
+) -> vku::AllocatedImage {
+	vk::Extent2D reducedExtent = eqmapImageExtent;
+	while (reducedExtent.width <= 512) {
+		reducedExtent.width <<= 1;
+		reducedExtent.height <<= 1;
 	}
 
 	return { gpu.allocator, vk::ImageCreateInfo {
 		{},
 		vk::ImageType::e2D,
-		vk::Format::eR32G32B32A32Sfloat,
-		vk::Extent3D { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), 1 },
-		vku::Image::maxMipLevels({ static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) }), 1,
+		vk::Format::eB10G11R11UfloatPack32,
+		vk::Extent3D { reducedExtent, 1 },
+		vku::Image::maxMipLevels(reducedExtent), 1,
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled /* cubemap generation */ | vk::ImageUsageFlagBits::eTransferSrc /* mipmap generation */,
-		vk::SharingMode::eConcurrent, vku::unsafeProxy(gpu.queueFamilies.getUniqueIndices()),
+		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
 	} };
 }
 
-auto vk_gltf_viewer::MainApp::createEqmapSampler() const -> decltype(eqmapSampler) {
+auto vk_gltf_viewer::MainApp::createEqmapSampler() const -> vk::raii::Sampler {
 	return { gpu.device, vk::SamplerCreateInfo {
 		{},
 		vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
@@ -510,94 +659,4 @@ auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() const -> decltype(imGu
 			},
 		}),
 	} };
-}
-
-auto vk_gltf_viewer::MainApp::recordEqmapStagingCommands(
-	vk::CommandBuffer transferCommandBuffer
-) -> void {
-	const auto eqmapImageData = io::StbDecoder<float>::fromFile(std::getenv("EQMAP_PATH"), 4);
-	const vku::Buffer &eqmapImageStagingBuffer = stagingBuffers.emplace_back(
-		gpu.allocator,
-		std::from_range, eqmapImageData.asSpan(),
-		vk::BufferUsageFlagBits::eTransferSrc);
-
-	transferCommandBuffer.pipelineBarrier(
-		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-		{}, {}, {},
-		vk::ImageMemoryBarrier {
-			{}, vk::AccessFlagBits::eTransferWrite,
-			{}, vk::ImageLayout::eTransferDstOptimal,
-			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			eqmapImage, vku::fullSubresourceRange(),
-		});
-	transferCommandBuffer.copyBufferToImage(
-		eqmapImageStagingBuffer,
-		eqmapImage, vk::ImageLayout::eTransferDstOptimal,
-		vk::BufferImageCopy {
-			0, {}, {},
-			{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-			{ 0, 0, 0 },
-			eqmapImage.extent,
-		});
-}
-
-auto vk_gltf_viewer::MainApp::recordImageMipmapGenerationCommands(
-    vk::CommandBuffer graphicsCommandBuffer
-) const -> void {
-	graphicsCommandBuffer.pipelineBarrier(
-		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-		{}, {}, {},
-		[&]() {
-			std::vector barriers {
-				// Eqmap mipmap generation barriers.
-				vk::ImageMemoryBarrier {
-					{}, vk::AccessFlagBits::eTransferRead,
-					vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-				},
-			};
-
-			// Append AssetResources image barriers.
-			barriers.append_range(assetResources.images | std::views::transform([](vk::Image image) {
-				return vk::ImageMemoryBarrier {
-					{}, vk::AccessFlagBits::eTransferRead,
-					vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-				};
-			}));
-
-			return barriers;
-		}());
-
-	recordBatchedMipmapGenerationCommand(graphicsCommandBuffer, assetResources.images);
-	recordMipmapGenerationCommand(graphicsCommandBuffer, eqmapImage);
-
-	graphicsCommandBuffer.pipelineBarrier(
-		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-		{}, {}, {},
-		[&]() {
-			std::vector barriers {
-				// Eqmap mipmap generation barriers.
-				vk::ImageMemoryBarrier {
-					vk::AccessFlagBits::eTransferRead | vk::AccessFlagBits::eTransferWrite, {},
-					{}, vk::ImageLayout::eShaderReadOnlyOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					eqmapImage, vku::fullSubresourceRange(),
-				},
-			};
-
-			// Append AssetResources image barriers.
-			barriers.append_range(assetResources.images | std::views::transform([](const vku::Image &image) {
-				return vk::ImageMemoryBarrier {
-					vk::AccessFlagBits::eTransferRead | vk::AccessFlagBits::eTransferWrite, {},
-					{}, vk::ImageLayout::eShaderReadOnlyOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					image, vku::fullSubresourceRange(),
-				};
-			}));
-
-			return barriers;
-		}());
 }
