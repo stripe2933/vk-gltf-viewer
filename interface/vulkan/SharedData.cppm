@@ -9,9 +9,11 @@ export import vku;
 import :vulkan.attachment_groups;
 export import :vulkan.Gpu;
 export import :vulkan.pipeline.AlphaMaskedDepthRenderer;
+export import :vulkan.pipeline.AlphaMaskedFacetedPrimitiveRenderer;
 export import :vulkan.pipeline.AlphaMaskedJumpFloodSeedRenderer;
 export import :vulkan.pipeline.AlphaMaskedPrimitiveRenderer;
 export import :vulkan.pipeline.DepthRenderer;
+export import :vulkan.pipeline.FacetedPrimitiveRenderer;
 export import :vulkan.pipeline.JumpFloodComputer;
 export import :vulkan.pipeline.JumpFloodSeedRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
@@ -48,15 +50,20 @@ namespace vk_gltf_viewer::vulkan {
     	dsl::Asset assetDescriptorSetLayout { gpu.device, static_cast<std::uint32_t>(1 /* fallback texture */ + asset.textures.size()) };
     	dsl::Scene sceneDescriptorSetLayout { gpu.device };
 
+    	// Pipeline layouts.
+    	pl::SceneRendering sceneRenderingPipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+
 		// Pipelines.
 		pipeline::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+    	pipeline::AlphaMaskedFacetedPrimitiveRenderer alphaMaskedFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
     	pipeline::AlphaMaskedJumpFloodSeedRenderer alphaMaskedJumpFloodSeedRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-    	pipeline::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+    	pipeline::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
 		pipeline::DepthRenderer depthRenderer { gpu.device, sceneDescriptorSetLayout };
+		pipeline::FacetedPrimitiveRenderer facetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
 		pipeline::JumpFloodComputer jumpFloodComputer { gpu.device };
     	pipeline::JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, sceneDescriptorSetLayout };
 		pipeline::OutlineRenderer outlineRenderer { gpu.device };
-		pipeline::PrimitiveRenderer primitiveRenderer { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+		pipeline::PrimitiveRenderer primitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
 		pipeline::SkyboxRenderer skyboxRenderer { gpu.device, cubemapSampler, cubeIndices };
 		pipeline::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu.device, imageBasedLightingDescriptorSetLayout, cubeIndices };
 

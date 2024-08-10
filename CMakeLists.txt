@@ -63,12 +63,10 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/Frame.cpp
 	impl/vulkan/Gpu.cpp
 	impl/vulkan/pipeline/AlphaMaskedDepthRenderer.cpp
-	impl/vulkan/pipeline/AlphaMaskedPrimitiveRenderer.cpp
 	impl/vulkan/pipeline/BrdfmapComputer.cpp
 	impl/vulkan/pipeline/DepthRenderer.cpp
 	impl/vulkan/pipeline/JumpFloodComputer.cpp
 	impl/vulkan/pipeline/OutlineRenderer.cpp
-	impl/vulkan/pipeline/PrimitiveRenderer.cpp
 	impl/vulkan/pipeline/SkyboxRenderer.cpp
 	impl/vulkan/pipeline/SphericalHarmonicsRenderer.cpp
 	impl/vulkan/SharedData.cpp
@@ -112,16 +110,19 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/Frame.cppm
 		interface/vulkan/Gpu.cppm
 		interface/vulkan/pipeline/AlphaMaskedDepthRenderer.cppm
+		interface/vulkan/pipeline/AlphaMaskedFacetedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/AlphaMaskedJumpFloodSeedRenderer.cppm
 		interface/vulkan/pipeline/AlphaMaskedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/BrdfmapComputer.cppm
 		interface/vulkan/pipeline/DepthRenderer.cppm
+		interface/vulkan/pipeline/FacetedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/JumpFloodComputer.cppm
 		interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
 		interface/vulkan/pipeline/OutlineRenderer.cppm
 		interface/vulkan/pipeline/PrimitiveRenderer.cppm
 		interface/vulkan/pipeline/SkyboxRenderer.cppm
 		interface/vulkan/pipeline/SphericalHarmonicsRenderer.cppm
+		interface/vulkan/pipeline_layout/SceneRendering.cppm
 		interface/vulkan/sampler/BrdfLutSampler.cppm
 		interface/vulkan/sampler/CubemapSampler.cppm
 		interface/vulkan/sampler/SingleTexelSampler.cppm

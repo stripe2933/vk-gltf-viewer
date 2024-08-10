@@ -338,6 +338,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 		const fastgltf::Material &material = assetResources.asset.materials[primitiveInfo.materialIndex.value()];
 		return {
 			.alphaMode = material.alphaMode,
+			.faceted = primitiveInfo.normalInfo.has_value(),
 			.doubleSided = material.doubleSided,
 			.indexType = primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
 		};
@@ -642,25 +643,33 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	cb.setViewport(0, passthruViewport);
 	cb.setScissor(0, task.passthruRect);
 
+	enum class PipelineType { PrimitiveRenderer, AlphaMaskedPrimitiveRenderer, FacetedPrimitiveRenderer, AlphaMaskedFacetedPrimitiveRenderer };
+	std::optional<PipelineType> boundPipeline{};
+
 	// Both PrimitiveRenderer and AlphaMaskedPrimitiveRender have comaptible descriptor set layouts and push constant range,
 	// therefore they only need to be bound once.
 	bool descriptorBound = false;
 	bool pushConstantBound = false;
 
 	// Render alphaMode=Opaque meshes.
-	bool primitiveRendererBound = false;
 	for (auto [begin, end] = renderingNodeIndirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
-		if (!primitiveRendererBound) {
-			sharedData.primitiveRenderer.bindPipeline(cb);
-			primitiveRendererBound = true;
+		const PipelineType requiredPipeline = criteria.faceted ? PipelineType::PrimitiveRenderer : PipelineType::FacetedPrimitiveRenderer;
+		if (!boundPipeline || boundPipeline != requiredPipeline) {
+			if (criteria.faceted) {
+				cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveRenderer);
+			}
+			else {
+				cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.facetedPrimitiveRenderer);
+			}
+			boundPipeline = requiredPipeline;
 		}
 		if (!descriptorBound) {
-			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveRenderer.pipelineLayout, 0, { task.imageBasedLightingDescriptorSet, task.assetDescriptorSet, task.sceneDescriptorSet }, {});
+			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0, { task.imageBasedLightingDescriptorSet, task.assetDescriptorSet, task.sceneDescriptorSet }, {});
 			descriptorBound = true;
 		}
 		if (!pushConstantBound) {
-			sharedData.primitiveRenderer.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
+			sharedData.sceneRenderingPipelineLayout.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
 			pushConstantBound = true;
 		}
 
@@ -676,19 +685,24 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	}
 
 	// Render alphaMode=Mask meshes.
-	bool alphaMaskedPrimitiveRendererBound = false;
 	for (auto [begin, end] = renderingNodeIndirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
 		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
-		if (!alphaMaskedPrimitiveRendererBound) {
-			sharedData.alphaMaskedPrimitiveRenderer.bindPipeline(cb);
-			alphaMaskedPrimitiveRendererBound = true;
+		const PipelineType requiredPipeline = criteria.faceted ? PipelineType::AlphaMaskedPrimitiveRenderer : PipelineType::AlphaMaskedFacetedPrimitiveRenderer;
+		if (!boundPipeline || boundPipeline != requiredPipeline) {
+			if (criteria.faceted) {
+				cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.alphaMaskedPrimitiveRenderer);
+			}
+			else {
+				cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.alphaMaskedFacetedPrimitiveRenderer);
+			}
+			boundPipeline = requiredPipeline;
 		}
 		if (!descriptorBound) {
-			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveRenderer.pipelineLayout, 0, { task.imageBasedLightingDescriptorSet, task.assetDescriptorSet, task.sceneDescriptorSet }, {});
+			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0, { task.imageBasedLightingDescriptorSet, task.assetDescriptorSet, task.sceneDescriptorSet }, {});
 			descriptorBound = true;
 		}
 		if (!pushConstantBound) {
-			sharedData.primitiveRenderer.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
+			sharedData.sceneRenderingPipelineLayout.pushConstants(cb, { task.camera.projection * task.camera.view, inverse(task.camera.view)[3] });
 			pushConstantBound = true;
 		}
 

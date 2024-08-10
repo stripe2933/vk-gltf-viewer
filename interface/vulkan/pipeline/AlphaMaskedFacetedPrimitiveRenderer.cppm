@@ -1,24 +1,29 @@
-export module vk_gltf_viewer:vulkan.pipeline.PrimitiveRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.AlphaMaskedFacetedPrimitiveRenderer;
 
 import vku;
 export import :vulkan.pl.SceneRendering;
 
 namespace vk_gltf_viewer::vulkan::pipeline {
-    export struct PrimitiveRenderer : vk::raii::Pipeline {
-        PrimitiveRenderer(
+    export struct AlphaMaskedFacetedPrimitiveRenderer : vk::raii::Pipeline {
+        AlphaMaskedFacetedPrimitiveRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
             const pl::SceneRendering &layout [[clang::lifetimebound]]
         ) : Pipeline { device, nullptr, vk::StructureChain {
                 vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
                         device,
-                        vku::Shader { COMPILED_SHADER_DIR "/primitive.vert.spv", vk::ShaderStageFlagBits::eVertex },
-                        vku::Shader { COMPILED_SHADER_DIR "/primitive.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
-                    *layout, 1, true,
-                    vk::SampleCountFlagBits::e4)
+                        vku::Shader { COMPILED_SHADER_DIR "/alpha_masked_faceted_primitive.vert.spv", vk::ShaderStageFlagBits::eVertex },
+                        vku::Shader { COMPILED_SHADER_DIR "/alpha_masked_faceted_primitive.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
+                    *layout, 1, true, vk::SampleCountFlagBits::e4)
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},
                         true, true, vk::CompareOp::eGreater, // Use reverse Z.
+                    }))
+                    .setPMultisampleState(vku::unsafeAddress(vk::PipelineMultisampleStateCreateInfo {
+                        {},
+                        vk::SampleCountFlagBits::e4,
+                        {}, {}, {},
+                        true,
                     }))
                     .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                         {},

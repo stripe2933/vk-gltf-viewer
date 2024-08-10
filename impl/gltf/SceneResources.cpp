@@ -100,25 +100,23 @@ auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
         gpu.allocator,
         std::from_range, orderedNodePrimitiveInfoPtrs | transform([](const auto &pair){
             const auto [nodeIndex, pPrimitiveInfo] = pair;
+
+            // If normal and tangent not presented (nullopt), it will use a faceted mesh renderer, and they will does not
+            // dereference those buffers. Therefore, it is okay to pass nullptr into shaders
+            const auto normalInfo = pPrimitiveInfo->normalInfo.value_or(AssetResources::PrimitiveInfo::AttributeBufferInfo{});
+            const auto tangentInfo = pPrimitiveInfo->tangentInfo.value_or(AssetResources::PrimitiveInfo::AttributeBufferInfo{});
+
             return GpuPrimitive {
                 .pPositionBuffer = pPrimitiveInfo->positionInfo.address,
-                .pNormalBuffer = pPrimitiveInfo->normalInfo.value().address,
-                .pTangentBuffer = pPrimitiveInfo->tangentInfo.value().address,
-                .pTexcoordBufferPtrsBuffer = ranges::value_or(
-                    pPrimitiveInfo->indexedAttributeMappingInfos,
-                    AssetResources::IndexedAttribute::Texcoord, {}).pBufferPtrBuffer,
-                .pColorBufferPtrsBuffer = ranges::value_or(
-                    pPrimitiveInfo->indexedAttributeMappingInfos,
-                    AssetResources::IndexedAttribute::Color, {}).pBufferPtrBuffer,
+                .pNormalBuffer = normalInfo.address,
+                .pTangentBuffer = tangentInfo.address,
+                .pTexcoordBufferPtrsBuffer = ranges::value_or(pPrimitiveInfo->indexedAttributeMappingInfos, AssetResources::IndexedAttribute::Texcoord, {}).pBufferPtrBuffer,
+                .pColorBufferPtrsBuffer = ranges::value_or(pPrimitiveInfo->indexedAttributeMappingInfos, AssetResources::IndexedAttribute::Color, {}).pBufferPtrBuffer,
                 .positionByteStride = pPrimitiveInfo->positionInfo.byteStride,
-                .normalByteStride = pPrimitiveInfo->normalInfo.value().byteStride,
-                .tangentByteStride = pPrimitiveInfo->tangentInfo.value().byteStride,
-                .pTexcoordByteStridesBuffer = ranges::value_or(
-                    pPrimitiveInfo->indexedAttributeMappingInfos,
-                    AssetResources::IndexedAttribute::Texcoord, {}).pByteStridesBuffer,
-                .pColorByteStridesBuffer = ranges::value_or(
-                    pPrimitiveInfo->indexedAttributeMappingInfos,
-                    AssetResources::IndexedAttribute::Color, {}).pByteStridesBuffer,
+                .normalByteStride = normalInfo.byteStride,
+                .tangentByteStride = tangentInfo.byteStride,
+                .pTexcoordByteStridesBuffer = ranges::value_or(pPrimitiveInfo->indexedAttributeMappingInfos, AssetResources::IndexedAttribute::Texcoord, {}).pByteStridesBuffer,
+                .pColorByteStridesBuffer = ranges::value_or(pPrimitiveInfo->indexedAttributeMappingInfos, AssetResources::IndexedAttribute::Color, {}).pByteStridesBuffer,
                 .nodeIndex = nodeIndex,
                 .materialIndex = pPrimitiveInfo->materialIndex.value(),
             };

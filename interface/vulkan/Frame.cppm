@@ -52,6 +52,7 @@ namespace vk_gltf_viewer::vulkan {
     private:
         struct CommandSeparationCriteria {
             fastgltf::AlphaMode alphaMode;
+        	bool faceted;
             bool doubleSided;
             std::optional<vk::IndexType> indexType;
 
