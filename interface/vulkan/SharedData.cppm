@@ -6,7 +6,8 @@ export module vk_gltf_viewer:vulkan.SharedData;
 
 import std;
 export import vku;
-import :vulkan.attachment_groups;
+export import :vulkan.ag.ImGuiSwapchain;
+export import :vulkan.ag.Swapchain;
 export import :vulkan.Gpu;
 export import :vulkan.pipeline.AlphaMaskedDepthRenderer;
 export import :vulkan.pipeline.AlphaMaskedFacetedPrimitiveRenderer;
@@ -68,8 +69,8 @@ namespace vk_gltf_viewer::vulkan {
 		pipeline::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu.device, imageBasedLightingDescriptorSetLayout, cubeIndices };
 
     	// Attachment groups.
-    	std::vector<SwapchainAttachmentGroup> swapchainAttachmentGroups = createSwapchainAttachmentGroups();
-    	std::vector<vku::AttachmentGroup> imGuiSwapchainAttachmentGroups = createImGuiSwapchainAttachmentGroups();
+    	std::vector<ag::Swapchain> swapchainAttachmentGroups = createSwapchainAttachmentGroups();
+    	std::vector<ag::ImGuiSwapchain> imGuiSwapchainAttachmentGroups = createImGuiSwapchainAttachmentGroups();
 
     	// Descriptor/command pools.
     	vk::raii::CommandPool graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
@@ -81,8 +82,8 @@ namespace vk_gltf_viewer::vulkan {
     private:
     	[[nodiscard]] auto createSwapchain(vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain);
     	[[nodiscard]] auto createGltfFallbackImage() const -> decltype(gltfFallbackImage);
-    	[[nodiscard]] auto createSwapchainAttachmentGroups() const -> decltype(swapchainAttachmentGroups);
-    	[[nodiscard]] auto createImGuiSwapchainAttachmentGroups() const -> decltype(imGuiSwapchainAttachmentGroups);
+    	[[nodiscard]] auto createSwapchainAttachmentGroups() const -> std::vector<ag::Swapchain>;
+    	[[nodiscard]] auto createImGuiSwapchainAttachmentGroups() const -> std::vector<ag::ImGuiSwapchain>;
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
     	auto recordGltfFallbackImageClearCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;

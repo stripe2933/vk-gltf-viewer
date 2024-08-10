@@ -59,7 +59,6 @@ add_executable(vk-gltf-viewer
 	impl/helpers/enum_to_string.cpp
 	impl/MainApp.cpp
 	impl/mod.cpp
-	impl/vulkan/attachment_groups.cpp
 	impl/vulkan/Frame.cpp
 	impl/vulkan/Gpu.cpp
 	impl/vulkan/pipeline/AlphaMaskedDepthRenderer.cpp
@@ -100,13 +99,15 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/io/StbDecoder.cppm
 		interface/MainApp.cppm
 		interface/mipmap.cppm
+		interface/vulkan/attachment_group/DepthPrepass.cppm
+		interface/vulkan/attachment_group/ImGuiSwapchain.cppm
 		interface/vulkan/attachment_group/JumpFloodSeed.cppm
 		interface/vulkan/attachment_group/Scene.cppm
-		interface/vulkan/attachment_groups.cppm
+		interface/vulkan/attachment_group/Swapchain.cppm
 		interface/vulkan/buffer/CubeIndices.cppm
-		interface/vulkan/dsl/Asset.cppm
-		interface/vulkan/dsl/ImageBasedLighting.cppm
-		interface/vulkan/dsl/Scene.cppm
+		interface/vulkan/descriptor_set_layout/Asset.cppm
+		interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
+		interface/vulkan/descriptor_set_layout/Scene.cppm
 		interface/vulkan/Frame.cppm
 		interface/vulkan/Gpu.cppm
 		interface/vulkan/pipeline/AlphaMaskedDepthRenderer.cppm

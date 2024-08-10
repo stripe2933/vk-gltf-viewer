@@ -87,15 +87,15 @@ auto vk_gltf_viewer::vulkan::SharedData::createGltfFallbackImage() const -> decl
 	} };
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::createSwapchainAttachmentGroups() const -> decltype(swapchainAttachmentGroups) {
+auto vk_gltf_viewer::vulkan::SharedData::createSwapchainAttachmentGroups() const -> std::vector<ag::Swapchain> {
 	return { std::from_range, swapchainImages | std::views::transform([&](vk::Image image) {
-		return SwapchainAttachmentGroup { gpu.device, image, swapchainExtent };
+		return ag::Swapchain { gpu.device, { image, vk::Extent3D { swapchainExtent }, vk::Format::eB8G8R8A8Srgb, 1, 1 } };
 	}) };
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::createImGuiSwapchainAttachmentGroups() const -> decltype(imGuiSwapchainAttachmentGroups) {
+auto vk_gltf_viewer::vulkan::SharedData::createImGuiSwapchainAttachmentGroups() const -> std::vector<ag::ImGuiSwapchain> {
 	return { std::from_range, swapchainImages | std::views::transform([&](vk::Image image) {
-		return ImGuiSwapchainAttachmentGroup { gpu.device, image, swapchainExtent };
+		return ag::ImGuiSwapchain { gpu.device, { image, vk::Extent3D { swapchainExtent }, vk::Format::eB8G8R8A8Srgb, 1, 1 } };
 	}) };
 }
 

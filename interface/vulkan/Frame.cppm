@@ -11,9 +11,9 @@ export import :AppState;
 export import :gltf.AssetResources;
 export import :gltf.SceneResources;
 export import :vulkan.SharedData;
+import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.Scene;
-import :vulkan.attachment_groups;
 export import :vulkan.dsl.Asset;
 export import :vulkan.dsl.Scene;
 
@@ -80,7 +80,7 @@ namespace vk_gltf_viewer::vulkan {
     		JumpFloodResources selectedNodeOutlineJumpFloodResources;
 
     		// Attachment groups.
-    		DepthPrepassAttachmentGroup depthPrepassAttachmentGroup;
+    		ag::DepthPrepass depthPrepassAttachmentGroup;
     		ag::JumpFloodSeed hoveringNodeJumpFloodSeedAttachmentGroup;
     		ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 

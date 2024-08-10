@@ -9,6 +9,7 @@ import :vulkan.Frame;
 
 import std;
 import :helpers.ranges;
+import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.Scene;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
