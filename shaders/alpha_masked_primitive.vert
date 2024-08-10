@@ -5,7 +5,7 @@
 #extension GL_EXT_shader_8bit_storage : require
 
 // For convinience.
-#define PRIMITIVE primitives[gl_InstanceIndex]
+#define PRIMITIVE primitives[gl_BaseInstance]
 #define MATERIAL materials[PRIMITIVE.materialIndex]
 #define TRANSFORM nodeTransforms[PRIMITIVE.nodeIndex]
 
