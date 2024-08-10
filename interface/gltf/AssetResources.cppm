@@ -67,7 +67,7 @@ namespace vk_gltf_viewer::gltf {
             float normalScale = 1.f;
             float occlusionStrength = 1.f;
             glm::vec3 emissiveFactor = { 0.f, 0.f, 0.f };
-            vk::Bool32 doubleSided = false;
+            float alphaCutOff;
         };
 
         const fastgltf::Asset &asset;

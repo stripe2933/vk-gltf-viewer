@@ -27,7 +27,12 @@ struct Material {
     int16_t occlusionTextureIndex;
     int16_t emissiveTextureIndex;
     vec4 baseColorFactor;
-    uint8_t FRAGMENT_DATA[32];
+    float metallicFactor;
+    float roughnessFactor;
+    float normalScale;
+    float occlusionStrength;
+    vec3 emissiveFactor;
+    float alphaCutoff;
 };
 
 struct Primitive {
@@ -50,6 +55,7 @@ layout (location = 0) out vec2 fragBaseColorTexcoord;
 layout (location = 1) flat out uint nodeIndex;
 layout (location = 2) out float baseColorAlphaFactor;
 layout (location = 3) flat out int baseColorTextureIndex;
+layout (location = 4) flat out float alphaCutoff;
 
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
@@ -89,6 +95,7 @@ void main(){
     nodeIndex = PRIMITIVE.nodeIndex;
     baseColorAlphaFactor = MATERIAL.baseColorFactor.a;
     baseColorTextureIndex = MATERIAL.baseColorTextureIndex;
+    alphaCutoff = MATERIAL.alphaCutoff;
 
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);

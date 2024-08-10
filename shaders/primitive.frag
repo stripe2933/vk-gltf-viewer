@@ -24,7 +24,7 @@ struct Material {
     float normalScale;
     float occlusionStrength;
     vec3 emissiveFactor;
-    bool doubleSided;
+    float alphaCutoff;
 };
 
 layout (location = 0) in vec3 fragPosition;
@@ -92,8 +92,8 @@ void main(){
 
     vec3 V = normalize(pc.viewPosition - fragPosition);
     float NdotV = dot(N, V);
-    // If material is double-sided and normal is not facing the camera, normal have to be flipped.
-    if (!MATERIAL.doubleSided && NdotV < 0.0) {
+    // If normal is not facing the camera, normal have to be flipped.
+    if (NdotV < 0.0) {
         N = -N;
         NdotV = -NdotV;
     }

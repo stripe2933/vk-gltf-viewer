@@ -10,7 +10,6 @@
 #define MATERIAL materials[materialIndex]
 
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
-const float ALPHA_CUTOFF = 0.5;
 
 struct Material {
     uint8_t VERTEX_DATA[6];
@@ -25,7 +24,7 @@ struct Material {
     float normalScale;
     float occlusionStrength;
     vec3 emissiveFactor;
-    bool doubleSided;
+    float alphaCutoff;
 };
 
 layout (location = 0) in vec3 fragPosition;
@@ -68,6 +67,10 @@ vec3 diffuseIrradiance(vec3 normal){
     return SphericalHarmonicBasis_restore(basis, sphericalHarmonics.coefficients) / 3.141593;
 }
 
+float geometricMean(vec2 v){
+    return sqrt(v.x * v.y);
+}
+
 void main(){
     vec4 baseColor = MATERIAL.baseColorFactor * texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], fragBaseColorTexcoord);
 
@@ -91,8 +94,8 @@ void main(){
 
     vec3 V = normalize(pc.viewPosition - fragPosition);
     float NdotV = dot(N, V);
-    // If material is double-sided and normal is not facing the camera, normal have to be flipped.
-    if (!MATERIAL.doubleSided && NdotV < 0.0) {
+    // If normal is not facing the camera, normal have to be flipped.
+    if (NdotV < 0.0) {
         N = -N;
         NdotV = -NdotV;
     }
@@ -128,9 +131,10 @@ void main(){
     }
 
     float alpha = baseColor.a;
+    alpha *= 1.0 + geometricMean(textureQueryLod(textures[int(MATERIAL.baseColorTextureIndex) + 1], fragBaseColorTexcoord)) * 0.25;
     // Apply sharpness to the alpha.
     // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
-    alpha = (alpha - ALPHA_CUTOFF) / max(fwidth(alpha), 1e-4) + 0.5;
+    alpha = (alpha - MATERIAL.alphaCutoff) / max(fwidth(alpha), 1e-4) + 0.5;
 
     outColor = vec4(correctedColor, alpha);
 }
