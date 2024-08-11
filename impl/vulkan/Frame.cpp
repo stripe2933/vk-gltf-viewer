@@ -429,6 +429,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 
 		std::optional<PipelineType> boundPipeline{};
 		std::optional<vk::CullModeFlagBits> cullMode{};
+		std::optional<vk::IndexType> indexBuffer;
 
 		// DepthRenderer, AlphaMaskedDepthRenderer, JumpFloodSeedRenderer and AlphaMaskedJumpFloodSeedRenderer have:
 		// - compatible scene descriptor set in set #0,
@@ -477,7 +478,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 					}
 
 					if (const auto &indexType = criteria.indexType) {
-						cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+						if (resourceBindingState.indexBuffer != *indexType) {
+							resourceBindingState.indexBuffer.emplace(*indexType);
+							cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+						}
 						cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 					}
 					else {
@@ -521,7 +525,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 				}
 
 				if (const auto &indexType = criteria.indexType) {
-					cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+					if (resourceBindingState.indexBuffer != *indexType) {
+						resourceBindingState.indexBuffer.emplace(*indexType);
+						cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+					}
 					cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 				}
 				else {
@@ -659,6 +666,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 	enum class PipelineType { PrimitiveRenderer, AlphaMaskedPrimitiveRenderer, FacetedPrimitiveRenderer, AlphaMaskedFacetedPrimitiveRenderer };
 	std::optional<PipelineType> boundPipeline{};
 	std::optional<vk::CullModeFlagBits> currentCullMode{};
+	std::optional<vk::IndexType> currentIndexBuffer{};
 
 	// Both PrimitiveRenderer and AlphaMaskedPrimitiveRender have comaptible descriptor set layouts and push constant range,
 	// therefore they only need to be bound once.
@@ -692,7 +700,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 		}
 
 		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			if (currentIndexBuffer != *indexType) {
+				currentIndexBuffer.emplace(*indexType);
+				cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			}
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
 		else {
@@ -727,7 +738,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 		}
 
 		if (const auto &indexType = criteria.indexType) {
-			cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			if (currentIndexBuffer != *indexType) {
+				currentIndexBuffer.emplace(*indexType);
+				cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+			}
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
 		else {
