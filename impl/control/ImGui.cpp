@@ -21,6 +21,16 @@ import :helpers.tristate;
 
 using namespace std::string_view_literals;
 
+struct cstring_view {
+    const char *data;
+
+    cstring_view() noexcept = default;
+    cstring_view(const std::string &str) noexcept : data { str.c_str() } { }
+    cstring_view(const std::pmr::string &str) noexcept : data { str.c_str() } { }
+    cstring_view(const cstring_view&) noexcept = default;
+    auto operator=(const cstring_view&) noexcept -> cstring_view& = default;
+};
+
 namespace ImGui {
     IMGUI_API bool InputTextWithHint(const char* label, const char *hint, std::pmr::string* str, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = nullptr, void* userData = nullptr) {
         struct ChainedUserData {
@@ -72,52 +82,6 @@ namespace ImGui {
         Text(str.cbegin(), str.cend());
     }
 
-    // Crappy HyperLink implemented in a few minutes
-    //
-    // Does not handle: wordwrap
-    // Focus handling is not quite right (focus item stays after clicking with the mouse; ideally would be only outlined if keyboard was used to select/activate most recently)
-    // More input options for buttons, etc.
-    // Lacks custom style options. uses hard-coded colors
-    // Lacks a flag or style/color for "visited" links
-    // Lacks disabled link style/color
-    // Option to only show underline on hover could be a style? Or part of flags
-    IMGUI_API bool HyperLink(std::string_view label, bool underlineWhenHoveredOnly = false) {
-        static const ImU32 linkColor = ColorConvertFloat4ToU32({0.2, 0.3, 0.8, 1});
-        static const ImU32 linkHoverColor = ColorConvertFloat4ToU32({0.4, 0.6, 0.8, 1});
-        static const ImU32 linkFocusColor = ColorConvertFloat4ToU32({0.6, 0.4, 0.8, 1});
-
-        const ImGuiID id = GetID(label.cbegin(), label.cend());
-
-        ImGuiWindow* const window = GetCurrentWindow();
-        ImDrawList* const draw = GetWindowDrawList();
-
-        const ImVec2 pos(window->DC.CursorPos.x, window->DC.CursorPos.y + window->DC.CurrLineTextBaseOffset);
-        const ImVec2 size = CalcTextSize(label.cbegin(), label.cend());
-        ImRect bb(pos, {pos.x + size.x, pos.y + size.y});
-
-        ItemSize(bb, 0.0f);
-        if (!ItemAdd(bb, id)) {
-            return false;
-        }
-
-        bool isHovered = false;
-        const bool isClicked = ButtonBehavior(bb, id, &isHovered, nullptr);
-        const bool isFocused = IsItemFocused();
-
-        const ImU32 color = isHovered ? linkHoverColor : isFocused ? linkFocusColor : linkColor;
-
-        draw->AddText(bb.Min, color, label.cbegin(), label.cend());
-
-        if (isFocused) {
-            draw->AddRect(bb.Min, bb.Max, color);
-        }
-        else if (!underlineWhenHoveredOnly || isHovered) {
-            draw->AddLine({ bb.Min.x, bb.Max.y }, bb.Max, color);
-        }
-
-        return isClicked;
-    }
-
     template <std::invocable F>
     auto WithLabel(std::string_view label, F &&imGuiFunc)
         requires std::is_void_v<std::invoke_result_t<F>>
@@ -165,11 +129,11 @@ namespace ImGui {
 [[nodiscard]] auto nonempty_or(
     const std::pmr::string &str [[clang::lifetimebound]],
     std::invocable auto &&fallback
-) -> std::variant<std::string_view, std::string> {
+) -> std::variant<cstring_view, std::string> {
     if (str.empty()) {
-        return std::variant<std::string_view, std::string> { std::in_place_type<std::string>, fallback() };
+        return std::variant<cstring_view, std::string> { std::in_place_type<std::string>, fallback() };
     }
-    return std::variant<std::string_view, std::string> { std::in_place_type<std::string_view>, str };
+    return std::variant<cstring_view, std::string> { std::in_place_type<cstring_view>, str };
 }
 
 /**
@@ -316,9 +280,7 @@ auto vk_gltf_viewer::control::imgui::hdriEnvironments(
         const ImVec2 eqmapTextureSize = ImVec2 { 1.f, eqmapAspectRatio } * ImGui::GetContentRegionAvail().x;
         hoverableImage(eqmapTexture, eqmapTextureSize);
 
-        if (ImGui::WithLabel("File"sv, [&]() { return ImGui::HyperLink(iblProps.eqmap.path.string()); })) {
-            system(std::format("open -R \"{}\"", iblProps.eqmap.path.string()).c_str());
-        }
+        ImGui::WithLabel("File"sv, [&]() { ImGui::TextLinkOpenURL(iblProps.eqmap.path.stem().string().c_str(), iblProps.eqmap.path.string().c_str()); });
         ImGui::LabelText("Dimension", "%ux%u", iblProps.eqmap.dimension.x, iblProps.eqmap.dimension.y);
 
         ImGui::SeparatorText("Cubemap");
@@ -390,7 +352,7 @@ auto vk_gltf_viewer::control::imgui::assetBufferViews(fastgltf::Asset &asset) ->
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
                 ImGui::TableSetColumnIndex(2);
-                if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.buffers[bufferView.bufferIndex].name, [&] { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })))) {
+                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.buffers[bufferView.bufferIndex].name, [&] { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })).data)) {
                     // TODO
                 }
                 ImGui::PopID();
@@ -461,9 +423,7 @@ auto vk_gltf_viewer::control::imgui::assetBuffers(fastgltf::Asset &asset, const 
                         ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
                     },
                     [&](const fastgltf::sources::URI &uri) {
-                        if (ImGui::HyperLink(uri.uri.fspath().string())) {
-                            system(std::format("open -R \"{}\"", (assetDir / uri.uri.fspath()).string()).c_str());
-                        }
+                        ImGui::TextLinkOpenURL(uri.uri.fspath().stem().string().c_str(), (assetDir / uri.uri.fspath()).string().c_str());
                     },
                     [](const auto&) {
                         ImGui::TextDisabled("-");
@@ -515,9 +475,7 @@ auto vk_gltf_viewer::control::imgui::assetImages(fastgltf::Asset &asset, const s
                         ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
                     },
                     [&](const fastgltf::sources::URI &uri) {
-                        if (ImGui::HyperLink(uri.uri.fspath().string())) {
-                            system(std::format("open -R \"{}\"", (assetDir / uri.uri.fspath()).string()).c_str());
-                        }
+                        ImGui::TextLinkOpenURL(uri.uri.fspath().stem().string().c_str(), (assetDir / uri.uri.fspath()).string().c_str());
                     },
                     [](const auto&) {
                         ImGui::TextDisabled("-");
@@ -582,10 +540,10 @@ auto vk_gltf_viewer::control::imgui::assetSamplers(fastgltf::Asset &asset) -> vo
 auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, std::span<const vk::DescriptorSet> assetTextures) -> void {
     if (ImGui::Begin("Materials")) {
         static int materialIndex = asset.materials.empty() ? -1 : 0;
-        if (ImGui::BeginCombo("Material", materialIndex == -1 ? "<empty>" : visit([](const auto &str) { return str.data(); }, nonempty_or(asset.materials[materialIndex].name, [&] { return std::format("<Unnamed material {}>", materialIndex); })))) {
+        if (ImGui::BeginCombo("Material", materialIndex == -1 ? "<empty>" : visit_as<cstring_view>(nonempty_or(asset.materials[materialIndex].name, [&] { return std::format("<Unnamed material {}>", materialIndex); })).data)) {
             for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
                 const bool isSelected = i == materialIndex;
-                if (ImGui::Selectable(visit([](const auto &str) { return str.data(); }, nonempty_or(material.name, [&] { return std::format("<Unnamed material {}>", i); })), isSelected)) {
+                if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(material.name, [&] { return std::format("<Unnamed material {}>", i); })).data, isSelected)) {
                     materialIndex = i;
                 }
                 if (isSelected) {
@@ -729,10 +687,10 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, std:
 auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset &asset, AppState &appState) -> void {
     if (ImGui::Begin("Scene hierarchies")) {
         static int sceneIndex = asset.defaultScene.value_or(0);
-        if (ImGui::BeginCombo("Scene", visit([](const auto &str) { return str.data(); }, nonempty_or(asset.scenes[sceneIndex].name, [&] { return std::format("<Unnamed scene {}>", sceneIndex); })))) {
+        if (ImGui::BeginCombo("Scene", visit_as<cstring_view>(nonempty_or(asset.scenes[sceneIndex].name, [&] { return std::format("<Unnamed scene {}>", sceneIndex); })).data)) {
             for (const auto &[i, scene] : asset.scenes | ranges::views::enumerate) {
                 const bool isSelected = i == sceneIndex;
-                if (ImGui::Selectable(visit([](const auto &str) { return str.data(); }, nonempty_or(scene.name, [&] { return std::format("<Unnamed scene {}>", i); })), isSelected)) {
+                if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(scene.name, [&] { return std::format("<Unnamed scene {}>", i); })).data, isSelected)) {
                     sceneIndex = i;
                 }
                 if (isSelected) {
@@ -801,7 +759,7 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
             ImGui::TableSetColumnIndex(0);
             ImGui::AlignTextToFramePadding();
             const ImGuiTreeNodeFlags flags
-                = ImGuiTreeNodeFlags_DefaultOpen | /*ImGuiTreeNodeFlags_SpanAllWidth*/ ImGuiTreeNodeFlags_SpanTextWidth | ImGuiTreeNodeFlags_OpenOnArrow
+                = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanTextWidth | ImGuiTreeNodeFlags_OpenOnArrow
                 | (appState.selectedNodeIndices.contains(descendentNodeIndex) ? ImGuiTreeNodeFlags_Selected : 0)
                 | (descendentNode.children.empty() ? (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet) : 0);
             ImGui::PushID(descendentNodeIndex);
@@ -860,21 +818,21 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
 
             if (const auto &meshIndex = descendentNode.meshIndex) {
                 ImGui::TableSetColumnIndex(3);
-                if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.meshes[*meshIndex].name, [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })))) {
+                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.meshes[*meshIndex].name, [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })).data)) {
                     // TODO
                 }
             }
 
             if (const auto &lightIndex = descendentNode.lightIndex) {
                 ImGui::TableSetColumnIndex(4);
-                if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.lights[*lightIndex].name, [&] { return std::format("<Unnamed light {}>", *lightIndex); })))) {
+                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.lights[*lightIndex].name, [&] { return std::format("<Unnamed light {}>", *lightIndex); })).data)) {
                     // TODO
                 }
             }
 
             if (const auto &cameraIndex = descendentNode.cameraIndex) {
                 ImGui::TableSetColumnIndex(5);
-                if (ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.cameras[*cameraIndex].name, [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })))) {
+                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.cameras[*cameraIndex].name, [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })).data)) {
                     // TODO
                 }
             }
@@ -994,7 +952,7 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                             }
                             if (primitive.materialIndex) {
                                 ImGui::PushID(*primitive.materialIndex);
-                                if (ImGui::WithLabel("Material"sv, [&]() { return ImGui::HyperLink(visit_as<std::string_view>(nonempty_or(asset.materials[*primitive.materialIndex].name, [&] { return std::format("<Unnamed material {}>", *primitive.materialIndex); }))); })) {
+                                if (ImGui::WithLabel("Material"sv, [&]() { return ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.materials[*primitive.materialIndex].name, [&] { return std::format("<Unnamed material {}>", *primitive.materialIndex); })).data); })) {
                                     // TODO.
                                 }
                                 ImGui::PopID();
@@ -1075,7 +1033,7 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
 
                                     ImGui::TableSetColumnIndex(7);
                                     if (accessor.bufferViewIndex) {
-                                        if (ImGui::HyperLink(::to_string(*accessor.bufferViewIndex))) {
+                                        if (ImGui::TextLink(::to_string(*accessor.bufferViewIndex))) {
                                             // TODO.
                                         }
                                     }
