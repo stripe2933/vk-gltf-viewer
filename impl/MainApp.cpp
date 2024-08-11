@@ -43,16 +43,18 @@ vk_gltf_viewer::MainApp::MainApp() {
 		throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
 	}
 
-	vku::AllocatedImage eqmapImage { gpu.allocator, vk::ImageCreateInfo {
+	const vk::Extent2D eqmapImageExtent { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) };
+	const vku::AllocatedImage eqmapImage { gpu.allocator, vk::ImageCreateInfo {
 		{},
 		vk::ImageType::e2D,
 		vk::Format::eR32G32B32A32Sfloat,
-		vk::Extent3D { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), 1 },
-		vku::Image::maxMipLevels({ static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) }), 1,
+		vk::Extent3D { eqmapImageExtent, 1 },
+		vku::Image::maxMipLevels(eqmapImageExtent), 1,
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
 		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled /* cubemap generation */ | vk::ImageUsageFlagBits::eTransferSrc /* mipmap generation */,
-		vk::SharingMode::eConcurrent, vku::unsafeProxy(gpu.queueFamilies.getUniqueIndices()),
+		gpu.queueFamilies.getUniqueIndices().size() == 1 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+		vku::unsafeProxy(gpu.queueFamilies.getUniqueIndices()),
 	} };
 
 	{
@@ -314,6 +316,8 @@ vk_gltf_viewer::MainApp::MainApp() {
 		if (!memoryBarriers.empty()) {
 			cb.pipelineBarrier2KHR({ {}, {}, {}, memoryBarriers });
 		}
+
+		if (assetResources.images.empty()) return;
 
 		// Generate asset resource images' mipmaps.
 		cb.pipelineBarrier(

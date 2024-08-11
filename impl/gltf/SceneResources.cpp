@@ -39,16 +39,16 @@ auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() 
     std::vector<std::pair<std::uint32_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> nodePrimitiveInfoPtrs;
     for (std::stack dfs { std::from_range, scene.nodeIndices | reverse }; !dfs.empty(); ) {
         const std::size_t nodeIndex = dfs.top();
+
         const fastgltf::Node &node = asset.nodes[nodeIndex];
         if (node.meshIndex) {
             const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-            nodePrimitiveInfoPtrs.append_range(
-                mesh.primitives
-                    | transform([&](const fastgltf::Primitive &primitive) {
-                        const AssetResources::PrimitiveInfo &primitiveInfo = assetResources.primitiveInfos.at(&primitive);
-                        return std::pair { static_cast<std::uint32_t>(nodeIndex), &primitiveInfo };
-                    }));
+            for (const fastgltf::Primitive &primitive : mesh.primitives){
+                const AssetResources::PrimitiveInfo &primitiveInfo = assetResources.primitiveInfos.at(&primitive);
+                nodePrimitiveInfoPtrs.emplace_back(nodeIndex, &primitiveInfo);
+            }
         }
+
         dfs.pop();
         dfs.push_range(node.children | reverse);
     }
@@ -82,15 +82,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createNodeTransformBuffer(
         calculateNodeTransformsRecursive(nodeIndex, { 1.f });
     }
 
-    return {
-        allocator,
-        std::from_range, nodeTransforms,
-        vk::BufferUsageFlagBits::eStorageBuffer,
-        vma::AllocationCreateInfo {
-            vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
-            vma::MemoryUsage::eAuto,
-        },
-    };
+    return { allocator, std::from_range, nodeTransforms, vk::BufferUsageFlagBits::eStorageBuffer, vku::allocation::hostRead };
 }
 
 auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(

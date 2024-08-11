@@ -7,7 +7,6 @@ module vk_gltf_viewer;
 import :vulkan.SharedData;
 
 import std;
-import :helpers.ranges;
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(
     const fastgltf::Asset &asset,
