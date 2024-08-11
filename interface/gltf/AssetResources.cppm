@@ -78,7 +78,7 @@ namespace vk_gltf_viewer::gltf {
         std::vector<vk::raii::ImageView> imageViews;
         std::vector<vk::raii::Sampler> samplers;
         std::vector<vk::DescriptorImageInfo> textures = createTextures();
-        std::optional<vku::AllocatedBuffer> materialBuffer;
+        vku::AllocatedBuffer materialBuffer;
 
         std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos;
         std::vector<vku::AllocatedBuffer> attributeBuffers;
@@ -98,7 +98,7 @@ namespace vk_gltf_viewer::gltf {
         [[nodiscard]] auto createImageViews(const vk::raii::Device &device) const -> decltype(imageViews);
         [[nodiscard]] auto createSamplers(const vk::raii::Device &device) const -> decltype(samplers);
         [[nodiscard]] auto createTextures() const -> decltype(textures);
-        [[nodiscard]] auto createMaterialBuffer(vma::Allocator allocator) const -> decltype(materialBuffer);
+        [[nodiscard]] auto createMaterialBuffer(vma::Allocator allocator) const -> vku::AllocatedBuffer;
 
         auto stageImages(const std::filesystem::path &assetDir, const ResourceBytes &resourceBytes, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer, BS::thread_pool &threadPool) -> void;
         auto stageMaterials(vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer) -> void;

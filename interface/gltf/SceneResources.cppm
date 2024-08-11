@@ -32,7 +32,7 @@ namespace vk_gltf_viewer::gltf {
             vk::DeviceAddress pTexcoordByteStridesBuffer;
             vk::DeviceAddress pColorByteStridesBuffer;
             std::uint32_t nodeIndex;
-            std::uint32_t materialIndex;
+            std::int32_t materialIndex; // -1 for fallback material.
         };
 
         std::vector<std::size_t> parentNodeIndices = getParentNodeIndices(); /// Example: asset.nodes[0].children = [1, 2, 3] -> parentNodeIndices[1] = parentNodeIndices[2] = parentNodeIndices[3] = 0.

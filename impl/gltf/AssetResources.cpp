@@ -377,11 +377,10 @@ auto vk_gltf_viewer::gltf::AssetResources::createTextures() const -> decltype(te
 
 auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
     vma::Allocator allocator
-) const -> decltype(materialBuffer) {
-    if (asset.materials.empty()) return std::nullopt;
-    return std::optional<vku::AllocatedBuffer> { std::in_place, allocator, vk::BufferCreateInfo {
+) const -> vku::AllocatedBuffer {
+    return { allocator, vk::BufferCreateInfo {
         {},
-        sizeof(GpuMaterial) * asset.materials.size(),
+        sizeof(GpuMaterial) * (1 /*fallback material*/ + asset.materials.size()),
         vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
     } };
 }
@@ -469,50 +468,46 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
     vma::Allocator allocator,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
-    if (!materialBuffer) return;
+    std::vector<GpuMaterial> materials;
+    materials.reserve(asset.materials.size() + 1);
+    materials.push_back({}); // Fallback material.
+    materials.append_range(asset.materials | transform([&](const fastgltf::Material &material) {
+        GpuMaterial gpuMaterial {
+            .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
+            .metallicFactor = material.pbrData.metallicFactor,
+            .roughnessFactor = material.pbrData.roughnessFactor,
+            .emissiveFactor = glm::gtc::make_vec3(material.emissiveFactor.data()),
+            .alphaCutOff = material.alphaCutoff,
+        };
 
-    const auto gpuMaterials
-        = asset.materials
-        | transform([&](const fastgltf::Material &material) {
-            GpuMaterial gpuMaterial {
-                .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
-                .metallicFactor = material.pbrData.metallicFactor,
-                .roughnessFactor = material.pbrData.roughnessFactor,
-                .emissiveFactor = glm::gtc::make_vec3(material.emissiveFactor.data()),
-                .alphaCutOff = material.alphaCutoff,
-            };
+        if (const auto &baseColorTexture = material.pbrData.baseColorTexture) {
+            gpuMaterial.baseColorTexcoordIndex = baseColorTexture->texCoordIndex;
+            gpuMaterial.baseColorTextureIndex = static_cast<std::int16_t>(baseColorTexture->textureIndex);
+        }
+        if (const auto &metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture) {
+            gpuMaterial.metallicRoughnessTexcoordIndex = metallicRoughnessTexture->texCoordIndex;
+            gpuMaterial.metallicRoughnessTextureIndex = static_cast<std::int16_t>(metallicRoughnessTexture->textureIndex);
+        }
+        if (const auto &normalTexture = material.normalTexture) {
+            gpuMaterial.normalTexcoordIndex = normalTexture->texCoordIndex;
+            gpuMaterial.normalTextureIndex = static_cast<std::int16_t>(normalTexture->textureIndex);
+            gpuMaterial.normalScale = normalTexture->scale;
+        }
+        if (const auto &occlusionTexture = material.occlusionTexture) {
+            gpuMaterial.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
+            gpuMaterial.occlusionTextureIndex = static_cast<std::int16_t>(occlusionTexture->textureIndex);
+            gpuMaterial.occlusionStrength = occlusionTexture->strength;
+        }
+        if (const auto &emissiveTexture = material.emissiveTexture) {
+            gpuMaterial.emissiveTexcoordIndex = emissiveTexture->texCoordIndex;
+            gpuMaterial.emissiveTextureIndex = static_cast<std::int16_t>(emissiveTexture->textureIndex);
+        }
 
-            if (const auto &baseColorTexture = material.pbrData.baseColorTexture) {
-                gpuMaterial.baseColorTexcoordIndex = baseColorTexture->texCoordIndex;
-                gpuMaterial.baseColorTextureIndex = static_cast<std::int16_t>(baseColorTexture->textureIndex);
-            }
-            if (const auto &metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture) {
-                gpuMaterial.metallicRoughnessTexcoordIndex = metallicRoughnessTexture->texCoordIndex;
-                gpuMaterial.metallicRoughnessTextureIndex = static_cast<std::int16_t>(metallicRoughnessTexture->textureIndex);
-            }
-            if (const auto &normalTexture = material.normalTexture) {
-                gpuMaterial.normalTexcoordIndex = normalTexture->texCoordIndex;
-                gpuMaterial.normalTextureIndex = static_cast<std::int16_t>(normalTexture->textureIndex);
-                gpuMaterial.normalScale = normalTexture->scale;
-            }
-            if (const auto &occlusionTexture = material.occlusionTexture) {
-                gpuMaterial.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
-                gpuMaterial.occlusionTextureIndex = static_cast<std::int16_t>(occlusionTexture->textureIndex);
-                gpuMaterial.occlusionStrength = occlusionTexture->strength;
-            }
-            if (const auto &emissiveTexture = material.emissiveTexture) {
-                gpuMaterial.emissiveTexcoordIndex = emissiveTexture->texCoordIndex;
-                gpuMaterial.emissiveTextureIndex = static_cast<std::int16_t>(emissiveTexture->textureIndex);
-            }
+        return gpuMaterial;
+    }));
 
-            return gpuMaterial;
-        });
-
-    const vk::Buffer stagingBuffer = stagingBuffers.emplace_back(
-        allocator, std::from_range, gpuMaterials, vk::BufferUsageFlagBits::eTransferSrc);
-    copyCommandBuffer.copyBuffer(
-        stagingBuffer, *materialBuffer,
-        vk::BufferCopy { 0, 0, materialBuffer->size });
+    const vk::Buffer stagingBuffer = stagingBuffers.emplace_back(allocator, std::from_range, materials, vk::BufferUsageFlagBits::eTransferSrc);
+    copyCommandBuffer.copyBuffer(stagingBuffer, materialBuffer, vk::BufferCopy { 0, 0, materialBuffer.size });
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(

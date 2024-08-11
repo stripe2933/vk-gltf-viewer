@@ -118,7 +118,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
                 .pTexcoordByteStridesBuffer = ranges::value_or(pPrimitiveInfo->indexedAttributeMappingInfos, AssetResources::IndexedAttribute::Texcoord, {}).pByteStridesBuffer,
                 .pColorByteStridesBuffer = ranges::value_or(pPrimitiveInfo->indexedAttributeMappingInfos, AssetResources::IndexedAttribute::Color, {}).pByteStridesBuffer,
                 .nodeIndex = nodeIndex,
-                .materialIndex = pPrimitiveInfo->materialIndex.value(),
+                .materialIndex = pPrimitiveInfo->materialIndex.transform([](std::uint32_t index) { return static_cast<std::int32_t>(index); }).value_or(-1 /*will use fallback material*/),
             };
         }),
         vk::BufferUsageFlagBits::eStorageBuffer,

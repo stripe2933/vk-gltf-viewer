@@ -7,7 +7,7 @@
 #include "spherical_harmonics.glsl"
 
 // For convinience.
-#define MATERIAL materials[materialIndex]
+#define MATERIAL materials[materialIndex + 1]
 
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
@@ -34,7 +34,7 @@ layout (location = 5) in vec2 fragMetallicRoughnessTexcoord;
 layout (location = 6) in vec2 fragNormalTexcoord;
 layout (location = 7) in vec2 fragOcclusionTexcoord;
 layout (location = 8) in vec2 fragEmissiveTexcoord;
-layout (location = 9) flat in uint materialIndex;
+layout (location = 9) flat in int materialIndex;
 
 layout (location = 0) out vec4 outColor;
 

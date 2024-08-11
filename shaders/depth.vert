@@ -26,7 +26,7 @@ struct Primitive {
     Ubytes texcoordByteStrides;
     Ubytes colorByteStrides;
     uint nodeIndex;
-    uint materialIndex;
+    int materialIndex;
 };
 
 layout (location = 0) flat out uint nodeIndex;

@@ -335,14 +335,19 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 		result.hoveringNodeIndex = value;
 	}
 
-	const auto criteriaGetter = [this](const gltf::AssetResources::PrimitiveInfo &primitiveInfo) -> CommandSeparationCriteria {
-		const fastgltf::Material &material = assetResources.asset.materials[primitiveInfo.materialIndex.value()];
-		return {
-			.alphaMode = material.alphaMode,
+	const auto criteriaGetter = [this](const gltf::AssetResources::PrimitiveInfo &primitiveInfo) {
+		CommandSeparationCriteria result {
+			.alphaMode = fastgltf::AlphaMode::Opaque,
 			.faceted = primitiveInfo.normalInfo.has_value(),
-			.doubleSided = material.doubleSided,
+			.doubleSided = false,
 			.indexType = primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
 		};
+		if (primitiveInfo.materialIndex) {
+			const fastgltf::Material &material = assetResources.asset.materials[*primitiveInfo.materialIndex];
+			result.alphaMode = material.alphaMode;
+			result.doubleSided = material.doubleSided;
+		}
+		return result;
 	};
 
 	if (renderingNodeIndices != task.renderingNodeIndices) {
@@ -402,7 +407,6 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 			image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
 		});
-
 	};
 	if (hoveringNodeIndex && task.hoveringNodeOutline) {
 		addJumpFloodSeedImageMemoryBarrier(passthruResources->hoveringNodeOutlineJumpFloodResources.image);

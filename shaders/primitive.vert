@@ -6,7 +6,7 @@
 
 // For convinience.
 #define PRIMITIVE primitives[gl_BaseInstance]
-#define MATERIAL materials[PRIMITIVE.materialIndex]
+#define MATERIAL materials[PRIMITIVE.materialIndex + 1]
 #define TRANSFORM nodeTransforms[PRIMITIVE.nodeIndex]
 
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer Ubytes { uint8_t data[]; };
@@ -42,7 +42,7 @@ struct Primitive {
     Ubytes texcoordByteStrides;
     Ubytes colorByteStrides;
     uint nodeIndex;
-    uint materialIndex;
+    int materialIndex;
 };
 
 layout (location = 0) out vec3 fragPosition;
@@ -52,7 +52,7 @@ layout (location = 5) out vec2 fragMetallicRoughnessTexcoord;
 layout (location = 6) out vec2 fragNormalTexcoord;
 layout (location = 7) out vec2 fragOcclusionTexcoord;
 layout (location = 8) out vec2 fragEmissiveTexcoord;
-layout (location = 9) flat out uint materialIndex;
+layout (location = 9) flat out int materialIndex;
 
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
