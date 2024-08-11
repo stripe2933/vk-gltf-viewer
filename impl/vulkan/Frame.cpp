@@ -428,6 +428,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		enum class PipelineType { DepthRenderer, AlphaMaskedDepthRenderer, JumpFloodSeedRenderer, AlphaMaskedJumpFloodSeedRenderer };
 
 		std::optional<PipelineType> boundPipeline{};
+		std::optional<vk::CullModeFlagBits> cullMode{};
 
 		// DepthRenderer, AlphaMaskedDepthRenderer, JumpFloodSeedRenderer and AlphaMaskedJumpFloodSeedRenderer have:
 		// - compatible scene descriptor set in set #0,
@@ -436,8 +437,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 		bool sceneDescriptorSetBound = false;
 		bool assetDescriptorSetBound = false;
 		bool pushConstantBound = false;
-	};
-	ResourceBindingState resourceBindingState{};
+	} resourceBindingState{};
 	const auto drawPrimitives
 		= [&](const decltype(renderingNodeIndirectDrawCommandBuffers) &indirectDrawCommandBuffers, const auto &opaqueRenderer, const auto &maskedRenderer) {
 			constexpr auto getPipelineType = multilambda {
@@ -469,7 +469,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 					resourceBindingState.pushConstantBound = true;
 				}
 
-				cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
+				if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
+					cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
+				}
 
 				if (const auto &indexType = criteria.indexType) {
 					cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
@@ -508,7 +510,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 					resourceBindingState.pushConstantBound = true;
 				}
 
-				cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
+				if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
+					cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
+				}
 
 				if (const auto &indexType = criteria.indexType) {
 					cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
@@ -650,6 +654,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 
 	enum class PipelineType { PrimitiveRenderer, AlphaMaskedPrimitiveRenderer, FacetedPrimitiveRenderer, AlphaMaskedFacetedPrimitiveRenderer };
 	std::optional<PipelineType> boundPipeline{};
+	std::optional<vk::CullModeFlagBits> currentCullMode{};
 
 	// Both PrimitiveRenderer and AlphaMaskedPrimitiveRender have comaptible descriptor set layouts and push constant range,
 	// therefore they only need to be bound once.
@@ -678,7 +683,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 			pushConstantBound = true;
 		}
 
-		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
+		if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; currentCullMode != cullMode) {
+			cb.setCullMode(currentCullMode.emplace(cullMode));
+		}
 
 		if (const auto &indexType = criteria.indexType) {
 			cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
@@ -711,7 +718,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 			pushConstantBound = true;
 		}
 
-		cb.setCullMode(criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack);
+		if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; currentCullMode != cullMode) {
+			cb.setCullMode(currentCullMode.emplace(cullMode));
+		}
 
 		if (const auto &indexType = criteria.indexType) {
 			cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
