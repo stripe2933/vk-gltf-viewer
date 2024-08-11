@@ -446,41 +446,47 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 				[](const pipeline::JumpFloodSeedRenderer&) { return ResourceBindingState::PipelineType::JumpFloodSeedRenderer; },
 				[](const pipeline::AlphaMaskedJumpFloodSeedRenderer&) { return ResourceBindingState::PipelineType::AlphaMaskedJumpFloodSeedRenderer; },
 			};
-			const ResourceBindingState::PipelineType opaqueRendererType = getPipelineType(opaqueRenderer);
+			const ResourceBindingState::PipelineType opaqueOrBlendRendererType = getPipelineType(opaqueRenderer);
 			const ResourceBindingState::PipelineType maskedRendererType = getPipelineType(maskedRenderer);
 
-			// Render alphaMode=Opaque meshes.
-			for (auto [begin, end] = indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
-				 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
-				if (!resourceBindingState.boundPipeline || resourceBindingState.boundPipeline != opaqueRendererType) {
-					opaqueRenderer.bindPipeline(cb);
-					resourceBindingState.boundPipeline = opaqueRendererType;
-				}
+			// Render alphaMode=Opaque or BLEND meshes.
+			const auto drawOpaqueOrBlendMesh = [&](fastgltf::AlphaMode alphaMode) {
+				assert(alphaMode == fastgltf::AlphaMode::Opaque || alphaMode == fastgltf::AlphaMode::Blend);
+				for (auto [begin, end] = indirectDrawCommandBuffers.equal_range(alphaMode);
+					 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
 
-				if (!resourceBindingState.sceneDescriptorSetBound) {
-					cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *opaqueRenderer.pipelineLayout, 0, task.sceneDescriptorSet, {});
-					resourceBindingState.sceneDescriptorSetBound = true;
-				}
+					if (!resourceBindingState.boundPipeline || resourceBindingState.boundPipeline != opaqueOrBlendRendererType) {
+						opaqueRenderer.bindPipeline(cb);
+						resourceBindingState.boundPipeline = opaqueOrBlendRendererType;
+					}
 
-				if (!resourceBindingState.pushConstantBound) {
-					opaqueRenderer.pushConstants(cb, {
-						task.camera.projection * task.camera.view,
-					});
-					resourceBindingState.pushConstantBound = true;
-				}
+					if (!resourceBindingState.sceneDescriptorSetBound) {
+						cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *opaqueRenderer.pipelineLayout, 0, task.sceneDescriptorSet, {});
+						resourceBindingState.sceneDescriptorSetBound = true;
+					}
 
-				if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
-					cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
-				}
+					if (!resourceBindingState.pushConstantBound) {
+						opaqueRenderer.pushConstants(cb, {
+							task.camera.projection * task.camera.view,
+						});
+						resourceBindingState.pushConstantBound = true;
+					}
 
-				if (const auto &indexType = criteria.indexType) {
-					cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
-					cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+					if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
+						cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
+					}
+
+					if (const auto &indexType = criteria.indexType) {
+						cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+						cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+					}
+					else {
+						cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+					}
 				}
-				else {
-					cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-				}
-			}
+			};
+			drawOpaqueOrBlendMesh(fastgltf::AlphaMode::Opaque);
+			drawOpaqueOrBlendMesh(fastgltf::AlphaMode::Blend);
 
 			// Render alphaMode=Mask meshes.
 			for (auto [begin, end] = indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
@@ -522,8 +528,6 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 					cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
 				}
 			}
-
-			// TODO: render alphaMode=Blend meshes.
 		};
 
 	const auto cursorPosFromPassthruRectTopLeft
