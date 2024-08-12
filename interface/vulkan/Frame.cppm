@@ -28,7 +28,6 @@ namespace vk_gltf_viewer::vulkan {
     		std::unordered_set<std::size_t> selectedNodeIndices;
     		std::unordered_set<std::size_t> renderingNodeIndices;
     		std::optional<AppState::Outline> hoveringNodeOutline, selectedNodeOutline;
-    		bool useBlurredSkybox;
     		vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
     		vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
     		vku::DescriptorSet<dsl::Scene> sceneDescriptorSet;

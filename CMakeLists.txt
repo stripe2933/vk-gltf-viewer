@@ -67,7 +67,6 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/pipeline/JumpFloodComputer.cpp
 	impl/vulkan/pipeline/OutlineRenderer.cpp
 	impl/vulkan/pipeline/SkyboxRenderer.cpp
-	impl/vulkan/pipeline/SphericalHarmonicsRenderer.cpp
 	impl/vulkan/SharedData.cpp
 	main.cpp
 )
@@ -122,7 +121,6 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipeline/OutlineRenderer.cppm
 		interface/vulkan/pipeline/PrimitiveRenderer.cppm
 		interface/vulkan/pipeline/SkyboxRenderer.cppm
-		interface/vulkan/pipeline/SphericalHarmonicsRenderer.cppm
 		interface/vulkan/pipeline_layout/SceneRendering.cppm
 		interface/vulkan/sampler/BrdfLutSampler.cppm
 		interface/vulkan/sampler/CubemapSampler.cppm

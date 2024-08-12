@@ -285,7 +285,6 @@ auto vk_gltf_viewer::control::imgui::hdriEnvironments(
 
         ImGui::SeparatorText("Cubemap");
         ImGui::LabelText("Size", "%u", iblProps.cubemap.size);
-        ImGui::Checkbox("Use blurred skybox", &appState.useBlurredSkybox);
 
         ImGui::SeparatorText("Diffuse irradiance");
         ImGui::TextUnformatted("Spherical harmonic coefficients (up to 3rd band)"sv);

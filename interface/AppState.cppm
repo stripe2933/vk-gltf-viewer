@@ -39,7 +39,6 @@ namespace vk_gltf_viewer {
         std::optional<std::uint32_t> hoveringNodeIndex = std::nullopt;
         std::unordered_set<std::size_t> selectedNodeIndices;
         std::unordered_set<std::size_t> renderingNodeIndices;
-        bool useBlurredSkybox = false;
         full_optional<Outline> hoveringNodeOutline { std::in_place, 2.f, glm::vec4 { 1.f, 0.5f, 0.2f, 1.f } },
                                selectedNodeOutline { std::in_place, 2.f, glm::vec4 { 0.f, 1.f, 0.2f, 1.f } };
         std::optional<ImageBasedLighting> imageBasedLightingProperties;

@@ -20,7 +20,6 @@ export import :vulkan.pipeline.JumpFloodSeedRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
 export import :vulkan.pipeline.PrimitiveRenderer;
 export import :vulkan.pipeline.SkyboxRenderer;
-export import :vulkan.pipeline.SphericalHarmonicsRenderer;
 import :vulkan.sampler.SingleTexelSampler;
 
 namespace vk_gltf_viewer::vulkan {
@@ -66,7 +65,6 @@ namespace vk_gltf_viewer::vulkan {
 		pipeline::OutlineRenderer outlineRenderer { gpu.device };
 		pipeline::PrimitiveRenderer primitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
 		pipeline::SkyboxRenderer skyboxRenderer { gpu.device, cubemapSampler, cubeIndices };
-		pipeline::SphericalHarmonicsRenderer sphericalHarmonicsRenderer { gpu.device, imageBasedLightingDescriptorSetLayout, cubeIndices };
 
     	// Attachment groups.
     	std::vector<ag::Swapchain> swapchainAttachmentGroups = createSwapchainAttachmentGroups();

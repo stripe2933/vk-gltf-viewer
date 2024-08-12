@@ -517,7 +517,6 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			.renderingNodeIndices = appState.renderingNodeIndices,
 			.hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
 			.selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
-			.useBlurredSkybox = appState.useBlurredSkybox,
 			.imageBasedLightingDescriptorSet = imageBasedLightingDescriptorSet,
 			.assetDescriptorSet = assetDescriptorSet,
 			.sceneDescriptorSet = sceneDescriptorSet,
