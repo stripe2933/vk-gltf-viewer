@@ -18,9 +18,6 @@ find_package(unofficial-imguizmo CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(vku CONFIG REQUIRED)
-find_package(Vulkan COMPONENTS shaderc_combined REQUIRED)
-
-add_subdirectory(extlibs)
 
 # --------------------
 # Module configurations for the external dependencies.
@@ -108,18 +105,26 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
 		interface/vulkan/descriptor_set_layout/Scene.cppm
 		interface/vulkan/Frame.cppm
+		interface/vulkan/generator/ImageBasedLightingResourceGenerator.cppm
+		interface/vulkan/generator/MipmappedCubemapGenerator.cppm
 		interface/vulkan/Gpu.cppm
 		interface/vulkan/pipeline/AlphaMaskedDepthRenderer.cppm
 		interface/vulkan/pipeline/AlphaMaskedFacetedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/AlphaMaskedJumpFloodSeedRenderer.cppm
 		interface/vulkan/pipeline/AlphaMaskedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/BrdfmapComputer.cppm
+		interface/vulkan/pipeline/CubemapComputer.cppm
 		interface/vulkan/pipeline/DepthRenderer.cppm
 		interface/vulkan/pipeline/FacetedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/JumpFloodComputer.cppm
 		interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
+		interface/vulkan/pipeline/MultiplyComputer.cppm
 		interface/vulkan/pipeline/OutlineRenderer.cppm
+		interface/vulkan/pipeline/PrefilteredmapComputer.cppm
 		interface/vulkan/pipeline/PrimitiveRenderer.cppm
+		interface/vulkan/pipeline/SphericalHarmonicCoefficientsSumComputer.cppm
+		interface/vulkan/pipeline/SphericalHarmonicsComputer.cppm
+		interface/vulkan/pipeline/SubgroupMipmapComputer.cppm
 		interface/vulkan/pipeline/SkyboxRenderer.cppm
 		interface/vulkan/pipeline_layout/SceneRendering.cppm
 		interface/vulkan/sampler/BrdfLutSampler.cppm
@@ -133,7 +138,6 @@ target_link_libraries(vk-gltf-viewer PRIVATE
 	imgui::imgui
 	unofficial::imguizmo::imguizmo
 	mikktspace::mikktspace
-	pbrenvmap
 	vku::vku
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE

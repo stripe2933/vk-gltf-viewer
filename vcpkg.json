@@ -17,7 +17,6 @@
     {
       "name": "vku",
       "features": [
-        "shaderc",
         "dynamic-dispatcher"
       ]
     }

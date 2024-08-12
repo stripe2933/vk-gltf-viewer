@@ -1,0 +1,21 @@
+#version 450
+
+layout (set = 0, binding = 0) readonly buffer ReadonlyFloatBuffer {
+    float srcBuffer[];
+};
+layout (set = 0, binding = 1) writeonly buffer WriteonlyFloatBuffer {
+    float dstBuffer[];
+};
+
+layout (push_constant, std430) uniform PushConstant {
+    uint numCount;
+    float multiplier;
+} pc;
+
+layout (local_size_x = 256) in;
+
+void main(){
+    if (gl_GlobalInvocationID.x < pc.numCount) {
+        dstBuffer[gl_GlobalInvocationID.x] = srcBuffer[gl_GlobalInvocationID.x] * pc.multiplier;
+    }
+}

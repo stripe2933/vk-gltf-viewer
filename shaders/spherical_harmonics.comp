@@ -1,0 +1,111 @@
+#version 460
+#extension GL_EXT_samplerless_texture_functions : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_scalar_block_layout : require
+
+struct SphericalHarmonicBasis{
+    float band0[1];
+    float band1[3];
+    float band2[5];
+};
+
+layout (set = 0, binding = 0) uniform texture2DArray cubemapTexture;
+layout (set = 0, binding = 1, scalar) writeonly buffer ReductionBuffer {
+    vec3 coefficients[][9];
+} reduction;
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+shared vec3 sharedData[16][9]; // For gl_SubgroupSize = 16 (minimum requirement)
+
+// --------------------
+// Functions.
+// --------------------
+
+vec3 getWorldDirection(uvec3 coord, uint imageSize){
+    vec2 texcoord = 2.0 * vec2(coord.xy) / imageSize - 1.0;
+    switch (coord.z){
+        case 0U: return normalize(vec3(1.0, texcoord.y, -texcoord.x));
+        case 1U: return normalize(vec3(-1.0, texcoord.yx));
+        case 2U: return normalize(vec3(texcoord.x, -1.0, texcoord.y));
+        case 3U: return normalize(vec3(texcoord.x, 1.0, -texcoord.y));
+        case 4U: return normalize(vec3(texcoord, 1.0));
+        case 5U: return normalize(vec3(-texcoord.x, texcoord.y, -1.0));
+    }
+    return vec3(0.0); // unreachable.
+}
+
+float texelSolidAngle(uvec2 xy, uint cubemapSize){
+    vec2 uv = mix(vec2(-1), vec2(1), (xy + 0.5) / cubemapSize);
+    return 4.0 * pow(1.0 + dot(uv, uv), -1.5);
+}
+
+SphericalHarmonicBasis getSphericalHarmonicBasis(vec3 v){
+    return SphericalHarmonicBasis(
+        float[1](0.282095),
+        float[3](-0.488603 * v.y, 0.488603 * v.z, -0.488603 * v.x),
+        float[5](1.092548 * v.x * v.y, -1.092548 * v.y * v.z, 0.315392 * (3.0 * v.z * v.z - 1.0), -1.092548 * v.x * v.z, 0.546274 * (v.x * v.x - v.y * v.y))
+    );
+}
+
+void main(){
+    vec3 coefficients[9] = vec3[9](vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0));
+
+    uint cubemapTextureSize = textureSize(cubemapTexture, 0).x;
+    float solidAngle = texelSolidAngle(gl_GlobalInvocationID.xy, cubemapTextureSize);
+    for (uint faceIndex = 0; faceIndex < 6U; ++faceIndex){
+        vec3 L = solidAngle * texelFetch(cubemapTexture, ivec3(gl_GlobalInvocationID.xy, faceIndex), 0).rgb;
+        vec3 normal = getWorldDirection(ivec3(gl_GlobalInvocationID.xy, faceIndex), cubemapTextureSize);
+        SphericalHarmonicBasis basis = getSphericalHarmonicBasis(normal);
+
+        coefficients[0] += L * basis.band0[0];
+        coefficients[1] += L * basis.band1[0];
+        coefficients[2] += L * basis.band1[1];
+        coefficients[3] += L * basis.band1[2];
+        coefficients[4] += L * basis.band2[0];
+        coefficients[5] += L * basis.band2[1];
+        coefficients[6] += L * basis.band2[2];
+        coefficients[7] += L * basis.band2[3];
+        coefficients[8] += L * basis.band2[4];
+    }
+
+    vec3 subgroupCoefficients[9] = vec3[9](
+        subgroupAdd(coefficients[0]),
+        subgroupAdd(coefficients[1]),
+        subgroupAdd(coefficients[2]),
+        subgroupAdd(coefficients[3]),
+        subgroupAdd(coefficients[4]),
+        subgroupAdd(coefficients[5]),
+        subgroupAdd(coefficients[6]),
+        subgroupAdd(coefficients[7]),
+        subgroupAdd(coefficients[8])
+    );
+    if (subgroupElect()){
+        sharedData[gl_SubgroupID] = subgroupCoefficients;
+    }
+
+    memoryBarrierShared();
+    barrier();
+
+    if (gl_SubgroupID == 0U){
+        bool isInvocationInSubgroup = gl_SubgroupInvocationID < gl_NumSubgroups;
+        coefficients = vec3[9](
+            subgroupAdd(isInvocationInSubgroup ? sharedData[gl_SubgroupInvocationID][0] : vec3(0.0)),
+            subgroupAdd(isInvocationInSubgroup ? sharedData[gl_SubgroupInvocationID][1] : vec3(0.0)),
+            subgroupAdd(isInvocationInSubgroup ? sharedData[gl_SubgroupInvocationID][2] : vec3(0.0)),
+            subgroupAdd(isInvocationInSubgroup ? sharedData[gl_SubgroupInvocationID][3] : vec3(0.0)),
+            subgroupAdd(isInvocationInSubgroup ? sharedData[gl_SubgroupInvocationID][4] : vec3(0.0)),
+            subgroupAdd(isInvocationInSubgroup ? sharedData[gl_SubgroupInvocationID][5] : vec3(0.0)),
+            subgroupAdd(isInvocationInSubgroup ? sharedData[gl_SubgroupInvocationID][6] : vec3(0.0)),
+            subgroupAdd(isInvocationInSubgroup ? sharedData[gl_SubgroupInvocationID][7] : vec3(0.0)),
+            subgroupAdd(isInvocationInSubgroup ? sharedData[gl_SubgroupInvocationID][8] : vec3(0.0))
+        );
+    }
+
+    if (gl_LocalInvocationID.xy == uvec2(0)){
+        // TODO: why reduction.coefficients[gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x] = coefficients; doesn't work?
+        for (uint i = 0; i < 9U; ++i){
+            reduction.coefficients[gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x][i] = coefficients[i];
+        }
+    }
+}
