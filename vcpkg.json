@@ -19,6 +19,7 @@
       "features": [
         "dynamic-dispatcher"
       ]
-    }
+    },
+    "nativefiledialog-extended"
   ]
 }

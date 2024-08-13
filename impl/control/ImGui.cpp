@@ -8,6 +8,7 @@ module;
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <ImGuizmo.h>
+#include <nfd.hpp>
 
 module vk_gltf_viewer;
 import :control.ImGui;
@@ -265,6 +266,57 @@ auto assetOcclusionTextureInfo(const fastgltf::OcclusionTextureInfo &textureInfo
 
         ImGui::TreePop();
     }
+}
+
+auto vk_gltf_viewer::control::imgui::menuBar() -> void {
+    static NFD::Guard nfdGuard;
+
+    if (ImGui::BeginMainMenuBar()) {
+        if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("Load glTF File", "Ctrl+O")) {
+
+            }
+            if (ImGui::MenuItem("Close Current File", "Ctrl+W")) {
+
+            }
+
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Skybox")) {
+            if (ImGui::MenuItem("Load Skybox")) {
+                static constexpr std::array filterItems { nfdfilteritem_t { "HDR image", "hdr" } };
+                NFD::UniquePath outPath;
+                if (nfdresult_t result = OpenDialog(outPath, filterItems.data(), filterItems.size()); result == NFD_OKAY) {
+                    std::println("Path: {}", outPath.get());
+                }
+                else if (result == NFD_CANCEL) {
+                    // Do nothing.
+                }
+                else {
+                    ImGui::DebugLog("File dialog error: %s\n", NFD::GetError());
+                }
+            }
+
+            ImGui::EndMenu();
+        }
+        ImGui::EndMainMenuBar();
+    }
+}
+
+auto vk_gltf_viewer::control::imgui::skybox(AppState &appState) -> void {
+    if (ImGui::Begin("Skybox")) {
+        const bool useSolidBackground = appState.background.has_value();
+        if (ImGui::RadioButton("Use cubemap image from equirectangular map", !useSolidBackground)) {
+            appState.background.set_active(false);
+        }
+        if (ImGui::RadioButton("Use solid color", useSolidBackground)) {
+            appState.background.set_active(true);
+        }
+        if (useSolidBackground) {
+            ImGui::ColorPicker3("Color", value_ptr(*appState.background));
+        }
+    }
+    ImGui::End();
 }
 
 auto vk_gltf_viewer::control::imgui::hdriEnvironments(

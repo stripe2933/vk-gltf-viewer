@@ -16,6 +16,7 @@ find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(unofficial-imguizmo CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
+find_package(nfd CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(vku CONFIG REQUIRED)
 
@@ -138,6 +139,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
 	imgui::imgui
 	unofficial::imguizmo::imguizmo
 	mikktspace::mikktspace
+	nfd::nfd
 	vku::vku
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE

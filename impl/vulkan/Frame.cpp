@@ -648,9 +648,13 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 			sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
 		});
 
+	vk::ClearColorValue backgroundColor { 0.f, 0.f, 0.f, 0.f };
+	if (auto clearColor = get_if<glm::vec3>(&task.background)) {
+		backgroundColor.setFloat32({ clearColor->x, clearColor->y, clearColor->z, 1.f });
+	}
 	cb.beginRenderingKHR(sceneAttachmentGroups[swapchainImageIndex].getRenderingInfo(
 		std::array {
-			vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0.f, 0.f, 0.f } },
+			vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, backgroundColor },
 		},
 		vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 
@@ -751,11 +755,13 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 
 	// TODO: render alphaMode=Blend meshes.
 
-	// Draw skybox.
-	const glm::mat4 noTranslationView = { glm::mat3 { task.camera.view } };
-	sharedData.skyboxRenderer.draw(cb, task.skyboxDescriptorSet, {
-		task.camera.projection * noTranslationView,
-	});
+	if (auto skyboxDescriptorSet = get_if<vku::DescriptorSet<pipeline::SkyboxRenderer::DescriptorSetLayout>>(&task.background)) {
+		// Draw skybox.
+		const glm::mat4 noTranslationView = { glm::mat3 { task.camera.view } };
+		sharedData.skyboxRenderer.draw(cb, *skyboxDescriptorSet, {
+			task.camera.projection * noTranslationView,
+		});
+	}
 
 	cb.endRenderingKHR();
 }

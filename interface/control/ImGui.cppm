@@ -10,6 +10,9 @@ export import vulkan_hpp;
 export import :AppState;
 
 namespace vk_gltf_viewer::control::imgui {
+    auto menuBar() -> void;
+
+    auto skybox(AppState &appState) -> void;
     auto hdriEnvironments(vk::DescriptorSet eqmapTexture, AppState &appState) -> void;
 
     // fastgltf Asset related.

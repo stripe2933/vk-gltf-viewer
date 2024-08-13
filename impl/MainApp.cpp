@@ -305,38 +305,39 @@ vk_gltf_viewer::MainApp::MainApp() {
 				});
 		});
 		gpu.queues.compute.waitIdle();
-
-		vk::raii::ImageView cubemapImageView { gpu.device, mippedCubemapGenerator.cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
-		vk::raii::ImageView prefilteredmapImageView { gpu.device, iblGenerator.prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
-
-		imageBasedLightingResources.emplace(
-		    std::move(mippedCubemapGenerator.cubemapImage),
-		    std::move(cubemapImageView),
-		    std::move(iblGenerator.sphericalHarmonicsBuffer),
-		    std::move(iblGenerator.prefilteredmapImage),
-		    std::move(prefilteredmapImageView));
-
-		std::array<glm::vec3, 9> sphericalHarmonicCoefficients;
-		std::ranges::copy_n(imageBasedLightingResources->cubemapSphericalHarmonicsBuffer.asRange<const glm::vec3>().data(), 9, sphericalHarmonicCoefficients.data());
-
-		appState.imageBasedLightingProperties = AppState::ImageBasedLighting {
-			.eqmap = {
-				.path = std::getenv("EQMAP_PATH"),
-				.dimension = { eqmapImage.extent.width, eqmapImage.extent.height },
-			},
-			.cubemap = {
-				.size = imageBasedLightingResources->cubemapImage.extent.width,
-			},
-			.diffuseIrradiance = {
-				sphericalHarmonicCoefficients,
-			},
-			.prefilteredmap = {
-				.size = imageBasedLightingResources->prefilteredmapImage.extent.width,
-				.roughnessLevels = imageBasedLightingResources->prefilteredmapImage.mipLevels,
-				.sampleCount = 1024,
-			}
-		};
 	}
+
+	vk::raii::ImageView cubemapImageView { gpu.device, mippedCubemapGenerator.cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
+	skyboxResources.emplace(
+		std::move(mippedCubemapGenerator.cubemapImage),
+		std::move(cubemapImageView));
+
+	vk::raii::ImageView prefilteredmapImageView { gpu.device, iblGenerator.prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
+	imageBasedLightingResources.emplace(
+	    std::move(iblGenerator.sphericalHarmonicsBuffer),
+	    std::move(iblGenerator.prefilteredmapImage),
+	    std::move(prefilteredmapImageView));
+
+	std::array<glm::vec3, 9> sphericalHarmonicCoefficients;
+	std::ranges::copy_n(imageBasedLightingResources->cubemapSphericalHarmonicsBuffer.asRange<const glm::vec3>().data(), 9, sphericalHarmonicCoefficients.data());
+
+	appState.imageBasedLightingProperties = AppState::ImageBasedLighting {
+		.eqmap = {
+			.path = std::getenv("EQMAP_PATH"),
+			.dimension = { eqmapImage.extent.width, eqmapImage.extent.height },
+		},
+		.cubemap = {
+			.size = skyboxResources->cubemapImage.extent.width,
+		},
+		.diffuseIrradiance = {
+			sphericalHarmonicCoefficients,
+		},
+		.prefilteredmap = {
+			.size = imageBasedLightingResources->prefilteredmapImage.extent.width,
+			.roughnessLevels = imageBasedLightingResources->prefilteredmapImage.mipLevels,
+			.sampleCount = 1024,
+		}
+	};
 
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
 		// Acquire resource queue family ownerships.
@@ -358,7 +359,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 				vk::PipelineStageFlagBits2::eAllCommands, {},
 				vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
 				gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-				imageBasedLightingResources->cubemapImage, vku::fullSubresourceRange(),
+				skyboxResources->cubemapImage, vku::fullSubresourceRange(),
 			});
 			memoryBarriers.push_back({
 				{}, {},
@@ -502,7 +503,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		assetDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { assetResources.materialBuffer, 0, vk::WholeSize })),
 		sceneDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { sceneResources.primitiveBuffer, 0, vk::WholeSize })),
 		sceneDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { sceneResources.nodeTransformBuffer, 0, vk::WholeSize })),
-		skyboxDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *imageBasedLightingResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+		skyboxDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
 	}, {});
 
 	float elapsedTime = 0.f;
@@ -536,8 +537,12 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			appState.camera.aspectRatio = vku::aspect(passthruRect.extent);
 		}
 
+		// Draw main menu bar.
+		control::imgui::menuBar();
+
 		control::imgui::inputControlSetting(appState);
 
+		control::imgui::skybox(appState);
 		control::imgui::hdriEnvironments(eqmapImageImGuiDescriptorSet, appState);
 
 		// Asset inspection.
@@ -582,7 +587,11 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			.imageBasedLightingDescriptorSet = imageBasedLightingDescriptorSet,
 			.assetDescriptorSet = assetDescriptorSet,
 			.sceneDescriptorSet = sceneDescriptorSet,
-			.skyboxDescriptorSet = skyboxDescriptorSet,
+			.background = appState.background.to_optional()
+				.and_then([&](const glm::vec3 &color) {
+					return std::optional<decltype(vulkan::Frame::ExecutionTask::background)> { color };
+				})
+				.value_or(decltype(vulkan::Frame::ExecutionTask::background) { std::in_place_index<1>, skyboxDescriptorSet }),
 		};
 		if (const auto &extent = std::exchange(shouldHandleSwapchainResize[frameIndex], std::nullopt)) {
 			task.swapchainResizeHandleInfo.emplace(window.getSurface(), *extent);

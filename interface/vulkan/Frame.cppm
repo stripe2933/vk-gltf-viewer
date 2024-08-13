@@ -31,7 +31,7 @@ namespace vk_gltf_viewer::vulkan {
     		vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
     		vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
     		vku::DescriptorSet<dsl::Scene> sceneDescriptorSet;
-    		vku::DescriptorSet<pipeline::SkyboxRenderer::DescriptorSetLayout> skyboxDescriptorSet;
+    		std::variant<glm::vec3 /*solid color*/, vku::DescriptorSet<pipeline::SkyboxRenderer::DescriptorSetLayout>> background;
     		std::optional<std::pair<vk::SurfaceKHR, vk::Extent2D>> swapchainResizeHandleInfo;
     	};
 

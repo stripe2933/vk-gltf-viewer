@@ -20,10 +20,15 @@ namespace vk_gltf_viewer {
 		auto run() -> void;
 
 	private:
+		struct SkyboxResources {
+			vku::AllocatedImage cubemapImage;
+			vk::raii::ImageView cubemapImageView;
+		};
+
 		struct ImageBasedLightingResources {
-			vku::AllocatedImage cubemapImage; vk::raii::ImageView cubemapImageView;
 			vku::MappedBuffer cubemapSphericalHarmonicsBuffer;
-			vku::AllocatedImage prefilteredmapImage; vk::raii::ImageView prefilteredmapImageView;
+			vku::AllocatedImage prefilteredmapImage;
+			vk::raii::ImageView prefilteredmapImageView;
 		};
 
 	    AppState appState;
@@ -38,6 +43,7 @@ namespace vk_gltf_viewer {
 
 		gltf::AssetResources assetResources { assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), gpu, { .supportUint8Index = false /* TODO: change this value depend on vk::PhysicalDeviceIndexTypeUint8FeaturesKHR */ } };
     	gltf::SceneResources sceneResources { assetResources, assetExpected->scenes[assetExpected->defaultScene.value_or(0)], gpu };
+		std::optional<SkyboxResources> skyboxResources{};
 		std::optional<ImageBasedLightingResources> imageBasedLightingResources{};
 		vku::AllocatedImage brdfmapImage = createBrdfmapImage();
 		vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };

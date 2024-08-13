@@ -39,8 +39,9 @@ namespace vk_gltf_viewer {
         std::optional<std::uint32_t> hoveringNodeIndex = std::nullopt;
         std::unordered_set<std::size_t> selectedNodeIndices;
         std::unordered_set<std::size_t> renderingNodeIndices;
-        full_optional<Outline> hoveringNodeOutline { std::in_place, 2.f, glm::vec4 { 1.f, 0.5f, 0.2f, 1.f } },
-                               selectedNodeOutline { std::in_place, 2.f, glm::vec4 { 0.f, 1.f, 0.2f, 1.f } };
+        full_optional<Outline> hoveringNodeOutline { std::in_place, 2.f, glm::vec4 { 1.f, 0.5f, 0.2f, 1.f } };
+        full_optional<Outline> selectedNodeOutline { std::in_place, 2.f, glm::vec4 { 0.f, 1.f, 0.2f, 1.f } };
+        full_optional<glm::vec3> background { std::in_place, 0.492f, 0.672f, 0.973f }; // nullopt -> use cubemap from the given equirectangular map image.
         std::optional<ImageBasedLighting> imageBasedLightingProperties;
 
         AppState() noexcept;
