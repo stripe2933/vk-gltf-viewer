@@ -954,7 +954,7 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                     const glm::mat4 matrix = glm::translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data())) * glm::mat4_cast(glm::make_quat(trs.rotation.data())) * glm::scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
 
                     fastgltf::Node::TransformMatrix transform;
-                    std::copy_n(glm::value_ptr(matrix), 16, transform.data());
+                    std::copy_n(value_ptr(matrix), 16, transform.data());
                     node.transform = transform;
                 }
                 ImGui::EndCombo();
@@ -1158,7 +1158,7 @@ auto vk_gltf_viewer::control::imgui::inputControlSetting(
 	    }
 	    if (showHoveringNodeOutline){
 	        ImGui::DragFloat("Thickness##hoveringNodeOutline", &appState.hoveringNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
-            ImGui::ColorEdit4("Color##hoveringNodeOutline", glm::gtc::value_ptr(appState.hoveringNodeOutline->color));
+            ImGui::ColorEdit4("Color##hoveringNodeOutline", value_ptr(appState.hoveringNodeOutline->color));
 	    }
 
 	    bool showSelectedNodeOutline = appState.selectedNodeOutline.has_value();
@@ -1167,7 +1167,7 @@ auto vk_gltf_viewer::control::imgui::inputControlSetting(
 	    }
 	    if (showSelectedNodeOutline){
 	        ImGui::DragFloat("Thickness##selectedNodeOutline", &appState.selectedNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
-            ImGui::ColorEdit4("Color##selectedNodeOutline", glm::value_ptr(appState.selectedNodeOutline->color));
+            ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(appState.selectedNodeOutline->color));
 	    }
 	}
 	ImGui::End();
