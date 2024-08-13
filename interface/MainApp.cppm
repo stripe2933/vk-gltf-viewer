@@ -63,7 +63,7 @@ namespace vk_gltf_viewer {
     	[[nodiscard]] auto loadAsset(const std::filesystem::path &path) -> decltype(assetExpected);
 
 		[[nodiscard]] auto createInstance() const -> decltype(instance);
-		[[nodiscard]] auto createReducedEqmapImage(const vk::Extent2D &eqmapImageExtent) -> vku::AllocatedImage;
+		[[nodiscard]] auto createReducedEqmapImage(const vk::Extent2D &eqmapLastMipImageExtent) -> vku::AllocatedImage;
 		[[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;
     	[[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
     	[[nodiscard]] auto createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool);

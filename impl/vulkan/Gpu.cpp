@@ -137,6 +137,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 				vk::KHRDynamicRenderingExtensionName,
 				vk::KHRSynchronization2ExtensionName,
 				vk::EXTExtendedDynamicStateExtensionName,
+				vk::KHRTimelineSemaphoreExtensionName,
 #pragma clang diagnostic pop
 				vk::KHRSwapchainExtensionName,
 				vk::KHRSwapchainMutableFormatExtensionName, // For ImGui gamma correction.
@@ -162,10 +163,11 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() const -> decltype(device) {
 			.setStorageBuffer8BitAccess(true)
 			.setUniformAndStorageBuffer8BitAccess(true)
             .setStoragePushConstant8(true)
-			.setScalarBlockLayout(true),
+			.setScalarBlockLayout(true)
+			.setTimelineSemaphore(true),
 		vk::PhysicalDeviceDynamicRenderingFeatures { true },
 		vk::PhysicalDeviceSynchronization2Features { true },
-		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true }
+		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true },
 	}.get() };
 	VULKAN_HPP_DEFAULT_DISPATCHER.init(*device);
 	return device;
