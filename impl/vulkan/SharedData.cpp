@@ -12,11 +12,24 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
     const fastgltf::Asset &asset,
     const Gpu &gpu,
     vk::SurfaceKHR surface,
-	const vk::Extent2D &swapchainExtent
+	const vk::Extent2D &swapchainExtent,
+	const DescriptorSetLayouts &descriptorSetLayouts
 ) : asset { asset },
 	swapchainExtent { swapchainExtent },
 	swapchain { createSwapchain(surface, swapchainExtent) },
-	gpu { gpu } {
+	gpu { gpu },
+	sceneRenderingPipelineLayout { gpu.device, std::tie(descriptorSetLayouts.imageBasedLighting, descriptorSetLayouts.asset, descriptorSetLayouts.scene) },
+	alphaMaskedDepthRenderer { gpu.device, std::tie(descriptorSetLayouts.scene, descriptorSetLayouts.asset) },
+	alphaMaskedFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout },
+	alphaMaskedJumpFloodSeedRenderer { gpu.device, std::tie(descriptorSetLayouts.scene, descriptorSetLayouts.asset) },
+	alphaMaskedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout },
+	depthRenderer { gpu.device, descriptorSetLayouts.scene },
+	facetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout },
+	jumpFloodComputer { gpu.device },
+	jumpFloodSeedRenderer { gpu.device, descriptorSetLayouts.scene },
+	outlineRenderer { gpu.device },
+	primitiveRenderer { gpu.device, sceneRenderingPipelineLayout },
+	skyboxRenderer { gpu.device, descriptorSetLayouts.skybox, cubeIndices } {
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
 		recordGltfFallbackImageClearCommands(cb);
 		recordInitialImageLayoutTransitionCommands(cb);

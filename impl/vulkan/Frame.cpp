@@ -755,7 +755,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordGltfPrimitiveDrawCommands(
 
 	// TODO: render alphaMode=Blend meshes.
 
-	if (auto skyboxDescriptorSet = get_if<vku::DescriptorSet<pipeline::SkyboxRenderer::DescriptorSetLayout>>(&task.background)) {
+	if (auto skyboxDescriptorSet = get_if<vku::DescriptorSet<dsl::Skybox>>(&task.background)) {
 		// Draw skybox.
 		const glm::mat4 noTranslationView = { glm::mat3 { task.camera.view } };
 		sharedData.skyboxRenderer.draw(cb, *skyboxDescriptorSet, {

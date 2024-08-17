@@ -30,41 +30,39 @@ namespace vk_gltf_viewer::vulkan {
 		const Gpu &gpu;
 
     public:
+		struct DescriptorSetLayouts {
+			const dsl::Asset &asset;
+			const dsl::ImageBasedLighting &imageBasedLighting;
+			const dsl::Scene &scene;
+			const dsl::Skybox &skybox;
+		};
+
     	// Swapchain.
 		vk::raii::SwapchainKHR swapchain;
 		vk::Extent2D swapchainExtent;
 		std::vector<vk::Image> swapchainImages = swapchain.getImages();
 
-    	// Buffer, image and image views.
+    	// Buffer, image and image views and samplers.
     	vku::AllocatedImage gltfFallbackImage = createGltfFallbackImage();
     	vk::raii::ImageView gltfFallbackImageView { gpu.device, gltfFallbackImage.getViewCreateInfo() };
     	buffer::CubeIndices cubeIndices { gpu.allocator };
-
-    	// Samplers.
-    	BrdfLutSampler brdfLutSampler { gpu.device };
-    	CubemapSampler cubemapSampler { gpu.device };
-    	SingleTexelSampler singleTexelSampler { gpu.device };
-
-    	// Descriptor set layouts.
-    	dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout { gpu.device, brdfLutSampler, cubemapSampler };
-    	dsl::Asset assetDescriptorSetLayout { gpu.device, static_cast<std::uint32_t>(1 /* fallback texture */ + asset.textures.size()) };
-    	dsl::Scene sceneDescriptorSetLayout { gpu.device };
+		SingleTexelSampler singleTexelSampler { gpu.device };
 
     	// Pipeline layouts.
-    	pl::SceneRendering sceneRenderingPipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+    	pl::SceneRendering sceneRenderingPipelineLayout;
 
 		// Pipelines.
-		pipeline::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-    	pipeline::AlphaMaskedFacetedPrimitiveRenderer alphaMaskedFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
-    	pipeline::AlphaMaskedJumpFloodSeedRenderer alphaMaskedJumpFloodSeedRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-    	pipeline::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
-		pipeline::DepthRenderer depthRenderer { gpu.device, sceneDescriptorSetLayout };
-		pipeline::FacetedPrimitiveRenderer facetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
-		pipeline::JumpFloodComputer jumpFloodComputer { gpu.device };
-    	pipeline::JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, sceneDescriptorSetLayout };
-		pipeline::OutlineRenderer outlineRenderer { gpu.device };
-		pipeline::PrimitiveRenderer primitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
-		pipeline::SkyboxRenderer skyboxRenderer { gpu.device, cubemapSampler, cubeIndices };
+		pipeline::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer;
+    	pipeline::AlphaMaskedFacetedPrimitiveRenderer alphaMaskedFacetedPrimitiveRenderer;
+    	pipeline::AlphaMaskedJumpFloodSeedRenderer alphaMaskedJumpFloodSeedRenderer;
+    	pipeline::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer;
+		pipeline::DepthRenderer depthRenderer;
+		pipeline::FacetedPrimitiveRenderer facetedPrimitiveRenderer;
+		pipeline::JumpFloodComputer jumpFloodComputer;
+    	pipeline::JumpFloodSeedRenderer jumpFloodSeedRenderer;
+		pipeline::OutlineRenderer outlineRenderer;
+		pipeline::PrimitiveRenderer primitiveRenderer;
+		pipeline::SkyboxRenderer skyboxRenderer;
 
     	// Attachment groups.
     	std::vector<ag::Swapchain> swapchainAttachmentGroups = createSwapchainAttachmentGroups();
@@ -73,7 +71,12 @@ namespace vk_gltf_viewer::vulkan {
     	// Descriptor/command pools.
     	vk::raii::CommandPool graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
 
-    	SharedData(const fastgltf::Asset &asset [[clang::lifetimebound]], const Gpu &gpu [[clang::lifetimebound]], vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent);
+    	SharedData(
+    		const fastgltf::Asset &asset [[clang::lifetimebound]],
+    		const Gpu &gpu [[clang::lifetimebound]],
+    		vk::SurfaceKHR surface,
+    		const vk::Extent2D &swapchainExtent,
+    		const DescriptorSetLayouts &descriptorSetLayouts);
 
     	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
 

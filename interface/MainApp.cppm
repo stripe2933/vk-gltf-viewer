@@ -9,6 +9,10 @@ import vku;
 import :control.AppWindow;
 import :gltf.AssetResources;
 import :gltf.SceneResources;
+import :vulkan.dsl.Asset;
+import :vulkan.dsl.ImageBasedLighting;
+import :vulkan.dsl.Scene;
+import :vulkan.dsl.Skybox;
 import :vulkan.Gpu;
 
 namespace vk_gltf_viewer {
@@ -23,12 +27,14 @@ namespace vk_gltf_viewer {
 		struct SkyboxResources {
 			vku::AllocatedImage cubemapImage;
 			vk::raii::ImageView cubemapImageView;
+			vku::DescriptorSet<vulkan::dsl::Skybox> descriptorSet;
 		};
 
 		struct ImageBasedLightingResources {
 			vku::MappedBuffer cubemapSphericalHarmonicsBuffer;
 			vku::AllocatedImage prefilteredmapImage;
 			vk::raii::ImageView prefilteredmapImageView;
+			vku::DescriptorSet<vulkan::dsl::ImageBasedLighting> descriptorSet;
 		};
 
 	    AppState appState;
@@ -52,9 +58,21 @@ namespace vk_gltf_viewer {
 		vku::AllocatedImage reducedEqmapImage = createReducedEqmapImage({ 4096, 2048 } /* TODO */);
 		vk::raii::ImageView reducedEqmapImageView { gpu.device, reducedEqmapImage.getViewCreateInfo() };
 		vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
+		vulkan::BrdfLutSampler brdfLutSampler { gpu.device };
+		vulkan::CubemapSampler cubemapSampler { gpu.device };
+
+		// Descriptor set layouts.
+		vulkan::dsl::Asset assetDescriptorSetLayout { gpu.device, static_cast<std::uint32_t>(1 /*fallback texture*/ + assetExpected.get().textures.size()) };
+		vulkan::dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout { gpu.device, brdfLutSampler, cubemapSampler };
+		vulkan::dsl::Scene sceneDescriptorSetLayout { gpu.device };
+		vulkan::dsl::Skybox skyboxDescriptorSetLayout { gpu.device, cubemapSampler };
 
 		// Descriptor/command pools.
+    	vk::raii::DescriptorPool descriptorPool = createDescriptorPool();
     	vk::raii::DescriptorPool imGuiDescriptorPool = createImGuiDescriptorPool();
+		vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
+		vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
+		vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
 
 		// Descriptor sets.
 		vk::DescriptorSet eqmapImageImGuiDescriptorSet;
@@ -66,6 +84,9 @@ namespace vk_gltf_viewer {
 		[[nodiscard]] auto createReducedEqmapImage(const vk::Extent2D &eqmapLastMipImageExtent) -> vku::AllocatedImage;
 		[[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;
     	[[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
+    	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
     	[[nodiscard]] auto createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool);
+
+		auto processEqmapChange(const std::filesystem::path &eqmapPath, bool usePreviousDescriptorSets) -> void;
 	};
 }

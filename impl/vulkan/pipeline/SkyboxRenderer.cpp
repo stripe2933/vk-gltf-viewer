@@ -7,25 +7,11 @@ import :vulkan.pipeline.SkyboxRenderer;
 
 import std;
 
-vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::DescriptorSetLayout::DescriptorSetLayout(
-    const vk::raii::Device &device,
-    const CubemapSampler &sampler
-) : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler> {
-        device,
-        vk::DescriptorSetLayoutCreateInfo {
-            {},
-            vku::unsafeProxy({
-                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &*sampler },
-            }),
-        },
-    } { }
-
 vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
     const vk::raii::Device &device,
-    const CubemapSampler &sampler,
+    const dsl::Skybox &descriptorSetLayout,
     const buffer::CubeIndices &cubeIndices
-) : descriptorSetLayout { device, sampler },
-    pipelineLayout { device, vk::PipelineLayoutCreateInfo {
+) : pipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
         *descriptorSetLayout,
         vku::unsafeProxy({
@@ -66,7 +52,7 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
 
 auto vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::draw(
     vk::CommandBuffer commandBuffer,
-    vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
+    vku::DescriptorSet<dsl::Skybox> descriptorSet,
     const PushConstant &pushConstant
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);

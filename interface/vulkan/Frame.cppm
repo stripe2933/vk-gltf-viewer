@@ -16,6 +16,7 @@ import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.Scene;
 export import :vulkan.dsl.Asset;
 export import :vulkan.dsl.Scene;
+export import :vulkan.dsl.Skybox;
 
 namespace vk_gltf_viewer::vulkan {
     export class Frame {
@@ -31,7 +32,7 @@ namespace vk_gltf_viewer::vulkan {
     		vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
     		vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
     		vku::DescriptorSet<dsl::Scene> sceneDescriptorSet;
-    		std::variant<glm::vec3 /*solid color*/, vku::DescriptorSet<pipeline::SkyboxRenderer::DescriptorSetLayout>> background;
+    		std::variant<glm::vec3 /*solid color*/, vku::DescriptorSet<dsl::Skybox>> background;
     		std::optional<std::pair<vk::SurfaceKHR, vk::Extent2D>> swapchainResizeHandleInfo;
     	};
 

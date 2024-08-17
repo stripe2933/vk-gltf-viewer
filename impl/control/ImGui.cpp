@@ -268,9 +268,10 @@ auto assetOcclusionTextureInfo(const fastgltf::OcclusionTextureInfo &textureInfo
     }
 }
 
-auto vk_gltf_viewer::control::imgui::menuBar() -> void {
+auto vk_gltf_viewer::control::imgui::menuBar() -> task::type {
     static NFD::Guard nfdGuard;
 
+    task::type result;
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Load glTF File", "Ctrl+O")) {
@@ -286,10 +287,10 @@ auto vk_gltf_viewer::control::imgui::menuBar() -> void {
             if (ImGui::MenuItem("Load Skybox")) {
                 static constexpr std::array filterItems { nfdfilteritem_t { "HDR image", "hdr" } };
                 NFD::UniquePath outPath;
-                if (nfdresult_t result = OpenDialog(outPath, filterItems.data(), filterItems.size()); result == NFD_OKAY) {
-                    std::println("Path: {}", outPath.get());
+                if (nfdresult_t nfdResult = OpenDialog(outPath, filterItems.data(), filterItems.size()); nfdResult == NFD_OKAY) {
+                    result.emplace<task::LoadEqmap>(outPath.get());
                 }
-                else if (result == NFD_CANCEL) {
+                else if (nfdResult == NFD_CANCEL) {
                     // Do nothing.
                 }
                 else {
@@ -301,6 +302,8 @@ auto vk_gltf_viewer::control::imgui::menuBar() -> void {
         }
         ImGui::EndMainMenuBar();
     }
+
+    return result;
 }
 
 auto vk_gltf_viewer::control::imgui::skybox(AppState &appState) -> void {

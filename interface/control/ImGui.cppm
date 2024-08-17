@@ -10,7 +10,15 @@ export import vulkan_hpp;
 export import :AppState;
 
 namespace vk_gltf_viewer::control::imgui {
-    auto menuBar() -> void;
+    namespace task {
+        struct LoadEqmap {
+            std::filesystem::path path;
+        };
+
+        using type = std::variant<std::monostate, LoadEqmap>;
+    };
+
+    [[nodiscard]] auto menuBar() -> task::type;
 
     auto skybox(AppState &appState) -> void;
     auto hdriEnvironments(vk::DescriptorSet eqmapTexture, AppState &appState) -> void;
