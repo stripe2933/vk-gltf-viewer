@@ -52,17 +52,17 @@ namespace vk_gltf_viewer::vulkan {
     	pl::SceneRendering sceneRenderingPipelineLayout;
 
 		// Pipelines.
-		pipeline::AlphaMaskedDepthRenderer alphaMaskedDepthRenderer;
-    	pipeline::AlphaMaskedFacetedPrimitiveRenderer alphaMaskedFacetedPrimitiveRenderer;
-    	pipeline::AlphaMaskedJumpFloodSeedRenderer alphaMaskedJumpFloodSeedRenderer;
-    	pipeline::AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer;
-		pipeline::DepthRenderer depthRenderer;
-		pipeline::FacetedPrimitiveRenderer facetedPrimitiveRenderer;
-		pipeline::JumpFloodComputer jumpFloodComputer;
-    	pipeline::JumpFloodSeedRenderer jumpFloodSeedRenderer;
-		pipeline::OutlineRenderer outlineRenderer;
-		pipeline::PrimitiveRenderer primitiveRenderer;
-		pipeline::SkyboxRenderer skyboxRenderer;
+		AlphaMaskedDepthRenderer alphaMaskedDepthRenderer;
+    	AlphaMaskedFacetedPrimitiveRenderer alphaMaskedFacetedPrimitiveRenderer;
+    	AlphaMaskedJumpFloodSeedRenderer alphaMaskedJumpFloodSeedRenderer;
+    	AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer;
+		DepthRenderer depthRenderer;
+		FacetedPrimitiveRenderer facetedPrimitiveRenderer;
+		JumpFloodComputer jumpFloodComputer;
+    	JumpFloodSeedRenderer jumpFloodSeedRenderer;
+		OutlineRenderer outlineRenderer;
+		PrimitiveRenderer primitiveRenderer;
+		SkyboxRenderer skyboxRenderer;
 
     	// Attachment groups.
     	std::vector<ag::Swapchain> swapchainAttachmentGroups = createSwapchainAttachmentGroups();

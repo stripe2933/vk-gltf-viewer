@@ -117,10 +117,10 @@ namespace vk_gltf_viewer::vulkan {
     	vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
 
     	// Descriptor sets.
-    	vku::DescriptorSet<pipeline::JumpFloodComputer::DescriptorSetLayout> hoveringNodeJumpFloodSets;
-		vku::DescriptorSet<pipeline::JumpFloodComputer::DescriptorSetLayout> selectedNodeJumpFloodSets;
-    	vku::DescriptorSet<pipeline::OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSets;
-    	vku::DescriptorSet<pipeline::OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSets;
+    	vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> hoveringNodeJumpFloodSets;
+		vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> selectedNodeJumpFloodSets;
+    	vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSets;
+    	vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSets;
 
     	// Command buffers.
     	vk::CommandBuffer depthPrepassCommandBuffer;
@@ -146,7 +146,7 @@ namespace vk_gltf_viewer::vulkan {
 
     	auto recordDepthPrepassCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
     	// Return true if last jump flood calculation direction is forward (result is in pong image), false if backward.
-		[[nodiscard]] auto recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<pipeline::JumpFloodComputer::DescriptorSetLayout> descriptorSets, std::uint32_t initialSampleOffset) const -> bool;
+		[[nodiscard]] auto recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSets, std::uint32_t initialSampleOffset) const -> bool;
     	auto recordGltfPrimitiveDrawCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex, const ExecutionTask &task) const -> void;
     	auto recordPostCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward, std::uint32_t swapchainImageIndex, const ExecutionTask &task) const -> void;
     };

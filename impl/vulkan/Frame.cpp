@@ -442,10 +442,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 	const auto drawPrimitives
 		= [&](const decltype(renderingNodeIndirectDrawCommandBuffers) &indirectDrawCommandBuffers, const auto &opaqueRenderer, const auto &maskedRenderer) {
 			constexpr auto getPipelineType = multilambda {
-				[](const pipeline::DepthRenderer&) { return ResourceBindingState::PipelineType::DepthRenderer; },
-				[](const pipeline::AlphaMaskedDepthRenderer&) { return ResourceBindingState::PipelineType::AlphaMaskedDepthRenderer; },
-				[](const pipeline::JumpFloodSeedRenderer&) { return ResourceBindingState::PipelineType::JumpFloodSeedRenderer; },
-				[](const pipeline::AlphaMaskedJumpFloodSeedRenderer&) { return ResourceBindingState::PipelineType::AlphaMaskedJumpFloodSeedRenderer; },
+				[](const DepthRenderer&) { return ResourceBindingState::PipelineType::DepthRenderer; },
+				[](const AlphaMaskedDepthRenderer&) { return ResourceBindingState::PipelineType::AlphaMaskedDepthRenderer; },
+				[](const JumpFloodSeedRenderer&) { return ResourceBindingState::PipelineType::JumpFloodSeedRenderer; },
+				[](const AlphaMaskedJumpFloodSeedRenderer&) { return ResourceBindingState::PipelineType::AlphaMaskedJumpFloodSeedRenderer; },
 			};
 			const ResourceBindingState::PipelineType opaqueOrBlendRendererType = getPipelineType(opaqueRenderer);
 			const ResourceBindingState::PipelineType maskedRendererType = getPipelineType(maskedRenderer);
@@ -607,7 +607,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordDepthPrepassCommands(
 auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
 	vk::CommandBuffer cb,
 	const vku::Image &image,
-	vku::DescriptorSet<pipeline::JumpFloodComputer::DescriptorSetLayout> descriptorSets,
+	vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSets,
 	std::uint32_t initialSampleOffset
 ) const -> bool {
 	cb.pipelineBarrier(

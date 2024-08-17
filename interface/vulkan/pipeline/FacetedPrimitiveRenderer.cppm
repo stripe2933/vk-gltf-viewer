@@ -3,7 +3,7 @@ export module vk_gltf_viewer:vulkan.pipeline.FacetedPrimitiveRenderer;
 import vku;
 export import :vulkan.pl.SceneRendering;
 
-namespace vk_gltf_viewer::vulkan::pipeline {
+namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct FacetedPrimitiveRenderer : vk::raii::Pipeline {
         FacetedPrimitiveRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],

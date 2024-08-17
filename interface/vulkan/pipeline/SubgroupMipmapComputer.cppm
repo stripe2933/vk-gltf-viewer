@@ -11,7 +11,7 @@ import :helpers.ranges;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
-namespace vk_gltf_viewer::vulkan::pipeline {
+namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class SubgroupMipmapComputer {
         struct PushConstant {
             std::uint32_t baseLevel;

@@ -24,8 +24,8 @@ namespace vk_gltf_viewer::vulkan::inline generator {
         };
 
         struct Pipelines {
-            pipeline::CubemapComputer cubemapComputer;
-            pipeline::SubgroupMipmapComputer subgroupMipmapComputer;
+            CubemapComputer cubemapComputer;
+            SubgroupMipmapComputer subgroupMipmapComputer;
         };
 
         vku::AllocatedImage cubemapImage;

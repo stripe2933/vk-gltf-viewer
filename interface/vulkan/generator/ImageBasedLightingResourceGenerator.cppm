@@ -30,10 +30,10 @@ namespace vk_gltf_viewer::vulkan::inline generator {
         };
 
         struct Pipelines {
-            pipeline::PrefilteredmapComputer prefilteredmapComputer;
-            pipeline::SphericalHarmonicsComputer sphericalHarmonicsComputer;
-            pipeline::SphericalHarmonicCoefficientsSumComputer sphericalHarmonicCoefficientsSumComputer;
-            pipeline::MultiplyComputer multiplyComputer;
+            PrefilteredmapComputer prefilteredmapComputer;
+            SphericalHarmonicsComputer sphericalHarmonicsComputer;
+            SphericalHarmonicCoefficientsSumComputer sphericalHarmonicCoefficientsSumComputer;
+            MultiplyComputer multiplyComputer;
         };
 
         vku::AllocatedImage prefilteredmapImage;
@@ -75,8 +75,8 @@ namespace vk_gltf_viewer::vulkan::inline generator {
             intermediateResources = std::make_unique<IntermediateResources>(
                 vku::AllocatedBuffer { gpu.allocator, vk::BufferCreateInfo {
                     {},
-                    27 * sizeof(float) * pipeline::SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
-                        getWorkgroupTotal(pipeline::SphericalHarmonicsComputer::getWorkgroupCount(cubemapImage.extent.width))),
+                    27 * sizeof(float) * SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
+                        getWorkgroupTotal(SphericalHarmonicsComputer::getWorkgroupCount(cubemapImage.extent.width))),
                     vk::BufferUsageFlagBits::eStorageBuffer,
                 } },
                 vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
@@ -148,7 +148,7 @@ namespace vk_gltf_viewer::vulkan::inline generator {
 				{}, {});
 
 			// Calculate sum of total spherical harmonic coefficients using ping-pong buffer dispatches.
-			const std::uint32_t workgroupTotal = getWorkgroupTotal(pipeline::SphericalHarmonicsComputer::getWorkgroupCount(cubemapImage.extent.width));
+			const std::uint32_t workgroupTotal = getWorkgroupTotal(SphericalHarmonicsComputer::getWorkgroupCount(cubemapImage.extent.width));
 			const std::uint32_t dstOffset = pipelines.sphericalHarmonicCoefficientsSumComputer.compute(computeCommandBuffer, sphericalHarmonicCoefficientsSumComputerSet, {
 				.srcOffset = 0,
 				.count = workgroupTotal,

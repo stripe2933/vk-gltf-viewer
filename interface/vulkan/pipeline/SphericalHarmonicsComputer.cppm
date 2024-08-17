@@ -8,7 +8,7 @@ import std;
 import vku;
 export import vulkan_hpp;
 
-namespace vk_gltf_viewer::vulkan::pipeline {
+namespace vk_gltf_viewer::vulkan::inline pipeline {
     class SphericalHarmonicsComputer {
     public:
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage, vk::DescriptorType::eStorageBuffer> {

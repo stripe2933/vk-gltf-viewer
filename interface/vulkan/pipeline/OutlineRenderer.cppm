@@ -4,7 +4,7 @@ import std;
 export import glm;
 export import vku;
 
-namespace vk_gltf_viewer::vulkan::pipeline {
+namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct OutlineRenderer {
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage>{
             explicit DescriptorSetLayout(const vk::raii::Device &device [[clang::lifetimebound]]);

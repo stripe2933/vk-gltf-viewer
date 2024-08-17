@@ -3,7 +3,7 @@ export module vk_gltf_viewer:vulkan.pipeline.AlphaMaskedPrimitiveRenderer;
 import vku;
 export import :vulkan.pl.SceneRendering;
 
-namespace vk_gltf_viewer::vulkan::pipeline {
+namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct AlphaMaskedPrimitiveRenderer : vk::raii::Pipeline {
         AlphaMaskedPrimitiveRenderer(
         const vk::raii::Device &device [[clang::lifetimebound]],

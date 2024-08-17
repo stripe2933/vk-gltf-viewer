@@ -5,7 +5,7 @@ export import glm;
 export import :vulkan.buffer.CubeIndices;
 export import :vulkan.dsl.Skybox;
 
-namespace vk_gltf_viewer::vulkan::pipeline {
+namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class SkyboxRenderer {
     public:
         struct PushConstant {

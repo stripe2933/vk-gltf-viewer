@@ -5,7 +5,7 @@ export import glm;
 export import vku;
 export import :vulkan.dsl.Scene;
 
-namespace vk_gltf_viewer::vulkan::pipeline {
+namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct JumpFloodSeedRenderer {
         struct PushConstant {
             glm::mat4 projectionView;
