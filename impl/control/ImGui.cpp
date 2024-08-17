@@ -309,9 +309,13 @@ auto vk_gltf_viewer::control::imgui::menuBar() -> task::type {
 auto vk_gltf_viewer::control::imgui::skybox(AppState &appState) -> void {
     if (ImGui::Begin("Skybox")) {
         const bool useSolidBackground = appState.background.has_value();
+        // If appState.canSelectSkyboxBackground is false, the user cannot select the skybox background.
+        ImGui::BeginDisabled(!appState.canSelectSkyboxBackground);
         if (ImGui::RadioButton("Use cubemap image from equirectangular map", !useSolidBackground)) {
             appState.background.set_active(false);
         }
+        ImGui::EndDisabled();
+
         if (ImGui::RadioButton("Use solid color", useSolidBackground)) {
             appState.background.set_active(true);
         }

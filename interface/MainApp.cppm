@@ -25,16 +25,18 @@ namespace vk_gltf_viewer {
 
 	private:
 		struct SkyboxResources {
+			vku::AllocatedImage reducedEqmapImage;
+			vk::raii::ImageView reducedEqmapImageView;
 			vku::AllocatedImage cubemapImage;
 			vk::raii::ImageView cubemapImageView;
+			vk::DescriptorSet imGuiEqmapTextureDescriptorSet;
 			vku::DescriptorSet<vulkan::dsl::Skybox> descriptorSet;
 		};
 
 		struct ImageBasedLightingResources {
-			vku::MappedBuffer cubemapSphericalHarmonicsBuffer;
+			vku::AllocatedBuffer cubemapSphericalHarmonicsBuffer;
 			vku::AllocatedImage prefilteredmapImage;
 			vk::raii::ImageView prefilteredmapImageView;
-			vku::DescriptorSet<vulkan::dsl::ImageBasedLighting> descriptorSet;
 		};
 
 	    AppState appState;
@@ -49,21 +51,19 @@ namespace vk_gltf_viewer {
 
 		gltf::AssetResources assetResources { assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), gpu, { .supportUint8Index = false /* TODO: change this value depend on vk::PhysicalDeviceIndexTypeUint8FeaturesKHR */ } };
     	gltf::SceneResources sceneResources { assetResources, assetExpected->scenes[assetExpected->defaultScene.value_or(0)], gpu };
+		ImageBasedLightingResources imageBasedLightingResources = createDefaultImageBasedLightingResources();
 		std::optional<SkyboxResources> skyboxResources{};
-		std::optional<ImageBasedLightingResources> imageBasedLightingResources{};
-		vku::AllocatedImage brdfmapImage = createBrdfmapImage();
-		vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
 
 		// Buffers, images, image views and samplers.
-		vku::AllocatedImage reducedEqmapImage = createReducedEqmapImage({ 4096, 2048 } /* TODO */);
-		vk::raii::ImageView reducedEqmapImageView { gpu.device, reducedEqmapImage.getViewCreateInfo() };
+		vku::AllocatedImage brdfmapImage = createBrdfmapImage();
+		vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
 		vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
-		vulkan::BrdfLutSampler brdfLutSampler { gpu.device };
 		vulkan::CubemapSampler cubemapSampler { gpu.device };
+		vulkan::BrdfLutSampler brdfLutSampler { gpu.device };
 
 		// Descriptor set layouts.
 		vulkan::dsl::Asset assetDescriptorSetLayout { gpu.device, static_cast<std::uint32_t>(1 /*fallback texture*/ + assetExpected.get().textures.size()) };
-		vulkan::dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout { gpu.device, brdfLutSampler, cubemapSampler };
+		vulkan::dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler };
 		vulkan::dsl::Scene sceneDescriptorSetLayout { gpu.device };
 		vulkan::dsl::Skybox skyboxDescriptorSetLayout { gpu.device, cubemapSampler };
 
@@ -75,18 +75,19 @@ namespace vk_gltf_viewer {
 		vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
 
 		// Descriptor sets.
-		vk::DescriptorSet eqmapImageImGuiDescriptorSet;
+		vku::DescriptorSet<vulkan::dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
 		std::vector<vk::DescriptorSet> assetTextureDescriptorSets;
 
     	[[nodiscard]] auto loadAsset(const std::filesystem::path &path) -> decltype(assetExpected);
 
 		[[nodiscard]] auto createInstance() const -> decltype(instance);
-		[[nodiscard]] auto createReducedEqmapImage(const vk::Extent2D &eqmapLastMipImageExtent) -> vku::AllocatedImage;
+		[[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
 		[[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;
     	[[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
     	[[nodiscard]] auto createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool);
 
-		auto processEqmapChange(const std::filesystem::path &eqmapPath, bool usePreviousDescriptorSets) -> void;
+		auto initializeImageBasedLightingResourcesByDefault(vk::CommandBuffer graphicsCommandBuffer) const -> void;
+		auto processEqmapChange(const std::filesystem::path &eqmapPath) -> void;
 	};
 }

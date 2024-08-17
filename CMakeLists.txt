@@ -21,29 +21,6 @@ find_package(Stb REQUIRED)
 find_package(vku CONFIG REQUIRED)
 
 # --------------------
-# Module configurations for the external dependencies.
-# --------------------
-
-if (NOT TARGET glm_module)
-	add_library(glm_module)
-	target_sources(glm_module PUBLIC
-		FILE_SET CXX_MODULES
-		FILES extlibs/module-ports/glm.cppm
-	)
-	target_link_libraries(glm_module PUBLIC glm::glm)
-	target_compile_definitions(glm_module PUBLIC
-		GLM_FORCE_DEPTH_ZERO_TO_ONE
-		GLM_FORCE_XYZW_ONLY
-		GLM_ENABLE_EXPERIMENTAL
-		GLM_GTC_INLINE_NAMESPACE
-		GLM_EXT_INLINE_NAMESPACE
-		GLM_GTX_INLINE_NAMESPACE
-	)
-
-	add_library(glm::module ALIAS glm_module)
-endif()
-
-# --------------------
 # Project targets.
 # --------------------
 
@@ -75,6 +52,7 @@ target_sources(vk-gltf-viewer PRIVATE
 	FILE_SET CXX_MODULES
 	FILES
 		extlibs/thread_pool.cppm
+		extlibs/module-ports/glm.cppm
 		interface/mod.cppm
 		interface/control/AppWindow.cppm
 		interface/control/Camera.cppm
@@ -136,7 +114,6 @@ target_sources(vk-gltf-viewer PRIVATE
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
 	fastgltf::fastgltf
-	glm::module
 	imgui::imgui
 	unofficial::imguizmo::imguizmo
 	mikktspace::mikktspace
@@ -144,6 +121,12 @@ target_link_libraries(vk-gltf-viewer PRIVATE
 	vku::vku
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE
-	GLFW_INCLUDE_NONE
 	COMPILED_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+	GLFW_INCLUDE_NONE
+	GLM_FORCE_DEPTH_ZERO_TO_ONE
+	GLM_FORCE_XYZW_ONLY
+	GLM_ENABLE_EXPERIMENTAL
+	GLM_GTC_INLINE_NAMESPACE
+	GLM_EXT_INLINE_NAMESPACE
+	GLM_GTX_INLINE_NAMESPACE
 )

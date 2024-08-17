@@ -231,6 +231,10 @@ vk_gltf_viewer::MainApp::MainApp() {
 	const auto [timelineSemaphores, finalWaitValues] = executeHierarchicalCommands(
 		gpu.device,
 		std::forward_as_tuple(
+			// Initialize the image based lighting resources by default(white).
+			ExecutionInfo { [this](vk::CommandBuffer cb) {
+				initializeImageBasedLightingResourcesByDefault(cb);
+			}, *graphicsCommandPool, gpu.queues.graphicsPresent },
 			// Create BRDF LUT image.
 			ExecutionInfo { [&](vk::CommandBuffer cb) {
 				// Change brdfmapImage layout to GENERAL.
@@ -334,7 +338,14 @@ vk_gltf_viewer::MainApp::MainApp() {
 		throw std::runtime_error { "Failed to launch application!" };
 	}
 
-	processEqmapChange(std::getenv("EQMAP_PATH"), false);
+	std::tie(imageBasedLightingDescriptorSet) = allocateDescriptorSets(*gpu.device, *(this->descriptorPool), std::tie(
+		// TODO: requiring explicit const cast looks bad. vku::allocateDescriptorSets signature should be fixed.
+		std::as_const(imageBasedLightingDescriptorSetLayout)));
+	gpu.device.updateDescriptorSets({
+		imageBasedLightingDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
+		imageBasedLightingDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+		imageBasedLightingDescriptorSet.getWrite<2>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+	}, {});
 
 	// Init ImGui.
 	IMGUI_CHECKVERSION();
@@ -367,7 +378,6 @@ vk_gltf_viewer::MainApp::MainApp() {
 	};
 	ImGui_ImplVulkan_Init(&initInfo);
 
-	eqmapImageImGuiDescriptorSet = ImGui_ImplVulkan_AddTexture(*reducedEqmapSampler, *reducedEqmapImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	// TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
 	assetTextureDescriptorSets = assetResources.textures
 		| std::views::transform([&](const vk::DescriptorImageInfo &textureInfo) -> vk::DescriptorSet {
@@ -380,7 +390,9 @@ vk_gltf_viewer::MainApp::~MainApp() {
 	for (vk::DescriptorSet textureDescriptorSet : assetTextureDescriptorSets) {
 		ImGui_ImplVulkan_RemoveTexture(textureDescriptorSet);
 	}
-	ImGui_ImplVulkan_RemoveTexture(eqmapImageImGuiDescriptorSet);
+	if (skyboxResources) {
+		ImGui_ImplVulkan_RemoveTexture(skyboxResources->imGuiEqmapTextureDescriptorSet);
+	}
 
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
@@ -452,7 +464,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		// Draw main menu bar.
 		visit(multilambda {
 			[&](const control::imgui::task::LoadEqmap &task) {
-				processEqmapChange(task.path, true);
+				processEqmapChange(task.path);
 			},
 			[](std::monostate) { },
 		}, control::imgui::menuBar());
@@ -460,7 +472,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		control::imgui::inputControlSetting(appState);
 
 		control::imgui::skybox(appState);
-		control::imgui::hdriEnvironments(eqmapImageImGuiDescriptorSet, appState);
+		if (skyboxResources) {
+			control::imgui::hdriEnvironments(skyboxResources->imGuiEqmapTextureDescriptorSet, appState);
+		}
 
 		// Asset inspection.
 		fastgltf::Asset &asset = assetExpected.get();
@@ -501,14 +515,17 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			.renderingNodeIndices = appState.renderingNodeIndices,
 			.hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
 			.selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
-			.imageBasedLightingDescriptorSet = imageBasedLightingResources.value() /*TODO*/.descriptorSet,
+			.imageBasedLightingDescriptorSet = imageBasedLightingDescriptorSet,
 			.assetDescriptorSet = assetDescriptorSet,
 			.sceneDescriptorSet = sceneDescriptorSet,
-			.background = appState.background.to_optional()
-				.and_then([&](const glm::vec3 &color) {
-					return std::optional<decltype(vulkan::Frame::ExecutionTask::background)> { color };
-				})
-				.value_or(decltype(vulkan::Frame::ExecutionTask::background) { std::in_place_index<1>, skyboxResources.value() /*TODO*/.descriptorSet }),
+			.background = [&]() -> decltype(vulkan::Frame::ExecutionTask::background) {
+				if (appState.background.has_value()) {
+					return *appState.background;
+				}
+				else {
+					return skyboxResources->descriptorSet;
+				}
+			}(),
 		};
 		if (const auto &extent = std::exchange(shouldHandleSwapchainResize[frameIndex], std::nullopt)) {
 			task.swapchainResizeHandleInfo.emplace(window.getSurface(), *extent);
@@ -583,19 +600,27 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 	return instance;
 }
 
-auto vk_gltf_viewer::MainApp::createReducedEqmapImage(
-	const vk::Extent2D &eqmapLastMipImageExtent
-) -> vku::AllocatedImage {
-	return { gpu.allocator, vk::ImageCreateInfo {
-		{},
+auto vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources {
+	vku::MappedBuffer sphericalHarmonicsBuffer { gpu.allocator, std::from_range, std::array<glm::vec3, 9> {
+		glm::vec3 { 1.f },
+	}, vk::BufferUsageFlagBits::eUniformBuffer };
+	vku::AllocatedImage prefilteredmapImage { gpu.allocator, vk::ImageCreateInfo {
+		vk::ImageCreateFlagBits::eCubeCompatible,
 		vk::ImageType::e2D,
 		vk::Format::eB10G11R11UfloatPack32,
-		vk::Extent3D { eqmapLastMipImageExtent, 1 },
-		vku::Image::maxMipLevels(eqmapLastMipImageExtent), 1,
+		vk::Extent3D { 1, 1, 1 },
+		1, 6,
 		vk::SampleCountFlagBits::e1,
 		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
+		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
 	} };
+	vk::raii::ImageView prefilteredmapImageView { gpu.device, prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
+
+	return {
+		std::move(sphericalHarmonicsBuffer).unmap(),
+		std::move(prefilteredmapImage),
+		std::move(prefilteredmapImageView),
+	};
 }
 
 auto vk_gltf_viewer::MainApp::createEqmapSampler() const -> vk::raii::Sampler {
@@ -635,22 +660,49 @@ auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() const -> decltype(imGu
 	return { gpu.device, vk::DescriptorPoolCreateInfo {
 		vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
 		1 /* Default ImGui rendering */
-			+ 1 /* equirectangular texture */
+			+ 1 /* reducedEqmapImage texture */
 			+ static_cast<std::uint32_t>(assetResources.textures.size()) /* material textures */,
 		vku::unsafeProxy({
 			vk::DescriptorPoolSize {
 				vk::DescriptorType::eCombinedImageSampler,
 				1 /* Default ImGui rendering */
-					+ 1 /* equirectangular texture */
+					+ 1 /* reducedEqmapImage texture */
 					+ static_cast<std::uint32_t>(assetResources.textures.size()) /* material textures */
 			},
 		}),
 	} };
 }
 
+auto vk_gltf_viewer::MainApp::initializeImageBasedLightingResourcesByDefault(
+	vk::CommandBuffer graphicsCommandBuffer
+) const -> void {
+	// Clear prefilteredmapImage to white.
+	graphicsCommandBuffer.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+		{}, {}, {},
+		vk::ImageMemoryBarrier {
+			{}, vk::AccessFlagBits::eTransferWrite,
+			{}, vk::ImageLayout::eTransferDstOptimal,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			imageBasedLightingResources.prefilteredmapImage, vku::fullSubresourceRange(),
+		});
+	graphicsCommandBuffer.clearColorImage(
+		imageBasedLightingResources.prefilteredmapImage, vk::ImageLayout::eTransferDstOptimal,
+		vk::ClearColorValue { 1.f, 1.f, 1.f, 0.f },
+		vku::fullSubresourceRange());
+	graphicsCommandBuffer.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+		{}, {}, {},
+		vk::ImageMemoryBarrier {
+			vk::AccessFlagBits::eTransferWrite, {},
+			vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+			imageBasedLightingResources.prefilteredmapImage, vku::fullSubresourceRange(),
+		});
+}
+
 auto vk_gltf_viewer::MainApp::processEqmapChange(
-	const std::filesystem::path &eqmapPath,
-	bool usePreviousDescriptorSets
+	const std::filesystem::path &eqmapPath
 ) -> void {
 	// Load equirectangular map image and stage it into eqmapImage.
 	int width, height;
@@ -674,22 +726,36 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 	} };
 	std::unique_ptr<vku::AllocatedBuffer> eqmapStagingBuffer;
 
-	vulkan::MipmappedCubemapGenerator mippedCubemapGenerator { gpu, {
+	const vk::Extent2D reducedEqmapImageExtent = eqmapImage.mipExtent(eqmapImage.mipLevels - 1);
+	vku::AllocatedImage reducedEqmapImage { gpu.allocator, vk::ImageCreateInfo {
+		{},
+		vk::ImageType::e2D,
+		vk::Format::eB10G11R11UfloatPack32,
+		vk::Extent3D { reducedEqmapImageExtent, 1 },
+		vku::Image::maxMipLevels(reducedEqmapImageExtent), 1,
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
+	} };
+
+	constexpr vulkan::MipmappedCubemapGenerator::Config mippedCubemapGeneratorConfig {
 		.cubemapSize = 1024,
 		.cubemapUsage = vk::ImageUsageFlagBits::eSampled,
-	} };
+	};
+	vulkan::MipmappedCubemapGenerator mippedCubemapGenerator { gpu, mippedCubemapGeneratorConfig };
 	const vulkan::MipmappedCubemapGenerator::Pipelines mippedCubemapGeneratorPipelines {
 		vulkan::pipeline::CubemapComputer { gpu.device },
-		vulkan::pipeline::SubgroupMipmapComputer { gpu.device, mippedCubemapGenerator.cubemapImage.mipLevels, 32 /*TODO: use proper subgroup size!*/ },
+		vulkan::pipeline::SubgroupMipmapComputer { gpu.device, vku::Image::maxMipLevels(mippedCubemapGeneratorConfig.cubemapSize), 32 /*TODO: use proper subgroup size!*/ },
 	};
 
 	// Generate IBL resources.
-	vulkan::ImageBasedLightingResourceGenerator iblGenerator { gpu, {
+	constexpr vulkan::ImageBasedLightingResourceGenerator::Config iblGeneratorConfig {
 		.prefilteredmapImageUsage = vk::ImageUsageFlagBits::eSampled,
 		.sphericalHarmonicsBufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-	} };
+	};
+	vulkan::ImageBasedLightingResourceGenerator iblGenerator { gpu, iblGeneratorConfig };
 	const vulkan::ImageBasedLightingResourceGenerator::Pipelines iblGeneratorPipelines {
-		vulkan::pipeline::PrefilteredmapComputer { gpu.device, { iblGenerator.prefilteredmapImage.mipLevels, 1024 } },
+		vulkan::pipeline::PrefilteredmapComputer { gpu.device, { vku::Image::maxMipLevels(iblGeneratorConfig.prefilteredmapSize), 1024 } },
 		vulkan::pipeline::SphericalHarmonicsComputer { gpu.device },
 		vulkan::pipeline::SphericalHarmonicCoefficientsSumComputer { gpu.device },
 		vulkan::pipeline::MultiplyComputer { gpu.device },
@@ -914,59 +980,69 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 		throw std::runtime_error { "Failed to launch application!" };
 	}
 
-	auto [imageBasedLightingDescriptorSet, skyboxDescriptorSet] = [&]() {
-		if (usePreviousDescriptorSets){
-			assert(imageBasedLightingResources.has_value() && "No pre-allocated descriptor set in imageBasedLightingResources");
-			assert(skyboxResources.has_value() && "No pre-allocated descriptor set in skyboxResources");
-
-			return std::tuple { imageBasedLightingResources->descriptorSet, skyboxResources->descriptorSet };
-		}
-		else {
-			return allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
-				// TODO: requiring explicit const cast looks bad. vku::allocateDescriptorSets signature should be fixed.
-				std::as_const(imageBasedLightingDescriptorSetLayout),
-				std::as_const(skyboxDescriptorSetLayout)));
-		}
-	}();
-
-	vk::raii::ImageView cubemapImageView { gpu.device, mippedCubemapGenerator.cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
-	skyboxResources.emplace(
-		std::move(mippedCubemapGenerator.cubemapImage),
-		std::move(cubemapImageView),
-		skyboxDescriptorSet);
-
-	vk::raii::ImageView prefilteredmapImageView { gpu.device, iblGenerator.prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
-	imageBasedLightingResources.emplace(
-		std::move(iblGenerator.sphericalHarmonicsBuffer),
-		std::move(iblGenerator.prefilteredmapImage),
-		std::move(prefilteredmapImageView),
-		imageBasedLightingDescriptorSet);
-
-	std::array<glm::vec3, 9> sphericalHarmonicCoefficients;
-	std::ranges::copy_n(imageBasedLightingResources->cubemapSphericalHarmonicsBuffer.asRange<const glm::vec3>().data(), 9, sphericalHarmonicCoefficients.data());
-
+	// Update AppState.
+	appState.canSelectSkyboxBackground = true;
+	appState.background.reset();
 	appState.imageBasedLightingProperties = AppState::ImageBasedLighting {
 		.eqmap = {
 			.path = eqmapPath,
 			.dimension = { eqmapImage.extent.width, eqmapImage.extent.height },
 		},
 		.cubemap = {
-			.size = skyboxResources->cubemapImage.extent.width,
-		},
-		.diffuseIrradiance = {
-			sphericalHarmonicCoefficients,
+			.size = mippedCubemapGeneratorConfig.cubemapSize,
 		},
 		.prefilteredmap = {
-			.size = imageBasedLightingResources->prefilteredmapImage.extent.width,
-			.roughnessLevels = imageBasedLightingResources->prefilteredmapImage.mipLevels,
+			.size = iblGeneratorConfig.prefilteredmapSize,
+			.roughnessLevels = vku::Image::maxMipLevels(iblGeneratorConfig.prefilteredmapSize),
 			.sampleCount = 1024,
 		}
 	};
+	std::ranges::copy(
+		iblGenerator.sphericalHarmonicsBuffer.asRange<const glm::vec3>(),
+		appState.imageBasedLightingProperties->diffuseIrradiance.sphericalHarmonicCoefficients.begin());
 
+	const vku::DescriptorSet skyboxDescriptorSet = [&]() {
+		if (skyboxResources){
+			return skyboxResources->descriptorSet;
+		}
+		else {
+			// Allocate new descriptor set.
+			return get<0>(allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
+				// TODO: requiring explicit const cast looks bad. vku::allocateDescriptorSets signature should be fixed.
+				std::as_const(skyboxDescriptorSetLayout))));
+		}
+	}();
+
+	if (skyboxResources){
+		// Since a descriptor set allocated using ImGui_ImplVulkan_AddTexture cannot be updated, it has to be freed
+		// and re-allocated (which done in below).
+		(*gpu.device).freeDescriptorSets(*imGuiDescriptorPool, skyboxResources->imGuiEqmapTextureDescriptorSet);
+	}
+
+	// Emplace the results into skyboxResources and imageBasedLightingResources.
+	vk::raii::ImageView reducedEqmapImageView { gpu.device, reducedEqmapImage.getViewCreateInfo() };
+	const vk::DescriptorSet imGuiEqmapImageDescriptorSet
+		= ImGui_ImplVulkan_AddTexture(*reducedEqmapSampler, *reducedEqmapImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	vk::raii::ImageView cubemapImageView { gpu.device, mippedCubemapGenerator.cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
+	skyboxResources.emplace(
+		std::move(reducedEqmapImage),
+		std::move(reducedEqmapImageView),
+		std::move(mippedCubemapGenerator.cubemapImage),
+		std::move(cubemapImageView),
+		imGuiEqmapImageDescriptorSet,
+		skyboxDescriptorSet);
+
+	vk::raii::ImageView prefilteredmapImageView { gpu.device, iblGenerator.prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
+	imageBasedLightingResources = {
+		std::move(iblGenerator.sphericalHarmonicsBuffer).unmap(),
+		std::move(iblGenerator.prefilteredmapImage),
+		std::move(prefilteredmapImageView),
+	};
+
+	// Update the related descriptor sets.
 	gpu.device.updateDescriptorSets({
-		imageBasedLightingDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { imageBasedLightingResources->cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
-		imageBasedLightingDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *imageBasedLightingResources->prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
-		imageBasedLightingDescriptorSet.getWrite<2>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+		imageBasedLightingDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
+		imageBasedLightingDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
 		skyboxDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
 	}, {});
 }

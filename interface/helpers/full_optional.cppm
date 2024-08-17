@@ -36,6 +36,10 @@ namespace vk_gltf_viewer::inline helpers {
             throw std::bad_optional_access{};
         }
 
+        auto reset() -> void {
+            _active = false;
+        }
+
         [[nodiscard]] auto has_value() const noexcept -> bool { return _active; }
         auto set_active(bool active) noexcept -> void { _active = active; }
 
