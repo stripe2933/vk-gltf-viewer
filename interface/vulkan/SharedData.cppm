@@ -1,7 +1,3 @@
-module;
-
-#include <fastgltf/types.hpp>
-
 export module vk_gltf_viewer:vulkan.SharedData;
 
 import std;
@@ -24,9 +20,6 @@ import :vulkan.sampler.SingleTexelSampler;
 
 namespace vk_gltf_viewer::vulkan {
     export class SharedData {
-		// CPU resources.
-    	const fastgltf::Asset &asset;
-
 		const Gpu &gpu;
 
     public:
@@ -72,7 +65,6 @@ namespace vk_gltf_viewer::vulkan {
     	vk::raii::CommandPool graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
 
     	SharedData(
-    		const fastgltf::Asset &asset [[clang::lifetimebound]],
     		const Gpu &gpu [[clang::lifetimebound]],
     		vk::SurfaceKHR surface,
     		const vk::Extent2D &swapchainExtent,

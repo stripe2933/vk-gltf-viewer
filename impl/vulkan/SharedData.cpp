@@ -1,6 +1,5 @@
 module;
 
-#include <fastgltf/core.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
@@ -9,13 +8,11 @@ import :vulkan.SharedData;
 import std;
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(
-    const fastgltf::Asset &asset,
     const Gpu &gpu,
     vk::SurfaceKHR surface,
 	const vk::Extent2D &swapchainExtent,
 	const DescriptorSetLayouts &descriptorSetLayouts
-) : asset { asset },
-	swapchainExtent { swapchainExtent },
+) : swapchainExtent { swapchainExtent },
 	swapchain { createSwapchain(surface, swapchainExtent) },
 	gpu { gpu },
 	sceneRenderingPipelineLayout { gpu.device, std::tie(descriptorSetLayouts.imageBasedLighting, descriptorSetLayouts.asset, descriptorSetLayouts.scene) },

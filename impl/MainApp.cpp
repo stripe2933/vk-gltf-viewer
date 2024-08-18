@@ -402,7 +402,6 @@ vk_gltf_viewer::MainApp::~MainApp() {
 auto vk_gltf_viewer::MainApp::run() -> void {
 	const glm::u32vec2 framebufferSize = window.getFramebufferSize();
 	vulkan::SharedData sharedData {
-		assetExpected.get(),
 		gpu,
 		window.getSurface(),
 		vk::Extent2D { framebufferSize.x, framebufferSize.y },
