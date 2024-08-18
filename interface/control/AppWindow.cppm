@@ -29,7 +29,7 @@ namespace vk_gltf_viewer::control {
         auto handleEvents(float timeDelta) -> void;
 
     private:
-        GLFWwindow *window = glfwCreateWindow(800, 480, "Vulkan glTF Viewer", nullptr, nullptr);
+        GLFWwindow *window = glfwCreateWindow(1280, 720, "Vulkan glTF Viewer", nullptr, nullptr);
         vk::raii::SurfaceKHR surface;
 
         std::optional<glm::dvec2> lastMouseDownPosition = std::nullopt;
