@@ -35,7 +35,6 @@ add_executable(vk-gltf-viewer
 	impl/MainApp.cpp
 	impl/mod.cpp
 	impl/vulkan/Frame.cpp
-	impl/vulkan/Gpu.cpp
 	impl/vulkan/pipeline/AlphaMaskedDepthRenderer.cpp
 	impl/vulkan/pipeline/BrdfmapComputer.cpp
 	impl/vulkan/pipeline/DepthRenderer.cpp

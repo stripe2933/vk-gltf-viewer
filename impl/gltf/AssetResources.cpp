@@ -871,7 +871,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
-    const vulkan::Gpu::QueueFamilies &queueFamilies,
+    const vulkan::QueueFamilies &queueFamilies,
     vk::CommandBuffer commandBuffer
 ) const -> void {
     if (queueFamilies.transfer == queueFamilies.graphicsPresent) return;

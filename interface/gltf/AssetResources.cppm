@@ -107,7 +107,7 @@ namespace vk_gltf_viewer::gltf {
         auto stagePrimitiveTangentBuffers(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer, BS::thread_pool &threadPool) -> void;
         auto stagePrimitiveIndexBuffers(const ResourceBytes &resourceBytes, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer, bool supportUint8Index) -> void;
 
-        auto releaseResourceQueueFamilyOwnership(const vulkan::Gpu::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
+        auto releaseResourceQueueFamilyOwnership(const vulkan::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
 
         /**
          * From given segments (a range of byte datas), create a combined staging buffer and return each segments' start offsets.
