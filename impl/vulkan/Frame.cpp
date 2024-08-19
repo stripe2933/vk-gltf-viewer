@@ -8,16 +8,12 @@ module vk_gltf_viewer;
 import :vulkan.Frame;
 
 import std;
+import :helpers.functional;
 import :helpers.ranges;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.Scene;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
-
-template <typename ...Fs>
-struct multilambda : Fs... {
-    using Fs::operator()...;
-};
 
 vk_gltf_viewer::vulkan::Frame::Frame(
 	const Gpu &gpu,

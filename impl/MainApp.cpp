@@ -15,6 +15,7 @@ import :MainApp;
 
 import std;
 import :control.ImGui;
+import :helpers.functional;
 import :helpers.ranges;
 import :io.StbDecoder;
 import :mipmap;
@@ -26,11 +27,6 @@ import :vulkan.pipeline.BrdfmapComputer;
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-
-template <typename ...Fs>
-struct multilambda : Fs... {
-	using Fs::operator()...;
-};
 
 template <std::invocable<vk::CommandBuffer> F>
 struct ExecutionInfo {

@@ -67,6 +67,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/helpers/formatters/joiner.cppm
 		interface/helpers/formatters/omitted.cppm
 		interface/helpers/full_optional.cppm
+		interface/helpers/functional.cppm
 		interface/helpers/ranges.cppm
 		interface/helpers/tristate.cppm
 		interface/helpers/type_map.cppm
