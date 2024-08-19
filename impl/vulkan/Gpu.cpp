@@ -7,49 +7,17 @@ import :vulkan.Gpu;
 
 import std;
 import vku;
-import :helpers.ranges;
 
 vk_gltf_viewer::vulkan::Gpu::QueueFamilies::QueueFamilies(
 	vk::PhysicalDevice physicalDevice,
 	vk::SurfaceKHR surface
 ) {
 	const std::vector queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
-
-	// Compute: prefer compute specialized (no graphics capable) queue family.
-	if (auto it = std::ranges::find_if(queueFamilyProperties, [](vk::QueueFlags flags) {
-		return (flags & vk::QueueFlagBits::eCompute) && !(flags & vk::QueueFlagBits::eGraphics);
-	}, &vk::QueueFamilyProperties::queueFlags); it != queueFamilyProperties.end()) {
-		compute = it - queueFamilyProperties.begin();
-	}
-	else if (auto it = std::ranges::find_if(queueFamilyProperties, [](vk::QueueFlags flags) {
-		return vku::contains(flags, vk::QueueFlagBits::eCompute);
-	}, &vk::QueueFamilyProperties::queueFlags); it != queueFamilyProperties.end()) {
-		compute = it - queueFamilyProperties.begin();
-	}
-	else std::unreachable(); // Vulkan instance always have at least one compute capable queue family.
-
-	for (auto [queueFamilyIndex, properties] : queueFamilyProperties | ranges::views::enumerate) {
-		if (properties.queueFlags & vk::QueueFlagBits::eGraphics && physicalDevice.getSurfaceSupportKHR(queueFamilyIndex, surface)) {
-			graphicsPresent = queueFamilyIndex;
-			goto TRANSFER;
-		}
-	}
-
-	throw std::runtime_error { "Failed to find the required queue families" };
-
-TRANSFER:
-	// Transfer: prefer transfer-only (\w sparse binding ok) queue fmaily.
-	if (auto it = std::ranges::find_if(queueFamilyProperties, [](vk::QueueFlags flags) {
-		return (flags & ~vk::QueueFlagBits::eSparseBinding) == vk::QueueFlagBits::eTransfer;
-	}, &vk::QueueFamilyProperties::queueFlags); it != queueFamilyProperties.end()) {
-		transfer = it - queueFamilyProperties.begin();
-	}
-	else if (auto it = std::ranges::find_if(queueFamilyProperties, [](vk::QueueFlags flags) {
-		return vku::contains(flags, vk::QueueFlagBits::eTransfer);
-	}, &vk::QueueFamilyProperties::queueFlags); it != queueFamilyProperties.end()) {
-		transfer = it - queueFamilyProperties.begin();
-	}
-	else std::unreachable(); // Vulkan instance always have at least one compute capable queue family (therefore transfer capable).
+	compute = vku::getComputeSpecializedQueueFamily(queueFamilyProperties)
+		.or_else([&] { return vku::getComputeQueueFamily(queueFamilyProperties); })
+		.value();
+	graphicsPresent = vku::getGraphicsPresentQueueFamily(physicalDevice, surface, queueFamilyProperties).value();
+	transfer = vku::getTransferQueueFamily(queueFamilyProperties).value_or(compute);
 }
 
 auto vk_gltf_viewer::vulkan::Gpu::QueueFamilies::getUniqueIndices() const noexcept -> std::vector<std::uint32_t> {
