@@ -13,7 +13,7 @@ namespace vk_gltf_viewer::vulkan {
 				.or_else([&] { return vku::getComputeQueueFamily(queueFamilyProperties); })
 				.value();
 			graphicsPresent = vku::getGraphicsPresentQueueFamily(physicalDevice, surface, queueFamilyProperties).value();
-			transfer = vku::getTransferQueueFamily(queueFamilyProperties).value_or(compute);
+			transfer = vku::getTransferSpecializedQueueFamily(queueFamilyProperties).value_or(compute);
 		}
 
 		[[nodiscard]] auto getUniqueIndices() const noexcept -> std::vector<std::uint32_t> {
@@ -54,7 +54,7 @@ namespace vk_gltf_viewer::vulkan {
 	};
 
 	export struct Gpu : vku::Gpu<QueueFamilies, Queues> {
-		explicit Gpu(const vk::raii::Instance &instance [[clang::lifetimebound]], vk::SurfaceKHR surface)
+		Gpu(const vk::raii::Instance &instance [[clang::lifetimebound]], vk::SurfaceKHR surface)
 			: vku::Gpu<QueueFamilies, Queues> { instance, Config {
 				.verbose = true,
 				.deviceExtensions = {

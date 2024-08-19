@@ -14,6 +14,7 @@ module vk_gltf_viewer;
 import :MainApp;
 
 import std;
+import vku;
 import :control.ImGui;
 import :helpers.functional;
 import :helpers.ranges;
@@ -26,190 +27,6 @@ import :vulkan.pipeline.BrdfmapComputer;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-
-template <std::invocable<vk::CommandBuffer> F>
-struct ExecutionInfo {
-    F commandRecorder;
-    vk::CommandPool commandPool;
-    vk::Queue queue;
-    std::optional<std::uint64_t> signalValue { 0ULL };
-};
-
-template <typename Key, typename ValueConstructor, typename Value = std::invoke_result_t<ValueConstructor>>
-class OnDemandCounterStorage {
-public:
-    explicit OnDemandCounterStorage(ValueConstructor &&_valueConstructor)
-        : valueConstructor { FWD(_valueConstructor) } { }
-
-    [[nodiscard]] auto at(const Key &k) noexcept -> const Value& {
-        if (auto index = counter[k]++; index < valueStorage.size()) {
-            return valueStorage[index];
-        }
-
-        return valueStorage.emplace_back(valueConstructor());
-    }
-
-    [[nodiscard]] auto getValueStorage() const noexcept -> const std::deque<Value>& { return valueStorage; }
-    [[nodiscard]] auto getValueStorage() noexcept -> std::deque<Value>& { return valueStorage; }
-
-private:
-    ValueConstructor valueConstructor;
-    std::deque<Value> valueStorage;
-    std::unordered_map<Key, std::uint32_t> counter;
-};
-
-template <typename Key, typename ValueConstructor>
-[[nodiscard]] auto makeOnDemandCounterStorage(ValueConstructor &&valueConstructor) -> OnDemandCounterStorage<Key, ValueConstructor> {
-    return OnDemandCounterStorage<Key, ValueConstructor> { FWD(valueConstructor) };
-}
-
-template <typename... ExecutionInfoTuples>
-[[nodiscard]] auto executeHierarchicalCommands(
-    const vk::raii::Device &device,
-    ExecutionInfoTuples &&...executionInfoTuples
-) -> std::pair<std::vector<vk::raii::Semaphore>, std::vector<std::uint64_t>> {
-    // Count the total required command buffers for each command pool.
-    std::unordered_map<vk::CommandPool, std::uint32_t> commandBufferCounts;
-    ([&]() {
-        apply([&](const auto &...executionInfo) {
-            (++commandBufferCounts[executionInfo.commandPool], ...);
-        }, executionInfoTuples);
-    }(), ...);
-
-    // Make FIFO command buffer queue for each command pools. When all command buffers are submitted, they must be empty.
-    std::unordered_map<vk::CommandPool, std::queue<vk::CommandBuffer>> commandBufferQueues;
-    for (auto [commandPool, commandbufferCount] : commandBufferCounts) {
-        commandBufferQueues.emplace(
-            std::piecewise_construct,
-            std::tuple { commandPool },
-            std::forward_as_tuple(std::from_range, (*device).allocateCommandBuffers({
-                commandPool,
-                vk::CommandBufferLevel::ePrimary,
-                commandbufferCount,
-            })));
-    }
-
-    OnDemandCounterStorage timelineSemaphores = makeOnDemandCounterStorage<std::uint64_t>([&] -> vk::raii::Semaphore {
-        return { device, vk::StructureChain {
-            vk::SemaphoreCreateInfo{},
-            vk::SemaphoreTypeCreateInfo { vk::SemaphoreType::eTimeline, 0 },
-        }.get() };
-    });
-    std::unordered_map<vk::Semaphore, std::uint64_t> finalSignalSemaphoreValues;
-
-    INDEX_SEQ(Is, sizeof...(ExecutionInfoTuples), {
-        // Collect the submission command buffers and the signal semaphore by 1) destination queue, 2) wait semaphore
-        // value, 3) signal semaphore value (if exist).
-        std::map<std::tuple<vk::Queue, std::uint64_t, std::optional<std::uint64_t>>, std::pair<std::vector<vk::CommandBuffer>, vk::Semaphore>> submitInfos;
-        std::unordered_multimap<std::uint64_t, vk::Semaphore> waitSemaphoresPerSignalValues;
-
-        // Execute the following lambda for every executionInfoTuples parameter packs.
-        ([&]() {
-            constexpr std::uint64_t waitSemaphoreValue = Is;
-            constexpr std::uint64_t signalSemaphoreValue = Is + 1;
-
-            apply([&](auto &...executionInfo) {
-                // Execute the following lambda for every executionInfo entry in executionInfoTuples.
-                ([&]() {
-                    // Get command buffer from FIFO queue and pop it.
-                    auto &dedicatedCommandBufferQueue = commandBufferQueues[executionInfo.commandPool];
-                    vk::CommandBuffer commandBuffer = dedicatedCommandBufferQueue.front();
-                    dedicatedCommandBufferQueue.pop();
-
-                    // Record commands into the commandBuffer by executing executionInfo.commandRecorder.
-                    commandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
-                    executionInfo.commandRecorder(commandBuffer);
-                    commandBuffer.end();
-
-                    // Push commandBuffer into the corresponding submitInfos entry.
-                    const std::tuple key {
-                        executionInfo.queue,
-                        waitSemaphoreValue,
-                        executionInfo.signalValue.transform([](auto v) { return v == 0 ? signalSemaphoreValue : v; }),
-                    };
-                    auto it = submitInfos.find(key);
-                    if (it == submitInfos.end()) {
-                        vk::Semaphore signalSemaphore = nullptr;
-                        if (get<2>(key) /* modified signal value */) {
-                            // Register the semaphore for a submission whose waitSemaphoreValue is current's signalSemaphoreValue.
-                            signalSemaphore = *timelineSemaphores.at(*get<2>(key));
-                            waitSemaphoresPerSignalValues.emplace(signalSemaphoreValue, signalSemaphore);
-                        }
-
-                        it = submitInfos.emplace_hint(it, key, std::pair { std::vector<vk::CommandBuffer>{}, signalSemaphore });
-                    }
-                    it->second.first/*commandBuffers*/.push_back(commandBuffer);
-                }(), ...);
-            }, executionInfoTuples);
-        }(), ...);
-
-        struct TimelineSemaphoreWaitInfo {
-            std::vector<vk::Semaphore> waitSemaphores;
-            std::vector<std::uint64_t> waitSemaphoreValues;
-
-            TimelineSemaphoreWaitInfo(std::vector<vk::Semaphore> _waitSemaphores, std::uint64_t waitValue)
-                : waitSemaphores { std::move(_waitSemaphores) }
-                , waitSemaphoreValues { std::vector<std::uint64_t>(waitSemaphores.size(), waitValue) } { }
-        };
-
-        std::unordered_map<vk::Queue, std::vector<vk::SubmitInfo>> submitInfosPerQueue;
-        std::vector<TimelineSemaphoreWaitInfo> waitInfos;
-        std::list<vk::TimelineSemaphoreSubmitInfo> timelineSemaphoreSubmitInfos;
-        // Total dstStageMasks does not exceed the total wait semaphore count (=timelineSemaphores.getValueStorage().size()).
-        const std::vector waitDstStageMasks(timelineSemaphores.getValueStorage().size(), vk::Flags { vk::PipelineStageFlagBits::eTopOfPipe });
-
-        for (const auto &[key, value] : submitInfos) {
-            const auto &[queue, waitSemaphoreValue, signalSemaphoreValue] = key;
-            const auto &[commandBuffers, signalSemaphore] = value;
-
-            constexpr auto make_subrange = []<typename It>(std::pair<It, It> pairs) {
-                return std::ranges::subrange(pairs.first, pairs.second);
-            };
-            const auto &[waitSemaphores, waitSemaphoreValues] = waitInfos.emplace_back(
-                make_subrange(waitSemaphoresPerSignalValues.equal_range(waitSemaphoreValue)) | std::views::values | std::ranges::to<std::vector>(),
-                waitSemaphoreValue);
-
-            if (signalSemaphoreValue) {
-                submitInfosPerQueue[queue].emplace_back(
-                    waitSemaphores,
-                    vku::unsafeProxy(std::span { waitDstStageMasks }.subspan(0, waitSemaphores.size())),
-                    commandBuffers,
-                    signalSemaphore,
-                    &timelineSemaphoreSubmitInfos.emplace_back(waitSemaphoreValues, *signalSemaphoreValue));
-
-                // Update the final signal semaphore value for current signal semaphore,
-                // i.e. update the value to current value if value < current value.
-                std::uint64_t &finalSignalValue = finalSignalSemaphoreValues[signalSemaphore];
-                finalSignalValue = std::max(finalSignalValue, *signalSemaphoreValue);
-            }
-            else if (waitSemaphores.empty()) {
-                // Don't need to use vk::TimelineSemaphoreSubmitInfo.
-                submitInfosPerQueue[queue].push_back({ {}, {}, commandBuffers });
-            }
-            else {
-                submitInfosPerQueue[queue].push_back({
-                    waitSemaphores,
-                    vku::unsafeProxy(std::span { waitDstStageMasks }.subspan(0, waitSemaphores.size())),
-                    commandBuffers,
-                    {},
-                    &timelineSemaphoreSubmitInfos.emplace_back(waitSemaphoreValues),
-                });
-            }
-        }
-
-        for (const auto &[queue, submitInfos] : submitInfosPerQueue) {
-            queue.submit(submitInfos);
-        }
-    });
-
-    std::pair<std::vector<vk::raii::Semaphore>, std::vector<std::uint64_t>> result;
-    for (vk::raii::Semaphore &timelineSemaphore : timelineSemaphores.getValueStorage()) {
-        result.second.push_back(finalSignalSemaphoreValues[*timelineSemaphore]);
-        result.first.push_back(std::move(timelineSemaphore));
-    }
-    return result;
-}
 
 vk_gltf_viewer::MainApp::MainApp() {
 	const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
@@ -224,15 +41,15 @@ vk_gltf_viewer::MainApp::MainApp() {
 		brdfmapSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *brdfmapImageView, vk::ImageLayout::eGeneral })),
 		{});
 
-	const auto [timelineSemaphores, finalWaitValues] = executeHierarchicalCommands(
+	const auto [timelineSemaphores, finalWaitValues] = vku::executeHierarchicalCommands(
 		gpu.device,
 		std::forward_as_tuple(
 			// Initialize the image based lighting resources by default(white).
-			ExecutionInfo { [this](vk::CommandBuffer cb) {
+			vku::ExecutionInfo { [this](vk::CommandBuffer cb) {
 				initializeImageBasedLightingResourcesByDefault(cb);
 			}, *graphicsCommandPool, gpu.queues.graphicsPresent },
 			// Create BRDF LUT image.
-			ExecutionInfo { [&](vk::CommandBuffer cb) {
+			vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
 				// Change brdfmapImage layout to GENERAL.
 				cb.pipelineBarrier(
 					vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eComputeShader,
@@ -259,7 +76,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 					});
 			}, *computeCommandPool, gpu.queues.compute },
 			// Create AssetResource images' mipmaps.
-			ExecutionInfo { [&](vk::CommandBuffer cb) {
+			vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
 				if (assetResources.images.empty()) return;
 
 				// Acquire resource queue family ownerships.
@@ -311,7 +128,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 			}, *graphicsCommandPool, gpu.queues.graphicsPresent/*, 2*/ }),
 		std::forward_as_tuple(
 			// Acquire BRDF LUT image's queue family ownership from compute to graphicsPresent.
-			ExecutionInfo { [&](vk::CommandBuffer cb) {
+			vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
 				if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
 					cb.pipelineBarrier(
 						vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
@@ -760,7 +577,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 		gpu.device,
 		std::forward_as_tuple(
 			// Create device-local eqmap image from staging buffer.
-			ExecutionInfo { [&](vk::CommandBuffer cb) {
+			vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
 				eqmapStagingBuffer = std::make_unique<vku::AllocatedBuffer>(vku::MappedBuffer {
 					gpu.allocator,
 					std::from_range, io::StbDecoder<float>::fromFile(eqmapPath.c_str(), 4).asSpan(),
@@ -800,7 +617,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 			}, *transferCommandPool, gpu.queues.transfer }),
 		std::forward_as_tuple(
 			// Generate eqmapImage mipmaps and blit its last mip level image to reducedEqmapImage.
-			ExecutionInfo { [&](vk::CommandBuffer cb) {
+			vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
 				if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
 					cb.pipelineBarrier(
 						vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
@@ -861,7 +678,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 			}, *graphicsCommandPool, gpu.queues.graphicsPresent }),
 		std::forward_as_tuple(
 			// Generate reducedEqmapImage mipmaps.
-			ExecutionInfo { [&](vk::CommandBuffer cb) {
+			vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
 				cb.pipelineBarrier(
 					vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
 					{}, {}, {},
@@ -895,7 +712,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 					});
 			}, *graphicsCommandPool, gpu.queues.graphicsPresent/*, 4*/ },
 			// Generate cubemap with mipmaps from eqmapImage, and generate IBL resources from the cubemap.
-			ExecutionInfo { [&](vk::CommandBuffer cb) {
+			vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
 				if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
 					// Do queue family ownership transfer from graphicsPresent to compute, if required.
 					cb.pipelineBarrier(
@@ -944,7 +761,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 			}, *computeCommandPool, gpu.queues.compute }),
 		std::forward_as_tuple(
 			// Acquire resources' queue family ownership from compute to graphicsPresent.
-			ExecutionInfo { [&](vk::CommandBuffer cb) {
+			vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
 				if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
 					cb.pipelineBarrier(
 						vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
