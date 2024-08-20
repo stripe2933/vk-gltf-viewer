@@ -63,7 +63,11 @@ namespace vk_gltf_viewer {
 		control::AppWindow window { instance, appState };
 		vulkan::Gpu gpu { instance, window.getSurface() };
 
+		vku::AllocatedImage assetFallbackImage = createAssetFallbackImage();
+		vk::raii::ImageView assetFallbackImageView { gpu.device, assetFallbackImage.getViewCreateInfo() };
+		vk::raii::Sampler assetDefaultSampler = createAssetDefaultSampler();
 		gltf::AssetResources assetResources { gltfAsset.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), gpu, { .supportUint8Index = false /* TODO: change this value depend on vk::PhysicalDeviceIndexTypeUint8FeaturesKHR */ } };
+        std::unordered_map<std::size_t, vk::raii::ImageView> assetImageViews = createAssetImageViews();
     	gltf::SceneResources sceneResources { assetResources, gltfAsset.get().scenes[gltfAsset.get().defaultScene.value_or(0)], gpu };
 		ImageBasedLightingResources imageBasedLightingResources = createDefaultImageBasedLightingResources();
 		std::optional<SkyboxResources> skyboxResources{};
@@ -93,11 +97,14 @@ namespace vk_gltf_viewer {
 		std::vector<vk::DescriptorSet> assetTextureDescriptorSets;
 		
 		[[nodiscard]] auto createInstance() const -> decltype(instance);
+		[[nodiscard]] auto createAssetFallbackImage() const -> vku::AllocatedImage;
+		[[nodiscard]] auto createAssetDefaultSampler() const -> vk::raii::Sampler;
+		[[nodiscard]] auto createAssetImageViews() -> std::unordered_map<std::size_t, vk::raii::ImageView>;
 		[[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
 		[[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;
     	[[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
-    	[[nodiscard]] auto createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool);
+    	[[nodiscard]] auto createImGuiDescriptorPool() -> decltype(imGuiDescriptorPool);
 
 		auto initializeImageBasedLightingResourcesByDefault(vk::CommandBuffer graphicsCommandBuffer) const -> void;
 		auto processEqmapChange(const std::filesystem::path &eqmapPath) -> void;

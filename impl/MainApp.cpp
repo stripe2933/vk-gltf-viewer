@@ -44,6 +44,31 @@ vk_gltf_viewer::MainApp::MainApp() {
 	const auto [timelineSemaphores, finalWaitValues] = vku::executeHierarchicalCommands(
 		gpu.device,
 		std::forward_as_tuple(
+			// Clear asset fallback image by white.
+			vku::ExecutionInfo { [this](vk::CommandBuffer cb) {
+				cb.pipelineBarrier(
+					vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+					{}, {}, {},
+					vk::ImageMemoryBarrier {
+						{}, vk::AccessFlagBits::eTransferWrite,
+						{}, vk::ImageLayout::eTransferDstOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						assetFallbackImage, vku::fullSubresourceRange(),
+					});
+				cb.clearColorImage(
+					assetFallbackImage, vk::ImageLayout::eTransferDstOptimal,
+					vk::ClearColorValue { 1.f, 1.f, 1.f, 1.f },
+					vku::fullSubresourceRange());
+				cb.pipelineBarrier(
+					vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+					{}, {}, {},
+					vk::ImageMemoryBarrier {
+						vk::AccessFlagBits::eTransferWrite, {},
+						vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						assetFallbackImage, vku::fullSubresourceRange(),
+					});
+			}, *graphicsCommandPool, gpu.queues.graphicsPresent },
 			// Initialize the image based lighting resources by default(white).
 			vku::ExecutionInfo { [this](vk::CommandBuffer cb) {
 				initializeImageBasedLightingResourcesByDefault(cb);
@@ -192,9 +217,16 @@ vk_gltf_viewer::MainApp::MainApp() {
 	ImGui_ImplVulkan_Init(&initInfo);
 
 	// TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
-	assetTextureDescriptorSets = assetResources.textures
-		| std::views::transform([&](const vk::DescriptorImageInfo &textureInfo) -> vk::DescriptorSet {
-			return ImGui_ImplVulkan_AddTexture(textureInfo.sampler, textureInfo.imageView, static_cast<VkImageLayout>(textureInfo.imageLayout));
+	assetTextureDescriptorSets
+		= gltfAsset.get().textures
+		| std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
+			return ImGui_ImplVulkan_AddTexture(
+				[&]() {
+					if (texture.samplerIndex) return *assetResources.samplers.at(*texture.samplerIndex);
+					return *assetDefaultSampler;
+				}(),
+				*assetImageViews.at(*texture.imageIndex),
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		})
 		| std::ranges::to<std::vector>();
 }
@@ -232,8 +264,18 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			std::as_const(sceneDescriptorSetLayout)));
 
 	std::vector<vk::DescriptorImageInfo> assetTextures;
-	assetTextures.emplace_back(*sharedData.singleTexelSampler, *sharedData.gltfFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-	assetTextures.append_range(assetResources.textures);
+	assetTextures.reserve(1 + gltfAsset.get().textures.size());
+	assetTextures.emplace_back(*sharedData.singleTexelSampler, *assetFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+	assetTextures.append_range(gltfAsset.get().textures | std::views::transform([this](const fastgltf::Texture &texture) {
+		return vk::DescriptorImageInfo {
+			[&]() {
+				if (texture.samplerIndex) return *assetResources.samplers.at(*texture.samplerIndex);
+				return *assetDefaultSampler;
+			}(),
+			*assetImageViews.at(*texture.imageIndex),
+			vk::ImageLayout::eShaderReadOnlyOptimal,
+		};
+	}));
 
 	gpu.device.updateDescriptorSets({
 		assetDescriptorSet.getWrite<0>(assetTextures),
@@ -419,6 +461,44 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
 	return instance;
 }
 
+auto vk_gltf_viewer::MainApp::createAssetFallbackImage() const -> vku::AllocatedImage {
+	return { gpu.allocator, vk::ImageCreateInfo {
+        {},
+		vk::ImageType::e2D,
+		vk::Format::eR8G8B8A8Unorm,
+		vk::Extent3D { 1, 1, 1 },
+		1, 1,
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+	} };
+}
+
+auto vk_gltf_viewer::MainApp::createAssetDefaultSampler() const -> vk::raii::Sampler {
+	return { gpu.device, vk::SamplerCreateInfo {
+        {},
+		vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
+		{}, {}, {},
+		{},
+		true, 16.f,
+		{}, {},
+		{}, vk::LodClampNone,
+	} };
+}
+
+auto vk_gltf_viewer::MainApp::createAssetImageViews() -> std::unordered_map<std::size_t, vk::raii::ImageView> {
+	return gltfAsset.get().textures
+		| std::views::transform([&](const fastgltf::Texture &texture) {
+			const std::size_t imageIndex = *texture.imageIndex;
+			return std::pair<std::size_t, vk::raii::ImageView> {
+				std::piecewise_construct,
+				std::tuple { imageIndex },
+				std::forward_as_tuple(gpu.device, assetResources.images[imageIndex].getViewCreateInfo()),
+			};
+		})
+		| std::ranges::to<std::unordered_map>();
+}
+
 auto vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources {
 	vku::MappedBuffer sphericalHarmonicsBuffer { gpu.allocator, std::from_range, std::array<glm::vec3, 9> {
 		glm::vec3 { 1.f },
@@ -475,18 +555,18 @@ auto vk_gltf_viewer::MainApp::createDescriptorPool() const -> decltype(descripto
 	};
 }
 
-auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() const -> decltype(imGuiDescriptorPool) {
+auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() -> decltype(imGuiDescriptorPool) {
 	return { gpu.device, vk::DescriptorPoolCreateInfo {
 		vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
 		1 /* Default ImGui rendering */
 			+ 1 /* reducedEqmapImage texture */
-			+ static_cast<std::uint32_t>(assetResources.textures.size()) /* material textures */,
+			+ static_cast<std::uint32_t>(gltfAsset.get().textures.size()) /* material textures */,
 		vku::unsafeProxy({
 			vk::DescriptorPoolSize {
 				vk::DescriptorType::eCombinedImageSampler,
 				1 /* Default ImGui rendering */
 					+ 1 /* reducedEqmapImage texture */
-					+ static_cast<std::uint32_t>(assetResources.textures.size()) /* material textures */
+					+ static_cast<std::uint32_t>(gltfAsset.get().textures.size()) /* material textures */
 			},
 		}),
 	} };

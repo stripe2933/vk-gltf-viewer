@@ -59,12 +59,9 @@ namespace vk_gltf_viewer::gltf {
 
         const fastgltf::Asset &asset;
 
-        vk::raii::Sampler defaultSampler;
-
         std::vector<vku::AllocatedImage> images;
-        std::vector<vk::raii::ImageView> imageViews;
-        std::vector<vk::raii::Sampler> samplers;
-        std::vector<vk::DescriptorImageInfo> textures = createTextures();
+        std::unordered_map<std::size_t, vk::raii::Sampler> samplers;
+
         vku::AllocatedBuffer materialBuffer;
 
         std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos;
@@ -79,12 +76,8 @@ namespace vk_gltf_viewer::gltf {
         AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, const Config &config, BS::thread_pool threadPool = {});
 
         [[nodiscard]] auto createPrimitiveInfos(const fastgltf::Asset &asset) const -> decltype(primitiveInfos);
-
-        [[nodiscard]] auto createDefaultSampler(const vk::raii::Device &device) const -> decltype(defaultSampler);
         [[nodiscard]] auto createImages(const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, vma::Allocator allocator, BS::thread_pool &threadPool) const -> decltype(images);
-        [[nodiscard]] auto createImageViews(const vk::raii::Device &device) const -> decltype(imageViews);
-        [[nodiscard]] auto createSamplers(const vk::raii::Device &device) const -> decltype(samplers);
-        [[nodiscard]] auto createTextures() const -> decltype(textures);
+        [[nodiscard]] auto createSamplers(const vk::raii::Device &device) const -> std::unordered_map<std::size_t, vk::raii::Sampler>;
         [[nodiscard]] auto createMaterialBuffer(vma::Allocator allocator) const -> vku::AllocatedBuffer;
 
         auto stageImages(const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, vma::Allocator allocator, vk::CommandBuffer copyCommandBuffer, BS::thread_pool &threadPool) -> void;

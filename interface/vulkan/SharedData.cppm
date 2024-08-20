@@ -36,8 +36,6 @@ namespace vk_gltf_viewer::vulkan {
 		std::vector<vk::Image> swapchainImages = swapchain.getImages();
 
     	// Buffer, image and image views and samplers.
-    	vku::AllocatedImage gltfFallbackImage = createGltfFallbackImage();
-    	vk::raii::ImageView gltfFallbackImageView { gpu.device, gltfFallbackImage.getViewCreateInfo() };
     	buffer::CubeIndices cubeIndices { gpu.allocator };
 		SingleTexelSampler singleTexelSampler { gpu.device };
 
@@ -74,12 +72,10 @@ namespace vk_gltf_viewer::vulkan {
 
     private:
     	[[nodiscard]] auto createSwapchain(vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain);
-    	[[nodiscard]] auto createGltfFallbackImage() const -> decltype(gltfFallbackImage);
     	[[nodiscard]] auto createSwapchainAttachmentGroups() const -> std::vector<ag::Swapchain>;
     	[[nodiscard]] auto createImGuiSwapchainAttachmentGroups() const -> std::vector<ag::ImGuiSwapchain>;
     	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
 
-    	auto recordGltfFallbackImageClearCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
     	auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
     };
 }

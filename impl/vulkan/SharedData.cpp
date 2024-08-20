@@ -28,7 +28,6 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(
 	primitiveRenderer { gpu.device, sceneRenderingPipelineLayout },
 	skyboxRenderer { gpu.device, descriptorSetLayouts.skybox, cubeIndices } {
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-		recordGltfFallbackImageClearCommands(cb);
 		recordInitialImageLayoutTransitionCommands(cb);
 	});
 	gpu.queues.graphicsPresent.waitIdle();
@@ -83,19 +82,6 @@ auto vk_gltf_viewer::vulkan::SharedData::createSwapchain(
 	}.get() };
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::createGltfFallbackImage() const -> decltype(gltfFallbackImage) {
-	return { gpu.allocator, vk::ImageCreateInfo {
-        {},
-		vk::ImageType::e2D,
-		vk::Format::eR8G8B8A8Unorm,
-		vk::Extent3D { 1, 1, 1 },
-		1, 1,
-		vk::SampleCountFlagBits::e1,
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
-	} };
-}
-
 auto vk_gltf_viewer::vulkan::SharedData::createSwapchainAttachmentGroups() const -> std::vector<ag::Swapchain> {
 	return { std::from_range, swapchainImages | std::views::transform([&](vk::Image image) {
 		return ag::Swapchain { gpu.device, { image, vk::Extent3D { swapchainExtent }, vk::Format::eB8G8R8A8Srgb, 1, 1 } };
@@ -115,35 +101,6 @@ auto vk_gltf_viewer::vulkan::SharedData::createCommandPool(
 		vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
 		queueFamilyIndex,
 	} };
-}
-
-auto vk_gltf_viewer::vulkan::SharedData::recordGltfFallbackImageClearCommands(
-    vk::CommandBuffer graphicsCommandBuffer
-) const -> void {
-	graphicsCommandBuffer.pipelineBarrier(
-		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-		{}, {}, {},
-		vk::ImageMemoryBarrier {
-			{}, vk::AccessFlagBits::eTransferWrite,
-			{}, vk::ImageLayout::eTransferDstOptimal,
-			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			gltfFallbackImage,
-			vku::fullSubresourceRange(),
-		});
-	graphicsCommandBuffer.clearColorImage(
-		gltfFallbackImage, vk::ImageLayout::eTransferDstOptimal,
-		vk::ClearColorValue { 1.f, 1.f, 1.f, 1.f },
-		vku::fullSubresourceRange());
-	graphicsCommandBuffer.pipelineBarrier(
-		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-		{}, {}, {},
-		vk::ImageMemoryBarrier {
-			vk::AccessFlagBits::eTransferWrite, {},
-			vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			gltfFallbackImage,
-			vku::fullSubresourceRange(),
-		});
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::recordInitialImageLayoutTransitionCommands(

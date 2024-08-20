@@ -84,9 +84,7 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     BS::thread_pool threadPool
 ) : asset { asset },
     primitiveInfos { createPrimitiveInfos(asset) },
-    defaultSampler { createDefaultSampler(gpu.device) },
     images { createImages(assetDir, externalBuffers, gpu.allocator, threadPool) },
-    imageViews { createImageViews(gpu.device) },
     samplers { createSamplers(gpu.device) },
     materialBuffer { createMaterialBuffer(gpu.allocator) } {
     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo {
@@ -127,20 +125,6 @@ auto vk_gltf_viewer::gltf::AssetResources::createPrimitiveInfos(
     }
 
     return primitiveInfos;
-}
-
-auto vk_gltf_viewer::gltf::AssetResources::createDefaultSampler(
-    const vk::raii::Device &device
-) const -> decltype(defaultSampler) {
-    return { device, vk::SamplerCreateInfo {
-        {},
-        vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
-        {}, {}, {},
-        {},
-        true, 16.f,
-        {}, {},
-        {}, vk::LodClampNone,
-    } };
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createImages(
@@ -237,21 +221,12 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
     }).get();
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::createImageViews(
-    const vk::raii::Device &device
-) const -> decltype(imageViews) {
-    return images
-        | transform([&](const vku::Image &image) {
-            return vk::raii::ImageView { device, image.getViewCreateInfo() };
-        })
-        | std::ranges::to<std::vector>();
-}
-
 auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
     const vk::raii::Device &device
-) const -> decltype(samplers) {
-    return asset.samplers
-        | transform([&](const fastgltf::Sampler &assetSampler) {
+) const -> std::unordered_map<std::size_t, vk::raii::Sampler> {
+    return asset.textures
+        | filter([&](const fastgltf::Texture &texture) { return texture.samplerIndex.has_value(); })
+        | transform([&](const fastgltf::Texture &texture) {
             constexpr auto convertSamplerAddressMode = [](fastgltf::Wrap wrap) noexcept -> vk::SamplerAddressMode {
                 switch (wrap) {
                     case fastgltf::Wrap::ClampToEdge:
@@ -293,17 +268,19 @@ auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
                 }
             };
 
+            const std::size_t samplerIndex = *texture.samplerIndex;
+            const fastgltf::Sampler &sampler = asset.samplers[samplerIndex];
             vk::SamplerCreateInfo createInfo {
                 {},
                 {}, {}, {},
-                convertSamplerAddressMode(assetSampler.wrapS), convertSamplerAddressMode(assetSampler.wrapT), {},
+                convertSamplerAddressMode(sampler.wrapS), convertSamplerAddressMode(sampler.wrapT), {},
                 {},
                 true, 16.f,
                 {}, {},
                 {}, vk::LodClampNone,
             };
-            if (assetSampler.magFilter) applyFilter(true, createInfo, *assetSampler.magFilter);
-            if (assetSampler.minFilter) applyFilter(false, createInfo, *assetSampler.minFilter);
+            if (sampler.magFilter) applyFilter(true, createInfo, *sampler.magFilter);
+            if (sampler.minFilter) applyFilter(false, createInfo, *sampler.minFilter);
 
             // For best performance, all address mode should be the same.
             // https://developer.arm.com/documentation/101897/0302/Buffers-and-textures/Texture-and-sampler-descriptors
@@ -311,24 +288,13 @@ auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
                 createInfo.addressModeW = createInfo.addressModeU;
             }
 
-            return vk::raii::Sampler { device, createInfo };
-        })
-        | std::ranges::to<std::vector>();
-}
-
-auto vk_gltf_viewer::gltf::AssetResources::createTextures() const -> decltype(textures) {
-    return asset.textures
-        | transform([&](const fastgltf::Texture &texture) {
-            return vk::DescriptorImageInfo {
-                [&]() {
-                    if (texture.samplerIndex) return *samplers[*texture.samplerIndex];
-                    return *defaultSampler;
-                }(),
-                imageViews[*texture.imageIndex],
-                vk::ImageLayout::eShaderReadOnlyOptimal,
+            return std::pair<std::size_t, vk::raii::Sampler> {
+                std::piecewise_construct,
+                std::tuple { samplerIndex },
+                std::forward_as_tuple(device, createInfo),
             };
         })
-        | std::ranges::to<std::vector>();
+        | std::ranges::to<std::unordered_map>();
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
