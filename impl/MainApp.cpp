@@ -382,7 +382,7 @@ vk_gltf_viewer::MainApp::GltfAsset::DataBufferLoader::DataBufferLoader(const std
 
 vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(const std::filesystem::path &path)
 	: dataBufferLoader { path }
-	, assetExpected { fastgltf::Parser{}.loadGltf(&dataBufferLoader.dataBuffer, path.parent_path(), fastgltf::Options::LoadGLBBuffers) } { }
+	, assetExpected { fastgltf::Parser{}.loadGltf(&dataBufferLoader.dataBuffer, path.parent_path()) } { }
 
 auto vk_gltf_viewer::MainApp::GltfAsset::get() noexcept -> fastgltf::Asset& {
 	return assetExpected.get();

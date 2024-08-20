@@ -57,6 +57,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/control/Camera.cppm
 		interface/control/ImGui.cppm
 		interface/gltf/algorithm/MikktSpaceInterface.cppm
+		interface/gltf/AssetExternalBuffers.cppm
 		interface/gltf/AssetResources.cppm
 		interface/gltf/SceneResources.cppm
 		interface/AppState.cppm

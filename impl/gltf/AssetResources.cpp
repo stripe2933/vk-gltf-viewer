@@ -14,6 +14,7 @@ import :gltf.AssetResources;
 import std;
 import thread_pool;
 import :gltf.algorithm.MikktSpaceInterface;
+import :gltf.AssetExternalBuffers;
 import :helpers.ranges;
 import :io.StbDecoder;
 
@@ -67,69 +68,24 @@ using namespace std::string_view_literals;
         | std::ranges::to<std::vector>();
 }
 
-vk_gltf_viewer::gltf::AssetResources::ResourceBytes::ResourceBytes(
-    const fastgltf::Asset &asset,
-    const std::filesystem::path &assetDir
-) : bufferBytes { createBufferBytes(asset, assetDir) } { }
-
-auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::getBufferViewBytes(
-    const fastgltf::BufferView &bufferView
-) const noexcept -> std::span<const std::uint8_t> {
-    return bufferBytes[bufferView.bufferIndex].subspan(bufferView.byteOffset, bufferView.byteLength);
-}
-
-auto vk_gltf_viewer::gltf::AssetResources::ResourceBytes::createBufferBytes(
-    const fastgltf::Asset &asset,
-    const std::filesystem::path &assetDir
-) -> decltype(bufferBytes) {
-    return asset.buffers
-        | transform([&](const fastgltf::Buffer &buffer) {
-            return visit(fastgltf::visitor {
-                [](const fastgltf::sources::Array &array) -> std::span<const std::uint8_t> {
-                    return array.bytes;
-                },
-                [&](const fastgltf::sources::URI &uri) -> std::span<const std::uint8_t> {
-                    if (!uri.uri.isLocalPath()) throw std::runtime_error { "Non-local source URI not supported." };
-
-                    std::ifstream file { assetDir / uri.uri.fspath(), std::ios::binary };
-                    if (!file) throw std::runtime_error { std::format("Failed to open file: {} (error code={})", strerror(errno), errno) };
-
-                    // Determine file size.
-                    file.seekg(0, std::ios::end);
-                    const std::size_t fileSize = file.tellg();
-
-                    auto &data = cache.emplace_back(fileSize - uri.fileByteOffset);
-                    file.seekg(uri.fileByteOffset);
-                    file.read(reinterpret_cast<char*>(data.data()), data.size());
-
-                    return data;
-                },
-                [](const auto &) -> std::span<const std::uint8_t> {
-                    throw std::runtime_error { "Unsupported source data type" };
-                },
-            }, buffer.data);
-        })
-        | std::ranges::to<std::vector>();
-}
-
 vk_gltf_viewer::gltf::AssetResources::AssetResources(
     const fastgltf::Asset &asset,
     const std::filesystem::path &assetDir,
     const vulkan::Gpu &gpu,
     const Config &config
-) : AssetResources { asset, assetDir, ResourceBytes { asset, assetDir }, gpu, config } { }
+) : AssetResources { asset, assetDir, AssetExternalBuffers { asset, assetDir }, gpu, config } { }
 
 vk_gltf_viewer::gltf::AssetResources::AssetResources(
     const fastgltf::Asset &asset,
     const std::filesystem::path &assetDir,
-    const ResourceBytes &resourceBytes,
+    const AssetExternalBuffers &externalBuffers,
     const vulkan::Gpu &gpu,
     const Config &config,
     BS::thread_pool threadPool
 ) : asset { asset },
     primitiveInfos { createPrimitiveInfos(asset) },
     defaultSampler { createDefaultSampler(gpu.device) },
-    images { createImages(assetDir, resourceBytes, gpu.allocator, threadPool) },
+    images { createImages(assetDir, externalBuffers, gpu.allocator, threadPool) },
     imageViews { createImageViews(gpu.device) },
     samplers { createSamplers(gpu.device) },
     materialBuffer { createMaterialBuffer(gpu.allocator) } {
@@ -138,13 +94,13 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
         gpu.queueFamilies.transfer,
     } };
     vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
-        stageImages(assetDir, resourceBytes, gpu.allocator, cb, threadPool);
+        stageImages(assetDir, externalBuffers, gpu.allocator, cb, threadPool);
         stageMaterials(gpu.allocator, cb);
-        stagePrimitiveAttributeBuffers(resourceBytes, gpu, cb);
+        stagePrimitiveAttributeBuffers(externalBuffers, gpu, cb);
         stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Texcoord, gpu, cb);
         stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Color, gpu, cb);
-        stagePrimitiveTangentBuffers(resourceBytes, gpu, cb, threadPool);
-        stagePrimitiveIndexBuffers(resourceBytes, gpu, cb, config.supportUint8Index);
+        stagePrimitiveTangentBuffers(externalBuffers, gpu, cb, threadPool);
+        stagePrimitiveIndexBuffers(externalBuffers, gpu, cb, config.supportUint8Index);
 
         releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
     });
@@ -189,7 +145,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createDefaultSampler(
 
 auto vk_gltf_viewer::gltf::AssetResources::createImages(
     const std::filesystem::path &assetDir,
-    const ResourceBytes &resourceBytes,
+    const AssetExternalBuffers &externalBuffers,
     vma::Allocator allocator,
     BS::thread_pool &threadPool
 ) const -> decltype(images) {
@@ -244,7 +200,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
                     throw std::runtime_error { "Unsupported image MIME type" };
                 }
 
-                const std::span bufferViewBytes = resourceBytes.getBufferViewBytes(asset.bufferViews[bufferView.bufferViewIndex]);
+                const std::span bufferViewBytes = externalBuffers.getByteRegion(asset.bufferViews[bufferView.bufferViewIndex]);
                 if (!stbi_info_from_memory(bufferViewBytes.data(), bufferViewBytes.size(), &width, &height, &channels)) {
                     throw std::runtime_error { std::format("Failed to get the image info: {}", stbi_failure_reason()) };
                 }
@@ -387,17 +343,13 @@ auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
 
 auto vk_gltf_viewer::gltf::AssetResources::stageImages(
     const std::filesystem::path &assetDir,
-    const ResourceBytes &resourceBytes,
+    const AssetExternalBuffers &externalBuffers,
     vma::Allocator allocator,
     vk::CommandBuffer copyCommandBuffer,
     BS::thread_pool &threadPool
 ) -> void {
     if (images.empty()) return;
 
-    struct ImageData {
-        int width, height, channels;
-        stbi_uc *data;
-    };
     const std::vector imageDatas = threadPool.submit_sequence(0UZ, asset.images.size(), [&](std::size_t imageIndex) {
         const int channels = [imageFormat = images[imageIndex].format]() {
             // TODO: currently image can only has format R8Unorm, R8G8Unorm, R8G8B8A8Unorm or R8G8B8A8Srgb (see createImages()),
@@ -423,7 +375,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
                 return io::StbDecoder<std::uint8_t>::fromFile((assetDir / uri.uri.fspath()).c_str(), channels);
             },
             [&](const fastgltf::sources::BufferView& bufferView) {
-                const std::span bufferViewBytes = resourceBytes.getBufferViewBytes(asset.bufferViews[bufferView.bufferViewIndex]);
+                const std::span bufferViewBytes = externalBuffers.getByteRegion(asset.bufferViews[bufferView.bufferViewIndex]);
                 return io::StbDecoder<std::uint8_t>::fromMemory(bufferViewBytes, channels);
             },
             [](const auto&) -> io::StbDecoder<std::uint8_t>::DecodeResult {
@@ -511,7 +463,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
-    const ResourceBytes &resourceBytes,
+    const AssetExternalBuffers &externalBuffers,
     const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
@@ -540,7 +492,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
     const std::vector attributeBufferViewBytes
         = attributeBufferViewIndices
         | transform([&](std::size_t bufferViewIndex) {
-            return std::pair { bufferViewIndex, resourceBytes.getBufferViewBytes(asset.bufferViews[bufferViewIndex]) };
+            return std::pair { bufferViewIndex, externalBuffers.getByteRegion(asset.bufferViews[bufferViewIndex]) };
         })
         | std::ranges::to<std::vector>();
 
@@ -686,14 +638,14 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMapping
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
-    const ResourceBytes &resourceBytes,
+    const AssetExternalBuffers &externalBuffers,
     const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer,
     BS::thread_pool &threadPool
 ) -> void {
     const auto bufferDeviceAdapter = [&](const fastgltf::Buffer &buffer) {
         const std::size_t bufferIndex = &buffer - asset.buffers.data();
-        return reinterpret_cast<const std::byte*>(resourceBytes.bufferBytes[bufferIndex].data());
+        return reinterpret_cast<const std::byte*>(externalBuffers.bytes[bufferIndex].data());
     };
 
     std::vector missingTangentMeshes
@@ -770,7 +722,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
-    const ResourceBytes &resourceBytes,
+    const AssetExternalBuffers &externalBuffers,
     const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer,
     bool supportUint8Index
@@ -808,7 +760,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
                 if (supportUint8Index) {
                     indexBufferBytesByType[vk::IndexType::eUint8KHR].emplace_back(
                         &primitive,
-                        resourceBytes.getBufferViewBytes(asset.bufferViews[*accessor.bufferViewIndex])
+                        externalBuffers.getByteRegion(asset.bufferViews[*accessor.bufferViewIndex])
                             .subspan(accessor.byteOffset, accessor.count * componentByteSize));
                 }
                 else {
@@ -818,7 +770,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
                         indices[i] = index; // Index converted from uint8 to uint16.
                     }, [&](const fastgltf::Buffer &buffer) {
                         const std::size_t bufferIndex = &buffer - asset.buffers.data();
-                        return reinterpret_cast<const std::byte*>(resourceBytes.bufferBytes[bufferIndex].data());
+                        return reinterpret_cast<const std::byte*>(externalBuffers.bytes[bufferIndex].data());
                     });
 
                     indexBufferBytesByType[vk::IndexType::eUint16].emplace_back(
@@ -830,13 +782,13 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
             case fastgltf::ComponentType::UnsignedShort:
                 indexBufferBytesByType[vk::IndexType::eUint16].emplace_back(
                     &primitive,
-                    resourceBytes.getBufferViewBytes(asset.bufferViews[*accessor.bufferViewIndex])
+                    externalBuffers.getByteRegion(asset.bufferViews[*accessor.bufferViewIndex])
                         .subspan(accessor.byteOffset, accessor.count * componentByteSize));
                 break;
             case fastgltf::ComponentType::UnsignedInt:
                 indexBufferBytesByType[vk::IndexType::eUint32].emplace_back(
                     &primitive,
-                    resourceBytes.getBufferViewBytes(asset.bufferViews[*accessor.bufferViewIndex])
+                    externalBuffers.getByteRegion(asset.bufferViews[*accessor.bufferViewIndex])
                         .subspan(accessor.byteOffset, accessor.count * componentByteSize));
                 break;
             default:
