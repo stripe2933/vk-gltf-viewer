@@ -491,12 +491,8 @@ auto vk_gltf_viewer::MainApp::createAssetDefaultSampler() const -> vk::raii::Sam
 
 auto vk_gltf_viewer::MainApp::createAssetImageViews() -> std::unordered_map<std::size_t, vk::raii::ImageView> {
 	return assetResources.images
-		| ranges::views::decompose_transform([&](std::size_t imageIndex, const vku::Image &image) {
-			return std::pair<std::size_t, vk::raii::ImageView> {
-				std::piecewise_construct,
-				std::tuple { imageIndex },
-				std::forward_as_tuple(gpu.device, image.getViewCreateInfo()),
-			};
+		| ranges::views::value_transform([&](const vku::Image &image) -> vk::raii::ImageView {
+			return { gpu.device, image.getViewCreateInfo() };
 		})
 		| std::ranges::to<std::unordered_map>();
 }
