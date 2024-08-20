@@ -13,7 +13,7 @@ export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::gltf {
     export class AssetResources {
-        std::list<vku::MappedBuffer> stagingBuffers;
+        std::list<vku::AllocatedBuffer> stagingBuffers;
 
     public:
         struct Config {
@@ -106,36 +106,40 @@ namespace vk_gltf_viewer::gltf {
          * start offsets are { 0, 3 }.
          */
         template <std::ranges::random_access_range R>
-        [[nodiscard]] auto createCombinedStagingBuffer(vma::Allocator allocator, R &&segments) -> std::pair<const vku::MappedBuffer&, std::vector<vk::DeviceSize>>;
+            requires std::ranges::contiguous_range<std::ranges::range_value_t<R>>
+        [[nodiscard]] auto createCombinedStagingBuffer(
+            vma::Allocator allocator,
+            R &&segments
+        ) -> std::pair<const vku::AllocatedBuffer&, std::vector<vk::DeviceSize>>;
     };
 }
 
 // module :private;
 
 template <std::ranges::random_access_range R>
+    requires std::ranges::contiguous_range<std::ranges::range_value_t<R>>
 [[nodiscard]] auto vk_gltf_viewer::gltf::AssetResources::createCombinedStagingBuffer(
     vma::Allocator allocator,
     R &&segments
-) -> std::pair<const vku::MappedBuffer&, std::vector<vk::DeviceSize>> {
+) -> std::pair<const vku::AllocatedBuffer&, std::vector<vk::DeviceSize>> {
     using value_type = std::ranges::range_value_t<std::ranges::range_value_t<R>>;
     static_assert(std::is_standard_layout_v<value_type>, "Copying non-standard layout does not guarantee the intended result.");
     assert(!segments.empty() && "Empty segments not allowed (Vulkan requires non-zero buffer size)");
 
-    const auto segmentSizes = segments | std::views::transform([](const auto &segment) { return sizeof(value_type) * segment.size(); }) | std::views::common;
-    std::vector<vk::DeviceSize> copyOffsets(segmentSizes.size());
-    std::exclusive_scan(segmentSizes.begin(), segmentSizes.end(), copyOffsets.begin(), vk::DeviceSize { 0 });
+    // Calculate each segments' size and their destination offsets.
+    const auto segmentsBytes = segments | std::views::transform([](const auto &segment) { return as_bytes(std::span { segment }); });
+    const auto segmentsByteSizes = segmentsBytes | std::views::transform(&std::span<const std::byte>::size);
+    std::vector<vk::DeviceSize> copyOffsets(segmentsByteSizes.size());
+    std::exclusive_scan(segmentsByteSizes.begin(), segmentsByteSizes.end(), copyOffsets.begin(), vk::DeviceSize { 0 });
 
-    const auto &stagingBuffer = stagingBuffers.emplace_back(
-        allocator,
-        vk::BufferCreateInfo {
-            {},
-            copyOffsets.back() + segmentSizes.back(), // = sum(segmentSizes).
-            vk::BufferUsageFlagBits::eTransferSrc,
-        });
-
-    for (const auto &[segment, copyOffset] : std::views::zip(segments, copyOffsets)){
-        std::ranges::copy(segment, reinterpret_cast<value_type*>(static_cast<char*>(stagingBuffer.data) + copyOffset));
+    vku::MappedBuffer stagingBuffer { allocator, vk::BufferCreateInfo {
+        {},
+        copyOffsets.back() + segmentsByteSizes.back(), // = sum(segmentSizes).
+        vk::BufferUsageFlagBits::eTransferSrc,
+    } };
+    for (auto [segmentBytes, copyOffset] : std::views::zip(segmentsBytes, copyOffsets)){
+        std::ranges::copy(segmentBytes, static_cast<std::byte*>(stagingBuffer.data) + copyOffset);
     }
 
-    return { std::move(stagingBuffer), std::move(copyOffsets) };
+    return { stagingBuffers.emplace_back(std::move(stagingBuffer).unmap()), std::move(copyOffsets) };
 }
