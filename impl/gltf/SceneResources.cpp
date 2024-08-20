@@ -6,7 +6,7 @@ module vk_gltf_viewer;
 import :gltf.SceneResources;
 
 import std;
-import :helpers.ranges;
+import ranges;
 
 using namespace std::views;
 
@@ -36,7 +36,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() 
     const fastgltf::Asset &asset = assetResources.asset;
 
     // Collect glTF mesh primitives.
-    std::vector<std::pair<std::uint32_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> nodePrimitiveInfoPtrs;
+    std::vector<std::pair<std::size_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> nodePrimitiveInfoPtrs;
     for (std::stack dfs { std::from_range, scene.nodeIndices | reverse }; !dfs.empty(); ) {
         const std::size_t nodeIndex = dfs.top();
 
@@ -90,9 +90,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
 ) -> decltype(primitiveBuffer) {
     return {
         gpu.allocator,
-        std::from_range, orderedNodePrimitiveInfoPtrs | transform([](const auto &pair){
-            const auto [nodeIndex, pPrimitiveInfo] = pair;
-
+        std::from_range, orderedNodePrimitiveInfoPtrs | ranges::views::decompose_transform([](std::size_t nodeIndex, const AssetResources::PrimitiveInfo *pPrimitiveInfo) {
             // If normal and tangent not presented (nullopt), it will use a faceted mesh renderer, and they will does not
             // dereference those buffers. Therefore, it is okay to pass nullptr into shaders
             const auto normalInfo = pPrimitiveInfo->normalInfo.value_or(AssetResources::PrimitiveInfo::AttributeBufferInfo{});
@@ -109,7 +107,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer(
                 .tangentByteStride = tangentInfo.byteStride,
                 .pTexcoordByteStridesBuffer = ranges::value_or(pPrimitiveInfo->indexedAttributeMappingInfos, AssetResources::IndexedAttribute::Texcoord, {}).pByteStridesBuffer,
                 .pColorByteStridesBuffer = ranges::value_or(pPrimitiveInfo->indexedAttributeMappingInfos, AssetResources::IndexedAttribute::Color, {}).pByteStridesBuffer,
-                .nodeIndex = nodeIndex,
+                .nodeIndex = static_cast<std::uint32_t>(nodeIndex),
                 .materialIndex = pPrimitiveInfo->materialIndex.transform([](std::uint32_t index) { return static_cast<std::int32_t>(index); }).value_or(-1 /*will use fallback material*/),
             };
         }),

@@ -14,10 +14,10 @@ module vk_gltf_viewer;
 import :MainApp;
 
 import std;
+import ranges;
 import vku;
 import :control.ImGui;
 import :helpers.functional;
-import :helpers.ranges;
 import :io.StbDecoder;
 import :mipmap;
 import :vulkan.Frame;
@@ -110,6 +110,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 						vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
 						{}, {}, {},
 						assetResources.images
+							| std::views::values
 							| std::views::transform([&](vk::Image image) {
 								return vk::ImageMemoryBarrier {
 									{}, vk::AccessFlagBits::eTransferRead,
@@ -125,6 +126,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 					vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
 					{}, {}, {},
 					assetResources.images
+						| std::views::values
 						| std::views::transform([](vk::Image image) {
 							return vk::ImageMemoryBarrier {
 								{}, vk::AccessFlagBits::eTransferRead,
@@ -135,12 +137,13 @@ vk_gltf_viewer::MainApp::MainApp() {
 						})
 						| std::ranges::to<std::vector>());
 
-				recordBatchedMipmapGenerationCommand(cb, assetResources.images);
+				recordBatchedMipmapGenerationCommand(cb, assetResources.images | std::views::values);
 
 				cb.pipelineBarrier(
 					vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
 					{}, {}, {},
 					assetResources.images
+						| std::views::values
 						| std::views::transform([](vk::Image image) {
 							return vk::ImageMemoryBarrier {
 								vk::AccessFlagBits::eTransferWrite, {},
@@ -487,13 +490,12 @@ auto vk_gltf_viewer::MainApp::createAssetDefaultSampler() const -> vk::raii::Sam
 }
 
 auto vk_gltf_viewer::MainApp::createAssetImageViews() -> std::unordered_map<std::size_t, vk::raii::ImageView> {
-	return gltfAsset.get().textures
-		| std::views::transform([&](const fastgltf::Texture &texture) {
-			const std::size_t imageIndex = *texture.imageIndex;
+	return assetResources.images
+		| ranges::views::decompose_transform([&](std::size_t imageIndex, const vku::Image &image) {
 			return std::pair<std::size_t, vk::raii::ImageView> {
 				std::piecewise_construct,
 				std::tuple { imageIndex },
-				std::forward_as_tuple(gpu.device, assetResources.images[imageIndex].getViewCreateInfo()),
+				std::forward_as_tuple(gpu.device, image.getViewCreateInfo()),
 			};
 		})
 		| std::ranges::to<std::unordered_map>();

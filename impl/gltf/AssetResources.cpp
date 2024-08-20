@@ -12,10 +12,10 @@ module vk_gltf_viewer;
 import :gltf.AssetResources;
 
 import std;
+import ranges;
 import thread_pool;
 import :gltf.algorithm.MikktSpaceInterface;
 import :gltf.AssetExternalBuffers;
-import :helpers.ranges;
 import :io.StbDecoder;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
@@ -51,8 +51,7 @@ using namespace std::string_view_literals;
     vk::CommandBuffer copyCommandBuffer
 ) -> std::vector<vku::AllocatedBuffer> {
     return copyInfos
-        | transform([&](const auto &copyInfo) {
-            const auto [srcOffset, copySize, dstBufferUsage] = copyInfo;
+        | ranges::views::decompose_transform([&](vk::DeviceSize srcOffset, vk::DeviceSize copySize, vk::BufferUsageFlags dstBufferUsage) {
             vku::AllocatedBuffer dstBuffer { allocator, vk::BufferCreateInfo {
                 {},
                 copySize,
@@ -132,7 +131,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
     const AssetExternalBuffers &externalBuffers,
     vma::Allocator allocator,
     BS::thread_pool &threadPool
-) const -> decltype(images) {
+) const -> std::unordered_map<std::size_t, vku::AllocatedImage> {
     // Base color and emissive texture must be in SRGB format.
     // Therefore, first traverse the asset and fetch the image index that must be in R8G8B8A8Srgb.
     std::unordered_set<std::size_t> srgbImageIndices;
@@ -145,7 +144,9 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
         }
     }
 
-    return threadPool.submit_sequence(0UZ, asset.images.size(), [&](std::size_t imageIndex) -> vku::AllocatedImage {
+    return threadPool.submit_sequence(0UZ, asset.textures.size(), [&](std::size_t textureIndex) {
+        const std::size_t imageIndex = *asset.textures[textureIndex].imageIndex;
+
         int width, height, channels;
         visit(fastgltf::visitor {
             [&](const fastgltf::sources::Array& array) {
@@ -208,17 +209,21 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
             }
         }();
 
-        return { allocator, vk::ImageCreateInfo {
-            {},
-            vk::ImageType::e2D,
-            imageFormat,
-            vk::Extent3D { imageExtent, 1 },
-            vku::Image::maxMipLevels(imageExtent) /* mipmap will be generated in the future */, 1,
-            vk::SampleCountFlagBits::e1,
-            vk::ImageTiling::eOptimal,
-            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
-        } };
-    }).get();
+        return std::pair<std::size_t, vku::AllocatedImage> {
+            std::piecewise_construct,
+            std::tuple { imageIndex },
+            std::forward_as_tuple(allocator, vk::ImageCreateInfo {
+                {},
+                vk::ImageType::e2D,
+                imageFormat,
+                vk::Extent3D { imageExtent, 1 },
+                vku::Image::maxMipLevels(imageExtent) /* mipmap will be generated in the future */, 1,
+                vk::SampleCountFlagBits::e1,
+                vk::ImageTiling::eOptimal,
+                vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
+            }),
+        };
+    }).get() | as_rvalue | std::ranges::to<std::unordered_map>();
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
@@ -316,8 +321,10 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
 ) -> void {
     if (images.empty()) return;
 
-    const std::vector imageDatas = threadPool.submit_sequence(0UZ, asset.images.size(), [&](std::size_t imageIndex) {
-        const int channels = [imageFormat = images[imageIndex].format]() {
+    const std::vector imageDatas = threadPool.submit_sequence(0UZ, asset.textures.size(), [&](std::size_t textureIndex) {
+        const std::size_t imageIndex = *asset.textures[textureIndex].imageIndex;
+
+        const int channels = [imageFormat = images.at(imageIndex).format]() {
             // TODO: currently image can only has format R8Unorm, R8G8Unorm, R8G8B8A8Unorm or R8G8B8A8Srgb (see createImages()),
             //  but determining the channel counts from format will be quite hard when using GPU compressed texture. We
             //  need more robust solution for this.
@@ -350,14 +357,15 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
         }, asset.images[imageIndex].data);
     }).get();
 
-    const auto &[stagingBuffer, copyOffsets]
-        = createCombinedStagingBuffer(allocator, imageDatas | transform([](const auto &decodeResult) { return decodeResult.asSpan(); }));
+    const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
+        allocator, imageDatas | transform([](const auto &x) { return x.asSpan(); }));
 
     // 1. Change image[mipLevel=0] layouts to vk::ImageLayout::eTransferDstOptimal for staging.
     copyCommandBuffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
         {}, {}, {},
         images
+            | values
             | transform([](vk::Image image) {
                 return vk::ImageMemoryBarrier {
                     {}, vk::AccessFlagBits::eTransferWrite,
@@ -369,7 +377,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
             | std::ranges::to<std::vector>());
 
     // 2. Copy image data from staging buffer to images.
-    for (const auto &[image, copyOffset] : zip(images, copyOffsets)) {
+    for (auto [textureIndex, copyOffset] : copyOffsets | ranges::views::enumerate) {
+        const vku::Image &image = images.at(*asset.textures[textureIndex].imageIndex);
         copyCommandBuffer.copyBufferToImage(
             stagingBuffer,
             image, vk::ImageLayout::eTransferDstOptimal,
@@ -627,9 +636,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
             // Skip if primitive doesn't have a normal texture.
             else return asset.materials[*materialIndex].normalTexture.has_value();
         })
-        | transform([&](const auto &keyValue) {
-            const auto &[pPrimitive, primitiveInfo] = keyValue;
-
+        | ranges::views::decompose_transform([&](const fastgltf::Primitive *pPrimitive, const PrimitiveInfo &primitiveInfo) {
             // Validate constriant for MikktSpaceInterface.
             if (auto normalIt = pPrimitive->findAttribute("NORMAL"); normalIt == pPrimitive->attributes.end()) {
                 throw std::runtime_error { "Missing NORMAL attribute" };
@@ -766,8 +773,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
     // Combine index data into a single staging buffer, and create GPU local buffers for each index data. Record copy
     // commands to copyCommandBuffer.
     indexBuffers = indexBufferBytesByType
-        | transform([&](const auto &keyValue) {
-            const auto &[indexType, bufferBytes] = keyValue;
+        | ranges::views::decompose_transform([&](vk::IndexType indexType, const auto &bufferBytes) {
             const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
                 gpu.allocator,
                 bufferBytes | values | transform([](const auto &variant) {
@@ -799,6 +805,7 @@ auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
         vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllCommands,
         {}, {}, {},
         images
+            | values
             | transform([&](vk::Image image) {
                 return vk::ImageMemoryBarrier {
                     vk::AccessFlagBits::eTransferWrite, {},

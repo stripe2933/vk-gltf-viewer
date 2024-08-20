@@ -59,7 +59,7 @@ namespace vk_gltf_viewer::gltf {
 
         const fastgltf::Asset &asset;
 
-        std::vector<vku::AllocatedImage> images;
+        std::unordered_map<std::size_t, vku::AllocatedImage> images;
         std::unordered_map<std::size_t, vk::raii::Sampler> samplers;
 
         vku::AllocatedBuffer materialBuffer;
@@ -76,7 +76,7 @@ namespace vk_gltf_viewer::gltf {
         AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, const Config &config, BS::thread_pool threadPool = {});
 
         [[nodiscard]] auto createPrimitiveInfos(const fastgltf::Asset &asset) const -> decltype(primitiveInfos);
-        [[nodiscard]] auto createImages(const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, vma::Allocator allocator, BS::thread_pool &threadPool) const -> decltype(images);
+        [[nodiscard]] auto createImages(const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, vma::Allocator allocator, BS::thread_pool &threadPool) const -> std::unordered_map<std::size_t, vku::AllocatedImage>;
         [[nodiscard]] auto createSamplers(const vk::raii::Device &device) const -> std::unordered_map<std::size_t, vk::raii::Sampler>;
         [[nodiscard]] auto createMaterialBuffer(vma::Allocator allocator) const -> vku::AllocatedBuffer;
 

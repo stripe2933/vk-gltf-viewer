@@ -6,9 +6,9 @@ export module vk_gltf_viewer:gltf.SceneResources;
 
 import std;
 export import glm;
+import ranges;
 export import vku;
 export import :gltf.AssetResources;
-import :helpers.ranges;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::gltf {
@@ -16,7 +16,7 @@ namespace vk_gltf_viewer::gltf {
         const AssetResources &assetResources;
         const fastgltf::Scene &scene;
 
-        std::vector<std::pair<std::uint32_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs = createOrderedNodePrimitiveInfoPtrs();
+        std::vector<std::pair<std::size_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs = createOrderedNodePrimitiveInfoPtrs();
 
     public:
         struct GpuPrimitive {
