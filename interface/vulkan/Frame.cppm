@@ -6,6 +6,7 @@ module;
 export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
+import type_variant;
 export import vku;
 export import :AppState;
 export import :gltf.AssetResources;
@@ -22,16 +23,21 @@ namespace vk_gltf_viewer::vulkan {
     export class Frame {
     public:
     	struct ExecutionTask {
+    		struct Gltf {
+    			std::optional<std::uint32_t> hoveringNodeIndex;
+    			std::unordered_set<std::size_t> selectedNodeIndices;
+    			std::unordered_set<std::size_t> renderingNodeIndices;
+    			vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
+    			vku::DescriptorSet<dsl::Scene> sceneDescriptorSet;
+    		};
+
     		vk::Rect2D passthruRect;
     		struct { glm::mat4 view, projection; } camera;
     		std::optional<vk::Offset2D> mouseCursorOffset;
-    		std::optional<std::uint32_t> hoveringNodeIndex;
-    		std::unordered_set<std::size_t> selectedNodeIndices;
-    		std::unordered_set<std::size_t> renderingNodeIndices;
-    		std::optional<AppState::Outline> hoveringNodeOutline, selectedNodeOutline;
+    		std::optional<AppState::Outline> hoveringNodeOutline;
+    		std::optional<AppState::Outline> selectedNodeOutline;
+    		std::optional<Gltf> gltf;
     		vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
-    		vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
-    		vku::DescriptorSet<dsl::Scene> sceneDescriptorSet;
     		std::variant<glm::vec3 /*solid color*/, vku::DescriptorSet<dsl::Skybox>> background;
     		std::optional<std::pair<vk::SurfaceKHR, vk::Extent2D>> swapchainResizeHandleInfo;
     	};
@@ -90,6 +96,20 @@ namespace vk_gltf_viewer::vulkan {
     		auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
     	};
 
+    	struct ResourceBindingState {
+    		type_variant<std::monostate, DepthRenderer, AlphaMaskedDepthRenderer, JumpFloodSeedRenderer, AlphaMaskedJumpFloodSeedRenderer> boundPipeline{};
+    		std::optional<vk::CullModeFlagBits> cullMode{};
+    		std::optional<vk::IndexType> indexBuffer;
+
+    		// DepthRenderer, AlphaMaskedDepthRenderer, JumpFloodSeedRenderer and AlphaMaskedJumpFloodSeedRenderer have:
+    		// - compatible scene descriptor set in set #0,
+    		// - compatible asset descriptor set in set #1 (AlphaMaskedDepthRenderer and AlphaMaskedJumpFloodSeedRenderer only),
+    		// - compatible push constant range.
+    		bool sceneDescriptorSetBound = false;
+    		bool assetDescriptorSetBound = false;
+    		bool pushConstantBound = false;
+    	};
+
     	const Gpu &gpu;
     	const SharedData &sharedData;
     	const gltf::AssetResources &assetResources;
@@ -123,9 +143,9 @@ namespace vk_gltf_viewer::vulkan {
     	vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSets;
 
     	// Command buffers.
-    	vk::CommandBuffer depthPrepassCommandBuffer;
-    	vk::CommandBuffer drawCommandBuffer;
-    	vk::CommandBuffer compositeCommandBuffer;
+    	vk::CommandBuffer scenePrepassCommandBuffer;
+    	vk::CommandBuffer sceneRenderingCommandBuffer;
+    	vk::CommandBuffer compositionCommandBuffer;
     	vk::CommandBuffer jumpFloodCommandBuffer;
 
 		// Synchronization stuffs.
@@ -144,10 +164,12 @@ namespace vk_gltf_viewer::vulkan {
     	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
     	auto update(const ExecutionTask &task, ExecutionResult &result) -> void;
 
-    	auto recordDepthPrepassCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
+    	auto recordScenePrepassCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
     	// Return true if last jump flood calculation direction is forward (result is in pong image), false if backward.
 		[[nodiscard]] auto recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSets, std::uint32_t initialSampleOffset) const -> bool;
-    	auto recordGltfPrimitiveDrawCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex, const ExecutionTask &task) const -> void;
-    	auto recordPostCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward, std::uint32_t swapchainImageIndex, const ExecutionTask &task) const -> void;
+    	auto recordSceneDrawCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
+    	auto recordSkyboxDrawCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
+    	auto recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward, std::uint32_t swapchainImageIndex, const ExecutionTask &task) const -> void;
+    	auto recordImGuiCompositionCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex) const -> void;
     };
 }

@@ -270,31 +270,46 @@ auto assetOcclusionTextureInfo(const fastgltf::OcclusionTextureInfo &textureInfo
 
 auto vk_gltf_viewer::control::imgui::menuBar() -> task::type {
     static NFD::Guard nfdGuard;
+    constexpr auto processFileDialog = [](std::span<const nfdfilteritem_t> filterItems) -> std::optional<std::filesystem::path> {
+        NFD::UniquePath outPath;
+        if (nfdresult_t nfdResult = OpenDialog(outPath, filterItems.data(), filterItems.size()); nfdResult == NFD_OKAY) {
+            return outPath.get();
+        }
+        else if (nfdResult == NFD_CANCEL) {
+            return std::nullopt;
+            // Do nothing.
+        }
+        else {
+            throw std::runtime_error { std::format("File dialog error: {}", NFD::GetError() ) };
+        }
+    };
 
     task::type result;
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Load glTF File", "Ctrl+O")) {
-
+                constexpr std::array filterItems {
+                    nfdfilteritem_t { "glTF File", "gltf" },
+                    nfdfilteritem_t { "glTf Binary File", "glb" },
+                };
+                if (auto filename = processFileDialog(filterItems)) {
+                    assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
+                    result.emplace<task::LoadGltf>(*std::move(filename));
+                }
             }
             if (ImGui::MenuItem("Close Current File", "Ctrl+W")) {
-
+                assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
+                result.emplace<task::CloseGltf>();
             }
 
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Skybox")) {
             if (ImGui::MenuItem("Load Skybox")) {
-                static constexpr std::array filterItems { nfdfilteritem_t { "HDR image", "hdr" } };
-                NFD::UniquePath outPath;
-                if (nfdresult_t nfdResult = OpenDialog(outPath, filterItems.data(), filterItems.size()); nfdResult == NFD_OKAY) {
-                    result.emplace<task::LoadEqmap>(outPath.get());
-                }
-                else if (nfdResult == NFD_CANCEL) {
-                    // Do nothing.
-                }
-                else {
-                    ImGui::DebugLog("File dialog error: %s\n", NFD::GetError());
+                constexpr std::array filterItems { nfdfilteritem_t { "HDR image", "hdr" } };
+                if (auto filename = processFileDialog(filterItems)) {
+                    assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
+                    result.emplace<task::LoadEqmap>(*std::move(filename));
                 }
             }
 

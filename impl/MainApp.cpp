@@ -275,6 +275,12 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
 		// Draw main menu bar.
 		visit(multilambda {
+			[&](const control::imgui::task::LoadGltf &task) {
+				// TODO.
+			},
+			[&](control::imgui::task::CloseGltf) {
+				// TODO.
+			},
 			[&](const control::imgui::task::LoadEqmap &task) {
 				processEqmapChange(task.path);
 			},
@@ -289,7 +295,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		}
 
 		// Asset inspection.
-		fastgltf::Asset &asset = assetExpected.get();
+		fastgltf::Asset &asset = gltfAsset.get();
 		const auto assetDir = std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path();
 		control::imgui::assetInfos(asset);
 		control::imgui::assetBufferViews(asset);
@@ -300,7 +306,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		control::imgui::assetSceneHierarchies(asset, appState);
 
 		// Node inspection.
-		control::imgui::nodeInspector(assetExpected.get(), appState);
+		control::imgui::nodeInspector(asset, appState);
 
 		ImGuizmo::BeginFrame();
 
@@ -322,14 +328,16 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 					static_cast<std::int32_t>(framebufferCursorPosition.y)
 				};
 			}),
-			.hoveringNodeIndex = appState.hoveringNodeIndex,
-			.selectedNodeIndices = appState.selectedNodeIndices,
-			.renderingNodeIndices = appState.renderingNodeIndices,
 			.hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
 			.selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
+			.gltf = vulkan::Frame::ExecutionTask::Gltf {
+				.hoveringNodeIndex = appState.hoveringNodeIndex,
+				.selectedNodeIndices = appState.selectedNodeIndices,
+				.renderingNodeIndices = appState.renderingNodeIndices,
+				.assetDescriptorSet = assetDescriptorSet,
+				.sceneDescriptorSet = sceneDescriptorSet,
+			},
 			.imageBasedLightingDescriptorSet = imageBasedLightingDescriptorSet,
-			.assetDescriptorSet = assetDescriptorSet,
-			.sceneDescriptorSet = sceneDescriptorSet,
 			.background = [&]() -> decltype(vulkan::Frame::ExecutionTask::background) {
 				if (appState.background.has_value()) {
 					return *appState.background;
@@ -366,19 +374,18 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 	gpu.device.waitIdle();
 }
 
-auto vk_gltf_viewer::MainApp::loadAsset(
-    const std::filesystem::path &path
-) -> decltype(assetExpected) {
-    if (!gltfDataBuffer.loadFromFile(path)) {
-        throw std::runtime_error { "Failed to load glTF data buffer" };
-    }
+vk_gltf_viewer::MainApp::GltfAsset::DataBufferLoader::DataBufferLoader(const std::filesystem::path &path) {
+	if (!dataBuffer.loadFromFile(path)) {
+		throw std::runtime_error { "Failed to load glTF data buffer" };
+	}
+}
 
-    auto asset = fastgltf::Parser{}.loadGltf(&gltfDataBuffer, path.parent_path(), fastgltf::Options::LoadGLBBuffers);
-    if (auto error = asset.error(); error != fastgltf::Error::None) {
-        throw std::runtime_error { std::format("Failed to load glTF asset: {}", getErrorMessage(error)) };
-    }
+vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(const std::filesystem::path &path)
+	: dataBufferLoader { path }
+	, assetExpected { fastgltf::Parser{}.loadGltf(&dataBufferLoader.dataBuffer, path.parent_path(), fastgltf::Options::LoadGLBBuffers) } { }
 
-    return asset;
+auto vk_gltf_viewer::MainApp::GltfAsset::get() noexcept -> fastgltf::Asset& {
+	return assetExpected.get();
 }
 
 auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {

@@ -24,6 +24,21 @@ namespace vk_gltf_viewer {
 		auto run() -> void;
 
 	private:
+		struct GltfAsset {
+			struct DataBufferLoader {
+				fastgltf::GltfDataBuffer dataBuffer;
+
+				explicit DataBufferLoader(const std::filesystem::path &path);
+			};
+
+			DataBufferLoader dataBufferLoader;
+			fastgltf::Expected<fastgltf::Asset> assetExpected;
+
+			explicit GltfAsset(const std::filesystem::path &path);
+
+			[[nodiscard]] auto get() noexcept -> fastgltf::Asset&;
+		};
+		
 		struct SkyboxResources {
 			vku::AllocatedImage reducedEqmapImage;
 			vk::raii::ImageView reducedEqmapImageView;
@@ -41,16 +56,15 @@ namespace vk_gltf_viewer {
 
 	    AppState appState;
 
-		fastgltf::GltfDataBuffer gltfDataBuffer{};
-		fastgltf::Expected<fastgltf::Asset> assetExpected = loadAsset(std::getenv("GLTF_PATH"));
+		GltfAsset gltfAsset { std::getenv("GLTF_PATH") };
 
 		vk::raii::Context context;
 		vk::raii::Instance instance = createInstance();
 		control::AppWindow window { instance, appState };
 		vulkan::Gpu gpu { instance, window.getSurface() };
 
-		gltf::AssetResources assetResources { assetExpected.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), gpu, { .supportUint8Index = false /* TODO: change this value depend on vk::PhysicalDeviceIndexTypeUint8FeaturesKHR */ } };
-    	gltf::SceneResources sceneResources { assetResources, assetExpected->scenes[assetExpected->defaultScene.value_or(0)], gpu };
+		gltf::AssetResources assetResources { gltfAsset.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), gpu, { .supportUint8Index = false /* TODO: change this value depend on vk::PhysicalDeviceIndexTypeUint8FeaturesKHR */ } };
+    	gltf::SceneResources sceneResources { assetResources, gltfAsset.get().scenes[gltfAsset.get().defaultScene.value_or(0)], gpu };
 		ImageBasedLightingResources imageBasedLightingResources = createDefaultImageBasedLightingResources();
 		std::optional<SkyboxResources> skyboxResources{};
 
@@ -62,7 +76,7 @@ namespace vk_gltf_viewer {
 		vulkan::BrdfLutSampler brdfLutSampler { gpu.device };
 
 		// Descriptor set layouts.
-		vulkan::dsl::Asset assetDescriptorSetLayout { gpu.device, static_cast<std::uint32_t>(1 /*fallback texture*/ + assetExpected.get().textures.size()) };
+		vulkan::dsl::Asset assetDescriptorSetLayout { gpu.device, static_cast<std::uint32_t>(1 /*fallback texture*/ + gltfAsset.get().textures.size()) };
 		vulkan::dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler };
 		vulkan::dsl::Scene sceneDescriptorSetLayout { gpu.device };
 		vulkan::dsl::Skybox skyboxDescriptorSetLayout { gpu.device, cubemapSampler };
@@ -77,9 +91,7 @@ namespace vk_gltf_viewer {
 		// Descriptor sets.
 		vku::DescriptorSet<vulkan::dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
 		std::vector<vk::DescriptorSet> assetTextureDescriptorSets;
-
-    	[[nodiscard]] auto loadAsset(const std::filesystem::path &path) -> decltype(assetExpected);
-
+		
 		[[nodiscard]] auto createInstance() const -> decltype(instance);
 		[[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
 		[[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;

@@ -11,11 +11,17 @@ export import :AppState;
 
 namespace vk_gltf_viewer::control::imgui {
     namespace task {
+        struct LoadGltf {
+            std::filesystem::path path;
+        };
+
+        struct CloseGltf { };
+
         struct LoadEqmap {
             std::filesystem::path path;
         };
 
-        using type = std::variant<std::monostate, LoadEqmap>;
+        using type = std::variant<std::monostate, LoadGltf, CloseGltf, LoadEqmap>;
     };
 
     [[nodiscard]] auto menuBar() -> task::type;
