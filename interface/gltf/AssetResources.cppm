@@ -13,7 +13,7 @@ export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::gltf {
     export class AssetResources {
-        std::list<vku::AllocatedBuffer> stagingBuffers;
+        std::forward_list<vku::AllocatedBuffer> stagingBuffers;
 
     public:
         struct Config {
@@ -134,5 +134,5 @@ template <std::ranges::random_access_range R>
         std::ranges::copy(segmentBytes, static_cast<std::byte*>(stagingBuffer.data) + copyOffset);
     }
 
-    return { stagingBuffers.emplace_back(std::move(stagingBuffer).unmap()), std::move(copyOffsets) };
+    return { stagingBuffers.emplace_front(std::move(stagingBuffer).unmap()), std::move(copyOffsets) };
 }

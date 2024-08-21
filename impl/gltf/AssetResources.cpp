@@ -433,7 +433,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
         return gpuMaterial;
     }));
 
-    const vk::Buffer stagingBuffer = stagingBuffers.emplace_back(
+    const vk::Buffer stagingBuffer = stagingBuffers.emplace_front(
         vku::MappedBuffer { allocator, std::from_range, materials, vk::BufferUsageFlagBits::eTransferSrc }.unmap());
     copyCommandBuffer.copyBuffer(stagingBuffer, materialBuffer, vk::BufferCopy { 0, 0, materialBuffer.size });
 }
