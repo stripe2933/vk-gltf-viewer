@@ -68,7 +68,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 						assetFallbackImage, vku::fullSubresourceRange(),
 					});
-			}, *graphicsCommandPool, gpu.queues.graphicsPresent },
+			}, *graphicsCommandPool, gpu.queues.graphicsPresent/*, 2*/ },
 			// Initialize the image based lighting resources by default(white).
 			vku::ExecutionInfo { [this](vk::CommandBuffer cb) {
 				initializeImageBasedLightingResourcesByDefault(cb);
@@ -99,61 +99,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 						gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
 						brdfmapImage, vku::fullSubresourceRange(),
 					});
-			}, *computeCommandPool, gpu.queues.compute },
-			// Create AssetResource images' mipmaps.
-			vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
-				if (assetResources.images.empty()) return;
-
-				// Acquire resource queue family ownerships.
-				if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
-					cb.pipelineBarrier(
-						vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-						{}, {}, {},
-						assetResources.images
-							| std::views::values
-							| std::views::transform([&](vk::Image image) {
-								return vk::ImageMemoryBarrier {
-									{}, vk::AccessFlagBits::eTransferRead,
-									{}, {},
-									gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-									image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-								};
-							})
-							| std::ranges::to<std::vector>());
-				}
-
-				cb.pipelineBarrier(
-					vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-					{}, {}, {},
-					assetResources.images
-						| std::views::values
-						| std::views::transform([](vk::Image image) {
-							return vk::ImageMemoryBarrier {
-								{}, vk::AccessFlagBits::eTransferRead,
-								vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-								vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-								image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-							};
-						})
-						| std::ranges::to<std::vector>());
-
-				recordBatchedMipmapGenerationCommand(cb, assetResources.images | std::views::values);
-
-				cb.pipelineBarrier(
-					vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-					{}, {}, {},
-					assetResources.images
-						| std::views::values
-						| std::views::transform([](vk::Image image) {
-							return vk::ImageMemoryBarrier {
-								vk::AccessFlagBits::eTransferWrite, {},
-								{}, vk::ImageLayout::eShaderReadOnlyOptimal,
-								vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-								image, vku::fullSubresourceRange(),
-							};
-						})
-						| std::ranges::to<std::vector>());
-			}, *graphicsCommandPool, gpu.queues.graphicsPresent/*, 2*/ }),
+			}, *computeCommandPool, gpu.queues.compute }),
 		std::forward_as_tuple(
 			// Acquire BRDF LUT image's queue family ownership from compute to graphicsPresent.
 			vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
@@ -225,10 +171,10 @@ vk_gltf_viewer::MainApp::MainApp() {
 		| std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
 			return ImGui_ImplVulkan_AddTexture(
 				[&]() {
-					if (texture.samplerIndex) return *assetResources.samplers.at(*texture.samplerIndex);
+					if (texture.samplerIndex) return *gltfAsset.assetResources.samplers.at(*texture.samplerIndex);
 					return *assetDefaultSampler;
 				}(),
-				*assetImageViews.at(*texture.imageIndex),
+				*gltfAsset.imageViews.at(*texture.imageIndex),
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		})
 		| std::ranges::to<std::vector>();
@@ -255,7 +201,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		vk::Extent2D { framebufferSize.x, framebufferSize.y },
 		{ assetDescriptorSetLayout, imageBasedLightingDescriptorSetLayout, sceneDescriptorSetLayout, skyboxDescriptorSetLayout }
 	};
-	std::array frames = ARRAY_OF(2, vulkan::Frame{ gpu, sharedData, assetResources, sceneResources });
+	std::array frames = ARRAY_OF(2, vulkan::Frame{ gpu, sharedData });
 
 	// Optionals that indicates frame should handle swapchain resize to the extent at the corresponding index.
 	std::array<std::optional<vk::Extent2D>, std::tuple_size_v<decltype(frames)>> shouldHandleSwapchainResize{};
@@ -266,25 +212,28 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			std::as_const(assetDescriptorSetLayout),
 			std::as_const(sceneDescriptorSetLayout)));
 
-	std::vector<vk::DescriptorImageInfo> assetTextures;
-	assetTextures.reserve(1 + gltfAsset.get().textures.size());
-	assetTextures.emplace_back(*sharedData.singleTexelSampler, *assetFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-	assetTextures.append_range(gltfAsset.get().textures | std::views::transform([this](const fastgltf::Texture &texture) {
-		return vk::DescriptorImageInfo {
-			[&]() {
-				if (texture.samplerIndex) return *assetResources.samplers.at(*texture.samplerIndex);
-				return *assetDefaultSampler;
-			}(),
-			*assetImageViews.at(*texture.imageIndex),
-			vk::ImageLayout::eShaderReadOnlyOptimal,
-		};
-	}));
-
 	gpu.device.updateDescriptorSets({
-		assetDescriptorSet.getWrite<0>(assetTextures),
-		assetDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { assetResources.materialBuffer, 0, vk::WholeSize })),
-		sceneDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { sceneResources.primitiveBuffer, 0, vk::WholeSize })),
-		sceneDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { sceneResources.nodeTransformBuffer, 0, vk::WholeSize })),
+		assetDescriptorSet.getWrite<0>(vku::unsafeProxy([&]() {
+			std::vector<vk::DescriptorImageInfo> imageInfos;
+			imageInfos.reserve(1 + gltfAsset.get().textures.size());
+
+			imageInfos.emplace_back(*sharedData.singleTexelSampler, *assetFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+			imageInfos.append_range(gltfAsset.get().textures | std::views::transform([this](const fastgltf::Texture &texture) {
+				return vk::DescriptorImageInfo {
+					[&]() {
+						if (texture.samplerIndex) return *gltfAsset.assetResources.samplers.at(*texture.samplerIndex);
+						return *assetDefaultSampler;
+					}(),
+					*gltfAsset.imageViews.at(*texture.imageIndex),
+					vk::ImageLayout::eShaderReadOnlyOptimal,
+				};
+			}));
+
+			return imageInfos;
+		}())),
+		assetDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { gltfAsset.assetResources.materialBuffer, 0, vk::WholeSize })),
+		sceneDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { gltfAsset.sceneResources.primitiveBuffer, 0, vk::WholeSize })),
+		sceneDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { gltfAsset.sceneResources.nodeTransformBuffer, 0, vk::WholeSize })),
 	}, {});
 
 	float elapsedTime = 0.f;
@@ -376,6 +325,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			.hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
 			.selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
 			.gltf = vulkan::Frame::ExecutionTask::Gltf {
+				.asset = gltfAsset.get(),
+				.indexBuffers = gltfAsset.assetResources.indexBuffers,
+				.sceneResources = gltfAsset.sceneResources,
 				.hoveringNodeIndex = appState.hoveringNodeIndex,
 				.selectedNodeIndices = appState.selectedNodeIndices,
 				.renderingNodeIndices = appState.renderingNodeIndices,
@@ -425,12 +377,95 @@ vk_gltf_viewer::MainApp::GltfAsset::DataBufferLoader::DataBufferLoader(const std
 	}
 }
 
-vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(const std::filesystem::path &path)
-	: dataBufferLoader { path }
-	, assetExpected { fastgltf::Parser{}.loadGltf(&dataBufferLoader.dataBuffer, path.parent_path()) } { }
+vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
+	const std::filesystem::path &path,
+	const vulkan::Gpu &gpu [[clang::lifetimebound]],
+	vk::CommandPool graphicsCommandPool
+) : dataBufferLoader { path },
+	assetExpected { fastgltf::Parser{}.loadGltf(&dataBufferLoader.dataBuffer, path.parent_path()) },
+	assetResources {
+		get(),
+		std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(),
+		gltf::AssetExternalBuffers { get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path() },
+		gpu,
+		{ .supportUint8Index = gpu.supportUint8Index },
+	},
+	imageViews { createAssetImageViews(gpu.device) },
+	sceneResources { assetResources, get().scenes[get().defaultScene.value_or(0)], gpu } {
+	gpu.queues.transfer.waitIdle();
+
+	vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+	vku::executeSingleCommand(*gpu.device, graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+		if (assetResources.images.empty()) return;
+
+		// Acquire resource queue family ownerships.
+		if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+				{}, {}, {},
+				assetResources.images
+					| std::views::values
+					| std::views::transform([&](vk::Image image) {
+						return vk::ImageMemoryBarrier {
+							{}, vk::AccessFlagBits::eTransferRead,
+							{}, {},
+							gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
+							image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+						};
+					})
+					| std::ranges::to<std::vector>());
+		}
+
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+			{}, {}, {},
+			assetResources.images
+				| std::views::values
+				| std::views::transform([](vk::Image image) {
+					return vk::ImageMemoryBarrier {
+						{}, vk::AccessFlagBits::eTransferRead,
+						vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+					};
+				})
+				| std::ranges::to<std::vector>());
+
+		recordBatchedMipmapGenerationCommand(cb, assetResources.images | std::views::values);
+
+		cb.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+			{}, {}, {},
+			assetResources.images
+				| std::views::values
+				| std::views::transform([](vk::Image image) {
+					return vk::ImageMemoryBarrier {
+						vk::AccessFlagBits::eTransferWrite, {},
+						{}, vk::ImageLayout::eShaderReadOnlyOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						image, vku::fullSubresourceRange(),
+					};
+				})
+				| std::ranges::to<std::vector>());
+	}, *fence);
+
+	if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0U); result != vk::Result::eSuccess) {
+		throw std::runtime_error { "Failed to generate glTF texture mipmaps." };
+	}
+}
 
 auto vk_gltf_viewer::MainApp::GltfAsset::get() noexcept -> fastgltf::Asset& {
 	return assetExpected.get();
+}
+
+auto vk_gltf_viewer::MainApp::GltfAsset::createAssetImageViews(
+	const vk::raii::Device &device
+) -> std::unordered_map<std::size_t, vk::raii::ImageView> {
+	return assetResources.images
+		| ranges::views::value_transform([&](const vku::Image &image) -> vk::raii::ImageView {
+			return { device, image.getViewCreateInfo() };
+		})
+		| std::ranges::to<std::unordered_map>();
 }
 
 auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
@@ -487,14 +522,6 @@ auto vk_gltf_viewer::MainApp::createAssetDefaultSampler() const -> vk::raii::Sam
 		{}, {},
 		{}, vk::LodClampNone,
 	} };
-}
-
-auto vk_gltf_viewer::MainApp::createAssetImageViews() -> std::unordered_map<std::size_t, vk::raii::ImageView> {
-	return assetResources.images
-		| ranges::views::value_transform([&](const vku::Image &image) -> vk::raii::ImageView {
-			return { gpu.device, image.getViewCreateInfo() };
-		})
-		| std::ranges::to<std::unordered_map>();
 }
 
 auto vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources {

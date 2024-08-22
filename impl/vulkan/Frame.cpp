@@ -18,13 +18,9 @@ constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
 
 vk_gltf_viewer::vulkan::Frame::Frame(
 	const Gpu &gpu,
-	const SharedData &sharedData,
-	const gltf::AssetResources &assetResources,
-	const gltf::SceneResources &sceneResources
+	const SharedData &sharedData
 ) : gpu { gpu },
     hoveringNodeIndexBuffer { gpu.allocator, NO_INDEX, vk::BufferUsageFlagBits::eTransferDst, vku::allocation::hostRead },
-	sceneResources { sceneResources },
-	assetResources { assetResources },
 	sharedData { sharedData } {
 	// Change initial attachment layouts.
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
@@ -413,7 +409,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 	}
 
 	if (task.gltf) {
-		const auto criteriaGetter = [this](const gltf::AssetResources::PrimitiveInfo &primitiveInfo) {
+		const auto criteriaGetter = [&](const gltf::AssetResources::PrimitiveInfo &primitiveInfo) {
 			CommandSeparationCriteria result {
 				.alphaMode = fastgltf::AlphaMode::Opaque,
 				.faceted = primitiveInfo.normalInfo.has_value(),
@@ -421,7 +417,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 				.indexType = primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
 			};
 			if (primitiveInfo.materialIndex) {
-				const fastgltf::Material &material = assetResources.asset.materials[*primitiveInfo.materialIndex];
+				const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
 				result.alphaMode = material.alphaMode;
 				result.doubleSided = material.doubleSided;
 			}
@@ -430,15 +426,15 @@ auto vk_gltf_viewer::vulkan::Frame::update(
 
 		if (renderingNodeIndices != task.gltf->renderingNodeIndices) {
 			renderingNodeIndices = std::move(task.gltf->renderingNodeIndices);
-			renderingNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, renderingNodeIndices);
+			renderingNodeIndirectDrawCommandBuffers = task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, renderingNodeIndices);
 		}
 		if (hoveringNodeIndex != task.gltf->hoveringNodeIndex) {
 			hoveringNodeIndex = task.gltf->hoveringNodeIndex;
-			hoveringNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *hoveringNodeIndex });
+			hoveringNodeIndirectDrawCommandBuffers = task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *hoveringNodeIndex });
 		}
 		if (selectedNodeIndices != task.gltf->selectedNodeIndices) {
 			selectedNodeIndices = task.gltf->selectedNodeIndices;
-			selectedNodeIndirectDrawCommandBuffers = sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, selectedNodeIndices);
+			selectedNodeIndirectDrawCommandBuffers = task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, selectedNodeIndices);
 		}
 
 		// If passthru extent is different from the current's, dependent images have to be recreated.
@@ -540,7 +536,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(
 					if (const auto &indexType = criteria.indexType) {
 						if (resourceBindingState.indexBuffer != *indexType) {
 							resourceBindingState.indexBuffer.emplace(*indexType);
-							cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+							cb.bindIndexBuffer(task.gltf->indexBuffers.at(*indexType), 0, *indexType);
 						}
 						cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 					}
@@ -587,7 +583,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(
 				if (const auto &indexType = criteria.indexType) {
 					if (resourceBindingState.indexBuffer != *indexType) {
 						resourceBindingState.indexBuffer.emplace(*indexType);
-						cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+						cb.bindIndexBuffer(task.gltf->indexBuffers.at(*indexType), 0, *indexType);
 					}
 					cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 				}
@@ -735,7 +731,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneDrawCommands(
 		if (const auto &indexType = criteria.indexType) {
 			if (currentIndexBuffer != *indexType) {
 				currentIndexBuffer.emplace(*indexType);
-				cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+				cb.bindIndexBuffer(task.gltf->indexBuffers.at(*indexType), 0, *indexType);
 			}
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}
@@ -772,7 +768,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneDrawCommands(
 		if (const auto &indexType = criteria.indexType) {
 			if (currentIndexBuffer != *indexType) {
 				currentIndexBuffer.emplace(*indexType);
-				cb.bindIndexBuffer(assetResources.indexBuffers.at(*indexType), 0, *indexType);
+				cb.bindIndexBuffer(task.gltf->indexBuffers.at(*indexType), 0, *indexType);
 			}
 			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
 		}

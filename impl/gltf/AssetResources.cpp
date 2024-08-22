@@ -15,7 +15,6 @@ import std;
 import ranges;
 import thread_pool;
 import :gltf.algorithm.MikktSpaceInterface;
-import :gltf.AssetExternalBuffers;
 import :io.StbDecoder;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
@@ -66,14 +65,6 @@ using namespace std::string_view_literals;
         })
         | std::ranges::to<std::vector>();
 }
-
-vk_gltf_viewer::gltf::AssetResources::AssetResources(
-    const fastgltf::Asset &asset,
-    const std::filesystem::path &assetDir,
-    const vulkan::Gpu &gpu,
-    const Config &config
-) : AssetResources { asset, assetDir, AssetExternalBuffers { asset, assetDir }, gpu, config } { }
-
 vk_gltf_viewer::gltf::AssetResources::AssetResources(
     const fastgltf::Asset &asset,
     const std::filesystem::path &assetDir,

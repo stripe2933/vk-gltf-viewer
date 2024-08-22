@@ -8,7 +8,7 @@ import std;
 export import glm;
 import thread_pool;
 export import vku;
-import :gltf.AssetExternalBuffers;
+export import :gltf.AssetExternalBuffers;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::gltf {
@@ -70,11 +70,9 @@ namespace vk_gltf_viewer::gltf {
         std::optional<vku::AllocatedBuffer> tangentBuffer;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
-        AssetResources(const fastgltf::Asset &asset [[clang::lifetimebound]], const std::filesystem::path &assetDir, const vulkan::Gpu &gpu [[clang::lifetimebound]], const Config &config = {});
+        AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, const Config &config = {}, BS::thread_pool threadPool = {});
 
     private:
-        AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, const Config &config, BS::thread_pool threadPool = {});
-
         [[nodiscard]] auto createPrimitiveInfos(const fastgltf::Asset &asset) const -> decltype(primitiveInfos);
         [[nodiscard]] auto createImages(const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, vma::Allocator allocator, BS::thread_pool &threadPool) const -> std::unordered_map<std::size_t, vku::AllocatedImage>;
         [[nodiscard]] auto createSamplers(const vk::raii::Device &device) const -> std::unordered_map<std::size_t, vk::raii::Sampler>;

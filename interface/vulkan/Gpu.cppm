@@ -54,6 +54,8 @@ namespace vk_gltf_viewer::vulkan {
 	};
 
 	export struct Gpu : vku::Gpu<QueueFamilies, Queues> {
+		bool supportUint8Index;
+
 		Gpu(const vk::raii::Instance &instance [[clang::lifetimebound]], vk::SurfaceKHR surface)
 			: vku::Gpu<QueueFamilies, Queues> { instance, Config {
 				.verbose = true,
@@ -100,6 +102,11 @@ namespace vk_gltf_viewer::vulkan {
 				},
 				.allocatorCreateFlags = vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
 				.apiVersion = vk::makeApiVersion(0, 1, 2, 0),
-			} } { }
+			} } {
+			const vk::StructureChain physicalDeviceFeatures = physicalDevice.getFeatures2<
+				vk::PhysicalDeviceFeatures2,
+				vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
+			supportUint8Index = physicalDeviceFeatures.get<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>().indexTypeUint8;
+		}
     };
 };

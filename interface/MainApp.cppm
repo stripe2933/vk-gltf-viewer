@@ -24,7 +24,8 @@ namespace vk_gltf_viewer {
 		auto run() -> void;
 
 	private:
-		struct GltfAsset {
+		class GltfAsset {
+		public:
 			struct DataBufferLoader {
 				fastgltf::GltfDataBuffer dataBuffer;
 
@@ -33,10 +34,16 @@ namespace vk_gltf_viewer {
 
 			DataBufferLoader dataBufferLoader;
 			fastgltf::Expected<fastgltf::Asset> assetExpected;
+			gltf::AssetResources assetResources;
+	        std::unordered_map<std::size_t, vk::raii::ImageView> imageViews;
+    		gltf::SceneResources sceneResources;
 
-			explicit GltfAsset(const std::filesystem::path &path);
+			explicit GltfAsset(const std::filesystem::path &path, const vulkan::Gpu &gpu [[clang::lifetimebound]], vk::CommandPool graphicsCommandPool);
 
 			[[nodiscard]] auto get() noexcept -> fastgltf::Asset&;
+
+		private:
+			[[nodiscard]] auto createAssetImageViews(const vk::raii::Device &device) -> std::unordered_map<std::size_t, vk::raii::ImageView>;
 		};
 		
 		struct SkyboxResources {
@@ -56,19 +63,20 @@ namespace vk_gltf_viewer {
 
 	    AppState appState;
 
-		GltfAsset gltfAsset { std::getenv("GLTF_PATH") };
-
 		vk::raii::Context context;
 		vk::raii::Instance instance = createInstance();
 		control::AppWindow window { instance, appState };
 		vulkan::Gpu gpu { instance, window.getSurface() };
 
+		// Command pools.
+		vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
+		vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
+		vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+
 		vku::AllocatedImage assetFallbackImage = createAssetFallbackImage();
 		vk::raii::ImageView assetFallbackImageView { gpu.device, assetFallbackImage.getViewCreateInfo() };
 		vk::raii::Sampler assetDefaultSampler = createAssetDefaultSampler();
-		gltf::AssetResources assetResources { gltfAsset.get(), std::filesystem::path { std::getenv("GLTF_PATH") }.parent_path(), gpu, { .supportUint8Index = false /* TODO: change this value depend on vk::PhysicalDeviceIndexTypeUint8FeaturesKHR */ } };
-        std::unordered_map<std::size_t, vk::raii::ImageView> assetImageViews = createAssetImageViews();
-    	gltf::SceneResources sceneResources { assetResources, gltfAsset.get().scenes[gltfAsset.get().defaultScene.value_or(0)], gpu };
+		GltfAsset gltfAsset { std::getenv("GLTF_PATH"), gpu, *graphicsCommandPool };
 		ImageBasedLightingResources imageBasedLightingResources = createDefaultImageBasedLightingResources();
 		std::optional<SkyboxResources> skyboxResources{};
 
@@ -85,12 +93,9 @@ namespace vk_gltf_viewer {
 		vulkan::dsl::Scene sceneDescriptorSetLayout { gpu.device };
 		vulkan::dsl::Skybox skyboxDescriptorSetLayout { gpu.device, cubemapSampler };
 
-		// Descriptor/command pools.
+		// Descriptor pools.
     	vk::raii::DescriptorPool descriptorPool = createDescriptorPool();
     	vk::raii::DescriptorPool imGuiDescriptorPool = createImGuiDescriptorPool();
-		vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-		vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
-		vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
 
 		// Descriptor sets.
 		vku::DescriptorSet<vulkan::dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
@@ -99,7 +104,6 @@ namespace vk_gltf_viewer {
 		[[nodiscard]] auto createInstance() const -> decltype(instance);
 		[[nodiscard]] auto createAssetFallbackImage() const -> vku::AllocatedImage;
 		[[nodiscard]] auto createAssetDefaultSampler() const -> vk::raii::Sampler;
-		[[nodiscard]] auto createAssetImageViews() -> std::unordered_map<std::size_t, vk::raii::ImageView>;
 		[[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
 		[[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;
     	[[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
