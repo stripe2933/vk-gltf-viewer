@@ -19,7 +19,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
     struct MikktSpaceMesh {
         const fastgltf::Asset &asset;
         const fastgltf::Accessor &indicesAccessor, &positionAccessor, &normalAccessor, &texcoordAccessor;
-        BufferDataAdapter bufferDataAdaptor;
+        const BufferDataAdapter &bufferDataAdaptor;
         std::vector<glm::vec4> tangents = std::vector<glm::vec4>(positionAccessor.count);
     };
 

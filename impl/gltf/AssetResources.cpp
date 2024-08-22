@@ -22,6 +22,12 @@ import :io.StbDecoder;
 using namespace std::views;
 using namespace std::string_view_literals;
 
+template <typename T, typename U>
+[[nodiscard]] auto as_span(std::span<U> span) -> std::span<T> {
+    assert(span.size_bytes() % sizeof(T) == 0 && "Span size mismatch: span of T does not fully fit into the current span.");
+    return { reinterpret_cast<T*>(span.data()), span.size_bytes() / sizeof(T) };
+}
+
 [[nodiscard]] auto createStagingDstBuffer(
     vma::Allocator allocator,
     const vku::Buffer &srcBuffer,
@@ -176,8 +182,9 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
                     throw std::runtime_error { "Unsupported image MIME type" };
                 }
 
-                const std::span bufferViewBytes = externalBuffers.getByteRegion(asset.bufferViews[bufferView.bufferViewIndex]);
-                if (!stbi_info_from_memory(bufferViewBytes.data(), bufferViewBytes.size(), &width, &height, &channels)) {
+                const std::span imageDataBuffer = as_span<const std::uint8_t>(
+                    externalBuffers.getByteRegion(asset.bufferViews[bufferView.bufferViewIndex]));
+                if (!stbi_info_from_memory(imageDataBuffer.data(), imageDataBuffer.size(), &width, &height, &channels)) {
                     throw std::runtime_error { std::format("Failed to get the image info: {}", stbi_failure_reason()) };
                 }
             },
@@ -470,7 +477,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
     attributeBuffers = createStagingDstBuffers(
         gpu.allocator,
         stagingBuffer,
-        ranges::views::zip_transform([](std::span<const std::uint8_t> bufferViewBytes, vk::DeviceSize srcOffset) {
+        ranges::views::zip_transform([](std::span<const std::byte> bufferViewBytes, vk::DeviceSize srcOffset) {
             return std::tuple {
                 srcOffset,
                 bufferViewBytes.size(),
@@ -610,11 +617,6 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
     vk::CommandBuffer copyCommandBuffer,
     BS::thread_pool &threadPool
 ) -> void {
-    const auto bufferDeviceAdapter = [&](const fastgltf::Buffer &buffer) {
-        const std::size_t bufferIndex = &buffer - asset.buffers.data();
-        return reinterpret_cast<const std::byte*>(externalBuffers.bytes[bufferIndex].data());
-    };
-
     std::vector missingTangentMeshes
         = primitiveInfos
         | filter([&](const auto &keyValue) {
@@ -645,7 +647,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
                 asset.accessors[pPrimitive->findAttribute("POSITION")->second],
                 asset.accessors[normalIt->second],
                 asset.accessors[texcoordIt->second],
-                bufferDeviceAdapter,
+                externalBuffers,
             };
         })
         | std::ranges::to<std::vector>();
@@ -658,9 +660,9 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
             = [indexType = mesh.indicesAccessor.componentType]() -> SMikkTSpaceInterface* {
                 switch (indexType) {
                     case fastgltf::ComponentType::UnsignedShort:
-                        return &algorithm::mikktSpaceInterface<std::uint16_t, decltype(bufferDeviceAdapter)>;
+                        return &algorithm::mikktSpaceInterface<std::uint16_t, AssetExternalBuffers>;
                     case fastgltf::ComponentType::UnsignedInt:
-                        return &algorithm::mikktSpaceInterface<std::uint32_t, decltype(bufferDeviceAdapter)>;
+                        return &algorithm::mikktSpaceInterface<std::uint32_t, AssetExternalBuffers>;
                     default:
                         throw std::runtime_error{ "Unsupported index type" };
                 }
@@ -701,7 +703,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
     // Index data is either
     // - span of the buffer view region, or
     // - vector of uint16 indices if accessor have unsigned byte component and native uint8 index is not supported.
-    std::unordered_map<vk::IndexType, std::vector<std::pair<const fastgltf::Primitive*, std::variant<std::span<const std::uint8_t>, std::vector<std::uint16_t>>>>> indexBufferBytesByType;
+    std::vector<std::vector<std::uint16_t>> generated16BitIndices;
+    std::unordered_map<vk::IndexType, std::vector<std::pair<const fastgltf::Primitive*, std::span<const std::byte>>>> indexBufferBytesByType;
 
     // Get buffer view bytes from indexedPrimtives and group them by index type.
     for (const fastgltf::Primitive &primitive : indexedPrimitives) {
@@ -720,44 +723,31 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
         }
         if (isIndexInterleaved) throw std::runtime_error { "Interleaved index buffer not supported" };
 
-        switch (accessor.componentType) {
-            case fastgltf::ComponentType::UnsignedByte: {
-                if (supportUint8Index) {
-                    indexBufferBytesByType[vk::IndexType::eUint8KHR].emplace_back(
-                        &primitive,
-                        externalBuffers.getByteRegion(asset.bufferViews[*accessor.bufferViewIndex])
-                            .subspan(accessor.byteOffset, accessor.count * componentByteSize));
-                }
-                else {
-                    // Make vector of uint16 indices.
-                    std::vector<std::uint16_t> indices(accessor.count);
-                    iterateAccessorWithIndex<std::uint8_t>(asset, accessor, [&](std::size_t i, std::uint8_t index) {
-                        indices[i] = index; // Index converted from uint8 to uint16.
-                    }, [&](const fastgltf::Buffer &buffer) {
-                        const std::size_t bufferIndex = &buffer - asset.buffers.data();
-                        return reinterpret_cast<const std::byte*>(externalBuffers.bytes[bufferIndex].data());
-                    });
+        if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !supportUint8Index) {
+            // Make vector of uint16 indices.
+            std::vector<std::uint16_t> indices(accessor.count);
+            iterateAccessorWithIndex<std::uint8_t>(asset, accessor, [&](std::size_t i, std::uint8_t index) {
+                indices[i] = index; // Index converted from uint8 to uint16.
+            }, externalBuffers);
 
-                    indexBufferBytesByType[vk::IndexType::eUint16].emplace_back(
-                        &primitive,
-                        std::move(indices));
+            indexBufferBytesByType[vk::IndexType::eUint16].emplace_back(
+                &primitive,
+                as_bytes(std::span { generated16BitIndices.emplace_back(std::move(indices)) }));
+        }
+        else {
+            const vk::IndexType indexType = [&]() -> vk::IndexType {
+                switch (accessor.componentType) {
+                    case fastgltf::ComponentType::UnsignedByte: return vk::IndexType::eUint8KHR;
+                    case fastgltf::ComponentType::UnsignedShort: return vk::IndexType::eUint16;
+                    case fastgltf::ComponentType::UnsignedInt: return vk::IndexType::eUint32;
+                    default: throw std::runtime_error { "Unsupported index type: index must be either unsigned byte/short/int." };
                 }
-                break;
-            }
-            case fastgltf::ComponentType::UnsignedShort:
-                indexBufferBytesByType[vk::IndexType::eUint16].emplace_back(
-                    &primitive,
-                    externalBuffers.getByteRegion(asset.bufferViews[*accessor.bufferViewIndex])
-                        .subspan(accessor.byteOffset, accessor.count * componentByteSize));
-                break;
-            case fastgltf::ComponentType::UnsignedInt:
-                indexBufferBytesByType[vk::IndexType::eUint32].emplace_back(
-                    &primitive,
-                    externalBuffers.getByteRegion(asset.bufferViews[*accessor.bufferViewIndex])
-                        .subspan(accessor.byteOffset, accessor.count * componentByteSize));
-                break;
-            default:
-                throw std::runtime_error { "Unsupported index type: index must be either unsigned byte/short/int." };
+            }();
+
+            indexBufferBytesByType[indexType].emplace_back(
+                &primitive,
+                externalBuffers.getByteRegion(asset.bufferViews[*accessor.bufferViewIndex])
+                    .subspan(accessor.byteOffset, accessor.count * componentByteSize));
         }
     }
 
@@ -765,14 +755,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
     // commands to copyCommandBuffer.
     indexBuffers = indexBufferBytesByType
         | ranges::views::decompose_transform([&](vk::IndexType indexType, const auto &bufferBytes) {
-            const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
-                gpu.allocator,
-                bufferBytes | values | transform([](const auto &variant) {
-                    return std::visit(fastgltf::visitor {
-                        [](std::span<const std::uint8_t> bufferBytes) { return as_bytes(bufferBytes); },
-                        [](std::span<const std::uint16_t> indices) { return as_bytes(indices); },
-                    }, variant);
-                }));
+            const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(gpu.allocator, bufferBytes | values);
             auto indexBuffer = createStagingDstBuffer(gpu.allocator, stagingBuffer, vk::BufferUsageFlagBits::eIndexBuffer, gpu.queueFamilies.getUniqueIndices(), copyCommandBuffer);
 
             for (auto [pPrimitive, offset] : zip(bufferBytes | keys, copyOffsets)) {
