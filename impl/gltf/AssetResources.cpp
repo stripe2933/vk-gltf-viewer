@@ -456,7 +456,6 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
             // Check accessor validity.
             if (accessor.sparse) throw std::runtime_error { "Sparse attribute accessor not supported" };
             if (accessor.normalized) throw std::runtime_error { "Normalized attribute accessor not supported" };
-            if (!accessor.bufferViewIndex) throw std::runtime_error { "Missing attribute accessor buffer view index" };
 
             return *accessor.bufferViewIndex;
         })
@@ -715,7 +714,6 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
         // Check accessor validity.
         if (accessor.sparse) throw std::runtime_error { "Sparse indices accessor not supported" };
         if (accessor.normalized) throw std::runtime_error { "Normalized indices accessor not supported" };
-        if (!accessor.bufferViewIndex) throw std::runtime_error { "Missing indices accessor buffer view index" };
 
         // Vulkan does not support interleaved index buffer.
         const std::size_t componentByteSize = getElementByteSize(accessor.type, accessor.componentType);
