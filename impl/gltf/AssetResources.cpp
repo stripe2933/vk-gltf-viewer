@@ -527,10 +527,12 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
             }
             // Otherwise, attributeName has form of <TEXCOORD_i> or <COLOR_i>.
             else if (constexpr auto prefix = "TEXCOORD_"sv; attributeName.starts_with(prefix)) {
-                primitiveInfo.texcoordInfos[parseIndex(attributeName.substr(prefix.size()))] = getAttributeBufferInfo();
+                const std::size_t texcoordIndex = parseIndex(std::string_view { attributeName }.substr(prefix.size()));
+                primitiveInfo.texcoordInfos[texcoordIndex] = getAttributeBufferInfo();
             }
             else if (constexpr auto prefix = "COLOR_"sv; attributeName.starts_with(prefix)) {
-                primitiveInfo.colorInfos[parseIndex(attributeName.substr(prefix.size()))] = getAttributeBufferInfo();
+                const std::size_t colorIndex = parseIndex(std::string_view { attributeName }.substr(prefix.size()));
+                primitiveInfo.colorInfos[colorIndex] = getAttributeBufferInfo();
             }
         }
     }
