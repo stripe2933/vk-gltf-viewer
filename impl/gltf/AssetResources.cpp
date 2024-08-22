@@ -659,6 +659,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
         SMikkTSpaceInterface* const pInterface
             = [indexType = mesh.indicesAccessor.componentType]() -> SMikkTSpaceInterface* {
                 switch (indexType) {
+                    case fastgltf::ComponentType::UnsignedByte:
+                        return &algorithm::mikktSpaceInterface<std::uint16_t, AssetExternalBuffers>;
                     case fastgltf::ComponentType::UnsignedShort:
                         return &algorithm::mikktSpaceInterface<std::uint16_t, AssetExternalBuffers>;
                     case fastgltf::ComponentType::UnsignedInt:
