@@ -16,7 +16,7 @@ namespace vk_gltf_viewer {
      * @see recordBatchedMipmapGenerationCommand for batched mipmap generation (efficient implementation for multiple images).
      */
     export void recordMipmapGenerationCommand(vk::CommandBuffer cb, const vku::Image &image) {
-        for (auto [srcLevel, dstLevel] : std::views::iota(0U, image.mipLevels) | ranges::views::pairwise) {
+        for (std::uint32_t srcLevel = 0, dstLevel = 1; dstLevel < image.mipLevels; ++srcLevel, ++dstLevel) {
             // Blit from srcLevel to dstLevel.
             const vk::Extent2D srcMipExtent = image.mipExtent(srcLevel);
             const vk::Extent2D dstMipExtent = image.mipExtent(dstLevel);
@@ -67,7 +67,7 @@ namespace vk_gltf_viewer {
         std::ranges::sort(pImages, {}, [](const vku::Image *pImage) { return pImage->mipLevels; });
 
         const std::uint32_t maxMipLevels = pImages.back()->mipLevels;
-        for (auto [srcLevel, dstLevel] : std::views::iota(0U, maxMipLevels) | ranges::views::pairwise) {
+        for (std::uint32_t srcLevel = 0, dstLevel = 1; dstLevel < maxMipLevels; ++srcLevel, ++dstLevel) {
             // Find the images that have the current mip level.
             auto begin = std::ranges::lower_bound(
                 pImages, dstLevel + 1U, {}, [](const vku::Image *pImage) { return pImage->mipLevels; });
