@@ -38,7 +38,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 
 	const auto [brdfmapSet] = allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(brdfmapComputer.descriptorSetLayout));
 	gpu.device.updateDescriptorSets(
-		brdfmapSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *brdfmapImageView, vk::ImageLayout::eGeneral })),
+		brdfmapSet.getWriteOne<0>({ {}, *brdfmapImageView, vk::ImageLayout::eGeneral }),
 		{});
 
 	const auto [timelineSemaphores, finalWaitValues] = vku::executeHierarchicalCommands(
@@ -129,9 +129,9 @@ vk_gltf_viewer::MainApp::MainApp() {
 		// TODO: requiring explicit const cast looks bad. vku::allocateDescriptorSets signature should be fixed.
 		std::as_const(imageBasedLightingDescriptorSetLayout)));
 	gpu.device.updateDescriptorSets({
-		imageBasedLightingDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
-		imageBasedLightingDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
-		imageBasedLightingDescriptorSet.getWrite<2>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+		imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
+		imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+		imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
 	}, {});
 
 	// Init ImGui.
@@ -231,9 +231,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
 			return imageInfos;
 		}())),
-		assetDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { gltfAsset.assetResources.materialBuffer, 0, vk::WholeSize })),
-		sceneDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { gltfAsset.sceneResources.primitiveBuffer, 0, vk::WholeSize })),
-		sceneDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { gltfAsset.sceneResources.nodeTransformBuffer, 0, vk::WholeSize })),
+		assetDescriptorSet.getWriteOne<1>({ gltfAsset.assetResources.materialBuffer, 0, vk::WholeSize }),
+		sceneDescriptorSet.getWriteOne<0>({ gltfAsset.sceneResources.primitiveBuffer, 0, vk::WholeSize }),
+		sceneDescriptorSet.getWriteOne<1>({ gltfAsset.sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
 	}, {});
 
 	float elapsedTime = 0.f;
@@ -965,8 +965,8 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 
 	// Update the related descriptor sets.
 	gpu.device.updateDescriptorSets({
-		imageBasedLightingDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
-		imageBasedLightingDescriptorSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
-		skyboxDescriptorSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+		imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
+		imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+		skyboxDescriptorSet.getWriteOne<0>({ {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
 	}, {});
 }

@@ -60,9 +60,9 @@ namespace vk_gltf_viewer::vulkan::inline generator {
 
             intermediateResources = std::make_unique<IntermediateResources>(
                 vk::raii::ImageView { gpu.device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
-                std::views::iota(0U, cubemapImage.mipLevels)
-                    | std::views::transform([&](std::uint32_t level) -> vk::raii::ImageView {
-                        return { gpu.device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, level, 1, 0, 6 }, vk::ImageViewType::eCube) };
+                cubemapImage.getMipViewCreateInfos()
+                    | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
+                        return vk::raii::ImageView { gpu.device, createInfo };
                     })
                     | std::ranges::to<std::vector>(),
                 vk::raii::DescriptorPool {
@@ -81,8 +81,8 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                     pipelines.subgroupMipmapComputer.descriptorSetLayout));
 
             gpu.device.updateDescriptorSets({
-                cubemapComputerSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *intermediateResources->eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
-                cubemapComputerSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *intermediateResources->cubemapMipImageViews[0], vk::ImageLayout::eGeneral })),
+                cubemapComputerSet.getWriteOne<0>({ {}, *intermediateResources->eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                cubemapComputerSet.getWriteOne<1>({ {}, *intermediateResources->cubemapMipImageViews[0], vk::ImageLayout::eGeneral }),
                 subgroupMipmapComputerSet.getWrite<0>(vku::unsafeProxy(
                     intermediateResources->cubemapMipImageViews
                         | std::views::transform([](vk::ImageView view) {

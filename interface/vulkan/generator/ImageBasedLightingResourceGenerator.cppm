@@ -81,9 +81,9 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 } },
                 vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
                 vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::e2DArray) },
-                std::views::iota(0U, prefilteredmapImage.mipLevels)
-                    | std::views::transform([this](std::uint32_t level) -> vk::raii::ImageView {
-                        return { gpu.device, prefilteredmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, level, 1, 0, 6 }, vk::ImageViewType::eCube) };
+                prefilteredmapImage.getMipViewCreateInfos()
+                    | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
+                        return vk::raii::ImageView { gpu.device, createInfo };
                     })
                     | std::ranges::to<std::vector>(),
                 vk::raii::DescriptorPool {
@@ -108,16 +108,16 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                     pipelines.multiplyComputer.descriptorSetLayout));
 
             gpu.device.updateDescriptorSets({
-                prefilteredmapComputerSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *intermediateResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+                prefilteredmapComputerSet.getWriteOne<0>({ {}, *intermediateResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
                 prefilteredmapComputerSet.getWrite<1>(vku::unsafeProxy(
                     intermediateResources->prefilteredmapMipImageViews
                         | std::views::transform([](vk::ImageView view) {
                             return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
                         })
                         | std::ranges::to<std::vector>())),
-                sphericalHarmonicsComputerSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo { {}, *intermediateResources->cubemapArrayImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
-                sphericalHarmonicsComputerSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize })),
-                sphericalHarmonicCoefficientsSumComputerSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize })),
+                sphericalHarmonicsComputerSet.getWriteOne<0>({ {}, *intermediateResources->cubemapArrayImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                sphericalHarmonicsComputerSet.getWriteOne<1>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
+                sphericalHarmonicCoefficientsSumComputerSet.getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
             }, {});
 
             // --------------------
@@ -166,8 +166,8 @@ namespace vk_gltf_viewer::vulkan::inline generator {
 			// sphericalHarmonicsReductionBuffer[dstOffset:dstOffset + 9 * sizeof(glm::vec3)] represents the total sum.
 			// It have to be divided by the total cubemap texel count for the average calculation.
 			gpu.device.updateDescriptorSets({
-				multiplyComputerSet.getWrite<0>(vku::unsafeProxy(vk::DescriptorBufferInfo { intermediateResources->sphericalHarmonicsReductionBuffer, sizeof(float) * 27 * dstOffset, sizeof(float) * 27 })),
-				multiplyComputerSet.getWrite<1>(vku::unsafeProxy(vk::DescriptorBufferInfo { sphericalHarmonicsBuffer, 0, vk::WholeSize })),
+				multiplyComputerSet.getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, sizeof(float) * 27 * dstOffset, sizeof(float) * 27 }),
+				multiplyComputerSet.getWriteOne<1>({ sphericalHarmonicsBuffer, 0, vk::WholeSize }),
 			}, {});
 
 			// Copy from sphericalHarmonicsReductionBuffer to sphericalHarmonicsBuffer with normalization multiplier.

@@ -123,13 +123,13 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 					hoveringNodeJumpFloodSets,
 					std::bit_ceil(static_cast<std::uint32_t>(task.hoveringNodeOutline->thickness)));
 				gpu.device.updateDescriptorSets(
-					hoveringNodeOutlineSets.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo {
+					hoveringNodeOutlineSets.getWriteOne<0>({
 						{},
 						*hoveringNodeJumpFloodForward
 							? *passthruResources->hoveringNodeOutlineJumpFloodResources.pongImageView
 							: *passthruResources->hoveringNodeOutlineJumpFloodResources.pingImageView,
 						vk::ImageLayout::eShaderReadOnlyOptimal,
-					})),
+					}),
 					{});
 			}
 			if (!selectedNodeIndices.empty() && task.selectedNodeOutline) {
@@ -139,13 +139,13 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 					selectedNodeJumpFloodSets,
 					std::bit_ceil(static_cast<std::uint32_t>(task.selectedNodeOutline->thickness)));
 				gpu.device.updateDescriptorSets(
-					selectedNodeOutlineSets.getWrite<0>(vku::unsafeProxy(vk::DescriptorImageInfo {
+					selectedNodeOutlineSets.getWriteOne<0>({
 						{},
 						*selectedNodeJumpFloodForward
 							? *passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView
 							: *passthruResources->selectedNodeOutlineJumpFloodResources.pingImageView,
 						vk::ImageLayout::eShaderReadOnlyOptimal,
-					})),
+					}),
 					{});
 			}
 		}
