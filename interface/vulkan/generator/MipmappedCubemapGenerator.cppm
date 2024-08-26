@@ -60,7 +60,7 @@ namespace vk_gltf_viewer::vulkan::inline generator {
 
             intermediateResources = std::make_unique<IntermediateResources>(
                 vk::raii::ImageView { gpu.device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
-                cubemapImage.getMipViewCreateInfos()
+                cubemapImage.getMipViewCreateInfos(vk::ImageViewType::eCube)
                     | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
                         return vk::raii::ImageView { gpu.device, createInfo };
                     })

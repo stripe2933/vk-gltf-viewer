@@ -81,7 +81,7 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 } },
                 vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
                 vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::e2DArray) },
-                prefilteredmapImage.getMipViewCreateInfos()
+                prefilteredmapImage.getMipViewCreateInfos(vk::ImageViewType::eCube)
                     | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
                         return vk::raii::ImageView { gpu.device, createInfo };
                     })
