@@ -44,6 +44,10 @@ namespace vk_gltf_viewer {
         bool canSelectSkyboxBackground = false; // TODO: bad design... this and background should be handled in a single field.
         full_optional<glm::vec3> background { std::in_place, 0.f, 0.f, 0.f }; // nullopt -> use cubemap from the given equirectangular map image.
         std::optional<ImageBasedLighting> imageBasedLightingProperties;
+        bool useTristateVisibility = true;
+
+        std::optional<std::size_t> imGuiAssetInspectorMaterialIndex;
+        std::optional<std::size_t> imGuiAssetInspectorSceneIndex;
 
         AppState() noexcept;
     };

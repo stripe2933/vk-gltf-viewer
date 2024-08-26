@@ -44,7 +44,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 	});
 
 	// Allocate descriptor sets.
-	std::tie(hoveringNodeJumpFloodSets, selectedNodeJumpFloodSets, hoveringNodeOutlineSets, selectedNodeOutlineSets)
+	std::tie(hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet)
 		= allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
 			sharedData.jumpFloodComputer.descriptorSetLayout,
 			sharedData.jumpFloodComputer.descriptorSetLayout,
@@ -68,33 +68,85 @@ vk_gltf_viewer::vulkan::Frame::Frame(
 		| ranges::to_array<3>();
 }
 
+auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateResult {
+	UpdateResult result{};
+
+	if (task.handleSwapchainResize) {
+		// Attachment images that have to be matched to the swapchain extent must be recreated.
+		sceneMsaaImage = createSceneMsaaImage();
+		sceneDepthImage = createSceneDepthImage();
+		sceneAttachmentGroups = createSceneAttachmentGroups();
+	}
+
+	// Get node index under the cursor from hoveringNodeIndexBuffer.
+	// If it is not NO_INDEX (i.e. node index is found), update hoveringNodeIndex.
+	if (auto value = std::exchange(hoveringNodeIndexBuffer.asValue<std::uint32_t>(), NO_INDEX); value != NO_INDEX) {
+		result.hoveringNodeIndex = value;
+	}
+
+	// If there is a glTF scene to be rendered, related resources have to be updated.
+	if (task.gltf) {
+		const auto criteriaGetter = [&](const gltf::AssetResources::PrimitiveInfo &primitiveInfo) {
+			CommandSeparationCriteria result {
+				.alphaMode = fastgltf::AlphaMode::Opaque,
+				.faceted = primitiveInfo.normalInfo.has_value(),
+				.doubleSided = false,
+				.indexType = primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
+			};
+			if (primitiveInfo.materialIndex) {
+				const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
+				result.alphaMode = material.alphaMode;
+				result.doubleSided = material.doubleSided;
+			}
+			return result;
+		};
+
+		if (renderingNodeIndices != task.gltf->renderingNodeIndices) {
+			renderingNodeIndices = std::move(task.gltf->renderingNodeIndices);
+			renderingNodeIndirectDrawCommandBuffers = task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, renderingNodeIndices);
+		}
+		if (hoveringNodeIndex != task.gltf->hoveringNodeIndex) {
+			hoveringNodeIndex = task.gltf->hoveringNodeIndex;
+			hoveringNodeIndirectDrawCommandBuffers = task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *hoveringNodeIndex });
+		}
+		if (selectedNodeIndices != task.gltf->selectedNodeIndices) {
+			selectedNodeIndices = task.gltf->selectedNodeIndices;
+			selectedNodeIndirectDrawCommandBuffers = task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, selectedNodeIndices);
+		}
+	}
+
+	// If passthru extent is different from the current's, dependent images have to be recreated.
+	if (!passthruExtent || *passthruExtent != task.passthruRect.extent) {
+		passthruExtent.emplace(task.passthruRect.extent);
+		vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+			passthruResources.emplace(gpu, *passthruExtent, cb);
+		});
+
+		gpu.device.updateDescriptorSets({
+			hoveringNodeJumpFloodSet.getWrite<0>(vku::unsafeProxy({
+				vk::DescriptorImageInfo { {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.pingImageView, vk::ImageLayout::eGeneral },
+				vk::DescriptorImageInfo { {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.pongImageView, vk::ImageLayout::eGeneral },
+			})),
+			selectedNodeJumpFloodSet.getWrite<0>(vku::unsafeProxy({
+				vk::DescriptorImageInfo { {}, *passthruResources->selectedNodeOutlineJumpFloodResources.pingImageView, vk::ImageLayout::eGeneral },
+				vk::DescriptorImageInfo { {}, *passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView, vk::ImageLayout::eGeneral },
+			})),
+		}, {});
+	}
+
+	return result;
+}
+
 auto vk_gltf_viewer::vulkan::Frame::execute(
 	const ExecutionTask &task
-) -> std::expected<ExecutionResult, ExecutionError> {
-	constexpr std::uint64_t MAX_TIMEOUT = std::numeric_limits<std::uint64_t>::max();
-
-	// Wait for the previous frame execution to finish.
-	if (auto result = gpu.device.waitForFences(*inFlightFence, true, MAX_TIMEOUT); result != vk::Result::eSuccess) {
-		throw std::runtime_error{ std::format("Failed to wait for in-flight fence: {}", to_string(result)) };
-	}
-	gpu.device.resetFences(*inFlightFence);
-
-	ExecutionResult result{};
-
-	if (task.swapchainResizeHandleInfo) {
-		handleSwapchainResize(task.swapchainResizeHandleInfo->first, task.swapchainResizeHandleInfo->second);
-	}
-
-	// Update per-frame resources.
-	update(task, result);
-
+) -> bool {
 	// Acquire the next swapchain image.
 	std::uint32_t imageIndex;
 	try {
-		imageIndex = (*gpu.device).acquireNextImageKHR(*sharedData.swapchain, MAX_TIMEOUT, *swapchainImageAcquireSema).value;
+		imageIndex = (*gpu.device).acquireNextImageKHR(*sharedData.swapchain, ~0ULL, *swapchainImageAcquireSema).value;
 	}
 	catch (const vk::OutOfDateKHRError&) {
-		return std::unexpected { ExecutionError::SwapchainAcquireFailed };
+		return false;
 	}
 
 	// Record commands.
@@ -120,10 +172,10 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 				hoveringNodeJumpFloodForward = recordJumpFloodComputeCommands(
 					jumpFloodCommandBuffer,
 					passthruResources->hoveringNodeOutlineJumpFloodResources.image,
-					hoveringNodeJumpFloodSets,
+					hoveringNodeJumpFloodSet,
 					std::bit_ceil(static_cast<std::uint32_t>(task.hoveringNodeOutline->thickness)));
 				gpu.device.updateDescriptorSets(
-					hoveringNodeOutlineSets.getWriteOne<0>({
+					hoveringNodeOutlineSet.getWriteOne<0>({
 						{},
 						*hoveringNodeJumpFloodForward
 							? *passthruResources->hoveringNodeOutlineJumpFloodResources.pongImageView
@@ -136,10 +188,10 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 				selectedNodeJumpFloodForward = recordJumpFloodComputeCommands(
 					jumpFloodCommandBuffer,
 					passthruResources->selectedNodeOutlineJumpFloodResources.image,
-					selectedNodeJumpFloodSets,
+					selectedNodeJumpFloodSet,
 					std::bit_ceil(static_cast<std::uint32_t>(task.selectedNodeOutline->thickness)));
 				gpu.device.updateDescriptorSets(
-					selectedNodeOutlineSets.getWriteOne<0>({
+					selectedNodeOutlineSet.getWriteOne<0>({
 						{},
 						*selectedNodeJumpFloodForward
 							? *passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView
@@ -168,7 +220,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 			});
 
 		vk::ClearColorValue backgroundColor { 0.f, 0.f, 0.f, 0.f };
-		if (auto clearColor = get_if<glm::vec3>(&task.background)) {
+		if (const auto &clearColor = task.solidBackground) {
 			backgroundColor.setFloat32({ clearColor->x, clearColor->y, clearColor->z, 1.f });
 		}
 		sceneRenderingCommandBuffer.beginRenderingKHR(sceneAttachmentGroups[imageIndex].getRenderingInfo(
@@ -189,7 +241,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 		if (task.gltf) {
 			recordSceneDrawCommands(sceneRenderingCommandBuffer, task);
 		}
-		if (holds_alternative<vku::DescriptorSet<dsl::Skybox>>(task.background)) {
+		if (!task.solidBackground) {
 			recordSkyboxDrawCommands(sceneRenderingCommandBuffer, task);
 		}
 
@@ -272,15 +324,14 @@ auto vk_gltf_viewer::vulkan::Frame::execute(
 		// The result codes VK_ERROR_OUT_OF_DATE_KHR and VK_SUBOPTIMAL_KHR have the same meaning when
 		// returned by vkQueuePresentKHR as they do when returned by vkAcquireNextImageKHR.
 		if (gpu.queues.graphicsPresent.presentKHR({ *compositeFinishSema, *sharedData.swapchain, imageIndex }) == vk::Result::eSuboptimalKHR) {
-			throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
+			return false;
 		}
-		result.presentSuccess = true;
 	}
 	catch (const vk::OutOfDateKHRError&) {
-		result.presentSuccess = false;
+		return false;
 	}
 
-	return std::move(result);
+	return true;
 }
 
 vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodResources(
@@ -302,15 +353,6 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodR
 	} },
 	pingImageView { gpu.device, image.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
 	pongImageView { gpu.device, image.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 }) } { }
-
-auto vk_gltf_viewer::vulkan::Frame::handleSwapchainResize(
-	vk::SurfaceKHR surface,
-	const vk::Extent2D &newExtent
-) -> void {
-	sceneMsaaImage = createSceneMsaaImage();
-	sceneDepthImage = createSceneDepthImage();
-	sceneAttachmentGroups = createSceneAttachmentGroups();
-}
 
 vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
 	const Gpu &gpu,
@@ -398,67 +440,6 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(des
 	};
 }
 
-auto vk_gltf_viewer::vulkan::Frame::update(
-    const ExecutionTask &task,
-	ExecutionResult &result
-) -> void {
-	// Get node index under the cursor from hoveringNodeIndexBuffer.
-	// If it is not NO_INDEX (i.e. node index is found), update hoveringNodeIndex.
-	if (auto value = std::exchange(hoveringNodeIndexBuffer.asValue<std::uint32_t>(), NO_INDEX); value != NO_INDEX) {
-		result.hoveringNodeIndex = value;
-	}
-
-	if (task.gltf) {
-		const auto criteriaGetter = [&](const gltf::AssetResources::PrimitiveInfo &primitiveInfo) {
-			CommandSeparationCriteria result {
-				.alphaMode = fastgltf::AlphaMode::Opaque,
-				.faceted = primitiveInfo.normalInfo.has_value(),
-				.doubleSided = false,
-				.indexType = primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
-			};
-			if (primitiveInfo.materialIndex) {
-				const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
-				result.alphaMode = material.alphaMode;
-				result.doubleSided = material.doubleSided;
-			}
-			return result;
-		};
-
-		if (renderingNodeIndices != task.gltf->renderingNodeIndices) {
-			renderingNodeIndices = std::move(task.gltf->renderingNodeIndices);
-			renderingNodeIndirectDrawCommandBuffers = task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, renderingNodeIndices);
-		}
-		if (hoveringNodeIndex != task.gltf->hoveringNodeIndex) {
-			hoveringNodeIndex = task.gltf->hoveringNodeIndex;
-			hoveringNodeIndirectDrawCommandBuffers = task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *hoveringNodeIndex });
-		}
-		if (selectedNodeIndices != task.gltf->selectedNodeIndices) {
-			selectedNodeIndices = task.gltf->selectedNodeIndices;
-			selectedNodeIndirectDrawCommandBuffers = task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, selectedNodeIndices);
-		}
-
-		// If passthru extent is different from the current's, dependent images have to be recreated.
-		if (!passthruExtent || *passthruExtent != task.passthruRect.extent) {
-			passthruExtent.emplace(task.passthruRect.extent);
-			vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-				passthruResources.emplace(gpu, *passthruExtent, cb);
-			});
-			gpu.queues.graphicsPresent.waitIdle(); // TODO: idling while frame execution is very inefficient.
-
-			gpu.device.updateDescriptorSets({
-				hoveringNodeJumpFloodSets.getWrite<0>(vku::unsafeProxy({
-					vk::DescriptorImageInfo { {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.pingImageView, vk::ImageLayout::eGeneral },
-					vk::DescriptorImageInfo { {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.pongImageView, vk::ImageLayout::eGeneral },
-				})),
-				selectedNodeJumpFloodSets.getWrite<0>(vku::unsafeProxy({
-					vk::DescriptorImageInfo { {}, *passthruResources->selectedNodeOutlineJumpFloodResources.pingImageView, vk::ImageLayout::eGeneral },
-					vk::DescriptorImageInfo { {}, *passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView, vk::ImageLayout::eGeneral },
-				})),
-			}, {});
-		}
-	}
-}
-
 auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(
 	vk::CommandBuffer cb,
 	const ExecutionTask &task
@@ -518,7 +499,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(
 					}
 
 					if (!resourceBindingState.sceneDescriptorSetBound) {
-						cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *opaqueOrBlendRenderer.pipelineLayout, 0, task.gltf->sceneDescriptorSet, {});
+						cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *opaqueOrBlendRenderer.pipelineLayout, 0, sharedData.sceneDescriptorSet, {});
 						resourceBindingState.sceneDescriptorSetBound = true;
 					}
 
@@ -558,14 +539,14 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(
 
 				if (!resourceBindingState.sceneDescriptorSetBound) {
 					cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *maskedRenderer.pipelineLayout,
-						0, { task.gltf->sceneDescriptorSet, task.gltf->assetDescriptorSet }, {});
+						0, { sharedData.sceneDescriptorSet, sharedData.assetDescriptorSet }, {});
 					resourceBindingState.sceneDescriptorSetBound = true;
 				}
 				else if (!resourceBindingState.assetDescriptorSetBound) {
 					// Scene descriptor set already bound by DepthRenderer, therefore binding only asset descriptor set (in set #1)
 					// is enough.
 					cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *maskedRenderer.pipelineLayout,
-						1, task.gltf->assetDescriptorSet, {});
+						1, sharedData.assetDescriptorSet, {});
 					resourceBindingState.assetDescriptorSetBound = true;
 				}
 
@@ -663,7 +644,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(
 auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
 	vk::CommandBuffer cb,
 	const vku::Image &image,
-	vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSets,
+	vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSet,
 	std::uint32_t initialSampleOffset
 ) const -> bool {
 	cb.pipelineBarrier(
@@ -685,7 +666,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
 		});
 
 	// Compute jump flood and get the last execution direction.
-	return sharedData.jumpFloodComputer.compute(cb, descriptorSets, initialSampleOffset, vku::toExtent2D(image.extent));
+	return sharedData.jumpFloodComputer.compute(cb, descriptorSet, initialSampleOffset, vku::toExtent2D(image.extent));
 }
 
 auto vk_gltf_viewer::vulkan::Frame::recordSceneDrawCommands(
@@ -716,7 +697,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneDrawCommands(
 		}
 		if (!descriptorBound) {
 			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0,
-				{ task.imageBasedLightingDescriptorSet, task.gltf->assetDescriptorSet, task.gltf->sceneDescriptorSet }, {});
+				{ sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
 			descriptorBound = true;
 		}
 		if (!pushConstantBound) {
@@ -753,7 +734,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneDrawCommands(
 		}
 		if (!descriptorBound) {
 			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0,
-				{ task.imageBasedLightingDescriptorSet, task.gltf->assetDescriptorSet, task.gltf->sceneDescriptorSet }, {});
+				{ sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
 			descriptorBound = true;
 		}
 		if (!pushConstantBound) {
@@ -783,12 +764,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(
 	vk::CommandBuffer cb,
 	const ExecutionTask &task
 ) const -> void {
-	assert(holds_alternative<vku::DescriptorSet<dsl::Skybox>>(task.background)
-		&& "Skybox drawing requested, but no skybox descriptor set (task.background with alternative type=vku::DescriptorSet<dsl::Skybox>) is available.");
-
 	// Draw skybox.
 	const glm::mat4 noTranslationView = { glm::mat3 { task.camera.view } };
-	sharedData.skyboxRenderer.draw(cb, get<vku::DescriptorSet<dsl::Skybox>>(task.background), {
+	sharedData.skyboxRenderer.draw(cb, sharedData.skyboxDescriptorSet, {
 		task.camera.projection * noTranslationView,
 	});
 }
@@ -848,7 +826,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
 			sharedData.outlineRenderer.bindPipeline(cb);
 			pipelineBound = true;
 		}
-		sharedData.outlineRenderer.bindDescriptorSets(cb, selectedNodeOutlineSets);
+		sharedData.outlineRenderer.bindDescriptorSets(cb, selectedNodeOutlineSet);
 		sharedData.outlineRenderer.pushConstants(cb, {
 			.outlineColor = task.selectedNodeOutline->color,
 			.passthruOffset = { task.passthruRect.offset.x, task.passthruRect.offset.y },
@@ -868,7 +846,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
 			pipelineBound = true;
 		}
 
-		sharedData.outlineRenderer.bindDescriptorSets(cb, hoveringNodeOutlineSets);
+		sharedData.outlineRenderer.bindDescriptorSets(cb, hoveringNodeOutlineSet);
 		sharedData.outlineRenderer.pushConstants(cb, {
 			.outlineColor = task.hoveringNodeOutline->color,
 			.passthruOffset = { task.passthruRect.offset.x, task.passthruRect.offset.y },

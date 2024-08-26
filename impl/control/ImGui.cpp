@@ -30,6 +30,10 @@ struct cstring_view {
     cstring_view(const std::pmr::string &str) noexcept : data { str.c_str() } { }
     cstring_view(const cstring_view&) noexcept = default;
     auto operator=(const cstring_view&) noexcept -> cstring_view& = default;
+
+    [[nodiscard]] operator const char*() const noexcept {
+        return data;
+    }
 };
 
 namespace ImGui {
@@ -425,7 +429,7 @@ auto vk_gltf_viewer::control::imgui::assetBufferViews(fastgltf::Asset &asset) ->
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
                 ImGui::TableSetColumnIndex(2);
-                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.buffers[bufferView.bufferIndex].name, [&] { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })).data)) {
+                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.buffers[bufferView.bufferIndex].name, [&] { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })))) {
                     // TODO
                 }
                 ImGui::PopID();
@@ -610,14 +614,26 @@ auto vk_gltf_viewer::control::imgui::assetSamplers(fastgltf::Asset &asset) -> vo
     ImGui::End();
 }
 
-auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, std::span<const vk::DescriptorSet> assetTextures) -> void {
+auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, AppState &appState, std::span<const vk::DescriptorSet> assetTextures) -> void {
     if (ImGui::Begin("Materials")) {
-        static int materialIndex = asset.materials.empty() ? -1 : 0;
-        if (ImGui::BeginCombo("Material", materialIndex == -1 ? "<empty>" : visit_as<cstring_view>(nonempty_or(asset.materials[materialIndex].name, [&] { return std::format("<Unnamed material {}>", materialIndex); })).data)) {
+        const bool isComboBoxOpened = [&]() {
+            if (asset.materials.empty()) {
+                return ImGui::BeginCombo("Material", "<empty>");
+            }
+            else if (!appState.imGuiAssetInspectorMaterialIndex) {
+                return ImGui::BeginCombo("Material", "<select...>");
+            }
+            else {
+                return ImGui::BeginCombo("Material", visit_as<cstring_view>(nonempty_or(
+                    asset.materials[*appState.imGuiAssetInspectorMaterialIndex].name,
+                    [&] { return std::format("<Unnamed material {}>", *appState.imGuiAssetInspectorMaterialIndex); })));
+            }
+        }();
+        if (isComboBoxOpened) {
             for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
-                const bool isSelected = i == materialIndex;
-                if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(material.name, [&] { return std::format("<Unnamed material {}>", i); })).data, isSelected)) {
-                    materialIndex = i;
+                const bool isSelected = i == appState.imGuiAssetInspectorMaterialIndex;
+                if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(material.name, [&] { return std::format("<Unnamed material {}>", i); })), isSelected)) {
+                    appState.imGuiAssetInspectorMaterialIndex = i;
                 }
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();
@@ -627,8 +643,8 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, std:
             ImGui::EndCombo();
         }
 
-        if (materialIndex != -1) {
-            fastgltf::Material &material = asset.materials[materialIndex];
+        if (appState.imGuiAssetInspectorMaterialIndex) {
+            fastgltf::Material &material = asset.materials[*appState.imGuiAssetInspectorMaterialIndex];
 
             ImGui::InputTextWithHint("Name", "<empty>", &material.name);
 
@@ -759,12 +775,21 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, std:
 
 auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset &asset, AppState &appState) -> void {
     if (ImGui::Begin("Scene hierarchies")) {
-        static int sceneIndex = asset.defaultScene.value_or(0);
-        if (ImGui::BeginCombo("Scene", visit_as<cstring_view>(nonempty_or(asset.scenes[sceneIndex].name, [&] { return std::format("<Unnamed scene {}>", sceneIndex); })).data)) {
+        const bool isComboBoxOpened = [&]() {
+            if (!appState.imGuiAssetInspectorSceneIndex) {
+                return ImGui::BeginCombo("Scene", "<select...>");
+            }
+            else {
+                return ImGui::BeginCombo("Scene", visit_as<cstring_view>(nonempty_or(
+                    asset.materials[*appState.imGuiAssetInspectorSceneIndex].name,
+                    [&] { return std::format("<Unnamed scene {}>", *appState.imGuiAssetInspectorSceneIndex); })));
+            }
+        }();
+        if (isComboBoxOpened) {
             for (const auto &[i, scene] : asset.scenes | ranges::views::enumerate) {
-                const bool isSelected = i == sceneIndex;
-                if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(scene.name, [&] { return std::format("<Unnamed scene {}>", i); })).data, isSelected)) {
-                    sceneIndex = i;
+                const bool isSelected = i == appState.imGuiAssetInspectorSceneIndex;
+                if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(scene.name, [&] { return std::format("<Unnamed scene {}>", i); })), isSelected)) {
+                    appState.imGuiAssetInspectorSceneIndex = i;
                 }
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();
@@ -774,7 +799,7 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
             ImGui::EndCombo();
         }
 
-        static bool mergeSingleChildNodes = true;
+        /*static bool mergeSingleChildNodes = true;
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
 
         static std::vector<std::optional<bool>> visibilities(asset.nodes.size(), true);
@@ -788,9 +813,8 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
             return parentNodeIndices;
         }();
 
-        static bool useTristateVisibility = true;
-        if (ImGui::Checkbox("Use tristate visibility", &useTristateVisibility)) {
-            if (useTristateVisibility) {
+        if (ImGui::Checkbox("Use tristate visibility", &appState.useTristateVisibility)) {
+            if (appState.useTristateVisibility) {
                 // TODO: how to handle this?
             }
             else {
@@ -843,7 +867,7 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
             }
 
             ImGui::SameLine();
-            if (useTristateVisibility) {
+            if (appState.useTristateVisibility) {
                 ImGui::PushItemFlag(ImGuiItemFlags_MixedValue, !visibilities[nodeIndex]);
                 if (ImGui::Checkbox("##visibility", &*visibilities[nodeIndex])) {
                     if (!visibilities[nodeIndex]) {
@@ -891,21 +915,21 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
 
             if (const auto &meshIndex = descendentNode.meshIndex) {
                 ImGui::TableSetColumnIndex(3);
-                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.meshes[*meshIndex].name, [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })).data)) {
+                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.meshes[*meshIndex].name, [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })))) {
                     // TODO
                 }
             }
 
             if (const auto &lightIndex = descendentNode.lightIndex) {
                 ImGui::TableSetColumnIndex(4);
-                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.lights[*lightIndex].name, [&] { return std::format("<Unnamed light {}>", *lightIndex); })).data)) {
+                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.lights[*lightIndex].name, [&] { return std::format("<Unnamed light {}>", *lightIndex); })))) {
                     // TODO
                 }
             }
 
             if (const auto &cameraIndex = descendentNode.cameraIndex) {
                 ImGui::TableSetColumnIndex(5);
-                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.cameras[*cameraIndex].name, [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })).data)) {
+                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.cameras[*cameraIndex].name, [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })))) {
                     // TODO
                 }
             }
@@ -928,23 +952,25 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
             | std::views::keys
             | std::ranges::to<std::unordered_set<std::size_t>>();
 
-        const fastgltf::Scene &scene = asset.scenes[sceneIndex];
-        if (ImGui::BeginTable("scene-hierarchy-table", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
-            ImGui::TableSetupScrollFreeze(0, 1);
-            ImGui::TableSetupColumn("##node", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide | ImGuiTableColumnFlags_NoReorder | ImGuiTableColumnFlags_NoResize);
-            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Transform", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn("Mesh", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn("Light", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn("Camera", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableHeadersRow();
+        if (appState.imGuiAssetInspectorSceneIndex) {
+            const fastgltf::Scene &scene = asset.scenes[*appState.imGuiAssetInspectorSceneIndex];
+            if (ImGui::BeginTable("scene-hierarchy-table", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
+                ImGui::TableSetupScrollFreeze(0, 1);
+                ImGui::TableSetupColumn("##node", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide | ImGuiTableColumnFlags_NoReorder | ImGuiTableColumnFlags_NoResize);
+                ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn("Transform", ImGuiTableColumnFlags_WidthFixed);
+                ImGui::TableSetupColumn("Mesh", ImGuiTableColumnFlags_WidthFixed);
+                ImGui::TableSetupColumn("Light", ImGuiTableColumnFlags_WidthFixed);
+                ImGui::TableSetupColumn("Camera", ImGuiTableColumnFlags_WidthFixed);
+                ImGui::TableHeadersRow();
 
-            for (std::size_t nodeIndex : scene.nodeIndices) {
-                addChildNode(asset, nodeIndex);
+                for (std::size_t nodeIndex : scene.nodeIndices) {
+                    addChildNode(asset, nodeIndex);
+                }
+
+                ImGui::EndTable();
             }
-
-            ImGui::EndTable();
-        }
+        }*/
     }
     ImGui::End();
 }
@@ -1025,7 +1051,7 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                             }
                             if (primitive.materialIndex) {
                                 ImGui::PushID(*primitive.materialIndex);
-                                if (ImGui::WithLabel("Material"sv, [&]() { return ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.materials[*primitive.materialIndex].name, [&] { return std::format("<Unnamed material {}>", *primitive.materialIndex); })).data); })) {
+                                if (ImGui::WithLabel("Material"sv, [&]() { return ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.materials[*primitive.materialIndex].name, [&] { return std::format("<Unnamed material {}>", *primitive.materialIndex); }))); })) {
                                     // TODO.
                                 }
                                 ImGui::PopID();

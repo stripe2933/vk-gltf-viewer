@@ -444,12 +444,13 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
     const auto primitives = asset.meshes | transform(&fastgltf::Mesh::primitives) | join;
 
     // Get buffer view indices that are used in primitive attributes.
-    const std::unordered_set attributeBufferViewIndices
-        = primitives
+    auto attributeAccessorIndices = primitives
         | transform([](const fastgltf::Primitive &primitive) {
             return primitive.attributes | values;
         })
-        | join
+        | join;
+    const std::unordered_set attributeBufferViewIndices
+        = attributeAccessorIndices
         | transform([&](std::size_t accessorIndex) {
             const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
 
@@ -514,15 +515,15 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
                 return index;
             };
 
-            if (attributeName == "POSITION") {
+            if (attributeName == "POSITION"sv) {
                 primitiveInfo.positionInfo = getAttributeBufferInfo();
                 primitiveInfo.drawCount = accessor.count;
             }
             // For std::optional, they must be initialized before being accessed.
-            else if (attributeName == "NORMAL") {
+            else if (attributeName == "NORMAL"sv) {
                 primitiveInfo.normalInfo.emplace(getAttributeBufferInfo());
             }
-            else if (attributeName == "TANGENT") {
+            else if (attributeName == "TANGENT"sv) {
                 primitiveInfo.tangentInfo.emplace(getAttributeBufferInfo());
             }
             // Otherwise, attributeName has form of <TEXCOORD_i> or <COLOR_i>.
@@ -601,8 +602,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMapping
             gpu.queueFamilies.getUniqueIndices(),
             copyCommandBuffer)).first /* iterator */ ->second /* std::pair<vku::AllocatedBuffer, vku::AllocatedBuffer> */;
 
-    const vk::DeviceAddress pBufferPtrsBuffer = gpu.device.getBufferAddress({ bufferPtrsBuffer.buffer }),
-                            pByteStridesBuffer = gpu.device.getBufferAddress({ byteStridesBuffer.buffer });
+    const vk::DeviceAddress pBufferPtrsBuffer = gpu.device.getBufferAddress({ bufferPtrsBuffer.buffer });
+    const vk::DeviceAddress pByteStridesBuffer = gpu.device.getBufferAddress({ byteStridesBuffer.buffer });
 
     for (auto &&[primitiveInfo, bufferPtrCopyOffset, strideCopyOffset] : zip(primitiveInfos | values, bufferPtrCopyOffsets, strideCopyOffsets)) {
         primitiveInfo.indexedAttributeMappingInfos.try_emplace(

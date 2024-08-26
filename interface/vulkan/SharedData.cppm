@@ -23,13 +23,6 @@ namespace vk_gltf_viewer::vulkan {
 		const Gpu &gpu;
 
     public:
-		struct DescriptorSetLayouts {
-			const dsl::Asset &asset;
-			const dsl::ImageBasedLighting &imageBasedLighting;
-			const dsl::Scene &scene;
-			const dsl::Skybox &skybox;
-		};
-
     	// Swapchain.
 		vk::raii::SwapchainKHR swapchain;
 		vk::Extent2D swapchainExtent;
@@ -37,45 +30,179 @@ namespace vk_gltf_viewer::vulkan {
 
     	// Buffer, image and image views and samplers.
     	buffer::CubeIndices cubeIndices { gpu.allocator };
+    	CubemapSampler cubemapSampler { gpu.device };
+    	BrdfLutSampler brdfLutSampler { gpu.device };
 		SingleTexelSampler singleTexelSampler { gpu.device };
 
+    	// Descriptor set layouts.
+    	dsl::Asset assetDescriptorSetLayout { gpu.device, 32 }; // TODO: set proper initial texture count.
+    	dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler };
+    	dsl::Scene sceneDescriptorSetLayout { gpu.device };
+    	dsl::Skybox skyboxDescriptorSetLayout { gpu.device, cubemapSampler };
+
     	// Pipeline layouts.
-    	pl::SceneRendering sceneRenderingPipelineLayout;
+    	pl::SceneRendering sceneRenderingPipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
 
 		// Pipelines.
-		AlphaMaskedDepthRenderer alphaMaskedDepthRenderer;
-    	AlphaMaskedFacetedPrimitiveRenderer alphaMaskedFacetedPrimitiveRenderer;
-    	AlphaMaskedJumpFloodSeedRenderer alphaMaskedJumpFloodSeedRenderer;
-    	AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer;
-		DepthRenderer depthRenderer;
-		FacetedPrimitiveRenderer facetedPrimitiveRenderer;
-		JumpFloodComputer jumpFloodComputer;
-    	JumpFloodSeedRenderer jumpFloodSeedRenderer;
-		OutlineRenderer outlineRenderer;
-		PrimitiveRenderer primitiveRenderer;
-		SkyboxRenderer skyboxRenderer;
+		AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+    	AlphaMaskedFacetedPrimitiveRenderer alphaMaskedFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
+    	AlphaMaskedJumpFloodSeedRenderer alphaMaskedJumpFloodSeedRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+    	AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
+		DepthRenderer depthRenderer { gpu.device, sceneDescriptorSetLayout };
+		FacetedPrimitiveRenderer facetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
+		JumpFloodComputer jumpFloodComputer { gpu.device };
+    	JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, sceneDescriptorSetLayout };
+		OutlineRenderer outlineRenderer { gpu.device };
+		PrimitiveRenderer primitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
+		SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, cubeIndices };
 
     	// Attachment groups.
     	std::vector<ag::Swapchain> swapchainAttachmentGroups = createSwapchainAttachmentGroups();
     	std::vector<ag::ImGuiSwapchain> imGuiSwapchainAttachmentGroups = createImGuiSwapchainAttachmentGroups();
 
-    	// Descriptor/command pools.
-    	vk::raii::CommandPool graphicsCommandPool = createCommandPool(gpu.queueFamilies.graphicsPresent);
+    	// Descriptor pools.
+    	vk::raii::DescriptorPool textureDescriptorPool = createTextureDescriptorPool();
+    	vk::raii::DescriptorPool descriptorPool = createDescriptorPool();
 
-    	SharedData(
-    		const Gpu &gpu [[clang::lifetimebound]],
-    		vk::SurfaceKHR surface,
-    		const vk::Extent2D &swapchainExtent,
-    		const DescriptorSetLayouts &descriptorSetLayouts);
+    	// Descriptor sets.
+    	vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
+    	vku::DescriptorSet<dsl::Scene> sceneDescriptorSet;
+    	vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
+    	vku::DescriptorSet<dsl::Skybox> skyboxDescriptorSet;
 
-    	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
+    	SharedData(const Gpu &gpu [[clang::lifetimebound]], vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent)
+    		: gpu { gpu }
+			, swapchain { createSwapchain(surface, swapchainExtent) }
+			, swapchainExtent { swapchainExtent } {
+    		const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+    		const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+    		vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+				recordSwapchainInitialLayoutTransitionCommands(cb);
+			}, *fence);
+    		if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
+    			throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
+    		}
+
+    		std::tie(assetDescriptorSet)
+				= vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(
+					// TODO: vku::allocateDescriptorSets type deduction should be fixed (bad-looking explicit const cast)
+					std::as_const(assetDescriptorSetLayout)));
+    		std::tie(sceneDescriptorSet, imageBasedLightingDescriptorSet, skyboxDescriptorSet)
+				= vku::allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
+					// TODO: vku::allocateDescriptorSets type deduction should be fixed (bad-looking explicit const cast)
+					std::as_const(sceneDescriptorSetLayout),
+					std::as_const(imageBasedLightingDescriptorSetLayout),
+					std::as_const(skyboxDescriptorSetLayout)));
+    	}
+
+    	// --------------------
+    	// The below public methods will modify the GPU resources, therefore they MUST be called before the command buffer
+    	// submission.
+    	// --------------------
+
+    	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void {
+    		swapchain = createSwapchain(surface, newExtent, *swapchain);
+    		swapchainExtent = newExtent;
+    		swapchainImages = swapchain.getImages();
+
+    		swapchainAttachmentGroups = createSwapchainAttachmentGroups();
+    		imGuiSwapchainAttachmentGroups = createImGuiSwapchainAttachmentGroups();
+
+    		const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+    		const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+    		vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
+				recordSwapchainInitialLayoutTransitionCommands(cb);
+			});
+    		if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
+    			throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
+    		}
+    	}
+
+    	auto updateTextureCount(std::uint32_t textureCount) -> void {
+    		assetDescriptorSetLayout = { gpu.device, textureCount };
+    		sceneRenderingPipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+
+    		// Following pipelines are dependent to the assetDescriptorSetLayout or sceneRenderingPipelineLayout.
+    		alphaMaskedDepthRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+			alphaMaskedFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout };
+			alphaMaskedJumpFloodSeedRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+			alphaMaskedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout };
+			facetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout };
+			primitiveRenderer = { gpu.device, sceneRenderingPipelineLayout };
+
+    		textureDescriptorPool = createTextureDescriptorPool();
+    		std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(
+    			// TODO: vku::allocateDescriptorSets type deduction should be fixed (bad-looking explicit const cast)
+    			std::as_const(assetDescriptorSetLayout)));
+    	}
 
     private:
-    	[[nodiscard]] auto createSwapchain(vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain);
-    	[[nodiscard]] auto createSwapchainAttachmentGroups() const -> std::vector<ag::Swapchain>;
-    	[[nodiscard]] auto createImGuiSwapchainAttachmentGroups() const -> std::vector<ag::ImGuiSwapchain>;
-    	[[nodiscard]] auto createCommandPool(std::uint32_t queueFamilyIndex) const -> vk::raii::CommandPool;
+    	[[nodiscard]] auto createSwapchain(vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain) {
+			const vk::SurfaceCapabilitiesKHR surfaceCapabilities = gpu.physicalDevice.getSurfaceCapabilitiesKHR(surface);
+			return { gpu.device, vk::StructureChain {
+				vk::SwapchainCreateInfoKHR{
+					vk::SwapchainCreateFlagBitsKHR::eMutableFormat,
+					surface,
+					std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount),
+					vk::Format::eB8G8R8A8Srgb,
+					vk::ColorSpaceKHR::eSrgbNonlinear,
+					extent,
+					1,
+					vk::ImageUsageFlagBits::eColorAttachment,
+					{}, {},
+					surfaceCapabilities.currentTransform,
+					vk::CompositeAlphaFlagBitsKHR::eOpaque,
+					vk::PresentModeKHR::eFifo,
+					true,
+					oldSwapchain,
+				},
+				vk::ImageFormatListCreateInfo {
+					vku::unsafeProxy({
+						vk::Format::eB8G8R8A8Srgb,
+						vk::Format::eB8G8R8A8Unorm,
+					}),
+				},
+			}.get() };
+		}
 
-    	auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
+    	[[nodiscard]] auto createSwapchainAttachmentGroups() const -> std::vector<ag::Swapchain> {
+			return swapchainImages
+    			| std::views::transform([&](vk::Image image) {
+					return ag::Swapchain { gpu.device, { image, vk::Extent3D { swapchainExtent }, vk::Format::eB8G8R8A8Srgb, 1, 1 } };
+				})
+    			| std::ranges::to<std::vector>();
+		}
+
+    	[[nodiscard]] auto createImGuiSwapchainAttachmentGroups() const -> std::vector<ag::ImGuiSwapchain> {
+			return swapchainImages
+    			| std::views::transform([&](vk::Image image) {
+					return ag::ImGuiSwapchain { gpu.device, { image, vk::Extent3D { swapchainExtent }, vk::Format::eB8G8R8A8Srgb, 1, 1 } };
+				})
+    			| std::ranges::to<std::vector>();
+		}
+
+    	[[nodiscard]] auto createTextureDescriptorPool() const -> vk::raii::DescriptorPool {
+    		return { gpu.device, getPoolSizes(assetDescriptorSetLayout).getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind) };
+    	}
+
+    	[[nodiscard]] auto createDescriptorPool() const -> vk::raii::DescriptorPool {
+    		return { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, sceneDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() };
+    	}
+
+    	auto recordSwapchainInitialLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void {
+    		graphicsCommandBuffer.pipelineBarrier(
+				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
+				{}, {}, {},
+				swapchainImages
+					| std::views::transform([](vk::Image image) {
+						return vk::ImageMemoryBarrier{
+							{}, {},
+							{}, vk::ImageLayout::ePresentSrcKHR,
+							vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+							image, vku::fullSubresourceRange(),
+						};
+					})
+					| std::ranges::to<std::vector>());
+    	}
     };
 }

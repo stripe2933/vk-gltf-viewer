@@ -35,7 +35,7 @@ namespace vk_gltf_viewer::control::imgui {
     auto assetBuffers(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void;
     auto assetImages(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void;
     auto assetSamplers(fastgltf::Asset &asset) -> void;
-    auto assetMaterials(fastgltf::Asset &asset, std::span<const vk::DescriptorSet> assetTextures) -> void;
+    auto assetMaterials(fastgltf::Asset &asset, AppState &appState, std::span<const vk::DescriptorSet> assetTextures) -> void;
     auto assetSceneHierarchies(const fastgltf::Asset &asset, AppState &appState) -> void;
 
     auto nodeInspector(fastgltf::Asset &asset, AppState &appState) -> void;

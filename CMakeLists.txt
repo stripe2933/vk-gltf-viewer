@@ -41,7 +41,6 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/pipeline/JumpFloodComputer.cpp
 	impl/vulkan/pipeline/OutlineRenderer.cpp
 	impl/vulkan/pipeline/SkyboxRenderer.cpp
-	impl/vulkan/SharedData.cpp
 	main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE

@@ -13,7 +13,11 @@ import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Scene;
 import :vulkan.dsl.Skybox;
+import :vulkan.Frame;
 import :vulkan.Gpu;
+
+#define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
+#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
 
 namespace vk_gltf_viewer {
 	export class MainApp {
@@ -33,12 +37,13 @@ namespace vk_gltf_viewer {
 			};
 
 			DataBufferLoader dataBufferLoader;
+			std::filesystem::path assetDir;
 			fastgltf::Expected<fastgltf::Asset> assetExpected;
 			gltf::AssetResources assetResources;
 	        std::unordered_map<std::size_t, vk::raii::ImageView> imageViews;
     		gltf::SceneResources sceneResources;
 
-			explicit GltfAsset(const std::filesystem::path &path, const vulkan::Gpu &gpu [[clang::lifetimebound]], vk::CommandPool graphicsCommandPool);
+			explicit GltfAsset(const std::filesystem::path &path, const vulkan::Gpu &gpu [[clang::lifetimebound]]);
 
 			[[nodiscard]] auto get() noexcept -> fastgltf::Asset&;
 
@@ -52,7 +57,6 @@ namespace vk_gltf_viewer {
 			vku::AllocatedImage cubemapImage;
 			vk::raii::ImageView cubemapImageView;
 			vk::DescriptorSet imGuiEqmapTextureDescriptorSet;
-			vku::DescriptorSet<vulkan::dsl::Skybox> descriptorSet;
 		};
 
 		struct ImageBasedLightingResources {
@@ -68,38 +72,26 @@ namespace vk_gltf_viewer {
 		control::AppWindow window { instance, appState };
 		vulkan::Gpu gpu { instance, window.getSurface() };
 
-		// Command pools.
-		vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-		vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
-		vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
-
+		// Buffers, images, image views and samplers.
 		vku::AllocatedImage assetFallbackImage = createAssetFallbackImage();
 		vk::raii::ImageView assetFallbackImageView { gpu.device, assetFallbackImage.getViewCreateInfo() };
 		vk::raii::Sampler assetDefaultSampler = createAssetDefaultSampler();
-		GltfAsset gltfAsset { std::getenv("GLTF_PATH"), gpu, *graphicsCommandPool };
+		std::optional<GltfAsset> gltfAsset;
 		ImageBasedLightingResources imageBasedLightingResources = createDefaultImageBasedLightingResources();
 		std::optional<SkyboxResources> skyboxResources{};
-
-		// Buffers, images, image views and samplers.
 		vku::AllocatedImage brdfmapImage = createBrdfmapImage();
 		vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
 		vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
-		vulkan::CubemapSampler cubemapSampler { gpu.device };
-		vulkan::BrdfLutSampler brdfLutSampler { gpu.device };
-
-		// Descriptor set layouts.
-		vulkan::dsl::Asset assetDescriptorSetLayout { gpu.device, static_cast<std::uint32_t>(1 /*fallback texture*/ + gltfAsset.get().textures.size()) };
-		vulkan::dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler };
-		vulkan::dsl::Scene sceneDescriptorSetLayout { gpu.device };
-		vulkan::dsl::Skybox skyboxDescriptorSetLayout { gpu.device, cubemapSampler };
 
 		// Descriptor pools.
-    	vk::raii::DescriptorPool descriptorPool = createDescriptorPool();
     	vk::raii::DescriptorPool imGuiDescriptorPool = createImGuiDescriptorPool();
 
 		// Descriptor sets.
-		vku::DescriptorSet<vulkan::dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
 		std::vector<vk::DescriptorSet> assetTextureDescriptorSets;
+
+		// Frames.
+		vulkan::SharedData sharedData { gpu, window.getSurface(), vk::Extent2D { static_cast<std::uint32_t>(window.getFramebufferSize().x), static_cast<std::uint32_t>(window.getFramebufferSize().y) } };
+		std::array<vulkan::Frame, 2> frames = ARRAY_OF(2, vulkan::Frame{ gpu, sharedData });
 		
 		[[nodiscard]] auto createInstance() const -> decltype(instance);
 		[[nodiscard]] auto createAssetFallbackImage() const -> vku::AllocatedImage;
@@ -107,10 +99,8 @@ namespace vk_gltf_viewer {
 		[[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
 		[[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;
     	[[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
-    	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
     	[[nodiscard]] auto createImGuiDescriptorPool() -> decltype(imGuiDescriptorPool);
 
-		auto initializeImageBasedLightingResourcesByDefault(vk::CommandBuffer graphicsCommandBuffer) const -> void;
 		auto processEqmapChange(const std::filesystem::path &eqmapPath) -> void;
 	};
 }

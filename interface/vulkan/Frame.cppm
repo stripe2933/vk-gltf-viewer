@@ -7,16 +7,12 @@ export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
 import type_variant;
-export import vku;
 export import :AppState;
 export import :gltf.SceneResources;
 export import :vulkan.SharedData;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.Scene;
-export import :vulkan.dsl.Asset;
-export import :vulkan.dsl.Scene;
-export import :vulkan.dsl.Skybox;
 
 namespace vk_gltf_viewer::vulkan {
     export class Frame {
@@ -29,8 +25,6 @@ namespace vk_gltf_viewer::vulkan {
     			std::optional<std::uint32_t> hoveringNodeIndex;
     			std::unordered_set<std::size_t> selectedNodeIndices;
     			std::unordered_set<std::size_t> renderingNodeIndices;
-    			vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
-    			vku::DescriptorSet<dsl::Scene> sceneDescriptorSet;
     		};
 
     		vk::Rect2D passthruRect;
@@ -39,23 +33,27 @@ namespace vk_gltf_viewer::vulkan {
     		std::optional<AppState::Outline> hoveringNodeOutline;
     		std::optional<AppState::Outline> selectedNodeOutline;
     		std::optional<Gltf> gltf;
-    		vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
-    		std::variant<glm::vec3 /*solid color*/, vku::DescriptorSet<dsl::Skybox>> background;
-    		std::optional<std::pair<vk::SurfaceKHR, vk::Extent2D>> swapchainResizeHandleInfo;
+    		std::optional<glm::vec3> solidBackground; // If this is nullopt, use SharedData::SkyboxDescriptorSet instead.
+    		bool handleSwapchainResize;
     	};
 
-		struct ExecutionResult {
+		struct UpdateResult {
 			std::optional<std::uint32_t> hoveringNodeIndex;
-			bool presentSuccess;
 		};
-
-    	enum class ExecutionError {
-    		SwapchainAcquireFailed,
-    	};
 
     	Frame(const Gpu &gpu [[clang::lifetimebound]], const SharedData &sharedData [[clang::lifetimebound]]);
 
-    	[[nodiscard]] auto execute(const ExecutionTask &task) -> std::expected<ExecutionResult, ExecutionError>;
+    	auto waitForPreviousExecution() const -> void {
+    		// Wait for the previous frame execution to finish.
+    		if (auto result = gpu.device.waitForFences(*inFlightFence, true, ~0ULL); result != vk::Result::eSuccess) {
+    			throw std::runtime_error{ std::format("Failed to wait for in-flight fence: {}", to_string(result)) };
+    		}
+    		gpu.device.resetFences(*inFlightFence);
+    	}
+
+    	auto update(const ExecutionTask &task) -> UpdateResult;
+
+    	[[nodiscard]] auto execute(const ExecutionTask &task) -> bool; // false -> Swapchain image acquire/release failed. Swapchain have to be recreated.
 
     private:
         struct CommandSeparationCriteria {
@@ -117,7 +115,7 @@ namespace vk_gltf_viewer::vulkan {
 
     	// Buffer, image and image views.
     	std::unordered_set<std::size_t> renderingNodeIndices;
-    	std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> renderingNodeIndirectDrawCommandBuffers; /// Draw commands for rendering nodes (in both depth prepass and main pass)
+    	std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> renderingNodeIndirectDrawCommandBuffers; /// Draw commands for rendering nodes (in both scene prepass and main pass)
     	std::optional<std::uint32_t> hoveringNodeIndex;
     	std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> hoveringNodeIndirectDrawCommandBuffers; /// Depth prepass draw commands for hovering nodes
     	std::unordered_set<std::size_t> selectedNodeIndices;
@@ -137,10 +135,10 @@ namespace vk_gltf_viewer::vulkan {
     	vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
 
     	// Descriptor sets.
-    	vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> hoveringNodeJumpFloodSets;
-		vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> selectedNodeJumpFloodSets;
-    	vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSets;
-    	vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSets;
+    	vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> hoveringNodeJumpFloodSet;
+		vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> selectedNodeJumpFloodSet;
+    	vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSet;
+    	vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSet;
 
     	// Command buffers.
     	vk::CommandBuffer scenePrepassCommandBuffer;
@@ -161,12 +159,9 @@ namespace vk_gltf_viewer::vulkan {
     	[[nodiscard]] auto createSceneAttachmentGroups() const -> std::vector<ag::Scene>;
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
 
-    	auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void;
-    	auto update(const ExecutionTask &task, ExecutionResult &result) -> void;
-
     	auto recordScenePrepassCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
     	// Return true if last jump flood calculation direction is forward (result is in pong image), false if backward.
-		[[nodiscard]] auto recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSets, std::uint32_t initialSampleOffset) const -> bool;
+		[[nodiscard]] auto recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSet, std::uint32_t initialSampleOffset) const -> bool;
     	auto recordSceneDrawCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
     	auto recordSkyboxDrawCommands(vk::CommandBuffer cb, const ExecutionTask &task) const -> void;
     	auto recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward, std::uint32_t swapchainImageIndex, const ExecutionTask &task) const -> void;
