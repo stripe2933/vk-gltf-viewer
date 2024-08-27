@@ -85,9 +85,14 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 	// If passthru extent is different from the current's, dependent images have to be recreated.
 	if (!passthruExtent || *passthruExtent != task.passthruRect.extent) {
 		passthruExtent.emplace(task.passthruRect.extent);
+		// TODO: can this operation be non-blocking?
+		const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
 		vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
 			passthruResources.emplace(gpu, *passthruExtent, cb);
-		});
+		}, *fence);
+		if (gpu.device.waitForFences(*fence, true, ~0ULL) != vk::Result::eSuccess) {
+			throw std::runtime_error { "Failed to initialize the rendering region GPU resources." };
+		}
 
 		gpu.device.updateDescriptorSets({
 			hoveringNodeJumpFloodSet.getWrite<0>(vku::unsafeProxy({
