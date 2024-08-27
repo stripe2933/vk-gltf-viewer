@@ -19,19 +19,6 @@ vk_gltf_viewer::gltf::SceneResources::SceneResources(
     nodeTransformBuffer { createNodeTransformBuffer(gpu.allocator) },
     primitiveBuffer { createPrimitiveBuffer(gpu) } { }
 
-auto vk_gltf_viewer::gltf::SceneResources::getParentNodeIndices() const -> std::vector<std::size_t> {
-    const fastgltf::Asset &asset = assetResources.asset;
-
-    // If node is root node, its parent index is itself.
-    std::vector parentNodeIndices { std::from_range, std::views::iota(0UZ, asset.nodes.size()) };
-    for (const auto &[i, node] : asset.nodes | ranges::views::enumerate) {
-        for (std::size_t childIndex : node.children) {
-            parentNodeIndices[childIndex] = i;
-        }
-    }
-    return parentNodeIndices;
-}
-
 auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() const -> decltype(orderedNodePrimitiveInfoPtrs) {
     const fastgltf::Asset &asset = assetResources.asset;
 

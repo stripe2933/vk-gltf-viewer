@@ -35,7 +35,6 @@ namespace vk_gltf_viewer::gltf {
             std::int32_t materialIndex; // -1 for fallback material.
         };
 
-        std::vector<std::size_t> parentNodeIndices = getParentNodeIndices(); /// Example: asset.nodes[0].children = [1, 2, 3] -> parentNodeIndices[1] = parentNodeIndices[2] = parentNodeIndices[3] = 0.
         vku::MappedBuffer nodeTransformBuffer;
         vku::MappedBuffer primitiveBuffer;
 
@@ -110,7 +109,6 @@ namespace vk_gltf_viewer::gltf {
         }
 
     private:
-        [[nodiscard]] auto getParentNodeIndices() const -> std::vector<std::size_t>;
         [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> decltype(orderedNodePrimitiveInfoPtrs);
         [[nodiscard]] auto createNodeTransformBuffer(vma::Allocator allocator) const -> decltype(nodeTransformBuffer);
         [[nodiscard]] auto createPrimitiveBuffer(const vulkan::Gpu &gpu) -> decltype(primitiveBuffer);
