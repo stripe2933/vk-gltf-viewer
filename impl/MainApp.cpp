@@ -203,9 +203,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 	std::array<bool, std::tuple_size_v<decltype(frames)>> shouldHandleSwapchainResize{};
 
 	float elapsedTime = 0.f;
-	for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % frames.size()) {
+	for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); ++frameIndex) {
 		// Wait for previous frame execution to end.
-		frames[frameIndex].waitForPreviousExecution();
+		frames[frameIndex % frames.size()].waitForPreviousExecution();
 
 		const float glfwTime = static_cast<float>(glfwGetTime());
 		const float timeDelta = glfwTime - std::exchange(elapsedTime, glfwTime);
@@ -370,13 +370,13 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 				};
 			}),
 			.solidBackground = appState.background.to_optional(),
-			.handleSwapchainResize = std::exchange(shouldHandleSwapchainResize[frameIndex], false),
+			.handleSwapchainResize = std::exchange(shouldHandleSwapchainResize[frameIndex % frames.size()], false),
 		};
 
-		const vulkan::Frame::UpdateResult updateResult = frames[frameIndex].update(task);
+		const vulkan::Frame::UpdateResult updateResult = frames[frameIndex % frames.size()].update(task);
 		appState.hoveringNodeIndex = updateResult.hoveringNodeIndex;
 
-		if (!frames[frameIndex].execute(task)) {
+		if (!frames[frameIndex % frames.size()].execute()) {
 			gpu.device.waitIdle();
 
 			// Yield while window is minimized.
