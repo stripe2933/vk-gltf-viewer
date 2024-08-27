@@ -112,7 +112,7 @@ namespace vk_gltf_viewer::vulkan {
     		const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
     		vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
 				recordSwapchainInitialLayoutTransitionCommands(cb);
-			});
+			}, *fence);
     		if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
     			throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
     		}
