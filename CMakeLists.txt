@@ -60,6 +60,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/gltf/AssetResources.cppm
 		interface/gltf/SceneResources.cppm
 		interface/AppState.cppm
+		interface/helpers/cstring_view.cppm
 		interface/helpers/enum_to_string.cppm
 		interface/helpers/extended_arithmetic.cppm
 		interface/helpers/formatters/glm.cppm
@@ -67,7 +68,8 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/helpers/formatters/omitted.cppm
 		interface/helpers/full_optional.cppm
 		interface/helpers/functional.cppm
-		interface/helpers/ranges.cppm
+		interface/helpers/ranges/mod.cppm
+		interface/helpers/ranges/concat.cppm
 		interface/helpers/tristate.cppm
 		interface/helpers/type_map.cppm
 		interface/helpers/type_variant.cppm

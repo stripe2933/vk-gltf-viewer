@@ -3,6 +3,7 @@ module;
 #include <version>
 
 export module ranges;
+export import :concat;
 
 import std;
 
@@ -176,4 +177,22 @@ namespace views {
         }
     } value_transform;
 }
+
+    struct to_range_fn {
+        template <typename T>
+        constexpr auto operator()(const std::optional<T> &opt) const -> std::span<const T> {
+            return { &*opt, opt.has_value() ? 1UZ : 0UZ };
+        }
+
+        template <typename T>
+        constexpr auto operator()(std::optional<T> &opt) const -> std::span<T> {
+            return { &*opt, opt.has_value() ? 1UZ : 0UZ };
+        }
+    };
+
+    /**
+     * Convert <tt>std::optional</tt> to range. This is intended for future C++26's <Give std::optional Range support> (P3168)
+     * compatibility, but implemented as just as stopgap solution (use <tt>std::span</tt> for simplicity).
+     */
+    export to_range_fn to_range;
 }

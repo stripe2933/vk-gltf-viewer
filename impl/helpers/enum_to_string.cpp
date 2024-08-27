@@ -5,11 +5,7 @@ module;
 module vk_gltf_viewer;
 import :helpers.enum_to_string;
 
-import std;
-
-using namespace std::string_view_literals;
-
-auto vk_gltf_viewer::to_string(fastgltf::PrimitiveType value) noexcept -> const char* {
+auto vk_gltf_viewer::to_string(fastgltf::PrimitiveType value) noexcept -> cstring_view {
     switch (value) {
         case fastgltf::PrimitiveType::Points: return "Points";
         case fastgltf::PrimitiveType::Lines: return "Lines";
@@ -22,36 +18,36 @@ auto vk_gltf_viewer::to_string(fastgltf::PrimitiveType value) noexcept -> const 
     std::unreachable();
 }
 
-auto vk_gltf_viewer::to_string(fastgltf::AccessorType value) noexcept -> std::string_view {
+auto vk_gltf_viewer::to_string(fastgltf::AccessorType value) noexcept -> cstring_view {
     switch (value) {
-        case fastgltf::AccessorType::Invalid: return "Invalid"sv;
-        case fastgltf::AccessorType::Scalar: return "Scalar"sv;
-        case fastgltf::AccessorType::Vec2: return "Vec2"sv;
-        case fastgltf::AccessorType::Vec3: return "Vec3"sv;
-        case fastgltf::AccessorType::Vec4: return "Vec4"sv;
-        case fastgltf::AccessorType::Mat2: return "Mat2"sv;
-        case fastgltf::AccessorType::Mat3: return "Mat3"sv;
-        case fastgltf::AccessorType::Mat4: return "Mat4"sv;
+        case fastgltf::AccessorType::Invalid: return "Invalid";
+        case fastgltf::AccessorType::Scalar: return "Scalar";
+        case fastgltf::AccessorType::Vec2: return "Vec2";
+        case fastgltf::AccessorType::Vec3: return "Vec3";
+        case fastgltf::AccessorType::Vec4: return "Vec4";
+        case fastgltf::AccessorType::Mat2: return "Mat2";
+        case fastgltf::AccessorType::Mat3: return "Mat3";
+        case fastgltf::AccessorType::Mat4: return "Mat4";
     }
     std::unreachable();
 }
 
-auto vk_gltf_viewer::to_string(fastgltf::ComponentType value) noexcept -> std::string_view {
+auto vk_gltf_viewer::to_string(fastgltf::ComponentType value) noexcept -> cstring_view {
     switch (value) {
-        case fastgltf::ComponentType::Byte: return "Byte"sv;
-        case fastgltf::ComponentType::UnsignedByte: return "UnsignedByte"sv;
-        case fastgltf::ComponentType::Short: return "Short"sv;
-        case fastgltf::ComponentType::UnsignedShort: return "UnsignedShort"sv;
-        case fastgltf::ComponentType::UnsignedInt: return "UnsignedInt"sv;
-        case fastgltf::ComponentType::Float: return "Float"sv;
-        case fastgltf::ComponentType::Invalid: return "Invalid"sv;
-        case fastgltf::ComponentType::Int: return "Int"sv;
-        case fastgltf::ComponentType::Double: return "Double"sv;
+        case fastgltf::ComponentType::Byte: return "Byte";
+        case fastgltf::ComponentType::UnsignedByte: return "UnsignedByte";
+        case fastgltf::ComponentType::Short: return "Short";
+        case fastgltf::ComponentType::UnsignedShort: return "UnsignedShort";
+        case fastgltf::ComponentType::UnsignedInt: return "UnsignedInt";
+        case fastgltf::ComponentType::Float: return "Float";
+        case fastgltf::ComponentType::Invalid: return "Invalid";
+        case fastgltf::ComponentType::Int: return "Int";
+        case fastgltf::ComponentType::Double: return "Double";
     }
     std::unreachable();
 }
 
-auto vk_gltf_viewer::to_string(fastgltf::BufferTarget target) noexcept -> const char* {
+auto vk_gltf_viewer::to_string(fastgltf::BufferTarget target) noexcept -> cstring_view {
     switch (target) {
         case fastgltf::BufferTarget::ArrayBuffer: return "ArrayBuffer";
         case fastgltf::BufferTarget::ElementArrayBuffer: return "ElementArrayBuffer";
@@ -59,7 +55,7 @@ auto vk_gltf_viewer::to_string(fastgltf::BufferTarget target) noexcept -> const 
     }
 }
 
-auto vk_gltf_viewer::to_string(fastgltf::MimeType mime) noexcept -> const char* {
+auto vk_gltf_viewer::to_string(fastgltf::MimeType mime) noexcept -> cstring_view {
     switch (mime) {
         case fastgltf::MimeType::None: return "-";
         case fastgltf::MimeType::JPEG: return "image/jpeg";
@@ -72,7 +68,7 @@ auto vk_gltf_viewer::to_string(fastgltf::MimeType mime) noexcept -> const char* 
     std::unreachable();
 }
 
-auto vk_gltf_viewer::to_string(fastgltf::AlphaMode alphaMode) noexcept -> const char* {
+auto vk_gltf_viewer::to_string(fastgltf::AlphaMode alphaMode) noexcept -> cstring_view {
     switch (alphaMode) {
         case fastgltf::AlphaMode::Opaque: return "Opaque";
         case fastgltf::AlphaMode::Mask: return "Mask";
@@ -81,23 +77,23 @@ auto vk_gltf_viewer::to_string(fastgltf::AlphaMode alphaMode) noexcept -> const 
     std::unreachable();
 }
 
-auto vk_gltf_viewer::to_string(fastgltf::Filter filter) noexcept -> std::string_view {
+auto vk_gltf_viewer::to_string(fastgltf::Filter filter) noexcept -> cstring_view {
     switch (filter) {
-        case fastgltf::Filter::Linear: return "Linear"sv;
-        case fastgltf::Filter::Nearest: return "Nearest"sv;
-        case fastgltf::Filter::LinearMipMapLinear: return "LinearMipMapLinear"sv;
-        case fastgltf::Filter::LinearMipMapNearest: return "LinearMipMapNearest"sv;
-        case fastgltf::Filter::NearestMipMapLinear: return "NearestMipMapLinear"sv;
-        case fastgltf::Filter::NearestMipMapNearest: return "NearestMipMapNearest"sv;
+        case fastgltf::Filter::Linear: return "Linear";
+        case fastgltf::Filter::Nearest: return "Nearest";
+        case fastgltf::Filter::LinearMipMapLinear: return "LinearMipMapLinear";
+        case fastgltf::Filter::LinearMipMapNearest: return "LinearMipMapNearest";
+        case fastgltf::Filter::NearestMipMapLinear: return "NearestMipMapLinear";
+        case fastgltf::Filter::NearestMipMapNearest: return "NearestMipMapNearest";
     }
     std::unreachable();
 }
 
-auto vk_gltf_viewer::to_string(fastgltf::Wrap wrap) noexcept -> std::string_view {
+auto vk_gltf_viewer::to_string(fastgltf::Wrap wrap) noexcept -> cstring_view {
     switch (wrap) {
-        case fastgltf::Wrap::Repeat: return "Repeat"sv;
-        case fastgltf::Wrap::ClampToEdge: return "ClampToEdge"sv;
-        case fastgltf::Wrap::MirroredRepeat: return "MirroredRepeat"sv;
+        case fastgltf::Wrap::Repeat: return "Repeat";
+        case fastgltf::Wrap::ClampToEdge: return "ClampToEdge";
+        case fastgltf::Wrap::MirroredRepeat: return "MirroredRepeat";
     }
     std::unreachable();
 }
