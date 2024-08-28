@@ -7,6 +7,8 @@ export module imgui;
 import std;
 export import :table;
 
+#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
+
 namespace ImGui {
     export bool InputTextWithHint(cstring_view label, cstring_view hint, std::pmr::string* str, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = nullptr, void* userData = nullptr) {
         struct ChainedUserData {
@@ -59,11 +61,11 @@ namespace ImGui {
     }
 
     export template <std::invocable F>
-    auto WithLabel(std::string_view label, F &&imGuiFunc)
+    auto WithLabel(std::string_view label, F &&imGuiFunc) -> void
         requires std::is_void_v<std::invoke_result_t<F>>
     {
         const float x = GetCursorPosX();
-        imGuiFunc();
+        std::invoke(FWD(imGuiFunc));
         SameLine();
         SetCursorPosX(x + CalcItemWidth() + GetStyle().ItemInnerSpacing.x);
         TextUnformatted(label);
@@ -72,7 +74,7 @@ namespace ImGui {
     export template <std::invocable F>
     auto WithLabel(std::string_view label, F &&imGuiFunc) -> std::invoke_result_t<F> {
         const float x = GetCursorPosX();
-        auto value = imGuiFunc();
+        auto value = std::invoke(FWD(imGuiFunc));
         SameLine();
         SetCursorPosX(x + CalcItemWidth() + GetStyle().ItemInnerSpacing.x);
         TextUnformatted(label);
