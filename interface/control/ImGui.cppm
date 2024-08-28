@@ -30,15 +30,15 @@ namespace vk_gltf_viewer::control::imgui {
     auto hdriEnvironments(vk::DescriptorSet eqmapTexture, AppState &appState) -> void;
 
     // fastgltf Asset related.
-    auto assetInfos(fastgltf::Asset &asset) -> void;
-    auto assetBufferViews(fastgltf::Asset &asset) -> void;
-    auto assetBuffers(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void;
-    auto assetImages(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void;
-    auto assetSamplers(fastgltf::Asset &asset) -> void;
-    auto assetMaterials(fastgltf::Asset &asset, AppState &appState, std::span<const vk::DescriptorSet> assetTextures) -> void;
-    auto assetSceneHierarchies(const fastgltf::Asset &asset, AppState &appState) -> void;
+    auto assetInfos(AppState &appState) -> void;
+    auto assetBufferViews(AppState &appState) -> void;
+    auto assetBuffers(AppState &appState) -> void;
+    auto assetImages(AppState &appState) -> void;
+    auto assetSamplers(AppState &appState) -> void;
+    auto assetMaterials(AppState &appState, std::span<const vk::DescriptorSet> assetTextures) -> void;
+    auto assetSceneHierarchies(AppState &appState) -> void;
 
-    auto nodeInspector(fastgltf::Asset &asset, AppState &appState) -> void;
+    auto nodeInspector(AppState &appState) -> void;
     auto inputControlSetting(AppState &appState) -> void;
 
     /**

@@ -271,9 +271,9 @@ auto vk_gltf_viewer::control::imgui::hdriEnvironments(
     ImGui::End();
 }
 
-auto vk_gltf_viewer::control::imgui::assetInfos(fastgltf::Asset &asset) -> void {
-    if (ImGui::Begin("Asset")) {
-        if (auto &assetInfo = asset.assetInfo) {
+auto vk_gltf_viewer::control::imgui::assetInfos(AppState &appState) -> void {
+    if (ImGui::Begin("Asset") && appState.gltfAsset) {
+        if (auto &assetInfo = appState.gltfAsset->asset.assetInfo) {
             ImGui::InputTextWithHint("glTF Version", "<empty>", &assetInfo->gltfVersion);
             ImGui::InputTextWithHint("Generator", "<empty>", &assetInfo->generator);
             ImGui::InputTextWithHint("Copyright", "<empty>", &assetInfo->copyright);
@@ -282,12 +282,12 @@ auto vk_gltf_viewer::control::imgui::assetInfos(fastgltf::Asset &asset) -> void 
     ImGui::End();
 }
 
-auto vk_gltf_viewer::control::imgui::assetBufferViews(fastgltf::Asset &asset) -> void {
-    if (ImGui::Begin("Buffer Views")) {
+auto vk_gltf_viewer::control::imgui::assetBufferViews(AppState &appState) -> void {
+    if (ImGui::Begin("Buffer Views") && appState.gltfAsset) {
         ImGui::Table(
             "gltf-buffer-views-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
-            asset.bufferViews,
+            appState.gltfAsset->asset.bufferViews,
             ImGui::ColumnInfo { "Name", [&](std::size_t rowIndex, fastgltf::BufferView &bufferView) {
                 ImGui::PushID(rowIndex);
                 ImGui::SetNextItemWidth(-FLT_MIN);
@@ -295,8 +295,14 @@ auto vk_gltf_viewer::control::imgui::assetBufferViews(fastgltf::Asset &asset) ->
                 ImGui::PopID();
             }, ImGuiTableColumnFlags_WidthStretch },
             ImGui::ColumnInfo { "Buffer", [&](const fastgltf::BufferView &bufferView) {
-                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.buffers[bufferView.bufferIndex].name, [&] { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })).c_str())) {
+                if (ImGui::TextLink("\u2197" /*↗*/)) {
                     // TODO
+                }
+                if (ImGui::BeginItemTooltip()) {
+                    ImGui::TextUnformatted(visit_as<cstring_view>(nonempty_or(
+                        appState.gltfAsset->asset.buffers[bufferView.bufferIndex].name,
+                        [&] { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })));
+                    ImGui::EndTooltip();
                 }
             }, ImGuiTableColumnFlags_WidthFixed },
             ImGui::ColumnInfo { "Offset", [&](const fastgltf::BufferView &bufferView) {
@@ -325,12 +331,12 @@ auto vk_gltf_viewer::control::imgui::assetBufferViews(fastgltf::Asset &asset) ->
     ImGui::End();
 }
 
-auto vk_gltf_viewer::control::imgui::assetBuffers(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void {
-    if (ImGui::Begin("Buffers")) {
+auto vk_gltf_viewer::control::imgui::assetBuffers(AppState &appState) -> void {
+    if (ImGui::Begin("Buffers") && appState.gltfAsset) {
         ImGui::Table(
             "gltf-buffers-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
-            asset.buffers,
+            appState.gltfAsset->asset.buffers,
             ImGui::ColumnInfo { "Name", [](std::size_t row, fastgltf::Buffer &buffer) {
                 ImGui::PushID(row);
                 ImGui::SetNextItemWidth(-FLT_MIN);
@@ -359,7 +365,7 @@ auto vk_gltf_viewer::control::imgui::assetBuffers(fastgltf::Asset &asset, const 
                         ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
                     },
                     [&](const fastgltf::sources::URI &uri) {
-                        ImGui::TextLinkOpenURL(uri.uri.fspath().stem().string().c_str(), (assetDir / uri.uri.fspath()).string().c_str());
+                        ImGui::TextLinkOpenURL("\u2197" /*↗*/, (appState.gltfAsset->assetDir / uri.uri.fspath()).string().c_str());
                     },
                     [](const auto&) {
                         ImGui::TextDisabled("-");
@@ -370,12 +376,12 @@ auto vk_gltf_viewer::control::imgui::assetBuffers(fastgltf::Asset &asset, const 
     ImGui::End();
 }
 
-auto vk_gltf_viewer::control::imgui::assetImages(fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> void {
-    if (ImGui::Begin("Images")) {
+auto vk_gltf_viewer::control::imgui::assetImages(AppState &appState) -> void {
+    if (ImGui::Begin("Images") && appState.gltfAsset){
         ImGui::Table(
             "gltf-images-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
-            asset.images,
+            appState.gltfAsset->asset.images,
             ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Image &image) {
                 ImGui::PushID(rowIndex);
                 ImGui::SetNextItemWidth(-FLT_MIN);
@@ -401,7 +407,7 @@ auto vk_gltf_viewer::control::imgui::assetImages(fastgltf::Asset &asset, const s
                         ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
                     },
                     [&](const fastgltf::sources::URI &uri) {
-                        ImGui::TextLinkOpenURL(uri.uri.fspath().stem().string().c_str(), (assetDir / uri.uri.fspath()).string().c_str());
+                        ImGui::TextLinkOpenURL("\u2197" /*↗*/, (appState.gltfAsset->assetDir / uri.uri.fspath()).string().c_str());
                     },
                     [](const auto&) {
                         ImGui::TextDisabled("-");
@@ -412,12 +418,12 @@ auto vk_gltf_viewer::control::imgui::assetImages(fastgltf::Asset &asset, const s
     ImGui::End();
 }
 
-auto vk_gltf_viewer::control::imgui::assetSamplers(fastgltf::Asset &asset) -> void {
-    if (ImGui::Begin("Samplers")) {
+auto vk_gltf_viewer::control::imgui::assetSamplers(AppState &appState) -> void {
+    if (ImGui::Begin("Samplers") && appState.gltfAsset) {
         ImGui::Table(
             "gltf-samplers-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
-            asset.samplers,
+            appState.gltfAsset->asset.samplers,
             ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Sampler &sampler) {
                 ImGui::PushID(rowIndex);
                 ImGui::SetNextItemWidth(-FLT_MIN);
@@ -450,26 +456,28 @@ auto vk_gltf_viewer::control::imgui::assetSamplers(fastgltf::Asset &asset) -> vo
     ImGui::End();
 }
 
-auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, AppState &appState, std::span<const vk::DescriptorSet> assetTextures) -> void {
-    if (ImGui::Begin("Materials")) {
+auto vk_gltf_viewer::control::imgui::assetMaterials(AppState &appState, std::span<const vk::DescriptorSet> assetTextures) -> void {
+    if (ImGui::Begin("Materials") && appState.gltfAsset) {
+        AppState::GltfAsset &gltfAsset = *appState.gltfAsset;
+
         const bool isComboBoxOpened = [&]() {
-            if (asset.materials.empty()) {
+            if (gltfAsset.asset.materials.empty()) {
                 return ImGui::BeginCombo("Material", "<empty>");
             }
-            else if (!appState.imGuiAssetInspectorMaterialIndex) {
-                return ImGui::BeginCombo("Material", "<select...>");
+            else if (gltfAsset.assetInspectorMaterialIndex) {
+                return ImGui::BeginCombo("Material", visit_as<cstring_view>(nonempty_or(
+                    gltfAsset.asset.materials[*gltfAsset.assetInspectorMaterialIndex].name,
+                    [&] { return std::format("<Unnamed material {}>", *gltfAsset.assetInspectorMaterialIndex); })).c_str());
             }
             else {
-                return ImGui::BeginCombo("Material", visit_as<cstring_view>(nonempty_or(
-                    asset.materials[*appState.imGuiAssetInspectorMaterialIndex].name,
-                    [&] { return std::format("<Unnamed material {}>", *appState.imGuiAssetInspectorMaterialIndex); })).c_str());
+                return ImGui::BeginCombo("Material", "<select...>");
             }
         }();
         if (isComboBoxOpened) {
-            for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
-                const bool isSelected = i == appState.imGuiAssetInspectorMaterialIndex;
+            for (const auto &[i, material] : gltfAsset.asset.materials | ranges::views::enumerate) {
+                const bool isSelected = i == gltfAsset.assetInspectorMaterialIndex;
                 if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(material.name, [&] { return std::format("<Unnamed material {}>", i); })).c_str(), isSelected)) {
-                    appState.imGuiAssetInspectorMaterialIndex = i;
+                    gltfAsset.assetInspectorMaterialIndex = i;
                 }
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();
@@ -479,8 +487,8 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, AppS
             ImGui::EndCombo();
         }
 
-        if (appState.imGuiAssetInspectorMaterialIndex) {
-            fastgltf::Material &material = asset.materials[*appState.imGuiAssetInspectorMaterialIndex];
+        if (gltfAsset.assetInspectorMaterialIndex) {
+            fastgltf::Material &material = gltfAsset.asset.materials[*gltfAsset.assetInspectorMaterialIndex];
 
             ImGui::InputTextWithHint("Name", "<empty>", &material.name);
 
@@ -572,7 +580,8 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, AppS
                 ImGui::TreePop();
             }
 
-            if (const auto &texture = material.normalTexture; ImGui::TreeNodeEx("Normal Mapping", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+            if (const auto &texture = material.normalTexture;
+                ImGui::TreeNodeEx("Normal Mapping", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
                 if (texture) {
                     assetNormalTextureInfo(*texture, assetTextures);
                 }
@@ -584,7 +593,8 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, AppS
                 ImGui::TreePop();
             }
 
-            if (const auto &texture = material.occlusionTexture; ImGui::TreeNodeEx("Occlusion Mapping", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+            if (const auto &texture = material.occlusionTexture;
+                ImGui::TreeNodeEx("Occlusion Mapping", texture ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
                 if (texture) {
                     assetOcclusionTextureInfo(*texture, assetTextures);
                 }
@@ -611,23 +621,18 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, AppS
     ImGui::End();
 }
 
-auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset &asset, AppState &appState) -> void {
-    if (ImGui::Begin("Scene hierarchies")) {
-        const bool isComboBoxOpened = [&]() {
-            if (!appState.imGuiAssetInspectorSceneIndex) {
-                return ImGui::BeginCombo("Scene", "<select...>");
-            }
-            else {
-                return ImGui::BeginCombo("Scene", visit_as<cstring_view>(nonempty_or(
-                    asset.materials[*appState.imGuiAssetInspectorSceneIndex].name,
-                    [&] { return std::format("<Unnamed scene {}>", *appState.imGuiAssetInspectorSceneIndex); })).c_str());
-            }
-        }();
-        if (isComboBoxOpened) {
-            for (const auto &[i, scene] : asset.scenes | ranges::views::enumerate) {
-                const bool isSelected = i == appState.imGuiAssetInspectorSceneIndex;
-                if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(scene.name, [&] { return std::format("<Unnamed scene {}>", i); })).c_str(), isSelected)) {
-                    appState.imGuiAssetInspectorSceneIndex = i;
+auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(AppState &appState) -> void {
+    if (ImGui::Begin("Scene hierarchies") && appState.gltfAsset) {
+        AppState::GltfAsset &gltfAsset = *appState.gltfAsset;
+        if (ImGui::BeginCombo("Scene", visit_as<cstring_view>(nonempty_or(
+                gltfAsset.getScene().name,
+                [&] { return std::format("<Unnamed scene {}>", gltfAsset.getSceneIndex()); })).c_str())) {
+            for (const auto &[i, scene] : gltfAsset.asset.scenes | ranges::views::enumerate) {
+                const bool isSelected = i == gltfAsset.getSceneIndex();
+                if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(
+                        scene.name,
+                        [&] { return std::format("<Unnamed scene {}>", i); })).c_str(), isSelected)) {
+                    gltfAsset.setScene(i);
                 }
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();
@@ -637,42 +642,37 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
             ImGui::EndCombo();
         }
 
-        /*static bool mergeSingleChildNodes = true;
+        static bool mergeSingleChildNodes = true;
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
 
-        static std::vector<std::optional<bool>> visibilities(asset.nodes.size(), true);
-        static std::vector parentNodeIndices = [&]() {
-            std::vector<std::size_t> parentNodeIndices(asset.nodes.size());
-            for (std::size_t i = 0; i < asset.nodes.size(); ++i) {
-                for (std::size_t childIndex : asset.nodes[i].children) {
-                    parentNodeIndices[childIndex] = i;
+        visit(multilambda {
+            [&](std::span<std::optional<bool>> tristateVisibilities) {
+                if (bool v = true; ImGui::Checkbox("Use tristate visibility", &v)) {
+                    // If tristate visibility disabled, all indeterminate visibilities should be set to true.
+                    gltfAsset.nodeVisibilities.emplace<std::vector<bool>>(
+                        tristateVisibilities
+                            | std::views::transform([](std::optional<bool> visibility) {
+                                return visibility.value_or(true);
+                            })
+                            | std::ranges::to<std::vector>());
                 }
-            }
-            return parentNodeIndices;
-        }();
-
-        if (ImGui::Checkbox("Use tristate visibility", &appState.useTristateVisibility)) {
-            if (appState.useTristateVisibility) {
-                // TODO: how to handle this?
-            }
-            else {
-                // If tristate visibility disabled, all indeterminate visibilities are set to true.
-                for (auto &visibility : visibilities) {
-                    if (!visibility) {
-                        visibility = true;
-                    }
+            },
+            [&](std::vector<bool>&) {
+                if (bool v = false; ImGui::Checkbox("Use tristate visibility", &v)) {
+                    // TODO: is there a better way to handle this rather than just set all nodes to visible?
+                    gltfAsset.nodeVisibilities.emplace<std::vector<std::optional<bool>>>(gltfAsset.asset.nodes.size(), true);
                 }
-            }
-        }
+            },
+        }, gltfAsset.nodeVisibilities);
 
-        // TODO.CXX23: const fastgltf::Asset& doesn't have to be passed, but it does since Clang 18's explicit parameter object
-        //  bug. Remove it when it fixed.
-        const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
+        // TODO.CXX23: AppState::GltfAsset& doesn't have to be passed, but it does since Clang 18's explicit parameter
+        //  object bug. Remove it when it fixed.
+        const auto addChildNode = [&](this const auto &self, AppState::GltfAsset &gltfAsset, std::size_t nodeIndex) -> void {
             std::size_t descendentNodeIndex = nodeIndex;
 
             std::vector<std::string> directDescendentNodeNames;
             while (true) {
-                const fastgltf::Node &descendentNode = asset.nodes[descendentNodeIndex];
+                const fastgltf::Node &descendentNode = gltfAsset.asset.nodes[descendentNodeIndex];
                 if (const auto &descendentNodeName = descendentNode.name; descendentNodeName.empty()) {
                     directDescendentNodeNames.emplace_back(std::format("<Unnamed node {}>", descendentNodeIndex));
                 }
@@ -687,7 +687,7 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
                 descendentNodeIndex = descendentNode.children[0];
             }
 
-            const fastgltf::Node &descendentNode = asset.nodes[descendentNodeIndex];
+            const fastgltf::Node &descendentNode = gltfAsset.asset.nodes[descendentNodeIndex];
 
             ImGui::TableNextRow();
 
@@ -695,31 +695,38 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
             ImGui::AlignTextToFramePadding();
             const ImGuiTreeNodeFlags flags
                 = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanTextWidth | ImGuiTreeNodeFlags_OpenOnArrow
-                | (appState.selectedNodeIndices.contains(descendentNodeIndex) ? ImGuiTreeNodeFlags_Selected : 0)
+                | (gltfAsset.selectedNodeIndices.contains(descendentNodeIndex) ? ImGuiTreeNodeFlags_Selected : 0)
                 | (descendentNode.children.empty() ? (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet) : 0);
             ImGui::PushID(descendentNodeIndex);
             const bool isTreeNodeOpen = ImGui::TreeNodeEx("", flags);
             if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
-                // TODO: uncommenting this line in Clang causes internal compiler error...
-                // appState.selectedNodeIndices.emplace(descendentNodeIndex);
+                gltfAsset.selectedNodeIndices.emplace(descendentNodeIndex);
             }
 
             ImGui::SameLine();
-            if (appState.useTristateVisibility) {
-                ImGui::PushItemFlag(ImGuiItemFlags_MixedValue, !visibilities[nodeIndex]);
-                if (ImGui::Checkbox("##visibility", &*visibilities[nodeIndex])) {
-                    if (!visibilities[nodeIndex]) {
-                        visibilities[nodeIndex] = true;
-                    }
 
-                    tristate::propagateTopDown([&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
-                    tristate::propagateBottomUp([&](auto i) { return parentNodeIndices[i]; }, [&](auto i) { return std::span { asset.nodes[i].children }; }, nodeIndex, visibilities);
-                }
-                ImGui::PopItemFlag();
-            }
-            else {
-                ImGui::Checkbox("##visibility", &*visibilities[nodeIndex]);
-            }
+            visit(multilambda {
+                [&](std::span<std::optional<bool>> tristateVisibilities) -> void {
+                    if (ImGui::CheckboxTristate("##visibility", tristateVisibilities[nodeIndex])) {
+                        if (!tristateVisibilities[nodeIndex]) {
+                            tristateVisibilities[nodeIndex].emplace(true);
+                        }
+
+                        tristate::propagateTopDown(
+                            [&](auto i) { return std::span { gltfAsset.asset.nodes[i].children }; },
+                            nodeIndex, tristateVisibilities);
+                        tristate::propagateBottomUp(
+                            [&](auto i) { return gltfAsset.parentNodeIndices[i]; },
+                            [&](auto i) { return std::span { gltfAsset.asset.nodes[i].children }; },
+                            nodeIndex, tristateVisibilities);
+                    }
+                },
+                [&](std::vector<bool> &visibilities) -> void {
+                    if (bool visible = visibilities[nodeIndex]; ImGui::Checkbox("##visibility", &visible)) {
+                        visibilities[nodeIndex].flip();
+                    }
+                },
+            }, gltfAsset.nodeVisibilities);
 
             ImGui::TableSetColumnIndex(1);
             ImGui::TextUnformatted(std::format("{::s}", make_joiner<" / ">(directDescendentNodeNames)));
@@ -753,28 +760,34 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
 
             if (const auto &meshIndex = descendentNode.meshIndex) {
                 ImGui::TableSetColumnIndex(3);
-                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.meshes[*meshIndex].name, [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })))) {
+                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(
+                    gltfAsset.asset.meshes[*meshIndex].name,
+                    [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })).c_str())) {
                     // TODO
                 }
             }
 
             if (const auto &lightIndex = descendentNode.lightIndex) {
                 ImGui::TableSetColumnIndex(4);
-                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.lights[*lightIndex].name, [&] { return std::format("<Unnamed light {}>", *lightIndex); })))) {
+                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(
+                    gltfAsset.asset.lights[*lightIndex].name,
+                    [&] { return std::format("<Unnamed light {}>", *lightIndex); })).c_str())) {
                     // TODO
                 }
             }
 
             if (const auto &cameraIndex = descendentNode.cameraIndex) {
                 ImGui::TableSetColumnIndex(5);
-                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.cameras[*cameraIndex].name, [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })))) {
+                if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(
+                    gltfAsset.asset.cameras[*cameraIndex].name,
+                    [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })).c_str())) {
                     // TODO
                 }
             }
 
             if (isTreeNodeOpen) {
                 for (std::size_t childNodeIndex : descendentNode.children) {
-                    self(asset, childNodeIndex);
+                    self(gltfAsset, childNodeIndex);
                 }
 
                 ImGui::TreePop();
@@ -783,46 +796,36 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(const fastgltf::Asset
             ImGui::PopID();
         };
 
-        appState.renderingNodeIndices
-            = visibilities
-            | ranges::views::enumerate
-            | std::views::filter([](const auto &pair) { return pair.second.value_or(false); })
-            | std::views::keys
-            | std::ranges::to<std::unordered_set<std::size_t>>();
+        if (ImGui::BeginTable("scene-hierarchy-table", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
+            ImGui::TableSetupScrollFreeze(0, 1);
+            ImGui::TableSetupColumn("##node", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide | ImGuiTableColumnFlags_NoReorder | ImGuiTableColumnFlags_NoResize);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Transform", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Mesh", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Light", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Camera", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableHeadersRow();
 
-        if (appState.imGuiAssetInspectorSceneIndex) {
-            const fastgltf::Scene &scene = asset.scenes[*appState.imGuiAssetInspectorSceneIndex];
-            if (ImGui::BeginTable("scene-hierarchy-table", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
-                ImGui::TableSetupScrollFreeze(0, 1);
-                ImGui::TableSetupColumn("##node", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide | ImGuiTableColumnFlags_NoReorder | ImGuiTableColumnFlags_NoResize);
-                ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
-                ImGui::TableSetupColumn("Transform", ImGuiTableColumnFlags_WidthFixed);
-                ImGui::TableSetupColumn("Mesh", ImGuiTableColumnFlags_WidthFixed);
-                ImGui::TableSetupColumn("Light", ImGuiTableColumnFlags_WidthFixed);
-                ImGui::TableSetupColumn("Camera", ImGuiTableColumnFlags_WidthFixed);
-                ImGui::TableHeadersRow();
-
-                for (std::size_t nodeIndex : scene.nodeIndices) {
-                    addChildNode(asset, nodeIndex);
-                }
-
-                ImGui::EndTable();
+            for (std::size_t nodeIndex : gltfAsset.getScene().nodeIndices) {
+                addChildNode(gltfAsset, nodeIndex);
             }
-        }*/
+
+            ImGui::EndTable();
+        }
     }
     ImGui::End();
 }
 
 auto vk_gltf_viewer::control::imgui::nodeInspector(
-    fastgltf::Asset &asset,
     AppState &appState
 ) -> void {
-    if (ImGui::Begin("Node inspector")) {
-        if (appState.selectedNodeIndices.empty()) {
+    if (ImGui::Begin("Node inspector") && appState.gltfAsset) {
+        AppState::GltfAsset &gltfAsset = *appState.gltfAsset;
+        if (gltfAsset.selectedNodeIndices.empty()) {
             ImGui::TextUnformatted("No nodes are selected."sv);
         }
-        else if (appState.selectedNodeIndices.size() == 1) {
-            fastgltf::Node &node = asset.nodes[*appState.selectedNodeIndices.begin()];
+        else if (gltfAsset.selectedNodeIndices.size() == 1) {
+            fastgltf::Node &node = gltfAsset.asset.nodes[*gltfAsset.selectedNodeIndices.begin()];
             ImGui::InputTextWithHint("Name", "<empty>", &node.name);
 
             ImGui::SeparatorText("Transform");
@@ -879,7 +882,7 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
 
             if (ImGui::BeginTabBar("node-tab-bar")) {
                 if (node.meshIndex && ImGui::BeginTabItem("Mesh")) {
-                    fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+                    fastgltf::Mesh &mesh = gltfAsset.asset.meshes[*node.meshIndex];
                     ImGui::InputTextWithHint("Name", "<empty>", &mesh.name);
 
                     for (auto &&[primitiveIndex, primitive]: mesh.primitives | ranges::views::enumerate) {
@@ -889,7 +892,11 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                             }
                             if (primitive.materialIndex) {
                                 ImGui::PushID(*primitive.materialIndex);
-                                if (ImGui::WithLabel("Material"sv, [&]() { return ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.materials[*primitive.materialIndex].name, [&] { return std::format("<Unnamed material {}>", *primitive.materialIndex); })).c_str()); })) {
+                                if (ImGui::WithLabel("Material"sv, [&]() {
+                                    return ImGui::TextLink(visit_as<cstring_view>(nonempty_or(
+                                        gltfAsset.asset.materials[*primitive.materialIndex].name,
+                                        [&] { return std::format("<Unnamed material {}>", *primitive.materialIndex); })).c_str());
+                                })) {
                                     // TODO.
                                 }
                                 ImGui::PopID();
@@ -910,7 +917,7 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                                             return std::optional<std::pair<std::string_view, const fastgltf::Accessor&>> {
                                                 std::in_place,
                                                 "Index"sv,
-                                                asset.accessors[*primitive.indicesAccessor],
+                                                gltfAsset.asset.accessors[*primitive.indicesAccessor],
                                             };
                                         }
                                         else {
@@ -918,7 +925,7 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                                         }
                                     }()),
                                     primitive.attributes | ranges::views::decompose_transform([&](std::string_view attributeName, std::size_t accessorIndex) {
-                                        return std::pair<std::string_view, const fastgltf::Accessor&> { attributeName, asset.accessors[accessorIndex] };
+                                        return std::pair<std::string_view, const fastgltf::Accessor&> { attributeName, gltfAsset.asset.accessors[accessorIndex] };
                                     })),
                                 ImGui::ColumnInfo { "Attribute", decomposer([](std::string_view attributeName, const auto&) {
                                     ImGui::TextUnformatted(attributeName);
@@ -965,10 +972,10 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                                 }) },
                                 ImGui::ColumnInfo { "Normalized", decomposer([](auto, const fastgltf::Accessor &accessor) {
                                     ImGui::TextUnformatted(accessor.normalized ? "Yes"sv : "No"sv);
-                                }) },
+                                }), ImGuiTableColumnFlags_DefaultHide },
                                 ImGui::ColumnInfo { "Sparse", decomposer([](auto, const fastgltf::Accessor &accessor) {
                                     ImGui::TextUnformatted(accessor.sparse ? "Yes"sv : "No"sv);
-                                }) },
+                                }), ImGuiTableColumnFlags_DefaultHide },
                                 ImGui::ColumnInfo { "BufferViewIndex", decomposer([](auto, const fastgltf::Accessor &accessor) {
                                     if (accessor.bufferViewIndex) {
                                         if (ImGui::TextLink(::to_string(*accessor.bufferViewIndex).c_str())) {
@@ -988,12 +995,12 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                     ImGui::EndTabItem();
                 }
                 if (node.cameraIndex && ImGui::BeginTabItem("Camera")) {
-                    fastgltf::Camera &camera = asset.cameras[*node.cameraIndex];
+                    fastgltf::Camera &camera = gltfAsset.asset.cameras[*node.cameraIndex];
                     ImGui::InputTextWithHint("Name", "<empty>", &camera.name);
                     ImGui::EndTabItem();
                 }
                 if (node.lightIndex && ImGui::BeginTabItem("Light")) {
-                    fastgltf::Light &light = asset.lights[*node.lightIndex];
+                    fastgltf::Light &light = gltfAsset.asset.lights[*node.lightIndex];
                     ImGui::InputTextWithHint("Name", "<empty>", &light.name);
                     ImGui::EndTabItem();
                 }

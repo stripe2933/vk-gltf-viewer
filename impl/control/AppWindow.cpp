@@ -118,16 +118,18 @@ void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
         else if (action == GLFW_RELEASE) {
             if (lastMouseDownPosition) {
                 if (mods == GLFW_MOD_CONTROL) {
-                    if (appState.hoveringNodeIndex) {
-                        appState.selectedNodeIndices.emplace(*appState.hoveringNodeIndex);
+                    if (appState.gltfAsset && appState.gltfAsset->hoveringNodeIndex) {
+                        appState.gltfAsset->selectedNodeIndices.emplace(*appState.gltfAsset->hoveringNodeIndex);
                     }
                 }
                 else{
-                    if (appState.hoveringNodeIndex) {
-                        appState.selectedNodeIndices = { *appState.hoveringNodeIndex };
-                    }
-                    else {
-                        appState.selectedNodeIndices.clear();
+                    if (appState.gltfAsset) {
+                        if (appState.gltfAsset->hoveringNodeIndex) {
+                            appState.gltfAsset->selectedNodeIndices = { *appState.gltfAsset->hoveringNodeIndex };
+                        }
+                        else {
+                            appState.gltfAsset->selectedNodeIndices.clear();
+                        }
                     }
                 }
                 lastMouseDownPosition = std::nullopt;

@@ -164,7 +164,14 @@ vk_gltf_viewer::MainApp::MainApp() {
 	io.DisplayFramebufferScale = { contentScale.x, contentScale.y };
 	io.FontGlobalScale = 1.f / io.DisplayFramebufferScale.x;
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-	io.Fonts->AddFontFromFileTTF("/Library/Fonts/Arial Unicode.ttf", 16.f * io.DisplayFramebufferScale.x);
+
+	ImVector<ImWchar> ranges;
+	ImFontGlyphRangesBuilder builder;
+	builder.AddRanges(io.Fonts->GetGlyphRangesDefault());
+	builder.AddChar(0x2197 /*↗*/);
+	builder.BuildRanges(&ranges);
+	io.Fonts->AddFontFromFileTTF("/Library/Fonts/Arial Unicode.ttf", 16.f * io.DisplayFramebufferScale.x, nullptr, ranges.Data);
+	io.Fonts->Build();
 
 	ImGui_ImplGlfw_InitForVulkan(window, true);
 	const auto colorAttachmentFormats = { vk::Format::eB8G8R8A8Unorm };
@@ -271,43 +278,24 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 				assetTextureDescriptorSets
 					= gltfAsset->get().textures
 					| std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
-						return ImGui_ImplVulkan_AddTexture(
+						return static_cast<vk::DescriptorSet>(ImGui_ImplVulkan_AddTexture(
 							[&]() {
 								if (texture.samplerIndex) return static_cast<VkSampler>(*gltfAsset->assetResources.samplers.at(*texture.samplerIndex));
 								return static_cast<VkSampler>(*assetDefaultSampler);
 							}(),
 							static_cast<VkImageView>(*gltfAsset->imageViews.at(*texture.imageIndex)),
-							VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+							VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 					})
 					| std::ranges::to<std::vector>();
 
 				// Update AppState.
-				appState.hoveringNodeIndex.reset();
-				appState.selectedNodeIndices.clear();
-				appState.renderingNodeIndices.clear();
-				const auto iterateSceneNodes = [&](this const auto &self, std::size_t nodeIndex) -> void {
-					appState.renderingNodeIndices.emplace(nodeIndex);
-					for (std::size_t childIndex : gltfAsset->get().nodes[nodeIndex].children) {
-						self(childIndex);
-					}
-				};
-				const fastgltf::Scene &scene = gltfAsset->get().scenes[gltfAsset->get().defaultScene.value_or(0)];
-				for (std::size_t nodeIndex : scene.nodeIndices) {
-					iterateSceneNodes(nodeIndex);
-				}
-
-				appState.imGuiAssetInspectorMaterialIndex.reset();
-				appState.imGuiAssetInspectorSceneIndex = gltfAsset->get().defaultScene.value_or(0);
+				appState.gltfAsset.emplace(gltfAsset->get(), gltfAsset->assetDir);
 			},
 			[&](control::imgui::task::CloseGltf) {
 				gltfAsset.reset();
 
 				// Update AppState.
-				appState.hoveringNodeIndex.reset();
-				appState.selectedNodeIndices.clear();
-				appState.renderingNodeIndices.clear();
-				appState.imGuiAssetInspectorMaterialIndex.reset();
-				appState.imGuiAssetInspectorSceneIndex.reset();
+				appState.gltfAsset.reset();
 			},
 			[&](const control::imgui::task::LoadEqmap &task) {
 				processEqmapChange(task.path);
@@ -322,20 +310,17 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			control::imgui::hdriEnvironments(skyboxResources->imGuiEqmapTextureDescriptorSet, appState);
 		}
 
-		if (gltfAsset) {
-			// Asset inspection.
-			fastgltf::Asset &asset = gltfAsset->get();
-			control::imgui::assetInfos(asset);
-			control::imgui::assetBufferViews(asset);
-			control::imgui::assetBuffers(asset, gltfAsset->assetDir);
-			control::imgui::assetImages(asset, gltfAsset->assetDir);
-			control::imgui::assetSamplers(asset);
-			control::imgui::assetMaterials(asset, appState, assetTextureDescriptorSets);
-			control::imgui::assetSceneHierarchies(asset, appState);
+		// Asset inspection.
+		control::imgui::assetInfos(appState);
+		control::imgui::assetBufferViews(appState);
+		control::imgui::assetBuffers(appState);
+		control::imgui::assetImages(appState);
+		control::imgui::assetSamplers(appState);
+		control::imgui::assetMaterials(appState, assetTextureDescriptorSets);
+		control::imgui::assetSceneHierarchies(appState);
 
-			// Node inspection.
-			control::imgui::nodeInspector(asset, appState);
-		}
+		// Node inspection.
+		control::imgui::nodeInspector(appState);
 
 		ImGuizmo::BeginFrame();
 
@@ -360,13 +345,14 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 			.hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
 			.selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
 			.gltf = gltfAsset.transform([&](GltfAsset &gltfAsset) {
+				assert(appState.gltfAsset && "Synchronization error: gltfAsset is not set in AppState.");
 				return vulkan::Frame::ExecutionTask::Gltf {
 					.asset = gltfAsset.get(),
 					.indexBuffers = gltfAsset.assetResources.indexBuffers,
 					.sceneResources = gltfAsset.sceneResources,
-					.hoveringNodeIndex = appState.hoveringNodeIndex,
-					.selectedNodeIndices = appState.selectedNodeIndices,
-					.renderingNodeIndices = appState.renderingNodeIndices,
+					.hoveringNodeIndex = appState.gltfAsset->hoveringNodeIndex,
+					.selectedNodeIndices = appState.gltfAsset->selectedNodeIndices,
+					.renderingNodeIndices = appState.gltfAsset->getVisibleNodeIndices(),
 				};
 			}),
 			.solidBackground = appState.background.to_optional(),
@@ -374,7 +360,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		};
 
 		const vulkan::Frame::UpdateResult updateResult = frames[frameIndex % frames.size()].update(task);
-		appState.hoveringNodeIndex = updateResult.hoveringNodeIndex;
+		if (appState.gltfAsset) {
+			appState.gltfAsset->hoveringNodeIndex = updateResult.hoveringNodeIndex;
+		}
 
 		if (!frames[frameIndex % frames.size()].execute()) {
 			gpu.device.waitIdle();
@@ -924,10 +912,10 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 	// Emplace the results into skyboxResources and imageBasedLightingResources.
 	vk::raii::ImageView reducedEqmapImageView { gpu.device, reducedEqmapImage.getViewCreateInfo() };
 	const vk::DescriptorSet imGuiEqmapImageDescriptorSet
-		= ImGui_ImplVulkan_AddTexture(
+		= static_cast<vk::DescriptorSet>(ImGui_ImplVulkan_AddTexture(
 			static_cast<VkSampler>(*reducedEqmapSampler),
 			static_cast<VkImageView>(*reducedEqmapImageView),
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 	vk::raii::ImageView cubemapImageView { gpu.device, mippedCubemapGenerator.cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
 	skyboxResources.emplace(
 		std::move(reducedEqmapImage),

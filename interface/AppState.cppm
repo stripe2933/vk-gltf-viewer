@@ -1,9 +1,15 @@
+module;
+
+#include <fastgltf/types.hpp>
+
 export module vk_gltf_viewer:AppState;
 
 import std;
 export import glm;
+import ranges;
 import :control.Camera;
 import :helpers.full_optional;
+import :helpers.functional;
 
 namespace vk_gltf_viewer {
     export class AppState {
@@ -34,20 +40,82 @@ namespace vk_gltf_viewer {
             } prefilteredmap;
         };
 
+        class GltfAsset {
+        public:
+            fastgltf::Asset &asset;
+            std::filesystem::path assetDir;
+            std::vector<std::size_t> parentNodeIndices = getParentNodeIndices();
+            std::variant<std::vector<std::optional<bool>>, std::vector<bool>> nodeVisibilities { std::in_place_index<0>, asset.nodes.size(), true };
+            std::optional<std::size_t> assetInspectorMaterialIndex = asset.materials.empty() ? std::optional<std::size_t>{} : std::optional { 0UZ };
+
+            std::unordered_set<std::size_t> selectedNodeIndices;
+            std::optional<std::size_t> hoveringNodeIndex;
+
+            explicit GltfAsset(fastgltf::Asset &asset, const std::filesystem::path &assetDir) noexcept
+                : asset { asset }, assetDir { assetDir } { }
+
+            [[nodiscard]] auto getSceneIndex() const noexcept -> std::size_t { return sceneIndex; }
+            [[nodiscard]] auto getScene() const noexcept -> fastgltf::Scene& { return asset.scenes[sceneIndex]; }
+            auto setScene(std::size_t _sceneIndex) noexcept -> void {
+                sceneIndex = _sceneIndex;
+                selectedNodeIndices.clear();
+                hoveringNodeIndex.reset();
+            }
+
+            /**
+             * From <tt>nodeVisibilities</tt>, get the unique indices of the visible nodes.
+             * @return <tt>std::unordered_set</tt> of the visible node indices.
+             * @note
+             * Since the result only contains node which is visible, nodes without mesh are excluded regardless of its
+             * corresponding <tt>nodeVisibilities</tt> is <tt>true</tt>.
+             */
+            [[nodiscard]] auto getVisibleNodeIndices() const noexcept -> std::unordered_set<std::size_t> {
+                return visit(multilambda {
+                    [this](std::span<const std::optional<bool>> tristateVisibilities) {
+                        return tristateVisibilities
+                            | ranges::views::enumerate
+                            | std::views::filter(decomposer([this](std::size_t nodeIndex, std::optional<bool> visibility) {
+                                return visibility.value_or(false) && asset.nodes[nodeIndex].meshIndex.has_value();
+                            }))
+                            | std::views::keys
+                            // Explicit value type must be specified, because std::views::enumerate's index type is range_difference_t<R> (!= std::size_t).
+                            | std::ranges::to<std::unordered_set<std::size_t>>();
+                    },
+                    [this](const std::vector<bool> &visibilities) {
+                        return visibilities
+                            | ranges::views::enumerate
+                            | std::views::filter(decomposer([this](std::size_t nodeIndex, bool visibility) {
+                                return visibility && asset.nodes[nodeIndex].meshIndex.has_value();
+                            }))
+                            | std::views::keys
+                            // Explicit value type must be specified, because std::views::enumerate's index type is range_difference_t<R> (!= std::size_t).
+                            | std::ranges::to<std::unordered_set<std::size_t>>();
+                    }
+                }, nodeVisibilities);
+            }
+
+        private:
+            std::size_t sceneIndex = asset.defaultScene.value_or(0);
+
+            [[nodiscard]] auto getParentNodeIndices() const noexcept -> std::vector<std::size_t> {
+                std::vector indices { std::from_range, std::views::iota(0UZ, asset.nodes.size()) };
+                for (const auto &[i, node] : asset.nodes | ranges::views::enumerate) {
+                    for (std::size_t childIndex : node.children) {
+                        indices[childIndex] = i;
+                    }
+                }
+                return indices;
+            }
+        };
+
         control::Camera camera;
         std::optional<glm::vec2> hoveringMousePosition;
-        std::optional<std::uint32_t> hoveringNodeIndex = std::nullopt;
-        std::unordered_set<std::size_t> selectedNodeIndices;
-        std::unordered_set<std::size_t> renderingNodeIndices;
         full_optional<Outline> hoveringNodeOutline { std::in_place, 2.f, glm::vec4 { 1.f, 0.5f, 0.2f, 1.f } };
         full_optional<Outline> selectedNodeOutline { std::in_place, 2.f, glm::vec4 { 0.f, 1.f, 0.2f, 1.f } };
         bool canSelectSkyboxBackground = false; // TODO: bad design... this and background should be handled in a single field.
         full_optional<glm::vec3> background { std::in_place, 0.f, 0.f, 0.f }; // nullopt -> use cubemap from the given equirectangular map image.
         std::optional<ImageBasedLighting> imageBasedLightingProperties;
-        bool useTristateVisibility = true;
-
-        std::optional<std::size_t> imGuiAssetInspectorMaterialIndex;
-        std::optional<std::size_t> imGuiAssetInspectorSceneIndex;
+        std::optional<GltfAsset> gltfAsset;
 
         AppState() noexcept;
     };
