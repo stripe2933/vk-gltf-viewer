@@ -16,197 +16,33 @@ import :control.ImGui;
 import std;
 import glm;
 import ranges;
+import imgui;
 import :helpers.enum_to_string;
 import :helpers.formatters.joiner;
 import :helpers.tristate;
+import :helpers.functional;
 
 using namespace std::string_view_literals;
 
-#define INDEX_SEQ(Is, N, ...) [&]<auto... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-
-namespace ImGui {
-    IMGUI_API bool InputTextWithHint(const char* label, const char *hint, std::pmr::string* str, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = nullptr, void* userData = nullptr) {
-        struct ChainedUserData {
-            std::pmr::string*       Str;
-            ImGuiInputTextCallback  ChainCallback;
-            void*                   ChainCallbackUserData;
-        };
-
-        constexpr auto chainCallback = [](ImGuiInputTextCallbackData *data) -> int {
-            const auto *userData = static_cast<ChainedUserData*>(data->UserData);
-            if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
-                // Resize string callback
-                // If for some reason we refuse the new length (BufTextLen) and/or capacity (BufSize) we need to set them back to what we want.
-                auto* str = userData->Str;
-                IM_ASSERT(data->Buf == str->c_str());
-                str->resize(data->BufTextLen);
-                data->Buf = const_cast<char*>(str->c_str());
-            }
-            else if (userData->ChainCallback) {
-                // Forward to user callback, if any
-                data->UserData = userData->ChainCallbackUserData;
-                return userData->ChainCallback(data);
-            }
-            return 0;
-        };
-
-        IM_ASSERT((flags & ImGuiInputTextFlags_CallbackResize) == 0);
-        flags |= ImGuiInputTextFlags_CallbackResize;
-
-        ChainedUserData chainedUserData {
-            .Str = str,
-            .ChainCallback = chainCallback,
-            .ChainCallbackUserData = userData,
-        };
-        return InputTextWithHint(label, hint, const_cast<char*>(str->c_str()), str->capacity() + 1, flags, chainCallback, &chainedUserData);
-    }
-
-    // https://github.com/ocornut/imgui/pull/6526
-    IMGUI_API bool SmallCheckbox(const char* label, bool* v) {
-        ImGuiStyle &style = GetStyle();
-        const float backup_padding_y = style.FramePadding.y;
-        style.FramePadding.y = 0.0f;
-        bool pressed = Checkbox(label, v);
-        style.FramePadding.y = backup_padding_y;
-        return pressed;
-    }
-
-    IMGUI_API void TextUnformatted(std::string_view str) {
-        Text(str.cbegin(), str.cend());
-    }
-
-    template <std::invocable F>
-    auto WithLabel(std::string_view label, F &&imGuiFunc)
-        requires std::is_void_v<std::invoke_result_t<F>>
-    {
-        const float x = GetCursorPosX();
-        imGuiFunc();
-        SameLine();
-        SetCursorPosX(x + CalcItemWidth() + GetStyle().ItemInnerSpacing.x);
-        TextUnformatted(label);
-    }
-
-    template <std::invocable F>
-    auto WithLabel(std::string_view label, F &&imGuiFunc) -> std::invoke_result_t<F> {
-        const float x = GetCursorPosX();
-        auto value = imGuiFunc();
-        SameLine();
-        SetCursorPosX(x + CalcItemWidth() + GetStyle().ItemInnerSpacing.x);
-        TextUnformatted(label);
-        return value;
-    }
-
-    template <typename F>
-    struct ColumnInfo {
-        using function_t = F;
-
-        cstring_view label;
-        F f;
-        ImGuiTableColumnFlags flags;
-    };
-
-    template <typename... Fs>
-    auto Table(cstring_view str_id, ImGuiTableFlags flags, std::ranges::input_range auto &&items, ColumnInfo<Fs> ...columnInfos) -> void {
-        if (BeginTable(str_id.c_str(), 1 /* row index */ + sizeof...(Fs), flags)) {
-            TableSetupScrollFreeze(0, 1);
-            TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
-            (TableSetupColumn(columnInfos.label.c_str(), columnInfos.flags), ...);
-            TableHeadersRow();
-            for (std::size_t rowIndex = 0; auto &&item : FWD(items)) {
-                TableNextRow();
-                TableSetColumnIndex(0);
-                Text("%zu", rowIndex);
-                INDEX_SEQ(Is, sizeof...(Fs), {
-                    ((TableSetColumnIndex(Is + 1), [&]() {
-                        if constexpr (std::invocable<Fs, std::size_t /* row */, decltype(item)>) {
-                            columnInfos.f(rowIndex, FWD(item));
-                        }
-                        else {
-                            columnInfos.f(FWD(item));
-                        }
-                    }()), ...);
-                });
-                ++rowIndex;
-            }
-            EndTable();
-        }
-    }
-
-    template <typename... Fs>
-    auto TableNoRowNumber(cstring_view str_id, ImGuiTableFlags flags, std::ranges::input_range auto &&items, ColumnInfo<Fs> ...columnInfos) -> void {
-        if (BeginTable(str_id.c_str(), sizeof...(Fs), flags)) {
-            TableSetupScrollFreeze(0, 1);
-            (TableSetupColumn(columnInfos.label.c_str(), columnInfos.flags), ...);
-            TableHeadersRow();
-            for (std::size_t rowIndex = 0; auto &&item : FWD(items)) {
-                TableNextRow();
-                INDEX_SEQ(Is, sizeof...(Fs), {
-                    ((TableSetColumnIndex(Is), [&]() {
-                        if constexpr (std::invocable<Fs, std::size_t /* row */, decltype(item)>) {
-                            columnInfos.f(rowIndex, FWD(item));
-                        }
-                        else {
-                            columnInfos.f(FWD(item));
-                        }
-                    }()), ...);
-                });
-                ++rowIndex;
-            }
-            EndTable();
-        }
-    }
+/**
+ * Return \p str if it is not empty, otherwise return \p falblback.
+ * @param str Null-terminated non-owning string view to check.
+ * @param fallback Fallback to be used if \p str is empty.
+ * @return \p str if it is not empty, otherwise \p fallback.
+ */
+[[nodiscard]] auto nonempty_or(cstring_view str, cstring_view fallback) -> cstring_view {
+    return str.empty() ? fallback : str;
 }
 
 /**
  * Return \p str if it is not empty, otherwise return the result of \p fallback.
- * @param str String to check.
+ * @param str Null-terminated non-owning string view to check.
  * @param fallback Fallback function to call if \p str is empty.
  * @return A variant that contains either the <tt>cstring_view</tt> of the original \p str, or string of the result of \p fallback.
  */
 [[nodiscard]] auto nonempty_or(cstring_view str, std::invocable auto &&fallback) -> std::variant<cstring_view, std::string> {
     if (str.empty()) return fallback();
     else return str;
-}
-
-/**
- * Visit \p v as \p T, and return the result.
- * @tparam T Visited type.
- * @tparam Ts Types of \p v's alternatives. These types must be convertible to \p T.
- * @param v Variant to visit.
- * @return Visited value.
- * @example
- * @code
- * visit_as<float>(std::variant<int, float>{ 3 }); // Returns 3.f
- * @endcode
- */
-template <typename T, std::convertible_to<T>... Ts>
-[[nodiscard]] auto visit_as(const std::variant<Ts...> &v) -> T {
-    return std::visit([](T x) { return x; }, v);
-}
-
-/**
- * Make a lambda function that automatically decomposes the structure binding of an input parameter.
- * For example, your input parameter type is <tt>std::tuple<std::string, int, double></tt>, the lambda declaration would be:
- * @code
- * [](const auto &tuple) {
- *     const auto &[arg1, arg2, arg3] = tuple;
- *     // (Use arg1, arg2 and arg3)
- * })
- * @endcode
- * With <tt>decomposer, you can avoid the nested decomposition by like:
- * @code
- * decomposer([](const std::string &arg1, int arg2, double arg3) {
- * // (Use arg1, arg2 and arg3)
- * })
- * @endcode
- * @param f Function that accepts the decomposed structure bindings.
- * @return Function which accepts the composed argument and executes \p f with decomposition.
- */
-[[nodiscard]] auto decomposer(auto &&f) {
-    return [f = FWD(f)](auto &&tuple) {
-        return std::apply(f, FWD(tuple));
-    };
 }
 
 template <std::integral T>
