@@ -4,6 +4,7 @@ module;
 
 export module ranges;
 export import :concat;
+export import :contains;
 
 import std;
 

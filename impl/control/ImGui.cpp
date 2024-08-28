@@ -724,7 +724,8 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, AppS
                     ImGui::TreePop();
                 }
 
-                if (auto isExtensionUsed = std::ranges::find(asset.extensionsUsed, "KHR_materials_emissive_strength") != asset.extensionsUsed.end(); ImGui::TreeNodeEx("KHR_materials_emissive_strength", isExtensionUsed ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+                if (auto isExtensionUsed = ranges::contains(gltfAsset.asset.extensionsUsed, "KHR_materials_emissive_strength"sv);
+                    ImGui::TreeNodeEx("KHR_materials_emissive_strength", isExtensionUsed ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
                     if (auto strength = material.emissiveStrength; ImGui::DragFloat("Strength", &strength, 0.01f, 0.f, FLT_MAX)) {
                         // material.emissiveStrength = strength; // TODO
                     }
@@ -759,7 +760,8 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(fastgltf::Asset &asset, AppS
                 ImGui::TreePop();
             }
 
-            if (auto isExtensionUsed = std::ranges::find(asset.extensionsUsed, "KHR_materials_unlit") != asset.extensionsUsed.end(); ImGui::TreeNodeEx("KHR_materials_unlit", isExtensionUsed ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+            if (auto isExtensionUsed = ranges::contains(gltfAsset.asset.extensionsUsed, "KHR_materials_unlit");
+                ImGui::TreeNodeEx("KHR_materials_unlit", isExtensionUsed ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
                 ImGui::BeginDisabled(!isExtensionUsed);
                 if (auto unlit = material.unlit; ImGui::Checkbox("Unlit", &unlit)) {
                     // material.unlit = unlit; // TODO

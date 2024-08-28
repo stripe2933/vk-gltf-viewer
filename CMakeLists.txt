@@ -70,6 +70,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/helpers/functional.cppm
 		interface/helpers/ranges/mod.cppm
 		interface/helpers/ranges/concat.cppm
+		interface/helpers/ranges/contains.cppm
 		interface/helpers/tristate.cppm
 		interface/helpers/type_map.cppm
 		interface/helpers/type_variant.cppm
