@@ -57,8 +57,8 @@ namespace vk_gltf_viewer::vulkan {
 		SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, cubeIndices };
 
     	// Attachment groups.
-    	std::vector<ag::Swapchain> swapchainAttachmentGroups = createSwapchainAttachmentGroups();
-    	std::vector<ag::ImGuiSwapchain> imGuiSwapchainAttachmentGroups = createImGuiSwapchainAttachmentGroups();
+    	ag::Swapchain swapchainAttachmentGroup { gpu.device, swapchainExtent, swapchainImages };
+    	ag::ImGuiSwapchain imGuiSwapchainAttachmentGroup { gpu.device, swapchainExtent, swapchainImages };
 
     	// Descriptor pools.
     	vk::raii::DescriptorPool textureDescriptorPool = createTextureDescriptorPool();
@@ -85,14 +85,12 @@ namespace vk_gltf_viewer::vulkan {
 
     		std::tie(assetDescriptorSet)
 				= vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(
-					// TODO: vku::allocateDescriptorSets type deduction should be fixed (bad-looking explicit const cast)
-					std::as_const(assetDescriptorSetLayout)));
+					assetDescriptorSetLayout));
     		std::tie(sceneDescriptorSet, imageBasedLightingDescriptorSet, skyboxDescriptorSet)
 				= vku::allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
-					// TODO: vku::allocateDescriptorSets type deduction should be fixed (bad-looking explicit const cast)
-					std::as_const(sceneDescriptorSetLayout),
-					std::as_const(imageBasedLightingDescriptorSetLayout),
-					std::as_const(skyboxDescriptorSetLayout)));
+					sceneDescriptorSetLayout,
+					imageBasedLightingDescriptorSetLayout,
+					skyboxDescriptorSetLayout));
     	}
 
     	// --------------------
@@ -105,8 +103,8 @@ namespace vk_gltf_viewer::vulkan {
     		swapchainExtent = newExtent;
     		swapchainImages = swapchain.getImages();
 
-    		swapchainAttachmentGroups = createSwapchainAttachmentGroups();
-    		imGuiSwapchainAttachmentGroups = createImGuiSwapchainAttachmentGroups();
+    		swapchainAttachmentGroup = { gpu.device, swapchainExtent, swapchainImages };
+    		imGuiSwapchainAttachmentGroup = { gpu.device, swapchainExtent, swapchainImages };
 
     		const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     		const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
@@ -132,8 +130,7 @@ namespace vk_gltf_viewer::vulkan {
 
     		textureDescriptorPool = createTextureDescriptorPool();
     		std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(
-    			// TODO: vku::allocateDescriptorSets type deduction should be fixed (bad-looking explicit const cast)
-    			std::as_const(assetDescriptorSetLayout)));
+    			assetDescriptorSetLayout));
     	}
 
     private:
@@ -163,22 +160,6 @@ namespace vk_gltf_viewer::vulkan {
 					}),
 				},
 			}.get() };
-		}
-
-    	[[nodiscard]] auto createSwapchainAttachmentGroups() const -> std::vector<ag::Swapchain> {
-			return swapchainImages
-    			| std::views::transform([&](vk::Image image) {
-					return ag::Swapchain { gpu.device, { image, vk::Extent3D { swapchainExtent }, vk::Format::eB8G8R8A8Srgb, 1, 1 } };
-				})
-    			| std::ranges::to<std::vector>();
-		}
-
-    	[[nodiscard]] auto createImGuiSwapchainAttachmentGroups() const -> std::vector<ag::ImGuiSwapchain> {
-			return swapchainImages
-    			| std::views::transform([&](vk::Image image) {
-					return ag::ImGuiSwapchain { gpu.device, { image, vk::Extent3D { swapchainExtent }, vk::Format::eB8G8R8A8Srgb, 1, 1 } };
-				})
-    			| std::ranges::to<std::vector>();
 		}
 
     	[[nodiscard]] auto createTextureDescriptorPool() const -> vk::raii::DescriptorPool {

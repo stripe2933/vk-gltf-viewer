@@ -30,13 +30,13 @@ vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedDat
 					{}, {},
 					{}, vk::ImageLayout::eColorAttachmentOptimal,
 					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					sceneMsaaImage, vku::fullSubresourceRange(),
+					sceneAttachmentGroup.getSwapchainAttachment(0).image, vku::fullSubresourceRange(),
 				},
 				vk::ImageMemoryBarrier {
 					{}, {},
 					{}, vk::ImageLayout::eDepthAttachmentOptimal,
 					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					sceneDepthImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
+					sceneAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
 				},
 			});
 	});
@@ -71,9 +71,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
 	if (task.handleSwapchainResize) {
 		// Attachment images that have to be matched to the swapchain extent must be recreated.
-		sceneMsaaImage = createSceneMsaaImage();
-		sceneDepthImage = createSceneDepthImage();
-		sceneAttachmentGroups = createSceneAttachmentGroups();
+		sceneAttachmentGroup = { gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
 	}
 
 	// Get node index under the cursor from hoveringNodeIndexBuffer.
@@ -290,11 +288,10 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
 		if (auto *clearColor = get_if<glm::vec3>(&background)) {
 			backgroundColor.setFloat32({ clearColor->x, clearColor->y, clearColor->z, 1.f });
 		}
-		sceneRenderingCommandBuffer.beginRenderingKHR(sceneAttachmentGroups[imageIndex].getRenderingInfo(
-			std::array {
-				vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, backgroundColor },
-			},
-			vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
+		sceneRenderingCommandBuffer.beginRenderingKHR(sceneAttachmentGroup.getRenderingInfo(
+			vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, backgroundColor },
+			vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } },
+			imageIndex));
 
 		const vk::Viewport passthruViewport {
 			// Use negative viewport.
@@ -460,45 +457,6 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutT
 		});
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createSceneMsaaImage() const -> vku::AllocatedImage {
-	return { gpu.allocator, vk::ImageCreateInfo {
-		{},
-		vk::ImageType::e2D,
-		vk::Format::eB8G8R8A8Srgb,
-		vk::Extent3D { sharedData.swapchainExtent, 1 },
-		1, 1,
-		vk::SampleCountFlagBits::e4,
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
-	}, vku::allocation::deviceLocalTransient };
-}
-
-auto vk_gltf_viewer::vulkan::Frame::createSceneDepthImage() const -> vku::AllocatedImage {
-	return { gpu.allocator, vk::ImageCreateInfo {
-		{},
-		vk::ImageType::e2D,
-		vk::Format::eD32Sfloat,
-		vk::Extent3D { sharedData.swapchainExtent, 1 },
-		1, 1,
-		vk::SampleCountFlagBits::e4,
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
-	}, vku::allocation::deviceLocalTransient };
-}
-
-auto vk_gltf_viewer::vulkan::Frame::createSceneAttachmentGroups() const -> std::vector<ag::Scene> {
-	return sharedData.swapchainImages
-		| std::views::transform([this](vk::Image swapchainImage) {
-			return ag::Scene {
-				gpu.device,
-				sceneMsaaImage,
-				vku::Image { swapchainImage, vk::Extent3D { sharedData.swapchainExtent, 1 }, vk::Format::eB8G8R8A8Srgb, 1, 1 },
-				sceneDepthImage,
-			};
-		})
-		| std::ranges::to<std::vector>();
-}
-
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {
 	return {
 		gpu.device,
@@ -516,7 +474,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 			{}, vk::AccessFlagBits::eColorAttachmentWrite,
 			{}, vk::ImageLayout::eColorAttachmentOptimal,
 			vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-			passthruResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
+			passthruResources->depthPrepassAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
 		});
 	}
 
@@ -684,11 +642,11 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 				vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
 				vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
 				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				passthruResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vku::fullSubresourceRange(),
+				passthruResources->depthPrepassAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
 			});
 
 		cb.copyImageToBuffer(
-			passthruResources->depthPrepassAttachmentGroup.colorAttachments[0].image, vk::ImageLayout::eTransferSrcOptimal,
+			passthruResources->depthPrepassAttachmentGroup.getColorAttachment(0).image, vk::ImageLayout::eTransferSrcOptimal,
 			hoveringNodeIndexBuffer,
 			vk::BufferImageCopy {
 				0, {}, {},
@@ -861,10 +819,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
 	cb.setViewport(0, passthruViewport);
 	cb.setScissor(0, passthruRect);
 
-	cb.beginRenderingKHR(sharedData.swapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
-		std::array {
-			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore }
-		}));
+	cb.beginRenderingKHR(sharedData.swapchainAttachmentGroup.getRenderingInfo(
+		vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
+		swapchainImageIndex));
 
 	// Draw hovering/selected node outline if exists.
 	bool pipelineBound = false;
@@ -908,10 +865,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
 	std::uint32_t swapchainImageIndex
 ) const -> void {
 	// Start dynamic rendering with B8G8R8A8_UNORM format.
-	cb.beginRenderingKHR(sharedData.imGuiSwapchainAttachmentGroups[swapchainImageIndex].getRenderingInfo(
-		std::array {
-			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore }
-		}));
+	cb.beginRenderingKHR(sharedData.imGuiSwapchainAttachmentGroup.getRenderingInfo(
+		vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
+		swapchainImageIndex));
 
 	// Draw ImGui.
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cb);

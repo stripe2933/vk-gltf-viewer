@@ -136,11 +136,9 @@ namespace vk_gltf_viewer::vulkan {
     	vku::MappedBuffer hoveringNodeIndexBuffer;
     	std::optional<vk::Extent2D> passthruExtent = std::nullopt;
 		std::optional<PassthruResources> passthruResources = std::nullopt;
-    	vku::AllocatedImage sceneMsaaImage = createSceneMsaaImage();
-    	vku::AllocatedImage sceneDepthImage = createSceneDepthImage();
 
     	// Attachment groups.
-    	std::vector<ag::Scene> sceneAttachmentGroups = createSceneAttachmentGroups();
+    	ag::Scene sceneAttachmentGroup { gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
 
         // Descriptor/command pools.
     	vk::raii::DescriptorPool descriptorPool = createDescriptorPool();
@@ -178,9 +176,6 @@ namespace vk_gltf_viewer::vulkan {
     	std::optional<HoveringNode> hoveringNode;
     	std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
 
-    	[[nodiscard]] auto createSceneMsaaImage() const -> vku::AllocatedImage;
-    	[[nodiscard]] auto createSceneDepthImage() const -> vku::AllocatedImage;
-    	[[nodiscard]] auto createSceneAttachmentGroups() const -> std::vector<ag::Scene>;
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
 
     	auto recordScenePrepassCommands(vk::CommandBuffer cb) const -> void;
