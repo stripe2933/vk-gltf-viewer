@@ -7,7 +7,7 @@ const ivec2 normalizedOffsets[9] = {
     { -1,  1 }, { 0,  1 }, { 1,  1 }
 };
 
-layout (set = 0, binding = 0, rg16ui) uniform uimage2D pingPongImages[2];
+layout (set = 0, binding = 0, rg16ui) uniform uimage2DArray pingPongImage;
 
 layout (push_constant, std430) uniform PushConstant {
     bool forward;
@@ -21,7 +21,7 @@ uint length2(uvec2 v) {
 }
 
 void main(){
-    uvec2 imageExtent = imageSize(pingPongImages[0]);
+    uvec2 imageExtent = imageSize(pingPongImage).xy;
     if (gl_GlobalInvocationID.x >= imageExtent.x || gl_GlobalInvocationID.y >= imageExtent.y) {
         return;
     }
@@ -29,7 +29,7 @@ void main(){
     uvec2 closestSeedCoord;
     uint closestSeedDistanceSq = UINT_MAX;
     for (uint i = 0; i < 9; ++i){
-        uvec2 seedCoord = imageLoad(pingPongImages[uint(!pc.forward)], ivec2(gl_GlobalInvocationID.xy) + int(pc.sampleOffset) * normalizedOffsets[i]).xy;
+        uvec2 seedCoord = imageLoad(pingPongImage, ivec3(ivec2(gl_GlobalInvocationID.xy) + int(pc.sampleOffset) * normalizedOffsets[i], !pc.forward)).xy;
         if (seedCoord != uvec2(0U)) {
             uint seedDistanceSq = length2(seedCoord - gl_GlobalInvocationID.xy);
             if (seedDistanceSq < closestSeedDistanceSq) {
@@ -39,5 +39,5 @@ void main(){
         }
     }
 
-    imageStore(pingPongImages[uint(pc.forward)], ivec2(gl_GlobalInvocationID.xy), uvec4(closestSeedDistanceSq == UINT_MAX ? uvec2(0) : closestSeedCoord, 0, 0));
+    imageStore(pingPongImage, ivec3(ivec2(gl_GlobalInvocationID.xy), pc.forward), uvec4(closestSeedDistanceSq == UINT_MAX ? uvec2(0) : closestSeedCoord, 0, 0));
 }

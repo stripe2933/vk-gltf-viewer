@@ -20,7 +20,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             vk::CommandBuffer commandBuffer,
             vku::DescriptorSet<DescriptorSetLayout> descriptorSets,
             std::uint32_t initialSampleOffset,
-            const vk::Extent2D &imageExtent) const -> vk::Bool32;
+            const vk::Extent2D &imageExtent) const -> bool;
 
     private:
         struct PushConstant;

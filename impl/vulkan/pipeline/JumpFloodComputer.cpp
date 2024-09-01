@@ -19,9 +19,7 @@ vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::DescriptorSetLayout::Descri
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
-            vku::unsafeProxy({
-                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 2, vk::ShaderStageFlagBits::eCompute },
-            }),
+            vku::unsafeProxy(vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute }),
         },
     } { }
 
@@ -51,7 +49,7 @@ auto vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::compute(
     vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
     std::uint32_t initialSampleOffset,
     const vk::Extent2D &imageExtent
-) const -> vk::Bool32 {
+) const -> bool {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
 
