@@ -591,14 +591,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 
 	if (renderingNodes) {
 		cb.beginRenderingKHR(passthruResources->depthPrepassAttachmentGroup.getRenderingInfo(
-			std::array {
-				vku::AttachmentGroup::ColorAttachmentInfo {
-					// If cursor is not inside the passthru rect, mouse picking will not happen; node index attachment
-					// doesn't have to be preserved.
-					cursorPosFromPassthruRectTopLeft ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare,
-					cursorPosFromPassthruRectTopLeft ? vk::AttachmentStoreOp::eStore : vk::AttachmentStoreOp::eDontCare,
-					{ NO_INDEX, 0U, 0U, 0U },
-				},
+			vku::AttachmentGroup::ColorAttachmentInfo {
+				// If cursor is not inside the passthru rect, mouse picking will not happen; node index attachment
+				// doesn't have to be preserved.
+				cursorPosFromPassthruRectTopLeft ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare,
+				cursorPosFromPassthruRectTopLeft ? vk::AttachmentStoreOp::eStore : vk::AttachmentStoreOp::eDontCare,
+				{ NO_INDEX, 0U, 0U, 0U },
 			},
 			vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 		drawPrimitives(renderingNodes->indirectDrawCommandBuffers, sharedData.depthRenderer, sharedData.alphaMaskedDepthRenderer);
@@ -608,9 +606,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 	// Seeding jump flood initial image for hovering node.
 	if (hoveringNode) {
 		cb.beginRenderingKHR(passthruResources->hoveringNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
-			std::array {
-				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
-			},
+			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
 			vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 		drawPrimitives(hoveringNode->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.alphaMaskedJumpFloodSeedRenderer);
 		cb.endRenderingKHR();
@@ -619,9 +615,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 	// Seeding jump flood initial image for selected node.
 	if (selectedNodes) {
 		cb.beginRenderingKHR(passthruResources->selectedNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
-			std::array {
-				vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
-			},
+			vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
 			vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 		drawPrimitives(selectedNodes->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.alphaMaskedJumpFloodSeedRenderer);
 		cb.endRenderingKHR();
