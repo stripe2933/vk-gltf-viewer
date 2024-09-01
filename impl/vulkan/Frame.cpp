@@ -12,7 +12,6 @@ import ranges;
 import type_variant;
 import :helpers.functional;
 import :vulkan.ag.DepthPrepass;
-import :vulkan.ag.Scene;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
 
@@ -30,13 +29,13 @@ vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedDat
 					{}, {},
 					{}, vk::ImageLayout::eColorAttachmentOptimal,
 					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					sceneAttachmentGroup.getSwapchainAttachment(0).image, vku::fullSubresourceRange(),
+					sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).image, vku::fullSubresourceRange(),
 				},
 				vk::ImageMemoryBarrier {
 					{}, {},
 					{}, vk::ImageLayout::eDepthAttachmentOptimal,
 					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					sceneAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
+					sceneOpaqueAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
 				},
 			});
 	});
@@ -71,7 +70,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
 	if (task.handleSwapchainResize) {
 		// Attachment images that have to be matched to the swapchain extent must be recreated.
-		sceneAttachmentGroup = { gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
+		sceneOpaqueAttachmentGroup = { gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
+		sceneWeightedBlendedAttachmentGroup = { gpu, sharedData.swapchainExtent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image };
+		framebuffers = createFramebuffers();
 	}
 
 	// Get node index under the cursor from hoveringNodeIndexBuffer.
@@ -267,25 +268,24 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
 	{
 		sceneRenderingCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-		// Change swapchain image layout from PresentSrcKHR to ColorAttachmentOptimal.
-		sceneRenderingCommandBuffer.pipelineBarrier(
-			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-			{}, {}, {},
-			vk::ImageMemoryBarrier {
-				{}, vk::AccessFlagBits::eColorAttachmentWrite,
-				vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
-				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-				sharedData.swapchainImages[imageIndex], vku::fullSubresourceRange(),
-			});
-
 		vk::ClearColorValue backgroundColor { 0.f, 0.f, 0.f, 0.f };
 		if (auto *clearColor = get_if<glm::vec3>(&background)) {
 			backgroundColor.setFloat32({ clearColor->x, clearColor->y, clearColor->z, 1.f });
 		}
-		sceneRenderingCommandBuffer.beginRenderingKHR(sceneAttachmentGroup.getRenderingInfo(
-			vku::MsaaAttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, backgroundColor },
-			vku::MsaaAttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } },
-			imageIndex));
+		sceneRenderingCommandBuffer.beginRenderPass({
+			*sharedData.sceneRenderPass,
+			*framebuffers[imageIndex],
+			vk::Rect2D { { 0, 0 }, sharedData.swapchainExtent },
+			vku::unsafeProxy<vk::ClearValue>({
+				vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
+				vk::ClearColorValue{},
+				vk::ClearDepthStencilValue { 0.f, 0 },
+				vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
+				vk::ClearColorValue{},
+				vk::ClearColorValue { 1.f, 0.f, 0.f, 0.f },
+				vk::ClearColorValue{},
+			}),
+        }, vk::SubpassContents::eInline);
 
 		const vk::Viewport passthruViewport {
 			// Use negative viewport.
@@ -303,7 +303,11 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
 			recordSkyboxDrawCommands(sceneRenderingCommandBuffer);
 		}
 
-		sceneRenderingCommandBuffer.endRenderingKHR();
+		// TODO.
+		sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
+		sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
+
+		sceneRenderingCommandBuffer.endRenderPass();
 
 		sceneRenderingCommandBuffer.end();
 	}
@@ -450,6 +454,29 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutT
 			layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
 			layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, selectedNodeJumpFloodSeedAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
 		});
+}
+
+auto vk_gltf_viewer::vulkan::Frame::createFramebuffers() const -> std::vector<vk::raii::Framebuffer> {
+	return sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).resolveViews
+		| std::views::transform([this](vk::ImageView swapchainImageView) {
+			return vk::raii::Framebuffer { gpu.device, vk::FramebufferCreateInfo {
+				{},
+				*sharedData.sceneRenderPass,
+				vku::unsafeProxy({
+					*sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).view,
+					swapchainImageView,
+					*sceneOpaqueAttachmentGroup.depthStencilAttachment->view,
+					*sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view,
+					*sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveView,
+					*sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view,
+					*sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveView,
+				}),
+				sharedData.swapchainExtent.width,
+				sharedData.swapchainExtent.height,
+				1,
+			} };
+		})
+		| std::ranges::to<std::vector>();
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {

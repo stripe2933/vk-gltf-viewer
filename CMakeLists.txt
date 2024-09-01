@@ -40,7 +40,6 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/pipeline/DepthRenderer.cpp
 	impl/vulkan/pipeline/JumpFloodComputer.cpp
 	impl/vulkan/pipeline/OutlineRenderer.cpp
-	impl/vulkan/pipeline/SkyboxRenderer.cpp
 	main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
@@ -83,7 +82,8 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/attachment_group/DepthPrepass.cppm
 		interface/vulkan/attachment_group/ImGuiSwapchain.cppm
 		interface/vulkan/attachment_group/JumpFloodSeed.cppm
-		interface/vulkan/attachment_group/Scene.cppm
+		interface/vulkan/attachment_group/SceneOpaque.cppm
+		interface/vulkan/attachment_group/SceneWeightedBlended.cppm
 		interface/vulkan/attachment_group/Swapchain.cppm
 		interface/vulkan/buffer/CubeIndices.cppm
 		interface/vulkan/descriptor_set_layout/Asset.cppm
@@ -113,6 +113,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipeline/SubgroupMipmapComputer.cppm
 		interface/vulkan/pipeline/SkyboxRenderer.cppm
 		interface/vulkan/pipeline_layout/SceneRendering.cppm
+		interface/vulkan/render_pass/Scene.cppm
 		interface/vulkan/sampler/BrdfLutSampler.cppm
 		interface/vulkan/sampler/CubemapSampler.cppm
 		interface/vulkan/sampler/SingleTexelSampler.cppm

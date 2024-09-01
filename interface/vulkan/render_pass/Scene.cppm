@@ -1,0 +1,146 @@
+export module vk_gltf_viewer:vulkan.rp.Scene;
+
+#ifdef _MSC_VER
+import std;
+#endif
+import vku;
+export import vulkan_hpp;
+
+namespace vk_gltf_viewer::vulkan::rp {
+    export struct Scene final : vk::raii::RenderPass {
+        explicit Scene(const vk::raii::Device &device [[clang::lifetimebound]])
+            : RenderPass { device, vk::RenderPassCreateInfo {
+                {},
+                vku::unsafeProxy({
+                    // Opaque MSAA color attachment.
+                    vk::AttachmentDescription {
+                        {},
+                        vk::Format::eB8G8R8A8Srgb, vk::SampleCountFlagBits::e4,
+                        vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
+                        {}, {},
+                        vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+                    },
+                    // Opaque MSAA resolve attachment (= swapchain image)
+                    vk::AttachmentDescription {
+                        {},
+                        vk::Format::eB8G8R8A8Srgb, vk::SampleCountFlagBits::e1,
+                        vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
+                        {}, {},
+                        vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
+                    },
+                    // Depth image.
+                    vk::AttachmentDescription {
+                        {},
+                        vk::Format::eD32Sfloat, vk::SampleCountFlagBits::e4,
+                        vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
+                        {}, {},
+                        vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                    },
+                    // Accumulation color image.
+                    vk::AttachmentDescription {
+                        {},
+                        vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e4,
+                        vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
+                        {}, {},
+                        vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+                    },
+                    // Accumulation resolve image.
+                    vk::AttachmentDescription {
+                        {},
+                        vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e1,
+                        vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+                        {}, {},
+                        vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                    },
+                    // Revealage color image.
+                    vk::AttachmentDescription {
+                        {},
+                        vk::Format::eR16Unorm, vk::SampleCountFlagBits::e4,
+                        vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
+                        {}, {},
+                        vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+                    },
+                    // Revealage resolve image.
+                    vk::AttachmentDescription {
+                        {},
+                        vk::Format::eR16Unorm, vk::SampleCountFlagBits::e1,
+                        vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+                        {}, {},
+                        vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                    },
+                }),
+                vku::unsafeProxy({
+                    // Opaque pass.
+                    vk::SubpassDescription {
+                        {},
+                        vk::PipelineBindPoint::eGraphics,
+                        {},
+                        vku::unsafeProxy({
+                            vk::AttachmentReference { 0, vk::ImageLayout::eColorAttachmentOptimal },
+                        }),
+                        vku::unsafeProxy({
+                            vk::AttachmentReference { 1, vk::ImageLayout::eColorAttachmentOptimal },
+                        }),
+                        vku::unsafeAddress(vk::AttachmentReference { 2, vk::ImageLayout::eDepthStencilAttachmentOptimal }),
+                    },
+                    // Weighted blended pass.
+                    vk::SubpassDescription {
+                        {},
+                        vk::PipelineBindPoint::eGraphics,
+                        {},
+                        vku::unsafeProxy({
+                            vk::AttachmentReference { 3, vk::ImageLayout::eColorAttachmentOptimal },
+                            vk::AttachmentReference { 5, vk::ImageLayout::eColorAttachmentOptimal },
+                        }),
+                        vku::unsafeProxy({
+                            vk::AttachmentReference { 4, vk::ImageLayout::eColorAttachmentOptimal },
+                            vk::AttachmentReference { 6, vk::ImageLayout::eColorAttachmentOptimal },
+                        }),
+                        vku::unsafeAddress(vk::AttachmentReference { 2, vk::ImageLayout::eDepthStencilAttachmentOptimal }),
+                    },
+                    // Composition pass.
+                    vk::SubpassDescription {
+                        {},
+                        vk::PipelineBindPoint::eGraphics,
+                        vku::unsafeProxy({
+                            vk::AttachmentReference { 4, vk::ImageLayout::eShaderReadOnlyOptimal },
+                            vk::AttachmentReference { 6, vk::ImageLayout::eShaderReadOnlyOptimal },
+                        }),
+                        vku::unsafeProxy({
+                            vk::AttachmentReference { 1, vk::ImageLayout::eColorAttachmentOptimal },
+                        }),
+                    },
+                }),
+                vku::unsafeProxy({
+                    // Dependency between beginning of the render pass and opaque pass:
+                    // Swapchain image acquirement must be finished before opaque pass writes it.
+                    vk::SubpassDependency {
+                        vk::SubpassExternal, 0,
+                        vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                        {}, vk::AccessFlagBits::eColorAttachmentWrite,
+                    },
+                    // Dependency between opaque pass and weighted blended pass:
+                    // Since weighted blended uses the result of depth attachment from opaque pass, it must be finished before weighted blended pass.
+                    vk::SubpassDependency {
+                        0, 1,
+                        vk::PipelineStageFlagBits::eLateFragmentTests, vk::PipelineStageFlagBits::eEarlyFragmentTests,
+                        vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::AccessFlagBits::eDepthStencilAttachmentRead,
+                    },
+                    // Dependency between opaque pass and swapchain full-quad pass:
+                    // Color attachments must be written before full-quad pass writes them.
+                    vk::SubpassDependency {
+                        0, 2,
+                        vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                        vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentRead,
+                    },
+                    // Dependency between weighted blend pass and swapchain full-quad pass:
+                    // Color attachments must be written before full-quad pass reads them.
+                    vk::SubpassDependency {
+                        1, 2,
+                        vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader,
+                        vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eInputAttachmentRead,
+                    },
+                }),
+            } } { }
+    };
+}

@@ -12,7 +12,8 @@ export import :gltf.SceneResources;
 export import :vulkan.SharedData;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
-import :vulkan.ag.Scene;
+import :vulkan.ag.SceneOpaque;
+import :vulkan.ag.SceneWeightedBlended;
 
 namespace vk_gltf_viewer::vulkan {
     export class Frame {
@@ -140,7 +141,11 @@ namespace vk_gltf_viewer::vulkan {
 		std::optional<PassthruResources> passthruResources = std::nullopt;
 
     	// Attachment groups.
-    	ag::Scene sceneAttachmentGroup { gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
+    	ag::SceneOpaque sceneOpaqueAttachmentGroup { gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
+    	ag::SceneWeightedBlended sceneWeightedBlendedAttachmentGroup { gpu, sharedData.swapchainExtent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image };
+
+    	// Framebuffers.
+    	std::vector<vk::raii::Framebuffer> framebuffers = createFramebuffers();
 
         // Descriptor/command pools.
     	vk::raii::DescriptorPool descriptorPool = createDescriptorPool();
@@ -178,6 +183,7 @@ namespace vk_gltf_viewer::vulkan {
     	std::optional<HoveringNode> hoveringNode;
     	std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
 
+    	[[nodiscard]] auto createFramebuffers() const -> std::vector<vk::raii::Framebuffer>;
     	[[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
 
     	auto recordScenePrepassCommands(vk::CommandBuffer cb) const -> void;

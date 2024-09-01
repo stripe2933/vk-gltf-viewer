@@ -16,6 +16,7 @@ export import :vulkan.pipeline.JumpFloodSeedRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
 export import :vulkan.pipeline.PrimitiveRenderer;
 export import :vulkan.pipeline.SkyboxRenderer;
+export import :vulkan.rp.Scene;
 import :vulkan.sampler.SingleTexelSampler;
 
 namespace vk_gltf_viewer::vulkan {
@@ -40,21 +41,24 @@ namespace vk_gltf_viewer::vulkan {
     	dsl::Scene sceneDescriptorSetLayout { gpu.device };
     	dsl::Skybox skyboxDescriptorSetLayout { gpu.device, cubemapSampler };
 
+    	// Render passes.
+    	rp::Scene sceneRenderPass { gpu.device };
+
     	// Pipeline layouts.
     	pl::SceneRendering sceneRenderingPipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
 
 		// Pipelines.
 		AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-    	AlphaMaskedFacetedPrimitiveRenderer alphaMaskedFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
+    	AlphaMaskedFacetedPrimitiveRenderer alphaMaskedFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
     	AlphaMaskedJumpFloodSeedRenderer alphaMaskedJumpFloodSeedRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-    	AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
+    	AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
 		DepthRenderer depthRenderer { gpu.device, sceneDescriptorSetLayout };
-		FacetedPrimitiveRenderer facetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
+		FacetedPrimitiveRenderer facetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
 		JumpFloodComputer jumpFloodComputer { gpu.device };
     	JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, sceneDescriptorSetLayout };
 		OutlineRenderer outlineRenderer { gpu.device };
-		PrimitiveRenderer primitiveRenderer { gpu.device, sceneRenderingPipelineLayout };
-		SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, cubeIndices };
+		PrimitiveRenderer primitiveRenderer { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
+		SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, sceneRenderPass, cubeIndices };
 
     	// Attachment groups.
     	ag::Swapchain swapchainAttachmentGroup { gpu.device, swapchainExtent, swapchainImages };
@@ -74,15 +78,6 @@ namespace vk_gltf_viewer::vulkan {
     		: gpu { gpu }
 			, swapchain { createSwapchain(surface, swapchainExtent) }
 			, swapchainExtent { swapchainExtent } {
-    		const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
-    		const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-    		vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-				recordSwapchainInitialLayoutTransitionCommands(cb);
-			}, *fence);
-    		if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
-    			throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
-    		}
-
     		std::tie(assetDescriptorSet)
 				= vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(
 					assetDescriptorSetLayout));
@@ -105,15 +100,6 @@ namespace vk_gltf_viewer::vulkan {
 
     		swapchainAttachmentGroup = { gpu.device, swapchainExtent, swapchainImages };
     		imGuiSwapchainAttachmentGroup = { gpu.device, swapchainExtent, swapchainImages };
-
-    		const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
-    		const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-    		vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
-				recordSwapchainInitialLayoutTransitionCommands(cb);
-			}, *fence);
-    		if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
-    			throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
-    		}
     	}
 
     	auto updateTextureCount(std::uint32_t textureCount) -> void {
@@ -122,11 +108,11 @@ namespace vk_gltf_viewer::vulkan {
 
     		// Following pipelines are dependent to the assetDescriptorSetLayout or sceneRenderingPipelineLayout.
     		alphaMaskedDepthRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-			alphaMaskedFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout };
+			alphaMaskedFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
 			alphaMaskedJumpFloodSeedRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-			alphaMaskedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout };
-			facetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout };
-			primitiveRenderer = { gpu.device, sceneRenderingPipelineLayout };
+			alphaMaskedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
+			facetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
+			primitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
 
     		textureDescriptorPool = createTextureDescriptorPool();
     		std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(
@@ -168,22 +154,6 @@ namespace vk_gltf_viewer::vulkan {
 
     	[[nodiscard]] auto createDescriptorPool() const -> vk::raii::DescriptorPool {
     		return { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, sceneDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() };
-    	}
-
-    	auto recordSwapchainInitialLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void {
-    		graphicsCommandBuffer.pipelineBarrier(
-				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-				{}, {}, {},
-				swapchainImages
-					| std::views::transform([](vk::Image image) {
-						return vk::ImageMemoryBarrier{
-							{}, {},
-							{}, vk::ImageLayout::ePresentSrcKHR,
-							vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-							image, vku::fullSubresourceRange(),
-						};
-					})
-					| std::ranges::to<std::vector>());
     	}
     };
 }

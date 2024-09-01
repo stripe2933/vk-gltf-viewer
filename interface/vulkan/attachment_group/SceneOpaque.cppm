@@ -1,11 +1,11 @@
-export module vk_gltf_viewer:vulkan.ag.Scene;
+export module vk_gltf_viewer:vulkan.ag.SceneOpaque;
 
 import std;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::ag {
-    export struct Scene final : vku::MsaaAttachmentGroup {
-        Scene(
+    export struct SceneOpaque final : vku::MsaaAttachmentGroup {
+        SceneOpaque(
             const Gpu &gpu [[clang::lifetimebound]],
             const vk::Extent2D &extent,
             std::span<const vk::Image> swapchainImages
