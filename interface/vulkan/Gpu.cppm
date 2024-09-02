@@ -96,7 +96,8 @@ namespace vk_gltf_viewer::vulkan {
 						.setUniformAndStorageBuffer8BitAccess(true)
 						.setStoragePushConstant8(true)
 						.setScalarBlockLayout(true)
-						.setTimelineSemaphore(true),
+						.setTimelineSemaphore(true)
+						.setShaderInt8(true),
 					vk::PhysicalDeviceDynamicRenderingFeatures { true },
 					vk::PhysicalDeviceSynchronization2Features { true },
 					vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true },

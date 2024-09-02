@@ -1,6 +1,8 @@
 #version 460
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference : require
+#extension GL_EXT_buffer_reference2 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_shader_8bit_storage : require
 
@@ -9,10 +11,14 @@
 #define MATERIAL materials[PRIMITIVE.materialIndex + 1]
 #define TRANSFORM nodeTransforms[PRIMITIVE.nodeIndex]
 
-layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer Ubytes { uint8_t data[]; };
+struct IndexedAttributeMappingInfo {
+    uint64_t bytesPtr;
+    uint8_t stride;
+};
+
 layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Vec2Ref { vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Vec4Ref { vec4 data; };
-layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Pointers { uint64_t data[]; };
+layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer IndexedAttributeMappingInfos { IndexedAttributeMappingInfo data[]; };
 
 struct Material {
     uint8_t baseColorTexcoordIndex;
@@ -33,14 +39,12 @@ struct Primitive {
     uint64_t pPositionBuffer;
     uint64_t pNormalBuffer;
     uint64_t pTangentBuffer;
-    Pointers texcoordBufferPtrs;
-    Pointers colorBufferPtrs;
+    IndexedAttributeMappingInfos texcoordAttributeMappingInfos;
+    IndexedAttributeMappingInfos colorAttributeMappingInfos;
     uint8_t positionByteStride;
     uint8_t normalByteStride;
     uint8_t tangentByteStride;
     uint8_t padding[5];
-    Ubytes texcoordByteStrides;
-    Ubytes colorByteStrides;
     uint nodeIndex;
     int materialIndex;
 };
@@ -86,7 +90,8 @@ vec4 getVec4(uint64_t address){
 }
 
 vec2 getTexcoord(uint texcoordIndex){
-    return getVec2(PRIMITIVE.texcoordBufferPtrs.data[texcoordIndex] + uint(PRIMITIVE.texcoordByteStrides.data[texcoordIndex]) * gl_VertexIndex);
+    IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
+    return getVec2(mappingInfo.bytesPtr + uint(mappingInfo.stride) * gl_VertexIndex);
 }
 
 void main(){

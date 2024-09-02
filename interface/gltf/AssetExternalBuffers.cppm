@@ -17,14 +17,14 @@ namespace vk_gltf_viewer::gltf {
      * buffer data adaptor, such like <tt>fastgltf::iterateAccessor</tt>.
      */
     export class AssetExternalBuffers {
-        const fastgltf::Buffer *pFirstBuffer;
+        const fastgltf::Asset &asset;
         std::vector<std::vector<std::byte>> cache;
 
     public:
         std::vector<std::span<const std::byte>> bytes;
 
         AssetExternalBuffers(const fastgltf::Asset &asset, const std::filesystem::path &assetDir)
-            : pFirstBuffer { asset.buffers.data() }
+            : asset { asset }
             , bytes { createBufferBytes(asset, assetDir) } { }
 
         /**
@@ -33,16 +33,40 @@ namespace vk_gltf_viewer::gltf {
          * @return First byte address of the buffer.
          */
         [[nodiscard]] auto operator()(const fastgltf::Buffer &buffer) const -> const std::byte* {
-            const std::size_t bufferIndex = &buffer - pFirstBuffer;
+            const std::size_t bufferIndex = &buffer - asset.buffers.data();
             return bytes[bufferIndex].data();
         }
 
+        /**
+         * Get buffer byte region of \p bufferView.
+         * @param bufferView Buffer view to get the byte region.
+         * @return Span of bytes.
+         */
         [[nodiscard]] auto getByteRegion(const fastgltf::BufferView &bufferView) const noexcept -> std::span<const std::byte> {
             return bytes[bufferView.bufferIndex].subspan(bufferView.byteOffset, bufferView.byteLength);
         }
 
+        /**
+         * Get buffer byte region of \p accessor.
+         * @param accessor Accessor to get the byte region.
+         * @return Span of bytes.
+         * @throw std::runtime_error If the accessor is sparse or has no buffer view.
+         */
+        [[nodiscard]] auto getByteRegion(const fastgltf::Accessor &accessor) const -> std::span<const std::byte> {
+            if (accessor.sparse) throw std::runtime_error { "Sparse accessor not supported." };
+            if (!accessor.bufferViewIndex) throw std::runtime_error { "Accessor has no buffer view." };
+
+            const fastgltf::BufferView &bufferView = asset.bufferViews[*accessor.bufferViewIndex];
+            const std::size_t byteStride = bufferView.byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType));
+            return getByteRegion(asset.bufferViews[*accessor.bufferViewIndex])
+                .subspan(accessor.byteOffset, byteStride * accessor.count);
+        }
+
     private:
-        [[nodiscard]] auto createBufferBytes(const fastgltf::Asset &asset, const std::filesystem::path &assetDir) -> std::vector<std::span<const std::byte>> {
+        [[nodiscard]] auto createBufferBytes(
+            const fastgltf::Asset &asset,
+            const std::filesystem::path &assetDir
+        ) -> std::vector<std::span<const std::byte>> {
             return asset.buffers
                 | std::views::transform([&](const fastgltf::Buffer &buffer) {
                     return visit(fastgltf::visitor {

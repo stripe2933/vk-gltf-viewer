@@ -111,12 +111,11 @@ auto vk_gltf_viewer::gltf::AssetResources::createPrimitiveInfos(
         if (!node.meshIndex) continue;
 
         for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex].primitives){
-            primitiveInfos.try_emplace(
-                &primitive,
-                [&]() -> std::optional<std::uint32_t> {
-                    if (primitive.materialIndex) return static_cast<std::uint32_t>(*primitive.materialIndex);
-                    return std::nullopt;
-                }());
+            std::optional<std::size_t> materialIndex{};
+            if (primitive.materialIndex) {
+                materialIndex.emplace(*primitive.materialIndex);
+            }
+            primitiveInfos.try_emplace(&primitive, materialIndex);
         }
     }
 
@@ -565,51 +564,28 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMapping
         | std::ranges::to<std::vector>();
 
     // If there's no attributeBufferInfo to process, skip processing.
-    const std::size_t attributeBufferInfoCount = std::transform_reduce(
-        attributeBufferInfos.begin(), attributeBufferInfos.end(),
-        std::size_t { 0 }, std::plus{}, [](const auto& v) { return v.size(); });
-    if (attributeBufferInfoCount == 0) return;
+    for (std::span attributeBufferInfo : attributeBufferInfos) {
+        if (!attributeBufferInfo.empty()) {
+            goto HAS_ATTRIBUTE_BUFFER;
+        }
+    }
+    return;
 
-    const std::vector addressSegments
-        = attributeBufferInfos
-        | transform([](const auto &attributeBufferInfos) {
-            return attributeBufferInfos
-                | transform(&PrimitiveInfo::AttributeBufferInfo::address)
-                | std::ranges::to<std::vector>();
-        })
-        | std::ranges::to<std::vector>();
-    const std::vector byteStrideSegments
-        = attributeBufferInfos
-        | transform([](const auto &attributeBufferInfos) {
-            return attributeBufferInfos
-                | transform(&PrimitiveInfo::AttributeBufferInfo::byteStride)
-                | std::ranges::to<std::vector>();
-        })
-        | std::ranges::to<std::vector>();
-
-    const auto &[bufferPtrStagingBuffer, bufferPtrCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, addressSegments);
-    const auto &[stridesStagingBuffer, strideCopyOffsets] = createCombinedStagingBuffer(gpu.allocator, byteStrideSegments);
-    const auto &[bufferPtrsBuffer, byteStridesBuffer] = indexedAttributeMappingBuffers.try_emplace(
+HAS_ATTRIBUTE_BUFFER:
+    const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(gpu.allocator, attributeBufferInfos);
+    const vk::Buffer indexAttributeMappingBuffer = indexedAttributeMappingBuffers.try_emplace(
         attributeType,
         createStagingDstBuffer(
-            gpu.allocator, bufferPtrStagingBuffer,
+            gpu.allocator, stagingBuffer,
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
             gpu.queueFamilies.getUniqueIndices(),
-            copyCommandBuffer),
-        createStagingDstBuffer(
-            gpu.allocator, stridesStagingBuffer,
-            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-            gpu.queueFamilies.getUniqueIndices(),
-            copyCommandBuffer)).first /* iterator */ ->second /* std::pair<vku::AllocatedBuffer, vku::AllocatedBuffer> */;
+            copyCommandBuffer)).first /* iterator */->second;
 
-    const vk::DeviceAddress pBufferPtrsBuffer = gpu.device.getBufferAddress({ bufferPtrsBuffer.buffer });
-    const vk::DeviceAddress pByteStridesBuffer = gpu.device.getBufferAddress({ byteStridesBuffer.buffer });
-
-    for (auto &&[primitiveInfo, bufferPtrCopyOffset, strideCopyOffset] : zip(primitiveInfos | values, bufferPtrCopyOffsets, strideCopyOffsets)) {
+    const vk::DeviceAddress pIndexAttributeMappingBuffer = gpu.device.getBufferAddress({ indexAttributeMappingBuffer });
+    for (auto &&[primitiveInfo, copyOffset] : zip(primitiveInfos | values, copyOffsets)) {
         primitiveInfo.indexedAttributeMappingInfos.try_emplace(
             attributeType,
-            pBufferPtrsBuffer + bufferPtrCopyOffset,
-            pByteStridesBuffer + strideCopyOffset);
+            pIndexAttributeMappingBuffer + copyOffset);
     }
 }
 
@@ -633,7 +609,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
             // Skip if primitive is non-indexed geometry (screen-space normal and tangent will be generated in the shader).
             return pPrimitive->indicesAccessor.has_value();
         })
-        | ranges::views::decompose_transform([&](const fastgltf::Primitive *pPrimitive, const PrimitiveInfo &primitiveInfo) {
+        | keys
+        | transform([&](const fastgltf::Primitive *pPrimitive) {
             // Validate constriant for MikktSpaceInterface.
             if (auto normalIt = pPrimitive->findAttribute("NORMAL"); normalIt == pPrimitive->attributes.end()) {
                 throw std::runtime_error { "Missing NORMAL attribute" };
@@ -718,12 +695,12 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
         if (accessor.normalized) throw std::runtime_error { "Normalized indices accessor not supported" };
 
         // Vulkan does not support interleaved index buffer.
-        const std::size_t componentByteSize = getElementByteSize(accessor.type, accessor.componentType);
-        bool isIndexInterleaved = false;
-        if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride; byteStride) {
-            isIndexInterleaved = *byteStride != componentByteSize;
+        if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride) {
+            const std::size_t componentByteSize = getElementByteSize(accessor.type, accessor.componentType);
+            if (*byteStride != componentByteSize) {
+                throw std::runtime_error { "Interleaved index buffer not supported" };
+            }
         }
-        if (isIndexInterleaved) throw std::runtime_error { "Interleaved index buffer not supported" };
 
         if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !supportUint8Index) {
             // Make vector of uint16 indices.
@@ -745,11 +722,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
                     default: throw std::runtime_error { "Unsupported index type: index must be either unsigned byte/short/int." };
                 }
             }();
-
-            indexBufferBytesByType[indexType].emplace_back(
-                &primitive,
-                externalBuffers.getByteRegion(asset.bufferViews[*accessor.bufferViewIndex])
-                    .subspan(accessor.byteOffset, accessor.count * componentByteSize));
+            indexBufferBytesByType[indexType].emplace_back(&primitive, externalBuffers.getByteRegion(accessor));
         }
     }
 

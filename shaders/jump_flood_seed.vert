@@ -8,23 +8,19 @@
 #define PRIMITIVE primitives[gl_BaseInstance]
 #define TRANSFORM nodeTransforms[PRIMITIVE.nodeIndex]
 
-layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer Ubytes { uint8_t data[]; };
 layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Vec2Ref { vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Vec4Ref { vec4 data; };
-layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Pointers { uint64_t data[]; };
 
 struct Primitive {
     uint64_t pPositionBuffer;
     uint64_t pNormalBuffer;
     uint64_t pTangentBuffer;
-    Pointers texcoordBufferPtrs;
-    Pointers colorBufferPtrs;
+    uint64_t texcoordAttributeMappingInfos;
+    uint64_t colorAttributeMappingInfos;
     uint8_t positionByteStride;
     uint8_t normalByteStride;
     uint8_t tangentByteStride;
     uint8_t padding[5];
-    Ubytes texcoordByteStrides;
-    Ubytes colorByteStrides;
     uint nodeIndex;
     int materialIndex;
 };

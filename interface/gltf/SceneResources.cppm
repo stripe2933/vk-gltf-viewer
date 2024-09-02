@@ -23,14 +23,12 @@ namespace vk_gltf_viewer::gltf {
             vk::DeviceAddress pPositionBuffer;
             vk::DeviceAddress pNormalBuffer;
             vk::DeviceAddress pTangentBuffer;
-            vk::DeviceAddress pTexcoordBufferPtrsBuffer;
-            vk::DeviceAddress pColorBufferPtrsBuffer;
+            vk::DeviceAddress pTexcoordAttributeMappingInfoBuffer;
+            vk::DeviceAddress pColorAttributeMappingInfoBuffer;
             std::uint8_t positionByteStride;
             std::uint8_t normalByteStride;
             std::uint8_t tangentByteStride;
             char padding[5];
-            vk::DeviceAddress pTexcoordByteStridesBuffer;
-            vk::DeviceAddress pColorByteStridesBuffer;
             std::uint32_t nodeIndex;
             std::int32_t materialIndex; // -1 for fallback material.
         };

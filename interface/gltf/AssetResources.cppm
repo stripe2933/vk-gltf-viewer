@@ -25,14 +25,16 @@ namespace vk_gltf_viewer::gltf {
         struct PrimitiveInfo {
             struct IndexBufferInfo { vk::DeviceSize offset; vk::IndexType type; };
             struct AttributeBufferInfo { vk::DeviceAddress address; std::uint8_t byteStride; };
-            struct IndexedAttributeMappingInfo { vk::DeviceAddress pBufferPtrBuffer; vk::DeviceAddress pByteStridesBuffer; };
+            struct IndexedAttributeMappingInfo { vk::DeviceAddress pMappingBuffer; };
 
-            std::optional<std::uint32_t> materialIndex;
+            std::optional<std::size_t> materialIndex;
             std::uint32_t drawCount;
             std::optional<IndexBufferInfo> indexInfo{};
             AttributeBufferInfo positionInfo;
-            std::optional<AttributeBufferInfo> normalInfo, tangentInfo;
-            std::unordered_map<std::size_t, AttributeBufferInfo> texcoordInfos, colorInfos;
+            std::optional<AttributeBufferInfo> normalInfo;
+            std::optional<AttributeBufferInfo> tangentInfo;
+            std::unordered_map<std::size_t, AttributeBufferInfo> texcoordInfos;
+            std::unordered_map<std::size_t, AttributeBufferInfo> colorInfos;
             std::unordered_map<IndexedAttribute, IndexedAttributeMappingInfo> indexedAttributeMappingInfos;
         };
 
@@ -66,7 +68,7 @@ namespace vk_gltf_viewer::gltf {
 
         std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos;
         std::vector<vku::AllocatedBuffer> attributeBuffers;
-        std::unordered_map<IndexedAttribute, std::pair<vku::AllocatedBuffer /* bufferPtrs */, vku::AllocatedBuffer /* byteStrides */>> indexedAttributeMappingBuffers;
+        std::unordered_map<IndexedAttribute, vku::AllocatedBuffer> indexedAttributeMappingBuffers;
         std::optional<vku::AllocatedBuffer> tangentBuffer;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
