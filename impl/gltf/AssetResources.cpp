@@ -729,7 +729,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
         if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !supportUint8Index) {
             // Make vector of uint16 indices.
             std::vector<std::uint16_t> indices(accessor.count);
-            iterateAccessorWithIndex<std::uint8_t>(asset, accessor, [&](std::size_t i, std::uint8_t index) {
+            iterateAccessorWithIndex<std::uint8_t>(asset, accessor, [&](std::uint8_t index, std::size_t i) {
                 indices[i] = index; // Index converted from uint8 to uint16.
             }, externalBuffers);
 
