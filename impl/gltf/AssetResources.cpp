@@ -627,9 +627,11 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
             // Skip if primitive already has a tangent attribute.
             if (primitiveInfo.tangentInfo) return false;
             // Skip if primitive doesn't have a material.
-            else if (const auto &materialIndex = pPrimitive->materialIndex; !materialIndex) return false;
+            if (const auto &materialIndex = pPrimitive->materialIndex; !materialIndex) return false;
             // Skip if primitive doesn't have a normal texture.
-            else return asset.materials[*materialIndex].normalTexture.has_value();
+            else if (!asset.materials[*materialIndex].normalTexture) return false;
+            // Skip if primitive is non-indexed geometry (screen-space normal and tangent will be generated in the shader).
+            return pPrimitive->indicesAccessor.has_value();
         })
         | ranges::views::decompose_transform([&](const fastgltf::Primitive *pPrimitive, const PrimitiveInfo &primitiveInfo) {
             // Validate constriant for MikktSpaceInterface.
@@ -639,9 +641,6 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
             else if (auto texcoordIt = pPrimitive->findAttribute(std::format("TEXCOORD_{}", asset.materials[*pPrimitive->materialIndex].normalTexture->texCoordIndex));
                 texcoordIt == pPrimitive->attributes.end()) {
                 throw std::runtime_error { "Missing TEXCOORD attribute" };
-            }
-            else if (!pPrimitive->indicesAccessor) {
-                throw std::runtime_error { "Missing indices accessor" };
             }
             else return algorithm::MikktSpaceMesh {
                 asset,
