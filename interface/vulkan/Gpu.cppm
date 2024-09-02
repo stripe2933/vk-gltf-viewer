@@ -75,7 +75,8 @@ namespace vk_gltf_viewer::vulkan {
 					.setShaderInt64(true)
 					.setMultiDrawIndirect(true)
 					.setDepthBiasClamp(true)
-					.setShaderStorageImageWriteWithoutFormat(true),
+					.setShaderStorageImageWriteWithoutFormat(true)
+					.setIndependentBlend(true),
 				.queueFamilyGetter = [=](vk::PhysicalDevice physicalDevice) -> QueueFamilies {
 					return { physicalDevice, surface };
 				},

@@ -20,6 +20,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedDat
 	, hoveringNodeIndexBuffer { gpu.allocator, NO_INDEX, vk::BufferUsageFlagBits::eTransferDst, vku::allocation::hostRead }
 	, sharedData { sharedData } {
 	// Change initial attachment layouts.
+	const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
 		cb.pipelineBarrier(
 			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
@@ -37,16 +38,52 @@ vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedDat
 					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
 					sceneOpaqueAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
 				},
+				vk::ImageMemoryBarrier {
+					{}, {},
+					{}, vk::ImageLayout::eColorAttachmentOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
+				},
+				vk::ImageMemoryBarrier {
+					{}, {},
+					{}, vk::ImageLayout::eShaderReadOnlyOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveImage, vku::fullSubresourceRange(),
+				},
+				vk::ImageMemoryBarrier {
+					{}, {},
+					{}, vk::ImageLayout::eColorAttachmentOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).image, vku::fullSubresourceRange(),
+				},
+				vk::ImageMemoryBarrier {
+					{}, {},
+					{}, vk::ImageLayout::eShaderReadOnlyOptimal,
+					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+					sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveImage, vku::fullSubresourceRange(),
+				},
 			});
-	});
+	}, *fence);
+	if (gpu.device.waitForFences(*fence, true, ~0ULL) != vk::Result::eSuccess) {
+		throw std::runtime_error { "Failed to initialize the rendering region GPU resources." };
+	}
 
 	// Allocate descriptor sets.
-	std::tie(hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet)
+	std::tie(hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet)
 		= allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
 			sharedData.jumpFloodComputer.descriptorSetLayout,
 			sharedData.jumpFloodComputer.descriptorSetLayout,
 			sharedData.outlineRenderer.descriptorSetLayout,
-			sharedData.outlineRenderer.descriptorSetLayout));
+			sharedData.outlineRenderer.descriptorSetLayout,
+			sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout));
+
+	// Update descriptor set.
+	gpu.device.updateDescriptorSets(
+		weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
+	        vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveView, vk::ImageLayout::eShaderReadOnlyOptimal },
+	        vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveView, vk::ImageLayout::eShaderReadOnlyOptimal },
+		})),
+		{});
 
 	// Allocate per-frame command buffers.
 	std::tie(jumpFloodCommandBuffer)
@@ -73,6 +110,63 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 		sceneOpaqueAttachmentGroup = { gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
 		sceneWeightedBlendedAttachmentGroup = { gpu, sharedData.swapchainExtent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image };
 		framebuffers = createFramebuffers();
+
+		gpu.device.updateDescriptorSets(
+			weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
+				vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveView, vk::ImageLayout::eShaderReadOnlyOptimal },
+				vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveView, vk::ImageLayout::eShaderReadOnlyOptimal },
+			})),
+			{});
+
+		// Change initial attachment layouts.
+		// TODO: can this operation be non-blocking?
+		const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+		vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+			cb.pipelineBarrier(
+				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
+				{}, {}, {},
+				{
+					vk::ImageMemoryBarrier {
+						{}, {},
+						{}, vk::ImageLayout::eColorAttachmentOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).image, vku::fullSubresourceRange(),
+					},
+					vk::ImageMemoryBarrier {
+						{}, {},
+						{}, vk::ImageLayout::eDepthAttachmentOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						sceneOpaqueAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
+					},
+					vk::ImageMemoryBarrier {
+						{}, {},
+						{}, vk::ImageLayout::eColorAttachmentOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
+					},
+					vk::ImageMemoryBarrier {
+						{}, {},
+						{}, vk::ImageLayout::eShaderReadOnlyOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveImage, vku::fullSubresourceRange(),
+					},
+					vk::ImageMemoryBarrier {
+						{}, {},
+						{}, vk::ImageLayout::eColorAttachmentOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).image, vku::fullSubresourceRange(),
+					},
+					vk::ImageMemoryBarrier {
+						{}, {},
+						{}, vk::ImageLayout::eShaderReadOnlyOptimal,
+						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+						sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveImage, vku::fullSubresourceRange(),
+					},
+				});
+		}, *fence);
+		if (gpu.device.waitForFences(*fence, true, ~0ULL) != vk::Result::eSuccess) {
+			throw std::runtime_error { "Failed to initialize the rendering region GPU resources." };
+		}
 	}
 
 	// Get node index under the cursor from hoveringNodeIndexBuffer.
@@ -297,15 +391,29 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
 		sceneRenderingCommandBuffer.setScissor(0, passthruRect);
 
 		if (renderingNodes) {
-			recordSceneDrawCommands(sceneRenderingCommandBuffer);
+			recordSceneOpaqueMeshDrawCommands(sceneRenderingCommandBuffer);
 		}
 		if (holds_alternative<vku::DescriptorSet<dsl::Skybox>>(background)) {
 			recordSkyboxDrawCommands(sceneRenderingCommandBuffer);
 		}
 
-		// TODO.
+		// Render meshes whose AlphaMode=Blend.
 		sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
+		if (renderingNodes) {
+			recordSceneBlendMeshDrawCommands(sceneRenderingCommandBuffer);
+		}
+
 		sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
+
+		// Weighted blended composition.
+		sceneRenderingCommandBuffer.bindPipeline(
+			vk::PipelineBindPoint::eGraphics,
+			sharedData.weightedBlendedCompositionRenderer.pipeline);
+		sceneRenderingCommandBuffer.bindDescriptorSets(
+			vk::PipelineBindPoint::eGraphics,
+			sharedData.weightedBlendedCompositionRenderer.pipelineLayout,
+			0, weightedBlendedCompositionSet, {});
+		sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
 
 		sceneRenderingCommandBuffer.endRenderPass();
 
@@ -482,7 +590,8 @@ auto vk_gltf_viewer::vulkan::Frame::createFramebuffers() const -> std::vector<vk
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {
 	return {
 		gpu.device,
-		(2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout))
+		(2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout)
+			+ sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize())
 			.getDescriptorPoolCreateInfo(),
 	};
 }
@@ -701,14 +810,14 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
 	return sharedData.jumpFloodComputer.compute(cb, descriptorSet, initialSampleOffset, vku::toExtent2D(image.extent));
 }
 
-auto vk_gltf_viewer::vulkan::Frame::recordSceneDrawCommands(vk::CommandBuffer cb) const -> void {
+auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const -> void {
 	assert(renderingNodes && "No nodes have to be rendered.");
 
 	type_variant<std::monostate, PrimitiveRenderer, AlphaMaskedPrimitiveRenderer, FacetedPrimitiveRenderer, AlphaMaskedFacetedPrimitiveRenderer> boundPipeline{};
 	std::optional<vk::CullModeFlagBits> currentCullMode{};
 	std::optional<vk::IndexType> currentIndexBuffer{};
 
-	// Both PrimitiveRenderer and AlphaMaskedPrimitiveRender have compatible descriptor set layouts and push constant range,
+	// (AlphaMasked)(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
 	// therefore they only need to be bound once.
 	bool descriptorBound = false;
 	bool pushConstantBound = false;
@@ -773,6 +882,51 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneDrawCommands(vk::CommandBuffer cb
 
 		if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; currentCullMode != cullMode) {
 			cb.setCullMode(currentCullMode.emplace(cullMode));
+		}
+
+		if (const auto &indexType = criteria.indexType) {
+			if (currentIndexBuffer != *indexType) {
+				currentIndexBuffer.emplace(*indexType);
+				cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
+			}
+			cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+		}
+		else {
+			cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+		}
+	}
+}
+
+auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const -> void {
+	assert(renderingNodes && "No nodes have to be rendered.");
+
+	type_variant<std::monostate, BlendPrimitiveRenderer, BlendFacetedPrimitiveRenderer> boundPipeline{};
+	std::optional<vk::IndexType> currentIndexBuffer{};
+
+	// Blend(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
+	// therefore they only need to be bound once.
+	bool descriptorBound = false;
+	bool pushConstantBound = false;
+
+	// Render alphaMode=Opaque meshes.
+	for (auto [begin, end] = renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Blend);
+		 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+		if (criteria.faceted && !boundPipeline.holds_alternative<BlendPrimitiveRenderer>()) {
+			cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.blendPrimitiveRenderer);
+			boundPipeline.emplace<BlendPrimitiveRenderer>();
+		}
+		else if (!criteria.faceted && !boundPipeline.holds_alternative<BlendFacetedPrimitiveRenderer>()){
+			cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.blendFacetedPrimitiveRenderer);
+			boundPipeline.emplace<BlendFacetedPrimitiveRenderer>();
+		}
+		if (!descriptorBound) {
+			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0,
+				{ sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
+			descriptorBound = true;
+		}
+		if (!pushConstantBound) {
+			sharedData.sceneRenderingPipelineLayout.pushConstants(cb, { projectionViewMatrix, viewPosition });
+			pushConstantBound = true;
 		}
 
 		if (const auto &indexType = criteria.indexType) {

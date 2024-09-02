@@ -157,6 +157,7 @@ namespace vk_gltf_viewer::vulkan {
 		vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> selectedNodeJumpFloodSet;
     	vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSet;
     	vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSet;
+    	vku::DescriptorSet<WeightedBlendedCompositionRenderer::DescriptorSetLayout> weightedBlendedCompositionSet;
 
     	// Command buffers.
     	vk::CommandBuffer scenePrepassCommandBuffer;
@@ -189,7 +190,8 @@ namespace vk_gltf_viewer::vulkan {
     	auto recordScenePrepassCommands(vk::CommandBuffer cb) const -> void;
     	// Return true if last jump flood calculation direction is forward (result is in pong image), false if backward.
 		[[nodiscard]] auto recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSet, std::uint32_t initialSampleOffset) const -> bool;
-    	auto recordSceneDrawCommands(vk::CommandBuffer cb) const -> void;
+    	auto recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const -> void;
+    	auto recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const -> void;
     	auto recordSkyboxDrawCommands(vk::CommandBuffer cb) const -> void;
     	auto recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward, std::uint32_t swapchainImageIndex) const -> void;
     	auto recordImGuiCompositionCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex) const -> void;
