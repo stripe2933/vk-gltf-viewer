@@ -195,5 +195,7 @@ namespace vk_gltf_viewer::vulkan {
     	auto recordSkyboxDrawCommands(vk::CommandBuffer cb) const -> void;
     	auto recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward, std::uint32_t swapchainImageIndex) const -> void;
     	auto recordImGuiCompositionCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex) const -> void;
+
+    	auto recordSwapchainExtentDependentImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
     };
 }

@@ -22,47 +22,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedDat
 	// Change initial attachment layouts.
 	const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
 	vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-			{}, {}, {},
-			{
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eColorAttachmentOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).image, vku::fullSubresourceRange(),
-				},
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eDepthAttachmentOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					sceneOpaqueAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
-				},
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eColorAttachmentOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
-				},
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eShaderReadOnlyOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveImage, vku::fullSubresourceRange(),
-				},
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eColorAttachmentOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).image, vku::fullSubresourceRange(),
-				},
-				vk::ImageMemoryBarrier {
-					{}, {},
-					{}, vk::ImageLayout::eShaderReadOnlyOptimal,
-					vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-					sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveImage, vku::fullSubresourceRange(),
-				},
-			});
+		recordSwapchainExtentDependentImageLayoutTransitionCommands(cb);
 	}, *fence);
 	if (gpu.device.waitForFences(*fence, true, ~0ULL) != vk::Result::eSuccess) {
 		throw std::runtime_error { "Failed to initialize the rendering region GPU resources." };
@@ -122,47 +82,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 		// TODO: can this operation be non-blocking?
 		const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
 		vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-			cb.pipelineBarrier(
-				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-				{}, {}, {},
-				{
-					vk::ImageMemoryBarrier {
-						{}, {},
-						{}, vk::ImageLayout::eColorAttachmentOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).image, vku::fullSubresourceRange(),
-					},
-					vk::ImageMemoryBarrier {
-						{}, {},
-						{}, vk::ImageLayout::eDepthAttachmentOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						sceneOpaqueAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
-					},
-					vk::ImageMemoryBarrier {
-						{}, {},
-						{}, vk::ImageLayout::eColorAttachmentOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
-					},
-					vk::ImageMemoryBarrier {
-						{}, {},
-						{}, vk::ImageLayout::eShaderReadOnlyOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveImage, vku::fullSubresourceRange(),
-					},
-					vk::ImageMemoryBarrier {
-						{}, {},
-						{}, vk::ImageLayout::eColorAttachmentOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).image, vku::fullSubresourceRange(),
-					},
-					vk::ImageMemoryBarrier {
-						{}, {},
-						{}, vk::ImageLayout::eShaderReadOnlyOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveImage, vku::fullSubresourceRange(),
-					},
-				});
+			recordSwapchainExtentDependentImageLayoutTransitionCommands(cb);
 		}, *fence);
 		if (gpu.device.waitForFences(*fence, true, ~0ULL) != vk::Result::eSuccess) {
 			throw std::runtime_error { "Failed to initialize the rendering region GPU resources." };
@@ -1043,4 +963,50 @@ auto vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cb);
 
     cb.endRenderingKHR();
+}
+
+auto vk_gltf_viewer::vulkan::Frame::recordSwapchainExtentDependentImageLayoutTransitionCommands(
+	vk::CommandBuffer graphicsCommandBuffer
+) const -> void {
+	graphicsCommandBuffer.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
+		{}, {}, {},
+		{
+			vk::ImageMemoryBarrier {
+				{}, {},
+				{}, vk::ImageLayout::eColorAttachmentOptimal,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).image, vku::fullSubresourceRange(),
+			},
+			vk::ImageMemoryBarrier {
+				{}, {},
+				{}, vk::ImageLayout::eDepthAttachmentOptimal,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				sceneOpaqueAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
+			},
+			vk::ImageMemoryBarrier {
+				{}, {},
+				{}, vk::ImageLayout::eColorAttachmentOptimal,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
+			},
+			vk::ImageMemoryBarrier {
+				{}, {},
+				{}, vk::ImageLayout::eShaderReadOnlyOptimal,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveImage, vku::fullSubresourceRange(),
+			},
+			vk::ImageMemoryBarrier {
+				{}, {},
+				{}, vk::ImageLayout::eColorAttachmentOptimal,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).image, vku::fullSubresourceRange(),
+			},
+			vk::ImageMemoryBarrier {
+				{}, {},
+				{}, vk::ImageLayout::eShaderReadOnlyOptimal,
+				vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+				sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveImage, vku::fullSubresourceRange(),
+			},
+		});
 }
