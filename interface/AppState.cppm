@@ -118,5 +118,15 @@ namespace vk_gltf_viewer {
         std::optional<GltfAsset> gltfAsset;
 
         AppState() noexcept;
+        ~AppState();
+
+        [[nodiscard]] auto getRecentGltfPaths() const -> const std::list<std::filesystem::path>& { return recentGltfPaths; }
+        auto pushRecentGltfPath(const std::filesystem::path &path) -> void;
+        [[nodiscard]] auto getRecentSkyboxPaths() const -> const std::list<std::filesystem::path>& { return recentSkyboxPaths; }
+        auto pushRecentSkyboxPath(const std::filesystem::path &path) -> void;
+
+    private:
+        std::list<std::filesystem::path> recentGltfPaths;
+        std::list<std::filesystem::path> recentSkyboxPaths;
     };
 }

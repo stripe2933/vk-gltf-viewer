@@ -159,7 +159,7 @@ auto assetOcclusionTextureInfo(const fastgltf::OcclusionTextureInfo &textureInfo
     }
 }
 
-auto vk_gltf_viewer::control::imgui::menuBar() -> task::type {
+auto vk_gltf_viewer::control::imgui::menuBar(AppState &appState) -> task::type {
     static NFD::Guard nfdGuard;
     constexpr auto processFileDialog = [](std::span<const nfdfilteritem_t> filterItems) -> std::optional<std::filesystem::path> {
         NFD::UniquePath outPath;
@@ -178,17 +178,34 @@ auto vk_gltf_viewer::control::imgui::menuBar() -> task::type {
     task::type result;
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("Load glTF File", "Ctrl+O")) {
+            if (ImGui::MenuItem("Open glTF File", "Ctrl+O")) {
                 constexpr std::array filterItems {
                     nfdfilteritem_t { "glTF File", "gltf" },
                     nfdfilteritem_t { "glTf Binary File", "glb" },
                 };
                 if (auto filename = processFileDialog(filterItems)) {
+                    const std::filesystem::path path { *std::move(filename) };
                     assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
-                    result.emplace<task::LoadGltf>(*std::move(filename));
+                    result.emplace<task::LoadGltf>(path);
+                    appState.pushRecentGltfPath(path);
                 }
             }
-            if (ImGui::MenuItem("Close Current File", "Ctrl+W")) {
+            if (ImGui::BeginMenu("Recent glTF Files")) {
+                if (appState.getRecentGltfPaths().empty()) {
+                    ImGui::MenuItem("<empty>", nullptr, false, false);
+                }
+                else {
+                    for (const auto &[it, path] : appState.getRecentGltfPaths() | ranges::views::with_iterator) {
+                        if (ImGui::MenuItem(path.c_str())) {
+                            assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
+                            result.emplace<task::LoadGltf>(path);
+                            appState.pushRecentGltfPath(path);
+                        }
+                    }
+                }
+                ImGui::EndMenu();
+            }
+            if (ImGui::MenuItem("Close glTF File", "Ctrl+W")) {
                 assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
                 result.emplace<task::CloseGltf>();
             }
@@ -196,12 +213,29 @@ auto vk_gltf_viewer::control::imgui::menuBar() -> task::type {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Skybox")) {
-            if (ImGui::MenuItem("Load Skybox")) {
+            if (ImGui::MenuItem("Open Skybox")) {
                 constexpr std::array filterItems { nfdfilteritem_t { "HDR image", "hdr" } };
                 if (auto filename = processFileDialog(filterItems)) {
+                    const std::filesystem::path path { *std::move(filename) };
                     assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
-                    result.emplace<task::LoadEqmap>(*std::move(filename));
+                    result.emplace<task::LoadEqmap>(path);
+                    appState.pushRecentSkyboxPath(path);
                 }
+            }
+            if (ImGui::BeginMenu("Recent Skyboxes")) {
+                if (appState.getRecentSkyboxPaths().empty()) {
+                    ImGui::MenuItem("<empty>", nullptr, false, false);
+                }
+                else {
+                    for (const auto &[it, path] : appState.getRecentSkyboxPaths() | ranges::views::with_iterator) {
+                        if (ImGui::MenuItem(path.c_str())) {
+                            assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
+                            result.emplace<task::LoadEqmap>(path);
+                            appState.pushRecentSkyboxPath(path);
+                        }
+                    }
+                }
+                ImGui::EndMenu();
             }
 
             ImGui::EndMenu();
@@ -931,10 +965,7 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                                     ImGui::TextUnformatted(attributeName);
                                 }) },
                                 ImGui::ColumnInfo { "Type", decomposer([](auto, const fastgltf::Accessor &accessor) {
-                                    ImGui::TextUnformatted(to_string(accessor.type));
-                                }) },
-                                ImGui::ColumnInfo { "ComponentType", decomposer([](auto, const fastgltf::Accessor &accessor) {
-                                    ImGui::TextUnformatted(to_string(accessor.componentType));
+                                    ImGui::Text("%s (%s)", to_string(accessor.type).c_str(), to_string(accessor.componentType).c_str());
                                 }) },
                                 ImGui::ColumnInfo { "Count", decomposer([](auto, const fastgltf::Accessor &accessor) {
                                     ImGui::Text("%zu", accessor.count);

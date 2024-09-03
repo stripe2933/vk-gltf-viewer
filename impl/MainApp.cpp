@@ -301,7 +301,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 				processEqmapChange(task.path);
 			},
 			[](std::monostate) { },
-		}, control::imgui::menuBar());
+		}, control::imgui::menuBar(appState));
 
 		control::imgui::inputControlSetting(appState);
 

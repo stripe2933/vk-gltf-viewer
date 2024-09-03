@@ -11,20 +11,14 @@ export import :AppState;
 
 namespace vk_gltf_viewer::control::imgui {
     namespace task {
-        struct LoadGltf {
-            std::filesystem::path path;
-        };
-
+        struct LoadGltf { std::filesystem::path path; };
         struct CloseGltf { };
-
-        struct LoadEqmap {
-            std::filesystem::path path;
-        };
+        struct LoadEqmap { std::filesystem::path path; };
 
         using type = std::variant<std::monostate, LoadGltf, CloseGltf, LoadEqmap>;
     };
 
-    [[nodiscard]] auto menuBar() -> task::type;
+    [[nodiscard]] auto menuBar(AppState &appState) -> task::type;
 
     auto skybox(AppState &appState) -> void;
     auto hdriEnvironments(vk::DescriptorSet eqmapTexture, AppState &appState) -> void;
