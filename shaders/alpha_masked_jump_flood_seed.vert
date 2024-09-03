@@ -56,9 +56,7 @@ struct Primitive {
 };
 
 layout (location = 0) out vec2 fragBaseColorTexcoord;
-layout (location = 1) out float baseColorAlphaFactor;
-layout (location = 2) flat out int baseColorTextureIndex;
-layout (location = 3) flat out float alphaCutoff;
+layout (location = 1) flat out uint primitiveIndex;
 
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
@@ -96,9 +94,7 @@ void main(){
     if (int(MATERIAL.baseColorTextureIndex) != -1){
         fragBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
     }
-    baseColorAlphaFactor = MATERIAL.baseColorFactor.a;
-    baseColorTextureIndex = MATERIAL.baseColorTextureIndex;
-    alphaCutoff = MATERIAL.alphaCutoff;
+    primitiveIndex = gl_BaseInstance;
 
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
