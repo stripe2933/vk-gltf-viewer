@@ -21,8 +21,16 @@ namespace vk_gltf_viewer::control {
             return glm::perspectiveRH_ZO(fov, aspectRatio, zMax, zMin);
         }
 
+        [[nodiscard]] auto getProjectionMatrixForwardZ() const noexcept -> glm::mat4 {
+            return glm::perspectiveRH_ZO(fov, aspectRatio, zMin, zMax);
+        }
+
         [[nodiscard]] auto getProjectionViewMatrix() const noexcept -> glm::mat4 {
             return getProjectionMatrix() * getViewMatrix();
+        }
+
+        [[nodiscard]] auto getProjectionViewMatrixForwardZ() const noexcept -> glm::mat4 {
+            return getProjectionMatrixForwardZ() * getViewMatrix();
         }
 
         [[nodiscard]] constexpr auto getRight() const noexcept -> glm::vec3 {
