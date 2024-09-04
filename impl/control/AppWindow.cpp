@@ -3,6 +3,7 @@ module;
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <imgui.h>
+#include <ImGuizmo.h>
 
 module vk_gltf_viewer;
 import :control.AppWindow;
@@ -67,15 +68,11 @@ auto vk_gltf_viewer::control::AppWindow::getContentScale() const -> glm::vec2 {
     return scale;
 }
 
-auto vk_gltf_viewer::control::AppWindow::handleEvents(
-    float timeDelta
-) -> void {
+auto vk_gltf_viewer::control::AppWindow::handleEvents(float timeDelta) -> void {
     glfwPollEvents();
 }
 
-auto vk_gltf_viewer::control::AppWindow::createSurface(
-    const vk::raii::Instance &instance
-) const -> vk::raii::SurfaceKHR {
+auto vk_gltf_viewer::control::AppWindow::createSurface(const vk::raii::Instance &instance) const -> vk::raii::SurfaceKHR {
     if (VkSurfaceKHR surface; glfwCreateWindowSurface(*instance, window, nullptr, &surface) == VK_SUCCESS) {
         return { instance, surface };
     }
@@ -85,17 +82,13 @@ auto vk_gltf_viewer::control::AppWindow::createSurface(
     throw std::runtime_error { std::format("Failed to create window surface: {} (error code {})", error, code) };
 }
 
-auto vk_gltf_viewer::control::AppWindow::onScrollCallback(
-    glm::dvec2 offset
-) -> void {
+auto vk_gltf_viewer::control::AppWindow::onScrollCallback(glm::dvec2 offset) -> void {
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
     appState.camera.position *= std::powf(1.01f, -static_cast<float>(offset.y));
 }
 
-auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(
-    glm::dvec2 position
-) -> void {
+auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(glm::dvec2 position) -> void {
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) {
         appState.hoveringMousePosition.reset();
         return;
@@ -104,11 +97,7 @@ auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(
     appState.hoveringMousePosition = position;
 }
 
-void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
-    int button,
-    int action,
-    int mods
-) {
+void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(int button, int action, int mods) {
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
@@ -138,11 +127,20 @@ void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(
     }
 }
 
-auto vk_gltf_viewer::control::AppWindow::onKeyCallback(
-    int key,
-    int scancode,
-    int action,
-    int mods
-) -> void {
+auto vk_gltf_viewer::control::AppWindow::onKeyCallback(int key, int scancode, int action, int mods) -> void {
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureKeyboard) return;
+
+    if (action == GLFW_PRESS && appState.canManipulateImGuizmo()) {
+        switch (key) {
+            case GLFW_KEY_T:
+                appState.imGuizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
+                break;
+            case GLFW_KEY_R:
+                appState.imGuizmoOperation = ImGuizmo::OPERATION::ROTATE;
+                break;
+            case GLFW_KEY_S:
+                appState.imGuizmoOperation = ImGuizmo::OPERATION::SCALE;
+                break;
+        }
+    }
 }

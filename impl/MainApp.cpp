@@ -322,9 +322,75 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		// Node inspection.
 		control::imgui::nodeInspector(appState);
 
+		// ImGuizmo.
 		ImGuizmo::BeginFrame();
+		ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
+		if (appState.canManipulateImGuizmo()) {
+            assert(gltfAsset && "glTF asset stored in AppState but not in MainApp");
+			const std::span nodeWorldTransforms = gltfAsset->sceneResources.nodeTransformBuffer.asRange<const glm::mat4>();
+			const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
+			const glm::mat4 &nodeWorldTransform = nodeWorldTransforms[selectedNodeIndex];
 
-		// Capture mouse when using ViewManipulate.
+			if (auto deltaMatrix = control::imgui::manipulate(appState, nodeWorldTransform)) {
+				// If ImGuizmo manipulation is updated, update the target node transform in the asset.
+				fastgltf::Asset &asset = gltfAsset->get();
+				fastgltf::Node &deltaNode = asset.nodes[selectedNodeIndex];
+				visit(multilambda {
+					[&](fastgltf::TRS &trs) {
+						// Convert TRS to mat4.
+						glm::mat4 newTransform = translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data()))
+							* mat4_cast(glm::make_quat(trs.rotation.data()))
+							* scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
+
+						// Apply deltaMatrix.
+						newTransform *= *deltaMatrix;
+
+						// Convert mat4 to TRS.
+						fastgltf::Node::TransformMatrix transformMatrix;
+						std::copy_n(value_ptr(newTransform), 16, transformMatrix.data());
+						fastgltf::decomposeTransformMatrix(transformMatrix, trs.scale, trs.rotation, trs.translation);
+					},
+					[&](fastgltf::Node::TransformMatrix &transformMatrix) {
+						// Apply deltaMatrix.
+						glm::mat4 newTransform = glm::make_mat4(transformMatrix.data());
+						newTransform *= *deltaMatrix;
+						std::copy_n(value_ptr(newTransform), 16, transformMatrix.data());
+					},
+				}, deltaNode.transform);
+
+				// Recursively update the current's and child nodes' transform.
+				// TODO: this must be done under sceneResources.nodeTransformBuffer is idle from GPU access.
+				const auto calculateNodeTransformsRecursive
+					= [&, mutableNodeWorldTransforms = gltfAsset->sceneResources.nodeTransformBuffer.asRange<glm::mat4>()](
+						this const auto &self,
+						std::size_t nodeIndex,
+						const glm::mat4 &parentNodeWorldTransform = { 1.f }
+					) -> void {
+						const fastgltf::Node &node = asset.nodes[nodeIndex];
+						mutableNodeWorldTransforms[nodeIndex] = parentNodeWorldTransform * visit(fastgltf::visitor {
+							[](const fastgltf::TRS &trs) {
+								return translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data()))
+									* mat4_cast(glm::make_quat(trs.rotation.data()))
+									* scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
+							},
+							[](const fastgltf::Node::TransformMatrix &mat) {
+								return glm::make_mat4(mat.data());
+							},
+						}, node.transform);
+
+						for (std::size_t childNodeIndex : node.children) {
+							self(childNodeIndex, mutableNodeWorldTransforms[nodeIndex]);
+						}
+					};
+
+				// Start from the current selected node, execute calculateNodeTransformsRecursive with its parent node's
+				// world transform. (Use identity matrix if selected node is root node.)
+				const std::size_t parentNodeIndex = appState.gltfAsset->parentNodeIndices[selectedNodeIndex];
+				const glm::mat4 parentNodeWorldTransform = parentNodeIndex == selectedNodeIndex
+					? glm::mat4 { 1.f } : nodeWorldTransforms[parentNodeIndex];
+				calculateNodeTransformsRecursive(selectedNodeIndex, parentNodeWorldTransform);
+			}
+		}
 		control::imgui::viewManipulate(appState, centerNodeRect.Max);
 
 		ImGui::Render();

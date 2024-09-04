@@ -1088,10 +1088,19 @@ auto vk_gltf_viewer::control::imgui::inputControlSetting(
 	ImGui::End();
 }
 
-auto vk_gltf_viewer::control::imgui::viewManipulate(
-    AppState &appState,
-    const ImVec2 &passthruRectBR
-) -> void {
+auto vk_gltf_viewer::control::imgui::manipulate(const AppState &appState, const glm::mat4 &nodeTransform) -> std::optional<glm::mat4> {
+    if (glm::mat4 newTransform = nodeTransform; ImGuizmo::Manipulate(
+            value_ptr(appState.camera.getViewMatrix()),
+            value_ptr(appState.camera.getProjectionMatrixForwardZ()),
+            appState.imGuizmoOperation,
+            ImGuizmo::MODE::WORLD,
+            value_ptr(newTransform))) {
+        return inverse(nodeTransform) * newTransform;
+    }
+    return std::nullopt;
+}
+
+auto vk_gltf_viewer::control::imgui::viewManipulate(AppState &appState, const ImVec2 &passthruRectBR) -> void {
 	constexpr ImVec2 size { 64.f, 64.f };
 	constexpr ImU32 background = 0x00000000; // Transparent.
 	const glm::mat4 oldView = appState.camera.getViewMatrix();

@@ -36,10 +36,20 @@ namespace vk_gltf_viewer::control::imgui {
     auto inputControlSetting(AppState &appState) -> void;
 
     /**
+     * Render ImGuizmo Manipulator with \p nodeTransform.
+     * @param appState <tt>AppState</tt> struct instance that is necessary for view/projection calculation.
+     * @param nodeTransform Transform matrix to manipulate.
+     * @return Delta matrix that is calculated by inverse(oldTransform) * newTransform (which should be multiplied to
+     * previous transform matrix) if manipulator adjusted, <tt>std::nullopt</tt> otherwise.
+     * @pre <tt>ImGuizmo::BeginFrame()</tt> must be called before this function.
+     */
+    auto manipulate(const AppState &appState, const glm::mat4 &nodeTransform) -> std::optional<glm::mat4>;
+    /**
      * Render ImGuizmo ViewManipulate based on the current AppState camera.
      * @param appState
      * @param passthruRectBR bottom-right position of the passthru rect.
-     * @note <tt>ImGuizmo::BeginFrame()</tt> must be called before this function.
+     * @pre <tt>ImGuizmo::BeginFrame()</tt> must be called before this function.
+     * @pre <tt>ImGuizmo::Manipulate()</tt> must be called before this function, otherwise
      */
     auto viewManipulate(AppState &appState, const ImVec2 &passthruRectBR) -> void;
 }

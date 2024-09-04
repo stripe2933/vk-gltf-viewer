@@ -1,6 +1,8 @@
 module;
 
 #include <fastgltf/types.hpp>
+#include <imgui.h>
+#include <ImGuizmo.h>
 
 export module vk_gltf_viewer:AppState;
 
@@ -116,6 +118,7 @@ namespace vk_gltf_viewer {
         full_optional<glm::vec3> background { std::in_place, 0.f, 0.f, 0.f }; // nullopt -> use cubemap from the given equirectangular map image.
         std::optional<ImageBasedLighting> imageBasedLightingProperties;
         std::optional<GltfAsset> gltfAsset;
+        ImGuizmo::OPERATION imGuizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
 
         AppState() noexcept;
         ~AppState();
@@ -124,6 +127,8 @@ namespace vk_gltf_viewer {
         auto pushRecentGltfPath(const std::filesystem::path &path) -> void;
         [[nodiscard]] auto getRecentSkyboxPaths() const -> const std::list<std::filesystem::path>& { return recentSkyboxPaths; }
         auto pushRecentSkyboxPath(const std::filesystem::path &path) -> void;
+
+        [[nodiscard]] auto canManipulateImGuizmo() const -> bool { return gltfAsset && gltfAsset->selectedNodeIndices.size() == 1; }
 
     private:
         std::list<std::filesystem::path> recentGltfPaths;
