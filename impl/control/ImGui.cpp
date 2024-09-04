@@ -1071,19 +1071,19 @@ auto vk_gltf_viewer::control::imgui::inputControlSetting(
 	    if (ImGui::Checkbox("Hovering node outline", &showHoveringNodeOutline)) {
             appState.hoveringNodeOutline.set_active(showHoveringNodeOutline);
 	    }
-	    if (showHoveringNodeOutline){
-	        ImGui::DragFloat("Thickness##hoveringNodeOutline", &appState.hoveringNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
-            ImGui::ColorEdit4("Color##hoveringNodeOutline", value_ptr(appState.hoveringNodeOutline->color));
-	    }
+	    ImGui::BeginDisabled(!showHoveringNodeOutline);
+	    ImGui::DragFloat("Thickness##hoveringNodeOutline", &appState.hoveringNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
+        ImGui::ColorEdit4("Color##hoveringNodeOutline", value_ptr(appState.hoveringNodeOutline->color));
+	    ImGui::EndDisabled();
 
 	    bool showSelectedNodeOutline = appState.selectedNodeOutline.has_value();
 	    if (ImGui::Checkbox("Selected node outline", &showSelectedNodeOutline)) {
             appState.selectedNodeOutline.set_active(showSelectedNodeOutline);
 	    }
-	    if (showSelectedNodeOutline){
-	        ImGui::DragFloat("Thickness##selectedNodeOutline", &appState.selectedNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
-            ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(appState.selectedNodeOutline->color));
-	    }
+	    ImGui::BeginDisabled(!showSelectedNodeOutline);
+	    ImGui::DragFloat("Thickness##selectedNodeOutline", &appState.selectedNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
+        ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(appState.selectedNodeOutline->color));
+	    ImGui::EndDisabled();
 	}
 	ImGui::End();
 }
