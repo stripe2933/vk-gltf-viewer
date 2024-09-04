@@ -237,7 +237,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		    { static_cast<std::uint32_t>(centerNodeRect.GetWidth() * scaleFactor.x), static_cast<std::uint32_t>(centerNodeRect.GetHeight() * scaleFactor.y) },
 		};
 
-		// Assign the passthruRect to appState.passthruRect. Handle stuffs that are dependent to the it.
+		// Assign the passthruRect to appState.passthruRect. Handle stuffs that are dependent to it.
 		static vk::Rect2D previousPassthruRect{};
 		if (vk::Rect2D oldPassthruRect = std::exchange(previousPassthruRect, passthruRect); oldPassthruRect != passthruRect) {
 			appState.camera.aspectRatio = vku::aspect(passthruRect.extent);
