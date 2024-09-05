@@ -27,7 +27,7 @@ namespace vk_gltf_viewer::gltf {
             std::uint8_t positionByteStride;
             std::uint8_t normalByteStride;
             std::uint8_t tangentByteStride;
-            char padding[5];
+            char padding[1];
             std::uint32_t nodeIndex;
             std::int32_t materialIndex; // -1 for fallback material.
         };
