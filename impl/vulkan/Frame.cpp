@@ -291,7 +291,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
 			*framebuffers[imageIndex],
 			vk::Rect2D { { 0, 0 }, sharedData.swapchainExtent },
 			vku::unsafeProxy<vk::ClearValue>({
-				vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
+				backgroundColor,
 				vk::ClearColorValue{},
 				vk::ClearDepthStencilValue { 0.f, 0 },
 				vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },

@@ -259,9 +259,9 @@ auto vk_gltf_viewer::control::imgui::skybox(AppState &appState) -> void {
         if (ImGui::RadioButton("Use solid color", useSolidBackground)) {
             appState.background.set_active(true);
         }
-        if (useSolidBackground) {
-            ImGui::ColorPicker3("Color", value_ptr(*appState.background));
-        }
+        ImGui::BeginDisabled(!useSolidBackground);
+        ImGui::ColorPicker3("Color", value_ptr(*appState.background));
+        ImGui::EndDisabled();
     }
     ImGui::End();
 }
