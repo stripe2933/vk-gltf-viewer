@@ -271,7 +271,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 					}())),
 					sharedData.assetDescriptorSet.getWriteOne<1>({ gltfAsset->assetResources.materialBuffer, 0, vk::WholeSize }),
 					sharedData.sceneDescriptorSet.getWriteOne<0>({ gltfAsset->sceneResources.primitiveBuffer, 0, vk::WholeSize }),
-					sharedData.sceneDescriptorSet.getWriteOne<1>({ gltfAsset->sceneResources.nodeTransformBuffer, 0, vk::WholeSize }),
+					sharedData.sceneDescriptorSet.getWriteOne<1>({ gltfAsset->sceneResources.nodeWorldTransformBuffer, 0, vk::WholeSize }),
 				}, {});
 
 				// TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
@@ -327,7 +327,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
 		if (appState.canManipulateImGuizmo()) {
             assert(gltfAsset && "glTF asset stored in AppState but not in MainApp");
-			const std::span nodeWorldTransforms = gltfAsset->sceneResources.nodeTransformBuffer.asRange<const glm::mat4>();
+			const std::span nodeWorldTransforms = gltfAsset->sceneResources.nodeWorldTransformBuffer.asRange<const glm::mat4>();
 			const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
 			const glm::mat4 &nodeWorldTransform = nodeWorldTransforms[selectedNodeIndex];
 
@@ -361,7 +361,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 				// Recursively update the current's and child nodes' transform.
 				// TODO: this must be done under sceneResources.nodeTransformBuffer is idle from GPU access.
 				const auto calculateNodeTransformsRecursive
-					= [&, mutableNodeWorldTransforms = gltfAsset->sceneResources.nodeTransformBuffer.asRange<glm::mat4>()](
+					= [&, mutableNodeWorldTransforms = gltfAsset->sceneResources.nodeWorldTransformBuffer.asRange<glm::mat4>()](
 						this const auto &self,
 						std::size_t nodeIndex,
 						const glm::mat4 &parentNodeWorldTransform = { 1.f }

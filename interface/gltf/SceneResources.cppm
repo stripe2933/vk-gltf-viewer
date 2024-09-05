@@ -5,14 +5,13 @@ module;
 export module vk_gltf_viewer:gltf.SceneResources;
 
 import std;
-export import glm;
 import ranges;
-export import vku;
 export import :gltf.AssetResources;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::gltf {
     export class SceneResources {
+        const vulkan::Gpu &gpu;
         const AssetResources &assetResources;
         const fastgltf::Scene &scene;
 
@@ -33,10 +32,13 @@ namespace vk_gltf_viewer::gltf {
             std::int32_t materialIndex; // -1 for fallback material.
         };
 
-        vku::MappedBuffer nodeTransformBuffer;
-        vku::MappedBuffer primitiveBuffer;
+        vku::MappedBuffer nodeWorldTransformBuffer = createNodeWorldTransformBuffer();
+        vku::AllocatedBuffer primitiveBuffer = createPrimitiveBuffer();
 
-        SceneResources(const AssetResources &assetResources [[clang::lifetimebound]], const fastgltf::Scene &scene, const vulkan::Gpu &gpu [[clang::lifetimebound]]);
+        SceneResources(
+            const AssetResources &assetResources [[clang::lifetimebound]],
+            const fastgltf::Scene &scene [[clang::lifetimebound]],
+            const vulkan::Gpu &gpu [[clang::lifetimebound]]);
 
         template <
             typename CriteriaGetter,
@@ -44,11 +46,11 @@ namespace vk_gltf_viewer::gltf {
             typename Criteria = std::invoke_result_t<CriteriaGetter, const AssetResources::PrimitiveInfo&>>
         requires
             requires(const Criteria &criteria) {
-                // draw commands with same criteria must have same kind of index type, or no index type (multi draw indirect requires same index type.)
+                // Draw commands with same criteria must have same kind of index type, or no index type (multi draw
+                // indirect requires the same index type).
                 { criteria.indexType } -> std::convertible_to<std::optional<vk::IndexType>>;
             }
         [[nodiscard]] auto createIndirectDrawCommandBuffers(
-            vma::Allocator allocator,
             const CriteriaGetter &criteriaGetter,
             const std::unordered_set<std::size_t> &nodeIndices
         ) const -> std::map<Criteria, vku::MappedBuffer, Compare> {
@@ -84,12 +86,12 @@ namespace vk_gltf_viewer::gltf {
                 const std::variant flattenedCommands = [&]() -> std::variant<std::vector<vk::DrawIndexedIndirectCommand>, std::vector<vk::DrawIndirectCommand>> {
                     if (criteria.indexType) {
                         return commandVariants
-                            | std::views::transform([](const auto &commandVariant) { return get<vk::DrawIndexedIndirectCommand>(commandVariant); })
+                            | std::views::transform([](const auto &commandVariant) { return *get_if<vk::DrawIndexedIndirectCommand>(&commandVariant); })
                             | std::ranges::to<std::vector>();
                     }
                     else {
                         return commandVariants
-                            | std::views::transform([](const auto &commandVariant) { return get<vk::DrawIndirectCommand>(commandVariant); })
+                            | std::views::transform([](const auto &commandVariant) { return *get_if<vk::DrawIndirectCommand>(&commandVariant); })
                             | std::ranges::to<std::vector>();
                     }
                 }();
@@ -98,7 +100,7 @@ namespace vk_gltf_viewer::gltf {
                 }, flattenedCommands);
 
                 result.emplace(criteria, vku::MappedBuffer {
-                    allocator,
+                    gpu.allocator,
                     std::from_range, commandBytes,
                     vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer,
                 });
@@ -107,8 +109,8 @@ namespace vk_gltf_viewer::gltf {
         }
 
     private:
-        [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> decltype(orderedNodePrimitiveInfoPtrs);
-        [[nodiscard]] auto createNodeTransformBuffer(vma::Allocator allocator) const -> decltype(nodeTransformBuffer);
-        [[nodiscard]] auto createPrimitiveBuffer(const vulkan::Gpu &gpu) -> decltype(primitiveBuffer);
+        [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> std::vector<std::pair<std::size_t, const AssetResources::PrimitiveInfo*>>;
+        [[nodiscard]] auto createNodeWorldTransformBuffer() const -> vku::MappedBuffer;
+        [[nodiscard]] auto createPrimitiveBuffer() const -> vku::AllocatedBuffer;
     };
 }
