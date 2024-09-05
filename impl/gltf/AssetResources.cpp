@@ -637,13 +637,13 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
             = [indexType = mesh.indicesAccessor.componentType]() -> SMikkTSpaceInterface* {
                 switch (indexType) {
                     case fastgltf::ComponentType::UnsignedByte:
-                        return &algorithm::mikktSpaceInterface<std::uint16_t, AssetExternalBuffers>;
+                        return &algorithm::mikktSpaceInterface<std::uint8_t, AssetExternalBuffers>;
                     case fastgltf::ComponentType::UnsignedShort:
                         return &algorithm::mikktSpaceInterface<std::uint16_t, AssetExternalBuffers>;
                     case fastgltf::ComponentType::UnsignedInt:
                         return &algorithm::mikktSpaceInterface<std::uint32_t, AssetExternalBuffers>;
                     default:
-                        throw std::runtime_error{ "Unsupported index type" };
+                        throw std::runtime_error{ "Unsupported index type: only unsigned byte/short/int are supported." };
                 }
             }();
         if (const SMikkTSpaceContext context{ pInterface, &mesh }; !genTangSpaceDefault(&context)) {
