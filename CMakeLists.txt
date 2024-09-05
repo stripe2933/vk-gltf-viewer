@@ -40,7 +40,6 @@ add_executable(vk-gltf-viewer
 	impl/vulkan/pipeline/BrdfmapComputer.cpp
 	impl/vulkan/pipeline/DepthRenderer.cpp
 	impl/vulkan/pipeline/JumpFloodComputer.cpp
-	impl/vulkan/pipeline/OutlineRenderer.cpp
 	main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
@@ -121,6 +120,9 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/sampler/BrdfLutSampler.cppm
 		interface/vulkan/sampler/CubemapSampler.cppm
 		interface/vulkan/sampler/SingleTexelSampler.cppm
+		interface/vulkan/shader/FacetedPrimitiveVertex.cppm
+		interface/vulkan/shader/PrimitiveVertex.cppm
+		interface/vulkan/shader/ScreenQuadVertex.cppm
 		interface/vulkan/SharedData.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE

@@ -645,7 +645,6 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 			}
 		};
 
-
 	if (renderingNodes) {
 		cb.beginRenderingKHR(passthruResources->depthPrepassAttachmentGroup.getRenderingInfo(
 			vku::AttachmentGroup::ColorAttachmentInfo {
@@ -918,16 +917,19 @@ auto vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
 	bool pipelineBound = false;
 	if (selectedNodes) {
 		if (!pipelineBound) {
-			sharedData.outlineRenderer.bindPipeline(cb);
+			cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderer.pipeline);
 			pipelineBound = true;
 		}
-		sharedData.outlineRenderer.bindDescriptorSets(cb, selectedNodeOutlineSet);
-		sharedData.outlineRenderer.pushConstants(cb, {
-			.outlineColor = selectedNodes->outlineColor,
-			.passthruOffset = { passthruRect.offset.x, passthruRect.offset.y },
-			.outlineThickness = selectedNodes->outlineThickness,
-		});
-		sharedData.outlineRenderer.draw(cb);
+		cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderer.pipelineLayout, 0,
+			selectedNodeOutlineSet, {});
+		cb.pushConstants<OutlineRenderer::PushConstant>(
+			*sharedData.outlineRenderer.pipelineLayout, vk::ShaderStageFlagBits::eFragment,
+			0, OutlineRenderer::PushConstant {
+				.outlineColor = selectedNodes->outlineColor,
+				.passthruOffset = { passthruRect.offset.x, passthruRect.offset.y },
+				.outlineThickness = selectedNodes->outlineThickness,
+			});
+		cb.draw(3, 1, 0, 0);
 	}
 	if (hoveringNode) {
 		if (selectedNodes) {
@@ -935,17 +937,20 @@ auto vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
 		}
 
 		if (!pipelineBound) {
-			sharedData.outlineRenderer.bindPipeline(cb);
+			cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderer.pipeline);
 			pipelineBound = true;
 		}
 
-		sharedData.outlineRenderer.bindDescriptorSets(cb, hoveringNodeOutlineSet);
-		sharedData.outlineRenderer.pushConstants(cb, {
-			.outlineColor = hoveringNode->outlineColor,
-			.passthruOffset = { passthruRect.offset.x, passthruRect.offset.y },
-			.outlineThickness = hoveringNode->outlineThickness,
-		});
-		sharedData.outlineRenderer.draw(cb);
+		cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderer.pipelineLayout, 0,
+			hoveringNodeOutlineSet, {});
+		cb.pushConstants<OutlineRenderer::PushConstant>(
+			*sharedData.outlineRenderer.pipelineLayout, vk::ShaderStageFlagBits::eFragment,
+			0, OutlineRenderer::PushConstant {
+				.outlineColor = hoveringNode->outlineColor,
+				.passthruOffset = { passthruRect.offset.x, passthruRect.offset.y },
+				.outlineThickness = hoveringNode->outlineThickness,
+			});
+		cb.draw(3, 1, 0, 0);
 	}
 
     cb.endRenderingKHR();

@@ -2,6 +2,7 @@ export module vk_gltf_viewer:vulkan.pipeline.BlendPrimitiveRenderer;
 
 import vku;
 export import :vulkan.pl.SceneRendering;
+export import :vulkan.shader.PrimitiveVertex;
 export import :vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -9,11 +10,12 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         BlendPrimitiveRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
             const pl::SceneRendering &layout [[clang::lifetimebound]],
+            const shader::PrimitiveVertex &vertexShader,
             const rp::Scene &sceneRenderPass [[clang::lifetimebound]]
         ) : Pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(
                     device,
-                    vku::Shader { COMPILED_SHADER_DIR "/blend_primitive.vert.spv", vk::ShaderStageFlagBits::eVertex },
+                    vertexShader,
                     vku::Shader { COMPILED_SHADER_DIR "/blend_primitive.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
                 *layout, 1, true, vk::SampleCountFlagBits::e4)
             .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
