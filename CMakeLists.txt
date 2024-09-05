@@ -11,6 +11,7 @@ set(CMAKE_CXX_MODULE_STD 1)
 # External dependencies.
 # --------------------
 
+find_package(boost_container CONFIG REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
@@ -123,6 +124,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/SharedData.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
+	Boost::container
 	fastgltf::fastgltf
 	imgui::imgui
 	unofficial::imguizmo::imguizmo

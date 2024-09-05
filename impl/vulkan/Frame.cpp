@@ -1,5 +1,6 @@
 module;
 
+#include <boost/container/static_vector.hpp>
 #include <fastgltf/core.hpp>
 #include <imgui_impl_vulkan.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
@@ -517,7 +518,7 @@ auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(des
 }
 
 auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer cb) const -> void {
-	std::vector<vk::ImageMemoryBarrier> memoryBarriers{}; // TODO: use static_vector with capacity=3.
+	boost::container::static_vector<vk::ImageMemoryBarrier, 3> memoryBarriers;
 
 	// If glTF Scene have to be rendered, prepare attachment layout transition for node index and depth rendering.
 	if (renderingNodes) {
@@ -873,7 +874,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
 	std::optional<bool> selectedNodeJumpFloodForward,
 	std::uint32_t swapchainImageIndex
 ) const -> void {
-	std::vector<vk::ImageMemoryBarrier> memoryBarriers; // TODO: use static_vector with capacity = 2.
+	boost::container::static_vector<vk::ImageMemoryBarrier, 2> memoryBarriers;
 	// Change jump flood image layouts to ShaderReadOnlyOptimal.
 	if (hoveringNodeJumpFloodForward) {
 		memoryBarriers.push_back({

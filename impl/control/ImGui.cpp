@@ -3,6 +3,7 @@ module;
 #include <cassert>
 #include <version>
 
+#include <boost/container/static_vector.hpp>
 #include <fastgltf/types.hpp>
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
@@ -768,7 +769,7 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(AppState &appState) -
             ImGui::TableSetColumnIndex(2);
             visit(fastgltf::visitor {
                 [](const fastgltf::TRS &trs) {
-                    std::vector<std::string> transformComponents;
+                    boost::container::static_vector<std::string, 3> transformComponents;
                     if (trs.translation != std::array { 0.f, 0.f, 0.f }) {
                         transformComponents.emplace_back(std::format("T{::.2f}", trs.translation));
                     }
