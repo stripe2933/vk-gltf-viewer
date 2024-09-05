@@ -76,7 +76,6 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     const std::filesystem::path &assetDir,
     const AssetExternalBuffers &externalBuffers,
     const vulkan::Gpu &gpu,
-    const Config &config,
     BS::thread_pool threadPool
 ) : asset { asset },
     primitiveInfos { createPrimitiveInfos(asset) },
@@ -94,7 +93,7 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
         stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Texcoord, gpu, cb);
         stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Color, gpu, cb);
         stagePrimitiveTangentBuffers(externalBuffers, gpu, cb, threadPool);
-        stagePrimitiveIndexBuffers(externalBuffers, gpu, cb, config.supportUint8Index);
+        stagePrimitiveIndexBuffers(externalBuffers, gpu, cb);
 
         releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
     });
@@ -671,8 +670,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
     const AssetExternalBuffers &externalBuffers,
     const vulkan::Gpu &gpu,
-    vk::CommandBuffer copyCommandBuffer,
-    bool supportUint8Index
+    vk::CommandBuffer copyCommandBuffer
 ) -> void {
     // Primitive that are contains an indices accessor.
     auto indexedPrimitives = asset.meshes
@@ -702,7 +700,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
             }
         }
 
-        if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !supportUint8Index) {
+        if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) {
             // Make vector of uint16 indices.
             std::vector<std::uint16_t> indices(accessor.count);
             iterateAccessorWithIndex<std::uint8_t>(asset, accessor, [&](std::uint8_t index, std::size_t i) {

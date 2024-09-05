@@ -458,13 +458,7 @@ vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
 ) : dataBufferLoader { path },
 	assetDir { path.parent_path() },
 	assetExpected { fastgltf::Parser{}.loadGltf(&dataBufferLoader.dataBuffer, assetDir) },
-	assetResources {
-		get(),
-		assetDir,
-		gltf::AssetExternalBuffers { get(), assetDir },
-		gpu,
-		{ .supportUint8Index = gpu.supportUint8Index },
-	},
+	assetResources { get(), assetDir, gltf::AssetExternalBuffers { get(), assetDir }, gpu },
 	imageViews { createAssetImageViews(gpu.device) },
 	sceneResources { assetResources, get().scenes[get().defaultScene.value_or(0)], gpu } {
 	gpu.queues.transfer.waitIdle();

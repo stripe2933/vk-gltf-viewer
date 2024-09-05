@@ -16,10 +16,6 @@ namespace vk_gltf_viewer::gltf {
         std::forward_list<vku::AllocatedBuffer> stagingBuffers;
 
     public:
-        struct Config {
-            bool supportUint8Index;
-        };
-
         enum class IndexedAttribute { Texcoord, Color };
 
         struct PrimitiveInfo {
@@ -72,7 +68,7 @@ namespace vk_gltf_viewer::gltf {
         std::optional<vku::AllocatedBuffer> tangentBuffer;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
-        AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, const Config &config = {}, BS::thread_pool threadPool = {});
+        AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, BS::thread_pool threadPool = {});
 
     private:
         [[nodiscard]] auto createPrimitiveInfos(const fastgltf::Asset &asset) const -> decltype(primitiveInfos);
@@ -85,7 +81,7 @@ namespace vk_gltf_viewer::gltf {
         auto stagePrimitiveAttributeBuffers(const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
         auto stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute attributeType, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
         auto stagePrimitiveTangentBuffers(const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer, BS::thread_pool &threadPool) -> void;
-        auto stagePrimitiveIndexBuffers(const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer, bool supportUint8Index) -> void;
+        auto stagePrimitiveIndexBuffers(const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, vk::CommandBuffer copyCommandBuffer) -> void;
 
         auto releaseResourceQueueFamilyOwnership(const vulkan::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
 
