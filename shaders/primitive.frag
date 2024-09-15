@@ -114,16 +114,11 @@ void main(){
     vec2 brdf  = texture(brdfmap, vec2(maxNdotV, roughness)).rg;
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-    vec3 color = (kD * diffuse + specular) * occlusion;
+    vec3 color = (kD * diffuse + specular) * occlusion + emissive;
 
-    // Compare the luminance of color and emissive.
-    // If emissive is brighter, use it.
+    // Tone mapping using REC.709 luma.
     float colorLuminance = dot(color, REC_709_LUMA);
-    float emissiveLuminance = dot(emissive, REC_709_LUMA);
-    if (emissiveLuminance > colorLuminance){
-        outColor = vec4(emissive / (1.0 + emissiveLuminance), 1.0);
-    }
-    else {
-        outColor = vec4(color / (1.0 + colorLuminance), 1.0);
-    }
+    vec3 correctedColor = color / (1.0 + colorLuminance);
+
+    outColor = vec4(correctedColor, 1.0);
 }

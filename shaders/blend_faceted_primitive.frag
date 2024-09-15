@@ -118,20 +118,16 @@ void main(){
     vec2 brdf  = texture(brdfmap, vec2(maxNdotV, roughness)).rg;
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-    vec3 color = (kD * diffuse + specular) * occlusion;
+    vec3 color = (kD * diffuse + specular) * occlusion + emissive;
 
-    // Compare the luminance of color and emissive.
-    // If emissive is brighter, use it.
+    // Tone mapping using REC.709 luma.
     float colorLuminance = dot(color, REC_709_LUMA);
-    float emissiveLuminance = dot(emissive, REC_709_LUMA);
-    if (emissiveLuminance > colorLuminance){
-        color = emissive;
-    }
+    vec3 correctedColor = color / (1.0 + colorLuminance);
 
     // Weighted Blended.
     float weight = clamp(
         pow(min(1.0, baseColor.a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - gl_FragCoord.z * 0.9, 3.0),
         1e-2, 3e3);
-    outAccumulation = vec4(color * baseColor.a, baseColor.a) * weight;
+    outAccumulation = vec4(correctedColor * baseColor.a, baseColor.a) * weight;
     outRevealage = baseColor.a;
 }
