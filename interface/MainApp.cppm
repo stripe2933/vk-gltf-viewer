@@ -75,7 +75,7 @@ namespace vk_gltf_viewer {
 	        std::unordered_map<std::size_t, vk::raii::ImageView> imageViews;
     		gltf::SceneResources sceneResources;
 
-			explicit GltfAsset(const std::filesystem::path &path, const vulkan::Gpu &gpu [[clang::lifetimebound]]);
+			GltfAsset(const std::filesystem::path &path, const vulkan::Gpu &gpu [[clang::lifetimebound]]);
 
 			[[nodiscard]] auto get() noexcept -> fastgltf::Asset&;
 

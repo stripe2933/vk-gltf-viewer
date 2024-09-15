@@ -246,6 +246,10 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 		// Draw main menu bar.
 		visit(multilambda {
 			[&](const control::imgui::task::LoadGltf &task) {
+				// TODO: I'm aware that there are more good solutions than waitIdle, but I don't have much time for it
+				//  so I'll just use it for now.
+				gpu.device.waitIdle();
+
 				gltfAsset.emplace(task.path, gpu);
 
 				sharedData.updateTextureCount(1 + gltfAsset->get().textures.size());
@@ -464,7 +468,7 @@ vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
 	gpu.queues.transfer.waitIdle();
 
 	const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
-	vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+	const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
 	vku::executeSingleCommand(*gpu.device, graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
 		if (assetResources.images.empty()) return;
 

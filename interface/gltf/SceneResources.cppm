@@ -69,7 +69,7 @@ namespace vk_gltf_viewer::gltf {
                             case vk::IndexType::eUint8KHR: return sizeof(std::uint8_t);
                             case vk::IndexType::eUint16: return sizeof(std::uint16_t);
                             case vk::IndexType::eUint32: return sizeof(std::uint32_t);
-                            default: throw std::runtime_error{ "Unsupported index type: only Uint8KHR, Uint16 and Uint32 are supported" };
+                            default: throw std::runtime_error{ "Unsupported index type: only Uint8KHR, Uint16 and Uint32 are supported." };
                         }
                     }();
 

@@ -13,6 +13,10 @@ export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::gltf {
     export class AssetResources {
+        /**
+         * Staging buffers for temporary data transfer. This have to be cleared after the transfer command execution
+         * finished.
+         */
         std::forward_list<vku::AllocatedBuffer> stagingBuffers;
 
     public:
@@ -60,7 +64,7 @@ namespace vk_gltf_viewer::gltf {
         std::unordered_map<std::size_t, vku::AllocatedImage> images;
         std::unordered_map<std::size_t, vk::raii::Sampler> samplers;
 
-        vku::AllocatedBuffer materialBuffer;
+        vku::AllocatedBuffer materialBuffer; /*!< Buffer that contains <tt>GpuMaterial</tt>s, with fallback material at the index 0 (total <tt>asset.materials.size() + 1</tt>). */
 
         std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos;
         std::vector<vku::AllocatedBuffer> attributeBuffers;
@@ -86,49 +90,40 @@ namespace vk_gltf_viewer::gltf {
         auto releaseResourceQueueFamilyOwnership(const vulkan::QueueFamilies &queueFamilies, vk::CommandBuffer commandBuffer) const -> void;
 
         /**
-         * From given segments (a range of byte datas), create a combined staging buffer and return each segments' start offsets.
+         * From given segments (a range of byte data), create a combined staging buffer and return each segments' start offsets.
+         *
+         * Example: Two segments { 0xAA, 0xBB, 0xCC } and { 0xDD, 0xEE } will combined to { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE },
+         * and their start offsets are { 0, 3 }.
          * @param allocator Allocator that used for buffer allocation.
          * @param segments Data segments to be combined.
-         * @return pair, first=(combined staging buffer), second=(each segments' start offsets).
-         * @example
-         * Two segments { 0xAA, 0xBB, 0xCC } and { 0xDD, 0xEE } will combined to { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE }, and their
-         * start offsets are { 0, 3 }.
+         * @return Pair of combined staging buffer and each segments' start offsets vector.
          */
         template <std::ranges::random_access_range R>
             requires std::ranges::contiguous_range<std::ranges::range_value_t<R>>
         [[nodiscard]] auto createCombinedStagingBuffer(
             vma::Allocator allocator,
             R &&segments
-        ) -> std::pair<const vku::AllocatedBuffer&, std::vector<vk::DeviceSize>>;
+        ) -> std::pair<const vku::AllocatedBuffer&, std::vector<vk::DeviceSize>> {
+            using value_type = std::ranges::range_value_t<std::ranges::range_value_t<R>>;
+            static_assert(std::is_standard_layout_v<value_type>, "Copying non-standard layout does not guarantee the intended result.");
+            assert(!segments.empty() && "Empty segments not allowed (Vulkan requires non-zero buffer size)");
+
+            // Calculate each segments' size and their destination offsets.
+            const auto segmentsBytes = segments | std::views::transform([](const auto &segment) { return as_bytes(std::span { segment }); });
+            const auto segmentsByteSizes = segmentsBytes | std::views::transform(&std::span<const std::byte>::size);
+            std::vector<vk::DeviceSize> copyOffsets(segmentsByteSizes.size());
+            std::exclusive_scan(segmentsByteSizes.begin(), segmentsByteSizes.end(), copyOffsets.begin(), vk::DeviceSize { 0 });
+
+            vku::MappedBuffer stagingBuffer { allocator, vk::BufferCreateInfo {
+                {},
+                copyOffsets.back() + segmentsByteSizes.back(), // = sum(segmentSizes).
+                vk::BufferUsageFlagBits::eTransferSrc,
+            } };
+            for (auto [segmentBytes, copyOffset] : std::views::zip(segmentsBytes, copyOffsets)){
+                std::ranges::copy(segmentBytes, static_cast<std::byte*>(stagingBuffer.data) + copyOffset);
+            }
+
+            return { stagingBuffers.emplace_front(std::move(stagingBuffer).unmap()), std::move(copyOffsets) };
+        }
     };
-}
-
-// module :private;
-
-template <std::ranges::random_access_range R>
-    requires std::ranges::contiguous_range<std::ranges::range_value_t<R>>
-[[nodiscard]] auto vk_gltf_viewer::gltf::AssetResources::createCombinedStagingBuffer(
-    vma::Allocator allocator,
-    R &&segments
-) -> std::pair<const vku::AllocatedBuffer&, std::vector<vk::DeviceSize>> {
-    using value_type = std::ranges::range_value_t<std::ranges::range_value_t<R>>;
-    static_assert(std::is_standard_layout_v<value_type>, "Copying non-standard layout does not guarantee the intended result.");
-    assert(!segments.empty() && "Empty segments not allowed (Vulkan requires non-zero buffer size)");
-
-    // Calculate each segments' size and their destination offsets.
-    const auto segmentsBytes = segments | std::views::transform([](const auto &segment) { return as_bytes(std::span { segment }); });
-    const auto segmentsByteSizes = segmentsBytes | std::views::transform(&std::span<const std::byte>::size);
-    std::vector<vk::DeviceSize> copyOffsets(segmentsByteSizes.size());
-    std::exclusive_scan(segmentsByteSizes.begin(), segmentsByteSizes.end(), copyOffsets.begin(), vk::DeviceSize { 0 });
-
-    vku::MappedBuffer stagingBuffer { allocator, vk::BufferCreateInfo {
-        {},
-        copyOffsets.back() + segmentsByteSizes.back(), // = sum(segmentSizes).
-        vk::BufferUsageFlagBits::eTransferSrc,
-    } };
-    for (auto [segmentBytes, copyOffset] : std::views::zip(segmentsBytes, copyOffsets)){
-        std::ranges::copy(segmentBytes, static_cast<std::byte*>(stagingBuffer.data) + copyOffset);
-    }
-
-    return { stagingBuffers.emplace_front(std::move(stagingBuffer).unmap()), std::move(copyOffsets) };
 }
