@@ -54,6 +54,7 @@ namespace vk_gltf_viewer::vulkan {
 	};
 
 	export struct Gpu : vku::Gpu<QueueFamilies, Queues> {
+		bool supportTessellationShader;
 		bool supportUint8Index;
 
 		Gpu(const vk::raii::Instance &instance [[clang::lifetimebound]], vk::SurfaceKHR surface)
@@ -76,7 +77,8 @@ namespace vk_gltf_viewer::vulkan {
 					.setMultiDrawIndirect(true)
 					.setDepthBiasClamp(true)
 					.setShaderStorageImageWriteWithoutFormat(true)
-					.setIndependentBlend(true),
+					.setIndependentBlend(true)
+					.setTessellationShader(true),
 				.queueFamilyGetter = [=](vk::PhysicalDevice physicalDevice) -> QueueFamilies {
 					return { physicalDevice, surface };
 				},
@@ -105,10 +107,14 @@ namespace vk_gltf_viewer::vulkan {
 				.allocatorCreateFlags = vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
 				.apiVersion = vk::makeApiVersion(0, 1, 2, 0),
 			} } {
-			const vk::StructureChain physicalDeviceFeatures = physicalDevice.getFeatures2<
+			// Retrieve physical device features.
+			const vk::PhysicalDeviceFeatures physicalDeviceFeatures = physicalDevice.getFeatures();
+			supportTessellationShader = physicalDeviceFeatures.tessellationShader;
+
+			const vk::StructureChain physicalDeviceFeatures2 = physicalDevice.getFeatures2<
 				vk::PhysicalDeviceFeatures2,
 				vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
-			supportUint8Index = physicalDeviceFeatures.get<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>().indexTypeUint8;
+			supportUint8Index = physicalDeviceFeatures2.get<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>().indexTypeUint8;
 		}
     };
 };

@@ -120,7 +120,11 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/sampler/BrdfLutSampler.cppm
 		interface/vulkan/sampler/CubemapSampler.cppm
 		interface/vulkan/sampler/SingleTexelSampler.cppm
+		interface/vulkan/shader/AlphaMaskedPrimitiveFragment.cppm
+		interface/vulkan/shader/BlendPrimitiveFragment.cppm
+		interface/vulkan/shader/FacetedPrimitiveTessellation.cppm
 		interface/vulkan/shader/FacetedPrimitiveVertex.cppm
+		interface/vulkan/shader/PrimitiveFragment.cppm
 		interface/vulkan/shader/PrimitiveVertex.cppm
 		interface/vulkan/shader/ScreenQuadVertex.cppm
 		interface/vulkan/SharedData.cppm
