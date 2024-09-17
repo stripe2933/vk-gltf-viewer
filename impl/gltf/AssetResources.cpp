@@ -16,6 +16,7 @@ import ranges;
 import thread_pool;
 import :gltf.algorithm.MikktSpaceInterface;
 import :io.StbDecoder;
+import :mipmap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
@@ -122,8 +123,9 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
 ) : asset { asset },
     gpu { gpu },
     images { createImages(assetDir, externalBuffers, threadPool) } {
+    // Transfer the asset resources into the GPU using transfer queue.
     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-    const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+    const vk::raii::Fence transferFence { gpu.device, vk::FenceCreateInfo{} };
     vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
         stageImages(assetDir, externalBuffers, cb, threadPool);
         stageMaterials(cb);
@@ -133,13 +135,76 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
         stagePrimitiveTangentBuffers(externalBuffers, cb, threadPool);
         stagePrimitiveIndexBuffers(externalBuffers, cb);
 
-        releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
-    }, *fence);
-    if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
+        // Release the queue family ownerships of the images (if required).
+        if (!images.empty() && gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
+            cb.pipelineBarrier(
+                vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllCommands,
+                {}, {}, {},
+                images
+                    | std::views::values
+                    | std::views::transform([&](vk::Image image) {
+                        return vk::ImageMemoryBarrier {
+                            vk::AccessFlagBits::eTransferWrite, {},
+                            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                            gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
+                            image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                        };
+                    })
+                    | std::ranges::to<std::vector>());
+        }
+    }, *transferFence);
+    if (vk::Result result = gpu.device.waitForFences(*transferFence, true, ~0ULL); result != vk::Result::eSuccess) {
         throw std::runtime_error { std::format("Failed to transfer the asset resources into the GPU: {}", to_string(result)) };
     }
 
+    // TODO: I cannot certain which way is better: 1) use semaphore for submit the transfer and graphics command at once
+    //  and clear the staging buffers when all operations are done, or 2) use fences for both command submissions and
+    //  destroy the staging buffers earlier. The first way may be better for the performance, but the second way may be
+    //  better for the GPU memory footprint. Investigation needed.
     stagingBuffers.clear();
+
+    // Generate image mipmaps using graphics queue.
+    const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+    const vk::raii::Fence graphicsFence { gpu.device, vk::FenceCreateInfo{} };
+    vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+        if (images.empty()) return;
+
+        // Change image layouts and acquire resource queue family ownerships (optionally).
+        cb.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+            {}, {}, {},
+            images
+                | std::views::values
+                | std::views::transform([&](vk::Image image) {
+                    return vk::ImageMemoryBarrier {
+                        {}, vk::AccessFlagBits::eTransferRead,
+                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                        gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
+                        image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                    };
+                })
+                | std::ranges::to<std::vector>());
+
+        recordBatchedMipmapGenerationCommand(cb, images | std::views::values);
+
+        cb.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+            {}, {}, {},
+            images
+                | std::views::values
+                | std::views::transform([](vk::Image image) {
+                    return vk::ImageMemoryBarrier {
+                        vk::AccessFlagBits::eTransferWrite, {},
+                        {}, vk::ImageLayout::eShaderReadOnlyOptimal,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        image, vku::fullSubresourceRange(),
+                    };
+                })
+                | std::ranges::to<std::vector>());
+    }, *graphicsFence);
+    if (vk::Result result = gpu.device.waitForFences(*graphicsFence, true, ~0ULL); result != vk::Result::eSuccess) {
+        throw std::runtime_error { std::format("Failed to generate the texture mipmaps: {}", to_string(result)) };
+    }
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::createPrimitiveInfos() const -> std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> {
@@ -764,26 +829,4 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
             return std::pair { indexType, std::move(indexBuffer) };
         })
         | std::ranges::to<std::unordered_map>();
-}
-
-auto vk_gltf_viewer::gltf::AssetResources::releaseResourceQueueFamilyOwnership(
-    const vulkan::QueueFamilies &queueFamilies,
-    vk::CommandBuffer commandBuffer
-) const -> void {
-    if (queueFamilies.transfer == queueFamilies.graphicsPresent) return;
-
-    commandBuffer.pipelineBarrier(
-        vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllCommands,
-        {}, {}, {},
-        images
-            | std::views::values
-            | std::views::transform([&](vk::Image image) {
-                return vk::ImageMemoryBarrier {
-                    vk::AccessFlagBits::eTransferWrite, {},
-                    {}, {},
-                    queueFamilies.transfer, queueFamilies.graphicsPresent,
-                    image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-                };
-            })
-            | std::ranges::to<std::vector>());
 }

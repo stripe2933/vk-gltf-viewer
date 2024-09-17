@@ -464,69 +464,7 @@ vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
 	assetExpected { fastgltf::Parser{}.loadGltf(&dataBufferLoader.dataBuffer, assetDir) },
 	assetResources { get(), assetDir, gltf::AssetExternalBuffers { get(), assetDir }, gpu },
 	imageViews { createAssetImageViews(gpu.device) },
-	sceneResources { get(), assetResources, get().scenes[get().defaultScene.value_or(0)], gpu } {
-	gpu.queues.transfer.waitIdle();
-
-	const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
-	const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-	vku::executeSingleCommand(*gpu.device, graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-		if (assetResources.images.empty()) return;
-
-		// Acquire resource queue family ownerships.
-		if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
-			cb.pipelineBarrier(
-				vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-				{}, {}, {},
-				assetResources.images
-					| std::views::values
-					| std::views::transform([&](vk::Image image) {
-						return vk::ImageMemoryBarrier {
-							{}, vk::AccessFlagBits::eTransferRead,
-							{}, {},
-							gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-							image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-						};
-					})
-					| std::ranges::to<std::vector>());
-		}
-
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-			{}, {}, {},
-			assetResources.images
-				| std::views::values
-				| std::views::transform([](vk::Image image) {
-					return vk::ImageMemoryBarrier {
-						{}, vk::AccessFlagBits::eTransferRead,
-						vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-					};
-				})
-				| std::ranges::to<std::vector>());
-
-		recordBatchedMipmapGenerationCommand(cb, assetResources.images | std::views::values);
-
-		cb.pipelineBarrier(
-			vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-			{}, {}, {},
-			assetResources.images
-				| std::views::values
-				| std::views::transform([](vk::Image image) {
-					return vk::ImageMemoryBarrier {
-						vk::AccessFlagBits::eTransferWrite, {},
-						{}, vk::ImageLayout::eShaderReadOnlyOptimal,
-						vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-						image, vku::fullSubresourceRange(),
-					};
-				})
-				| std::ranges::to<std::vector>());
-	}, *fence);
-
-	if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
-		throw std::runtime_error { "Failed to generate glTF texture mipmaps." };
-	}
-}
+	sceneResources { get(), assetResources, get().scenes[get().defaultScene.value_or(0)], gpu } { }
 
 auto vk_gltf_viewer::MainApp::GltfAsset::get() noexcept -> fastgltf::Asset& {
 	return assetExpected.get();
