@@ -120,20 +120,18 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     const vulkan::Gpu &gpu,
     BS::thread_pool threadPool
 ) : asset { asset },
-    primitiveInfos { createPrimitiveInfos(asset) },
-    images { createImages(assetDir, externalBuffers, gpu.allocator, threadPool) },
-    samplers { createSamplers(gpu.device) },
-    materialBuffer { createMaterialBuffer(gpu.allocator) } {
+    gpu { gpu },
+    images { createImages(assetDir, externalBuffers, threadPool) } {
     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
     vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
-        stageImages(assetDir, externalBuffers, gpu.allocator, cb, threadPool);
-        stageMaterials(gpu.allocator, cb);
-        stagePrimitiveAttributeBuffers(externalBuffers, gpu, cb);
-        stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Texcoord, gpu, cb);
-        stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Color, gpu, cb);
-        stagePrimitiveTangentBuffers(externalBuffers, gpu, cb, threadPool);
-        stagePrimitiveIndexBuffers(externalBuffers, gpu, cb);
+        stageImages(assetDir, externalBuffers, cb, threadPool);
+        stageMaterials(cb);
+        stagePrimitiveAttributeBuffers(externalBuffers, cb);
+        stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Texcoord, cb);
+        stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute::Color, cb);
+        stagePrimitiveTangentBuffers(externalBuffers, cb, threadPool);
+        stagePrimitiveIndexBuffers(externalBuffers, cb);
 
         releaseResourceQueueFamilyOwnership(gpu.queueFamilies, cb);
     }, *fence);
@@ -144,11 +142,9 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     stagingBuffers.clear();
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::createPrimitiveInfos(
-    const fastgltf::Asset &asset
-) const -> decltype(primitiveInfos) {
+auto vk_gltf_viewer::gltf::AssetResources::createPrimitiveInfos() const -> std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> {
     std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos;
-    for (const auto &[nodeIndex, node] : asset.nodes | ranges::views::enumerate){
+    for (const fastgltf::Node &node : asset.nodes){
         if (!node.meshIndex) continue;
 
         for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex].primitives){
@@ -162,7 +158,6 @@ auto vk_gltf_viewer::gltf::AssetResources::createPrimitiveInfos(
 auto vk_gltf_viewer::gltf::AssetResources::createImages(
     const std::filesystem::path &assetDir,
     const AssetExternalBuffers &externalBuffers,
-    vma::Allocator allocator,
     BS::thread_pool &threadPool
 ) const -> std::unordered_map<std::size_t, vku::AllocatedImage> {
     // Base color and emissive texture must be in SRGB format.
@@ -246,7 +241,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
         return std::pair<std::size_t, vku::AllocatedImage> {
             std::piecewise_construct,
             std::tuple { imageIndex },
-            std::forward_as_tuple(allocator, vk::ImageCreateInfo {
+            std::forward_as_tuple(gpu.allocator, vk::ImageCreateInfo {
                 {},
                 vk::ImageType::e2D,
                 imageFormat,
@@ -260,9 +255,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
     }).get() | std::views::as_rvalue | std::ranges::to<std::unordered_map>();
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
-    const vk::raii::Device &device
-) const -> std::unordered_map<std::size_t, vk::raii::Sampler> {
+auto vk_gltf_viewer::gltf::AssetResources::createSamplers() const -> std::unordered_map<std::size_t, vk::raii::Sampler> {
     return asset.textures
         | std::views::filter([&](const fastgltf::Texture &texture) { return texture.samplerIndex.has_value(); })
         | std::views::transform([&](const fastgltf::Texture &texture) {
@@ -278,9 +271,21 @@ auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
                 std::unreachable();
             };
 
+            const std::size_t samplerIndex = *texture.samplerIndex;
+            const fastgltf::Sampler &sampler = asset.samplers[samplerIndex];
+            vk::SamplerCreateInfo createInfo {
+                {},
+                {}, {}, {},
+                convertSamplerAddressMode(sampler.wrapS), convertSamplerAddressMode(sampler.wrapT), {},
+                {},
+                true, 16.f,
+                {}, {},
+                {}, vk::LodClampNone,
+            };
+
             // TODO: how can map OpenGL filter to Vulkan corresponds?
             // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkSamplerCreateInfo.html
-            constexpr auto applyFilter = [](bool mag, vk::SamplerCreateInfo &createInfo, fastgltf::Filter filter) -> void {
+            const auto applyFilter = [&](bool mag, fastgltf::Filter filter) -> void {
                 switch (filter) {
                 case fastgltf::Filter::Nearest:
                     (mag ? createInfo.magFilter : createInfo.minFilter) = vk::Filter::eNearest;
@@ -306,20 +311,8 @@ auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
                     break;
                 }
             };
-
-            const std::size_t samplerIndex = *texture.samplerIndex;
-            const fastgltf::Sampler &sampler = asset.samplers[samplerIndex];
-            vk::SamplerCreateInfo createInfo {
-                {},
-                {}, {}, {},
-                convertSamplerAddressMode(sampler.wrapS), convertSamplerAddressMode(sampler.wrapT), {},
-                {},
-                true, 16.f,
-                {}, {},
-                {}, vk::LodClampNone,
-            };
-            if (sampler.magFilter) applyFilter(true, createInfo, *sampler.magFilter);
-            if (sampler.minFilter) applyFilter(false, createInfo, *sampler.minFilter);
+            if (sampler.magFilter) applyFilter(true, *sampler.magFilter);
+            if (sampler.minFilter) applyFilter(false, *sampler.minFilter);
 
             // For best performance, all address mode should be the same.
             // https://developer.arm.com/documentation/101897/0302/Buffers-and-textures/Texture-and-sampler-descriptors
@@ -330,16 +323,14 @@ auto vk_gltf_viewer::gltf::AssetResources::createSamplers(
             return std::pair<std::size_t, vk::raii::Sampler> {
                 std::piecewise_construct,
                 std::tuple { samplerIndex },
-                std::forward_as_tuple(device, createInfo),
+                std::forward_as_tuple(gpu.device, createInfo),
             };
         })
         | std::ranges::to<std::unordered_map>();
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
-    vma::Allocator allocator
-) const -> vku::AllocatedBuffer {
-    return { allocator, vk::BufferCreateInfo {
+auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer() const -> vku::AllocatedBuffer {
+    return { gpu.allocator, vk::BufferCreateInfo {
         {},
         sizeof(GpuMaterial) * (1 /* fallback material */ + asset.materials.size()),
         vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
@@ -349,7 +340,6 @@ auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer(
 auto vk_gltf_viewer::gltf::AssetResources::stageImages(
     const std::filesystem::path &assetDir,
     const AssetExternalBuffers &externalBuffers,
-    vma::Allocator allocator,
     vk::CommandBuffer copyCommandBuffer,
     BS::thread_pool &threadPool
 ) -> void {
@@ -391,8 +381,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
         }, asset.images[imageIndex].data);
     }).get();
 
-    const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
-        allocator, imageDatas | std::views::transform([](const auto &x) { return x.asSpan(); }));
+    const auto &[stagingBuffer, copyOffsets]
+        = createCombinedStagingBuffer(imageDatas | std::views::transform([](const auto &x) { return as_bytes(x.asSpan()); }));
 
     // 1. Change image[mipLevel=0] layouts to vk::ImageLayout::eTransferDstOptimal for staging.
     copyCommandBuffer.pipelineBarrier(
@@ -425,10 +415,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
     }
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
-    vma::Allocator allocator,
-    vk::CommandBuffer copyCommandBuffer
-) -> void {
+auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(vk::CommandBuffer copyCommandBuffer) -> void {
     std::vector<GpuMaterial> materials;
     materials.reserve(asset.materials.size() + 1);
     materials.push_back({}); // Fallback material.
@@ -468,13 +455,12 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(
     }));
 
     const vk::Buffer stagingBuffer = stagingBuffers.emplace_front(
-        vku::MappedBuffer { allocator, std::from_range, materials, vk::BufferUsageFlagBits::eTransferSrc }.unmap());
+        vku::MappedBuffer { gpu.allocator, std::from_range, materials, vk::BufferUsageFlagBits::eTransferSrc }.unmap());
     copyCommandBuffer.copyBuffer(stagingBuffer, materialBuffer, vk::BufferCopy { 0, 0, materialBuffer.size });
 }
 
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
     const AssetExternalBuffers &externalBuffers,
-    const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
     const auto primitives = asset.meshes | std::views::transform(&fastgltf::Mesh::primitives) | std::views::join;
@@ -507,7 +493,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
         | std::ranges::to<std::vector>();
 
     // Create the combined staging buffer that contains all attributeBufferViewBytes.
-    const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(gpu.allocator, attributeBufferViewBytes | std::views::values);
+    const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(attributeBufferViewBytes | std::views::values);
 
     // Create device local buffers for each attributeBufferViewBytes, and record copy commands to the copyCommandBuffer.
     attributeBuffers = createStagingDstBuffers(
@@ -581,7 +567,6 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
 
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMappingBuffers(
     IndexedAttribute attributeType,
-    const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
     const std::vector attributeBufferInfos
@@ -613,7 +598,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMapping
     return;
 
 HAS_ATTRIBUTE_BUFFER:
-    const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(gpu.allocator, attributeBufferInfos);
+    const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(attributeBufferInfos);
     const vk::Buffer indexAttributeMappingBuffer = indexedAttributeMappingBuffers.try_emplace(
         attributeType,
         createStagingDstBuffer(
@@ -632,7 +617,6 @@ HAS_ATTRIBUTE_BUFFER:
 
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
     const AssetExternalBuffers &externalBuffers,
-    const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer,
     BS::thread_pool &threadPool
 ) -> void {
@@ -693,9 +677,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
         }
     }).wait();
 
-    const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(
-        gpu.allocator,
-        missingTangentMeshes | std::views::transform([](const auto &mesh) { return std::span { mesh.tangents }; }));
+    const auto &[stagingBuffer, copyOffsets]
+        = createCombinedStagingBuffer(missingTangentMeshes | std::views::transform([](const auto &mesh) { return as_bytes(std::span { mesh.tangents }); }));
     tangentBuffer.emplace(
         createStagingDstBuffer(
             gpu.allocator, stagingBuffer,
@@ -711,7 +694,6 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
 
 auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
     const AssetExternalBuffers &externalBuffers,
-    const vulkan::Gpu &gpu,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
     // Primitive that are contains an indices accessor.
@@ -770,7 +752,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
     // commands to copyCommandBuffer.
     indexBuffers = indexBufferBytesByType
         | ranges::views::decompose_transform([&](vk::IndexType indexType, const auto &bufferBytes) {
-            const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(gpu.allocator, bufferBytes | std::views::values);
+            const auto &[stagingBuffer, copyOffsets] = createCombinedStagingBuffer(bufferBytes | std::views::values);
             auto indexBuffer = createStagingDstBuffer(gpu.allocator, stagingBuffer, vk::BufferUsageFlagBits::eIndexBuffer, gpu.queueFamilies.getUniqueIndices(), copyCommandBuffer);
 
             for (auto [pPrimitive, offset] : std::views::zip(bufferBytes | std::views::keys, copyOffsets)) {

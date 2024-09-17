@@ -11,6 +11,7 @@ export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::gltf {
     export class SceneResources {
+        const fastgltf::Asset &asset;
         const vulkan::Gpu &gpu;
         const AssetResources &assetResources;
         const fastgltf::Scene &scene;
@@ -36,6 +37,7 @@ namespace vk_gltf_viewer::gltf {
         vku::AllocatedBuffer primitiveBuffer = createPrimitiveBuffer();
 
         SceneResources(
+            const fastgltf::Asset &asset [[clang::lifetimebound]],
             const AssetResources &assetResources [[clang::lifetimebound]],
             const fastgltf::Scene &scene [[clang::lifetimebound]],
             const vulkan::Gpu &gpu [[clang::lifetimebound]]);

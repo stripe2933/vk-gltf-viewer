@@ -464,7 +464,7 @@ vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
 	assetExpected { fastgltf::Parser{}.loadGltf(&dataBufferLoader.dataBuffer, assetDir) },
 	assetResources { get(), assetDir, gltf::AssetExternalBuffers { get(), assetDir }, gpu },
 	imageViews { createAssetImageViews(gpu.device) },
-	sceneResources { assetResources, get().scenes[get().defaultScene.value_or(0)], gpu } {
+	sceneResources { get(), assetResources, get().scenes[get().defaultScene.value_or(0)], gpu } {
 	gpu.queues.transfer.waitIdle();
 
 	const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
