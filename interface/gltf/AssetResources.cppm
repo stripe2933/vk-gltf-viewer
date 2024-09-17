@@ -36,8 +36,8 @@ namespace vk_gltf_viewer::gltf {
             AttributeBufferInfo positionInfo;
             std::optional<AttributeBufferInfo> normalInfo;
             std::optional<AttributeBufferInfo> tangentInfo;
-            std::unordered_map<std::size_t, AttributeBufferInfo> texcoordInfos;
-            std::unordered_map<std::size_t, AttributeBufferInfo> colorInfos;
+            std::vector<AttributeBufferInfo> texcoordInfos;
+            std::vector<AttributeBufferInfo> colorInfos;
             std::unordered_map<IndexedAttribute, IndexedAttributeMappingInfo> indexedAttributeMappingInfos;
         };
 

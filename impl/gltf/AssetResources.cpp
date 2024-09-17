@@ -620,10 +620,16 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
             // Otherwise, attributeName has form of <TEXCOORD_i> or <COLOR_i>.
             else if (constexpr auto prefix = "TEXCOORD_"sv; attributeName.starts_with(prefix)) {
                 const std::size_t texcoordIndex = parseIndex(std::string_view { attributeName }.substr(prefix.size()));
+                if (primitiveInfo.texcoordInfos.size() <= texcoordIndex) {
+                    primitiveInfo.texcoordInfos.resize(texcoordIndex + 1);
+                }
                 primitiveInfo.texcoordInfos[texcoordIndex] = getAttributeBufferInfo();
             }
             else if (constexpr auto prefix = "COLOR_"sv; attributeName.starts_with(prefix)) {
                 const std::size_t colorIndex = parseIndex(std::string_view { attributeName }.substr(prefix.size()));
+                if (primitiveInfo.colorInfos.size() <= colorIndex) {
+                    primitiveInfo.colorInfos.resize(colorIndex + 1);
+                }
                 primitiveInfo.colorInfos[colorIndex] = getAttributeBufferInfo();
             }
         }
@@ -638,19 +644,11 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMapping
         = primitiveInfos
         | std::views::values
         | std::views::transform([attributeType](const PrimitiveInfo &primitiveInfo) {
-            const auto &targetAttributeInfoMap = [=]() -> decltype(auto) {
-                switch (attributeType) {
-                    case IndexedAttribute::Texcoord: return primitiveInfo.texcoordInfos;
-                    case IndexedAttribute::Color: return primitiveInfo.colorInfos;
-                }
-                std::unreachable(); // Invalid attributeType: must be Texcoord or Color
-            }();
-
-            return std::views::iota(0U, targetAttributeInfoMap.size())
-                | std::views::transform([&](std::size_t i) {
-                    return ranges::value_or(targetAttributeInfoMap, i, {});
-                })
-                | std::ranges::to<std::vector>();
+            switch (attributeType) {
+                case IndexedAttribute::Texcoord: return as_bytes(std::span { primitiveInfo.texcoordInfos });
+                case IndexedAttribute::Color: return as_bytes(std::span { primitiveInfo.colorInfos });
+            }
+            std::unreachable(); // Invalid attributeType: must be Texcoord or Color
         })
         | std::ranges::to<std::vector>();
 
