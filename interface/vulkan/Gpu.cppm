@@ -134,4 +134,4 @@ namespace vk_gltf_viewer::vulkan {
             subgroupSize = physicalDeviceProperties.get<vk::PhysicalDeviceSubgroupProperties>().subgroupSize;
         }
     };
-};
+}

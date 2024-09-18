@@ -19,7 +19,7 @@ namespace vk_gltf_viewer::inline helpers {
      *     // (Use arg1, arg2 and arg3)
      * })
      * @endcode
-     * With <tt>decomposer, you can avoid the nested decomposition by like:
+     * With <tt>decomposer</tt>, you can avoid the nested decomposition by like:
      * @code
      * decomposer([](const std::string &arg1, int arg2, double arg3) {
      * // (Use arg1, arg2 and arg3)

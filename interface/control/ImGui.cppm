@@ -16,7 +16,7 @@ namespace vk_gltf_viewer::control::imgui {
         struct LoadEqmap { std::filesystem::path path; };
 
         using type = std::variant<std::monostate, LoadGltf, CloseGltf, LoadEqmap>;
-    };
+    }
 
     [[nodiscard]] auto menuBar(AppState &appState) -> task::type;
 

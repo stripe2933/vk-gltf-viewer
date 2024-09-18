@@ -37,7 +37,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             }),
                         },
                     }.get(),
-                } { };
+                } { }
         };
 
         DescriptorSetLayout descriptorSetLayout;
