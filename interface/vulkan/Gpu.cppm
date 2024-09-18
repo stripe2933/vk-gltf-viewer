@@ -64,6 +64,7 @@ namespace vk_gltf_viewer::vulkan {
 #if __APPLE__
 					vk::KHRPortabilitySubsetExtensionName,
 #endif
+					vk::KHRMultiviewExtensionName,
 					vk::KHRDynamicRenderingExtensionName,
 					vk::KHRSynchronization2ExtensionName,
 					vk::EXTExtendedDynamicStateExtensionName,
@@ -86,7 +87,8 @@ namespace vk_gltf_viewer::vulkan {
 					vk::PhysicalDeviceVulkan11Features{}
 						.setShaderDrawParameters(true)
 						.setStorageBuffer16BitAccess(true)
-						.setUniformAndStorageBuffer16BitAccess(true),
+						.setUniformAndStorageBuffer16BitAccess(true)
+						.setMultiview(true),
 					vk::PhysicalDeviceVulkan12Features{}
 						.setBufferDeviceAddress(true)
 						.setDescriptorIndexing(true)

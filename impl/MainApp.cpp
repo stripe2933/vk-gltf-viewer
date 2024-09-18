@@ -24,6 +24,7 @@ import :vulkan.Frame;
 import :vulkan.generator.ImageBasedLightingResourceGenerator;
 import :vulkan.generator.MipmappedCubemapGenerator;
 import :vulkan.pipeline.BrdfmapComputer;
+import :vulkan.pipeline.CubemapToneMappingRenderer;
 
 vk_gltf_viewer::MainApp::MainApp() {
 	const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
@@ -661,6 +662,39 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 		vulkan::pipeline::MultiplyComputer { gpu.device },
 	};
 
+	// Generate Tone-mapped cubemap.
+	const vulkan::rp::CubemapToneMapping cubemapToneMappingRenderPass { gpu.device };
+	const vulkan::CubemapToneMappingRenderer cubemapToneMappingRenderer { gpu.device, {} /* TODO: reuse existing shader? */, cubemapToneMappingRenderPass };
+
+	vku::AllocatedImage toneMappedCubemapImage { gpu.allocator, vk::ImageCreateInfo {
+		vk::ImageCreateFlagBits::eCubeCompatible,
+		vk::ImageType::e2D,
+		vk::Format::eB8G8R8A8Srgb,
+		mippedCubemapGenerator.cubemapImage.extent,
+		1, mippedCubemapGenerator.cubemapImage.arrayLayers,
+		vk::SampleCountFlagBits::e1,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
+	} };
+	const vk::raii::ImageView cubemapImageArrayView {
+		gpu.device,
+		mippedCubemapGenerator.cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::e2DArray),
+	};
+	const vk::raii::ImageView toneMappedCubemapImageArrayView { gpu.device, toneMappedCubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray) };
+
+	const vk::raii::DescriptorPool cubemapToneMappingDescriptorPool { gpu.device, getPoolSizes(cubemapToneMappingRenderer.descriptorSetLayout).getDescriptorPoolCreateInfo() };
+	const auto [cubemapToneMappingDescriptorSet] = allocateDescriptorSets(*gpu.device, *cubemapToneMappingDescriptorPool, std::tie(cubemapToneMappingRenderer.descriptorSetLayout));
+	gpu.device.updateDescriptorSets(
+		cubemapToneMappingDescriptorSet.getWriteOne<0>({ {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+		{});
+
+	const vk::raii::Framebuffer cubemapToneMappingFramebuffer { gpu.device, vk::FramebufferCreateInfo {
+		{},
+		cubemapToneMappingRenderPass,
+		*toneMappedCubemapImageArrayView,
+		toneMappedCubemapImage.extent.width, toneMappedCubemapImage.extent.height, 1,
+	} };
+
 	const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
 	const vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
 	const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
@@ -852,7 +886,8 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 					});
 			}, *computeCommandPool, gpu.queues.compute }),
 		std::forward_as_tuple(
-			// Acquire resources' queue family ownership from compute to graphicsPresent.
+			// Acquire resources' queue family ownership from compute to graphicsPresent (if necessary), and create tone
+			// mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=mippedCubemapGenerator.cubemapImage).
 			vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
 				if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
 					cb.pipelineBarrier(
@@ -873,6 +908,21 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 							},
 						});
 				}
+
+				cb.beginRenderPass({
+					*cubemapToneMappingRenderPass,
+					*cubemapToneMappingFramebuffer,
+					vk::Rect2D { { 0, 0 }, vku::toExtent2D(toneMappedCubemapImage.extent) },
+					vku::unsafeProxy<vk::ClearValue>(vk::ClearColorValue{}),
+				}, vk::SubpassContents::eInline);
+
+				cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapToneMappingRenderer.pipeline);
+				cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *cubemapToneMappingRenderer.pipelineLayout, 0, cubemapToneMappingDescriptorSet, {});
+				cb.setViewport(0, vku::unsafeProxy(vku::toViewport(vku::toExtent2D(toneMappedCubemapImage.extent))));
+				cb.setScissor(0, vku::unsafeProxy(vk::Rect2D { { 0, 0 }, vku::toExtent2D(toneMappedCubemapImage.extent) }));
+				cb.draw(3, 1, 0, 0);
+
+				cb.endRenderPass();
 			}, *graphicsCommandPool, gpu.queues.graphicsPresent }));
 
 	const vk::Result semaphoreWaitResult = gpu.device.waitSemaphores({
@@ -918,12 +968,12 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 			static_cast<VkSampler>(*reducedEqmapSampler),
 			static_cast<VkImageView>(*reducedEqmapImageView),
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-	vk::raii::ImageView cubemapImageView { gpu.device, mippedCubemapGenerator.cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
+	vk::raii::ImageView toneMappedCubemapImageView { gpu.device, toneMappedCubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
 	skyboxResources.emplace(
 		std::move(reducedEqmapImage),
 		std::move(reducedEqmapImageView),
-		std::move(mippedCubemapGenerator.cubemapImage),
-		std::move(cubemapImageView),
+		std::move(toneMappedCubemapImage),
+		std::move(toneMappedCubemapImageView),
 		imGuiEqmapImageDescriptorSet);
 
 	vk::raii::ImageView prefilteredmapImageView { gpu.device, iblGenerator.prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) };

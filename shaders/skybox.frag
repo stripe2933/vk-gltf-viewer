@@ -12,6 +12,5 @@ layout (early_fragment_tests) in;
 
 void main() {
     vec3 color = textureLod(cubemapSampler, fragPosition, 0.0).rgb;
-    float luminance = dot(color, REC_709_LUMA);
-    outColor = vec4(color / (1.0 + luminance), 1.0);
+    outColor = textureLod(cubemapSampler, fragPosition, 0.0);
 }

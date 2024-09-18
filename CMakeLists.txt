@@ -102,6 +102,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipeline/BlendPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/BrdfmapComputer.cppm
 		interface/vulkan/pipeline/CubemapComputer.cppm
+		interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
 		interface/vulkan/pipeline/DepthRenderer.cppm
 		interface/vulkan/pipeline/FacetedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/JumpFloodComputer.cppm
@@ -116,6 +117,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipeline/SkyboxRenderer.cppm
 		interface/vulkan/pipeline/WeightedBlendedCompositionRenderer.cppm
 		interface/vulkan/pipeline_layout/SceneRendering.cppm
+		interface/vulkan/render_pass/CubemapToneMapping.cppm
 		interface/vulkan/render_pass/Scene.cppm
 		interface/vulkan/sampler/BrdfLutSampler.cppm
 		interface/vulkan/sampler/CubemapSampler.cppm
