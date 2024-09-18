@@ -992,9 +992,9 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                                             else ImGui::TextUnformatted(std::format("{0::.{2}f}x{1::.{2}f}", min, max, floatingPointPrecision));
 #else
                                             else if (min.size() == 2) ImGui::Text("[%.*lf, %.*lf]x[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, max[0], floatingPointPrecision, max[1]);
-										    else if (min.size() == 3) ImGui::Text("[%.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2]);
-										    else if (min.size() == 4) ImGui::Text("[%.*lf, %.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], min[1], floatingPointPrecision, min[3], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2], floatingPointPrecision, max[3]);
-										    else assert(false && "Unsupported min/max dimension");
+                                            else if (min.size() == 3) ImGui::Text("[%.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2]);
+                                            else if (min.size() == 4) ImGui::Text("[%.*lf, %.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], min[1], floatingPointPrecision, min[3], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2], floatingPointPrecision, max[3]);
+                                            else assert(false && "Unsupported min/max dimension");
 #endif
                                         },
                                         [](const auto&...) {
@@ -1050,43 +1050,43 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
 auto vk_gltf_viewer::control::imgui::inputControlSetting(
     AppState &appState
 ) -> void {
-	if (ImGui::Begin("Input control")){
-	    ImGui::SeparatorText("Camera");
+    if (ImGui::Begin("Input control")){
+        ImGui::SeparatorText("Camera");
 
-	    ImGui::DragFloat3("Position", value_ptr(appState.camera.position), 0.1f);
-	    if (ImGui::DragFloat3("Direction", value_ptr(appState.camera.direction), 0.1f, -1.f, 1.f)) {
-	        appState.camera.direction = normalize(appState.camera.direction);
-	    }
-	    if (ImGui::DragFloat3("Up", value_ptr(appState.camera.up), 0.1f, -1.f, 1.f)) {
+        ImGui::DragFloat3("Position", value_ptr(appState.camera.position), 0.1f);
+        if (ImGui::DragFloat3("Direction", value_ptr(appState.camera.direction), 0.1f, -1.f, 1.f)) {
+            appState.camera.direction = normalize(appState.camera.direction);
+        }
+        if (ImGui::DragFloat3("Up", value_ptr(appState.camera.up), 0.1f, -1.f, 1.f)) {
             appState.camera.up = normalize(appState.camera.up);
         }
 
-	    if (float fovInDegree = glm::degrees(appState.camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
-	        appState.camera.fov = glm::radians(fovInDegree);
-	    }
-	    ImGui::DragFloatRange2("Near/Far", &appState.camera.zMin, &appState.camera.zMax, 1e-6f, 1e-4f, 1e6, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+        if (float fovInDegree = glm::degrees(appState.camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
+            appState.camera.fov = glm::radians(fovInDegree);
+        }
+        ImGui::DragFloatRange2("Near/Far", &appState.camera.zMin, &appState.camera.zMax, 1e-6f, 1e-4f, 1e6, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
 
-	    ImGui::SeparatorText("Node selection");
+        ImGui::SeparatorText("Node selection");
 
-	    bool showHoveringNodeOutline = appState.hoveringNodeOutline.has_value();
-	    if (ImGui::Checkbox("Hovering node outline", &showHoveringNodeOutline)) {
+        bool showHoveringNodeOutline = appState.hoveringNodeOutline.has_value();
+        if (ImGui::Checkbox("Hovering node outline", &showHoveringNodeOutline)) {
             appState.hoveringNodeOutline.set_active(showHoveringNodeOutline);
-	    }
-	    ImGui::BeginDisabled(!showHoveringNodeOutline);
-	    ImGui::DragFloat("Thickness##hoveringNodeOutline", &appState.hoveringNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
+        }
+        ImGui::BeginDisabled(!showHoveringNodeOutline);
+        ImGui::DragFloat("Thickness##hoveringNodeOutline", &appState.hoveringNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
         ImGui::ColorEdit4("Color##hoveringNodeOutline", value_ptr(appState.hoveringNodeOutline->color));
-	    ImGui::EndDisabled();
+        ImGui::EndDisabled();
 
-	    bool showSelectedNodeOutline = appState.selectedNodeOutline.has_value();
-	    if (ImGui::Checkbox("Selected node outline", &showSelectedNodeOutline)) {
+        bool showSelectedNodeOutline = appState.selectedNodeOutline.has_value();
+        if (ImGui::Checkbox("Selected node outline", &showSelectedNodeOutline)) {
             appState.selectedNodeOutline.set_active(showSelectedNodeOutline);
-	    }
-	    ImGui::BeginDisabled(!showSelectedNodeOutline);
-	    ImGui::DragFloat("Thickness##selectedNodeOutline", &appState.selectedNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
+        }
+        ImGui::BeginDisabled(!showSelectedNodeOutline);
+        ImGui::DragFloat("Thickness##selectedNodeOutline", &appState.selectedNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
         ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(appState.selectedNodeOutline->color));
-	    ImGui::EndDisabled();
-	}
-	ImGui::End();
+        ImGui::EndDisabled();
+    }
+    ImGui::End();
 }
 
 auto vk_gltf_viewer::control::imgui::manipulate(const AppState &appState, const glm::mat4 &nodeTransform) -> std::optional<glm::mat4> {
@@ -1102,15 +1102,15 @@ auto vk_gltf_viewer::control::imgui::manipulate(const AppState &appState, const 
 }
 
 auto vk_gltf_viewer::control::imgui::viewManipulate(AppState &appState, const ImVec2 &passthruRectBR) -> void {
-	constexpr ImVec2 size { 64.f, 64.f };
-	constexpr ImU32 background = 0x00000000; // Transparent.
-	const glm::mat4 oldView = appState.camera.getViewMatrix();
-	glm::mat4 newView = oldView;
-	ImGuizmo::ViewManipulate(value_ptr(newView), length(appState.camera.position), passthruRectBR - size, size, background);
+    constexpr ImVec2 size { 64.f, 64.f };
+    constexpr ImU32 background = 0x00000000; // Transparent.
+    const glm::mat4 oldView = appState.camera.getViewMatrix();
+    glm::mat4 newView = oldView;
+    ImGuizmo::ViewManipulate(value_ptr(newView), length(appState.camera.position), passthruRectBR - size, size, background);
 
-	if (newView != oldView) {
-	    const glm::mat4 inverseView = inverse(newView);
-	    appState.camera.position = inverseView[3];
-	    appState.camera.direction = -inverseView[2];
-	}
+    if (newView != oldView) {
+        const glm::mat4 inverseView = inverse(newView);
+        appState.camera.position = inverseView[3];
+        appState.camera.direction = -inverseView[2];
+    }
 }

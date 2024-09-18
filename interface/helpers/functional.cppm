@@ -5,10 +5,10 @@ import std;
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
 namespace vk_gltf_viewer::inline helpers {
-	export template <typename ...Fs>
-	struct multilambda : Fs... {
-		using Fs::operator()...;
-	};
+    export template <typename ...Fs>
+    struct multilambda : Fs... {
+        using Fs::operator()...;
+    };
 
     /**
      * Make a lambda function that automatically decomposes the structure binding of an input parameter.

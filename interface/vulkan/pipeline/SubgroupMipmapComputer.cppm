@@ -46,8 +46,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         SubgroupMipmapComputer(
             const Gpu &gpu [[clang::lifetimebound]],
-            std::uint32_t mipImageCount,
-            std::uint32_t subgroupSize
+            std::uint32_t mipImageCount
         ) : descriptorSetLayout { gpu.device, mipImageCount },
             pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
                 {},

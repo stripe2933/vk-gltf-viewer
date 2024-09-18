@@ -75,7 +75,7 @@ namespace vk_gltf_viewer {
 
             // Blit from srcLevel to dstLevel.
             for (const vku::Image &image : targetImages) {
-        	    const vk::Extent2D srcMipExtent = image.mipExtent(srcLevel);
+                const vk::Extent2D srcMipExtent = image.mipExtent(srcLevel);
                 const vk::Extent2D dstMipExtent = image.mipExtent(dstLevel);
                 cb.blitImage(
                     image, vk::ImageLayout::eTransferSrcOptimal,
@@ -83,8 +83,8 @@ namespace vk_gltf_viewer {
                     vk::ImageBlit {
                         { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
                         { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(srcMipExtent), 1 } },
-					    { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-					    { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(dstMipExtent), 1 } },
+                        { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
+                        { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(dstMipExtent), 1 } },
                     },
                     vk::Filter::eLinear);
             }

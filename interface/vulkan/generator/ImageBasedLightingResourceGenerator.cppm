@@ -54,7 +54,7 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 vk::ImageUsageFlagBits::eStorage | config.prefilteredmapImageUsage,
             } },
             sphericalHarmonicsBuffer { gpu.allocator, vk::BufferCreateInfo {
-			    {},
+                {},
                 27 * sizeof(float),
                 vk::BufferUsageFlagBits::eStorageBuffer | config.sphericalHarmonicsBufferUsage,
             } } { }
@@ -134,47 +134,47 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                     prefilteredmapImage, vku::fullSubresourceRange(),
                 });
 
-			// Generate prefiltered map.
-			pipelines.prefilteredmapComputer.compute(computeCommandBuffer, prefilteredmapComputerSet, prefilteredmapImage.extent.width);
+            // Generate prefiltered map.
+            pipelines.prefilteredmapComputer.compute(computeCommandBuffer, prefilteredmapComputerSet, prefilteredmapImage.extent.width);
 
-			// Initial spherical harmonic coefficients reduction.
-			pipelines.sphericalHarmonicsComputer.compute(computeCommandBuffer, sphericalHarmonicsComputerSet, cubemapImage.extent.width);
+            // Initial spherical harmonic coefficients reduction.
+            pipelines.sphericalHarmonicsComputer.compute(computeCommandBuffer, sphericalHarmonicsComputerSet, cubemapImage.extent.width);
 
-			// Ensure initial reduction finish for the future compute shader read.
-			computeCommandBuffer.pipelineBarrier(
-				vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
-				{},
-				vk::MemoryBarrier { vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead },
-				{}, {});
+            // Ensure initial reduction finish for the future compute shader read.
+            computeCommandBuffer.pipelineBarrier(
+                vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
+                {},
+                vk::MemoryBarrier { vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead },
+                {}, {});
 
-			// Calculate sum of total spherical harmonic coefficients using ping-pong buffer dispatches.
-			const std::uint32_t workgroupTotal = getWorkgroupTotal(SphericalHarmonicsComputer::getWorkgroupCount(cubemapImage.extent.width));
-			const std::uint32_t dstOffset = pipelines.sphericalHarmonicCoefficientsSumComputer.compute(computeCommandBuffer, sphericalHarmonicCoefficientsSumComputerSet, {
-				.srcOffset = 0,
-				.count = workgroupTotal,
-				.dstOffset = workgroupTotal,
-			});
+            // Calculate sum of total spherical harmonic coefficients using ping-pong buffer dispatches.
+            const std::uint32_t workgroupTotal = getWorkgroupTotal(SphericalHarmonicsComputer::getWorkgroupCount(cubemapImage.extent.width));
+            const std::uint32_t dstOffset = pipelines.sphericalHarmonicCoefficientsSumComputer.compute(computeCommandBuffer, sphericalHarmonicCoefficientsSumComputerSet, {
+                .srcOffset = 0,
+                .count = workgroupTotal,
+                .dstOffset = workgroupTotal,
+            });
 
-			// Ensure reduction finish.
-			computeCommandBuffer.pipelineBarrier(
-				vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
-				{},
-				vk::MemoryBarrier { vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead },
-				{},
-				{});
+            // Ensure reduction finish.
+            computeCommandBuffer.pipelineBarrier(
+                vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
+                {},
+                vk::MemoryBarrier { vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead },
+                {},
+                {});
 
-			// sphericalHarmonicsReductionBuffer[dstOffset:dstOffset + 9 * sizeof(glm::vec3)] represents the total sum.
-			// It have to be divided by the total cubemap texel count for the average calculation.
-			gpu.device.updateDescriptorSets({
-				multiplyComputerSet.getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, sizeof(float) * 27 * dstOffset, sizeof(float) * 27 }),
-				multiplyComputerSet.getWriteOne<1>({ sphericalHarmonicsBuffer, 0, vk::WholeSize }),
-			}, {});
+            // sphericalHarmonicsReductionBuffer[dstOffset:dstOffset + 9 * sizeof(glm::vec3)] represents the total sum.
+            // It has to be divided by the total cubemap texel count for the average calculation.
+            gpu.device.updateDescriptorSets({
+                multiplyComputerSet.getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, sizeof(float) * 27 * dstOffset, sizeof(float) * 27 }),
+                multiplyComputerSet.getWriteOne<1>({ sphericalHarmonicsBuffer, 0, vk::WholeSize }),
+            }, {});
 
-			// Copy from sphericalHarmonicsReductionBuffer to sphericalHarmonicsBuffer with normalization multiplier.
-			pipelines.multiplyComputer.compute(computeCommandBuffer, multiplyComputerSet, {
-				.numCount = 27,
-				.multiplier = 4.f * std::numbers::pi_v<float> / (6U * cubemapImage.extent.width * cubemapImage.extent.width),
-			});
+            // Copy from sphericalHarmonicsReductionBuffer to sphericalHarmonicsBuffer with normalization multiplier.
+            pipelines.multiplyComputer.compute(computeCommandBuffer, multiplyComputerSet, {
+                .numCount = 27,
+                .multiplier = 4.f * std::numbers::pi_v<float> / (6U * cubemapImage.extent.width * cubemapImage.extent.width),
+            });
         }
 
     private:

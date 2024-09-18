@@ -7,12 +7,12 @@ import vulkan_hpp;
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 int main() {
-	glfwInit();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwInit();
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-	VULKAN_HPP_DEFAULT_DISPATCHER.init();
+    VULKAN_HPP_DEFAULT_DISPATCHER.init();
 
-	vk_gltf_viewer::run();
+    vk_gltf_viewer::run();
 
-	glfwTerminate();
+    glfwTerminate();
 }
