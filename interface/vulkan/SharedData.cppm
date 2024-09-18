@@ -73,7 +73,7 @@ namespace vk_gltf_viewer::vulkan {
     	JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, sceneDescriptorSetLayout };
 		OutlineRenderer outlineRenderer;
 		PrimitiveRenderer primitiveRenderer;
-		SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, sceneRenderPass, cubeIndices };
+		SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices };
     	WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
 
     	// Attachment groups.
