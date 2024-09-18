@@ -56,6 +56,7 @@ namespace vk_gltf_viewer::vulkan {
 	export struct Gpu : vku::Gpu<QueueFamilies, Queues> {
 		bool supportTessellationShader;
 		bool supportUint8Index;
+		std::uint32_t subgroupSize;
 
 		Gpu(const vk::raii::Instance &instance [[clang::lifetimebound]], vk::SurfaceKHR surface)
 			: vku::Gpu<QueueFamilies, Queues> { instance, Config {
@@ -117,6 +118,12 @@ namespace vk_gltf_viewer::vulkan {
 				vk::PhysicalDeviceFeatures2,
 				vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
 			supportUint8Index = physicalDeviceFeatures2.get<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>().indexTypeUint8;
+
+			// Retrieve physical device properties.
+			const vk::StructureChain physicalDeviceProperties = physicalDevice.getProperties2<
+				vk::PhysicalDeviceProperties2,
+				vk::PhysicalDeviceSubgroupProperties>();
+			subgroupSize = physicalDeviceProperties.get<vk::PhysicalDeviceSubgroupProperties>().subgroupSize;
 		}
     };
 };

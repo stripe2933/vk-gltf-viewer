@@ -646,7 +646,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 	vulkan::MipmappedCubemapGenerator mippedCubemapGenerator { gpu, mippedCubemapGeneratorConfig };
 	const vulkan::MipmappedCubemapGenerator::Pipelines mippedCubemapGeneratorPipelines {
 		vulkan::pipeline::CubemapComputer { gpu.device },
-		vulkan::pipeline::SubgroupMipmapComputer { gpu.device, vku::Image::maxMipLevels(mippedCubemapGeneratorConfig.cubemapSize), 32 /*TODO: use proper subgroup size!*/ },
+		vulkan::pipeline::SubgroupMipmapComputer { gpu, vku::Image::maxMipLevels(mippedCubemapGeneratorConfig.cubemapSize), 32 /*TODO: use proper subgroup size!*/ },
 	};
 
 	// Generate IBL resources.

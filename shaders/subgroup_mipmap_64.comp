@@ -11,7 +11,7 @@ layout (push_constant) uniform PushConstant {
 
 layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-shared vec4 sharedData[8];
+shared vec4 sharedData[4];
 
 void main(){
     ivec2 sampleCoordinate = ivec2(gl_WorkGroupSize.xy * gl_WorkGroupID.xy + uvec2(
@@ -52,23 +52,23 @@ void main(){
     }
 
     averageColor += subgroupShuffleXor(averageColor, 4U /* 0b00100 */);
-    if (subgroupElect()){
-        sharedData[gl_SubgroupID] = averageColor;
-    }
+    averageColor += subgroupShuffleXor(averageColor, 32U /* 0b100000 */);
+    averageColor /= 4.f;
 
-    memoryBarrierShared();
-    barrier();
-
-    if ((gl_SubgroupID & 1U) == 1U){
-        averageColor = (sharedData[gl_SubgroupID] + sharedData[gl_SubgroupID ^ 1U]) / 4.f;
+    if (subgroupElect()) {
         imageStore(mipImages[pc.baseLevel + 4U], ivec3(sampleCoordinate >> 3, gl_GlobalInvocationID.z), averageColor);
     }
     if (pc.remainingMipLevels == 4U){
         return;
     }
 
+    sharedData[gl_SubgroupID] = averageColor;
+
+    memoryBarrierShared();
+    barrier();
+
     if (gl_LocalInvocationIndex == 0U){
-        averageColor = (sharedData[0] + sharedData[1] + sharedData[2] + sharedData[3] + sharedData[4] + sharedData[5] + sharedData[6] + sharedData[7]) / 16.f;
+        averageColor = (sharedData[0] + sharedData[1] + sharedData[2] + sharedData[3]) / 4.f;
         imageStore(mipImages[pc.baseLevel + 5U], ivec3(sampleCoordinate >> 4, gl_GlobalInvocationID.z), averageColor);
     }
 }

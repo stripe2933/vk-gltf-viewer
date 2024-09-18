@@ -6,8 +6,7 @@ export module vk_gltf_viewer:vulkan.pipeline.SubgroupMipmapComputer;
 
 import std;
 import ranges;
-import vku;
-export import vulkan_hpp;
+export import :vulkan.Gpu;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
@@ -46,11 +45,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::Pipeline pipeline;
 
         SubgroupMipmapComputer(
-            const vk::raii::Device &device [[clang::lifetimebound]],
+            const Gpu &gpu [[clang::lifetimebound]],
             std::uint32_t mipImageCount,
             std::uint32_t subgroupSize
-        ) : descriptorSetLayout { device, mipImageCount },
-            pipelineLayout { device, vk::PipelineLayoutCreateInfo {
+        ) : descriptorSetLayout { gpu.device, mipImageCount },
+            pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
                 {},
                 *descriptorSetLayout,
                 vku::unsafeProxy({
@@ -60,12 +59,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     },
                 }),
             } },
-            pipeline { device, nullptr, vk::ComputePipelineCreateInfo {
+            pipeline { gpu.device, nullptr, vk::ComputePipelineCreateInfo {
                 {},
                 createPipelineStages(
-                    device,
-                    // TODO: support for different subgroup sizes (current is based on 32).
-                    vku::Shader { COMPILED_SHADER_DIR "/subgroup_mipmap_32.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()[0],
+                    gpu.device,
+                    vku::Shader { std::format(COMPILED_SHADER_DIR "/subgroup_mipmap_{}.comp.spv", gpu.subgroupSize), vk::ShaderStageFlagBits::eCompute }).get()[0],
                 *pipelineLayout,
             } } { }
 
