@@ -47,20 +47,9 @@ vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedDat
 		{});
 
 	// Allocate per-frame command buffers.
-	std::tie(jumpFloodCommandBuffer)
-	    = (*gpu.device).allocateCommandBuffers(vk::CommandBufferAllocateInfo{
-	    	*computeCommandPool,
-	    	vk::CommandBufferLevel::ePrimary,
-	    	1,
-	    })
-		| ranges::to_array<1>();
+	std::tie(jumpFloodCommandBuffer) = vku::allocateCommandBuffers<1>(*gpu.device, *computeCommandPool);
 	std::tie(scenePrepassCommandBuffer, sceneRenderingCommandBuffer, compositionCommandBuffer)
-	    = (*gpu.device).allocateCommandBuffers(vk::CommandBufferAllocateInfo{
-	    	*graphicsCommandPool,
-	    	vk::CommandBufferLevel::ePrimary,
-	    	3,
-	    })
-		| ranges::to_array<3>();
+		= vku::allocateCommandBuffers<3>(*gpu.device, *graphicsCommandPool);
 }
 
 auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateResult {

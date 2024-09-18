@@ -181,7 +181,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 		.PhysicalDevice = *gpu.physicalDevice,
 		.Device = *gpu.device,
 		.Queue = gpu.queues.graphicsPresent,
-		.DescriptorPool = static_cast<VkDescriptorPool>(*imGuiDescriptorPool),
+		.DescriptorPool = vku::toCType(*imGuiDescriptorPool),
 		.MinImageCount = 2,
 		.ImageCount = 2,
 		.UseDynamicRendering = true,
@@ -195,10 +195,10 @@ vk_gltf_viewer::MainApp::MainApp() {
 
 vk_gltf_viewer::MainApp::~MainApp() {
 	for (vk::DescriptorSet textureDescriptorSet : assetTextureDescriptorSets) {
-		ImGui_ImplVulkan_RemoveTexture(static_cast<VkDescriptorSet>(textureDescriptorSet));
+		ImGui_ImplVulkan_RemoveTexture(vku::toCType(textureDescriptorSet));
 	}
 	if (skyboxResources) {
-		ImGui_ImplVulkan_RemoveTexture(static_cast<VkDescriptorSet>(skyboxResources->imGuiEqmapTextureDescriptorSet));
+		ImGui_ImplVulkan_RemoveTexture(vku::toCType(skyboxResources->imGuiEqmapTextureDescriptorSet));
 	}
 
 	ImGui_ImplVulkan_Shutdown();
@@ -285,10 +285,10 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 					| std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
 						return static_cast<vk::DescriptorSet>(ImGui_ImplVulkan_AddTexture(
 							[&]() {
-								if (texture.samplerIndex) return static_cast<VkSampler>(*gltfAsset->assetResources.samplers.at(*texture.samplerIndex));
-								return static_cast<VkSampler>(*assetDefaultSampler);
+								if (texture.samplerIndex) return vku::toCType(*gltfAsset->assetResources.samplers.at(*texture.samplerIndex));
+								return vku::toCType(*assetDefaultSampler);
 							}(),
-							static_cast<VkImageView>(*gltfAsset->imageViews.at(*texture.imageIndex)),
+							vku::toCType(*gltfAsset->imageViews.at(*texture.imageIndex)),
 							VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 					})
 					| std::ranges::to<std::vector>();
@@ -965,8 +965,8 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 	vk::raii::ImageView reducedEqmapImageView { gpu.device, reducedEqmapImage.getViewCreateInfo() };
 	const vk::DescriptorSet imGuiEqmapImageDescriptorSet
 		= static_cast<vk::DescriptorSet>(ImGui_ImplVulkan_AddTexture(
-			static_cast<VkSampler>(*reducedEqmapSampler),
-			static_cast<VkImageView>(*reducedEqmapImageView),
+			vku::toCType(*reducedEqmapSampler),
+			vku::toCType(*reducedEqmapImageView),
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 	vk::raii::ImageView toneMappedCubemapImageView { gpu.device, toneMappedCubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
 	skyboxResources.emplace(
