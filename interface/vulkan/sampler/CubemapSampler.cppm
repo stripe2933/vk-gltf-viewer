@@ -1,5 +1,8 @@
 export module vk_gltf_viewer:vulkan.sampler.CubemapSampler;
 
+#ifdef _MSC_VER
+import std;
+#endif
 export import vulkan_hpp;
 
 namespace vk_gltf_viewer::vulkan::inline sampler {

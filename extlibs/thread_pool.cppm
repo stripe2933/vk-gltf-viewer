@@ -65,7 +65,7 @@ namespace this_thread {
     /**
      * @brief A helper class to store information about the index of the current thread.
      */
-    class [[nodiscard]] thread_info_index
+    export class [[nodiscard]] thread_info_index
     {
         friend class BS::thread_pool;
 
@@ -115,12 +115,12 @@ namespace this_thread {
     /**
      * @brief A `thread_local` object used to obtain information about the index of the current thread.
      */
-    inline thread_local thread_info_index get_index;
+    export thread_local thread_info_index get_index;
 
     /**
      * @brief A `thread_local` object used to obtain information about the thread pool that owns the current thread.
      */
-    inline thread_local thread_info_pool get_pool;
+    export thread_local thread_info_pool get_pool;
 } // namespace this_thread
 
 /**

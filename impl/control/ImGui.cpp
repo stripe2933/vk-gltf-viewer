@@ -197,7 +197,7 @@ auto vk_gltf_viewer::control::imgui::menuBar(AppState &appState) -> task::type {
                 }
                 else {
                     for (const auto &[it, path] : appState.getRecentGltfPaths() | ranges::views::with_iterator) {
-                        if (ImGui::MenuItem(path.c_str())) {
+                        if (ImGui::MenuItem(path.string().c_str())) {
                             assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
                             result.emplace<task::LoadGltf>(path);
                             appState.pushRecentGltfPath(path);
@@ -229,7 +229,7 @@ auto vk_gltf_viewer::control::imgui::menuBar(AppState &appState) -> task::type {
                 }
                 else {
                     for (const auto &[it, path] : appState.getRecentSkyboxPaths() | ranges::views::with_iterator) {
-                        if (ImGui::MenuItem(path.c_str())) {
+                        if (ImGui::MenuItem(path.string().c_str())) {
                             assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
                             result.emplace<task::LoadEqmap>(path);
                             appState.pushRecentSkyboxPath(path);
@@ -764,31 +764,50 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(AppState &appState) -
             }, gltfAsset.nodeVisibilities);
 
             ImGui::TableSetColumnIndex(1);
-            ImGui::TextUnformatted(std::format("{::s}", make_joiner<" / ">(directDescendentNodeNames)));
+            ImGui::TextUnformatted(std::format("{}", make_joiner<" / ">(directDescendentNodeNames)));
 
             ImGui::TableSetColumnIndex(2);
             visit(fastgltf::visitor {
                 [](const fastgltf::TRS &trs) {
                     boost::container::static_vector<std::string, 3> transformComponents;
                     if (trs.translation != std::array { 0.f, 0.f, 0.f }) {
+#if __cpp_lib_format_range >= 202207L
                         transformComponents.emplace_back(std::format("T{::.2f}", trs.translation));
+#else
+                        transformComponents.emplace_back(std::format("T[{:.2f}, {:.2f}, {:.2f}]", trs.translation[0], trs.translation[1], trs.translation[2]));
+#endif
                     }
                     if (trs.rotation != std::array { 0.f, 0.f, 0.f, 1.f }) {
+#if __cpp_lib_format_range >= 202207L
                         transformComponents.emplace_back(std::format("R{::.2f}", trs.rotation));
+#else
+                        transformComponents.emplace_back(std::format("R[{:.2f}, {:.2f}, {:.2f}, {:.2f}]", trs.rotation[0], trs.rotation[1], trs.rotation[2], trs.rotation[3]));
+#endif
                     }
                     if (trs.scale != std::array { 1.f, 1.f, 1.f }) {
+#if __cpp_lib_format_range >= 202207L
                         transformComponents.emplace_back(std::format("S{::.2f}", trs.scale));
+#else
+                        transformComponents.emplace_back(std::format("S[{:.2f}, {:.2f}, {:.2f}]", trs.scale[0], trs.scale[1], trs.scale[2]));
+#endif
                     }
 
                     if (!transformComponents.empty()) {
-                        ImGui::TextUnformatted(std::format("{::s}", make_joiner<" * ">(transformComponents)));
+                        ImGui::TextUnformatted(std::format("{}", make_joiner<" * ">(transformComponents)));
                     }
                 },
                 [](const fastgltf::Node::TransformMatrix &transformMatrix) {
                     constexpr fastgltf::Node::TransformMatrix identity { 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f };
                     if (transformMatrix != identity) {
-                        // TODO.CXX23: use chunk when libc++ support it.
-                        ImGui::TextUnformatted(std::format("{:::.2f}", transformMatrix | std::views::chunk_by([i = 0](float, float) mutable { return ++i % 4 != 0; })));
+#if __cpp_lib_ranges_chunk >= 202202L && __cpp_lib_format_ranges >= 202207L
+                        ImGui::TextUnformatted(std::format("{:::.2f}", transformMatrix | std::views::chunk(4)));
+#else
+                        ImGui::Text("[[{:.2f}, {:.2f}, {:.2f}, {:.2f}], [{:.2f}, {:.2f}, {:.2f}, {:.2f}], [{:.2f}, {:.2f}, {:.2f}, {:.2f}], [{:.2f}, {:.2f}, {:.2f}, {:.2f}]]",
+                            transformMatrix[0], transformMatrix[1], transformMatrix[2], transformMatrix[3],
+                            transformMatrix[4], transformMatrix[5], transformMatrix[6], transformMatrix[7],
+                            transformMatrix[8], transformMatrix[9], transformMatrix[10], transformMatrix[11],
+                            transformMatrix[12], transformMatrix[13], transformMatrix[14], transformMatrix[15]);
+#endif
                     }
                 },
             }, descendentNode.transform);

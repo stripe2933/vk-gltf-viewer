@@ -237,7 +237,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
         }
     }
 
-    return threadPool.submit_sequence(0UZ, asset.textures.size(), [&](std::size_t textureIndex) {
+    return threadPool.submit_sequence(std::size_t{ 0 }, asset.textures.size(), [&](std::size_t textureIndex) {
         const std::size_t imageIndex = *asset.textures[textureIndex].imageIndex;
 
         int width, height, channels;
@@ -269,7 +269,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createImages(
                 }
                 if (!uri.uri.isLocalPath()) throw std::runtime_error { "Non-local source URI not supported." };
 
-                if (!stbi_info((assetDir / uri.uri.fspath()).c_str(), &width, &height, &channels)) {
+                if (!stbi_info((assetDir / uri.uri.fspath()).string().c_str(), &width, &height, &channels)) {
                     throw std::runtime_error { std::format("Failed to get the image info: {}", stbi_failure_reason()) };
                 }
             },
@@ -410,7 +410,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
 ) -> void {
     if (images.empty()) return;
 
-    const std::vector imageDatas = threadPool.submit_sequence(0UZ, asset.textures.size(), [&](std::size_t textureIndex) {
+    const std::vector imageDatas = threadPool.submit_sequence(std::size_t { 0 }, asset.textures.size(), [&](std::size_t textureIndex) {
         const std::size_t imageIndex = *asset.textures[textureIndex].imageIndex;
 
         const int channels = [imageFormat = images.at(imageIndex).format]() {
@@ -434,7 +434,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageImages(
                 return io::StbDecoder<std::uint8_t>::fromMemory(std::span { array.bytes }, channels);
             },
             [&](const fastgltf::sources::URI& uri) {
-                return io::StbDecoder<std::uint8_t>::fromFile((assetDir / uri.uri.fspath()).c_str(), channels);
+                return io::StbDecoder<std::uint8_t>::fromFile((assetDir / uri.uri.fspath()).string().c_str(), channels);
             },
             [&](const fastgltf::sources::BufferView& bufferView) {
                 const std::span bufferViewBytes = externalBuffers.getByteRegion(asset.bufferViews[bufferView.bufferViewIndex]);
@@ -719,7 +719,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
         | std::ranges::to<std::vector>();
     if (missingTangentMeshes.empty()) return; // Skip if there's no missing tangent mesh.
 
-    threadPool.submit_loop(0UZ, missingTangentMeshes.size(), [&](std::size_t meshIndex) {
+    threadPool.submit_loop(std::size_t{ 0 }, missingTangentMeshes.size(), [&](std::size_t meshIndex) {
         auto& mesh = missingTangentMeshes[meshIndex];
 
         SMikkTSpaceInterface* const pInterface

@@ -607,7 +607,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 ) -> void {
     // Load equirectangular map image and stage it into eqmapImage.
     int width, height;
-    if (!stbi_info(eqmapPath.c_str(), &width, &height, nullptr)) {
+    if (!stbi_info(eqmapPath.string().c_str(), &width, &height, nullptr)) {
         throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
     }
 
@@ -706,7 +706,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
                 eqmapStagingBuffer = std::make_unique<vku::AllocatedBuffer>(vku::MappedBuffer {
                     gpu.allocator,
-                    std::from_range, io::StbDecoder<float>::fromFile(eqmapPath.c_str(), 4).asSpan(),
+                    std::from_range, io::StbDecoder<float>::fromFile(eqmapPath.string().c_str(), 4).asSpan(),
                     vk::BufferUsageFlagBits::eTransferSrc
                 }.unmap());
 

@@ -1,3 +1,7 @@
+module;
+
+#include <vulkan/vulkan_hpp_macros.hpp>
+
 export module vk_gltf_viewer:vulkan.Gpu;
 
 import std;
@@ -35,7 +39,11 @@ namespace vk_gltf_viewer::vulkan {
             , graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) }
             , transfer { device.getQueue(queueFamilies.transfer, 0) } { }
 
-        [[nodiscard]] static auto getCreateInfos(vk::PhysicalDevice, const QueueFamilies &queueFamilies) noexcept {
+        [[nodiscard]] static auto getCreateInfos(vk::PhysicalDevice, const QueueFamilies &queueFamilies) noexcept 
+#ifdef _MSC_VER
+            -> vku::RefHolder<std::vector<vk::DeviceQueueCreateInfo>, std::array<float, 1>>
+#endif
+        {
             return vku::RefHolder {
                 [&](std::span<const float> priorities) {
                     return queueFamilies.getUniqueIndices()
@@ -59,7 +67,7 @@ namespace vk_gltf_viewer::vulkan {
         std::uint32_t subgroupSize;
 
         Gpu(const vk::raii::Instance &instance [[clang::lifetimebound]], vk::SurfaceKHR surface)
-            : vku::Gpu<QueueFamilies, Queues> { instance, Config {
+            : vku::Gpu<QueueFamilies, Queues> { instance, Config<vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceDynamicRenderingFeatures, vk::PhysicalDeviceSynchronization2Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> {
                 .verbose = true,
                 .deviceExtensions = {
 #if __APPLE__

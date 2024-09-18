@@ -48,7 +48,7 @@ namespace vk_gltf_viewer {
             std::filesystem::path assetDir;
             std::vector<std::size_t> parentNodeIndices = getParentNodeIndices();
             std::variant<std::vector<std::optional<bool>>, std::vector<bool>> nodeVisibilities { std::in_place_index<0>, asset.nodes.size(), true };
-            std::optional<std::size_t> assetInspectorMaterialIndex = asset.materials.empty() ? std::optional<std::size_t>{} : std::optional { 0UZ };
+            std::optional<std::size_t> assetInspectorMaterialIndex = asset.materials.empty() ? std::optional<std::size_t>{} : std::optional<std::size_t> { 0 };
 
             std::unordered_set<std::size_t> selectedNodeIndices;
             std::optional<std::size_t> hoveringNodeIndex;
@@ -100,7 +100,7 @@ namespace vk_gltf_viewer {
             std::size_t sceneIndex = asset.defaultScene.value_or(0);
 
             [[nodiscard]] auto getParentNodeIndices() const noexcept -> std::vector<std::size_t> {
-                std::vector indices { std::from_range, std::views::iota(0UZ, asset.nodes.size()) };
+                std::vector indices{ std::from_range, std::views::iota(std::size_t{ 0 }, asset.nodes.size()) };
                 for (const auto &[i, node] : asset.nodes | ranges::views::enumerate) {
                     for (std::size_t childIndex : node.children) {
                         indices[childIndex] = i;

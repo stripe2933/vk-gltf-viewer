@@ -192,12 +192,12 @@ namespace views {
     struct to_range_fn {
         template <typename T>
         constexpr auto operator()(const std::optional<T> &opt) const -> std::span<const T> {
-            return { &*opt, opt.has_value() ? 1UZ : 0UZ };
+            return { &*opt, opt.has_value() ? std::size_t{ 1 } : std::size_t{ 0 } };
         }
 
         template <typename T>
         constexpr auto operator()(std::optional<T> &opt) const -> std::span<T> {
-            return { &*opt, opt.has_value() ? 1UZ : 0UZ };
+            return { &*opt, opt.has_value() ? std::size_t{ 1 } : std::size_t{ 0 } };
         }
     };
 

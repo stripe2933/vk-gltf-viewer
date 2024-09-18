@@ -75,7 +75,7 @@ namespace ImGui {
     }
 
     export void TextUnformatted(std::string_view str) {
-        Text(str.cbegin(), str.cend());
+        Text(str.data(), str.data() + str.size());
     }
 
     export template <std::invocable F>
