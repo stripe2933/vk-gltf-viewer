@@ -19,10 +19,13 @@ import glm;
 import ranges;
 import imgui;
 import :helpers.enum_to_string;
+#if __cpp_lib_format_ranges >= 202207L
 import :helpers.formatters.joiner;
+#endif
 import :helpers.tristate;
 import :helpers.functional;
 
+#define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #ifdef _MSC_VER
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
@@ -770,28 +773,36 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(AppState &appState) -
             }, gltfAsset.nodeVisibilities);
 
             ImGui::TableSetColumnIndex(1);
-            ImGui::TextUnformatted(std::format("{}", make_joiner<" / ">(directDescendentNodeNames)));
+#if __cpp_lib_format_ranges >= 202207L
+            ImGui::TextUnformatted(std::format("{::s}", make_joiner<" / ">(directDescendentNodeNames)));
+#else
+            std::string concat = directDescendentNodeNames[0];
+            for (std::string_view name : directDescendentNodeNames | std::views::drop(1)) {
+                concat += " / " + name;
+            }
+            ImGui::TextUnformatted(concat);
+#endif
 
             ImGui::TableSetColumnIndex(2);
             visit(fastgltf::visitor {
                 [](const fastgltf::TRS &trs) {
                     boost::container::static_vector<std::string, 3> transformComponents;
                     if (trs.translation != std::array { 0.f, 0.f, 0.f }) {
-#if __cpp_lib_format_range >= 202207L
+#if __cpp_lib_format_ranges >= 202207L
                         transformComponents.emplace_back(std::format("T{::.2f}", trs.translation));
 #else
                         transformComponents.emplace_back(std::format("T[{:.2f}, {:.2f}, {:.2f}]", trs.translation[0], trs.translation[1], trs.translation[2]));
 #endif
                     }
                     if (trs.rotation != std::array { 0.f, 0.f, 0.f, 1.f }) {
-#if __cpp_lib_format_range >= 202207L
+#if __cpp_lib_format_ranges >= 202207L
                         transformComponents.emplace_back(std::format("R{::.2f}", trs.rotation));
 #else
                         transformComponents.emplace_back(std::format("R[{:.2f}, {:.2f}, {:.2f}, {:.2f}]", trs.rotation[0], trs.rotation[1], trs.rotation[2], trs.rotation[3]));
 #endif
                     }
                     if (trs.scale != std::array { 1.f, 1.f, 1.f }) {
-#if __cpp_lib_format_range >= 202207L
+#if __cpp_lib_format_ranges >= 202207L
                         transformComponents.emplace_back(std::format("S{::.2f}", trs.scale));
 #else
                         transformComponents.emplace_back(std::format("S[{:.2f}, {:.2f}, {:.2f}]", trs.scale[0], trs.scale[1], trs.scale[2]));
@@ -799,7 +810,21 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(AppState &appState) -
                     }
 
                     if (!transformComponents.empty()) {
+#if __cpp_lib_format_ranges >= 202207L
                         ImGui::TextUnformatted(std::format("{}", make_joiner<" * ">(transformComponents)));
+#else
+                        switch (transformComponents.size()) {
+                        case 1:
+                            ImGui::Text("%s", transformComponents[0].c_str());
+                            break;
+                        case 2:
+                            ImGui::Text("%s * %s", transformComponents[0].c_str(), transformComponents[1].c_str());
+                            break;
+                        case 3:
+                            ImGui::Text("%s * %s * %s", transformComponents[0].c_str(), transformComponents[1].c_str(), transformComponents[2].c_str());
+                            break;
+                        }
+#endif
                     }
                 },
                 [](const fastgltf::Node::TransformMatrix &transformMatrix) {
@@ -807,12 +832,16 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(AppState &appState) -
                     if (transformMatrix != identity) {
 #if __cpp_lib_ranges_chunk >= 202202L && __cpp_lib_format_ranges >= 202207L
                         ImGui::TextUnformatted(std::format("{:::.2f}", transformMatrix | std::views::chunk(4)));
+#elif __cpp_lib_format_ranges >= 202207L
+                        const std::span components { transformMatrix };
+                        INDEX_SEQ(Is, 4, {
+                            ImGui::TextUnformatted(std::format("[{::.2f}, {::.2f}, {::.2f}, {::.2f}]", components.subspan(4 * Is, 4)...));
+                        });
 #else
-                        ImGui::Text("[[{:.2f}, {:.2f}, {:.2f}, {:.2f}], [{:.2f}, {:.2f}, {:.2f}, {:.2f}], [{:.2f}, {:.2f}, {:.2f}, {:.2f}], [{:.2f}, {:.2f}, {:.2f}, {:.2f}]]",
-                            transformMatrix[0], transformMatrix[1], transformMatrix[2], transformMatrix[3],
-                            transformMatrix[4], transformMatrix[5], transformMatrix[6], transformMatrix[7],
-                            transformMatrix[8], transformMatrix[9], transformMatrix[10], transformMatrix[11],
-                            transformMatrix[12], transformMatrix[13], transformMatrix[14], transformMatrix[15]);
+                        std::apply([](auto ...components) {
+                            ImGui::Text("[[%.2f, %.2f, %.2f, %.2f], [%.2f, %.2f, %.2f, %.2f], [%.2f, %.2f, %.2f, %.2f], [%.2f, %.2f, %.2f, %.2f]]",
+                                components...);
+                        }, transformMatrix);
 #endif
                     }
                 },
