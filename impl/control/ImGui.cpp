@@ -23,6 +23,12 @@ import :helpers.formatters.joiner;
 import :helpers.tristate;
 import :helpers.functional;
 
+#ifdef _MSC_VER
+#define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
+#else
+#define PATH_C_STR(...) (__VA_ARGS__).c_str()
+#endif
+
 using namespace std::string_view_literals;
 
 /**
@@ -197,7 +203,7 @@ auto vk_gltf_viewer::control::imgui::menuBar(AppState &appState) -> task::type {
                 }
                 else {
                     for (const auto &[it, path] : appState.getRecentGltfPaths() | ranges::views::with_iterator) {
-                        if (ImGui::MenuItem(path.string().c_str())) {
+                        if (ImGui::MenuItem(PATH_C_STR(path))) {
                             assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
                             result.emplace<task::LoadGltf>(path);
                             appState.pushRecentGltfPath(path);
@@ -229,7 +235,7 @@ auto vk_gltf_viewer::control::imgui::menuBar(AppState &appState) -> task::type {
                 }
                 else {
                     for (const auto &[it, path] : appState.getRecentSkyboxPaths() | ranges::views::with_iterator) {
-                        if (ImGui::MenuItem(path.string().c_str())) {
+                        if (ImGui::MenuItem(PATH_C_STR(path))) {
                             assert(holds_alternative<std::monostate>(result) && "Logic error: only a single task allowed for the function result");
                             result.emplace<task::LoadEqmap>(path);
                             appState.pushRecentSkyboxPath(path);
@@ -280,7 +286,7 @@ auto vk_gltf_viewer::control::imgui::hdriEnvironments(
         const ImVec2 eqmapTextureSize = ImVec2 { 1.f, eqmapAspectRatio } * ImGui::GetContentRegionAvail().x;
         hoverableImage(eqmapTexture, eqmapTextureSize);
 
-        ImGui::WithLabel("File"sv, [&]() { ImGui::TextLinkOpenURL(iblProps.eqmap.path.stem().string().c_str(), iblProps.eqmap.path.string().c_str()); });
+        ImGui::WithLabel("File"sv, [&]() { ImGui::TextLinkOpenURL(PATH_C_STR(iblProps.eqmap.path.stem()), PATH_C_STR(iblProps.eqmap.path)); });
         ImGui::LabelText("Dimension", "%ux%u", iblProps.eqmap.dimension.x, iblProps.eqmap.dimension.y);
 
         ImGui::SeparatorText("Cubemap");
@@ -400,7 +406,7 @@ auto vk_gltf_viewer::control::imgui::assetBuffers(AppState &appState) -> void {
                         ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
                     },
                     [&](const fastgltf::sources::URI &uri) {
-                        ImGui::TextLinkOpenURL("\u2197" /*↗*/, (appState.gltfAsset->assetDir / uri.uri.fspath()).string().c_str());
+                        ImGui::TextLinkOpenURL("\u2197" /*↗*/, PATH_C_STR(appState.gltfAsset->assetDir / uri.uri.fspath()));
                     },
                     [](const auto&) {
                         ImGui::TextDisabled("-");
@@ -442,7 +448,7 @@ auto vk_gltf_viewer::control::imgui::assetImages(AppState &appState) -> void {
                         ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
                     },
                     [&](const fastgltf::sources::URI &uri) {
-                        ImGui::TextLinkOpenURL("\u2197" /*↗*/, (appState.gltfAsset->assetDir / uri.uri.fspath()).string().c_str());
+                        ImGui::TextLinkOpenURL("\u2197" /*↗*/, PATH_C_STR(appState.gltfAsset->assetDir / uri.uri.fspath()));
                     },
                     [](const auto&) {
                         ImGui::TextDisabled("-");
