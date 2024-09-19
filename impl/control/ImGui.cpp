@@ -55,6 +55,12 @@ using namespace std::string_view_literals;
     else return str;
 }
 
+template <typename T>
+[[nodiscard]] auto to_optional(fastgltf::OptionalWithFlagValue<T> v) noexcept -> std::optional<T> {
+    if (v) return *v;
+    return std::nullopt;
+}
+
 template <std::integral T>
 [[nodiscard]] auto to_string(T value) -> cstring_view {
     static constexpr T MAX_NUM = 4096;
@@ -474,27 +480,13 @@ auto vk_gltf_viewer::control::imgui::assetSamplers(AppState &appState) -> void {
                 ImGui::InputTextWithHint("##name", "<empty>", &sampler.name);
                 ImGui::PopID();
             }, ImGuiTableColumnFlags_WidthStretch },
-            ImGui::ColumnInfo { "Mag filter", [](const fastgltf::Sampler &sampler) {
-                if (sampler.magFilter) {
-                    ImGui::TextUnformatted(to_string(*sampler.magFilter));
-                }
-                else {
-                    ImGui::TextDisabled("-");
-                }
+            ImGui::ColumnInfo { "Filter (Mag/Min)", [](const fastgltf::Sampler &sampler) {
+                ImGui::Text("%s / %s",
+                    to_optional(sampler.magFilter).transform([](fastgltf::Filter filter) { return to_string(filter).c_str(); }).value_or("-"),
+                    to_optional(sampler.minFilter).transform([](fastgltf::Filter filter) { return to_string(filter).c_str(); }).value_or("-"));
             }, ImGuiTableColumnFlags_WidthFixed },
-            ImGui::ColumnInfo { "Min filter", [](const fastgltf::Sampler &sampler) {
-                if (sampler.minFilter) {
-                    ImGui::TextUnformatted(to_string(*sampler.minFilter));
-                }
-                else {
-                    ImGui::TextDisabled("-");
-                }
-            }, ImGuiTableColumnFlags_WidthFixed },
-            ImGui::ColumnInfo { "Wrap S", [](const fastgltf::Sampler &sampler) {
-                ImGui::TextUnformatted(to_string(sampler.wrapS));
-            }, ImGuiTableColumnFlags_WidthFixed },
-            ImGui::ColumnInfo { "Wrap T", [](const fastgltf::Sampler &sampler) {
-                ImGui::TextUnformatted(to_string(sampler.wrapT));
+            ImGui::ColumnInfo { "Wrap (S/T)", [](const fastgltf::Sampler &sampler) {
+                ImGui::Text("%s / %s", to_string(sampler.wrapS).c_str(), to_string(sampler.wrapT).c_str());
             }, ImGuiTableColumnFlags_WidthFixed });
     }
     ImGui::End();
