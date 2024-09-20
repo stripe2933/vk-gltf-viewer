@@ -28,10 +28,8 @@ jobs:
 
       - name: Install Ninja and build dependencies
         run: |
-          sudo apt-get install ninja-build \
-            libc++-dev libc++abi-dev \
-            xorg-dev \
-            autoconf automake libtool pkg-config
+          sudo apt-get install ninja-build libc++-dev libc++abi-dev xorg-dev
+          sudo apt install autoconf automake libtool pkg-config
 
       - name: Install vcpkg
         run: |
@@ -45,6 +43,10 @@ jobs:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Show error log if vcpkg install failed
+        if: failure()
+        run: cat build/clang-x64-linux/vcpkg-manifest-install.log
 
       - name: Configure
         run: |
