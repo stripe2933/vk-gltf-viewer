@@ -73,11 +73,9 @@ namespace vk_gltf_viewer::vulkan {
 #if __APPLE__
                     vk::KHRPortabilitySubsetExtensionName,
 #endif
-                    vk::KHRMultiviewExtensionName,
                     vk::KHRDynamicRenderingExtensionName,
                     vk::KHRSynchronization2ExtensionName,
                     vk::EXTExtendedDynamicStateExtensionName,
-                    vk::KHRTimelineSemaphoreExtensionName,
                     vk::KHRSwapchainExtensionName,
                     vk::KHRSwapchainMutableFormatExtensionName, // For ImGui gamma correction.
                 },
@@ -85,7 +83,6 @@ namespace vk_gltf_viewer::vulkan {
                     .setSamplerAnisotropy(true)
                     .setShaderInt64(true)
                     .setMultiDrawIndirect(true)
-                    .setDepthBiasClamp(true)
                     .setShaderStorageImageWriteWithoutFormat(true)
                     .setIndependentBlend(true)
                     .setTessellationShader(true),
@@ -103,7 +100,6 @@ namespace vk_gltf_viewer::vulkan {
                         .setDescriptorIndexing(true)
                         .setDescriptorBindingSampledImageUpdateAfterBind(true)
                         .setDescriptorBindingStorageImageUpdateAfterBind(true)
-                        .setImagelessFramebuffer(true)
                         .setRuntimeDescriptorArray(true)
                         .setStorageBuffer8BitAccess(true)
                         .setUniformAndStorageBuffer8BitAccess(true)
