@@ -2,9 +2,9 @@
   "version": 6,
   "configurePresets": [
     {
-      "name": "vcpkg-clang",
-      "displayName": "vcpkg (Clang)",
-      "inherits": "vcpkg",
+      "name": "clang-x64-linux",
+      "displayName": "Clang (x64 Linux)",
+      "inherits": "default",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_C_COMPILER": "/usr/bin/clang-18",

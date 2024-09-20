@@ -46,4 +46,4 @@ jobs:
       - name: Configure
         run: |
           mv .github/workflows/CMakeUserPresets.json .
-          cmake --preset=vcpkg-clang
+          cmake --preset=clang-x64-linux
