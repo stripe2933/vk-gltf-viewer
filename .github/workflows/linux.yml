@@ -28,8 +28,7 @@ jobs:
 
       - name: Install Ninja and build dependencies
         run: |
-          sudo apt-get install ninja-build libc++-dev libc++abi-dev xorg-dev
-          sudo apt install autoconf automake libtool pkg-config
+          sudo apt-get install ninja-build libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev
 
       - name: Install vcpkg
         run: |
