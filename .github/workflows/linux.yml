@@ -50,4 +50,4 @@ jobs:
 
       - name: Show error log if vcpkg install failed
         if: failure()
-        run: cat build/clang-x64-linux/vcpkg-manifest-install.log
+        run: cat vcpkg/buildtrees/dbus/config-x64-linux-clang-out.log

@@ -48,3 +48,6 @@ jobs:
         run: |
           mv .github\workflows\CMakeUserPresets.json .\
           cmake --preset=default
+
+      - name: Build
+        run: cmake --build build --config release
