@@ -6,7 +6,6 @@ export module vk_gltf_viewer:vulkan.SharedData;
 
 import std;
 export import vku;
-export import :vulkan.ag.ImGuiSwapchain;
 export import :vulkan.ag.Swapchain;
 export import :vulkan.Gpu;
 export import :vulkan.pipeline.AlphaMaskedDepthRenderer;
@@ -81,8 +80,8 @@ namespace vk_gltf_viewer::vulkan {
         WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
 
         // Attachment groups.
-        ag::Swapchain swapchainAttachmentGroup { gpu.device, swapchainExtent, swapchainImages };
-        ag::ImGuiSwapchain imGuiSwapchainAttachmentGroup { gpu.device, swapchainExtent, swapchainImages };
+        ag::Swapchain swapchainAttachmentGroup { gpu, swapchainExtent, swapchainImages };
+        ag::Swapchain imGuiSwapchainAttachmentGroup { gpu, swapchainExtent, swapchainImages, gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb };
 
         // Descriptor pools.
         vk::raii::DescriptorPool textureDescriptorPool = createTextureDescriptorPool();
@@ -135,8 +134,8 @@ namespace vk_gltf_viewer::vulkan {
             swapchainExtent = newExtent;
             swapchainImages = swapchain.getImages();
 
-            swapchainAttachmentGroup = { gpu.device, swapchainExtent, swapchainImages };
-            imGuiSwapchainAttachmentGroup = { gpu.device, swapchainExtent, swapchainImages };
+            swapchainAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
+            imGuiSwapchainAttachmentGroup = { gpu, swapchainExtent, swapchainImages, gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb };
 
             const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
             const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
@@ -179,30 +178,30 @@ namespace vk_gltf_viewer::vulkan {
     private:
         [[nodiscard]] auto createSwapchain(vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain) {
             const vk::SurfaceCapabilitiesKHR surfaceCapabilities = gpu.physicalDevice.getSurfaceCapabilitiesKHR(surface);
-            return { gpu.device, vk::StructureChain {
-                vk::SwapchainCreateInfoKHR{
-                    vk::SwapchainCreateFlagBitsKHR::eMutableFormat,
-                    surface,
-                    std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount),
-                    vk::Format::eB8G8R8A8Srgb,
-                    vk::ColorSpaceKHR::eSrgbNonlinear,
-                    extent,
-                    1,
-                    vk::ImageUsageFlagBits::eColorAttachment,
-                    {}, {},
-                    surfaceCapabilities.currentTransform,
-                    vk::CompositeAlphaFlagBitsKHR::eOpaque,
-                    vk::PresentModeKHR::eFifo,
-                    true,
-                    oldSwapchain,
-                },
-                vk::ImageFormatListCreateInfo {
-                    vku::unsafeProxy({
-                        vk::Format::eB8G8R8A8Srgb,
-                        vk::Format::eB8G8R8A8Unorm,
-                    }),
-                },
-            }.get() };
+            return { gpu.device, vk::SwapchainCreateInfoKHR{
+                gpu.supportSwapchainMutableFormat ? vk::SwapchainCreateFlagBitsKHR::eMutableFormat : vk::SwapchainCreateFlagsKHR{},
+                surface,
+                std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount),
+                vk::Format::eB8G8R8A8Srgb,
+                vk::ColorSpaceKHR::eSrgbNonlinear,
+                extent,
+                1,
+                vk::ImageUsageFlagBits::eColorAttachment,
+                {}, {},
+                surfaceCapabilities.currentTransform,
+                vk::CompositeAlphaFlagBitsKHR::eOpaque,
+                vk::PresentModeKHR::eFifo,
+                true,
+                oldSwapchain,
+                gpu.supportSwapchainMutableFormat
+                    ? vku::unsafeAddress(vk::ImageFormatListCreateInfo {
+                        vku::unsafeProxy({
+                            vk::Format::eB8G8R8A8Srgb,
+                            vk::Format::eB8G8R8A8Unorm,
+                        }),
+                    })
+                    : nullptr,
+            } };
         }
 
         [[nodiscard]] auto createTextureDescriptorPool() const -> vk::raii::DescriptorPool {

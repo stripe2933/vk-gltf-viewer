@@ -36,6 +36,7 @@ add_executable(vk-gltf-viewer
 	impl/MainApp.cpp
 	impl/mod.cpp
 	impl/vulkan/Frame.cpp
+	impl/vulkan/Gpu.cpp
 	impl/vulkan/pipeline/AlphaMaskedDepthRenderer.cpp
 	impl/vulkan/pipeline/BrdfmapComputer.cpp
 	impl/vulkan/pipeline/DepthRenderer.cpp
@@ -80,7 +81,6 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/MainApp.cppm
 		interface/mipmap.cppm
 		interface/vulkan/attachment_group/DepthPrepass.cppm
-		interface/vulkan/attachment_group/ImGuiSwapchain.cppm
 		interface/vulkan/attachment_group/JumpFloodSeed.cppm
 		interface/vulkan/attachment_group/SceneOpaque.cppm
 		interface/vulkan/attachment_group/SceneWeightedBlended.cppm

@@ -61,73 +61,25 @@ namespace vk_gltf_viewer::vulkan {
         }
     };
 
-    export struct Gpu : vku::Gpu<QueueFamilies, Queues> {
+    export class Gpu {
+    public:
+        vk::raii::PhysicalDevice physicalDevice;
+        QueueFamilies queueFamilies;
+        vk::raii::Device device = createDevice();
+        Queues queues { *device, queueFamilies };
+        vma::Allocator allocator;
+
+        bool supportSwapchainMutableFormat;
         bool supportTessellationShader;
         bool supportUint8Index;
         std::uint32_t subgroupSize;
 
-        Gpu(const vk::raii::Instance &instance [[clang::lifetimebound]], vk::SurfaceKHR surface)
-            : vku::Gpu<QueueFamilies, Queues> { instance, Config<vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceDynamicRenderingFeatures, vk::PhysicalDeviceSynchronization2Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> {
-                .verbose = true,
-                .deviceExtensions = {
-#if __APPLE__
-                    vk::KHRPortabilitySubsetExtensionName,
-#endif
-                    vk::KHRDynamicRenderingExtensionName,
-                    vk::KHRSynchronization2ExtensionName,
-                    vk::EXTExtendedDynamicStateExtensionName,
-                    vk::KHRSwapchainExtensionName,
-                    vk::KHRSwapchainMutableFormatExtensionName, // For ImGui gamma correction.
-                },
-                .physicalDeviceFeatures = vk::PhysicalDeviceFeatures{}
-                    .setSamplerAnisotropy(true)
-                    .setShaderInt64(true)
-                    .setMultiDrawIndirect(true)
-                    .setShaderStorageImageWriteWithoutFormat(true)
-                    .setIndependentBlend(true)
-                    .setTessellationShader(true),
-                .queueFamilyGetter = [=](vk::PhysicalDevice physicalDevice) -> QueueFamilies {
-                    return { physicalDevice, surface };
-                },
-                .devicePNexts = std::tuple {
-                    vk::PhysicalDeviceVulkan11Features{}
-                        .setShaderDrawParameters(true)
-                        .setStorageBuffer16BitAccess(true)
-                        .setUniformAndStorageBuffer16BitAccess(true)
-                        .setMultiview(true),
-                    vk::PhysicalDeviceVulkan12Features{}
-                        .setBufferDeviceAddress(true)
-                        .setDescriptorIndexing(true)
-                        .setDescriptorBindingSampledImageUpdateAfterBind(true)
-                        .setDescriptorBindingStorageImageUpdateAfterBind(true)
-                        .setRuntimeDescriptorArray(true)
-                        .setStorageBuffer8BitAccess(true)
-                        .setUniformAndStorageBuffer8BitAccess(true)
-                        .setStoragePushConstant8(true)
-                        .setScalarBlockLayout(true)
-                        .setTimelineSemaphore(true)
-                        .setShaderInt8(true),
-                    vk::PhysicalDeviceDynamicRenderingFeatures { true },
-                    vk::PhysicalDeviceSynchronization2Features { true },
-                    vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true },
-                },
-                .allocatorCreateFlags = vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
-                .apiVersion = vk::makeApiVersion(0, 1, 2, 0),
-            } } {
-            // Retrieve physical device features.
-            const vk::PhysicalDeviceFeatures physicalDeviceFeatures = physicalDevice.getFeatures();
-            supportTessellationShader = physicalDeviceFeatures.tessellationShader;
+        Gpu(const vk::raii::Instance &instance [[clang::lifetimebound]], vk::SurfaceKHR surface);
+        ~Gpu();
 
-            const vk::StructureChain physicalDeviceFeatures2 = physicalDevice.getFeatures2<
-                vk::PhysicalDeviceFeatures2,
-                vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
-            supportUint8Index = physicalDeviceFeatures2.get<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>().indexTypeUint8;
-
-            // Retrieve physical device properties.
-            const vk::StructureChain physicalDeviceProperties = physicalDevice.getProperties2<
-                vk::PhysicalDeviceProperties2,
-                vk::PhysicalDeviceSubgroupProperties>();
-            subgroupSize = physicalDeviceProperties.get<vk::PhysicalDeviceSubgroupProperties>().subgroupSize;
-        }
+    private:
+        [[nodiscard]] auto selectPhysicalDevice(const vk::raii::Instance &instance, vk::SurfaceKHR surface) const -> vk::raii::PhysicalDevice;
+        [[nodiscard]] auto createDevice() -> vk::raii::Device;
+        [[nodiscard]] auto createAllocator(const vk::raii::Instance &instance) const -> vma::Allocator;
     };
 }

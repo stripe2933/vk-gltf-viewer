@@ -175,7 +175,7 @@ vk_gltf_viewer::MainApp::MainApp() {
     io.Fonts->Build();
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
-    const auto colorAttachmentFormats = { vk::Format::eB8G8R8A8Unorm };
+    const auto colorAttachmentFormats = { gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb };
     ImGui_ImplVulkan_InitInfo initInfo {
         .Instance = *instance,
         .PhysicalDevice = *gpu.physicalDevice,
