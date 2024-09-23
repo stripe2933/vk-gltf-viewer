@@ -12,7 +12,8 @@
         "CMAKE_CXX_FLAGS": "-stdlib=libc++",
         "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++ -lc++abi",
         "VCPKG_OVERLAY_TRIPLETS": ".github/workflows/triplets",
-        "VCPKG_TARGET_TRIPLET": "x64-linux-clang"
+        "VCPKG_TARGET_TRIPLET": "x64-linux-clang",
+        "DBUS_SESSION_SOCKET_DIR": "/tmp"
       },
       "condition": {
         "type": "equals",
