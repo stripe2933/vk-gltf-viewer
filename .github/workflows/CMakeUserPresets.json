@@ -5,9 +5,6 @@
       "name": "clang-x64-linux",
       "displayName": "Clang (x64 Linux)",
       "inherits": "default",
-      "environment": {
-        "DBUS_SESSION_SOCKET_DIR": "/tmp"
-      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_C_COMPILER": "/usr/bin/clang-18",

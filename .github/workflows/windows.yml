@@ -50,4 +50,4 @@ jobs:
           cmake --preset=default
 
       - name: Build
-        run: cmake --build build\default --config release
+        run: cmake --build build --config release
