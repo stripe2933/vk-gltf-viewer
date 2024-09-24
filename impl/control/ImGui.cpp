@@ -771,7 +771,7 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(AppState &appState) -
             std::string concat = directDescendentNodeNames[0];
             for (std::string_view name : directDescendentNodeNames | std::views::drop(1)) {
                 using namespace std::string_literals;
-                concat += " / "s + name;
+                concat += std::format(" / {}", name);
             }
             ImGui::TextUnformatted(concat);
 #endif
