@@ -309,21 +309,24 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
 
         // Render meshes whose AlphaMode=Blend.
         sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
+        bool hasBlendMesh = false;
         if (renderingNodes) {
-            recordSceneBlendMeshDrawCommands(sceneRenderingCommandBuffer);
+            hasBlendMesh = recordSceneBlendMeshDrawCommands(sceneRenderingCommandBuffer);
         }
 
         sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
 
-        // Weighted blended composition.
-        sceneRenderingCommandBuffer.bindPipeline(
-            vk::PipelineBindPoint::eGraphics,
-            sharedData.weightedBlendedCompositionRenderer.pipeline);
-        sceneRenderingCommandBuffer.bindDescriptorSets(
-            vk::PipelineBindPoint::eGraphics,
-            sharedData.weightedBlendedCompositionRenderer.pipelineLayout,
-            0, weightedBlendedCompositionSet, {});
-        sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
+        if (hasBlendMesh) {
+            // Weighted blended composition.
+            sceneRenderingCommandBuffer.bindPipeline(
+                vk::PipelineBindPoint::eGraphics,
+                sharedData.weightedBlendedCompositionRenderer.pipeline);
+            sceneRenderingCommandBuffer.bindDescriptorSets(
+                vk::PipelineBindPoint::eGraphics,
+                sharedData.weightedBlendedCompositionRenderer.pipelineLayout,
+                0, weightedBlendedCompositionSet, {});
+            sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
+        }
 
         sceneRenderingCommandBuffer.endRenderPass();
 
@@ -806,7 +809,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
     }
 }
 
-auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const -> void {
+auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const -> bool {
     assert(renderingNodes && "No nodes have to be rendered.");
 
     type_variant<std::monostate, BlendPrimitiveRenderer, BlendFacetedPrimitiveRenderer> boundPipeline{};
@@ -817,7 +820,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
     bool descriptorBound = false;
     bool pushConstantBound = false;
 
-    // Render alphaMode=Opaque meshes.
+    // Render alphaMode=Blend meshes.
+    bool hasBlendMesh = false;
     for (auto [begin, end] = renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Blend);
          const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
         if (criteria.faceted && !boundPipeline.holds_alternative<BlendPrimitiveRenderer>()) {
@@ -844,11 +848,15 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
                 cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
             }
             cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+            hasBlendMesh = true;
         }
         else {
             cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+            hasBlendMesh = true;
         }
     }
+
+    return hasBlendMesh;
 }
 
 auto vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer cb) const -> void {
