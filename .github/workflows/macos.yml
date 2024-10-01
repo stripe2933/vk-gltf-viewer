@@ -1,4 +1,4 @@
-name: Linux
+name: macOS
 
 env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
@@ -11,11 +11,11 @@ on:
       - '!LICENSE.txt'
       - '!docs/**'
       - '!.github/workflows/*.yml'
-      - '.github/workflows/linux.yml'
+      - '.github/workflows/macos.yml'
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: macOS-15
     steps:
       - uses: actions/checkout@v4
 
@@ -26,9 +26,8 @@ jobs:
           vulkan-components: Vulkan-Headers, Vulkan-Loader
           vulkan-use-cache: true
 
-      - name: Install Ninja and build dependencies
-        run: |
-          sudo apt-get install ninja-build libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev
+      - name: Install Ninja
+        run: brew install ninja
 
       - name: Install vcpkg
         run: |
@@ -46,7 +45,7 @@ jobs:
       - name: Configure
         run: |
           mv .github/workflows/scripts/* .
-          cmake --preset=linux-clang-18
+          cmake --preset=macos-clang
 
       - name: Build
         run: cmake --build build --config release

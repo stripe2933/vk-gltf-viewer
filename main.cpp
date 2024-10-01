@@ -2,9 +2,6 @@
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 import vk_gltf_viewer;
-import vulkan_hpp;
-
-VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 int main() {
     glfwInit();

@@ -45,9 +45,7 @@ jobs:
           toolset: 14.40
 
       - name: Configure
-        run: |
-          mv .github\workflows\CMakeUserPresets.json .\
-          cmake --preset=default
+        run: cmake --preset=default
 
       - name: Build
         run: cmake --build build --config release
