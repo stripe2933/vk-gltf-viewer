@@ -2,6 +2,7 @@
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 import vk_gltf_viewer;
+import vulkan_hpp;
 
 int main() {
     glfwInit();
