@@ -18,40 +18,8 @@ import :vulkan.Gpu;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
-/*#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)*/
 
 namespace vk_gltf_viewer {
-    /*template <std::size_t InFlightFrameCount>
-    class FrameScheduler {
-    public:
-        static constexpr std::size_t inFlightFrameCount = InFlightFrameCount;
-
-        FrameScheduler(const vulkan::Gpu &gpu, vk::SurfaceKHR surface, vk::Extent2D swapchainExtent)
-            : sharedData{ gpu, surface, swapchainExtent }
-            , frames{ ARRAY_OF(InFlightFrameCount, vulkan::Frame{ gpu, sharedData }) } { }
-
-        [[nodiscard]] auto getSharedData() const -> const vulkan::SharedData& { return sharedData; }
-        [[nodiscard]] auto getFrames() const -> std::span<const vulkan::Frame, InFlightFrameCount> { return frames; }
-        [[nodiscard]] auto getFrames() -> std::span<vulkan::Frame, InFlightFrameCount> { return frames; }
-
-        auto enterCriticalSection(std::invocable<vulkan::SharedData&> auto &&f) -> void {
-            std::invoke(FWD(f), sharedData);
-        }
-
-    private:
-        struct FrameCommand {
-            struct WaitPreviousExecution { };
-            struct UpdateAndExecute { };
-
-            using type = std::variant<WaitPreviousExecution, UpdateAndExecute>;
-        };
-
-        vulkan::SharedData sharedData;
-        std::array<vulkan::Frame, InFlightFrameCount> frames;
-
-
-    };*/
-
     export class MainApp {
     public:
         explicit MainApp();
