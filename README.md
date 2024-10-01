@@ -1,5 +1,9 @@
 # Vulkan glTF Viewer.
 
+![Windows](https://github.com/stripe2933/vk-gltf-viewer/actions/workflows/windows.yml/badge.svg)
+![macOS](https://github.com/stripe2933/vk-gltf-viewer/actions/workflows/macos.yml/badge.svg)
+![Linux](https://github.com/stripe2933/vk-gltf-viewer/actions/workflows/linux.yml/badge.svg)
+
 Blazingly fast[^1] glTF viewer using Vulkan.
 
 ![Main screenshot](docs/images/screenshot.png)
@@ -308,4 +312,4 @@ All shaders are located in the [shaders](/shaders) folder and need to be manuall
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE.txt) file for details.
 
-[^1]: I like this term because it's hilarious for several reasons, but it's no joke! It has the **significantly faster glTF model loading speed than the other the viewers** I've tested. See [Performance Comparison](docs/performance-comparison.md) page for details.
+[^1]: I like this term because it's hilarious for several reasons, but it's no joke! It has the **significantly faster glTF model loading speed than the other the viewers** I've tested. See [Performance Comparison](https://github.com/stripe2933/vk-gltf-viewer/blob/master/docs/performance-comparison.md) page for details.
