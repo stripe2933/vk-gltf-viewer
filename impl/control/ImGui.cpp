@@ -351,7 +351,7 @@ auto vk_gltf_viewer::control::imgui::assetBufferViews(AppState &appState) -> voi
                 if (ImGui::BeginItemTooltip()) {
                     ImGui::TextUnformatted(visit_as<cstring_view>(nonempty_or(
                         appState.gltfAsset->asset.buffers[bufferView.bufferIndex].name,
-                        [&] { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })));
+                        [&]() { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })));
                     ImGui::EndTooltip();
                 }
             }, ImGuiTableColumnFlags_WidthFixed },
@@ -503,7 +503,7 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(AppState &appState, std::spa
             else if (gltfAsset.assetInspectorMaterialIndex) {
                 return ImGui::BeginCombo("Material", visit_as<cstring_view>(nonempty_or(
                     gltfAsset.asset.materials[*gltfAsset.assetInspectorMaterialIndex].name,
-                    [&] { return std::format("<Unnamed material {}>", *gltfAsset.assetInspectorMaterialIndex); })).c_str());
+                    [&]() { return std::format("<Unnamed material {}>", *gltfAsset.assetInspectorMaterialIndex); })).c_str());
             }
             else {
                 return ImGui::BeginCombo("Material", "<select...>");
@@ -512,7 +512,7 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(AppState &appState, std::spa
         if (isComboBoxOpened) {
             for (const auto &[i, material] : gltfAsset.asset.materials | ranges::views::enumerate) {
                 const bool isSelected = i == gltfAsset.assetInspectorMaterialIndex;
-                if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(material.name, [&] { return std::format("<Unnamed material {}>", i); })).c_str(), isSelected)) {
+                if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(material.name, [&]() { return std::format("<Unnamed material {}>", i); })).c_str(), isSelected)) {
                     gltfAsset.assetInspectorMaterialIndex = i;
                 }
                 if (isSelected) {
@@ -662,12 +662,12 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(AppState &appState) -
         AppState::GltfAsset &gltfAsset = *appState.gltfAsset;
         if (ImGui::BeginCombo("Scene", visit_as<cstring_view>(nonempty_or(
                 gltfAsset.getScene().name,
-                [&] { return std::format("<Unnamed scene {}>", gltfAsset.getSceneIndex()); })).c_str())) {
+                [&]() { return std::format("<Unnamed scene {}>", gltfAsset.getSceneIndex()); })).c_str())) {
             for (const auto &[i, scene] : gltfAsset.asset.scenes | ranges::views::enumerate) {
                 const bool isSelected = i == gltfAsset.getSceneIndex();
                 if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(
                         scene.name,
-                        [&] { return std::format("<Unnamed scene {}>", i); })).c_str(), isSelected)) {
+                        [&]() { return std::format("<Unnamed scene {}>", i); })).c_str(), isSelected)) {
                     gltfAsset.setScene(i);
                 }
                 if (isSelected) {
@@ -844,7 +844,7 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(AppState &appState) -
                 ImGui::TableSetColumnIndex(3);
                 if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(
                     gltfAsset.asset.meshes[*meshIndex].name,
-                    [&] { return std::format("<Unnamed mesh {}>", *meshIndex); })).c_str())) {
+                    [&]() { return std::format("<Unnamed mesh {}>", *meshIndex); })).c_str())) {
                     // TODO
                 }
             }
@@ -853,7 +853,7 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(AppState &appState) -
                 ImGui::TableSetColumnIndex(4);
                 if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(
                     gltfAsset.asset.lights[*lightIndex].name,
-                    [&] { return std::format("<Unnamed light {}>", *lightIndex); })).c_str())) {
+                    [&]() { return std::format("<Unnamed light {}>", *lightIndex); })).c_str())) {
                     // TODO
                 }
             }
@@ -862,7 +862,7 @@ auto vk_gltf_viewer::control::imgui::assetSceneHierarchies(AppState &appState) -
                 ImGui::TableSetColumnIndex(5);
                 if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(
                     gltfAsset.asset.cameras[*cameraIndex].name,
-                    [&] { return std::format("<Unnamed camera {}>", *cameraIndex); })).c_str())) {
+                    [&]() { return std::format("<Unnamed camera {}>", *cameraIndex); })).c_str())) {
                     // TODO
                 }
             }
@@ -977,7 +977,7 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                                 if (ImGui::WithLabel("Material"sv, [&]() {
                                     return ImGui::TextLink(visit_as<cstring_view>(nonempty_or(
                                         gltfAsset.asset.materials[*primitive.materialIndex].name,
-                                        [&] { return std::format("<Unnamed material {}>", *primitive.materialIndex); })).c_str());
+                                        [&]() { return std::format("<Unnamed material {}>", *primitive.materialIndex); })).c_str());
                                 })) {
                                     // TODO.
                                 }

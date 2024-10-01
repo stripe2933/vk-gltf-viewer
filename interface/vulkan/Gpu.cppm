@@ -14,7 +14,7 @@ namespace vk_gltf_viewer::vulkan {
         QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface) {
             const std::vector queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
             compute = vku::getComputeSpecializedQueueFamily(queueFamilyProperties)
-                .or_else([&] { return vku::getComputeQueueFamily(queueFamilyProperties); })
+                .or_else([&]() { return vku::getComputeQueueFamily(queueFamilyProperties); })
                 .value();
             graphicsPresent = vku::getGraphicsPresentQueueFamily(physicalDevice, surface, queueFamilyProperties).value();
             transfer = vku::getTransferSpecializedQueueFamily(queueFamilyProperties).value_or(compute);
