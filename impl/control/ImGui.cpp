@@ -1,6 +1,7 @@
 module;
 
 #include <cassert>
+#include <cinttypes>
 #include <version>
 
 #include <boost/container/static_vector.hpp>
@@ -1022,13 +1023,13 @@ auto vk_gltf_viewer::control::imgui::nodeInspector(
                                     std::visit(fastgltf::visitor {
                                         [](const std::pmr::vector<int64_t> &min, const std::pmr::vector<int64_t> &max) {
                                             assert(min.size() == max.size() && "Different min/max dimension");
-                                            if (min.size() == 1) ImGui::Text("[%lld, %lld]", min[0], max[0]);
+                                            if (min.size() == 1) ImGui::Text("[%" PRId64 ", %" PRId64 "]", min[0], max[0]);
 #if __cpp_lib_format_ranges >= 202207L
                                             else ImGui::TextUnformatted(std::format("{}x{}", min, max));
 #else
-                                            else if (min.size() == 2) ImGui::Text("[%lld, %lld]x[%lld, %lld]", min[0], min[1], max[0], max[1]);
-                                            else if (min.size() == 3) ImGui::Text("[%lld, %lld, %lld]x[%lld, %lld, %lld]", min[0], min[1], min[2], max[0], max[1], max[2]);
-                                            else if (min.size() == 4) ImGui::Text("[%lld, %lld, %lld, %lld]x[%lld, %lld, %lld, %lld]", min[0], min[1], min[2], min[3], max[0], max[1], max[2], max[3]);
+                                            else if (min.size() == 2) ImGui::Text("[%" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 "]", min[0], min[1], max[0], max[1]);
+                                            else if (min.size() == 3) ImGui::Text("[%" PRId64 ", %" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 ", %" PRId64 "]", min[0], min[1], min[2], max[0], max[1], max[2]);
+                                            else if (min.size() == 4) ImGui::Text("[%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "]", min[0], min[1], min[2], min[3], max[0], max[1], max[2], max[3]);
                                             else assert(false && "Unsupported min/max dimension");
 #endif
                                         },
