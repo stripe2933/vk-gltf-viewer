@@ -17,7 +17,20 @@ find_package(unofficial-imguizmo CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
 find_package(Stb REQUIRED)
-find_package(vku CONFIG REQUIRED)
+
+# Enable CPM.cmake.
+file(DOWNLOAD https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.40.2/CPM.cmake
+	${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake
+	EXPECTED_HASH SHA256=c8cdc32c03816538ce22781ed72964dc864b2a34a310d3b7104812a5ca2d835d
+)
+include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
+
+CPMAddPackage(
+	NAME vku
+	PATCHES extlibs/vku/vcpkg-deps.patch
+	URL https://github.com/stripe2933/vku/archive/refs/tags/v0.1.0-test29.tar.gz
+	OPTIONS "VKU_USE_STD_MODULE ON" "VKU_DEFAULT_DYNAMIC_DISPATCHER ON"
+)
 
 # --------------------
 # Project targets.
