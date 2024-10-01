@@ -15,8 +15,12 @@
     "mikktspace",
     "nativefiledialog-extended",
     "stb",
-    "vulkan-memory-allocator",
-    "vulkan-memory-allocator-hpp",
+    {
+      "name": "vku",
+      "features": [
+        "dynamic-dispatcher"
+      ]
+    },
     "boost-container"
   ]
 }
