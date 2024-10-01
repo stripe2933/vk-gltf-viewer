@@ -9,7 +9,6 @@ I made a video that compares the loading time and average running FPS of each de
 The applications used for comparison are:
 
 - [F3D](https://github.com/f3d-app/f3d): Fast and minimalist 3D viewer (upper-left).
-- [Vulkan-glTF-PBR](https://github.com/SaschaWillems/Vulkan-glTF-PBR): Physical based rendering with Vulkan using glTF 2.0 models (upper-right).
 - [gltf-viewer-rs](https://github.com/adrien-ben/gltf-viewer-rs): glTF 2.0 file viewer written in Rust using Vulkan (lower-left).
 - And my application (lower-right).
 
@@ -24,7 +23,6 @@ I tried to make the running configuration as same as possible for fair compariso
 
 - For F3D, I turned off the ambient occlusion, axis/grid visualization and HDRI ambient lighting. And turned on the antialiasing and HDRI skybox lighting. Since F3D is based on OpenGL, it does not support the Metal FPS HUD, therefore I used the application-provided FPS meter.
 - For gltf-viewer-rs, I turned off the SSAO and turned on the HDR tone mapping.
-- For Vulkan-glTF-PBR, I don't know why but the swapchain is always presenting the image at fixed 120 FPS (regardless of the rendering time, even it took more than its vsync time!), therefore I slightly modified the FPS print code so that it can measure **the time between each `vkQueuePresentKHR` call**. Since this limit, **even if the real FPS is more than 120 FPS, it is recorded as 120 FPS.**
 - For my application, I disabled the mouse picking and outline rendering.
 - For Vulkan applications (except for F3D), 
   - I disabled the validation layer for the entire system using Vulkan configurator.
@@ -34,12 +32,12 @@ I tried to make the running configuration as same as possible for fair compariso
 
 ### Loading Time
 
-|           Model            |         F3D         |  Vulkan-glTF-PBR  |  gltf-viewer-rs   | vk-gltf-viewer<br>(baseline) |
-|:--------------------------:|:-------------------:|:-----------------:|:-----------------:|:----------------------------:|
-|       ABeautifulGame       |  3.05 s<br>(2.06x)  | 2.15 s<br>(1.45x) | 2.58 s<br>(1.74x) |            1.48 s            |
-|           Sponza           |  2.3 s<br>(8.21x)   | 1.28 s<br>(4.57x) | 0.9 s<br>(3.21x)  |            0.28 s            |
-| Sunrise Temple Environment | 29.87 s<br>(19.78x) | 6.65 s<br>(4.40x) | 3.4 s<br>(2.25x)  |            1.51 s            | 
-|       Tetris Factory       | 34.85 s<br>(20.5x)  | 6.08 s<br>(3.57x) | 4.09 s<br>(2.41x) |            1.7 s             |
+|           Model            |         F3D         |  gltf-viewer-rs   | vk-gltf-viewer<br>(baseline) |
+|:--------------------------:|:-------------------:|:-----------------:|:----------------------------:|
+|       ABeautifulGame       |  3.05 s<br>(2.06x)  | 2.58 s<br>(1.74x) |            1.48 s            |
+|           Sponza           |  2.3 s<br>(8.21x)   | 0.9 s<br>(3.21x)  |            0.28 s            |
+| Sunrise Temple Environment | 29.87 s<br>(19.78x) | 3.4 s<br>(2.25x)  |            1.51 s            | 
+|       Tetris Factory       | 34.85 s<br>(20.5x)  | 4.09 s<br>(2.41x) |            1.7 s             |
 
 ![Loading time bar chart](images/loading-time-comparison.png)
 
