@@ -19,10 +19,10 @@ import vku;
 import :control.ImGui;
 import :helpers.functional;
 import :io.StbDecoder;
-import :mipmap;
 import :vulkan.Frame;
 import :vulkan.generator.ImageBasedLightingResourceGenerator;
 import :vulkan.generator.MipmappedCubemapGenerator;
+import :vulkan.mipmap;
 import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
@@ -757,7 +757,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                 }
 
                 // Generate eqmapImage mipmaps.
-                recordMipmapGenerationCommand(cb, eqmapImage);
+                vulkan::recordMipmapGenerationCommand(cb, eqmapImage);
 
                 cb.pipelineBarrier2KHR({
                     {}, {}, {},
@@ -824,7 +824,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                     });
 
                 // Generate reducedEqmapImage mipmaps.
-                recordMipmapGenerationCommand(cb, reducedEqmapImage);
+                vulkan::recordMipmapGenerationCommand(cb, reducedEqmapImage);
 
                 // reducedEqmapImage will be used as sampled image.
                 cb.pipelineBarrier(

@@ -16,7 +16,7 @@ import ranges;
 import thread_pool;
 import :gltf.algorithm.MikktSpaceInterface;
 import :io.StbDecoder;
-import :mipmap;
+import :vulkan.mipmap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
@@ -185,7 +185,7 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
                 })
                 | std::ranges::to<std::vector>());
 
-        recordBatchedMipmapGenerationCommand(cb, images | std::views::values);
+        vulkan::recordBatchedMipmapGenerationCommand(cb, images | std::views::values);
 
         cb.pipelineBarrier(
             vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,

@@ -75,7 +75,6 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/helpers/type_variant.cppm
 		interface/io/StbDecoder.cppm
 		interface/MainApp.cppm
-		interface/mipmap.cppm
 		interface/vulkan/attachment_group/DepthPrepass.cppm
 		interface/vulkan/attachment_group/JumpFloodSeed.cppm
 		interface/vulkan/attachment_group/SceneOpaque.cppm
@@ -90,6 +89,7 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/generator/ImageBasedLightingResourceGenerator.cppm
 		interface/vulkan/generator/MipmappedCubemapGenerator.cppm
 		interface/vulkan/Gpu.cppm
+		interface/vulkan/mipmap.cppm
 		interface/vulkan/pipeline/AlphaMaskedDepthRenderer.cppm
 		interface/vulkan/pipeline/AlphaMaskedFacetedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/AlphaMaskedJumpFloodSeedRenderer.cppm
