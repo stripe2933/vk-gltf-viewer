@@ -1,4 +1,4 @@
-# Vulkan glTF Viewer.
+# Vulkan glTF Viewer
 
 ![Windows](https://github.com/stripe2933/vk-gltf-viewer/actions/workflows/windows.yml/badge.svg)
 ![macOS](https://github.com/stripe2933/vk-gltf-viewer/actions/workflows/macos.yml/badge.svg)
@@ -248,8 +248,7 @@ Add the following CMake user preset file in your project directory. I'll assume 
   "version": 6,
   "configurePresets": [
     {
-      "name": "clang-arm64-osx",
-      "displayName": "Clang",
+      "name": "clang-arm64-macos",
       "inherits": "default",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
@@ -258,7 +257,7 @@ Add the following CMake user preset file in your project directory. I'll assume 
         "CMAKE_CXX_FLAGS": "-nostdinc++ -nostdlib++ -isystem /opt/homebrew/opt/llvm/include/c++/v1",
         "CMAKE_EXE_LINKER_FLAGS": "-L /opt/homebrew/opt/llvm/lib/c++ -Wl,-rpath,/opt/homebrew/opt/llvm/lib/c++ -lc++",
         "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
-        "VCPKG_TARGET_TRIPLET": "arm64-osx-clang"
+        "VCPKG_TARGET_TRIPLET": "arm64-macos-clang"
       }
     }
   ]
@@ -275,19 +274,19 @@ set(CMAKE_CXX_FLAGS "-nostdinc++ -nostdlib++ -isystem /opt/homebrew/opt/llvm/inc
 set(CMAKE_EXE_LINKER_FLAGS "-L /opt/homebrew/opt/llvm/lib/c++ -Wl,-rpath,/opt/homebrew/opt/llvm/lib/c++ -lc++")
 ```
 
-`triplets/arm64-osx-clang.cmake`
+`triplets/arm64-macos-clang.cmake`
 ```cmake
 set(VCPKG_TARGET_ARCHITECTURE arm64)
-set(VCPKG_CRT_LINKAGE static)
+set(VCPKG_CRT_LINKAGE dynamic)
 set(VCPKG_LIBRARY_LINKAGE static)
 set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
 set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../clang-toolchain.cmake)
 ```
 
-Configure and build the project with `clang-arm64-osx` configuration preset.
+Configure and build the project with `clang-arm64-macos` configuration preset.
 
 ```sh
-cmake --preset=clang-arm64-osx
+cmake --preset=clang-arm64-macos
 cmake --build build -t vk-gltf-viewer
 ```
 

@@ -15,7 +15,7 @@ on:
 
 jobs:
   build:
-    runs-on: macOS-15
+    runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -26,8 +26,8 @@ jobs:
           vulkan-components: Vulkan-Headers, Vulkan-Loader
           vulkan-use-cache: true
 
-      - name: Install Ninja
-        run: brew install ninja
+      - name: Install latest LLVM and Ninja
+        run: brew install llvm ninja
 
       - name: Install vcpkg
         run: |
@@ -41,6 +41,9 @@ jobs:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Workaround for CMake issue that cannot find __CMAKE::CXX23 target
+        run: sed -i '' 's|libc++.modules.json|../../c++/libc++.modules.json|g' /opt/homebrew/opt/cmake/share/cmake/Modules/Compiler/Clang-CXX-CXXImportStd.cmake # https://gitlab.kitware.com/cmake/cmake/-/issues/25965#note_1523575
 
       - name: Configure
         run: |
