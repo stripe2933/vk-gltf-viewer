@@ -43,7 +43,7 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Workaround for CMake issue that cannot find __CMAKE::CXX23 target
-        run: sed -i '' 's|libc++.modules.json|../../c++/libc++.modules.json|g' /opt/homebrew/opt/cmake/HEAD-506d175/share/cmake/Modules/Compiler/Clang-CXX-CXXImportStd.cmake # https://gitlab.kitware.com/cmake/cmake/-/issues/25965#note_1523575
+        run: sed -i '' 's|libc++.modules.json|../../c++/libc++.modules.json|g' /opt/homebrew/opt/cmake/share/cmake/Modules/Compiler/Clang-CXX-CXXImportStd.cmake # https://gitlab.kitware.com/cmake/cmake/-/issues/25965#note_1523575
 
       - name: Configure
         run: |
