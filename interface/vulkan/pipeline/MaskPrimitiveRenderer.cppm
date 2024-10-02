@@ -1,18 +1,18 @@
-export module vk_gltf_viewer:vulkan.pipeline.AlphaMaskedPrimitiveRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.MaskPrimitiveRenderer;
 
 import vku;
 export import :vulkan.pl.SceneRendering;
 export import :vulkan.shader.PrimitiveVertex;
-export import :vulkan.shader.AlphaMaskedPrimitiveFragment;
+export import :vulkan.shader.MaskPrimitiveFragment;
 export import :vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export struct AlphaMaskedPrimitiveRenderer : vk::raii::Pipeline {
-        AlphaMaskedPrimitiveRenderer(
+    export struct MaskPrimitiveRenderer : vk::raii::Pipeline {
+        MaskPrimitiveRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
             const pl::SceneRendering &layout [[clang::lifetimebound]],
             const shader::PrimitiveVertex &vertexShader,
-            const shader::AlphaMaskedPrimitiveFragment &fragmentShader,
+            const shader::MaskPrimitiveFragment &fragmentShader,
             const rp::Scene &sceneRenderPass [[clang::lifetimebound]]
         ) : Pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
             createPipelineStages(device, vertexShader, fragmentShader).get(),

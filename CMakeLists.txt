@@ -35,10 +35,10 @@ add_executable(vk-gltf-viewer
 	impl/mod.cpp
 	impl/vulkan/Frame.cpp
 	impl/vulkan/Gpu.cpp
-	impl/vulkan/pipeline/AlphaMaskedDepthRenderer.cpp
 	impl/vulkan/pipeline/BrdfmapComputer.cpp
 	impl/vulkan/pipeline/DepthRenderer.cpp
 	impl/vulkan/pipeline/JumpFloodComputer.cpp
+	impl/vulkan/pipeline/MaskDepthRenderer.cpp
 	main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
@@ -90,10 +90,6 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/generator/MipmappedCubemapGenerator.cppm
 		interface/vulkan/Gpu.cppm
 		interface/vulkan/mipmap.cppm
-		interface/vulkan/pipeline/AlphaMaskedDepthRenderer.cppm
-		interface/vulkan/pipeline/AlphaMaskedFacetedPrimitiveRenderer.cppm
-		interface/vulkan/pipeline/AlphaMaskedJumpFloodSeedRenderer.cppm
-		interface/vulkan/pipeline/AlphaMaskedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/BlendFacetedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/BlendPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/BrdfmapComputer.cppm
@@ -103,6 +99,10 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/pipeline/FacetedPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/JumpFloodComputer.cppm
 		interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
+		interface/vulkan/pipeline/MaskDepthRenderer.cppm
+		interface/vulkan/pipeline/MaskFacetedPrimitiveRenderer.cppm
+		interface/vulkan/pipeline/MaskJumpFloodSeedRenderer.cppm
+		interface/vulkan/pipeline/MaskPrimitiveRenderer.cppm
 		interface/vulkan/pipeline/MultiplyComputer.cppm
 		interface/vulkan/pipeline/OutlineRenderer.cppm
 		interface/vulkan/pipeline/PrefilteredmapComputer.cppm
@@ -118,10 +118,10 @@ target_sources(vk-gltf-viewer PRIVATE
 		interface/vulkan/sampler/BrdfLutSampler.cppm
 		interface/vulkan/sampler/CubemapSampler.cppm
 		interface/vulkan/sampler/SingleTexelSampler.cppm
-		interface/vulkan/shader/AlphaMaskedPrimitiveFragment.cppm
 		interface/vulkan/shader/BlendPrimitiveFragment.cppm
 		interface/vulkan/shader/FacetedPrimitiveTessellation.cppm
 		interface/vulkan/shader/FacetedPrimitiveVertex.cppm
+		interface/vulkan/shader/MaskPrimitiveFragment.cppm
 		interface/vulkan/shader/PrimitiveFragment.cppm
 		interface/vulkan/shader/PrimitiveVertex.cppm
 		interface/vulkan/shader/ScreenQuadVertex.cppm

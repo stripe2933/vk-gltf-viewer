@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:vulkan.pipeline.AlphaMaskedDepthRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.MaskDepthRenderer;
 
 import std;
 export import glm;
@@ -7,7 +7,7 @@ export import :vulkan.dsl.Asset;
 export import :vulkan.dsl.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export struct AlphaMaskedDepthRenderer {
+    export struct MaskDepthRenderer {
         struct PushConstant {
             glm::mat4 projectionView;
         };
@@ -15,7 +15,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        AlphaMaskedDepthRenderer(
+        MaskDepthRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
             std::tuple<const dsl::Scene&, const dsl::Asset&> descriptorSetLayouts [[clang::lifetimebound]]);
 
