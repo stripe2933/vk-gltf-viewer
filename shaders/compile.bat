@@ -9,6 +9,6 @@ for %%f in ("%script_dir%\*.vert" "%script_dir%\*.frag" "%script_dir%\*.tesc" "%
   REM Check if it is a file and not the script itself
   if exist "%%f" (
     REM Call glslc to compile the file
-    glslc --target-env=vulkan1.2 "%%f" -o "%%f.spv"
+    glslc --target-env=vulkan1.2 -O "%%f" -o "%%f.spv"
   )
 )
