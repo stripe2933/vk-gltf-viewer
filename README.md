@@ -46,11 +46,11 @@ I initially developed this application for leveraging Vulkan's performance and u
 
 - Fully bindless rendering: no descriptor set update/vertex buffer binding during rendering.
   - Descriptor sets are only updated at the model loading time.
-  - Textures are accessed with runtime-descriptor indexing using `VK_EXT_descriptor_indexing` extension.
+  - Textures are accessed with runtime-descriptor indexing using [`VK_EXT_descriptor_indexing`](https://docs.vulkan.org/samples/latest/samples/extensions/descriptor_indexing/README.html) extension.
   - Use Vertex Pulling with [`VK_KHR_buffer_device_address`](https://docs.vulkan.org/samples/latest/samples/extensions/buffer_device_address/README.html). Only index buffers are bound to the command buffer.
 - Fully GPU driven rendering: uses multi draw indirect with optimally sorted rendering order. **Regardless of the material count and scene's complexity, all scene nodes can be rendered with up to 24 draw calls** in the worst case.
   - Has 6 pipelines for 3 material types (Opaque, Masked, Blend) and 2 primitive types (Indexed, Non-Indexed) combinations.
-  - Indexed primitive index type can be either `UNSIGNED_BYTE` (if GPU supports `VK_KHR_index_type_uint8`), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
+  - Indexed primitive index type can be either `UNSIGNED_BYTE` (if GPU supports [`VK_KHR_index_type_uint8`](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_KHR_index_type_uint8.html)), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
   - Each material can be either double-sided or not, and cull mode have to be set based on this.
   - Therefore, if scene consists of the primitives of all combinations, it requires 24 draw calls. **Of course, it would be ~6 draw calls in most case.**
 - Significant less asset loading time: **glTF buffer memories are directly `memcpy`ed into the GPU memory with dedicated transfer queue. No pre-processing is required!**

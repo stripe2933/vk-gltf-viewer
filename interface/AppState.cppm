@@ -67,9 +67,8 @@ namespace vk_gltf_viewer {
             /**
              * From <tt>nodeVisibilities</tt>, get the unique indices of the visible nodes.
              * @return <tt>std::unordered_set</tt> of the visible node indices.
-             * @note
-             * Since the result only contains node which is visible, nodes without mesh are excluded regardless of its
-             * corresponding <tt>nodeVisibilities</tt> is <tt>true</tt>.
+             * @note Since the result only contains node which is visible, nodes without mesh are excluded regardless of
+             * its corresponding <tt>nodeVisibilities</tt> is <tt>true</tt>.
              */
             [[nodiscard]] auto getVisibleNodeIndices() const noexcept -> std::unordered_set<std::size_t> {
                 return visit(multilambda {

@@ -771,7 +771,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
     std::vector<std::vector<std::uint16_t>> generated16BitIndices;
     std::unordered_map<vk::IndexType, std::vector<std::pair<const fastgltf::Primitive*, std::span<const std::byte>>>> indexBufferBytesByType;
 
-    // Get buffer view bytes from indexedPrimtives and group them by index type.
+    // Get buffer view bytes from indexedPrimitives and group them by index type.
     for (const fastgltf::Primitive &primitive : indexedPrimitives) {
         const fastgltf::Accessor &accessor = asset.accessors[*primitive.indicesAccessor];
 

@@ -12,11 +12,11 @@ namespace vk_gltf_viewer::vulkan {
     /**
      * Record mipmap generation command for \p image to \p cb.
      * @param cb Command buffer to be recorded. This should have graphics capability for blitting.
-     * @param image Image to generate mipmap. It's usage must contain <tt>TransferSrc</tt> and <tt>TransferDst</tt>, and layout must be <tt>TransferSrcOptimal</tt> for base mip level and <tt>TransferDstOptimal</tt> for the remaining mip levels.
-     * @note
-     * - The result image layout will be <tt>TransferSrcOptimal</tt> for all mip levels except for the last mip level, which will be <tt>TransferDstOptimal</tt>.
-     * - The last synchronization point will be image memory barrier, whose stage mask is <tt>Transfer</tt> and access mask is <tt>TransferWrite</tt>.
-     * - \p image must be alive until the command buffer is submitted and execution finished.
+     * @param image Image to generate mipmap. It's usage must contain <tt>TransferSrc</tt> and <tt>TransferDst</tt>, and
+     * layout must be <tt>TransferSrcOptimal</tt> for base mip level and <tt>TransferDstOptimal</tt> for the remaining mip levels.
+     * @note The result image layout will be <tt>TransferSrcOptimal</tt> for all mip levels except for the last mip level, which will be <tt>TransferDstOptimal</tt>.
+     * @note The last synchronization point will be image memory barrier, whose stage mask is <tt>Transfer</tt> and access mask is <tt>TransferWrite</tt>.
+     * @note \p image must be alive until the command buffer is submitted and execution finished.
      * @see recordBatchedMipmapGenerationCommand for batched mipmap generation (efficient implementation for multiple images).
      */
     export void recordMipmapGenerationCommand(vk::CommandBuffer cb, const vku::Image &image) {
@@ -54,10 +54,9 @@ namespace vk_gltf_viewer::vulkan {
      * Record batched mipmap generation command for \p images to \p cb. It efficiently generates blit commands between mip levels of multiple images and minimize pipeline barriers.
      * @param cb Command buffer to be recorded. This should have graphics capability for blitting.
      * @param images Images to generate mipmap. Their usage must contain <tt>TransferSrc</tt> and <tt>TransferDst</tt>, and layout must be <tt>TransferSrcOptimal</tt> for base mip level and <tt>TransferDstOptimal</tt> for the remaining mip levels.
-     * @note
-     * - The result image layout will be <tt>TransferSrcOptimal</tt> for all mip levels except for the last mip level, which will be <tt>TransferDstOptimal</tt>.
-     * - The last synchronization point will be image memory barrier, whose stage mask is <tt>Transfer</tt> and access mask is <tt>TransferWrite</tt>.
-     * - \p images must be alive until the command buffer is submitted and execution finished.
+     * @note The result image layout will be <tt>TransferSrcOptimal</tt> for all mip levels except for the last mip level, which will be <tt>TransferDstOptimal</tt>.
+     * @note The last synchronization point will be image memory barrier, whose stage mask is <tt>Transfer</tt> and access mask is <tt>TransferWrite</tt>.
+     * @note \p images must be alive until the command buffer is submitted and execution finished.
      * @see recordMipmapGenerationCommand for single image mipmap generation.
      */
     export template <std::ranges::forward_range R>
