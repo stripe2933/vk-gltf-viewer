@@ -158,7 +158,7 @@ Dependencies will be automatically fetched via vcpkg.
 #### Build Steps
 
 > [!TIP]
-> This project uses GitHub Runner to ensure build compatibility on both Linux and Windows, with dependency management handled by vcpkg. You can check the workflow files in the [.github/workflows](.github/workflows) folder.
+> This project uses GitHub Runner to ensure build compatibility on Windows (with MSVC), macOS and Linux (with Clang), with dependency management handled by vcpkg. You can check the workflow files in the [.github/workflows](.github/workflows) folder.
 
 First, you have to clone the repository.
 
@@ -194,7 +194,7 @@ Add the following CMake user preset file in your project directory. I'll assume 
   "version": 6,
   "configurePresets": [
     {
-      "name": "clang-x64-linux",
+      "name": "linux-clang-18",
       "displayName": "Clang",
       "inherits": "default",
       "cacheVariables": {
@@ -229,10 +229,10 @@ set(VCPKG_CMAKE_SYSTEM_NAME Linux)
 set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../clang-toolchain.cmake)
 ```
 
-Configure and build the project with `clang-x64-linux` configuration preset.
+Configure and build the project with `linux-clang-18` configuration preset.
 
 ```sh
-cmake --preset=clang-x64-linux
+cmake --preset=linux-clang-18
 cmake --build build -t vk-gltf-viewer
 ```
 
