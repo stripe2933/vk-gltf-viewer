@@ -39,25 +39,22 @@ namespace vk_gltf_viewer::vulkan {
             , graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) }
             , transfer { device.getQueue(queueFamilies.transfer, 0) } { }
 
-        [[nodiscard]] static auto getCreateInfos(vk::PhysicalDevice, const QueueFamilies &queueFamilies) noexcept 
-#ifdef _MSC_VER
-            -> vku::RefHolder<std::vector<vk::DeviceQueueCreateInfo>, std::array<float, 1>>
-#endif
-        {
-            return vku::RefHolder {
-                [&](std::span<const float> priorities) {
-                    return queueFamilies.getUniqueIndices()
-                        | std::views::transform([=](std::uint32_t queueFamilyIndex) {
-                            return vk::DeviceQueueCreateInfo {
-                                {},
-                                queueFamilyIndex,
-                                priorities,
-                            };
-                        })
-                        | std::ranges::to<std::vector>();
-                },
-                std::array { 1.f },
-            };
+        [[nodiscard]] static auto getCreateInfos(
+            vk::PhysicalDevice,
+            const QueueFamilies &queueFamilies
+        ) noexcept -> vku::RefHolder<std::vector<vk::DeviceQueueCreateInfo>> {
+            return { [&]() {
+                static constexpr float priority = 1.f;
+                return queueFamilies.getUniqueIndices()
+                    | std::views::transform([=](std::uint32_t queueFamilyIndex) {
+                        return vk::DeviceQueueCreateInfo {
+                            {},
+                            queueFamilyIndex,
+                            vk::ArrayProxyNoTemporaries(priority),
+                        };
+                    })
+                    | std::ranges::to<std::vector>();
+            } };
         }
     };
 
