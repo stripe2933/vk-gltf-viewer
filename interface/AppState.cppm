@@ -53,8 +53,8 @@ namespace vk_gltf_viewer {
             std::unordered_set<std::size_t> selectedNodeIndices;
             std::optional<std::size_t> hoveringNodeIndex;
 
-            explicit GltfAsset(fastgltf::Asset &asset, const std::filesystem::path &assetDir) noexcept
-                : asset { asset }, assetDir { assetDir } { }
+            explicit GltfAsset(fastgltf::Asset &asset, std::filesystem::path assetDir) noexcept
+                : asset { asset }, assetDir { std::move(assetDir) } { }
 
             [[nodiscard]] auto getSceneIndex() const noexcept -> std::size_t { return sceneIndex; }
             [[nodiscard]] auto getScene() const noexcept -> fastgltf::Scene& { return asset.scenes[sceneIndex]; }
