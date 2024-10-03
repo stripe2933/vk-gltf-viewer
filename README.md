@@ -12,18 +12,18 @@ Blazingly fast[^1] Vulkan glTF viewer.
 
 - Support glTF 2.0, including:
   - PBR material rendering with runtime IBL resources (spherical harmonics + pre-filtered environment map) generation from input equirectangular map.
-  - Support both indexed and non-indexed primitive.
-    - Runtime missing tangent attribute generation using MikkTSpace algorithm for indexed primitive.
-    - Runtime missing per-face normal and tangent attribute generation using tessellation shader (if supported) or screen-space fragment shader for non-indexed primitive.
+  - Runtime missing tangent attribute generation using MikkTSpace algorithm for indexed primitive.
+  - Runtime missing per-face normal and tangent attribute generation using tessellation shader (if supported) or screen-space fragment shader for non-indexed primitive.
   - No limits for `TEXCOORD_<i>` attributes: **can render a primitive that has arbitrary number of texture coordinates.**
-  - Support `OPAQUE`, `MASK` (using alpha testing and Alpha To Coverage) and `BLEND` (using Weighted Blended OIT) materials.
-  - Support multiple scenes.
-  - Support binary format (`.glb`).
+  - `OPAQUE`, `MASK` (using alpha testing and Alpha To Coverage) and `BLEND` (using Weighted Blended OIT) materials.
+  - Multiple scenes.
+  - Binary format (`.glb`).
+  - GPU compressed texture (`KHR_texture_basisu`)
 - Use 4x MSAA by default.
 - Load glTF asset and equirectangular map image using native file dialog.
 - Pixel perfect node selection and transformation usin gizmo.
 - Arbitrary sized outline rendering using [Jump Flooding Algorithm](https://en.wikipedia.org/wiki/Jump_flooding_algorithm).
-- Conditionally render a node with three-state scene hierarchy view.
+- Conditionally render a node with three-state visibility in scene hierarchy tree.
 - GUI for used asset resources (buffers, images, samplers, etc.) list with docking support.
 
 Followings are not supported:
@@ -301,10 +301,10 @@ All shaders are located in the [shaders](/shaders) folder and need to be manuall
 
 ## Milestones
 
-- [ ] Basis Universal texture support (`KHR_texture_basisu`). (currently working)
+- [x] Basis Universal texture support (`KHR_texture_basisu`).
 - [ ] Reduce skybox memory usage with BC6H compressed cubemap.
 - [ ] Frustum/occlusion culling.
-- [ ] Automatic camera position adjustment based on the bounding sphere calculation.
+- [ ] Automatic camera position adjustment based on the bounding sphere calculation. (working now)
 - [ ] Animations.
 
 ## License
