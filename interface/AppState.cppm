@@ -53,8 +53,8 @@ namespace vk_gltf_viewer {
             std::unordered_set<std::size_t> selectedNodeIndices;
             std::optional<std::size_t> hoveringNodeIndex;
 
-            explicit GltfAsset(fastgltf::Asset &asset, const std::filesystem::path &assetDir) noexcept
-                : asset { asset }, assetDir { assetDir } { }
+            explicit GltfAsset(fastgltf::Asset &asset, std::filesystem::path assetDir) noexcept
+                : asset { asset }, assetDir { std::move(assetDir) } { }
 
             [[nodiscard]] auto getSceneIndex() const noexcept -> std::size_t { return sceneIndex; }
             [[nodiscard]] auto getScene() const noexcept -> fastgltf::Scene& { return asset.scenes[sceneIndex]; }
@@ -67,9 +67,8 @@ namespace vk_gltf_viewer {
             /**
              * From <tt>nodeVisibilities</tt>, get the unique indices of the visible nodes.
              * @return <tt>std::unordered_set</tt> of the visible node indices.
-             * @note
-             * Since the result only contains node which is visible, nodes without mesh are excluded regardless of its
-             * corresponding <tt>nodeVisibilities</tt> is <tt>true</tt>.
+             * @note Since the result only contains node which is visible, nodes without mesh are excluded regardless of
+             * its corresponding <tt>nodeVisibilities</tt> is <tt>true</tt>.
              */
             [[nodiscard]] auto getVisibleNodeIndices() const noexcept -> std::unordered_set<std::size_t> {
                 return visit(multilambda {

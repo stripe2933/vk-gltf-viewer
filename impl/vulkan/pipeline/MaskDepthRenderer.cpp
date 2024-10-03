@@ -3,11 +3,11 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :vulkan.pipeline.AlphaMaskedDepthRenderer;
+import :vulkan.pipeline.MaskDepthRenderer;
 
 import std;
 
-vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::AlphaMaskedDepthRenderer(
+vk_gltf_viewer::vulkan::pipeline::MaskDepthRenderer::MaskDepthRenderer(
     const vk::raii::Device &device,
     std::tuple<const dsl::Scene&, const dsl::Asset&> descriptorSetLayouts
 ) : pipelineLayout { device, vk::PipelineLayoutCreateInfo{
@@ -24,8 +24,8 @@ vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::AlphaMaskedDepthRend
         vku::getDefaultGraphicsPipelineCreateInfo(
             createPipelineStages(
                 device,
-                vku::Shader { COMPILED_SHADER_DIR "/alpha_masked_depth.vert.spv", vk::ShaderStageFlagBits::eVertex },
-                vku::Shader { COMPILED_SHADER_DIR "/alpha_masked_depth.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
+                vku::Shader { COMPILED_SHADER_DIR "/mask_depth.vert.spv", vk::ShaderStageFlagBits::eVertex },
+                vku::Shader { COMPILED_SHADER_DIR "/mask_depth.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
             *pipelineLayout, 1, true)
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},
@@ -46,13 +46,13 @@ vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::AlphaMaskedDepthRend
         }
     }.get() } { }
 
-auto vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::bindPipeline(
+auto vk_gltf_viewer::vulkan::pipeline::MaskDepthRenderer::bindPipeline(
     vk::CommandBuffer commandBuffer
 ) const -> void {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
 }
 
-auto vk_gltf_viewer::vulkan::pipeline::AlphaMaskedDepthRenderer::pushConstants(
+auto vk_gltf_viewer::vulkan::pipeline::MaskDepthRenderer::pushConstants(
     vk::CommandBuffer commandBuffer,
     const PushConstant &pushConstant
 ) const -> void {

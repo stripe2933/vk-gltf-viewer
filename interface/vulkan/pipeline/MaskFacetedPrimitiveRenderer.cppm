@@ -1,15 +1,15 @@
-export module vk_gltf_viewer:vulkan.pipeline.AlphaMaskedFacetedPrimitiveRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.MaskFacetedPrimitiveRenderer;
 
 import vku;
 export import :vulkan.pl.SceneRendering;
 export import :vulkan.shader.FacetedPrimitiveVertex;
 export import :vulkan.shader.FacetedPrimitiveTessellation;
-export import :vulkan.shader.AlphaMaskedPrimitiveFragment;
+export import :vulkan.shader.MaskPrimitiveFragment;
 export import :vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export struct AlphaMaskedFacetedPrimitiveRenderer : vk::raii::Pipeline {
-        AlphaMaskedFacetedPrimitiveRenderer(
+    export struct MaskFacetedPrimitiveRenderer : vk::raii::Pipeline {
+        MaskFacetedPrimitiveRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
             const pl::SceneRendering &layout [[clang::lifetimebound]],
             const shader::FacetedPrimitiveVertex &vertexShader,
@@ -18,7 +18,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             createPipelineStages(
                 device,
                 vertexShader,
-                vku::Shader { COMPILED_SHADER_DIR "/alpha_masked_faceted_primitive.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
+                vku::Shader { COMPILED_SHADER_DIR "/mask_faceted_primitive.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
             *layout, 1, true, vk::SampleCountFlagBits::e4)
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},
@@ -51,12 +51,12 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
          * @param fragmentShader
          * @param sceneRenderPass
          */
-        AlphaMaskedFacetedPrimitiveRenderer(
+        MaskFacetedPrimitiveRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
             const pl::SceneRendering &layout [[clang::lifetimebound]],
             const shader::FacetedPrimitiveVertex &vertexShader,
             const shader::FacetedPrimitiveTessellation &tessellationShader,
-            const shader::AlphaMaskedPrimitiveFragment &fragmentShader,
+            const shader::MaskPrimitiveFragment &fragmentShader,
             const rp::Scene &sceneRenderPass [[clang::lifetimebound]]
         ) : Pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
             createPipelineStages(device, vertexShader, tessellationShader.control, tessellationShader.evaluation, fragmentShader).get(),

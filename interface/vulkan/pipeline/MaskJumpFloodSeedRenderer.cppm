@@ -2,7 +2,7 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:vulkan.pipeline.AlphaMaskedJumpFloodSeedRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.MaskJumpFloodSeedRenderer;
 
 import std;
 export import glm;
@@ -11,7 +11,7 @@ export import :vulkan.dsl.Asset;
 export import :vulkan.dsl.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export struct AlphaMaskedJumpFloodSeedRenderer {
+    export struct MaskJumpFloodSeedRenderer {
         struct PushConstant {
             glm::mat4 projectionView;
         };
@@ -19,7 +19,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        AlphaMaskedJumpFloodSeedRenderer(
+        MaskJumpFloodSeedRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
             std::tuple<const dsl::Scene&, const dsl::Asset&> descriptorSetLayouts [[clang::lifetimebound]]
         ) : pipelineLayout { device, vk::PipelineLayoutCreateInfo{
@@ -36,8 +36,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
                         device,
-                        vku::Shader { COMPILED_SHADER_DIR "/alpha_masked_jump_flood_seed.vert.spv", vk::ShaderStageFlagBits::eVertex },
-                        vku::Shader { COMPILED_SHADER_DIR "/alpha_masked_jump_flood_seed.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
+                        vku::Shader { COMPILED_SHADER_DIR "/mask_jump_flood_seed.vert.spv", vk::ShaderStageFlagBits::eVertex },
+                        vku::Shader { COMPILED_SHADER_DIR "/mask_jump_flood_seed.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
                     *pipelineLayout, 1, true)
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},

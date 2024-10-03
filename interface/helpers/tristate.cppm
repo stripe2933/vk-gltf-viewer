@@ -14,9 +14,8 @@ namespace vk_gltf_viewer::inline helpers::tristate {
      * @param childIndicesGetter A function that returns the children indices of a node with the given index.
      * @param nodeIndex Current node index.
      * @param tristates Tri-state values of all nodes. Indeterminate state is represented by <tt>std::nullopt</tt>.
-     * @note
-     * - It asserts that the current node state is not indeterminate(<tt>std::nullopt</tt>).
-     * - This function is a recursive function, and will be terminated when all children have been visited.
+     * @note It asserts that the current node state is not indeterminate(<tt>std::nullopt</tt>).
+     * @note This function is a recursive function, and will be terminated when all children have been visited.
      */
     export auto propagateTopDown(
         std::invocable<std::size_t> auto &&childIndicesGetter,
@@ -37,9 +36,8 @@ namespace vk_gltf_viewer::inline helpers::tristate {
      * @param childrenIndicesGetter A function that returns the children indices of a node with the given index.
      * @param nodeIndex Current node index.
      * @param tristates Tri-state values of all nodes. Indeterminate state is represented by <tt>std::nullopt</tt>.
-     * @note
-     * - This function is a recursive function, and will be terminated when the current node is a root node.
-     * - It works by the following algorithm:
+     * @note This function is a recursive function, and will be terminated when the current node is a root node.
+     * @note It works by the following algorithm:
      *   - If the current node state is indeterminate, then all its ancestors will be indeterminate.
      *   - If all siblings have the same state, then the parent node will have the same state.
      *   - Otherwise, the parent node state is indeterminate.

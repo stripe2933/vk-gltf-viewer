@@ -17,12 +17,13 @@ import std;
 import ranges;
 import vku;
 import :control.ImGui;
+import :gltf.AssetTextures;
 import :helpers.functional;
 import :io.StbDecoder;
-import :mipmap;
 import :vulkan.Frame;
 import :vulkan.generator.ImageBasedLightingResourceGenerator;
 import :vulkan.generator.MipmappedCubemapGenerator;
+import :vulkan.mipmap;
 import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
@@ -264,10 +265,10 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                         imageInfos.append_range(gltfAsset->get().textures | std::views::transform([this](const fastgltf::Texture &texture) {
                             return vk::DescriptorImageInfo {
                                 [&]() {
-                                    if (texture.samplerIndex) return *gltfAsset->assetResources.samplers.at(*texture.samplerIndex);
+                                    if (texture.samplerIndex) return *gltfAsset->assetTextures.samplers[*texture.samplerIndex];
                                     return *assetDefaultSampler;
                                 }(),
-                                *gltfAsset->imageViews.at(*texture.imageIndex),
+                                *gltfAsset->imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture)),
                                 vk::ImageLayout::eShaderReadOnlyOptimal,
                             };
                         }));
@@ -285,10 +286,10 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
                         return static_cast<vk::DescriptorSet>(ImGui_ImplVulkan_AddTexture(
                             [&]() {
-                                if (texture.samplerIndex) return vku::toCType(*gltfAsset->assetResources.samplers.at(*texture.samplerIndex));
+                                if (texture.samplerIndex) return vku::toCType(*gltfAsset->assetTextures.samplers[*texture.samplerIndex]);
                                 return vku::toCType(*assetDefaultSampler);
                             }(),
-                            vku::toCType(*gltfAsset->imageViews.at(*texture.imageIndex)),
+                            vku::toCType(*gltfAsset->imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture))),
                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
                     })
                     | std::ranges::to<std::vector>();
@@ -462,10 +463,14 @@ vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
     const vulkan::Gpu &gpu [[clang::lifetimebound]]
 ) : dataBufferLoader { path },
     assetDir { path.parent_path() },
-    assetExpected { fastgltf::Parser{}.loadGltf(&dataBufferLoader.dataBuffer, assetDir) },
-    assetResources { get(), assetDir, gltf::AssetExternalBuffers { get(), assetDir }, gpu },
+    assetExpected { fastgltf::Parser { supportedExtensions }.loadGltf(&dataBufferLoader.dataBuffer, assetDir) },
+    assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(get(), assetDir) },
+    assetResources { get(), *assetExternalBuffers, gpu },
+    assetTextures { get(), assetDir, *assetExternalBuffers, gpu },
     imageViews { createAssetImageViews(gpu.device) },
-    sceneResources { get(), assetResources, get().scenes[get().defaultScene.value_or(0)], gpu } { }
+    sceneResources { get(), assetResources, get().scenes[get().defaultScene.value_or(0)], gpu } {
+    assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
+}
 
 auto vk_gltf_viewer::MainApp::GltfAsset::get() noexcept -> fastgltf::Asset& {
     return assetExpected.get();
@@ -474,7 +479,7 @@ auto vk_gltf_viewer::MainApp::GltfAsset::get() noexcept -> fastgltf::Asset& {
 auto vk_gltf_viewer::MainApp::GltfAsset::createAssetImageViews(
     const vk::raii::Device &device
 ) -> std::unordered_map<std::size_t, vk::raii::ImageView> {
-    return assetResources.images
+    return assetTextures.images
         | ranges::views::value_transform([&](const vku::Image &image) -> vk::raii::ImageView {
             return { device, image.getViewCreateInfo() };
         })
@@ -757,7 +762,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                 }
 
                 // Generate eqmapImage mipmaps.
-                recordMipmapGenerationCommand(cb, eqmapImage);
+                vulkan::recordMipmapGenerationCommand(cb, eqmapImage);
 
                 cb.pipelineBarrier2KHR({
                     {}, {}, {},
@@ -824,7 +829,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                     });
 
                 // Generate reducedEqmapImage mipmaps.
-                recordMipmapGenerationCommand(cb, reducedEqmapImage);
+                vulkan::recordMipmapGenerationCommand(cb, reducedEqmapImage);
 
                 // reducedEqmapImage will be used as sampled image.
                 cb.pipelineBarrier(

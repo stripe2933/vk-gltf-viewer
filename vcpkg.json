@@ -1,5 +1,6 @@
 {
   "dependencies": [
+    "boost-container",
     "fastgltf",
     "glfw3",
     "glm",
@@ -12,6 +13,7 @@
       ]
     },
     "imguizmo",
+    "ktx",
     "mikktspace",
     "nativefiledialog-extended",
     "stb",
@@ -20,7 +22,6 @@
       "features": [
         "dynamic-dispatcher"
       ]
-    },
-    "boost-container"
+    }
   ]
 }

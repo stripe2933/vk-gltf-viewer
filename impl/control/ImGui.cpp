@@ -533,7 +533,7 @@ auto vk_gltf_viewer::control::imgui::assetMaterials(AppState &appState, std::spa
                 // material.doubleSided = doubleSided; // TODO
             }
 
-            constexpr std::array alphaModes { "Opaque", "Mask", "Blend" };
+            constexpr std::array alphaModes { "OPAQUE", "MASK", "BLEND" };
             if (int alphaMode = static_cast<int>(material.alphaMode); ImGui::Combo("Alpha mode", &alphaMode, alphaModes.data(), alphaModes.size())) {
                 // material.alphaMode = static_cast<fastgltf::AlphaMode>(alphaMode); // TODO
             }

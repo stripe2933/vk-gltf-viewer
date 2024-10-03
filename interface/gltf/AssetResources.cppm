@@ -7,7 +7,6 @@ export module vk_gltf_viewer:gltf.AssetResources;
 import std;
 export import glm;
 import thread_pool;
-export import vku;
 export import :gltf.AssetExternalBuffers;
 export import :vulkan.Gpu;
 
@@ -65,18 +64,6 @@ namespace vk_gltf_viewer::gltf {
         std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos = createPrimitiveInfos();
 
         /**
-         * Asset images. <tt>images[i]</tt> represents <tt>asset.images[i]</tt>.
-         * @note Only images that are used by a texture is created.
-         */
-        std::unordered_map<std::size_t, vku::AllocatedImage> images;
-
-        /**
-         * Asset samplers. <tt>samplers[i]</tt> represents <tt>asset.samplers[i]</tt>.
-         * @note Only samplers that are used by a texture is created.
-         */
-        std::unordered_map<std::size_t, vk::raii::Sampler> samplers = createSamplers();
-
-        /**
          * Buffer that contains <tt>GpuMaterial</tt>s, with fallback material at the index 0 (total <tt>asset.materials.size() + 1</tt>).
          */
         vku::AllocatedBuffer materialBuffer = createMaterialBuffer();
@@ -89,7 +76,7 @@ namespace vk_gltf_viewer::gltf {
          */
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
-        AssetResources(const fastgltf::Asset &asset, const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, BS::thread_pool threadPool = {});
+        AssetResources(const fastgltf::Asset &asset, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, BS::thread_pool threadPool = {});
 
     private:
         std::vector<vku::AllocatedBuffer> attributeBuffers;
@@ -97,11 +84,8 @@ namespace vk_gltf_viewer::gltf {
         std::optional<vku::AllocatedBuffer> tangentBuffer;
 
         [[nodiscard]] auto createPrimitiveInfos() const -> std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo>;
-        [[nodiscard]] auto createImages(const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, BS::thread_pool &threadPool) const -> std::unordered_map<std::size_t, vku::AllocatedImage>;
-        [[nodiscard]] auto createSamplers() const -> std::unordered_map<std::size_t, vk::raii::Sampler>;
         [[nodiscard]] auto createMaterialBuffer() const -> vku::AllocatedBuffer;
 
-        auto stageImages(const std::filesystem::path &assetDir, const AssetExternalBuffers &externalBuffers, vk::CommandBuffer copyCommandBuffer, BS::thread_pool &threadPool) -> void;
         auto stageMaterials(vk::CommandBuffer copyCommandBuffer) -> void;
         auto stagePrimitiveAttributeBuffers(const AssetExternalBuffers &externalBuffers, vk::CommandBuffer copyCommandBuffer) -> void;
         auto stagePrimitiveIndexedAttributeMappingBuffers(IndexedAttribute attributeType, vk::CommandBuffer copyCommandBuffer) -> void;
@@ -111,7 +95,7 @@ namespace vk_gltf_viewer::gltf {
         /**
          * From given segments (a range of byte data), create a combined staging buffer and return each segments' start offsets.
          *
-         * Example: Two segments { 0xAA, 0xBB, 0xCC } and { 0xDD, 0xEE } will combined to { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE },
+         * Example: Two segments { 0xAA, 0xBB, 0xCC } and { 0xDD, 0xEE } will be combined to { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE },
          * and their start offsets are { 0, 3 }.
          * @param segments Data segments to be combined.
          * @return Pair of combined staging buffer and each segments' start offsets vector.

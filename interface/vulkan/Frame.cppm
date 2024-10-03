@@ -100,13 +100,13 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         struct ResourceBindingState {
-            type_variant<std::monostate, DepthRenderer, AlphaMaskedDepthRenderer, JumpFloodSeedRenderer, AlphaMaskedJumpFloodSeedRenderer> boundPipeline{};
+            type_variant<std::monostate, DepthRenderer, MaskDepthRenderer, JumpFloodSeedRenderer, MaskJumpFloodSeedRenderer> boundPipeline{};
             std::optional<vk::CullModeFlagBits> cullMode{};
             std::optional<vk::IndexType> indexBuffer;
 
-            // DepthRenderer, AlphaMaskedDepthRenderer, JumpFloodSeedRenderer and AlphaMaskedJumpFloodSeedRenderer have:
+            // DepthRenderer, MaskDepthRenderer, JumpFloodSeedRenderer and MaskJumpFloodSeedRenderer have:
             // - compatible scene descriptor set in set #0,
-            // - compatible asset descriptor set in set #1 (AlphaMaskedDepthRenderer and AlphaMaskedJumpFloodSeedRenderer only),
+            // - compatible asset descriptor set in set #1 (MaskDepthRenderer and MaskJumpFloodSeedRenderer only),
             // - compatible push constant range.
             bool sceneDescriptorSetBound = false;
             bool assetDescriptorSetBound = false;

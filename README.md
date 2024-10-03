@@ -12,18 +12,18 @@ Blazingly fast[^1] Vulkan glTF viewer.
 
 - Support glTF 2.0, including:
   - PBR material rendering with runtime IBL resources (spherical harmonics + pre-filtered environment map) generation from input equirectangular map.
-  - Support both indexed and non-indexed primitive.
-    - Runtime missing tangent attribute generation using MikkTSpace algorithm for indexed primitive.
-    - Runtime missing per-face normal and tangent attribute generation using tessellation shader (if supported) or screen-space fragment shader for non-indexed primitive.
+  - Runtime missing tangent attribute generation using MikkTSpace algorithm for indexed primitive.
+  - Runtime missing per-face normal and tangent attribute generation using tessellation shader (if supported) or screen-space fragment shader for non-indexed primitive.
   - No limits for `TEXCOORD_<i>` attributes: **can render a primitive that has arbitrary number of texture coordinates.**
-  - Support `OPAQUE`, `MASKED` (using alpha testing and Alpha To Coverage) and `BLEND` (using Weighted Blended OIT) materials.
-  - Support multiple scenes.
-  - Support binary format (`.glb`).
+  - `OPAQUE`, `MASK` (using alpha testing and Alpha To Coverage) and `BLEND` (using Weighted Blended OIT) materials.
+  - Multiple scenes.
+  - Binary format (`.glb`).
+  - GPU compressed texture (`KHR_texture_basisu`)
 - Use 4x MSAA by default.
 - Load glTF asset and equirectangular map image using native file dialog.
 - Pixel perfect node selection and transformation usin gizmo.
 - Arbitrary sized outline rendering using [Jump Flooding Algorithm](https://en.wikipedia.org/wiki/Jump_flooding_algorithm).
-- Conditionally render a node with three-state scene hierarchy view.
+- Conditionally render a node with three-state visibility in scene hierarchy tree.
 - GUI for used asset resources (buffers, images, samplers, etc.) list with docking support.
 
 Followings are not supported:
@@ -46,11 +46,11 @@ I initially developed this application for leveraging Vulkan's performance and u
 
 - Fully bindless rendering: no descriptor set update/vertex buffer binding during rendering.
   - Descriptor sets are only updated at the model loading time.
-  - Textures are accessed with runtime-descriptor indexing using `VK_EXT_descriptor_indexing` extension.
+  - Textures are accessed with runtime-descriptor indexing using [`VK_EXT_descriptor_indexing`](https://docs.vulkan.org/samples/latest/samples/extensions/descriptor_indexing/README.html) extension.
   - Use Vertex Pulling with [`VK_KHR_buffer_device_address`](https://docs.vulkan.org/samples/latest/samples/extensions/buffer_device_address/README.html). Only index buffers are bound to the command buffer.
 - Fully GPU driven rendering: uses multi draw indirect with optimally sorted rendering order. **Regardless of the material count and scene's complexity, all scene nodes can be rendered with up to 24 draw calls** in the worst case.
-  - Has 6 pipelines for 3 material types (Opaque, Masked, Blend) and 2 primitive types (Indexed, Non-Indexed) combinations.
-  - Indexed primitive index type can be either `UNSIGNED_BYTE` (if GPU supports `VK_KHR_index_type_uint8`), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
+  - Has 6 pipelines for 3 material types (`OPAQUE`, `MASK`, `BLEND`) and 2 primitive types (Indexed, Non-Indexed) combinations.
+  - Indexed primitive index type can be either `UNSIGNED_BYTE` (if GPU supports [`VK_KHR_index_type_uint8`](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_KHR_index_type_uint8.html)), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
   - Each material can be either double-sided or not, and cull mode have to be set based on this.
   - Therefore, if scene consists of the primitives of all combinations, it requires 24 draw calls. **Of course, it would be ~6 draw calls in most case.**
 - Significant less asset loading time: **glTF buffer memories are directly `memcpy`ed into the GPU memory with dedicated transfer queue. No pre-processing is required!**
@@ -158,7 +158,7 @@ Dependencies will be automatically fetched via vcpkg.
 #### Build Steps
 
 > [!TIP]
-> This project uses GitHub Runner to ensure build compatibility on both Linux and Windows, with dependency management handled by vcpkg. You can check the workflow files in the [.github/workflows](.github/workflows) folder.
+> This project uses GitHub Runner to ensure build compatibility on Windows (with MSVC), macOS and Linux (with Clang), with dependency management handled by vcpkg. You can check the workflow files in the [.github/workflows](.github/workflows) folder.
 
 First, you have to clone the repository.
 
@@ -194,7 +194,7 @@ Add the following CMake user preset file in your project directory. I'll assume 
   "version": 6,
   "configurePresets": [
     {
-      "name": "clang-x64-linux",
+      "name": "linux-clang-18",
       "displayName": "Clang",
       "inherits": "default",
       "cacheVariables": {
@@ -229,10 +229,10 @@ set(VCPKG_CMAKE_SYSTEM_NAME Linux)
 set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../clang-toolchain.cmake)
 ```
 
-Configure and build the project with `clang-x64-linux` configuration preset.
+Configure and build the project with `linux-clang-18` configuration preset.
 
 ```sh
-cmake --preset=clang-x64-linux
+cmake --preset=linux-clang-18
 cmake --build build -t vk-gltf-viewer
 ```
 
@@ -301,10 +301,10 @@ All shaders are located in the [shaders](/shaders) folder and need to be manuall
 
 ## Milestones
 
-- [ ] Basis Universal texture support (`KHR_texture_basisu`). (currently working)
+- [x] Basis Universal texture support (`KHR_texture_basisu`).
 - [ ] Reduce skybox memory usage with BC6H compressed cubemap.
 - [ ] Frustum/occlusion culling.
-- [ ] Automatic camera position adjustment based on the bounding sphere calculation.
+- [ ] Automatic camera position adjustment based on the bounding sphere calculation. (working now)
 - [ ] Animations.
 
 ## License

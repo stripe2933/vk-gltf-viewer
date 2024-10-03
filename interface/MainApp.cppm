@@ -8,6 +8,7 @@ import std;
 import vku;
 import :control.AppWindow;
 import :gltf.AssetResources;
+import :gltf.AssetTextures;
 import :gltf.SceneResources;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
@@ -29,7 +30,6 @@ namespace vk_gltf_viewer {
 
     private:
         class GltfAsset {
-        public:
             struct DataBufferLoader {
                 fastgltf::GltfDataBuffer dataBuffer;
 
@@ -37,9 +37,22 @@ namespace vk_gltf_viewer {
             };
 
             DataBufferLoader dataBufferLoader;
+
+        public:
+            static constexpr fastgltf::Extensions supportedExtensions = fastgltf::Extensions::KHR_texture_basisu;
+
             std::filesystem::path assetDir;
             fastgltf::Expected<fastgltf::Asset> assetExpected;
+
+        private:
+            /**
+             * Intermediate buffer data that would be dropped after the field initialization. DO NOT use this outside the constructor!
+             */
+            std::unique_ptr<gltf::AssetExternalBuffers> assetExternalBuffers;
+
+        public:
             gltf::AssetResources assetResources;
+            gltf::AssetTextures assetTextures;
             std::unordered_map<std::size_t, vk::raii::ImageView> imageViews;
             gltf::SceneResources sceneResources;
 

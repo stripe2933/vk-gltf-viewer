@@ -8,16 +8,16 @@ import std;
 export import vku;
 export import :vulkan.ag.Swapchain;
 export import :vulkan.Gpu;
-export import :vulkan.pipeline.AlphaMaskedDepthRenderer;
-export import :vulkan.pipeline.AlphaMaskedFacetedPrimitiveRenderer;
-export import :vulkan.pipeline.AlphaMaskedJumpFloodSeedRenderer;
-export import :vulkan.pipeline.AlphaMaskedPrimitiveRenderer;
 export import :vulkan.pipeline.BlendFacetedPrimitiveRenderer;
 export import :vulkan.pipeline.BlendPrimitiveRenderer;
 export import :vulkan.pipeline.DepthRenderer;
 export import :vulkan.pipeline.FacetedPrimitiveRenderer;
 export import :vulkan.pipeline.JumpFloodComputer;
 export import :vulkan.pipeline.JumpFloodSeedRenderer;
+export import :vulkan.pipeline.MaskDepthRenderer;
+export import :vulkan.pipeline.MaskFacetedPrimitiveRenderer;
+export import :vulkan.pipeline.MaskJumpFloodSeedRenderer;
+export import :vulkan.pipeline.MaskPrimitiveRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
 export import :vulkan.pipeline.PrimitiveRenderer;
 export import :vulkan.pipeline.SkyboxRenderer;
@@ -35,7 +35,7 @@ namespace vk_gltf_viewer::vulkan {
             shader::PrimitiveVertex primitiveVertexShader;
             shader::ScreenQuadVertex screenQuadVertexShader;
             shader::FacetedPrimitiveTessellation facetedPrimitiveTessellationShaders;
-            shader::AlphaMaskedPrimitiveFragment alphaMaskedPrimitiveFragmentShader;
+            shader::MaskPrimitiveFragment maskPrimitiveFragmentShader;
             shader::BlendPrimitiveFragment blendPrimitiveFragmentShader;
             shader::PrimitiveFragment primitiveFragmentShader;
         };
@@ -64,16 +64,16 @@ namespace vk_gltf_viewer::vulkan {
         pl::SceneRendering sceneRenderingPipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
 
         // Pipelines.
-        AlphaMaskedDepthRenderer alphaMaskedDepthRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-        AlphaMaskedFacetedPrimitiveRenderer alphaMaskedFacetedPrimitiveRenderer;
-        AlphaMaskedJumpFloodSeedRenderer alphaMaskedJumpFloodSeedRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-        AlphaMaskedPrimitiveRenderer alphaMaskedPrimitiveRenderer;
         BlendFacetedPrimitiveRenderer blendFacetedPrimitiveRenderer;
         BlendPrimitiveRenderer blendPrimitiveRenderer;
         DepthRenderer depthRenderer { gpu.device, sceneDescriptorSetLayout };
         FacetedPrimitiveRenderer facetedPrimitiveRenderer;
         JumpFloodComputer jumpFloodComputer { gpu.device };
         JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, sceneDescriptorSetLayout };
+        MaskDepthRenderer maskDepthRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+        MaskFacetedPrimitiveRenderer maskFacetedPrimitiveRenderer;
+        MaskJumpFloodSeedRenderer maskJumpFloodSeedRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+        MaskPrimitiveRenderer maskPrimitiveRenderer;
         OutlineRenderer outlineRenderer;
         PrimitiveRenderer primitiveRenderer;
         SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices };
@@ -97,11 +97,11 @@ namespace vk_gltf_viewer::vulkan {
             : gpu { gpu }
             , swapchain { createSwapchain(surface, swapchainExtent) }
             , swapchainExtent { swapchainExtent }
-            , alphaMaskedFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass }
-            , alphaMaskedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.alphaMaskedPrimitiveFragmentShader, sceneRenderPass }
             , blendFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass }
             , blendPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.blendPrimitiveFragmentShader, sceneRenderPass }
             , facetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass }
+            , maskFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass }
+            , maskPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.maskPrimitiveFragmentShader, sceneRenderPass }
             , outlineRenderer { gpu.device, shaders.screenQuadVertexShader }
             , weightedBlendedCompositionRenderer { gpu.device, shaders.screenQuadVertexShader, sceneRenderPass }
             , primitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.primitiveFragmentShader, sceneRenderPass } {
@@ -153,21 +153,21 @@ namespace vk_gltf_viewer::vulkan {
 
             // Following pipelines are dependent to the assetDescriptorSetLayout or sceneRenderingPipelineLayout.
             const Shaders shaders;
-            alphaMaskedDepthRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-            alphaMaskedJumpFloodSeedRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-            alphaMaskedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.alphaMaskedPrimitiveFragmentShader, sceneRenderPass };
             blendPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.blendPrimitiveFragmentShader, sceneRenderPass };
+            maskDepthRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+            maskJumpFloodSeedRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+            maskPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.maskPrimitiveFragmentShader, sceneRenderPass };
             primitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.primitiveFragmentShader, sceneRenderPass };
 
             if (gpu.supportTessellationShader) {
-                alphaMaskedFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, shaders.facetedPrimitiveTessellationShaders, shaders.alphaMaskedPrimitiveFragmentShader, sceneRenderPass };
                 blendFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, shaders.facetedPrimitiveTessellationShaders, shaders.blendPrimitiveFragmentShader, sceneRenderPass };
                 facetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, shaders.facetedPrimitiveTessellationShaders, shaders.primitiveFragmentShader, sceneRenderPass };
+                maskFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, shaders.facetedPrimitiveTessellationShaders, shaders.maskPrimitiveFragmentShader, sceneRenderPass };
             }
             else {
-                alphaMaskedFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass };
                 blendFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass };
                 facetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass };
+                maskFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass };
             }
 
             textureDescriptorPool = createTextureDescriptorPool();

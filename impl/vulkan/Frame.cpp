@@ -552,7 +552,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         = [&](
             const std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> &indirectDrawCommandBuffers,
             const auto &opaqueOrBlendRenderer,
-            const auto &maskedRenderer
+            const auto &maskRenderer
         ) {
             // Render alphaMode=Opaque or BLEND meshes.
             const auto drawOpaqueOrBlendMesh = [&](fastgltf::AlphaMode alphaMode) {
@@ -597,26 +597,26 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             // Render alphaMode=Mask meshes.
             for (auto [begin, end] = indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
                  const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
-                if (!resourceBindingState.boundPipeline.holds_alternative<std::remove_cvref_t<decltype(maskedRenderer)>>()) {
-                    maskedRenderer.bindPipeline(cb);
-                    resourceBindingState.boundPipeline.emplace<std::remove_cvref_t<decltype(maskedRenderer)>>();
+                if (!resourceBindingState.boundPipeline.holds_alternative<std::remove_cvref_t<decltype(maskRenderer)>>()) {
+                    maskRenderer.bindPipeline(cb);
+                    resourceBindingState.boundPipeline.emplace<std::remove_cvref_t<decltype(maskRenderer)>>();
                 }
 
                 if (!resourceBindingState.sceneDescriptorSetBound) {
-                    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *maskedRenderer.pipelineLayout,
+                    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *maskRenderer.pipelineLayout,
                         0, { sharedData.sceneDescriptorSet, sharedData.assetDescriptorSet }, {});
                     resourceBindingState.sceneDescriptorSetBound = true;
                 }
                 else if (!resourceBindingState.assetDescriptorSetBound) {
                     // Scene descriptor set already bound by DepthRenderer, therefore binding only asset descriptor set (in set #1)
                     // is enough.
-                    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *maskedRenderer.pipelineLayout,
+                    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *maskRenderer.pipelineLayout,
                         1, sharedData.assetDescriptorSet, {});
                     resourceBindingState.assetDescriptorSetBound = true;
                 }
 
                 if (!resourceBindingState.pushConstantBound) {
-                    maskedRenderer.pushConstants(cb, { projectionViewMatrix });
+                    maskRenderer.pushConstants(cb, { projectionViewMatrix });
                     resourceBindingState.pushConstantBound = true;
                 }
 
@@ -647,7 +647,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 { NO_INDEX, 0U, 0U, 0U },
             },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
-        drawPrimitives(renderingNodes->indirectDrawCommandBuffers, sharedData.depthRenderer, sharedData.alphaMaskedDepthRenderer);
+        drawPrimitives(renderingNodes->indirectDrawCommandBuffers, sharedData.depthRenderer, sharedData.maskDepthRenderer);
         cb.endRenderingKHR();
     }
 
@@ -656,7 +656,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.beginRenderingKHR(passthruResources->hoveringNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
             vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
-        drawPrimitives(hoveringNode->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.alphaMaskedJumpFloodSeedRenderer);
+        drawPrimitives(hoveringNode->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.maskJumpFloodSeedRenderer);
         cb.endRenderingKHR();
     }
 
@@ -665,7 +665,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.beginRenderingKHR(passthruResources->selectedNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
             vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
-        drawPrimitives(selectedNodes->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.alphaMaskedJumpFloodSeedRenderer);
+        drawPrimitives(selectedNodes->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.maskJumpFloodSeedRenderer);
         cb.endRenderingKHR();
     }
 
@@ -725,11 +725,11 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
 auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const -> void {
     assert(renderingNodes && "No nodes have to be rendered.");
 
-    type_variant<std::monostate, PrimitiveRenderer, AlphaMaskedPrimitiveRenderer, FacetedPrimitiveRenderer, AlphaMaskedFacetedPrimitiveRenderer> boundPipeline{};
+    type_variant<std::monostate, PrimitiveRenderer, MaskPrimitiveRenderer, FacetedPrimitiveRenderer, MaskFacetedPrimitiveRenderer> boundPipeline{};
     std::optional<vk::CullModeFlagBits> currentCullMode{};
     std::optional<vk::IndexType> currentIndexBuffer{};
 
-    // (AlphaMasked)(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
+    // (Mask)(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
     // therefore they only need to be bound once.
     bool descriptorBound = false;
     bool pushConstantBound = false;
@@ -774,13 +774,13 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
     // Render alphaMode=Mask meshes.
     for (auto [begin, end] = renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
          const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
-        if (criteria.faceted && !boundPipeline.holds_alternative<AlphaMaskedPrimitiveRenderer>()) {
-            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.alphaMaskedPrimitiveRenderer);
-            boundPipeline.emplace<AlphaMaskedPrimitiveRenderer>();
+        if (criteria.faceted && !boundPipeline.holds_alternative<MaskPrimitiveRenderer>()) {
+            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.maskPrimitiveRenderer);
+            boundPipeline.emplace<MaskPrimitiveRenderer>();
         }
-        else if (!criteria.faceted && !boundPipeline.holds_alternative<AlphaMaskedFacetedPrimitiveRenderer>()){
-            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.alphaMaskedFacetedPrimitiveRenderer);
-            boundPipeline.emplace<AlphaMaskedFacetedPrimitiveRenderer>();
+        else if (!criteria.faceted && !boundPipeline.holds_alternative<MaskFacetedPrimitiveRenderer>()){
+            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.maskFacetedPrimitiveRenderer);
+            boundPipeline.emplace<MaskFacetedPrimitiveRenderer>();
         }
         if (!descriptorBound) {
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0,
