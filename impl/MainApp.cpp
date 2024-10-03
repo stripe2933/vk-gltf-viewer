@@ -267,7 +267,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                                     if (texture.samplerIndex) return *gltfAsset->assetTextures.samplers[*texture.samplerIndex];
                                     return *assetDefaultSampler;
                                 }(),
-                                *gltfAsset->imageViews.at(*texture.imageIndex),
+                                *gltfAsset->imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture)),
                                 vk::ImageLayout::eShaderReadOnlyOptimal,
                             };
                         }));
@@ -288,7 +288,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                                 if (texture.samplerIndex) return vku::toCType(*gltfAsset->assetTextures.samplers[*texture.samplerIndex]);
                                 return vku::toCType(*assetDefaultSampler);
                             }(),
-                            vku::toCType(*gltfAsset->imageViews.at(*texture.imageIndex)),
+                            vku::toCType(*gltfAsset->imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture))),
                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
                     })
                     | std::ranges::to<std::vector>();
@@ -462,7 +462,7 @@ vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
     const vulkan::Gpu &gpu [[clang::lifetimebound]]
 ) : dataBufferLoader { path },
     assetDir { path.parent_path() },
-    assetExpected { fastgltf::Parser{}.loadGltf(&dataBufferLoader.dataBuffer, assetDir) },
+    assetExpected { fastgltf::Parser { supportedExtensions }.loadGltf(&dataBufferLoader.dataBuffer, assetDir) },
     assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(get(), assetDir) },
     assetResources { get(), *assetExternalBuffers, gpu },
     assetTextures { get(), assetDir, *assetExternalBuffers, gpu },

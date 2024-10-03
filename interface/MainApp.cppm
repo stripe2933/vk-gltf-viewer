@@ -39,6 +39,8 @@ namespace vk_gltf_viewer {
             DataBufferLoader dataBufferLoader;
 
         public:
+            static constexpr fastgltf::Extensions supportedExtensions = fastgltf::Extensions::KHR_texture_basisu;
+
             std::filesystem::path assetDir;
             fastgltf::Expected<fastgltf::Asset> assetExpected;
 

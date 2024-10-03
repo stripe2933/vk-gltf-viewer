@@ -13,6 +13,7 @@ find_package(boost_container CONFIG REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
+find_package(Ktx CONFIG REQUIRED)
 find_package(unofficial-imguizmo CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
@@ -132,6 +133,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     Boost::container
     fastgltf::fastgltf
     imgui::imgui
+    KTX::ktx
     unofficial::imguizmo::imguizmo
     mikktspace::mikktspace
     nfd::nfd
