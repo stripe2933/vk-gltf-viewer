@@ -17,6 +17,7 @@ import std;
 import ranges;
 import vku;
 import :control.ImGui;
+import :gltf.AssetTextures;
 import :helpers.functional;
 import :io.StbDecoder;
 import :vulkan.Frame;
