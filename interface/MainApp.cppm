@@ -39,7 +39,6 @@ namespace vk_gltf_viewer {
             DataBufferLoader dataBufferLoader;
 
         public:
-
             std::filesystem::path assetDir;
             fastgltf::Expected<fastgltf::Asset> assetExpected;
 

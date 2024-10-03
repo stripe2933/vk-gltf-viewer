@@ -14,14 +14,14 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - PBR material rendering with runtime IBL resources (spherical harmonics + pre-filtered environment map) generation from input equirectangular map.
   - Runtime missing tangent attribute generation using MikkTSpace algorithm for indexed primitive.
   - Runtime missing per-face normal and tangent attribute generation using tessellation shader (if supported) or screen-space fragment shader for non-indexed primitive.
-  - No limits for `TEXCOORD_<i>` attributes: **can render a primitive that has arbitrary number of texture coordinates.**
+  - Unlimited `TEXCOORD_<i>` attributes: **can render a primitive that has arbitrary number of texture coordinates.**
   - `OPAQUE`, `MASK` (using alpha testing and Alpha To Coverage) and `BLEND` (using Weighted Blended OIT) materials.
   - Multiple scenes.
   - Binary format (`.glb`).
   - GPU compressed texture (`KHR_texture_basisu`)
 - Use 4x MSAA by default.
 - Load glTF asset and equirectangular map image using native file dialog.
-- Pixel perfect node selection and transformation usin gizmo.
+- Pixel perfect node selection and transformation using [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo).
 - Arbitrary sized outline rendering using [Jump Flooding Algorithm](https://en.wikipedia.org/wiki/Jump_flooding_algorithm).
 - Conditionally render a node with three-state visibility in scene hierarchy tree.
 - GUI for used asset resources (buffers, images, samplers, etc.) list with docking support.
@@ -44,7 +44,7 @@ I initially developed this application for leveraging Vulkan's performance and u
 
 ### Speed
 
-- Fully bindless rendering: no descriptor set update/vertex buffer binding during rendering.
+- Fully bindless: no descriptor set update/vertex buffer binding during rendering.
   - Descriptor sets are only updated at the model loading time.
   - Textures are accessed with runtime-descriptor indexing using [`VK_EXT_descriptor_indexing`](https://docs.vulkan.org/samples/latest/samples/extensions/descriptor_indexing/README.html) extension.
   - Use Vertex Pulling with [`VK_KHR_buffer_device_address`](https://docs.vulkan.org/samples/latest/samples/extensions/buffer_device_address/README.html). Only index buffers are bound to the command buffer.
@@ -87,7 +87,7 @@ The extensions and feature used in this application are quite common in the mode
   - `VK_KHR_synchronization2`
   - `VK_EXT_extended_dynamic_state` (dynamic state cull mode)
   - `VK_KHR_swapchain`
-  - `VK_KHR_swapchain_mutable_format` (proper ImGui gamma correction)
+  - (optional) `VK_KHR_swapchain_mutable_format` (proper ImGui gamma correction, UI color will lose the color if the extension not presented)
 - Device Features
   - `VkPhysicalDeviceFeatures`
     - `samplerAnistropy`
@@ -140,15 +140,16 @@ Additionally, you need vcpkg for dependency management. Make sure `VCPKG_ROOT` e
 #### Dependencies
 
 This project depends on:
+- [boost-container](https://www.boost.org/doc/libs/1_86_0/doc/html/container.html) (it uses modular boost.)
+- [CGAL](https://www.cgal.org)
+- [fastgltf](https://github.com/spnda/fastgltf)
 - [GLFW](https://github.com/glfw/glfw)
 - [glm](https://github.com/g-truc/glm)
-- [fastgltf](https://github.com/spnda/fastgltf)
 - [ImGui](https://github.com/ocornut/imgui)
 - [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo)
 - [MikkTSpace](http://www.mikktspace.com)
 - [Native File Dialog Extended](https://github.com/btzy/nativefiledialog-extended)
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h)
-- [boost-container](https://www.boost.org/doc/libs/1_86_0/doc/html/container.html) (it uses modular boost.)
 - My own Vulkan-Hpp helper library, [vku](https://github.com/stripe2933/vku/tree/module) (branch `module`), which has the following dependencies:
   - [Vulkan-Hpp](https://github.com/KhronosGroup/Vulkan-Hpp)
   - [VulkanMemoryAllocator-Hpp](https://github.com/YaaZ/VulkanMemoryAllocator-Hpp)
@@ -248,7 +249,7 @@ Add the following CMake user preset file in your project directory. I'll assume 
   "version": 6,
   "configurePresets": [
     {
-      "name": "clang-arm64-macos",
+      "name": "macos-clang",
       "inherits": "default",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
@@ -283,10 +284,10 @@ set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
 set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../clang-toolchain.cmake)
 ```
 
-Configure and build the project with `clang-arm64-macos` configuration preset.
+Configure and build the project with `macos-clang` configuration preset.
 
 ```sh
-cmake --preset=clang-arm64-macos
+cmake --preset=macos-clang
 cmake --build build -t vk-gltf-viewer
 ```
 
