@@ -106,7 +106,7 @@ namespace vk_gltf_viewer {
         vulkan::SharedData sharedData { gpu, window.getSurface(), vk::Extent2D { static_cast<std::uint32_t>(window.getFramebufferSize().x), static_cast<std::uint32_t>(window.getFramebufferSize().y) } };
         std::array<vulkan::Frame, 2> frames{ vulkan::Frame { gpu, sharedData }, vulkan::Frame { gpu, sharedData } };
         
-        [[nodiscard]] auto createInstance() const -> decltype(instance);
+        [[nodiscard]] auto createInstance() const -> vk::raii::Instance;
         [[nodiscard]] auto createAssetFallbackImage() const -> vku::AllocatedImage;
         [[nodiscard]] auto createAssetDefaultSampler() const -> vk::raii::Sampler;
         [[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;

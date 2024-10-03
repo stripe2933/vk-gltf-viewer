@@ -492,7 +492,17 @@ auto vk_gltf_viewer::MainApp::GltfAsset::createAssetImageViews(
         | std::ranges::to<std::unordered_map>();
 }
 
-auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
+auto vk_gltf_viewer::MainApp::createInstance() const -> vk::raii::Instance {
+    std::vector<const char*> extensions{
+#if __APPLE__
+        vk::KHRPortabilityEnumerationExtensionName,
+#endif
+    };
+
+    std::uint32_t glfwExtensionCount;
+    const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    extensions.append_range(std::views::counted(glfwExtensions, glfwExtensionCount));
+
     vk::raii::Instance instance { context, vk::InstanceCreateInfo{
 #if __APPLE__
         vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR,
@@ -505,19 +515,7 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
             vk::makeApiVersion(0, 1, 2, 0),
         }),
         {},
-        vku::unsafeProxy([]() {
-            std::vector<const char*> extensions{
-#if __APPLE__
-                vk::KHRPortabilityEnumerationExtensionName,
-#endif
-            };
-
-            std::uint32_t glfwExtensionCount;
-            const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-            extensions.append_range(std::views::counted(glfwExtensions, glfwExtensionCount));
-
-            return extensions;
-        }()),
+        extensions,
     } };
     VULKAN_HPP_DEFAULT_DISPATCHER.init(*instance);
     return instance;
