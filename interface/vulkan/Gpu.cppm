@@ -44,13 +44,13 @@ namespace vk_gltf_viewer::vulkan {
             const QueueFamilies &queueFamilies
         ) noexcept -> vku::RefHolder<std::vector<vk::DeviceQueueCreateInfo>> {
             return { [&]() {
-                static constexpr float priority = 1.f;
+                static constexpr std::array priorities { 1.f };
                 return queueFamilies.getUniqueIndices()
                     | std::views::transform([=](std::uint32_t queueFamilyIndex) {
                         return vk::DeviceQueueCreateInfo {
                             {},
                             queueFamilyIndex,
-                            vk::ArrayProxyNoTemporaries(priority),
+                            priorities,
                         };
                     })
                     | std::ranges::to<std::vector>();
