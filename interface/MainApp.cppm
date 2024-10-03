@@ -39,7 +39,6 @@ namespace vk_gltf_viewer {
             DataBufferLoader dataBufferLoader;
 
         public:
-            static constexpr fastgltf::Extensions supportedExtensions = fastgltf::Extensions::KHR_texture_basisu;
 
             std::filesystem::path assetDir;
             fastgltf::Expected<fastgltf::Asset> assetExpected;
@@ -56,7 +55,7 @@ namespace vk_gltf_viewer {
             std::unordered_map<std::size_t, vk::raii::ImageView> imageViews;
             gltf::SceneResources sceneResources;
 
-            GltfAsset(const std::filesystem::path &path, const vulkan::Gpu &gpu [[clang::lifetimebound]]);
+            GltfAsset(fastgltf::Parser &parser, const std::filesystem::path &path, const vulkan::Gpu &gpu [[clang::lifetimebound]]);
 
             [[nodiscard]] auto get() noexcept -> fastgltf::Asset&;
 
@@ -78,12 +77,16 @@ namespace vk_gltf_viewer {
             vk::raii::ImageView prefilteredmapImageView;
         };
 
+        static constexpr fastgltf::Extensions supportedExtensions = fastgltf::Extensions::KHR_texture_basisu;
+
         AppState appState;
 
         vk::raii::Context context;
         vk::raii::Instance instance = createInstance();
         control::AppWindow window { instance, appState };
         vulkan::Gpu gpu { instance, window.getSurface() };
+
+        fastgltf::Parser parser { supportedExtensions };
 
         // Buffers, images, image views and samplers.
         vku::AllocatedImage assetFallbackImage = createAssetFallbackImage();
