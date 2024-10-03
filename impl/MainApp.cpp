@@ -27,6 +27,12 @@ import :vulkan.mipmap;
 import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
+#ifdef _MSC_VER
+#define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
+#else
+#define PATH_C_STR(...) (__VA_ARGS__).c_str()
+#endif
+
 vk_gltf_viewer::MainApp::MainApp() {
     const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
 
@@ -612,7 +618,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 ) -> void {
     // Load equirectangular map image and stage it into eqmapImage.
     int width, height;
-    if (!stbi_info(eqmapPath.string().c_str(), &width, &height, nullptr)) {
+    if (!stbi_info(PATH_C_STR(eqmapPath), &width, &height, nullptr)) {
         throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
     }
 
@@ -711,7 +717,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
                 eqmapStagingBuffer = std::make_unique<vku::AllocatedBuffer>(vku::MappedBuffer {
                     gpu.allocator,
-                    std::from_range, io::StbDecoder<float>::fromFile(eqmapPath.string().c_str(), 4).asSpan(),
+                    std::from_range, io::StbDecoder<float>::fromFile(PATH_C_STR(eqmapPath), 4).asSpan(),
                     vk::BufferUsageFlagBits::eTransferSrc
                 }.unmap());
 
