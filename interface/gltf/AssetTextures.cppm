@@ -214,6 +214,9 @@ namespace vk_gltf_viewer::gltf {
                     const auto processCompressedImageFromLoadResult = [&](ktxTexture2* &&texture) {
                         // Transcode the texture to BC7 format if needed.
                         if (ktxTexture2_NeedsTranscoding(texture)) {
+                            // TODO: As glTF specification says, transfer function should be KHR_DF_TRANSFER_SRGB, but
+                            //  using it causes error (msg=Feature not included in in-use library or not yet implemented.)
+                            //  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md#khr_texture_basisu
                             if (KTX_error_code result = ktxTexture2_TranscodeBasis(texture, KTX_TTF_BC7_RGBA, 0); result != KTX_SUCCESS) {
                                 throw std::runtime_error { std::format("Failed to transcode the KTX texture: {}", ktxErrorString(result)) };
                             }
