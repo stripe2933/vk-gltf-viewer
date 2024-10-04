@@ -51,13 +51,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 .setPColorBlendState(vku::unsafeAddress(vk::PipelineColorBlendStateCreateInfo {
                     {},
                     false, {},
-                    vku::unsafeProxy({
-                        vk::PipelineColorBlendAttachmentState {
-                            true,
-                            vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
-                            vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
-                            vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-                        },
+                    vku::unsafeProxy(vk::PipelineColorBlendAttachmentState {
+                        true,
+                        vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
+                        vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
+                        vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
                     }),
                     { 1.f, 1.f, 1.f, 1.f },
                 }))

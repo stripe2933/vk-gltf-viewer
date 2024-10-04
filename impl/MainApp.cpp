@@ -609,13 +609,11 @@ auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() -> decltype(imGuiDescr
         1 /* Default ImGui rendering */
             + 1 /* reducedEqmapImage texture */
             + /*static_cast<std::uint32_t>(gltfAsset->get().textures.size())*/ 512 /* material textures */, // TODO: need proper texture count.
-        vku::unsafeProxy({
-            vk::DescriptorPoolSize {
-                vk::DescriptorType::eCombinedImageSampler,
-                1 /* Default ImGui rendering */
-                    + 1 /* reducedEqmapImage texture */
-                    + /*static_cast<std::uint32_t>(gltfAsset->get().textures.size())*/ 512 /* material textures */ // TODO: need proper texture count.
-            },
+        vku::unsafeProxy(vk::DescriptorPoolSize {
+            vk::DescriptorType::eCombinedImageSampler,
+            1 /* Default ImGui rendering */
+                + 1 /* reducedEqmapImage texture */
+                + /*static_cast<std::uint32_t>(gltfAsset->get().textures.size())*/ 512 /* material textures */ // TODO: need proper texture count.
         }),
     } };
 }

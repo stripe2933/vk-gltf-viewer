@@ -75,12 +75,8 @@ namespace vk_gltf_viewer::vulkan::rp {
                         {},
                         vk::PipelineBindPoint::eGraphics,
                         {},
-                        vku::unsafeProxy({
-                            vk::AttachmentReference { 0, vk::ImageLayout::eColorAttachmentOptimal },
-                        }),
-                        vku::unsafeProxy({
-                            vk::AttachmentReference { 1, vk::ImageLayout::eColorAttachmentOptimal },
-                        }),
+                        vku::unsafeProxy(vk::AttachmentReference { 0, vk::ImageLayout::eColorAttachmentOptimal }),
+                        vku::unsafeProxy(vk::AttachmentReference { 1, vk::ImageLayout::eColorAttachmentOptimal }),
                         vku::unsafeAddress(vk::AttachmentReference { 2, vk::ImageLayout::eDepthStencilAttachmentOptimal }),
                     },
                     // Weighted blended pass.
@@ -106,9 +102,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                             vk::AttachmentReference { 4, vk::ImageLayout::eShaderReadOnlyOptimal },
                             vk::AttachmentReference { 6, vk::ImageLayout::eShaderReadOnlyOptimal },
                         }),
-                        vku::unsafeProxy({
-                            vk::AttachmentReference { 1, vk::ImageLayout::eColorAttachmentOptimal },
-                        }),
+                        vku::unsafeProxy(vk::AttachmentReference { 1, vk::ImageLayout::eColorAttachmentOptimal }),
                     },
                 }),
                 vku::unsafeProxy({

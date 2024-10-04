@@ -8,8 +8,6 @@ import std;
 import ranges;
 export import :vulkan.Gpu;
 
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class SubgroupMipmapComputer {
         struct PushConstant {
@@ -27,14 +25,10 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     vk::StructureChain {
                         vk::DescriptorSetLayoutCreateInfo {
                             vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-                            vku::unsafeProxy({
-                                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, mipImageCount, vk::ShaderStageFlagBits::eCompute },
-                            }),
+                            vku::unsafeProxy(vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, mipImageCount, vk::ShaderStageFlagBits::eCompute }),
                         },
                         vk::DescriptorSetLayoutBindingFlagsCreateInfo {
-                            vku::unsafeProxy({
-                                vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind },
-                            }),
+                            vku::unsafeProxy(vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind }),
                         },
                     }.get(),
                 } { }
@@ -51,11 +45,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
                 {},
                 *descriptorSetLayout,
-                vku::unsafeProxy({
-                    vk::PushConstantRange {
-                        vk::ShaderStageFlagBits::eCompute,
-                        0, sizeof(PushConstant),
-                    },
+                vku::unsafeProxy(vk::PushConstantRange {
+                    vk::ShaderStageFlagBits::eCompute,
+                    0, sizeof(PushConstant),
                 }),
             } },
             pipeline { gpu.device, nullptr, vk::ComputePipelineCreateInfo {

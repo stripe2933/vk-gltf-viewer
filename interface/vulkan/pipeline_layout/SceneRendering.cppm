@@ -25,11 +25,9 @@ namespace vk_gltf_viewer::vulkan::pl {
         ) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},
                 vku::unsafeProxy(std::apply([](const auto &...x) { return std::array { *x... }; }, descriptorSetLayouts)),
-                vku::unsafeProxy({
-                    vk::PushConstantRange {
-                        vk::ShaderStageFlagBits::eAllGraphics,
-                        0, sizeof(PushConstant),
-                    },
+                vku::unsafeProxy(vk::PushConstantRange {
+                    vk::ShaderStageFlagBits::eAllGraphics,
+                    0, sizeof(PushConstant),
                 }),
             } } { }
 

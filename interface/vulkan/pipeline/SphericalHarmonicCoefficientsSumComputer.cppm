@@ -7,6 +7,7 @@ export module vk_gltf_viewer:vulkan.pipeline.SphericalHarmonicCoefficientsSumCom
 import std;
 import vku;
 export import vulkan_hpp;
+import :helpers.extended_arithmetic;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class SphericalHarmonicCoefficientsSumComputer {
@@ -18,9 +19,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     device,
                     vk::DescriptorSetLayoutCreateInfo {
                         {},
-                        vku::unsafeProxy({
-                            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute },
-                        }),
+                        vku::unsafeProxy(vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute }),
                     },
                 } { }
         };
@@ -35,17 +34,15 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        SphericalHarmonicCoefficientsSumComputer(
+        explicit SphericalHarmonicCoefficientsSumComputer(
             const vk::raii::Device &device [[clang::lifetimebound]]
         ) : descriptorSetLayout { device },
             pipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},
                 *descriptorSetLayout,
-                vku::unsafeProxy({
-                    vk::PushConstantRange {
-                        vk::ShaderStageFlagBits::eCompute,
-                        0, sizeof(PushConstant),
-                    },
+                vku::unsafeProxy(vk::PushConstantRange {
+                    vk::ShaderStageFlagBits::eCompute,
+                    0, sizeof(PushConstant),
                 }),
             } },
             pipeline { device, nullptr, vk::ComputePipelineCreateInfo {
@@ -61,10 +58,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
             PushConstant pushConstant
         ) const -> std::uint32_t {
-            constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) -> std::uint32_t {
-                return (num / denom) + (num % denom != 0);
-            };
-
             commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
 
@@ -91,9 +84,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         [[nodiscard]] static auto getPingPongBufferElementCount(
             std::uint32_t elementCount
         ) noexcept -> std::uint32_t {
-            constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) -> std::uint32_t {
-                return (num / denom) + (num % denom != 0);
-            };
             return elementCount + divCeil(elementCount, 256U);
         }
     };

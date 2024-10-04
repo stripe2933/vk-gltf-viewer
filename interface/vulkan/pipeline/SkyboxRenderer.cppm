@@ -29,11 +29,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         ) : pipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},
                 *descriptorSetLayout,
-                vku::unsafeProxy({
-                    vk::PushConstantRange {
-                        vk::ShaderStageFlagBits::eVertex,
-                        0, sizeof(PushConstant),
-                    },
+                vku::unsafeProxy(vk::PushConstantRange {
+                    vk::ShaderStageFlagBits::eVertex,
+                    0, sizeof(PushConstant),
                 }),
             } },
             pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(

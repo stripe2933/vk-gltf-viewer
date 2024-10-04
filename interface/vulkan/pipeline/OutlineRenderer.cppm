@@ -13,9 +13,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     device,
                     vk::DescriptorSetLayoutCreateInfo {
                         {},
-                        vku::unsafeProxy({
-                            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eSampledImage, 1, vk::ShaderStageFlagBits::eFragment },
-                        }),
+                        vku::unsafeProxy(vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eSampledImage, 1, vk::ShaderStageFlagBits::eFragment }),
                     },
                 } { }
         };
@@ -37,11 +35,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             pipelineLayout { device, vk::PipelineLayoutCreateInfo{
                 {},
                 *descriptorSetLayout,
-                vku::unsafeProxy({
-                    vk::PushConstantRange {
-                        vk::ShaderStageFlagBits::eFragment,
-                        0, sizeof(PushConstant),
-                    },
+                vku::unsafeProxy(vk::PushConstantRange {
+                    vk::ShaderStageFlagBits::eFragment,
+                    0, sizeof(PushConstant),
                 }),
             } },
             pipeline { device, nullptr, vk::StructureChain {
@@ -63,18 +59,16 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     .setPColorBlendState(vku::unsafeAddress(vk::PipelineColorBlendStateCreateInfo {
                         {},
                         false, {},
-                        vku::unsafeProxy({
-                            vk::PipelineColorBlendAttachmentState {
-                                true,
-                                vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
-                                vk::BlendFactor::eOne, vk::BlendFactor::eZero, vk::BlendOp::eAdd,
-                                vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-                            },
+                        vku::unsafeProxy(vk::PipelineColorBlendAttachmentState {
+                            true,
+                            vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
+                            vk::BlendFactor::eOne, vk::BlendFactor::eZero, vk::BlendOp::eAdd,
+                            vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
                         }),
                     })),
                 vk::PipelineRenderingCreateInfo {
                     {},
-                    vku::unsafeProxy({ vk::Format::eB8G8R8A8Srgb }),
+                    vku::unsafeProxy(vk::Format::eB8G8R8A8Srgb),
                 },
             }.get() } { }
     };

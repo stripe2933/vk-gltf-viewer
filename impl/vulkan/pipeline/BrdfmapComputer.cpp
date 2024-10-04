@@ -6,7 +6,6 @@ module vk_gltf_viewer;
 import :vulkan.pipeline.BrdfmapComputer;
 
 import std;
-import vku;
 
 vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device
@@ -14,9 +13,7 @@ vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::DescriptorSetLayout::Descript
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
-            vku::unsafeProxy({
-                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
-            }),
+            vku::unsafeProxy(vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute }),
         }
     } { }
 

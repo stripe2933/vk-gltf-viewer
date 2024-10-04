@@ -13,11 +13,9 @@ vk_gltf_viewer::vulkan::pipeline::DepthRenderer::DepthRenderer(
 ) : pipelineLayout { device, vk::PipelineLayoutCreateInfo{
         {},
         *descriptorSetLayout,
-        vku::unsafeProxy({
-            vk::PushConstantRange {
-                vk::ShaderStageFlagBits::eVertex,
-                0, sizeof(PushConstant),
-            },
+        vku::unsafeProxy(vk::PushConstantRange {
+            vk::ShaderStageFlagBits::eVertex,
+            0, sizeof(PushConstant),
         }),
     } },
     pipeline { device, nullptr, vk::StructureChain {
@@ -41,7 +39,7 @@ vk_gltf_viewer::vulkan::pipeline::DepthRenderer::DepthRenderer(
             })),
         vk::PipelineRenderingCreateInfo {
             {},
-            vku::unsafeProxy({ vk::Format::eR32Uint }),
+            vku::unsafeProxy(vk::Format::eR32Uint),
             vk::Format::eD32Sfloat,
         }
     }.get() } { }

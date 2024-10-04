@@ -7,8 +7,7 @@ export module vk_gltf_viewer:vulkan.pipeline.PrefilteredmapComputer;
 import std;
 import vku;
 export import vulkan_hpp;
-
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
+import :helpers.extended_arithmetic;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class PrefilteredmapComputer {
@@ -69,11 +68,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             pipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},
                 *descriptorSetLayout,
-                vku::unsafeProxy({
-                    vk::PushConstantRange {
-                        vk::ShaderStageFlagBits::eCompute,
-                        0, sizeof(PushConstant),
-                    },
+                vku::unsafeProxy(vk::PushConstantRange {
+                    vk::ShaderStageFlagBits::eCompute,
+                    0, sizeof(PushConstant),
                 }),
             } },
             roughnessLevels { specializationConstants.roughnessLevels },
@@ -91,10 +88,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
             std::uint32_t prefilteredmapSize
         ) const -> void {
-            constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) -> std::uint32_t {
-                return (num / denom) + (num % denom != 0);
-            };
-
             commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
             for (std::uint32_t mipLevel = 0; mipLevel < roughnessLevels; ++mipLevel) {

@@ -377,9 +377,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
 
     gpu.queues.compute.submit(vk::SubmitInfo {
         *scenePrepassFinishSema,
-        vku::unsafeProxy({
-            vk::Flags { vk::PipelineStageFlagBits::eComputeShader },
-        }),
+        vku::unsafeProxy(vk::Flags { vk::PipelineStageFlagBits::eComputeShader }),
         jumpFloodCommandBuffer,
         *jumpFloodFinishSema,
     });

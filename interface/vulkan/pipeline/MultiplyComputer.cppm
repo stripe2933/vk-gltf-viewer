@@ -7,6 +7,7 @@ export module vk_gltf_viewer:vulkan.pipeline.MultiplyComputer;
 import std;
 import vku;
 export import vulkan_hpp;
+import :helpers.extended_arithmetic;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class MultiplyComputer {
@@ -41,11 +42,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             pipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},
                 *descriptorSetLayout,
-                vku::unsafeProxy({
-                    vk::PushConstantRange {
-                        vk::ShaderStageFlagBits::eCompute,
-                        0, sizeof(PushConstant),
-                    },
+                vku::unsafeProxy(vk::PushConstantRange {
+                    vk::ShaderStageFlagBits::eCompute,
+                    0, sizeof(PushConstant),
                 }),
             } },
             pipeline { device, nullptr, vk::ComputePipelineCreateInfo {
@@ -61,10 +60,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
             const PushConstant &pushConstant
         ) const -> void {
-            constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) -> std::uint32_t {
-                return (num / denom) + (num % denom != 0);
-            };
-
             commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
             commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
