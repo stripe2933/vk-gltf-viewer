@@ -13,6 +13,12 @@ namespace vk_gltf_viewer::control {
         float zMin;
         float zMax;
 
+        /**
+         * A distance to be used for <tt>ImGuizmo::ViewManipulate</tt>, which is the distance between pivot and
+         * <tt>position</tt>.
+         */
+        float targetDistance;
+
         [[nodiscard]] auto getViewMatrix() const noexcept -> glm::mat4 {
             return lookAt(position, position + direction, up);
         }

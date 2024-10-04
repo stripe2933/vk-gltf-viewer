@@ -309,6 +309,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 appState.camera.position = sceneCenter - glm::dvec3 { distance * normalize(appState.camera.direction) };
                 appState.camera.zMin = distance - sceneRadius;
                 appState.camera.zMax = distance + sceneRadius;
+                appState.camera.targetDistance = distance;
             },
             [&](control::imgui::task::CloseGltf) {
                 gltfAsset.reset();

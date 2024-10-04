@@ -1154,7 +1154,7 @@ auto vk_gltf_viewer::control::imgui::viewManipulate(AppState &appState, const Im
     constexpr ImU32 background = 0x00000000; // Transparent.
     const glm::mat4 oldView = appState.camera.getViewMatrix();
     glm::mat4 newView = oldView;
-    ImGuizmo::ViewManipulate(value_ptr(newView), length(appState.camera.position), passthruRectBR - size, size, background);
+    ImGuizmo::ViewManipulate(value_ptr(newView), appState.camera.targetDistance, passthruRectBR - size, size, background);
 
     if (newView != oldView) {
         const glm::mat4 inverseView = inverse(newView);
