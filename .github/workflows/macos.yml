@@ -27,7 +27,7 @@ jobs:
           vulkan-use-cache: true
 
       - name: Install latest LLVM, Ninja and build dependencies
-        run: brew install llvm ninja autoconf automake
+        run: brew install llvm ninja autoconf automake libtool nasm pkgconf
 
       - name: Install vcpkg
         run: |
