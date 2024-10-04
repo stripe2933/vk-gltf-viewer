@@ -50,9 +50,5 @@ jobs:
           mv .github/workflows/scripts/* .
           cmake --preset=macos-clang
 
-      - name: Show error
-        if: failure()
-        run: cat /Users/runner/work/vk-gltf-viewer/vk-gltf-viewer/vcpkg/buildtrees/gmp/autoconf-arm64-osx-err.log
-
       - name: Build
         run: cmake --build build --config release
