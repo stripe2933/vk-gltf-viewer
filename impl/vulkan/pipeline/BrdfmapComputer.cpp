@@ -29,8 +29,14 @@ vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::BrdfmapComputer(
         {},
         createPipelineStages(
             device,
-            // TODO: apply specializationConstants.
-            vku::Shader { COMPILED_SHADER_DIR "/brdfmap.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()[0],
+            vku::Shader {
+                COMPILED_SHADER_DIR "/brdfmap.comp.spv",
+                vk::ShaderStageFlagBits::eCompute,
+                vk::SpecializationInfo {
+                    vku::unsafeProxy(vk::SpecializationMapEntry { 0, 0, sizeof(SpecializationConstants::numSamples) }),
+                    vk::ArrayProxyNoTemporaries(specializationConstants),
+                },
+            }).get()[0],
         *pipelineLayout,
     } } { }
 

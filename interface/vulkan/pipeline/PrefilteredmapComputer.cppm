@@ -1,5 +1,7 @@
 module;
 
+#include <cstddef>
+
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vk_gltf_viewer:vulkan.pipeline.PrefilteredmapComputer;
@@ -78,8 +80,17 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 {},
                 createPipelineStages(
                     device,
-                    // TODO: handle specialization constants.
-                    vku::Shader { COMPILED_SHADER_DIR "/prefilteredmap.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()[0],
+                    vku::Shader {
+                        COMPILED_SHADER_DIR "/prefilteredmap.comp.spv",
+                        vk::ShaderStageFlagBits::eCompute,
+                        vk::SpecializationInfo {
+                            vku::unsafeProxy({
+                                vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, roughnessLevels), sizeof(SpecializationConstants::roughnessLevels) },
+                                vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, samples), sizeof(SpecializationConstants::samples) },
+                            }),
+                            vk::ArrayProxyNoTemporaries(specializationConstants),
+                        },
+                    }).get()[0],
                 *pipelineLayout,
             } } { }
 
