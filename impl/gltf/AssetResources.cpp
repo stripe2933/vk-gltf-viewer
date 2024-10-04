@@ -9,9 +9,9 @@ module vk_gltf_viewer;
 import :gltf.AssetResources;
 
 import std;
-import ranges;
 import thread_pool;
 import :gltf.algorithm.MikktSpaceInterface;
+import :helpers.ranges;
 
 template <typename T>
 [[nodiscard]] auto to_optional(fastgltf::OptionalWithFlagValue<T> v) noexcept -> std::optional<T> {

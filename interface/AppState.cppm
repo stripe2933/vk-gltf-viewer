@@ -8,10 +8,10 @@ export module vk_gltf_viewer:AppState;
 
 import std;
 export import glm;
-import ranges;
 import :control.Camera;
-import :helpers.full_optional;
+export import :helpers.full_optional;
 import :helpers.functional;
+import :helpers.ranges;
 
 namespace vk_gltf_viewer {
     export class AppState {

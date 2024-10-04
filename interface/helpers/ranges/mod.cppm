@@ -2,9 +2,9 @@ module;
 
 #include <version>
 
-export module ranges;
-export import :concat;
-export import :contains;
+export module vk_gltf_viewer:helpers.ranges;
+export import :helpers.ranges.concat;
+export import :helpers.ranges.contains;
 
 import std;
 

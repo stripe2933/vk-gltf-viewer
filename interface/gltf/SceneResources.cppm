@@ -5,8 +5,8 @@ module;
 export module vk_gltf_viewer:gltf.SceneResources;
 
 import std;
-import ranges;
 export import :gltf.AssetResources;
+import :helpers.ranges;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::gltf {

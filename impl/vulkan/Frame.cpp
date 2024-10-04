@@ -9,9 +9,10 @@ module vk_gltf_viewer;
 import :vulkan.Frame;
 
 import std;
-import ranges;
-import type_variant;
+import :helpers.enum_to_string;
 import :helpers.functional;
+import :helpers.ranges;
+import :helpers.type_variant;
 import :vulkan.ag.DepthPrepass;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();

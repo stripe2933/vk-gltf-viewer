@@ -8,7 +8,7 @@ import std;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
-namespace vk_gltf_viewer::inline helpers::tristate {
+namespace tristate {
     /**
      * Propagate the current node (in \p nodeIndex) state to all its children.
      * @param childIndicesGetter A function that returns the children indices of a node with the given index.
@@ -63,7 +63,7 @@ namespace vk_gltf_viewer::inline helpers::tristate {
             return;
         }
 
-        const auto siblingIndices = childrenIndicesGetter(parentNodeIndex);
+        const auto &siblingIndices = childrenIndicesGetter(parentNodeIndex);
         const bool isSiblingStatesEqual = std::ranges::adjacent_find(
             siblingIndices, std::ranges::not_equal_to{},
             [=](auto siblingIndex) { return tristates[siblingIndex]; }) == siblingIndices.end();

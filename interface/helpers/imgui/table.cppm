@@ -2,10 +2,10 @@ module;
 
 #include <imgui.h>
 
-export module imgui:table;
+export module vk_gltf_viewer:helpers.imgui.table;
 
 import std;
-export import cstring_view;
+export import :helpers.cstring_view;
 
 #define INDEX_SEQ(Is, N, ...) [&]<auto... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)

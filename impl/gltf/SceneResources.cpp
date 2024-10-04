@@ -8,7 +8,7 @@ module vk_gltf_viewer;
 import :gltf.SceneResources;
 
 import std;
-import ranges;
+import :helpers.ranges;
 
 vk_gltf_viewer::gltf::SceneResources::SceneResources(
     const fastgltf::Asset &asset [[clang::lifetimebound]],

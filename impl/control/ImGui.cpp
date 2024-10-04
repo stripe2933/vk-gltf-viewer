@@ -17,12 +17,12 @@ import :control.ImGui;
 
 import std;
 import glm;
-import ranges;
-import imgui;
 import :helpers.enum_to_string;
 #if __cpp_lib_format_ranges >= 202207L
 import :helpers.formatters.joiner;
 #endif
+import :helpers.imgui;
+import :helpers.ranges;
 import :helpers.tristate;
 import :helpers.functional;
 

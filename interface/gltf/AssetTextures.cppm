@@ -9,9 +9,9 @@ export module vk_gltf_viewer:gltf.AssetTextures;
 
 import std;
 import glm;
-import ranges;
 export import thread_pool;
 export import :gltf.AssetExternalBuffers;
+import :helpers.ranges;
 export import :vulkan.Gpu;
 import :vulkan.mipmap;
 

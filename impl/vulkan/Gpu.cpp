@@ -6,7 +6,7 @@ module vk_gltf_viewer;
 import :vulkan.Gpu;
 
 import std;
-import ranges;
+import :helpers.ranges;
 
 constexpr std::array requiredExtensions {
 #if __APPLE__

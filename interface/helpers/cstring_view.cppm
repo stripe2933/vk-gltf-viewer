@@ -1,4 +1,4 @@
-export module cstring_view;
+export module vk_gltf_viewer:helpers.cstring_view;
 
 import std;
 

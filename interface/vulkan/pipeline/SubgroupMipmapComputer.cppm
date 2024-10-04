@@ -5,7 +5,7 @@ module;
 export module vk_gltf_viewer:vulkan.pipeline.SubgroupMipmapComputer;
 
 import std;
-import ranges;
+import :helpers.ranges;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {

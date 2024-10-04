@@ -14,11 +14,12 @@ module vk_gltf_viewer;
 import :MainApp;
 
 import std;
-import ranges;
 import vku;
 import :control.ImGui;
 import :gltf.AssetTextures;
 import :helpers.functional;
+import :helpers.ranges;
+import :helpers.tristate;
 import :io.StbDecoder;
 import :vulkan.Frame;
 import :vulkan.generator.ImageBasedLightingResourceGenerator;

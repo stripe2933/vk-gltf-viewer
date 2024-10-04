@@ -52,23 +52,23 @@ target_sources(vk-gltf-viewer PRIVATE
         extlibs/thread_pool.cppm
         extlibs/module-ports/glm.cppm
         interface/mod.cppm
+        interface/AppState.cppm
         interface/control/AppWindow.cppm
         interface/control/Camera.cppm
         interface/control/ImGui.cppm
-        interface/control/imgui/mod.cppm
-        interface/control/imgui/table.cppm
         interface/gltf/algorithm/MikktSpaceInterface.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetResources.cppm
         interface/gltf/AssetTextures.cppm
         interface/gltf/SceneResources.cppm
-        interface/AppState.cppm
         interface/helpers/cstring_view.cppm
         interface/helpers/enum_to_string.cppm
         interface/helpers/extended_arithmetic.cppm
         interface/helpers/formatters/joiner.cppm
         interface/helpers/full_optional.cppm
         interface/helpers/functional.cppm
+        interface/helpers/imgui/mod.cppm
+        interface/helpers/imgui/table.cppm
         interface/helpers/ranges/mod.cppm
         interface/helpers/ranges/concat.cppm
         interface/helpers/ranges/contains.cppm

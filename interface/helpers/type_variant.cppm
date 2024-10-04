@@ -1,4 +1,4 @@
-export module type_variant;
+export module vk_gltf_viewer:helpers.type_variant;
 
 import std;
 

@@ -3,10 +3,10 @@ module;
 #include <imgui.h>
 #include <imgui_internal.h>
 
-export module imgui;
+export module vk_gltf_viewer:helpers.imgui;
 
 import std;
-export import :table;
+export import :helpers.imgui.table;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 

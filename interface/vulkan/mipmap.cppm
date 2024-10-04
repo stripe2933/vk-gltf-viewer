@@ -5,8 +5,8 @@ module;
 export module vk_gltf_viewer:vulkan.mipmap;
 
 import std;
-import ranges;
 export import vku;
+import :helpers.ranges;
 
 namespace vk_gltf_viewer::vulkan {
     /**

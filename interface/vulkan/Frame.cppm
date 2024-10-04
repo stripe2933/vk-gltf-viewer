@@ -6,9 +6,9 @@ module;
 export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
-import type_variant;
 export import :AppState;
 export import :gltf.SceneResources;
+import :helpers.type_variant;
 export import :vulkan.SharedData;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
