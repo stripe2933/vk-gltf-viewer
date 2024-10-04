@@ -1,5 +1,7 @@
 module;
 
+#include <CGAL/Cartesian.h>
+#include <CGAL/Min_sphere_of_spheres_d.h>
 #include <fastgltf/core.hpp>
 
 module vk_gltf_viewer;
@@ -17,6 +19,48 @@ vk_gltf_viewer::gltf::SceneResources::SceneResources(
     gpu { gpu },
     assetResources { assetResources },
     scene { scene } { }
+
+auto vk_gltf_viewer::gltf::SceneResources::getSmallestEnclosingSphere() const -> std::pair<glm::dvec3, double> {
+    using Traits = CGAL::Min_sphere_of_spheres_d_traits_3<CGAL::Cartesian<double>, double>;
+    std::vector<Traits::Sphere> meshBoundingSpheres;
+
+    const auto traverseMeshPrimitivesRecursive
+        = [&](this const auto &self, std::size_t nodeIndex) -> void {
+            const fastgltf::Node &node = asset.nodes[nodeIndex];
+
+            if (node.meshIndex) {
+                const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+                const glm::dmat4 transform = nodeWorldTransformBuffer.asRange<const glm::mat4>()[nodeIndex];
+                for (const fastgltf::Primitive &primitive : mesh.primitives) {
+                    const fastgltf::Accessor &accessor = asset.accessors.at(primitive.findAttribute("POSITION")->second);
+                    const glm::dvec3 min = glm::make_vec3<double>(std::get_if<std::pmr::vector<double>>(&accessor.min)->data());
+                    const glm::dvec3 max = glm::make_vec3<double>(std::get_if<std::pmr::vector<double>>(&accessor.max)->data());
+
+                    const glm::dvec3 transformedMin = transform * glm::dvec4 { min, 1.0 };
+                    const glm::dvec3 transformedMax = transform * glm::dvec4 { max, 1.0 };
+
+                    const glm::dvec3 halfDisplacement = (transformedMax - transformedMin) / 2.0;
+                    const glm::dvec3 center = transformedMin + halfDisplacement;
+                    const double radius = length(halfDisplacement);
+                    meshBoundingSpheres.emplace_back(Traits::Point { center.x, center.y, center.z }, radius);
+                }
+            }
+
+            for (std::size_t childNodeIndex : node.children) {
+                self(childNodeIndex);
+            }
+    };
+    for (std::size_t nodeIndex : scene.nodeIndices) {
+        traverseMeshPrimitivesRecursive(nodeIndex);
+    }
+
+    using Min_sphere = CGAL::Min_sphere_of_spheres_d<Traits>;
+    Min_sphere ms { meshBoundingSpheres.begin(), meshBoundingSpheres.end() };
+
+    glm::dvec3 center;
+    std::copy(ms.center_cartesian_begin(), ms.center_cartesian_end(), value_ptr(center));
+    return { center, ms.radius() };
+}
 
 auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() const -> std::vector<std::pair<std::size_t, const AssetResources::PrimitiveInfo*>> {
     std::vector<std::pair<std::size_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> nodePrimitiveInfoPtrs;

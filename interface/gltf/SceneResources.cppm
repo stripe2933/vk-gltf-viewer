@@ -110,6 +110,12 @@ namespace vk_gltf_viewer::gltf {
             return result;
         }
 
+        /**
+         * Calculate the smallest enclosing sphere of the scene meshes' bounding spheres, i.e. tight-fitting sphere.
+         * @return Pair of enclosing sphere's center coordinate and radius.
+         */
+        [[nodiscard]] auto getSmallestEnclosingSphere() const -> std::pair<glm::dvec3, double>;
+
     private:
         [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> std::vector<std::pair<std::size_t, const AssetResources::PrimitiveInfo*>>;
         [[nodiscard]] auto createNodeWorldTransformBuffer() const -> vku::MappedBuffer;

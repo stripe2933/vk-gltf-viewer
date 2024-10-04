@@ -85,7 +85,8 @@ auto vk_gltf_viewer::control::AppWindow::createSurface(const vk::raii::Instance 
 auto vk_gltf_viewer::control::AppWindow::onScrollCallback(glm::dvec2 offset) -> void {
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
-    appState.camera.position *= std::powf(1.01f, -static_cast<float>(offset.y));
+    const glm::vec3 displacementToTarget = appState.camera.direction * appState.camera.targetDistance;
+    appState.camera.position += (1.f - std::powf(1.01f, -static_cast<float>(offset.y))) * displacementToTarget;
 }
 
 auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(glm::dvec2 position) -> void {

@@ -27,6 +27,12 @@ import :vulkan.mipmap;
 import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
+#ifdef _MSC_VER
+#define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
+#else
+#define PATH_C_STR(...) (__VA_ARGS__).c_str()
+#endif
+
 vk_gltf_viewer::MainApp::MainApp() {
     const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
 
@@ -252,7 +258,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 //  so I'll just use it for now.
                 gpu.device.waitIdle();
 
-                gltfAsset.emplace(task.path, gpu);
+                gltfAsset.emplace(parser, task.path, gpu);
 
                 sharedData.updateTextureCount(1 + gltfAsset->get().textures.size());
 
@@ -296,6 +302,14 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
                 // Update AppState.
                 appState.gltfAsset.emplace(gltfAsset->get(), gltfAsset->assetDir);
+
+                // Adjust the camera based on the scene bounding sphere.
+                const auto [sceneCenter, sceneRadius] = gltfAsset->sceneResources.getSmallestEnclosingSphere();
+                const float distance = sceneRadius / std::sin(appState.camera.fov / 2.f);
+                appState.camera.position = sceneCenter - glm::dvec3 { distance * normalize(appState.camera.direction) };
+                appState.camera.zMin = distance - sceneRadius;
+                appState.camera.zMax = distance + sceneRadius;
+                appState.camera.targetDistance = distance;
             },
             [&](control::imgui::task::CloseGltf) {
                 gltfAsset.reset();
@@ -459,11 +473,12 @@ vk_gltf_viewer::MainApp::GltfAsset::DataBufferLoader::DataBufferLoader(const std
 }
 
 vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
+    fastgltf::Parser &parser,
     const std::filesystem::path &path,
     const vulkan::Gpu &gpu [[clang::lifetimebound]]
 ) : dataBufferLoader { path },
     assetDir { path.parent_path() },
-    assetExpected { fastgltf::Parser { supportedExtensions }.loadGltf(&dataBufferLoader.dataBuffer, assetDir) },
+    assetExpected { parser.loadGltf(&dataBufferLoader.dataBuffer, assetDir) },
     assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(get(), assetDir) },
     assetResources { get(), *assetExternalBuffers, gpu },
     assetTextures { get(), assetDir, *assetExternalBuffers, gpu },
@@ -486,7 +501,17 @@ auto vk_gltf_viewer::MainApp::GltfAsset::createAssetImageViews(
         | std::ranges::to<std::unordered_map>();
 }
 
-auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
+auto vk_gltf_viewer::MainApp::createInstance() const -> vk::raii::Instance {
+    std::vector<const char*> extensions{
+#if __APPLE__
+        vk::KHRPortabilityEnumerationExtensionName,
+#endif
+    };
+
+    std::uint32_t glfwExtensionCount;
+    const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    extensions.append_range(std::views::counted(glfwExtensions, glfwExtensionCount));
+
     vk::raii::Instance instance { context, vk::InstanceCreateInfo{
 #if __APPLE__
         vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR,
@@ -499,19 +524,7 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> decltype(instance) {
             vk::makeApiVersion(0, 1, 2, 0),
         }),
         {},
-        vku::unsafeProxy([]() {
-            std::vector<const char*> extensions{
-#if __APPLE__
-                vk::KHRPortabilityEnumerationExtensionName,
-#endif
-            };
-
-            std::uint32_t glfwExtensionCount;
-            const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-            extensions.append_range(std::views::counted(glfwExtensions, glfwExtensionCount));
-
-            return extensions;
-        }()),
+        extensions,
     } };
     VULKAN_HPP_DEFAULT_DISPATCHER.init(*instance);
     return instance;
@@ -612,7 +625,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 ) -> void {
     // Load equirectangular map image and stage it into eqmapImage.
     int width, height;
-    if (!stbi_info(eqmapPath.string().c_str(), &width, &height, nullptr)) {
+    if (!stbi_info(PATH_C_STR(eqmapPath), &width, &height, nullptr)) {
         throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
     }
 
@@ -711,7 +724,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
                 eqmapStagingBuffer = std::make_unique<vku::AllocatedBuffer>(vku::MappedBuffer {
                     gpu.allocator,
-                    std::from_range, io::StbDecoder<float>::fromFile(eqmapPath.string().c_str(), 4).asSpan(),
+                    std::from_range, io::StbDecoder<float>::fromFile(PATH_C_STR(eqmapPath), 4).asSpan(),
                     vk::BufferUsageFlagBits::eTransferSrc
                 }.unmap());
 

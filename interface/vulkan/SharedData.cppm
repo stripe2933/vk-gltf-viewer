@@ -178,30 +178,34 @@ namespace vk_gltf_viewer::vulkan {
     private:
         [[nodiscard]] auto createSwapchain(vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain) {
             const vk::SurfaceCapabilitiesKHR surfaceCapabilities = gpu.physicalDevice.getSurfaceCapabilitiesKHR(surface);
-            return { gpu.device, vk::SwapchainCreateInfoKHR{
-                gpu.supportSwapchainMutableFormat ? vk::SwapchainCreateFlagBitsKHR::eMutableFormat : vk::SwapchainCreateFlagsKHR{},
-                surface,
-                std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount),
-                vk::Format::eB8G8R8A8Srgb,
-                vk::ColorSpaceKHR::eSrgbNonlinear,
-                extent,
-                1,
-                vk::ImageUsageFlagBits::eColorAttachment,
-                {}, {},
-                surfaceCapabilities.currentTransform,
-                vk::CompositeAlphaFlagBitsKHR::eOpaque,
-                vk::PresentModeKHR::eFifo,
-                true,
-                oldSwapchain,
-                gpu.supportSwapchainMutableFormat
-                    ? vku::unsafeAddress(vk::ImageFormatListCreateInfo {
-                        vku::unsafeProxy({
-                            vk::Format::eB8G8R8A8Srgb,
-                            vk::Format::eB8G8R8A8Unorm,
-                        }),
-                    })
-                    : nullptr,
-            } };
+            const auto viewFormats = { vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm };
+            vk::StructureChain createInfo {
+                vk::SwapchainCreateInfoKHR{
+                    gpu.supportSwapchainMutableFormat ? vk::SwapchainCreateFlagBitsKHR::eMutableFormat : vk::SwapchainCreateFlagsKHR{},
+                    surface,
+                    std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount),
+                    vk::Format::eB8G8R8A8Srgb,
+                    vk::ColorSpaceKHR::eSrgbNonlinear,
+                    extent,
+                    1,
+                    vk::ImageUsageFlagBits::eColorAttachment,
+                    {}, {},
+                    surfaceCapabilities.currentTransform,
+                    vk::CompositeAlphaFlagBitsKHR::eOpaque,
+                    vk::PresentModeKHR::eFifo,
+                    true,
+                    oldSwapchain,
+                },
+                vk::ImageFormatListCreateInfo {
+                    viewFormats,
+                }
+            };
+
+            if (!gpu.supportSwapchainMutableFormat) {
+                createInfo.unlink<vk::ImageFormatListCreateInfo>();
+            }
+
+            return { gpu.device, createInfo.get() };
         }
 
         [[nodiscard]] auto createTextureDescriptorPool() const -> vk::raii::DescriptorPool {

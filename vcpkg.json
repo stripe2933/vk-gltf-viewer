@@ -1,6 +1,7 @@
 {
   "dependencies": [
     "boost-container",
+    "cgal",
     "fastgltf",
     "glfw3",
     "glm",

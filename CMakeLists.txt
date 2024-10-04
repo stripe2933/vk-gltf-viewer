@@ -10,6 +10,7 @@ set(CMAKE_CXX_MODULE_STD 1)
 # --------------------
 
 find_package(boost_container CONFIG REQUIRED)
+find_package(CGAL CONFIG REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
@@ -131,6 +132,7 @@ target_sources(vk-gltf-viewer PRIVATE
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
     Boost::container
+    CGAL::CGAL
     fastgltf::fastgltf
     imgui::imgui
     KTX::ktx
