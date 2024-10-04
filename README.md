@@ -305,7 +305,7 @@ All shaders are located in the [shaders](/shaders) folder and need to be manuall
 - [x] Basis Universal texture support (`KHR_texture_basisu`).
 - [ ] Reduce skybox memory usage with BC6H compressed cubemap.
 - [ ] Frustum/occlusion culling.
-- [ ] Automatic camera position adjustment based on the bounding sphere calculation. (working now)
+- [x] Automatic camera position adjustment based on the bounding sphere calculation.
 - [ ] Animations.
 
 ## License

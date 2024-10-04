@@ -302,6 +302,13 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
                 // Update AppState.
                 appState.gltfAsset.emplace(gltfAsset->get(), gltfAsset->assetDir);
+
+                // Adjust the camera based on the scene bounding sphere.
+                const auto [sceneCenter, sceneRadius] = gltfAsset->sceneResources.getSmallestEnclosingSphere();
+                const float distance = sceneRadius / std::sin(appState.camera.fov / 2.f);
+                appState.camera.position = sceneCenter - glm::dvec3 { distance * normalize(appState.camera.direction) };
+                appState.camera.zMin = distance - sceneRadius;
+                appState.camera.zMax = distance + sceneRadius;
             },
             [&](control::imgui::task::CloseGltf) {
                 gltfAsset.reset();
