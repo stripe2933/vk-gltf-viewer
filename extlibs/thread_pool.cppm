@@ -115,12 +115,12 @@ namespace this_thread {
     /**
      * @brief A `thread_local` object used to obtain information about the index of the current thread.
      */
-    export thread_local thread_info_index get_index;
+    export inline thread_local thread_info_index get_index;
 
     /**
      * @brief A `thread_local` object used to obtain information about the thread pool that owns the current thread.
      */
-    export thread_local thread_info_pool get_pool;
+    export inline thread_local thread_info_pool get_pool;
 } // namespace this_thread
 
 /**
