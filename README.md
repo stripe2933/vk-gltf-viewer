@@ -140,13 +140,14 @@ Additionally, you need vcpkg for dependency management. Make sure `VCPKG_ROOT` e
 #### Dependencies
 
 This project depends on:
-- [boost-container](https://www.boost.org/doc/libs/1_86_0/doc/html/container.html) (it uses modular boost.)
+- [boost-container](https://www.boost.org/doc/libs/1_86_0/doc/html/container.html)
 - [CGAL](https://www.cgal.org)
 - [fastgltf](https://github.com/spnda/fastgltf)
 - [GLFW](https://github.com/glfw/glfw)
 - [glm](https://github.com/g-truc/glm)
 - [ImGui](https://github.com/ocornut/imgui)
 - [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo)
+- [KTX-Software](https://github.com/KhronosGroup/KTX-Software)
 - [MikkTSpace](http://www.mikktspace.com)
 - [Native File Dialog Extended](https://github.com/btzy/nativefiledialog-extended)
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h)
@@ -181,10 +182,10 @@ The executable will be located in `build` folder.
 
 ##### 2. Clang + Linux
 
-Install `libc++-dev` and `libc++abi-dev` that are matched to your Clang compiler.
+Install libc++ and extra build dependencies from apt.
 
 ```sh
-sudo apt install libc++-dev libc++abi-dev
+sudo apt install libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev
 ```
 
 Add the following CMake user preset file in your project directory. I'll assume your Clang compiler executable is at `/usr/bin/`.
@@ -240,6 +241,12 @@ cmake --build build -t vk-gltf-viewer
 The executable will be located in `build` folder.
 
 ##### 3. Clang + macOS
+
+Install extra build dependencies from homebrew.
+
+```sh
+run: brew install autoconf automake libtool nasm
+```
 
 Add the following CMake user preset file in your project directory. I'll assume your Clang compiler executable is at `/opt/homebrew/opt/llvm/bin/`.
 
