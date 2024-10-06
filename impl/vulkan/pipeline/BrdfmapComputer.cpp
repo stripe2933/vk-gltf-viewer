@@ -34,7 +34,7 @@ vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::BrdfmapComputer(
                 vk::ShaderStageFlagBits::eCompute,
                 vk::SpecializationInfo {
                     vku::unsafeProxy(vk::SpecializationMapEntry { 0, 0, sizeof(SpecializationConstants::numSamples) }),
-                    vk::ArrayProxyNoTemporaries(specializationConstants),
+                    vk::ArrayProxyNoTemporaries<const SpecializationConstants> { specializationConstants },
                 },
             }).get()[0],
         *pipelineLayout,
