@@ -17,6 +17,7 @@ import std;
 import vku;
 import :control.ImGui;
 import :gltf.AssetTextures;
+import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
 import :helpers.tristate;
@@ -199,7 +200,7 @@ vk_gltf_viewer::MainApp::MainApp() {
         .PhysicalDevice = *gpu.physicalDevice,
         .Device = *gpu.device,
         .Queue = gpu.queues.graphicsPresent,
-        .DescriptorPool = vku::toCType(*imGuiDescriptorPool),
+        .DescriptorPool = *imGuiDescriptorPool,
         .MinImageCount = 2,
         .ImageCount = 2,
         .UseDynamicRendering = true,
@@ -213,10 +214,10 @@ vk_gltf_viewer::MainApp::MainApp() {
 
 vk_gltf_viewer::MainApp::~MainApp() {
     for (vk::DescriptorSet textureDescriptorSet : assetTextureDescriptorSets) {
-        ImGui_ImplVulkan_RemoveTexture(vku::toCType(textureDescriptorSet));
+        ImGui_ImplVulkan_RemoveTexture(textureDescriptorSet);
     }
     if (skyboxResources) {
-        ImGui_ImplVulkan_RemoveTexture(vku::toCType(skyboxResources->imGuiEqmapTextureDescriptorSet));
+        ImGui_ImplVulkan_RemoveTexture(skyboxResources->imGuiEqmapTextureDescriptorSet);
     }
 
     ImGui_ImplVulkan_Shutdown();
@@ -301,13 +302,12 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 assetTextureDescriptorSets
                     = gltfAsset->get().textures
                     | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
-                        return static_cast<vk::DescriptorSet>(ImGui_ImplVulkan_AddTexture(
-                            [&]() {
-                                if (texture.samplerIndex) return vku::toCType(*gltfAsset->assetTextures.samplers[*texture.samplerIndex]);
-                                return vku::toCType(*assetDefaultSampler);
-                            }(),
+                        return ImGui_ImplVulkan_AddTexture(
+                            to_optional(texture.samplerIndex)
+                                .transform([this](std::size_t samplerIndex) { return vku::toCType(*gltfAsset->assetTextures.samplers[samplerIndex]); })
+                                .value_or(vku::toCType(*assetDefaultSampler)),
                             vku::toCType(*gltfAsset->imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture))),
-                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                     })
                     | std::ranges::to<std::vector>();
 
@@ -990,11 +990,10 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 
     // Emplace the results into skyboxResources and imageBasedLightingResources.
     vk::raii::ImageView reducedEqmapImageView { gpu.device, reducedEqmapImage.getViewCreateInfo() };
-    const vk::DescriptorSet imGuiEqmapImageDescriptorSet
-        = static_cast<vk::DescriptorSet>(ImGui_ImplVulkan_AddTexture(
-            vku::toCType(*reducedEqmapSampler),
-            vku::toCType(*reducedEqmapImageView),
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    const vk::DescriptorSet imGuiEqmapImageDescriptorSet = ImGui_ImplVulkan_AddTexture(
+        *reducedEqmapSampler,
+        *reducedEqmapImageView,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     vk::raii::ImageView toneMappedCubemapImageView { gpu.device, toneMappedCubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
     skyboxResources.emplace(
         std::move(reducedEqmapImage),

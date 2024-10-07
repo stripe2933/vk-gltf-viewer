@@ -47,10 +47,10 @@ I initially developed this application for leveraging Vulkan's performance and u
 - Fully bindless: no descriptor set update/vertex buffer binding during rendering.
   - Descriptor sets are only updated at the model loading time.
   - Textures are accessed with runtime-descriptor indexing using [`VK_EXT_descriptor_indexing`](https://docs.vulkan.org/samples/latest/samples/extensions/descriptor_indexing/README.html) extension.
-  - Use Vertex Pulling with [`VK_KHR_buffer_device_address`](https://docs.vulkan.org/samples/latest/samples/extensions/buffer_device_address/README.html). Only index buffers are bound to the command buffer.
+  - Use Vertex Pulling with [`VK_EXT_buffer_device_address`](https://docs.vulkan.org/samples/latest/samples/extensions/buffer_device_address/README.html). Only index buffers are bound to the command buffer.
 - Fully GPU driven rendering: uses multi draw indirect with optimally sorted rendering order. **Regardless of the material count and scene's complexity, all scene nodes can be rendered with up to 24 draw calls** in the worst case.
   - Has 6 pipelines for 3 material types (`OPAQUE`, `MASK`, `BLEND`) and 2 primitive types (Indexed, Non-Indexed) combinations.
-  - Indexed primitive index type can be either `UNSIGNED_BYTE` (if GPU supports [`VK_KHR_index_type_uint8`](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_KHR_index_type_uint8.html)), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
+  - Indexed primitive index type can be either `UNSIGNED_BYTE` (if GPU supports [`VK_EXT_index_type_uint8`](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_EXT_index_type_uint8.html)), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
   - Each material can be either double-sided or not, and cull mode have to be set based on this.
   - Therefore, if scene consists of the primitives of all combinations, it requires 24 draw calls. **Of course, it would be ~6 draw calls in most case.**
 - Significant less asset loading time: **glTF buffer memories are directly `memcpy`ed into the GPU memory with dedicated transfer queue. No pre-processing is required!**
@@ -88,6 +88,7 @@ The extensions and feature used in this application are quite common in the mode
   - `VK_EXT_extended_dynamic_state` (dynamic state cull mode)
   - `VK_KHR_swapchain`
   - (optional) `VK_KHR_swapchain_mutable_format` (proper ImGui gamma correction, UI color will lose the color if the extension not presented)
+  - (optional) `VK_EXT_index_type_uint8` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
 - Device Features
   - `VkPhysicalDeviceFeatures`
     - `samplerAnistropy`
@@ -116,7 +117,7 @@ The extensions and feature used in this application are quite common in the mode
   - `VkPhysicalDeviceDynamicRenderingFeatures`
   - `VkPhysicalDeviceSynchronization2Features`
   - `VkPhysicalDeviceExtendedDynamicStateFeaturesEXT`
-  - (optional) `VkPhysicalDeviceIndexTypeUint8FeaturesKHR` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
+  - (optional) `VkPhysicalDeviceIndexTypeUint8FeaturesEXT` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
 - Device Limits
   - Subgroup size must be at least 16 and 64 at maximum.
   - Sampler anisotropy must support 16x.
@@ -245,7 +246,7 @@ The executable will be located in `build` folder.
 Install extra build dependencies from homebrew.
 
 ```sh
-run: brew install autoconf automake libtool nasm
+brew install autoconf automake libtool nasm
 ```
 
 Add the following CMake user preset file in your project directory. I'll assume your Clang compiler executable is at `/opt/homebrew/opt/llvm/bin/`.
@@ -309,7 +310,7 @@ All shaders are located in the [shaders](/shaders) folder and need to be manuall
 
 ## Milestones
 
-- [x] Basis Universal texture support (`KHR_texture_basisu`).
+- [x] Basis Universal texture support (`EXT_texture_basisu`).
 - [ ] Reduce skybox memory usage with BC6H compressed cubemap.
 - [ ] Frustum/occlusion culling.
 - [x] Automatic camera position adjustment based on the bounding sphere calculation.

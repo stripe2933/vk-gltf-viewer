@@ -17,7 +17,7 @@ import :control.ImGui;
 
 import std;
 import glm;
-import :helpers.enum_to_string;
+import :helpers.fastgltf;
 #if __cpp_lib_format_ranges >= 202207L
 import :helpers.formatters.joiner;
 #endif
@@ -56,12 +56,6 @@ using namespace std::string_view_literals;
     else return str;
 }
 
-template <typename T>
-[[nodiscard]] auto to_optional(fastgltf::OptionalWithFlagValue<T> v) noexcept -> std::optional<T> {
-    if (v) return *v;
-    return std::nullopt;
-}
-
 template <std::integral T>
 [[nodiscard]] auto to_string(T value) -> cstring_view {
     static constexpr T MAX_NUM = 4096;
@@ -76,7 +70,7 @@ template <std::integral T>
 
 auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f}) -> void {
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
-    ImGui::Image(static_cast<vk::DescriptorSet::CType>(texture), size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
+    ImGui::Image(texture, size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
 
     if (ImGui::BeginItemTooltip()) {
         const ImGuiIO &io = ImGui::GetIO();
@@ -87,7 +81,7 @@ auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 
         region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
 
         constexpr float zoomScale = 4.0f;
-        ImGui::Image(static_cast<vk::DescriptorSet::CType>(texture), zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size, tint);
+        ImGui::Image(texture, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size, tint);
         ImGui::Text("Showing: [%.0f, %.0f]x[%.0f, %.0f]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y);
 
         ImGui::EndTooltip();

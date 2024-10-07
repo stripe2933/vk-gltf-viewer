@@ -9,7 +9,7 @@ module vk_gltf_viewer;
 import :vulkan.Frame;
 
 import std;
-import :helpers.enum_to_string;
+import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
 import :helpers.type_variant;

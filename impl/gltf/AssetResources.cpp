@@ -11,13 +11,8 @@ import :gltf.AssetResources;
 import std;
 import thread_pool;
 import :gltf.algorithm.MikktSpaceInterface;
+import :helpers.fastgltf;
 import :helpers.ranges;
-
-template <typename T>
-[[nodiscard]] auto to_optional(fastgltf::OptionalWithFlagValue<T> v) noexcept -> std::optional<T> {
-    if (v) return *v;
-    return std::nullopt;
-}
 
 /**
  * Create new Vulkan buffer that has the same size as \p srcBuffer and usage with \p dstBufferUsage and
@@ -236,7 +231,9 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
     const std::unordered_map bufferDeviceAddressMappings
         = std::views::zip(
             attributeBufferViewBytes | std::views::keys,
-            attributeBuffers | std::views::transform([&](vk::Buffer buffer) { return gpu.device.getBufferAddress({ buffer }); }))
+            attributeBuffers | std::views::transform([&](vk::Buffer buffer) {
+                return gpu.device.getBufferAddress({ buffer });
+            }))
         | std::ranges::to<std::unordered_map>();
 
     // Iterate over the primitives and set their attribute infos.

@@ -32,7 +32,6 @@ add_executable(vk-gltf-viewer
     impl/control/ImGui.cpp
     impl/gltf/AssetResources.cpp
     impl/gltf/SceneResources.cpp
-    impl/helpers/enum_to_string.cpp
     impl/MainApp.cpp
     impl/mod.cpp
     impl/vulkan/Frame.cpp
@@ -62,8 +61,8 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/AssetTextures.cppm
         interface/gltf/SceneResources.cppm
         interface/helpers/cstring_view.cppm
-        interface/helpers/enum_to_string.cppm
         interface/helpers/extended_arithmetic.cppm
+        interface/helpers/fastgltf.cppm
         interface/helpers/formatters/joiner.cppm
         interface/helpers/full_optional.cppm
         interface/helpers/functional.cppm
