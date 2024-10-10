@@ -1,6 +1,7 @@
 module;
 
-#include <CGAL/Cartesian.h>
+#include <CGAL/Simple_cartesian.h>
+#include <CGAL/Min_sphere_of_points_d_traits_3.h>
 #include <CGAL/Min_sphere_of_spheres_d.h>
 #include <fastgltf/core.hpp>
 
@@ -9,6 +10,7 @@ import :gltf.SceneResources;
 
 import std;
 import :helpers.ranges;
+import :helpers.extended_arithmetic;
 
 vk_gltf_viewer::gltf::SceneResources::SceneResources(
     const fastgltf::Asset &asset [[clang::lifetimebound]],
@@ -21,41 +23,38 @@ vk_gltf_viewer::gltf::SceneResources::SceneResources(
     scene { scene } { }
 
 auto vk_gltf_viewer::gltf::SceneResources::getSmallestEnclosingSphere() const -> std::pair<glm::dvec3, double> {
-    using Traits = CGAL::Min_sphere_of_spheres_d_traits_3<CGAL::Cartesian<double>, double>;
-    std::vector<Traits::Sphere> meshBoundingSpheres;
+    // See https://doc.cgal.org/latest/Bounding_volumes/index.html for the original code.
+    using Traits = CGAL::Min_sphere_of_points_d_traits_3<CGAL::Simple_cartesian<double>, double>;
+    std::vector<Traits::Point> meshBoundingBoxPoints;
 
-    const auto traverseMeshPrimitivesRecursive
-        = [&](this const auto &self, std::size_t nodeIndex) -> void {
-            const fastgltf::Node &node = asset.nodes[nodeIndex];
+    const auto traverseMeshPrimitivesRecursive = [&](this const auto &self, std::size_t nodeIndex) -> void {
+        const fastgltf::Node &node = asset.nodes[nodeIndex];
 
-            if (node.meshIndex) {
-                const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-                const glm::dmat4 transform = nodeWorldTransformBuffer.asRange<const glm::mat4>()[nodeIndex];
-                for (const fastgltf::Primitive &primitive : mesh.primitives) {
-                    const fastgltf::Accessor &accessor = asset.accessors.at(primitive.findAttribute("POSITION")->second);
-                    const glm::dvec3 min = glm::make_vec3<double>(std::get_if<std::pmr::vector<double>>(&accessor.min)->data());
-                    const glm::dvec3 max = glm::make_vec3<double>(std::get_if<std::pmr::vector<double>>(&accessor.max)->data());
+        if (node.meshIndex) {
+            const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+            const glm::dmat4 transform = nodeWorldTransformBuffer.asRange<const glm::mat4>()[nodeIndex];
+            for (const fastgltf::Primitive &primitive : mesh.primitives) {
+                const fastgltf::Accessor &accessor = asset.accessors.at(primitive.findAttribute("POSITION")->second);
+                const std::span min { std::get_if<std::pmr::vector<double>>(&accessor.min)->data(), 3 };
+                const std::span max { std::get_if<std::pmr::vector<double>>(&accessor.max)->data(), 3 };
 
-                    const glm::dvec3 transformedMin = transform * glm::dvec4 { min, 1.0 };
-                    const glm::dvec3 transformedMax = transform * glm::dvec4 { max, 1.0 };
-
-                    const glm::dvec3 halfDisplacement = (transformedMax - transformedMin) / 2.0;
-                    const glm::dvec3 center = transformedMin + halfDisplacement;
-                    const double radius = length(halfDisplacement);
-                    meshBoundingSpheres.emplace_back(Traits::Point { center.x, center.y, center.z }, radius);
+                for (int i = 0; i < 8; ++i) {
+                    const glm::dvec3 boundingBoxPoint { i & 0b100 ? max[0] : min[0], i & 0b010 ? max[1] : min[1], i & 0b001 ? max[2] : min[2] };
+                    const glm::dvec3 transformedPoint = toEuclideanCoord(transform * glm::dvec4 { boundingBoxPoint, 1.0 });
+                    meshBoundingBoxPoints.emplace_back(transformedPoint.x, transformedPoint.y, transformedPoint.z);
                 }
             }
+        }
 
-            for (std::size_t childNodeIndex : node.children) {
-                self(childNodeIndex);
-            }
+        for (std::size_t childNodeIndex : node.children) {
+            self(childNodeIndex);
+        }
     };
     for (std::size_t nodeIndex : scene.nodeIndices) {
         traverseMeshPrimitivesRecursive(nodeIndex);
     }
 
-    using Min_sphere = CGAL::Min_sphere_of_spheres_d<Traits>;
-    Min_sphere ms { meshBoundingSpheres.begin(), meshBoundingSpheres.end() };
+    CGAL::Min_sphere_of_spheres_d<Traits> ms { meshBoundingBoxPoints.begin(), meshBoundingBoxPoints.end() };
 
     glm::dvec3 center;
     std::copy(ms.center_cartesian_begin(), ms.center_cartesian_end(), value_ptr(center));
