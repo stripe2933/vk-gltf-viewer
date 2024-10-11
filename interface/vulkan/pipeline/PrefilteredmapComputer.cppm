@@ -86,7 +86,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         vk::SpecializationInfo {
                             vku::unsafeProxy({
                                 vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, roughnessLevels), sizeof(SpecializationConstants::roughnessLevels) },
-                                vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, samples), sizeof(SpecializationConstants::samples) },
+                                vk::SpecializationMapEntry { 1, offsetof(SpecializationConstants, samples), sizeof(SpecializationConstants::samples) },
                             }),
                             vk::ArrayProxyNoTemporaries<const SpecializationConstants>(specializationConstants),
                         },
