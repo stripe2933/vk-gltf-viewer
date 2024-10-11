@@ -30,7 +30,7 @@ namespace vk_gltf_viewer::vulkan {
 
             vk::Rect2D passthruRect;
             struct { glm::mat4 view, projection; } camera;
-            std::optional<vk::Offset2D> mouseCursorOffset;
+            std::optional<vk::Offset2D> cursorPosFromPassthruRectTopLeft;
             std::optional<AppState::Outline> hoveringNodeOutline;
             std::optional<AppState::Outline> selectedNodeOutline;
             std::optional<Gltf> gltf;

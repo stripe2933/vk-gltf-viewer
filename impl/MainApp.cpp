@@ -15,12 +15,12 @@ import :MainApp;
 
 import std;
 import vku;
-import :control.ImGui;
 import :gltf.AssetTextures;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
 import :helpers.tristate;
+import :imgui.TaskCollector;
 import :io.StbDecoder;
 import :vulkan.Frame;
 import :vulkan.generator.ImageBasedLightingResourceGenerator;
@@ -29,6 +29,8 @@ import :vulkan.mipmap;
 import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
+#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+#define LIFT(...) [](auto &&x) { return __VA_ARGS__(FWD(x)); }
 #ifdef _MSC_VER
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
@@ -239,205 +241,209 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
         window.handleEvents(timeDelta);
 
-        ImGui_ImplVulkan_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
+        const glm::vec2 framebufferSize = window.getFramebufferSize();
+        static vk::Rect2D passthruRect{};
+        const std::vector tasks
+            = imgui::TaskCollector { ImVec2 { framebufferSize.x, framebufferSize.y }, passthruRect }
+            .menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths())
+            .assetInspector(appState.gltfAsset.transform([this](auto &x) {
+                return std::forward_as_tuple(x.asset, x.assetDir, x.assetInspectorMaterialIndex, assetTextureDescriptorSets);
+            }))
+            .sceneHierarchy(appState.gltfAsset.transform([](const auto &x) -> std::tuple<const fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::size_t>&, const std::unordered_set<std::size_t>&> {
+                // TODO: don't know why, but using std::forward_as_tuple will pass the scene index as reference and will
+                //  cause a dangling reference. Should be investigated.
+                return { x.asset, x.getSceneIndex(), x.nodeVisibilities, x.hoveringNodeIndex, x.selectedNodeIndices };
+            }))
+            .nodeInspector(appState.gltfAsset.transform([](auto &x) {
+                return std::forward_as_tuple(x.asset, x.selectedNodeIndices);
+            }))
+            .imageBasedLighting(appState.imageBasedLightingProperties.transform([this](const auto &info) {
+                return std::forward_as_tuple(info, skyboxResources->imGuiEqmapTextureDescriptorSet);
+            }))
+            .background(appState.canSelectSkyboxBackground, appState.background)
+            .inputControl(appState.camera, appState.hoveringNodeOutline, appState.selectedNodeOutline)
+            .imguizmo(appState.camera, appState.gltfAsset.and_then([this](auto &x) -> std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION>> {
+                if (x.selectedNodeIndices.size() == 1) {
+                    return std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION>> {
+                        std::in_place,
+                        x.asset,
+                        gltfAsset->sceneResources.nodeWorldTransformBuffer.asRange<const glm::mat4>(),
+                        *x.selectedNodeIndices.begin(),
+                        appState.imGuizmoOperation,
+                    };
+                }
+                else {
+                    return std::nullopt;
+                }
+            }))
+            .collect();
 
-        // Enable global docking.
-        const ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
+        for (const imgui::Task &task : tasks) {
+            visit(multilambda {
+                [this](const imgui::task::PassthruRectChanged &task) {
+                    appState.camera.aspectRatio = vku::aspect(task.newRect.extent);
+                    passthruRect = task.newRect;
+                },
+                [&](const imgui::task::LoadGltf &task) {
+                    // TODO: I'm aware that there are more good solutions than waitIdle, but I don't have much time for it
+                    //  so I'll just use it for now.
+                    gpu.device.waitIdle();
 
-        // Get central node region.
-        const ImRect centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpaceId)->Rect();
+                    gltfAsset.emplace(parser, task.path, gpu);
 
-        // Calculate framebuffer coordinate based passthru rect.
-        const ImVec2 imGuiViewportSize = ImGui::GetIO().DisplaySize;
-        const glm::vec2 scaleFactor = glm::vec2 { window.getFramebufferSize() } / glm::vec2 { imGuiViewportSize.x, imGuiViewportSize.y };
-        const vk::Rect2D passthruRect {
-            { static_cast<std::int32_t>(centerNodeRect.Min.x * scaleFactor.x), static_cast<std::int32_t>(centerNodeRect.Min.y * scaleFactor.y) },
-            { static_cast<std::uint32_t>(centerNodeRect.GetWidth() * scaleFactor.x), static_cast<std::uint32_t>(centerNodeRect.GetHeight() * scaleFactor.y) },
-        };
+                    sharedData.updateTextureCount(1 + gltfAsset->get().textures.size());
 
-        // Assign the passthruRect to appState.passthruRect. Handle stuffs that are dependent to it.
-        static vk::Rect2D previousPassthruRect{};
-        if (vk::Rect2D oldPassthruRect = std::exchange(previousPassthruRect, passthruRect); oldPassthruRect != passthruRect) {
-            appState.camera.aspectRatio = vku::aspect(passthruRect.extent);
-        }
+                    std::vector<vk::DescriptorImageInfo> imageInfos;
+                    imageInfos.reserve(1 + gltfAsset->get().textures.size());
+                    imageInfos.emplace_back(*sharedData.singleTexelSampler, *assetFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+                    imageInfos.append_range(gltfAsset->get().textures | std::views::transform([this](const fastgltf::Texture &texture) {
+                        return vk::DescriptorImageInfo {
+                            [&]() {
+                                if (texture.samplerIndex) return *gltfAsset->assetTextures.samplers[*texture.samplerIndex];
+                                return *assetDefaultSampler;
+                            }(),
+                            *gltfAsset->imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture)),
+                            vk::ImageLayout::eShaderReadOnlyOptimal,
+                        };
+                    }));
+                    gpu.device.updateDescriptorSets({
+                        sharedData.assetDescriptorSet.getWrite<0>(imageInfos),
+                        sharedData.assetDescriptorSet.getWriteOne<1>({ gltfAsset->assetResources.materialBuffer, 0, vk::WholeSize }),
+                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltfAsset->sceneResources.primitiveBuffer, 0, vk::WholeSize }),
+                        sharedData.sceneDescriptorSet.getWriteOne<1>({ gltfAsset->sceneResources.nodeWorldTransformBuffer, 0, vk::WholeSize }),
+                    }, {});
 
-        // Draw main menu bar.
-        visit(multilambda {
-            [&](const control::imgui::task::LoadGltf &task) {
-                // TODO: I'm aware that there are more good solutions than waitIdle, but I don't have much time for it
-                //  so I'll just use it for now.
-                gpu.device.waitIdle();
-
-                gltfAsset.emplace(parser, task.path, gpu);
-
-                sharedData.updateTextureCount(1 + gltfAsset->get().textures.size());
-
-                gpu.device.updateDescriptorSets({
-                    sharedData.assetDescriptorSet.getWrite<0>(vku::unsafeProxy([&]() {
-                        std::vector<vk::DescriptorImageInfo> imageInfos;
-                        imageInfos.reserve(1 + gltfAsset->get().textures.size());
-
-                        imageInfos.emplace_back(*sharedData.singleTexelSampler, *assetFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-                        imageInfos.append_range(gltfAsset->get().textures | std::views::transform([this](const fastgltf::Texture &texture) {
-                            return vk::DescriptorImageInfo {
-                                [&]() {
-                                    if (texture.samplerIndex) return *gltfAsset->assetTextures.samplers[*texture.samplerIndex];
-                                    return *assetDefaultSampler;
-                                }(),
+                    // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
+                    assetTextureDescriptorSets
+                        = gltfAsset->get().textures
+                        | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
+                            return ImGui_ImplVulkan_AddTexture(
+                                to_optional(texture.samplerIndex)
+                                    .transform([this](std::size_t samplerIndex) { return *gltfAsset->assetTextures.samplers[samplerIndex]; })
+                                    .value_or(*assetDefaultSampler),
                                 *gltfAsset->imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture)),
-                                vk::ImageLayout::eShaderReadOnlyOptimal,
-                            };
-                        }));
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                        })
+                        | std::ranges::to<std::vector>();
 
-                        return imageInfos;
-                    }())),
-                    sharedData.assetDescriptorSet.getWriteOne<1>({ gltfAsset->assetResources.materialBuffer, 0, vk::WholeSize }),
-                    sharedData.sceneDescriptorSet.getWriteOne<0>({ gltfAsset->sceneResources.primitiveBuffer, 0, vk::WholeSize }),
-                    sharedData.sceneDescriptorSet.getWriteOne<1>({ gltfAsset->sceneResources.nodeWorldTransformBuffer, 0, vk::WholeSize }),
-                }, {});
+                    // Update AppState.
+                    appState.gltfAsset.emplace(gltfAsset->get(), gltfAsset->assetDir);
+                    appState.pushRecentGltfPath(task.path);
 
-                // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
-                assetTextureDescriptorSets
-                    = gltfAsset->get().textures
-                    | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
-                        return ImGui_ImplVulkan_AddTexture(
-                            to_optional(texture.samplerIndex)
-                                .transform([this](std::size_t samplerIndex) { return vku::toCType(*gltfAsset->assetTextures.samplers[samplerIndex]); })
-                                .value_or(vku::toCType(*assetDefaultSampler)),
-                            vku::toCType(*gltfAsset->imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture))),
-                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                    })
-                    | std::ranges::to<std::vector>();
+                    // Adjust the camera based on the scene bounding sphere.
+                    const auto [sceneCenter, sceneRadius] = gltfAsset->sceneResources.getSmallestEnclosingSphere();
+                    const float distance = sceneRadius / std::sin(appState.camera.fov / 2.f);
+                    appState.camera.position = sceneCenter - glm::dvec3 { distance * normalize(appState.camera.direction) };
+                    appState.camera.zMin = distance - sceneRadius;
+                    appState.camera.zMax = distance + sceneRadius;
+                    appState.camera.targetDistance = distance;
+                },
+                [&](imgui::task::CloseGltf) {
+                    gltfAsset.reset();
 
-                // Update AppState.
-                appState.gltfAsset.emplace(gltfAsset->get(), gltfAsset->assetDir);
+                    // Update AppState.
+                    appState.gltfAsset.reset();
+                },
+                [&](const imgui::task::LoadEqmap &task) {
+                    processEqmapChange(task.path);
 
-                // Adjust the camera based on the scene bounding sphere.
-                const auto [sceneCenter, sceneRadius] = gltfAsset->sceneResources.getSmallestEnclosingSphere();
-                const float distance = sceneRadius / std::sin(appState.camera.fov / 2.f);
-                appState.camera.position = sceneCenter - glm::dvec3 { distance * normalize(appState.camera.direction) };
-                appState.camera.zMin = distance - sceneRadius;
-                appState.camera.zMax = distance + sceneRadius;
-                appState.camera.targetDistance = distance;
-            },
-            [&](control::imgui::task::CloseGltf) {
-                gltfAsset.reset();
+                    // Update AppState.
+                    appState.pushRecentSkyboxPath(task.path);
+                },
+                [](imgui::task::SceneChanged task) {
+                    // TODO: handle scene changing event.
+                },
+                [this](imgui::task::NodeVisibilityTypeChanged) {
+                    visit(multilambda {
+                        [this](std::span<const std::optional<bool>> visibilities) {
+                            appState.gltfAsset->nodeVisibilities.emplace<std::vector<bool>>(
+                                std::from_range,
+                                visibilities | std::views::transform([](std::optional<bool> visibility) {
+                                    return visibility.value_or(true);
+                                }));
+                        },
+                        [this](const std::vector<bool> &visibilities) {
+                            appState.gltfAsset->nodeVisibilities.emplace<std::vector<std::optional<bool>>>(visibilities.size(), true);
+                        },
+                    }, appState.gltfAsset->nodeVisibilities);
+                },
+                [this](imgui::task::NodeVisibilityChanged task) {
+                    visit(multilambda {
+                        [&](std::span<std::optional<bool>> visibilities) {
+                            if (auto &visibility = visibilities[task.nodeIndex]; visibility) {
+                                *visibility = !*visibility;
+                            }
+                            else {
+                                visibility.emplace(true);
+                            }
 
-                // Update AppState.
-                appState.gltfAsset.reset();
-            },
-            [&](const control::imgui::task::LoadEqmap &task) {
-                processEqmapChange(task.path);
-            },
-            [](std::monostate) { },
-        }, control::imgui::menuBar(appState));
+                            tristate::propagateTopDown(
+                                [&](auto i) -> decltype(auto) { return gltfAsset->get().nodes[i].children; },
+                                task.nodeIndex, visibilities);
+                            tristate::propagateBottomUp(
+                                [&](auto i) { return appState.gltfAsset->getParentNodeIndex(i).value_or(i); },
+                                [&](auto i) -> decltype(auto) { return gltfAsset->get().nodes[i].children; },
+                                task.nodeIndex, visibilities);
+                        },
+                        [&](std::vector<bool> &visibilities) {
+                            visibilities[task.nodeIndex].flip();
+                        },
+                    }, appState.gltfAsset->nodeVisibilities);
+                },
+                [this](const imgui::task::SelectedNodeChanged &task) {
+                    if (!task.combine) {
+                        appState.gltfAsset->selectedNodeIndices.clear();
+                    }
+                    appState.gltfAsset->selectedNodeIndices.emplace(task.nodeIndex);
+                },
+                [this](const imgui::task::HoveringNodeChanged &task) {
+                    appState.gltfAsset->hoveringNodeIndex.emplace(task.nodeIndex);
+                },
+                [this](const imgui::task::NodeLocalTransformChanged &task) {
+                    // Update SceneResources::nodeWorldTransformBuffer.
+                    const std::span nodeWorldTransforms = gltfAsset->sceneResources.nodeWorldTransformBuffer.asRange<glm::mat4>();
 
-        control::imgui::inputControlSetting(appState);
+                    const auto applyNodeLocalTransformChangeRecursive
+                        = [&, &asset = gltfAsset->get()](this const auto &self, std::size_t nodeIndex, const glm::mat4 &parentNodeWorldTransform = { 1.f }) -> void {
+                            const fastgltf::Node &node = asset.nodes[nodeIndex];
+                            nodeWorldTransforms[nodeIndex] = parentNodeWorldTransform * visit(LIFT(fastgltf::toMatrix), node.transform);
 
-        control::imgui::skybox(appState);
-        if (skyboxResources) {
-            control::imgui::hdriEnvironments(skyboxResources->imGuiEqmapTextureDescriptorSet, appState);
-        }
-
-        // Asset inspection.
-        control::imgui::assetInfos(appState);
-        control::imgui::assetBufferViews(appState);
-        control::imgui::assetBuffers(appState);
-        control::imgui::assetImages(appState);
-        control::imgui::assetSamplers(appState);
-        control::imgui::assetMaterials(appState, assetTextureDescriptorSets);
-        control::imgui::assetSceneHierarchies(appState);
-
-        // Node inspection.
-        control::imgui::nodeInspector(appState);
-
-        // ImGuizmo.
-        ImGuizmo::BeginFrame();
-        ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
-        if (appState.canManipulateImGuizmo()) {
-            assert(gltfAsset && "glTF asset stored in AppState but not in MainApp");
-            const std::span nodeWorldTransforms = gltfAsset->sceneResources.nodeWorldTransformBuffer.asRange<const glm::mat4>();
-            const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
-            const glm::mat4 &nodeWorldTransform = nodeWorldTransforms[selectedNodeIndex];
-
-            if (auto deltaMatrix = control::imgui::manipulate(appState, nodeWorldTransform)) {
-                // If ImGuizmo manipulation is updated, update the target node transform in the asset.
-                fastgltf::Asset &asset = gltfAsset->get();
-                fastgltf::Node &deltaNode = asset.nodes[selectedNodeIndex];
-                visit(multilambda {
-                    [&](fastgltf::TRS &trs) {
-                        // Convert TRS to mat4.
-                        glm::mat4 newTransform = translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data()))
-                            * mat4_cast(glm::make_quat(trs.rotation.data()))
-                            * scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
-
-                        // Apply deltaMatrix.
-                        newTransform *= *deltaMatrix;
-
-                        // Convert mat4 to TRS.
-                        fastgltf::Node::TransformMatrix transformMatrix;
-                        std::copy_n(value_ptr(newTransform), 16, transformMatrix.data());
-                        fastgltf::decomposeTransformMatrix(transformMatrix, trs.scale, trs.rotation, trs.translation);
-                    },
-                    [&](fastgltf::Node::TransformMatrix &transformMatrix) {
-                        // Apply deltaMatrix.
-                        glm::mat4 newTransform = glm::make_mat4(transformMatrix.data());
-                        newTransform *= *deltaMatrix;
-                        std::copy_n(value_ptr(newTransform), 16, transformMatrix.data());
-                    },
-                }, deltaNode.transform);
-
-                // Recursively update the current's and child nodes' transform.
-                // TODO: this must be done under sceneResources.nodeTransformBuffer is idle from GPU access.
-                const auto calculateNodeTransformsRecursive
-                    = [&, mutableNodeWorldTransforms = gltfAsset->sceneResources.nodeWorldTransformBuffer.asRange<glm::mat4>()](
-                        this const auto &self,
-                        std::size_t nodeIndex,
-                        const glm::mat4 &parentNodeWorldTransform = { 1.f }
-                    ) -> void {
-                        const fastgltf::Node &node = asset.nodes[nodeIndex];
-                        mutableNodeWorldTransforms[nodeIndex] = parentNodeWorldTransform * visit(fastgltf::visitor {
-                            [](const fastgltf::TRS &trs) {
-                                return translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data()))
-                                    * mat4_cast(glm::make_quat(trs.rotation.data()))
-                                    * scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
-                            },
-                            [](const fastgltf::Node::TransformMatrix &mat) {
-                                return glm::make_mat4(mat.data());
-                            },
-                        }, node.transform);
-
-                        for (std::size_t childNodeIndex : node.children) {
-                            self(childNodeIndex, mutableNodeWorldTransforms[nodeIndex]);
-                        }
+                            for (std::size_t childNodeIndex : node.children) {
+                                self(childNodeIndex, nodeWorldTransforms[nodeIndex]);
+                            }
                     };
 
-                // Start from the current selected node, execute calculateNodeTransformsRecursive with its parent node's
-                // world transform. (Use identity matrix if selected node is root node.)
-                const std::size_t parentNodeIndex = appState.gltfAsset->parentNodeIndices[selectedNodeIndex];
-                const glm::mat4 parentNodeWorldTransform = parentNodeIndex == selectedNodeIndex
-                    ? glm::mat4 { 1.f } : nodeWorldTransforms[parentNodeIndex];
-                calculateNodeTransformsRecursive(selectedNodeIndex, parentNodeWorldTransform);
-            }
+                    // Start from the current selected node, execute applyNodeLocalTransformChangeRecursive with its
+                    // parent node's world transform (it must be identity matrix if selected node is root node).
+                    const glm::mat4 parentNodeWorldTransform
+                        = appState.gltfAsset->getParentNodeIndex(task.nodeIndex)
+                        .transform([&](std::size_t parentNodeIndex) {
+                            return nodeWorldTransforms[parentNodeIndex];
+                        })
+                        .value_or(glm::mat4 { 1.f });
+                    applyNodeLocalTransformChangeRecursive(task.nodeIndex, parentNodeWorldTransform);
+                },
+            }, task);
         }
-        control::imgui::viewManipulate(appState, centerNodeRect.Max);
-
-        ImGui::Render();
 
         const vulkan::Frame::ExecutionTask task {
             .passthruRect = passthruRect,
             .camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
-            .mouseCursorOffset = appState.hoveringMousePosition.and_then([&](const glm::vec2 &position) -> std::optional<vk::Offset2D> {
+            .cursorPosFromPassthruRectTopLeft = appState.hoveringMousePosition.and_then([&](const glm::vec2 &position) -> std::optional<vk::Offset2D> {
                 // If cursor is outside the framebuffer, cursor position is undefined.
                 const glm::vec2 framebufferCursorPosition = position * glm::vec2 { window.getFramebufferSize() } / glm::vec2 { window.getSize() };
                 if (glm::vec2 framebufferSize = window.getFramebufferSize(); framebufferCursorPosition.x >= framebufferSize.x || framebufferCursorPosition.y >= framebufferSize.y) return std::nullopt;
 
-                return vk::Offset2D {
-                    static_cast<std::int32_t>(framebufferCursorPosition.x),
-                    static_cast<std::int32_t>(framebufferCursorPosition.y)
+                const vk::Offset2D offset {
+                    static_cast<std::int32_t>(framebufferCursorPosition.x) - passthruRect.offset.x,
+                    static_cast<std::int32_t>(framebufferCursorPosition.y) - passthruRect.offset.y
                 };
+                if (0 <= offset.x && offset.x < passthruRect.extent.width && 0 <= offset.y && offset.y < passthruRect.extent.height) {
+                    return offset;
+                }
+                else {
+                    return std::nullopt;
+                }
             }),
             .hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
             .selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
@@ -457,7 +463,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
         };
 
         const vulkan::Frame::UpdateResult updateResult = frames[frameIndex % frames.size()].update(task);
-        if (appState.gltfAsset) {
+        // Updating hovering node index should be only done if mouse cursor is inside the passthru rect (otherwise, it
+        // should be manipulated by ImGui scene hierarchy tree).
+        if (task.cursorPosFromPassthruRectTopLeft && appState.gltfAsset) {
             appState.gltfAsset->hoveringNodeIndex = updateResult.hoveringNodeIndex;
         }
 

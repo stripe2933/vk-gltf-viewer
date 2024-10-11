@@ -98,4 +98,56 @@ namespace ImGui {
         TextUnformatted(label);
         return value;
     }
+
+    export template <std::invocable F>
+    auto WithGroup(F &&f, bool flag = true) -> void {
+        if (flag) BeginGroup();
+        std::invoke(FWD(f));
+        if (flag) EndGroup();
+    }
+
+    export template <std::invocable F>
+    auto WithDisabled(F &&f, bool flag = true) -> void {
+        BeginDisabled(flag);
+        std::invoke(FWD(f));
+        EndDisabled();
+    }
+
+    export template <std::invocable F>
+    auto WithID(std::string_view id, F &&f) -> void {
+        PushID(id.data(), id.data() + id.size());
+        std::invoke(FWD(f));
+        PopID();
+    }
+
+    export template <std::invocable F>
+    auto WithID(auto id, F &&f) -> void {
+        PushID(id);
+        std::invoke(FWD(f));
+        PopID();
+    }
+
+    export template <std::invocable F>
+    auto WithItemWidth(float width, F &&f) -> void {
+        PushItemWidth(width);
+        std::invoke(FWD(f));
+        PopItemWidth();
+    }
+
+    export template <std::invocable F>
+    auto WithStyleColor(int index, const ImVec4 &color, F &&f, bool flag = true) -> void
+        requires std::is_void_v<std::invoke_result_t<F>>
+    {
+        if (flag) PushStyleColor(index, color);
+        std::invoke(FWD(f));
+        if (flag) PopStyleColor();
+    }
+
+    export template <std::invocable F>
+    auto WithStyleColor(int index, const ImVec4 &color, F &&f, bool flag = true) -> std::invoke_result_t<F> {
+        if (flag) PushStyleColor(index, color);
+        auto result = std::invoke(FWD(f));
+        if (flag) PopStyleColor();
+        return result;
+    }
 }

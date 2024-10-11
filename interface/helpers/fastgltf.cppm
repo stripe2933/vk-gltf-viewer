@@ -5,6 +5,7 @@ module;
 export module vk_gltf_viewer:helpers.fastgltf;
 
 import std;
+export import glm;
 export import :helpers.cstring_view;
 
 namespace fastgltf {
@@ -117,5 +118,17 @@ namespace fastgltf {
             case Wrap::MirroredRepeat: return "MirroredRepeat";
         }
         std::unreachable();
+    }
+
+    export
+    [[nodiscard]] glm::mat4 toMatrix(const Node::TransformMatrix &transformMatrix) noexcept {
+        return glm::make_mat4(transformMatrix.data());
+    }
+
+    export
+    [[nodiscard]] glm::mat4 toMatrix(const TRS &trs) noexcept {
+        return translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data()))
+            * mat4_cast(glm::make_quat(trs.rotation.data()))
+            * scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
     }
 }

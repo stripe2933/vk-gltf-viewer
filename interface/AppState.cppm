@@ -46,7 +46,6 @@ namespace vk_gltf_viewer {
         public:
             fastgltf::Asset &asset;
             std::filesystem::path assetDir;
-            std::vector<std::size_t> parentNodeIndices = getParentNodeIndices();
             std::variant<std::vector<std::optional<bool>>, std::vector<bool>> nodeVisibilities { std::in_place_index<0>, asset.nodes.size(), true };
             std::optional<std::size_t> assetInspectorMaterialIndex = asset.materials.empty() ? std::optional<std::size_t>{} : std::optional<std::size_t> { 0 };
 
@@ -95,10 +94,26 @@ namespace vk_gltf_viewer {
                 }, nodeVisibilities);
             }
 
+            /**
+             * Get index of the parent node of the given node.
+             * @param nodeIndex Index of the node.
+             * @return Index of the parent node if the current node is not root node, otherwise <tt>std::nullopt</tt>.
+             */
+            [[nodiscard]] std::optional<std::size_t> getParentNodeIndex(std::size_t nodeIndex) const noexcept {
+                const std::size_t parentNodeIndex = parentNodeIndices[nodeIndex];
+                if (parentNodeIndex == nodeIndex) {
+                    return std::nullopt;
+                }
+                else {
+                    return parentNodeIndex;
+                }
+            }
+
         private:
             std::size_t sceneIndex = asset.defaultScene.value_or(0);
+            std::vector<std::size_t> parentNodeIndices = createParentNodeIndices();
 
-            [[nodiscard]] auto getParentNodeIndices() const noexcept -> std::vector<std::size_t> {
+            [[nodiscard]] auto createParentNodeIndices() const noexcept -> std::vector<std::size_t> {
                 std::vector indices{ std::from_range, std::views::iota(std::size_t{ 0 }, asset.nodes.size()) };
                 for (const auto &[i, node] : asset.nodes | ranges::views::enumerate) {
                     for (std::size_t childIndex : node.children) {

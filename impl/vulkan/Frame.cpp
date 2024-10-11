@@ -108,18 +108,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     viewPosition = inverse(task.camera.view)[3];
     translationlessProjectionViewMatrix = task.camera.projection * glm::mat4 { glm::mat3 { task.camera.view } };
     passthruRect = task.passthruRect;
-    cursorPosFromPassthruRectTopLeft
-        = task.mouseCursorOffset.and_then([&](vk::Offset2D offset) -> std::optional<vk::Offset2D> {
-            offset.x -= passthruRect.offset.x;
-            offset.y -= passthruRect.offset.y;
-
-            if (0 <= offset.x && offset.x < passthruRect.extent.width && 0 <= offset.y && offset.y < passthruRect.extent.height) {
-                return offset;
-            }
-            else {
-                return std::nullopt;
-            }
-        });
+    cursorPosFromPassthruRectTopLeft = task.cursorPosFromPassthruRectTopLeft;
 
     // If there is a glTF scene to be rendered, related resources have to be updated.
     if (task.gltf) {

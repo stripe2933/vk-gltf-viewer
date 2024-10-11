@@ -112,16 +112,6 @@ namespace views {
         return *FWD(x);
     });
 
-    struct with_iterator_fn : range_adaptor_closure<with_iterator_fn> {
-        [[nodiscard]] constexpr auto operator()(std::ranges::input_range auto &&r) const {
-            return std::views::iota(r.begin(), r.end())
-                | std::views::transform([](auto it) {
-                    return std::pair<decltype(it), decltype(*it)> { it, *it };
-                });
-        }
-    };
-    export constexpr with_iterator_fn with_iterator;
-
     /**
      * A range adaptor object that apply a transformation function, invocable with underlying sequence's tuple-like elements.
      * @example

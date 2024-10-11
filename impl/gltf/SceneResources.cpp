@@ -9,8 +9,12 @@ module vk_gltf_viewer;
 import :gltf.SceneResources;
 
 import std;
+import :helpers.fastgltf;
 import :helpers.ranges;
 import :helpers.extended_arithmetic;
+
+#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+#define LIFT(...) [](auto &&x) { return __VA_ARGS__(FWD(x)); }
 
 vk_gltf_viewer::gltf::SceneResources::SceneResources(
     const fastgltf::Asset &asset [[clang::lifetimebound]],
@@ -95,16 +99,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createNodeWorldTransformBuffer() cons
     const auto calculateNodeWorldTransformsRecursive
         = [&](this const auto &self, std::size_t nodeIndex, glm::mat4 parentNodeWorldTransform = { 1.f }) -> void {
             const fastgltf::Node &node = asset.nodes[nodeIndex];
-            parentNodeWorldTransform *= visit(fastgltf::visitor {
-                [](const fastgltf::TRS &trs) {
-                    return translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data()))
-                        * mat4_cast(glm::make_quat(trs.rotation.data()))
-                        * scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
-                },
-                [](const fastgltf::Node::TransformMatrix &mat) {
-                    return glm::make_mat4(mat.data());
-                },
-            }, node.transform);
+            parentNodeWorldTransform *= visit(LIFT(fastgltf::toMatrix), node.transform);
             nodeTransforms[nodeIndex] = parentNodeWorldTransform;
 
             for (std::size_t childNodeIndex : node.children) {
