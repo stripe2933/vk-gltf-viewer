@@ -183,7 +183,9 @@ vk_gltf_viewer::MainApp::MainApp() {
 #if __APPLE__
         "/Library/Fonts/Arial Unicode.ttf",
 #elif _WIN32
-		"C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+#else
+#error "Type your own font file in here!"
 #endif
         16.f * io.DisplayFramebufferScale.x, nullptr, ranges.Data);
     io.Fonts->Build();
