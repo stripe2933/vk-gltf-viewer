@@ -179,7 +179,13 @@ vk_gltf_viewer::MainApp::MainApp() {
     builder.AddRanges(io.Fonts->GetGlyphRangesDefault());
     builder.AddChar(0x2197 /*↗*/);
     builder.BuildRanges(&ranges);
-    io.Fonts->AddFontFromFileTTF("/Library/Fonts/Arial Unicode.ttf", 16.f * io.DisplayFramebufferScale.x, nullptr, ranges.Data);
+    io.Fonts->AddFontFromFileTTF(
+#if __APPLE__
+        "/Library/Fonts/Arial Unicode.ttf",
+#elif _WIN32
+		"C:\\Windows\\Fonts\\arial.ttf",
+#endif
+        16.f * io.DisplayFramebufferScale.x, nullptr, ranges.Data);
     io.Fonts->Build();
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
