@@ -258,18 +258,20 @@ namespace vk_gltf_viewer::gltf {
                             vk::ImageTiling::eOptimal,
                             vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
                         };
-                        if (texture->generateMipmaps) {
+
+                        const bool generateMipmaps = texture->generateMipmaps;
+                        if (generateMipmaps) {
                             createInfo.usage |= vk::ImageUsageFlagBits::eTransferSrc;
                         }
 
                         // Now KTX texture data is copied to the staging buffers, and therefore can be destroyed.
                         ktxTexture_Destroy(ktxTexture(texture));
 
-                        vku::AllocatedImage image { gpu.allocator, createInfo };
+                        vku::AllocatedImage image{ gpu.allocator, createInfo };
 
                         // Reduce the partial data to the main ones with a lock.
-                        std::scoped_lock lock { mutex };
-                        if (texture->generateMipmaps) {
+                        std::scoped_lock lock{ mutex };
+                        if (generateMipmaps) {
                             imageIndicesToGenerateMipmap.emplace(imageIndex);
                         }
                         stagingBuffers.splice_after(stagingBuffers.before_begin(), std::move(partialStagingBuffers));
