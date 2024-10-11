@@ -57,8 +57,9 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance 
         }
 
         // Check device extension availability.
+        const std::vector availableExtensions = physicalDevice.enumerateDeviceExtensionProperties();
         std::vector availableExtensionNames
-            = physicalDevice.enumerateDeviceExtensionProperties()
+            = availableExtensions
             | std::views::transform([](const vk::ExtensionProperties &properties) {
                 return static_cast<std::string_view>(properties.extensionName);
             })
@@ -143,8 +144,9 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance 
 
 auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
     // Add optional extensions if available.
+	const std::vector availableExtensions = physicalDevice.enumerateDeviceExtensionProperties();
     const std::unordered_set availableExtensionNames
-        = physicalDevice.enumerateDeviceExtensionProperties()
+        = availableExtensions
         | std::views::transform([](const vk::ExtensionProperties &properties) {
             return static_cast<std::string_view>(properties.extensionName);
         })
