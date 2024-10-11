@@ -181,11 +181,11 @@ vk_gltf_viewer::MainApp::MainApp() {
     builder.AddChar(0x2197 /*↗*/);
     builder.BuildRanges(&ranges);
     io.Fonts->AddFontFromFileTTF(
-#if _WIN32
+#ifdef _WIN32
         "C:\\Windows\\Fonts\\arial.ttf",
 #elif __APPLE__
         "/Library/Fonts/Arial Unicode.ttf",
-#elif __GNU__
+#elif __linux__
         "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
 #else
 #error "Type your own font file in here!"
