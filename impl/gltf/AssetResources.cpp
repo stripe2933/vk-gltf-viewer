@@ -459,10 +459,10 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
         else {
             const vk::IndexType indexType = [&]() -> vk::IndexType {
                 switch (accessor.componentType) {
-                    case fastgltf::ComponentType::UnsignedByte: return vk::IndexType::eUint8KHR;
+                    case fastgltf::ComponentType::UnsignedByte: return vk::IndexType::eUint8EXT;
                     case fastgltf::ComponentType::UnsignedShort: return vk::IndexType::eUint16;
                     case fastgltf::ComponentType::UnsignedInt: return vk::IndexType::eUint32;
-                    default: throw std::runtime_error { "Unsupported index type: only Uint8KHR, Uint16 and Uint32 are supported." };
+                    default: throw std::runtime_error { "Unsupported index type: only Uint8EXT, Uint16 and Uint32 are supported." };
                 }
             }();
             indexBufferBytesByType[indexType].emplace_back(&primitive, externalBuffers.getByteRegion(accessor));

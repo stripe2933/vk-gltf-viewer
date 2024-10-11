@@ -20,6 +20,7 @@ constexpr std::array requiredExtensions {
 
 constexpr std::array optionalExtensions {
     vk::KHRSwapchainMutableFormatExtensionName,
+    vk::EXTIndexTypeUint8ExtensionName,
 };
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
