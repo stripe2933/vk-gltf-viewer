@@ -112,6 +112,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/SphericalHarmonicsComputer.cppm
         interface/vulkan/pipeline/SubgroupMipmapComputer.cppm
         interface/vulkan/pipeline/SkyboxRenderer.cppm
+        interface/vulkan/pipeline/tag.cppm
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderer.cppm
         interface/vulkan/pipeline_layout/SceneRendering.cppm
         interface/vulkan/render_pass/CubemapToneMapping.cppm
@@ -119,13 +120,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/sampler/BrdfLutSampler.cppm
         interface/vulkan/sampler/CubemapSampler.cppm
         interface/vulkan/sampler/SingleTexelSampler.cppm
-        interface/vulkan/shader/BlendPrimitiveFragment.cppm
-        interface/vulkan/shader/FacetedPrimitiveTessellation.cppm
-        interface/vulkan/shader/FacetedPrimitiveVertex.cppm
-        interface/vulkan/shader/MaskPrimitiveFragment.cppm
-        interface/vulkan/shader/PrimitiveFragment.cppm
-        interface/vulkan/shader/PrimitiveVertex.cppm
-        interface/vulkan/shader/ScreenQuadVertex.cppm
         interface/vulkan/SharedData.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE

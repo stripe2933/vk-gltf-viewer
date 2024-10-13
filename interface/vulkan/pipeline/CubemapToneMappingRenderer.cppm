@@ -2,7 +2,6 @@ export module vk_gltf_viewer:vulkan.pipeline.CubemapToneMappingRenderer;
 
 import std;
 export import glm;
-export import :vulkan.shader.ScreenQuadVertex;
 export import :vulkan.rp.CubemapToneMapping;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -24,7 +23,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         CubemapToneMappingRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
-            const shader::ScreenQuadVertex &vertexShader,
             const rp::CubemapToneMapping &renderPass [[clang::lifetimebound]]
         ) : descriptorSetLayout { device },
             pipelineLayout { device, vk::PipelineLayoutCreateInfo {
@@ -34,8 +32,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(
                     device,
-                    vertexShader,
-                    vku::Shader { COMPILED_SHADER_DIR "/cubemap_tone_mapping.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/screen_quad.vert.spv", vk::ShaderStageFlagBits::eVertex),
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/cubemap_tone_mapping.frag.spv", vk::ShaderStageFlagBits::eFragment)).get(),
                 *pipelineLayout, 1)
                 .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                     {},

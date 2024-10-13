@@ -22,16 +22,14 @@ namespace vk_gltf_viewer::vulkan {
     export void recordMipmapGenerationCommand(vk::CommandBuffer cb, const vku::Image &image) {
         for (std::uint32_t srcLevel = 0, dstLevel = 1; dstLevel < image.mipLevels; ++srcLevel, ++dstLevel) {
             // Blit from srcLevel to dstLevel.
-            const vk::Extent2D srcMipExtent = image.mipExtent(srcLevel);
-            const vk::Extent2D dstMipExtent = image.mipExtent(dstLevel);
             cb.blitImage(
                 image, vk::ImageLayout::eTransferSrcOptimal,
                 image, vk::ImageLayout::eTransferDstOptimal,
                 vk::ImageBlit {
                     { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
-                    { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(srcMipExtent), 1 } },
+                    { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(srcLevel)) },
                     { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-                    { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(dstMipExtent), 1 } },
+                    { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(dstLevel)) },
                 },
                 vk::Filter::eLinear);
 
@@ -78,16 +76,14 @@ namespace vk_gltf_viewer::vulkan {
 
             // Blit from srcLevel to dstLevel.
             for (const vku::Image &image : targetImages) {
-                const vk::Extent2D srcMipExtent = image.mipExtent(srcLevel);
-                const vk::Extent2D dstMipExtent = image.mipExtent(dstLevel);
                 cb.blitImage(
                     image, vk::ImageLayout::eTransferSrcOptimal,
                     image, vk::ImageLayout::eTransferDstOptimal,
                     vk::ImageBlit {
                         { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
-                        { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(srcMipExtent), 1 } },
+                        { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(srcLevel)) },
                         { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-                        { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(dstMipExtent), 1 } },
+                        { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(dstLevel)) },
                     },
                     vk::Filter::eLinear);
             }

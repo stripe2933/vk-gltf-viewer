@@ -22,8 +22,8 @@ vk_gltf_viewer::vulkan::pipeline::MaskDepthRenderer::MaskDepthRenderer(
         vku::getDefaultGraphicsPipelineCreateInfo(
             createPipelineStages(
                 device,
-                vku::Shader { COMPILED_SHADER_DIR "/mask_depth.vert.spv", vk::ShaderStageFlagBits::eVertex },
-                vku::Shader { COMPILED_SHADER_DIR "/mask_depth.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
+                vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/mask_depth.vert.spv", vk::ShaderStageFlagBits::eVertex),
+                vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/mask_depth.frag.spv", vk::ShaderStageFlagBits::eFragment)).get(),
             *pipelineLayout, 1, true)
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},

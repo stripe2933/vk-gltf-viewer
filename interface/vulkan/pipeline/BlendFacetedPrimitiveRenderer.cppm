@@ -1,10 +1,8 @@
 export module vk_gltf_viewer:vulkan.pipeline.BlendFacetedPrimitiveRenderer;
 
 import vku;
+export import :vulkan.pipeline.tag;
 export import :vulkan.pl.SceneRendering;
-export import :vulkan.shader.FacetedPrimitiveVertex;
-export import :vulkan.shader.FacetedPrimitiveTessellation;
-export import :vulkan.shader.BlendPrimitiveFragment;
 export import :vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -12,13 +10,12 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         BlendFacetedPrimitiveRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
             const pl::SceneRendering &layout [[clang::lifetimebound]],
-            const shader::FacetedPrimitiveVertex &vertexShader,
             const rp::Scene &sceneRenderPass [[clang::lifetimebound]]
         ) : Pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(
                     device,
-                    vertexShader,
-                    vku::Shader { COMPILED_SHADER_DIR "/blend_faceted_primitive.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/faceted_primitive.vert.spv", vk::ShaderStageFlagBits::eVertex),
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/blend_faceted_primitive.frag.spv", vk::ShaderStageFlagBits::eFragment)).get(),
                 *layout, 1, true, vk::SampleCountFlagBits::e4)
             .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                 {},
@@ -61,20 +58,20 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
          * Construct the pipeline with tessellation shader based TBN matrix generation support.
          * @param device
          * @param layout
-         * @param vertexShader
-         * @param tessellationShader
-         * @param fragmentShader
          * @param sceneRenderPass
          */
         BlendFacetedPrimitiveRenderer(
+            use_tessellation_t,
             const vk::raii::Device &device [[clang::lifetimebound]],
             const pl::SceneRendering &layout [[clang::lifetimebound]],
-            const shader::FacetedPrimitiveVertex &vertexShader,
-            const shader::FacetedPrimitiveTessellation &tessellationShader,
-            const shader::BlendPrimitiveFragment &fragmentShader,
             const rp::Scene &sceneRenderPass [[clang::lifetimebound]]
         ) : Pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                createPipelineStages(device, vertexShader, tessellationShader.control, tessellationShader.evaluation, fragmentShader).get(),
+                createPipelineStages(
+                    device,
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/faceted_primitive.vert.spv", vk::ShaderStageFlagBits::eVertex),
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/faceted_primitive.tesc.spv", vk::ShaderStageFlagBits::eTessellationControl),
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/faceted_primitive.tese.spv", vk::ShaderStageFlagBits::eTessellationEvaluation),
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/blend_primitive.frag.spv", vk::ShaderStageFlagBits::eFragment)).get(),
                 *layout, 1, true, vk::SampleCountFlagBits::e4)
             .setPTessellationState(vku::unsafeAddress(vk::PipelineTessellationStateCreateInfo {
                 {},

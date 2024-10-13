@@ -29,14 +29,13 @@ vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::BrdfmapComputer(
         {},
         createPipelineStages(
             device,
-            vku::Shader {
+            vku::Shader::fromSpirvFile(
                 COMPILED_SHADER_DIR "/brdfmap.comp.spv",
                 vk::ShaderStageFlagBits::eCompute,
-                vk::SpecializationInfo {
+                vku::unsafeAddress(vk::SpecializationInfo {
                     vku::unsafeProxy(vk::SpecializationMapEntry { 0, 0, sizeof(SpecializationConstants::numSamples) }),
                     vk::ArrayProxyNoTemporaries<const SpecializationConstants>(specializationConstants),
-                },
-            }).get()[0],
+                }))).get()[0],
         *pipelineLayout,
     } } { }
 

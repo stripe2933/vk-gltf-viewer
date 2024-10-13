@@ -37,15 +37,14 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(
                     device,
-                    vku::Shader { COMPILED_SHADER_DIR "/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex },
-                    vku::Shader {
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex),
+                    vku::Shader::fromSpirvFile(
                         COMPILED_SHADER_DIR "/skybox.frag.spv",
                         vk::ShaderStageFlagBits::eFragment,
-                        vk::SpecializationInfo {
+                        vku::unsafeAddress(vk::SpecializationInfo {
                             vku::unsafeProxy(vk::SpecializationMapEntry { 0, 0, sizeof(vk::Bool32) }),
                             vku::unsafeProxy<vk::Bool32>(isCubemapImageToneMapped),
-                        },
-                    }).get(),
+                        }))).get(),
                 *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
                 .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                     {},

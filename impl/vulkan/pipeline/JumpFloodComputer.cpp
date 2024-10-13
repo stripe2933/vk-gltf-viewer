@@ -38,7 +38,7 @@ vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::JumpFloodComputer(
         {},
         createPipelineStages(
             device,
-            vku::Shader { COMPILED_SHADER_DIR "/jump_flood.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()[0],
+            vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/jump_flood.comp.spv", vk::ShaderStageFlagBits::eCompute)).get()[0],
         *pipelineLayout,
     } } { }
 

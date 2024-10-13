@@ -168,7 +168,7 @@ namespace vk_gltf_viewer::gltf {
                             vk::ImageType::e2D,
                             determineNonCompressedImageFormat(channels, imageIndex),
                             { width, height, 1 },
-                            vku::Image::maxMipLevels({ width, height }), 1,
+                            vku::Image::maxMipLevels(vk::Extent2D { width, height }), 1,
                             vk::SampleCountFlagBits::e1,
                             vk::ImageTiling::eOptimal,
                             vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
@@ -240,11 +240,7 @@ namespace vk_gltf_viewer::gltf {
                                 vk::BufferImageCopy {
                                     0, 0, 0,
                                     { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
-                                    vk::Offset3D{}, vk::Extent3D {
-                                        std::max(texture->baseWidth >> level, 1U),
-                                        std::max(texture->baseHeight >> level, 1U),
-                                        1,
-                                    },
+                                    vk::Offset3D{}, vk::Extent3D { vku::Image::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
                                 });
                         }
 

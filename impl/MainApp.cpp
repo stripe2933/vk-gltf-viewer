@@ -681,12 +681,12 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
     } };
     std::unique_ptr<vku::AllocatedBuffer> eqmapStagingBuffer;
 
-    const vk::Extent2D reducedEqmapImageExtent = eqmapImage.mipExtent(eqmapImage.mipLevels - 1);
+    const vk::Extent3D reducedEqmapImageExtent = eqmapImage.mipExtent(eqmapImage.mipLevels - 1);
     vku::AllocatedImage reducedEqmapImage { gpu.allocator, vk::ImageCreateInfo {
         {},
         vk::ImageType::e2D,
         vk::Format::eB10G11R11UfloatPack32,
-        vk::Extent3D { reducedEqmapImageExtent, 1 },
+        reducedEqmapImageExtent,
         vku::Image::maxMipLevels(reducedEqmapImageExtent), 1,
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
@@ -718,7 +718,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
 
     // Generate Tone-mapped cubemap.
     const vulkan::rp::CubemapToneMapping cubemapToneMappingRenderPass { gpu.device };
-    const vulkan::CubemapToneMappingRenderer cubemapToneMappingRenderer { gpu.device, {} /* TODO: reuse existing shader? */, cubemapToneMappingRenderPass };
+    const vulkan::CubemapToneMappingRenderer cubemapToneMappingRenderer { gpu.device, cubemapToneMappingRenderPass };
 
     vku::AllocatedImage toneMappedCubemapImage { gpu.allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
@@ -839,9 +839,9 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                     reducedEqmapImage, vk::ImageLayout::eTransferDstOptimal,
                     vk::ImageBlit {
                         { vk::ImageAspectFlagBits::eColor, eqmapImage.mipLevels - 1, 0, 1 },
-                        { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(eqmapImage.mipExtent(eqmapImage.mipLevels - 1)), 1 } },
+                        { vk::Offset3D{}, vku::toOffset3D(eqmapImage.mipExtent(eqmapImage.mipLevels - 1)) },
                         { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-                        { vk::Offset3D{}, vk::Offset3D { vku::toOffset2D(vku::toExtent2D(reducedEqmapImage.extent)), 1 } },
+                        { vk::Offset3D{}, vku::toOffset3D(reducedEqmapImage.extent) },
                     },
                     vk::Filter::eLinear);
 

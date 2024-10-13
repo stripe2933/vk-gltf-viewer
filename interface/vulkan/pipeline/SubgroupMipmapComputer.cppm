@@ -56,7 +56,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 {},
                 createPipelineStages(
                     gpu.device,
-                    vku::Shader { std::format(COMPILED_SHADER_DIR "/subgroup_mipmap_{}.comp.spv", gpu.subgroupSize), vk::ShaderStageFlagBits::eCompute }).get()[0],
+                    vku::Shader::fromSpirvFile(std::format(COMPILED_SHADER_DIR "/subgroup_mipmap_{}.comp.spv", gpu.subgroupSize), vk::ShaderStageFlagBits::eCompute)).get()[0],
                 *pipelineLayout,
             } } { }
 

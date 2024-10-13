@@ -34,8 +34,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
                         device,
-                        vku::Shader { COMPILED_SHADER_DIR "/mask_jump_flood_seed.vert.spv", vk::ShaderStageFlagBits::eVertex },
-                        vku::Shader { COMPILED_SHADER_DIR "/mask_jump_flood_seed.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
+                        vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/mask_jump_flood_seed.vert.spv", vk::ShaderStageFlagBits::eVertex),
+                        vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/mask_jump_flood_seed.frag.spv", vk::ShaderStageFlagBits::eFragment)).get(),
                     *pipelineLayout, 1, true)
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},

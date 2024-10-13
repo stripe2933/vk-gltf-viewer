@@ -21,7 +21,8 @@
     {
       "name": "vku",
       "features": [
-        "dynamic-dispatcher"
+        "dynamic-dispatcher",
+        "std-module"
       ]
     }
   ]

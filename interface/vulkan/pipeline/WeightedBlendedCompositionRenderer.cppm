@@ -3,7 +3,6 @@ export module vk_gltf_viewer:vulkan.pipeline.WeightedBlendedCompositionRenderer;
 import vku;
 export import vulkan_hpp;
 export import :vulkan.rp.Scene;
-export import :vulkan.shader.ScreenQuadVertex;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct WeightedBlendedCompositionRenderer {
@@ -27,7 +26,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         WeightedBlendedCompositionRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
-            const shader::ScreenQuadVertex &vertexShader,
             const rp::Scene &sceneRenderPass [[clang::lifetimebound]]
         ) : descriptorSetLayout { device },
             pipelineLayout { device, vk::PipelineLayoutCreateInfo {
@@ -37,8 +35,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(
                     device,
-                    vertexShader,
-                    vku::Shader { COMPILED_SHADER_DIR "/weighted_blended_composition.frag.spv", vk::ShaderStageFlagBits::eFragment }).get(),
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/screen_quad.vert.spv", vk::ShaderStageFlagBits::eVertex),
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/weighted_blended_composition.frag.spv", vk::ShaderStageFlagBits::eFragment)).get(),
                 *pipelineLayout, 1)
                 .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                     {},

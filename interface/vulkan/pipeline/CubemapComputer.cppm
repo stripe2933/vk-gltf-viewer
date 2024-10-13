@@ -51,7 +51,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 {},
                 createPipelineStages(
                     device,
-                    vku::Shader { COMPILED_SHADER_DIR "/cubemap.comp.spv", vk::ShaderStageFlagBits::eCompute }).get()[0],
+                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/cubemap.comp.spv", vk::ShaderStageFlagBits::eCompute)).get()[0],
                 *pipelineLayout,
             } } { }
 

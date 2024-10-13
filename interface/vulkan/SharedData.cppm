@@ -30,16 +30,6 @@ namespace vk_gltf_viewer::vulkan {
         const Gpu &gpu;
 
     public:
-        struct Shaders {
-            shader::FacetedPrimitiveVertex facetedPrimitiveVertexShader;
-            shader::PrimitiveVertex primitiveVertexShader;
-            shader::ScreenQuadVertex screenQuadVertexShader;
-            shader::FacetedPrimitiveTessellation facetedPrimitiveTessellationShaders;
-            shader::MaskPrimitiveFragment maskPrimitiveFragmentShader;
-            shader::BlendPrimitiveFragment blendPrimitiveFragmentShader;
-            shader::PrimitiveFragment primitiveFragmentShader;
-        };
-
         // Swapchain.
         vk::raii::SwapchainKHR swapchain;
         vk::Extent2D swapchainExtent;
@@ -93,18 +83,18 @@ namespace vk_gltf_viewer::vulkan {
         vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
         vku::DescriptorSet<dsl::Skybox> skyboxDescriptorSet;
 
-        SharedData(const Gpu &gpu [[clang::lifetimebound]], vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent, const Shaders &shaders = {})
+        SharedData(const Gpu &gpu [[clang::lifetimebound]], vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent)
             : gpu { gpu }
             , swapchain { createSwapchain(surface, swapchainExtent) }
             , swapchainExtent { swapchainExtent }
-            , blendFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass }
-            , blendPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.blendPrimitiveFragmentShader, sceneRenderPass }
-            , facetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass }
-            , maskFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass }
-            , maskPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.maskPrimitiveFragmentShader, sceneRenderPass }
-            , outlineRenderer { gpu.device, shaders.screenQuadVertexShader }
-            , weightedBlendedCompositionRenderer { gpu.device, shaders.screenQuadVertexShader, sceneRenderPass }
-            , primitiveRenderer { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.primitiveFragmentShader, sceneRenderPass } {
+            , blendFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass }
+            , blendPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass }
+            , facetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass }
+            , maskFacetedPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass }
+            , maskPrimitiveRenderer { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass }
+            , outlineRenderer { gpu.device }
+            , weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass }
+            , primitiveRenderer { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass } {
             const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
             const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
             vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
@@ -152,27 +142,25 @@ namespace vk_gltf_viewer::vulkan {
             sceneRenderingPipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
 
             // Following pipelines are dependent to the assetDescriptorSetLayout or sceneRenderingPipelineLayout.
-            const Shaders shaders;
-            blendPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.blendPrimitiveFragmentShader, sceneRenderPass };
+            blendPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
             maskDepthRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
             maskJumpFloodSeedRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-            maskPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.maskPrimitiveFragmentShader, sceneRenderPass };
-            primitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.primitiveVertexShader, shaders.primitiveFragmentShader, sceneRenderPass };
+            maskPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
+            primitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
 
             if (gpu.supportTessellationShader) {
-                blendFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, shaders.facetedPrimitiveTessellationShaders, shaders.blendPrimitiveFragmentShader, sceneRenderPass };
-                facetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, shaders.facetedPrimitiveTessellationShaders, shaders.primitiveFragmentShader, sceneRenderPass };
-                maskFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, shaders.facetedPrimitiveTessellationShaders, shaders.maskPrimitiveFragmentShader, sceneRenderPass };
+                blendFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
+                facetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
+                maskFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
             }
             else {
-                blendFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass };
-                facetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass };
-                maskFacetedPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, shaders.facetedPrimitiveVertexShader, sceneRenderPass };
+                blendFacetedPrimitiveRenderer = { use_tessellation, gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
+                facetedPrimitiveRenderer = { use_tessellation, gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
+                maskFacetedPrimitiveRenderer = { use_tessellation, gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
             }
 
             textureDescriptorPool = createTextureDescriptorPool();
-            std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(
-                assetDescriptorSetLayout));
+            std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(assetDescriptorSetLayout));
         }
 
     private:
