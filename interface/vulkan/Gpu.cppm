@@ -13,11 +13,17 @@ namespace vk_gltf_viewer::vulkan {
 
         QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface) {
             const std::vector queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
-            compute = vku::getComputeSpecializedQueueFamily(queueFamilyProperties)
+
+            // TODO: looks like vku::executeHierarchicalCommands implementation is TOTALLY incorrect... using it for multiple queues
+            //  would cause undebuggable error, therefore I'll just use the single universal queue for workaround now.
+            /*compute = vku::getComputeSpecializedQueueFamily(queueFamilyProperties)
                 .or_else([&]() { return vku::getComputeQueueFamily(queueFamilyProperties); })
                 .value();
             graphicsPresent = vku::getGraphicsPresentQueueFamily(physicalDevice, surface, queueFamilyProperties).value();
-            transfer = vku::getTransferSpecializedQueueFamily(queueFamilyProperties).value_or(compute);
+            transfer = vku::getTransferSpecializedQueueFamily(queueFamilyProperties).value_or(compute);*/
+            compute = vku::getGraphicsPresentQueueFamily(physicalDevice, surface, queueFamilyProperties).value();
+            graphicsPresent = compute;
+			transfer = compute;
         }
 
         [[nodiscard]] auto getUniqueIndices() const noexcept -> std::vector<std::uint32_t> {
