@@ -107,11 +107,17 @@ namespace vk_gltf_viewer::gltf {
                     return as_bytes(std::span { commands });
                 }, flattenedCommands);
 
-                result.emplace(criteria, vku::MappedBuffer {
+                vku::MappedBuffer &buffer = result.try_emplace(
+                    criteria,
                     gpu.allocator,
-                    std::from_range, commandBytes,
-                    vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer,
-                });
+                    vk::BufferCreateInfo{
+                        {},
+                        sizeof(std::uint32_t) /* draw count */ + commandBytes.size(),
+                        vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer,
+                    },
+                    vku::allocation::hostRead).first->second;
+                buffer.asValue<std::uint32_t>() = commandVariants.size();
+                std::ranges::copy(commandBytes, static_cast<std::byte*>(buffer.data) + sizeof(std::uint32_t));
             }
             return result;
         }

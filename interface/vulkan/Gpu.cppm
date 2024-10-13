@@ -74,6 +74,7 @@ namespace vk_gltf_viewer::vulkan {
 
         bool supportSwapchainMutableFormat;
         bool supportTessellationShader;
+        bool supportDrawIndirectCount;
         bool supportUint8Index;
         std::uint32_t subgroupSize;
 

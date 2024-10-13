@@ -165,25 +165,18 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
     const vk::StructureChain availableFeatures
         = physicalDevice.getFeatures2<
             vk::PhysicalDeviceFeatures2,
+            vk::PhysicalDeviceVulkan12Features,
             vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
 
     supportTessellationShader = availableFeatures.get<vk::PhysicalDeviceFeatures2>().features.tessellationShader;
+    supportDrawIndirectCount = availableFeatures.template get<vk::PhysicalDeviceVulkan12Features>().drawIndirectCount;
     supportUint8Index = availableFeatures.template get<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>().indexTypeUint8;
 
-    const auto unlinkUnsupportedFeatures = [this](auto strutureChain) {
-        if (!supportTessellationShader) {
-            strutureChain.template get<vk::PhysicalDeviceFeatures2>().features.tessellationShader = false;
-        }
-        if (!supportUint8Index) {
-            strutureChain.template unlink<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
-        }
-        return strutureChain;
-    };
-
-    vk::raii::Device device { physicalDevice, unlinkUnsupportedFeatures(vk::StructureChain {
+	const vku::RefHolder queueCreateInfos = Queues::getCreateInfos(physicalDevice, queueFamilies);
+    vk::StructureChain createInfo {
         vk::DeviceCreateInfo {
             {},
-            Queues::getCreateInfos(physicalDevice, queueFamilies).get(),
+            queueCreateInfos.get(),
             {},
             extensions,
         },
@@ -212,12 +205,23 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
             .setStoragePushConstant8(true)
             .setScalarBlockLayout(true)
             .setTimelineSemaphore(true)
-            .setShaderInt8(true),
+            .setShaderInt8(true)
+            .setDrawIndirectCount(supportDrawIndirectCount),
         vk::PhysicalDeviceDynamicRenderingFeatures { true },
         vk::PhysicalDeviceSynchronization2Features { true },
         vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true },
         vk::PhysicalDeviceIndexTypeUint8FeaturesKHR { supportUint8Index },
-    }).get() };
+    };
+
+    // Unlink unsupported features.
+    if (!supportTessellationShader) {
+        createInfo.template get<vk::PhysicalDeviceFeatures2>().features.tessellationShader = false;
+    }
+    if (!supportUint8Index) {
+        createInfo.template unlink<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
+    }
+
+    vk::raii::Device device { physicalDevice, createInfo.get() };
     VULKAN_HPP_DEFAULT_DISPATCHER.init(*device);
     return device;
 }

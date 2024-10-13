@@ -572,10 +572,19 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                             resourceBindingState.indexBuffer.emplace(*indexType);
                             cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
                         }
-                        cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+
+                        if (gpu.supportDrawIndirectCount) {
+                            cb.drawIndexedIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+                        }
+                        else {
+                            cb.drawIndexedIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndexedIndirectCommand));
+                        }
+                    }
+                    else if (gpu.supportDrawIndirectCount) {
+                        cb.drawIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
                     }
                     else {
-                        cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+                        cb.drawIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndirectCommand));
                     }
                 }
             };
@@ -617,10 +626,19 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                         resourceBindingState.indexBuffer.emplace(*indexType);
                         cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
                     }
-                    cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+
+                    if (gpu.supportDrawIndirectCount) {
+                        cb.drawIndexedIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+                    }
+                    else {
+                        cb.drawIndexedIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndexedIndirectCommand));
+                    }
+                }
+                else if (gpu.supportDrawIndirectCount) {
+                    cb.drawIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
                 }
                 else {
-                    cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+                    cb.drawIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndirectCommand));
                 }
             }
         };
@@ -752,10 +770,19 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
                 currentIndexBuffer.emplace(*indexType);
                 cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
             }
-            cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+
+            if (gpu.supportDrawIndirectCount) {
+				cb.drawIndexedIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+            }
+            else {
+                cb.drawIndexedIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndexedIndirectCommand));
+            }
+        }
+        else if (gpu.supportDrawIndirectCount) {
+            cb.drawIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
         }
         else {
-            cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+            cb.drawIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndirectCommand));
         }
     }
 
@@ -789,10 +816,19 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
                 currentIndexBuffer.emplace(*indexType);
                 cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
             }
-            cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+
+            if (gpu.supportDrawIndirectCount) {
+                cb.drawIndexedIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+            }
+            else {
+                cb.drawIndexedIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndexedIndirectCommand));
+            }
+        }
+        else if (gpu.supportDrawIndirectCount) {
+            cb.drawIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
         }
         else {
-            cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+            cb.drawIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndirectCommand));
         }
     }
 }
@@ -835,11 +871,21 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
                 currentIndexBuffer.emplace(*indexType);
                 cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
             }
-            cb.drawIndexedIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+
+            if (gpu.supportDrawIndirectCount) {
+                cb.drawIndexedIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
+            }
+            else {
+                cb.drawIndexedIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndexedIndirectCommand));
+            }
+            hasBlendMesh = true;
+        }
+        else if (gpu.supportDrawIndirectCount) {
+            cb.drawIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
             hasBlendMesh = true;
         }
         else {
-            cb.drawIndirect(indirectDrawCommandBuffer, 0, indirectDrawCommandBuffer.size / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
+            cb.drawIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndirectCommand));
             hasBlendMesh = true;
         }
     }
