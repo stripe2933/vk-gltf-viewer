@@ -1006,6 +1006,7 @@ auto vk_gltf_viewer::imgui::TaskCollector::imageBasedLighting(
 
 auto vk_gltf_viewer::imgui::TaskCollector::inputControl(
     control::Camera &camera,
+    bool &automaticNearFarPlaneAdjustment,
     full_optional<AppState::Outline> &hoveringNodeOutline,
     full_optional<AppState::Outline> &selectedNodeOutline
 ) && -> TaskCollector {
@@ -1022,7 +1023,11 @@ auto vk_gltf_viewer::imgui::TaskCollector::inputControl(
             if (float fovInDegree = glm::degrees(camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
                 camera.fov = glm::radians(fovInDegree);
             }
-            ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1e-6f, 1e-4f, 1e6, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+
+            ImGui::Checkbox("Automatic Near/Far Adjustment", &automaticNearFarPlaneAdjustment);
+			ImGui::WithDisabled([&]() {
+                ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1e-6f, 1e-4f, 1e6, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+			}, automaticNearFarPlaneAdjustment);
         }
 
         if (ImGui::CollapsingHeader("Node selection")) {

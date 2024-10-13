@@ -125,6 +125,7 @@ namespace vk_gltf_viewer {
         };
 
         control::Camera camera;
+        bool automaticNearFarPlaneAdjustment = true;
         std::optional<glm::vec2> hoveringMousePosition;
         full_optional<Outline> hoveringNodeOutline { std::in_place, 2.f, glm::vec4 { 1.f, 0.5f, 0.2f, 1.f } };
         full_optional<Outline> selectedNodeOutline { std::in_place, 2.f, glm::vec4 { 0.f, 1.f, 0.2f, 1.f } };

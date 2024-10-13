@@ -1,5 +1,6 @@
 export module vk_gltf_viewer:control.Camera;
 
+import std;
 export import glm;
 
 namespace vk_gltf_viewer::control {
@@ -41,6 +42,23 @@ namespace vk_gltf_viewer::control {
 
         [[nodiscard]] constexpr auto getRight() const noexcept -> glm::vec3 {
             return cross(direction, up);
+        }
+
+        void tightenNearFar(const glm::vec3 &boundingSphereCenter, float boundingSphereRadius) noexcept {
+            // Get projection of the displacement vector (from camera position to bounding sphere center) on the direction vector.
+            const glm::vec3 displacement = boundingSphereCenter - position;
+            const float displacementProjectionLength = dot(displacement, direction);
+            const float displacementNearProjectionLength = displacementProjectionLength - boundingSphereRadius;
+            const float displacementFarProjectionLength = displacementProjectionLength + boundingSphereRadius;
+            if (displacementFarProjectionLength <= 0.f) {
+                // The bounding sphere is behind the camera.
+                zMin = 1e-2f;
+                zMax = 1e2f;
+            }
+            else {
+                zMin = std::max(1e-2f, displacementNearProjectionLength);
+                zMax = displacementFarProjectionLength;
+            }
         }
     };
 }

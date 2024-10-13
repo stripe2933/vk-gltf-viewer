@@ -261,7 +261,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 return std::forward_as_tuple(info, skyboxResources->imGuiEqmapTextureDescriptorSet);
             }))
             .background(appState.canSelectSkyboxBackground, appState.background)
-            .inputControl(appState.camera, appState.hoveringNodeOutline, appState.selectedNodeOutline)
+            .inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.hoveringNodeOutline, appState.selectedNodeOutline)
             .imguizmo(appState.camera, appState.gltfAsset.and_then([this](auto &x) -> std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION>> {
                 if (x.selectedNodeIndices.size() == 1) {
                     return std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION>> {

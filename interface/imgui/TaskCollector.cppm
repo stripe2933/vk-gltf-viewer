@@ -51,7 +51,7 @@ namespace vk_gltf_viewer::imgui {
         auto nodeInspector(std::optional<std::pair<fastgltf::Asset &, const std::unordered_set<std::size_t>&>> assetAndSelectedNodeIndices) && -> TaskCollector;
         auto background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground) && -> TaskCollector;
         auto imageBasedLighting(const std::optional<std::pair<const AppState::ImageBasedLighting&, vk::DescriptorSet>> &imageBasedLightingInfoAndEqmapTextureImGuiDescriptorSet) && -> TaskCollector;
-        auto inputControl(control::Camera &camera, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline) && -> TaskCollector;
+        auto inputControl(control::Camera &camera, bool& automaticNearFarPlaneAdjustment, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline) && -> TaskCollector;
         auto imguizmo(control::Camera &camera, const std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION>> &assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation) && -> TaskCollector;
 
         [[nodiscard]] auto collect() && -> std::vector<Task>;
