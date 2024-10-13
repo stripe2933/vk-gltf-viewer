@@ -47,7 +47,7 @@ I initially developed this application for leveraging Vulkan's performance and u
 - Fully bindless: no descriptor set update/vertex buffer binding during rendering.
   - Descriptor sets are only updated at the model loading time.
   - Textures are accessed with runtime-descriptor indexing using [`VK_EXT_descriptor_indexing`](https://docs.vulkan.org/samples/latest/samples/extensions/descriptor_indexing/README.html) extension.
-  - Use Vertex Pulling with [`VK_EXT_buffer_device_address`](https://docs.vulkan.org/samples/latest/samples/extensions/buffer_device_address/README.html). Only index buffers are bound to the command buffer.
+  - Use Vertex Pulling with [`VK_KHR_buffer_device_address`](https://docs.vulkan.org/samples/latest/samples/extensions/buffer_device_address/README.html). Only index buffers are bound to the command buffer.
 - Fully GPU driven rendering: uses multi draw indirect with optimally sorted rendering order. **Regardless of the material count and scene's complexity, all scene nodes can be rendered with up to 24 draw calls** in the worst case.
   - Has 6 pipelines for 3 material types (`OPAQUE`, `MASK`, `BLEND`) and 2 primitive types (Indexed, Non-Indexed) combinations.
   - Indexed primitive index type can be either `UNSIGNED_BYTE` (if GPU supports [`VK_EXT_index_type_uint8`](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_EXT_index_type_uint8.html)), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
@@ -310,7 +310,7 @@ All shaders are located in the [shaders](/shaders) folder and need to be manuall
 
 ## Milestones
 
-- [x] Basis Universal texture support (`EXT_texture_basisu`).
+- [x] Basis Universal texture support (`KHR_texture_basisu`).
 - [ ] Reduce skybox memory usage with BC6H compressed cubemap.
 - [ ] Frustum/occlusion culling.
 - [x] Automatic camera position adjustment based on the bounding sphere calculation.

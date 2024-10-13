@@ -620,7 +620,6 @@ auto vk_gltf_viewer::imgui::TaskCollector::sceneHierarchy(
                         using namespace std::string_literals;
                         concat += std::format(" / {}", name);
                     }
-                    ImGui::TextUnformatted(concat);
 #endif
 
                     const bool visibilityChanged = visit(multilambda {
