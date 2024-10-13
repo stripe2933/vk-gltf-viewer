@@ -403,13 +403,14 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     // Update SceneResources::nodeWorldTransformBuffer.
                     const std::span nodeWorldTransforms = gltfAsset->sceneResources.nodeWorldTransformBuffer.asRange<glm::mat4>();
 
+                    // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& and std::span<glm::mat4> are passed (but it is unnecessary). Remove the parameter when fixed.
                     const auto applyNodeLocalTransformChangeRecursive
-                        = [&, &asset = gltfAsset->get()](this const auto &self, std::size_t nodeIndex, const glm::mat4 &parentNodeWorldTransform = { 1.f }) -> void {
+                        = [](this auto self, const fastgltf::Asset &asset, std::span<glm::mat4> nodeWorldTransforms, std::size_t nodeIndex, const glm::mat4 &parentNodeWorldTransform = { 1.f }) -> void {
                             const fastgltf::Node &node = asset.nodes[nodeIndex];
                             nodeWorldTransforms[nodeIndex] = parentNodeWorldTransform * visit(LIFT(fastgltf::toMatrix), node.transform);
 
                             for (std::size_t childNodeIndex : node.children) {
-                                self(childNodeIndex, nodeWorldTransforms[nodeIndex]);
+                                self(asset, nodeWorldTransforms, childNodeIndex, nodeWorldTransforms[nodeIndex]);
                             }
                     };
 
@@ -421,7 +422,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                             return nodeWorldTransforms[parentNodeIndex];
                         })
                         .value_or(glm::mat4 { 1.f });
-                    applyNodeLocalTransformChangeRecursive(task.nodeIndex, parentNodeWorldTransform);
+                    applyNodeLocalTransformChangeRecursive(gltfAsset->get(), nodeWorldTransforms, task.nodeIndex, parentNodeWorldTransform);
                 },
             }, task);
         }

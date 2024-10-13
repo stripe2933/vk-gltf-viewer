@@ -2,7 +2,6 @@ module;
 
 #ifdef _MSC_VER
 #include <istream>
-#include <locale>
 #endif
 
 #define GLFW_INCLUDE_VULKAN

@@ -567,7 +567,8 @@ auto vk_gltf_viewer::imgui::TaskCollector::sceneHierarchy(
                 tasks.emplace_back(std::in_place_type<task::NodeVisibilityTypeChanged>);
             }
 
-            const auto addChildNode = [&](this const auto &self, std::size_t nodeIndex) -> void {
+            // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& is passed (but it is unnecessary). Remove the parameter when fixed.
+            const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
                 std::size_t descendentNodeIndex = nodeIndex;
 
                 std::vector<std::string> directDescendentNodeNames;
@@ -722,7 +723,7 @@ auto vk_gltf_viewer::imgui::TaskCollector::sceneHierarchy(
 
                     if (isTreeNodeOpen) {
                         for (std::size_t childNodeIndex : descendentNode.children) {
-                            self(childNodeIndex);
+                            self(asset, childNodeIndex);
                         }
                         ImGui::TreePop();
                     }
@@ -740,7 +741,7 @@ auto vk_gltf_viewer::imgui::TaskCollector::sceneHierarchy(
                 ImGui::TableHeadersRow();
 
                 for (std::size_t nodeIndex : asset.scenes[sceneIndex].nodeIndices) {
-                    addChildNode(nodeIndex);
+                    addChildNode(asset, nodeIndex);
                 }
                 ImGui::EndTable();
             }
