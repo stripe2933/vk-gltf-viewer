@@ -694,16 +694,16 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
         {
             vk::ImageMemoryBarrier {
                 {}, vk::AccessFlagBits::eShaderRead,
+                vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
+                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+            },
+            vk::ImageMemoryBarrier{
+                {}, vk::AccessFlagBits::eShaderWrite,
                 {}, vk::ImageLayout::eGeneral,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                passthruResources->hoveringNodeOutlineJumpFloodResources.image, vku::fullSubresourceRange(),
-            },
-            vk::ImageMemoryBarrier {
-                {}, vk::AccessFlagBits::eShaderRead,
-                {}, vk::ImageLayout::eGeneral,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                passthruResources->selectedNodeOutlineJumpFloodResources.image, vku::fullSubresourceRange(),
-            },
+                image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 },
+            }
         });
 
     // Compute jump flood and get the last execution direction.
