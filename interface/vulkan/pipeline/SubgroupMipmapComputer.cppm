@@ -1,5 +1,7 @@
 module;
 
+#include <version>
+
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vk_gltf_viewer:vulkan.pipeline.SubgroupMipmapComputer;
@@ -70,16 +72,17 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             // Step 1 (1024 -> 32)
             // Step 2 (32 -> 1) (full processing required)
 
-            // TODO.CXX23: use std::views::chunk instead, like:
-            // const std::vector indexChunks
-            //     = std::views::iota(1U, targetImage.mipLevels)                             // [1, 2, ..., 11, 12]
-            //     | std::views::reverse                                                     // [12, 11, ..., 2, 1]
-            //     | std::views::chunk(5)                                                    // [[12, 11, 10, 9, 8], [7, 6, 5, 4, 3], [2, 1]]
-            //     | std::views::transform([](auto &&chunk) {
-            //          return chunk | std::views::reverse | std::ranges::to<std::vector>();
-            //     })                                                                        // [[8, 9, 10, 11, 12], [3, 4, 5, 6, 7], [1, 2]]
-            //     | std::views::reverse                                                     // [[1, 2], [3, 4, 5, 6, 7], [8, 9, 10, 11, 12]]
-            //     | std::ranges::to<std::vector>();
+#if __cpp_lib_ranges_chunk >= 202202L
+             const std::vector indexChunks
+                 = std::views::iota(1U, mipLevels + 1U)                                    // [1, 2, ..., 11, 12]
+                 | std::views::reverse                                                     // [12, 11, ..., 2, 1]
+                 | std::views::chunk(5)                                                    // [[12, 11, 10, 9, 8], [7, 6, 5, 4, 3], [2, 1]]
+                 | std::views::transform([](auto &&chunk) {
+                      return chunk | std::views::reverse | std::ranges::to<std::vector>();
+                 })                                                                        // [[8, 9, 10, 11, 12], [3, 4, 5, 6, 7], [1, 2]]
+                 | std::views::reverse                                                     // [[1, 2], [3, 4, 5, 6, 7], [8, 9, 10, 11, 12]]
+                 | std::ranges::to<std::vector>();
+#else
             std::vector<std::vector<std::uint32_t>> indexChunks;
             for (int endMipLevel = mipLevels; endMipLevel > 1; endMipLevel -= 5) {
                 indexChunks.emplace_back(
@@ -89,6 +92,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     | std::ranges::to<std::vector>());
             }
             std::ranges::reverse(indexChunks);
+#endif
 
             commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
