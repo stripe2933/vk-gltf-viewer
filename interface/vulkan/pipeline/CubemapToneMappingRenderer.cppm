@@ -2,6 +2,7 @@ export module vk_gltf_viewer:vulkan.pipeline.CubemapToneMappingRenderer;
 
 import std;
 export import glm;
+export import vku;
 export import :vulkan.rp.CubemapToneMapping;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
