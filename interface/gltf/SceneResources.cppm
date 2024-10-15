@@ -36,6 +36,12 @@ namespace vk_gltf_viewer::gltf {
         vku::MappedBuffer nodeWorldTransformBuffer = createNodeWorldTransformBuffer();
         vku::AllocatedBuffer primitiveBuffer = createPrimitiveBuffer();
 
+        /**
+         * The smallest enclosing sphere of the scene meshes' bounding boxes, i.e. tight-fitting sphere.
+         * First element is the center coordinate, and the second element is the radius.
+         */
+        std::pair<glm::dvec3, double> enclosingSphere = getEnclosingSphere();
+
         SceneResources(
             const fastgltf::Asset &asset [[clang::lifetimebound]],
             const AssetResources &assetResources [[clang::lifetimebound]],
@@ -111,14 +117,16 @@ namespace vk_gltf_viewer::gltf {
         }
 
         /**
-         * Calculate the smallest enclosing sphere of the scene meshes' bounding boxes, i.e. tight-fitting sphere.
-         * @return Pair of enclosing sphere's center coordinate and radius.
+         * @brief Update the enclosing sphere of the scene meshes' bounding boxes based on the current nodes' world transforms.
          */
-        [[nodiscard]] auto getSmallestEnclosingSphere() const -> std::pair<glm::dvec3, double>;
+        void updateEnclosingSphere() {
+            enclosingSphere = getEnclosingSphere();
+        }
 
     private:
         [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> std::vector<std::pair<std::size_t, const AssetResources::PrimitiveInfo*>>;
         [[nodiscard]] auto createNodeWorldTransformBuffer() const -> vku::MappedBuffer;
         [[nodiscard]] auto createPrimitiveBuffer() const -> vku::AllocatedBuffer;
+        [[nodiscard]] auto getEnclosingSphere() const -> std::pair<glm::dvec3, double>;
     };
 }

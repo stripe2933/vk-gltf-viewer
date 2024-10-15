@@ -26,7 +26,7 @@ vk_gltf_viewer::gltf::SceneResources::SceneResources(
     assetResources { assetResources },
     scene { scene } { }
 
-auto vk_gltf_viewer::gltf::SceneResources::getSmallestEnclosingSphere() const -> std::pair<glm::dvec3, double> {
+auto vk_gltf_viewer::gltf::SceneResources::getEnclosingSphere() const -> std::pair<glm::dvec3, double> {
     // See https://doc.cgal.org/latest/Bounding_volumes/index.html for the original code.
     using Traits = CGAL::Min_sphere_of_points_d_traits_3<CGAL::Simple_cartesian<double>, double>;
     std::vector<Traits::Point> meshBoundingBoxPoints;
