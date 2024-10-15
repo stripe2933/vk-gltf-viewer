@@ -28,10 +28,10 @@ find_package(vku CONFIG REQUIRED)
 add_executable(vk-gltf-viewer
     impl.cpp
     impl/control/AppWindow.cpp
+    impl/control/ImGuiTaskCollector.cpp
     impl/AppState.cpp
     impl/gltf/AssetResources.cpp
     impl/gltf/SceneResources.cpp
-    impl/imgui/TaskCollector.cpp
     impl/MainApp.cpp
     impl/mod.cpp
     impl/vulkan/Frame.cpp
@@ -54,6 +54,8 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/AppState.cppm
         interface/control/AppWindow.cppm
         interface/control/Camera.cppm
+        interface/control/ImGuiTaskCollector.cppm
+        interface/control/Task.cppm
         interface/gltf/algorithm/MikktSpaceInterface.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetResources.cppm
@@ -72,7 +74,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/ranges/contains.cppm
         interface/helpers/tristate.cppm
         interface/helpers/type_variant.cppm
-        interface/imgui/TaskCollector.cppm
         interface/io/StbDecoder.cppm
         interface/MainApp.cppm
         interface/vulkan/attachment_group/DepthPrepass.cppm

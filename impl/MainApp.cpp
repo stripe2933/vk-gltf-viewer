@@ -232,19 +232,18 @@ auto vk_gltf_viewer::MainApp::run() -> void {
     std::array<bool, std::tuple_size_v<decltype(frames)>> shouldHandleSwapchainResize{};
 
     float elapsedTime = 0.f;
+    std::vector<control::Task> tasks;
     for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); ++frameIndex) {
         // Wait for previous frame execution to end.
         frames[frameIndex % frames.size()].waitForPreviousExecution();
 
-        const float glfwTime = static_cast<float>(glfwGetTime());
-        const float timeDelta = glfwTime - std::exchange(elapsedTime, glfwTime);
+        tasks.clear();
 
-        window.handleEvents(timeDelta);
+        window.handleEvents(tasks);
 
         const glm::vec2 framebufferSize = window.getFramebufferSize();
         static vk::Rect2D passthruRect{};
-        const std::vector tasks
-            = imgui::TaskCollector { ImVec2 { framebufferSize.x, framebufferSize.y }, passthruRect }
+        control::ImGuiTaskCollector { tasks, ImVec2 { framebufferSize.x, framebufferSize.y }, passthruRect }
             .menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths())
             .assetInspector(appState.gltfAsset.transform([this](auto &x) {
                 return std::forward_as_tuple(x.asset, x.assetDir, x.assetInspectorMaterialIndex, assetTextureDescriptorSets);
@@ -275,16 +274,15 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 else {
                     return std::nullopt;
                 }
-            }))
-            .collect();
+            }));
 
-        for (const imgui::Task &task : tasks) {
+        for (const control::Task &task : tasks) {
             visit(multilambda {
-                [this](const imgui::task::PassthruRectChanged &task) {
+                [this](const control::task::ChangePassthruRect &task) {
                     appState.camera.aspectRatio = vku::aspect(task.newRect.extent);
                     passthruRect = task.newRect;
                 },
-                [&](const imgui::task::LoadGltf &task) {
+                [&](const control::task::LoadGltf &task) {
                     // TODO: I'm aware that there are more good solutions than waitIdle, but I don't have much time for it
                     //  so I'll just use it for now.
                     gpu.device.waitIdle();
@@ -338,22 +336,22 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     appState.camera.zMax = distance + radius;
                     appState.camera.targetDistance = distance;
                 },
-                [&](imgui::task::CloseGltf) {
+                [&](control::task::CloseGltf) {
                     gltfAsset.reset();
 
                     // Update AppState.
                     appState.gltfAsset.reset();
                 },
-                [&](const imgui::task::LoadEqmap &task) {
+                [&](const control::task::LoadEqmap &task) {
                     processEqmapChange(task.path);
 
                     // Update AppState.
                     appState.pushRecentSkyboxPath(task.path);
                 },
-                [](imgui::task::SceneChanged task) {
+                [](control::task::ChangeScene task) {
                     // TODO: handle scene changing event.
                 },
-                [this](imgui::task::NodeVisibilityTypeChanged) {
+                [this](control::task::ChangeNodeVisibilityType) {
                     visit(multilambda {
                         [this](std::span<const std::optional<bool>> visibilities) {
                             appState.gltfAsset->nodeVisibilities.emplace<std::vector<bool>>(
@@ -367,7 +365,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                         },
                     }, appState.gltfAsset->nodeVisibilities);
                 },
-                [this](imgui::task::NodeVisibilityChanged task) {
+                [this](control::task::ChangeNodeVisibility task) {
                     visit(multilambda {
                         [&](std::span<std::optional<bool>> visibilities) {
                             if (auto &visibility = visibilities[task.nodeIndex]; visibility) {
@@ -390,16 +388,16 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                         },
                     }, appState.gltfAsset->nodeVisibilities);
                 },
-                [this](const imgui::task::SelectedNodeChanged &task) {
+                [this](const control::task::SelectNodeFromSceneHierarchy &task) {
                     if (!task.combine) {
                         appState.gltfAsset->selectedNodeIndices.clear();
                     }
                     appState.gltfAsset->selectedNodeIndices.emplace(task.nodeIndex);
                 },
-                [this](const imgui::task::HoveringNodeChanged &task) {
+                [this](const control::task::HoverNodeFromSceneHierarchy &task) {
                     appState.gltfAsset->hoveringNodeIndex.emplace(task.nodeIndex);
                 },
-                [this](const imgui::task::NodeLocalTransformChanged &task) {
+                [this](const control::task::ChangeNodeLocalTransform &task) {
                     // Update SceneResources::nodeWorldTransformBuffer.
                     const std::span nodeWorldTransforms = gltfAsset->sceneResources.nodeWorldTransformBuffer.asRange<glm::mat4>();
 
@@ -423,6 +421,26 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                         })
                         .value_or(glm::mat4 { 1.f });
                     applyNodeLocalTransformChangeRecursive(gltfAsset->get(), nodeWorldTransforms, task.nodeIndex, parentNodeWorldTransform);
+
+                    // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
+                    if (appState.automaticNearFarPlaneAdjustment) {
+                        gltfAsset->sceneResources.updateEnclosingSphere();
+                        const auto &[center, radius] = gltfAsset->sceneResources.enclosingSphere;
+                        appState.camera.tightenNearFar(center, radius);
+                    }
+                },
+                [this](control::task::TightenNearFarPlane) {
+                    if (gltfAsset) {
+                        const auto &[center, radius] = gltfAsset->sceneResources.enclosingSphere;
+                        appState.camera.tightenNearFar(center, radius);
+                    }
+                },
+                [this](control::task::ChangeCameraView) {
+                    if (appState.automaticNearFarPlaneAdjustment && gltfAsset) {
+                        // Tighten near/far plane based on the scene enclosing sphere.
+                        const auto &[center, radius] = gltfAsset->sceneResources.enclosingSphere;
+                        appState.camera.tightenNearFar(center, radius);
+                    }
                 },
             }, task);
         }

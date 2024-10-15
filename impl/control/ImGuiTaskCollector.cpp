@@ -399,10 +399,11 @@ auto assetSamplers(std::span<fastgltf::Sampler> samplers) -> void {
 
 }
 
-vk_gltf_viewer::imgui::TaskCollector::TaskCollector(
+vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
+    std::vector<Task> &tasks,
     const ImVec2 &framebufferSize,
     const vk::Rect2D &oldPassthruRect
-) {
+) : tasks { tasks } {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -420,22 +421,18 @@ vk_gltf_viewer::imgui::TaskCollector::TaskCollector(
         { static_cast<std::uint32_t>(centerNodeRect.GetWidth() * scaleFactor.x), static_cast<std::uint32_t>(centerNodeRect.GetHeight() * scaleFactor.y) },
     };
     if (passthruRect != oldPassthruRect) {
-        tasks.emplace_back(std::in_place_type<task::PassthruRectChanged>, passthruRect);
+        tasks.emplace_back(std::in_place_type<task::ChangePassthruRect>, passthruRect);
     }
 }
 
-vk_gltf_viewer::imgui::TaskCollector::~TaskCollector() {
+vk_gltf_viewer::control::ImGuiTaskCollector::~ImGuiTaskCollector() {
     ImGui::Render();
 }
 
-auto vk_gltf_viewer::imgui::TaskCollector::collect() && -> std::vector<Task> {
-    return std::move(tasks);
-}
-
-auto vk_gltf_viewer::imgui::TaskCollector::menuBar(
+auto vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
     const std::list<std::filesystem::path> &recentGltfs,
     const std::list<std::filesystem::path> &recentSkyboxes
-) && -> TaskCollector {
+) && -> ImGuiTaskCollector {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Open glTF File", "Ctrl+O")) {
@@ -493,9 +490,9 @@ auto vk_gltf_viewer::imgui::TaskCollector::menuBar(
     return *this;
 }
 
-auto vk_gltf_viewer::imgui::TaskCollector::assetInspector(
+auto vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(
 const std::optional<std::tuple<fastgltf::Asset&, const std::filesystem::path&, std::optional<std::size_t>&, std::span<const vk::DescriptorSet>>> &assetAndAssetDirAndAssetInspectorMaterialIndexAssetTextureImGuiDescriptorSets
-) && -> TaskCollector {
+) && -> ImGuiTaskCollector {
     if (assetAndAssetDirAndAssetInspectorMaterialIndexAssetTextureImGuiDescriptorSets) {
         auto &[asset, assetDir, assetInspectorMaterialIndex, assetTexturesImGuiDescriptorSets] = *assetAndAssetDirAndAssetInspectorMaterialIndexAssetTextureImGuiDescriptorSets;
 
@@ -541,9 +538,9 @@ const std::optional<std::tuple<fastgltf::Asset&, const std::filesystem::path&, s
     return *this;
 }
 
-auto vk_gltf_viewer::imgui::TaskCollector::sceneHierarchy(
+auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
     const std::optional<std::tuple<const fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::size_t>&, const std::unordered_set<std::size_t>&>> &assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices
-) && -> TaskCollector {
+) && -> ImGuiTaskCollector {
     if (ImGui::Begin("Scene Hierarchy")) {
         if (assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices) {
             const auto &[asset, sceneIndex, visibilities, hoveringNodeIndex, selectedNodeIndices] = *assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices;
@@ -551,7 +548,7 @@ auto vk_gltf_viewer::imgui::TaskCollector::sceneHierarchy(
                 for (const auto &[i, scene] : asset.scenes | ranges::views::enumerate) {
                     const bool isSelected = i == sceneIndex;
                     if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(scene.name, [&]() { return std::format("<Unnamed scene {}>", i); })).c_str(), isSelected)) {
-                        tasks.emplace_back(std::in_place_type<task::SceneChanged>, i);
+                        tasks.emplace_back(std::in_place_type<task::ChangeScene>, i);
                     }
                     if (isSelected) {
                         ImGui::SetItemDefaultFocus();
@@ -564,7 +561,7 @@ auto vk_gltf_viewer::imgui::TaskCollector::sceneHierarchy(
             ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
 
             if (bool tristateVisibility = holds_alternative<std::vector<std::optional<bool>>>(visibilities); ImGui::Checkbox("Use tristate visibility", &tristateVisibility)) {
-                tasks.emplace_back(std::in_place_type<task::NodeVisibilityTypeChanged>);
+                tasks.emplace_back(std::in_place_type<task::ChangeNodeVisibilityType>);
             }
 
             // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& is passed (but it is unnecessary). Remove the parameter when fixed.
@@ -604,10 +601,10 @@ auto vk_gltf_viewer::imgui::TaskCollector::sceneHierarchy(
                         return ImGui::TreeNodeEx("", flags);
                     }, descendentNodeIndex == hoveringNodeIndex);
                     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && !(flags & ImGuiTreeNodeFlags_Selected)) {
-                        tasks.emplace_back(std::in_place_type<task::SelectedNodeChanged>, descendentNodeIndex, ImGui::GetIO().KeyCtrl);
+                        tasks.emplace_back(std::in_place_type<task::SelectNodeFromSceneHierarchy>, descendentNodeIndex, ImGui::GetIO().KeyCtrl);
                     }
                     if (ImGui::IsItemHovered() && !(flags & ImGuiTreeNodeFlags_Framed)) {
-                        tasks.emplace_back(std::in_place_type<task::HoveringNodeChanged>, descendentNodeIndex);
+                        tasks.emplace_back(std::in_place_type<task::HoverNodeFromSceneHierarchy>, descendentNodeIndex);
                     }
 
                     ImGui::SameLine();
@@ -633,7 +630,7 @@ auto vk_gltf_viewer::imgui::TaskCollector::sceneHierarchy(
                         },
                     }, visibilities);
                     if (visibilityChanged)  {
-                        tasks.emplace_back(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                        tasks.emplace_back(std::in_place_type<task::ChangeNodeVisibility>, nodeIndex);
                     }
 
                     ImGui::TableSetColumnIndex(1);
@@ -754,9 +751,9 @@ auto vk_gltf_viewer::imgui::TaskCollector::sceneHierarchy(
     return *this;
 }
 
-auto vk_gltf_viewer::imgui::TaskCollector::nodeInspector(
+auto vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
     std::optional<std::pair<fastgltf::Asset &, const std::unordered_set<std::size_t>&>> assetAndSelectedNodeIndices
-) && -> TaskCollector {
+) && -> ImGuiTaskCollector {
     if (ImGui::Begin("Node inspector")) {
         if (!assetAndSelectedNodeIndices) {
             ImGui::TextUnformatted("Asset not loaded."sv);
@@ -794,7 +791,7 @@ auto vk_gltf_viewer::imgui::TaskCollector::nodeInspector(
                     transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
 
                     if (transformChanged) {
-                        tasks.emplace_back(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
+                        tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);
                     }
                 },
                 [&](fastgltf::Node::TransformMatrix &matrix) {
@@ -805,7 +802,7 @@ auto vk_gltf_viewer::imgui::TaskCollector::nodeInspector(
                     transformChanged |= ImGui::DragFloat4("Column 3", &matrix[12]);
 
                     if (transformChanged) {
-                        tasks.emplace_back(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
+                        tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);
                     }
                 },
             }, node.transform);
@@ -929,10 +926,10 @@ auto vk_gltf_viewer::imgui::TaskCollector::nodeInspector(
     return *this;
 }
 
-auto vk_gltf_viewer::imgui::TaskCollector::background(
+auto vk_gltf_viewer::control::ImGuiTaskCollector::background(
     bool canSelectSkyboxBackground,
     full_optional<glm::vec3> &solidBackground
-) && -> TaskCollector {
+) && -> ImGuiTaskCollector {
     if (ImGui::Begin("Background")) {
         const bool useSolidBackground = solidBackground.has_value();
         // If canSelectSkyboxBackground is false, the user cannot select the skybox background.
@@ -954,9 +951,9 @@ auto vk_gltf_viewer::imgui::TaskCollector::background(
     return *this;
 }
 
-auto vk_gltf_viewer::imgui::TaskCollector::imageBasedLighting(
+auto vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
     const std::optional<std::pair<const AppState::ImageBasedLighting&, vk::DescriptorSet>> &imageBasedLightingInfoAndEqmapTextureImGuiDescriptorSet
-) && -> TaskCollector {
+) && -> ImGuiTaskCollector {
     if (ImGui::Begin("IBL")) {
         if (imageBasedLightingInfoAndEqmapTextureImGuiDescriptorSet) {
             const auto &[info, eqmapTextureImGuiDescriptorSet] = *imageBasedLightingInfoAndEqmapTextureImGuiDescriptorSet;
@@ -1004,30 +1001,42 @@ auto vk_gltf_viewer::imgui::TaskCollector::imageBasedLighting(
     return *this;
 }
 
-auto vk_gltf_viewer::imgui::TaskCollector::inputControl(
-    control::Camera &camera,
+auto vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
+    Camera &camera,
     bool &automaticNearFarPlaneAdjustment,
     full_optional<AppState::Outline> &hoveringNodeOutline,
     full_optional<AppState::Outline> &selectedNodeOutline
-) && -> TaskCollector {
+) && -> ImGuiTaskCollector {
     if (ImGui::Begin("Input control")){
         if (ImGui::CollapsingHeader("Camera")) {
-            ImGui::DragFloat3("Position", value_ptr(camera.position), 0.1f);
+            bool cameraViewChanged = false;
+            cameraViewChanged |= ImGui::DragFloat3("Position", value_ptr(camera.position), 0.1f);
             if (ImGui::DragFloat3("Direction", value_ptr(camera.direction), 0.1f, -1.f, 1.f)) {
                 camera.direction = normalize(camera.direction);
+                cameraViewChanged = true;
             }
             if (ImGui::DragFloat3("Up", value_ptr(camera.up), 0.1f, -1.f, 1.f)) {
                 camera.up = normalize(camera.up);
+                cameraViewChanged = true;
+            }
+
+            if (cameraViewChanged) {
+                tasks.emplace_back(std::in_place_type<task::ChangeCameraView>);
             }
 
             if (float fovInDegree = glm::degrees(camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
                 camera.fov = glm::radians(fovInDegree);
             }
 
-            ImGui::Checkbox("Automatic Near/Far Adjustment", &automaticNearFarPlaneAdjustment);
-			ImGui::WithDisabled([&]() {
+            if (ImGui::Checkbox("Automatic Near/Far Adjustment", &automaticNearFarPlaneAdjustment) && automaticNearFarPlaneAdjustment) {
+                tasks.emplace_back(std::in_place_type<task::TightenNearFarPlane>);
+            }
+            ImGui::SameLine();
+            ImGui::HelperMarker("Near/Far plane will be automatically to fit the scene bounding box.");
+
+            ImGui::WithDisabled([&]() {
                 ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1e-6f, 1e-4f, 1e6, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
-			}, automaticNearFarPlaneAdjustment);
+            }, automaticNearFarPlaneAdjustment);
         }
 
         if (ImGui::CollapsingHeader("Node selection")) {
@@ -1056,10 +1065,10 @@ auto vk_gltf_viewer::imgui::TaskCollector::inputControl(
 }
 
 
-auto vk_gltf_viewer::imgui::TaskCollector::imguizmo(
-    control::Camera &camera,
+auto vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
+    Camera &camera,
     const std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION>> &assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation
-) && -> TaskCollector {
+) && -> ImGuiTaskCollector {
     // Set ImGuizmo rect.
     ImGuizmo::BeginFrame();
     ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
@@ -1082,7 +1091,7 @@ auto vk_gltf_viewer::imgui::TaskCollector::imguizmo(
                     fastgltf::decomposeTransformMatrix(newTransformMatrix, trs.scale, trs.rotation, trs.translation);
                 },
             }, asset.nodes[selectedNodeIndex].transform);
-            tasks.emplace_back(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
+            tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);
         }
     }
 
@@ -1095,6 +1104,8 @@ auto vk_gltf_viewer::imgui::TaskCollector::imguizmo(
         const glm::mat4 inverseView = inverse(newView);
         camera.position = inverseView[3];
         camera.direction = -inverseView[2];
+
+        tasks.emplace_back(std::in_place_type<task::ChangeCameraView>);
     }
 
     return *this;

@@ -72,7 +72,8 @@ auto vk_gltf_viewer::control::AppWindow::getContentScale() const -> glm::vec2 {
     return scale;
 }
 
-auto vk_gltf_viewer::control::AppWindow::handleEvents(float timeDelta) -> void {
+auto vk_gltf_viewer::control::AppWindow::handleEvents(std::vector<Task> &tasks) -> void {
+    pTasks = &tasks;
     glfwPollEvents();
 }
 
@@ -93,6 +94,8 @@ auto vk_gltf_viewer::control::AppWindow::onScrollCallback(glm::dvec2 offset) -> 
     const glm::vec3 displacementToTarget = appState.camera.direction * appState.camera.targetDistance;
     appState.camera.targetDistance *= factor;
     appState.camera.position += (1.f - factor) * displacementToTarget;
+
+    pTasks->emplace_back(std::in_place_type<task::ChangeCameraView>);
 }
 
 auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(glm::dvec2 position) -> void {

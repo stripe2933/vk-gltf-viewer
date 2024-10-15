@@ -8,6 +8,7 @@ import std;
 import vku;
 export import vulkan_hpp;
 export import :AppState;
+export import :control.Task;
 
 namespace vk_gltf_viewer::control {
     export class AppWindow {
@@ -26,11 +27,13 @@ namespace vk_gltf_viewer::control {
         [[nodiscard]] auto getCursorPos() const -> glm::dvec2;
         [[nodiscard]] auto getContentScale() const -> glm::vec2;
 
-        auto handleEvents(float timeDelta) -> void;
+        auto handleEvents(std::vector<Task> &tasks) -> void;
 
     private:
         GLFWwindow *window = glfwCreateWindow(1280, 720, "Vulkan glTF Viewer", nullptr, nullptr);
         vk::raii::SurfaceKHR surface;
+
+        std::vector<Task> *pTasks;
 
         std::optional<glm::dvec2> lastMouseDownPosition = std::nullopt;
 

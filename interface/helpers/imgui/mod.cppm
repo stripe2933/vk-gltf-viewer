@@ -78,6 +78,14 @@ namespace ImGui {
         Text(str.data(), str.data() + str.size());
     }
 
+    export void HelperMarker(std::string_view description) {
+        TextDisabled("(?)");
+        if (BeginItemTooltip()) {
+            TextUnformatted(description);
+            EndTooltip();
+        }
+    }
+
     export template <std::invocable F>
     auto WithLabel(std::string_view label, F &&imGuiFunc) -> void
         requires std::is_void_v<std::invoke_result_t<F>>
