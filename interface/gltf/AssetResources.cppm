@@ -38,6 +38,8 @@ namespace vk_gltf_viewer::gltf {
             std::vector<AttributeBufferInfo> texcoordInfos;
             std::vector<AttributeBufferInfo> colorInfos;
             std::unordered_map<IndexedAttribute, IndexedAttributeMappingInfo> indexedAttributeMappingInfos;
+            glm::dvec3 min;
+            glm::dvec3 max;
         };
 
         struct GpuMaterial {

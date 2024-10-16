@@ -264,6 +264,8 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
             if (attributeName == "POSITION"sv) {
                 primitiveInfo.positionInfo = getAttributeBufferInfo();
                 primitiveInfo.drawCount = accessor.count;
+                primitiveInfo.min = glm::make_vec3(get_if<std::pmr::vector<double>>(&accessor.min)->data());
+                primitiveInfo.max = glm::make_vec3(get_if<std::pmr::vector<double>>(&accessor.max)->data());
             }
             // For std::optional, they must be initialized before being accessed.
             else if (attributeName == "NORMAL"sv) {
