@@ -4,6 +4,7 @@ import std;
 export import glm;
 export import :math.Frustum;
 
+
 namespace vk_gltf_viewer::control {
     export struct Camera {
         glm::vec3 position;
@@ -62,7 +63,7 @@ namespace vk_gltf_viewer::control {
             }
         }
 
-        [[nodiscard]] constexpr auto getFrustum() const -> math::Frustum {
+        [[nodiscard]] auto getFrustum() const -> math::Frustum {
             // Code from LearnOpenGL.
             // See: https://learnopengl.com/Guest-Articles/2021/Scene/Frustum-Culling.
             const float halfVSide = zMax * std::tan(fov / 2.f);
