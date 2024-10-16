@@ -9,7 +9,7 @@ export module vk_gltf_viewer:vulkan.pipeline.PrefilteredmapComputer;
 import std;
 import vku;
 export import vulkan_hpp;
-import :helpers.extended_arithmetic;
+import :math.extended_arithmetic;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class PrefilteredmapComputer {
@@ -103,8 +103,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             for (std::uint32_t mipLevel = 0; mipLevel < roughnessLevels; ++mipLevel) {
                 commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, PushConstant { mipLevel });
                 commandBuffer.dispatch(
-                    divCeil(prefilteredmapSize >> mipLevel, 16U),
-                    divCeil(prefilteredmapSize >> mipLevel, 16U),
+                    math::divCeil(prefilteredmapSize >> mipLevel, 16U),
+                    math::divCeil(prefilteredmapSize >> mipLevel, 16U),
                     6);
             }
         }

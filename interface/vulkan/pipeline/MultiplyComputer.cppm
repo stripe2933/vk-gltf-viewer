@@ -7,7 +7,7 @@ export module vk_gltf_viewer:vulkan.pipeline.MultiplyComputer;
 import std;
 import vku;
 export import vulkan_hpp;
-import :helpers.extended_arithmetic;
+import :math.extended_arithmetic;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class MultiplyComputer {
@@ -63,7 +63,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
             commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
-            commandBuffer.dispatch(divCeil(pushConstant.numCount, 256U), 1, 1);
+            commandBuffer.dispatch(math::divCeil(pushConstant.numCount, 256U), 1, 1);
         }
     };
 }

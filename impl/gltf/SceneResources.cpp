@@ -11,7 +11,7 @@ import :gltf.SceneResources;
 import std;
 import :helpers.fastgltf;
 import :helpers.ranges;
-import :helpers.extended_arithmetic;
+import :math.extended_arithmetic;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&x) { return __VA_ARGS__(FWD(x)); }
@@ -44,7 +44,7 @@ auto vk_gltf_viewer::gltf::SceneResources::getEnclosingSphere() const -> std::pa
 
                 for (int i = 0; i < 8; ++i) {
                     const glm::dvec3 boundingBoxPoint { i & 0b100 ? max[0] : min[0], i & 0b010 ? max[1] : min[1], i & 0b001 ? max[2] : min[2] };
-                    const glm::dvec3 transformedPoint = toEuclideanCoord(transform * glm::dvec4 { boundingBoxPoint, 1.0 });
+                    const glm::dvec3 transformedPoint = math::toEuclideanCoord(transform * glm::dvec4 { boundingBoxPoint, 1.0 });
                     meshBoundingBoxPoints.emplace_back(transformedPoint.x, transformedPoint.y, transformedPoint.z);
                 }
             }
