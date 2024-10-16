@@ -4,7 +4,6 @@ import std;
 export import glm;
 export import :math.Frustum;
 
-
 namespace vk_gltf_viewer::control {
     export struct Camera {
         glm::vec3 position;

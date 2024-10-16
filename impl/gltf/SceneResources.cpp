@@ -92,25 +92,24 @@ auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() 
 }
 
 auto vk_gltf_viewer::gltf::SceneResources::createNodeWorldTransformBuffer() const -> vku::MappedBuffer {
-    std::vector<glm::mat4> nodeTransforms(asset.nodes.size());
+    std::vector<glm::mat4> nodeWorldTransforms(asset.nodes.size());
 
     // Traverse the scene nodes and calculate the world transform of each node (by multiplying their local transform to
     // their parent's world transform).
     const auto calculateNodeWorldTransformsRecursive
-        = [&](this const auto &self, std::size_t nodeIndex, glm::mat4 parentNodeWorldTransform = { 1.f }) -> void {
+        = [&](this const auto &self, std::size_t nodeIndex, const glm::mat4 &parentNodeWorldTransform = { 1.f }) -> void {
             const fastgltf::Node &node = asset.nodes[nodeIndex];
-            parentNodeWorldTransform *= visit(LIFT(fastgltf::toMatrix), node.transform);
-            nodeTransforms[nodeIndex] = parentNodeWorldTransform;
+            nodeWorldTransforms[nodeIndex] = parentNodeWorldTransform * visit(LIFT(fastgltf::toMatrix), node.transform);
 
             for (std::size_t childNodeIndex : node.children) {
-                self(childNodeIndex, parentNodeWorldTransform);
+                self(childNodeIndex, nodeWorldTransforms[nodeIndex]);
             }
         };
     for (std::size_t nodeIndex : scene.nodeIndices) {
         calculateNodeWorldTransformsRecursive(nodeIndex);
     }
 
-    return { gpu.allocator, std::from_range, nodeTransforms, vk::BufferUsageFlagBits::eStorageBuffer, vku::allocation::hostRead };
+    return { gpu.allocator, std::from_range, nodeWorldTransforms, vk::BufferUsageFlagBits::eStorageBuffer, vku::allocation::hostRead };
 }
 
 auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer() const -> vku::AllocatedBuffer {

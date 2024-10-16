@@ -9,11 +9,11 @@ module vk_gltf_viewer;
 import :vulkan.Frame;
 
 import std;
-import :math.extended_arithmetic;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
 import :helpers.type_variant;
+import :math.extended_arithmetic;
 import :vulkan.ag.DepthPrepass;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
