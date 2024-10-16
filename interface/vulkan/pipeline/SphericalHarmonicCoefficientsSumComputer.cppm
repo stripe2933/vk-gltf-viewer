@@ -7,7 +7,7 @@ export module vk_gltf_viewer:vulkan.pipeline.SphericalHarmonicCoefficientsSumCom
 import std;
 import vku;
 export import vulkan_hpp;
-import :helpers.extended_arithmetic;
+import :math.extended_arithmetic;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class SphericalHarmonicCoefficientsSumComputer {
@@ -63,9 +63,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
             while (true) {
                 commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
-                commandBuffer.dispatch(divCeil(pushConstant.count, 256U), 1, 1);
+                commandBuffer.dispatch(math::divCeil(pushConstant.count, 256U), 1, 1);
 
-                pushConstant.count = divCeil(pushConstant.count, 256U);
+                pushConstant.count = math::divCeil(pushConstant.count, 256U);
                 if (pushConstant.count == 1U) {
                     return pushConstant.dstOffset; // Return the offset that contains the sum result.
                 }
@@ -84,7 +84,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         [[nodiscard]] static auto getPingPongBufferElementCount(
             std::uint32_t elementCount
         ) noexcept -> std::uint32_t {
-            return elementCount + divCeil(elementCount, 256U);
+            return elementCount + math::divCeil(elementCount, 256U);
         }
     };
 }

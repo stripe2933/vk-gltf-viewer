@@ -16,8 +16,6 @@ namespace vk_gltf_viewer::gltf {
         const AssetResources &assetResources;
         const fastgltf::Scene &scene;
 
-        std::vector<std::pair<std::size_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs = createOrderedNodePrimitiveInfoPtrs();
-
     public:
         struct GpuPrimitive {
             vk::DeviceAddress pPositionBuffer;
@@ -33,6 +31,7 @@ namespace vk_gltf_viewer::gltf {
             std::int32_t materialIndex; // -1 for fallback material.
         };
 
+        std::vector<std::pair<std::size_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs = createOrderedNodePrimitiveInfoPtrs();
         vku::MappedBuffer nodeWorldTransformBuffer = createNodeWorldTransformBuffer();
         vku::AllocatedBuffer primitiveBuffer = createPrimitiveBuffer();
 

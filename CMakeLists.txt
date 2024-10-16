@@ -62,7 +62,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/AssetTextures.cppm
         interface/gltf/SceneResources.cppm
         interface/helpers/cstring_view.cppm
-        interface/helpers/extended_arithmetic.cppm
         interface/helpers/fastgltf.cppm
         interface/helpers/formatters/joiner.cppm
         interface/helpers/full_optional.cppm
@@ -76,6 +75,9 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/type_variant.cppm
         interface/io/StbDecoder.cppm
         interface/MainApp.cppm
+        interface/math/extended_arithmetic.cppm
+        interface/math/Frustum.cppm
+        interface/math/Plane.cppm
         interface/vulkan/attachment_group/DepthPrepass.cppm
         interface/vulkan/attachment_group/JumpFloodSeed.cppm
         interface/vulkan/attachment_group/SceneOpaque.cppm

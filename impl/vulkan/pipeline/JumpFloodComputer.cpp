@@ -6,7 +6,7 @@ module vk_gltf_viewer;
 import :vulkan.pipeline.JumpFloodComputer;
 
 import std;
-import :helpers.extended_arithmetic;
+import :math.extended_arithmetic;
 
 struct vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::PushConstant {
     vk::Bool32 forward;
@@ -56,8 +56,8 @@ auto vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::compute(
     for (; pushConstant.sampleOffset > 0U; pushConstant.forward = !pushConstant.forward, pushConstant.sampleOffset >>= 1U) {
         commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
         commandBuffer.dispatch(
-            divCeil(imageExtent.width, 16U),
-            divCeil(imageExtent.height, 16U),
+            math::divCeil(imageExtent.width, 16U),
+            math::divCeil(imageExtent.height, 16U),
             1);
 
         if (pushConstant.sampleOffset != 1U) {

@@ -2,6 +2,7 @@ export module vk_gltf_viewer:control.Camera;
 
 import std;
 export import glm;
+export import :math.Frustum;
 
 namespace vk_gltf_viewer::control {
     export struct Camera {
@@ -59,6 +60,26 @@ namespace vk_gltf_viewer::control {
                 zMin = std::max(1e-2f, displacementNearProjectionLength);
                 zMax = displacementFarProjectionLength;
             }
+        }
+
+        [[nodiscard]] auto getFrustum() const -> math::Frustum {
+            // Code from LearnOpenGL.
+            // See: https://learnopengl.com/Guest-Articles/2021/Scene/Frustum-Culling.
+            const float halfVSide = zMax * std::tan(fov / 2.f);
+            const float halfHSide = halfVSide * aspectRatio;
+            const glm::vec3 frontMultFar = direction * zMax;
+            const glm::vec3 right = getRight();
+            const glm::vec3 rightMultHalfHSide = right * halfHSide;
+            const glm::vec3 upMultHalfVSide = up * halfVSide;
+
+            return {
+                math::Plane::from(direction, position + zMin * direction),
+                math::Plane::from(-direction, position + frontMultFar),
+                math::Plane::from(normalize(cross(frontMultFar - rightMultHalfHSide, up)), position),
+                math::Plane::from(normalize(cross(up, frontMultFar + rightMultHalfHSide)), position),
+                math::Plane::from(normalize(cross(frontMultFar + upMultHalfVSide, right)), position),
+                math::Plane::from(normalize(cross(right, frontMultFar - upMultHalfVSide)), position),
+            };
         }
     };
 }
