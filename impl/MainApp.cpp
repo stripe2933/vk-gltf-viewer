@@ -448,6 +448,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
         const vulkan::Frame::ExecutionTask task {
             .passthruRect = passthruRect,
             .camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
+            .frustum = appState.camera.getFrustum(),
             .cursorPosFromPassthruRectTopLeft = appState.hoveringMousePosition.and_then([&](const glm::vec2 &position) -> std::optional<vk::Offset2D> {
                 // If cursor is outside the framebuffer, cursor position is undefined.
                 const glm::vec2 framebufferCursorPosition = position * glm::vec2 { window.getFramebufferSize() } / glm::vec2 { window.getSize() };
