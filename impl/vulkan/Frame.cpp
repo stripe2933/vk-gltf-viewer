@@ -139,33 +139,42 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(criteriaGetter, task.gltf->renderingNodeIndices));
             }
 
-            const std::span orderedNodeAndPrimitiveInfoPtrs = task.gltf->sceneResources.orderedNodePrimitiveInfoPtrs;
-            const std::span nodeWorldTransforms = task.gltf->sceneResources.nodeWorldTransformBuffer.asRange<const glm::mat4>();
-            for (auto &[criteria, buffer] : renderingNodes->indirectDrawCommandBuffers) {
-                const auto predicate = [&](const auto &command) {
-                    const std::uint32_t primitiveIndex = command.firstInstance;
-                    const auto [nodeIndex, pPrimitiveInfo] = orderedNodeAndPrimitiveInfoPtrs[primitiveIndex];
+            if (task.frustum) {
+                const std::span orderedNodeAndPrimitiveInfoPtrs = task.gltf->sceneResources.orderedNodePrimitiveInfoPtrs;
+                const std::span nodeWorldTransforms = task.gltf->sceneResources.nodeWorldTransformBuffer.asRange<const glm::mat4>();
+                for (auto &[criteria, buffer] : renderingNodes->indirectDrawCommandBuffers) {
+                    const auto predicate = [&](const auto &command) {
+                        const std::uint32_t primitiveIndex = command.firstInstance;
+                        const auto [nodeIndex, pPrimitiveInfo] = orderedNodeAndPrimitiveInfoPtrs[primitiveIndex];
 
-                    const glm::mat4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
-                    const glm::vec3 transformedMin = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { pPrimitiveInfo->min, 1.f });
-                    const glm::vec3 transformedMax = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { pPrimitiveInfo->max, 1.f });
+                        const glm::mat4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
+                        const glm::vec3 transformedMin = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { pPrimitiveInfo->min, 1.f });
+                        const glm::vec3 transformedMax = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { pPrimitiveInfo->max, 1.f });
 
-                    const glm::vec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
-                    const glm::vec3 center = transformedMin + halfDisplacement;
-                    const float radius = length(halfDisplacement);
+                        const glm::vec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
+                        const glm::vec3 center = transformedMin + halfDisplacement;
+                        const float radius = length(halfDisplacement);
 
-                    return task.frustum.isOverlapApprox(center, radius);
-                };
+                        return task.frustum->isOverlapApprox(center, radius);
+                    };
 
-                if (criteria.indexType) {
-                    const std::span commands = buffer.asRange<vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
-                    const auto culledPrimitives = std::ranges::partition(commands, predicate);
-                    buffer.asValue<std::uint32_t>() = std::distance(commands.begin(), culledPrimitives.begin());
+                    if (criteria.indexType) {
+                        const std::span commands = buffer.asRange<vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
+                        const auto culledPrimitives = std::ranges::partition(commands, predicate);
+                        buffer.asValue<std::uint32_t>() = std::distance(commands.begin(), culledPrimitives.begin());
+                    }
+                    else {
+                        const std::span commands = buffer.asRange<vk::DrawIndirectCommand>(sizeof(std::uint32_t));
+                        const auto culledPrimitives = std::ranges::partition(commands, predicate);
+                        buffer.asValue<std::uint32_t>() = std::distance(commands.begin(), culledPrimitives.begin());
+                    }
                 }
-                else {
-                    const std::span commands = buffer.asRange<vk::DrawIndirectCommand>(sizeof(std::uint32_t));
-                    const auto culledPrimitives = std::ranges::partition(commands, predicate);
-                    buffer.asValue<std::uint32_t>() = std::distance(commands.begin(), culledPrimitives.begin());
+            }
+            else {
+                // drawCount for indirect draw commands have to be reset.
+                for (auto &[criteria, buffer] : renderingNodes->indirectDrawCommandBuffers) {
+                    const std::size_t indirectDrawCommandTypeSize = criteria.indexType ? sizeof(vk::DrawIndexedIndirectCommand) : sizeof(vk::DrawIndirectCommand);
+                    buffer.asValue<std::uint32_t>() = (buffer.size - sizeof(std::uint32_t)) / indirectDrawCommandTypeSize;
                 }
             }
         }
