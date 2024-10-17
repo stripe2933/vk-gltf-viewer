@@ -15,7 +15,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
      *
      * @tparam Indexed Boolean flag to indicate whether the draw command is indexed or not.
      */
-    template <bool Indexed>
+    export template <bool Indexed>
     struct IndirectDrawCommands : vku::MappedBuffer {
         using command_t = std::conditional_t<Indexed, vk::DrawIndexedIndirectCommand, vk::DrawIndirectCommand>;
 
@@ -88,15 +88,4 @@ namespace vk_gltf_viewer::vulkan::buffer {
             }
         }
     };
-
-    // --------------------
-    // Template instantiations.
-    // --------------------
-
-    // TODO: unguarding this extern template instantiations in Clang will cause linker error (undefined symbol). Remove
-    //  the guard when fixed.
-#if !defined(__clang__)
-    extern template struct IndirectDrawCommands<false>;
-    extern template struct IndirectDrawCommands<true>;
-#endif
 }
