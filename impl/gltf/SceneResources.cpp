@@ -97,12 +97,16 @@ auto vk_gltf_viewer::gltf::SceneResources::createNodeWorldTransformBuffer() cons
     // Traverse the scene nodes and calculate the world transform of each node (by multiplying their local transform to
     // their parent's world transform).
     const auto calculateNodeWorldTransformsRecursive
-        = [&](this const auto &self, std::size_t nodeIndex, const glm::mat4 &parentNodeWorldTransform = { 1.f }) -> void {
+        // TODO: since the multiplication of parent node's world transform and node's local transform will be assigned
+        //  to nodeWorldTransforms[nodeIndex], parentNodeWorldTransform parameter should be const-ref qualified. However,
+        //  Clang ≤ 18 does not accept this signature (according to explicit object parameter bug). Change when it fixed.
+        = [&](this const auto &self, std::size_t nodeIndex, glm::mat4 parentNodeWorldTransform = { 1.f }) -> void {
             const fastgltf::Node &node = asset.nodes[nodeIndex];
-            nodeWorldTransforms[nodeIndex] = parentNodeWorldTransform * visit(LIFT(fastgltf::toMatrix), node.transform);
+            parentNodeWorldTransform *= visit(LIFT(fastgltf::toMatrix), node.transform);
+            nodeWorldTransforms[nodeIndex] = parentNodeWorldTransform;
 
             for (std::size_t childNodeIndex : node.children) {
-                self(childNodeIndex, nodeWorldTransforms[nodeIndex]);
+                self(childNodeIndex, parentNodeWorldTransform);
             }
         };
     for (std::size_t nodeIndex : scene.nodeIndices) {
