@@ -1005,6 +1005,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
 auto vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
     Camera &camera,
     bool &automaticNearFarPlaneAdjustment,
+    bool &useFrustumCulling,
     full_optional<AppState::Outline> &hoveringNodeOutline,
     full_optional<AppState::Outline> &selectedNodeOutline
 ) && -> ImGuiTaskCollector {
@@ -1038,6 +1039,10 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             ImGui::WithDisabled([&]() {
                 ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1e-6f, 1e-4f, 1e6, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
             }, automaticNearFarPlaneAdjustment);
+
+            ImGui::Checkbox("Use Frustum Culling", &useFrustumCulling);
+            ImGui::SameLine();
+            ImGui::HelperMarker("The primitives outside the camera frustum will be culled.");
         }
 
         if (ImGui::CollapsingHeader("Node selection")) {

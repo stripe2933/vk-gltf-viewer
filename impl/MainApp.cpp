@@ -261,7 +261,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 return std::forward_as_tuple(info, skyboxResources->imGuiEqmapTextureDescriptorSet);
             }))
             .background(appState.canSelectSkyboxBackground, appState.background)
-            .inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.hoveringNodeOutline, appState.selectedNodeOutline)
+            .inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline)
             .imguizmo(appState.camera, appState.gltfAsset.and_then([this](auto &x) {
                 return value_if(x.selectedNodeIndices.size() == 1, [&]() {
                     return std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION> {
@@ -445,7 +445,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
         const vulkan::Frame::ExecutionTask task {
             .passthruRect = passthruRect,
             .camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
-            .frustum = appState.camera.getFrustum(),
+            .frustum = value_if(appState.useFrustumCulling, [this]() {
+                return appState.camera.getFrustum();
+            }),
             .cursorPosFromPassthruRectTopLeft = appState.hoveringMousePosition.and_then([&](const glm::vec2 &position) -> std::optional<vk::Offset2D> {
                 // If cursor is outside the framebuffer, cursor position is undefined.
                 const glm::vec2 framebufferSize = window.getFramebufferSize();
