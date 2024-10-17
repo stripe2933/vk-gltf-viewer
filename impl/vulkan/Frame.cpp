@@ -142,39 +142,30 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (task.frustum) {
                 const std::span orderedNodeAndPrimitiveInfoPtrs = task.gltf->sceneResources.orderedNodePrimitiveInfoPtrs;
                 const std::span nodeWorldTransforms = task.gltf->sceneResources.nodeWorldTransformBuffer.asRange<const glm::mat4>();
-                for (auto &[criteria, buffer] : renderingNodes->indirectDrawCommandBuffers) {
-                    const auto predicate = [&](const auto &command) {
-                        const std::uint32_t primitiveIndex = command.firstInstance;
-                        const auto [nodeIndex, pPrimitiveInfo] = orderedNodeAndPrimitiveInfoPtrs[primitiveIndex];
+                for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
+                    visit([&]<bool Indexed>(buffer::IndirectDrawCommands<Indexed> &indirectDrawCommands) -> void {
+                        indirectDrawCommands.partition([&](const buffer::IndirectDrawCommands<Indexed>::command_t &command) {
+                            const std::uint32_t primitiveIndex = command.firstInstance;
+                            const auto [nodeIndex, pPrimitiveInfo] = orderedNodeAndPrimitiveInfoPtrs[primitiveIndex];
 
-                        const glm::mat4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
-                        const glm::vec3 transformedMin = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { pPrimitiveInfo->min, 1.f });
-                        const glm::vec3 transformedMax = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { pPrimitiveInfo->max, 1.f });
+                            const glm::mat4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
+                            const glm::vec3 transformedMin = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { pPrimitiveInfo->min, 1.f });
+                            const glm::vec3 transformedMax = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { pPrimitiveInfo->max, 1.f });
 
-                        const glm::vec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
-                        const glm::vec3 center = transformedMin + halfDisplacement;
-                        const float radius = length(halfDisplacement);
+                            const glm::vec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
+                            const glm::vec3 center = transformedMin + halfDisplacement;
+                            const float radius = length(halfDisplacement);
 
-                        return task.frustum->isOverlapApprox(center, radius);
-                    };
-
-                    if (criteria.indexType) {
-                        const std::span commands = buffer.asRange<vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
-                        const auto culledPrimitives = std::ranges::partition(commands, predicate);
-                        buffer.asValue<std::uint32_t>() = std::distance(commands.begin(), culledPrimitives.begin());
-                    }
-                    else {
-                        const std::span commands = buffer.asRange<vk::DrawIndirectCommand>(sizeof(std::uint32_t));
-                        const auto culledPrimitives = std::ranges::partition(commands, predicate);
-                        buffer.asValue<std::uint32_t>() = std::distance(commands.begin(), culledPrimitives.begin());
-                    }
+                            return task.frustum->isOverlapApprox(center, radius);
+                        });
+                    }, buffer);
                 }
             }
             else {
-                // drawCount for indirect draw commands have to be reset.
-                for (auto &[criteria, buffer] : renderingNodes->indirectDrawCommandBuffers) {
-                    const std::size_t indirectDrawCommandTypeSize = criteria.indexType ? sizeof(vk::DrawIndexedIndirectCommand) : sizeof(vk::DrawIndirectCommand);
-                    buffer.asValue<std::uint32_t>() = (buffer.size - sizeof(std::uint32_t)) / indirectDrawCommandTypeSize;
+                for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
+                    visit([&]<bool Indexed>(buffer::IndirectDrawCommands<Indexed> &indirectDrawCommands) {
+                        indirectDrawCommands.resetDrawCount();
+                    }, buffer);
                 }
             }
         }
@@ -577,11 +568,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 
     ResourceBindingState resourceBindingState{};
     const auto drawPrimitives
-        = [&](
-            const std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> &indirectDrawCommandBuffers,
-            const auto &opaqueOrBlendRenderer,
-            const auto &maskRenderer
-        ) {
+        = [&](const CriteriaSeparatedIndirectDrawCommands &indirectDrawCommandBuffers, const auto &opaqueOrBlendRenderer, const auto &maskRenderer) {
             // Render alphaMode=Opaque or BLEND meshes.
             const auto drawOpaqueOrBlendMesh = [&](fastgltf::AlphaMode alphaMode) {
                 assert(alphaMode == fastgltf::AlphaMode::Opaque || alphaMode == fastgltf::AlphaMode::Blend);
@@ -607,25 +594,11 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                         cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
                     }
 
-                    if (const auto &indexType = criteria.indexType) {
-                        if (resourceBindingState.indexBuffer != *indexType) {
-                            resourceBindingState.indexBuffer.emplace(*indexType);
-                            cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
-                        }
-
-                        if (gpu.supportDrawIndirectCount) {
-                            cb.drawIndexedIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-                        }
-                        else {
-                            cb.drawIndexedIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndexedIndirectCommand));
-                        }
+                    if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
+                        resourceBindingState.indexBuffer.emplace(*indexType);
+                        cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
                     }
-                    else if (gpu.supportDrawIndirectCount) {
-                        cb.drawIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-                    }
-                    else {
-                        cb.drawIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndirectCommand));
-                    }
+                    visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
                 }
             };
             drawOpaqueOrBlendMesh(fastgltf::AlphaMode::Opaque);
@@ -661,25 +634,11 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                     cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
                 }
 
-                if (const auto &indexType = criteria.indexType) {
-                    if (resourceBindingState.indexBuffer != *indexType) {
-                        resourceBindingState.indexBuffer.emplace(*indexType);
-                        cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
-                    }
-
-                    if (gpu.supportDrawIndirectCount) {
-                        cb.drawIndexedIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-                    }
-                    else {
-                        cb.drawIndexedIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndexedIndirectCommand));
-                    }
+                if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
+                    resourceBindingState.indexBuffer.emplace(*indexType);
+                    cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
                 }
-                else if (gpu.supportDrawIndirectCount) {
-                    cb.drawIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-                }
-                else {
-                    cb.drawIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndirectCommand));
-                }
+                visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
             }
         };
 
@@ -805,25 +764,11 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
             cb.setCullMode(currentCullMode.emplace(cullMode));
         }
 
-        if (const auto &indexType = criteria.indexType) {
-            if (currentIndexBuffer != *indexType) {
-                currentIndexBuffer.emplace(*indexType);
-                cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
-            }
-
-            if (gpu.supportDrawIndirectCount) {
-				cb.drawIndexedIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-            }
-            else {
-                cb.drawIndexedIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndexedIndirectCommand));
-            }
+        if (const auto &indexType = criteria.indexType; indexType && currentIndexBuffer != *indexType) {
+            currentIndexBuffer.emplace(*indexType);
+            cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
         }
-        else if (gpu.supportDrawIndirectCount) {
-            cb.drawIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-        }
-        else {
-            cb.drawIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndirectCommand));
-        }
+        visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
     }
 
     // Render alphaMode=Mask meshes.
@@ -851,25 +796,11 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
             cb.setCullMode(currentCullMode.emplace(cullMode));
         }
 
-        if (const auto &indexType = criteria.indexType) {
-            if (currentIndexBuffer != *indexType) {
-                currentIndexBuffer.emplace(*indexType);
-                cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
-            }
-
-            if (gpu.supportDrawIndirectCount) {
-                cb.drawIndexedIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-            }
-            else {
-                cb.drawIndexedIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndexedIndirectCommand));
-            }
+        if (const auto &indexType = criteria.indexType; indexType && currentIndexBuffer != *indexType) {
+            currentIndexBuffer.emplace(*indexType);
+            cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
         }
-        else if (gpu.supportDrawIndirectCount) {
-            cb.drawIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-        }
-        else {
-            cb.drawIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndirectCommand));
-        }
+        visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
     }
 }
 
@@ -906,28 +837,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
             pushConstantBound = true;
         }
 
-        if (const auto &indexType = criteria.indexType) {
-            if (currentIndexBuffer != *indexType) {
-                currentIndexBuffer.emplace(*indexType);
-                cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
-            }
-
-            if (gpu.supportDrawIndirectCount) {
-                cb.drawIndexedIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndexedIndirectCommand), sizeof(vk::DrawIndexedIndirectCommand));
-            }
-            else {
-                cb.drawIndexedIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndexedIndirectCommand));
-            }
-            hasBlendMesh = true;
+        if (const auto &indexType = criteria.indexType; indexType && currentIndexBuffer != *indexType) {
+            currentIndexBuffer.emplace(*indexType);
+            cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
         }
-        else if (gpu.supportDrawIndirectCount) {
-            cb.drawIndirectCount(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer, 0, (indirectDrawCommandBuffer.size - sizeof(std::uint32_t)) / sizeof(vk::DrawIndirectCommand), sizeof(vk::DrawIndirectCommand));
-            hasBlendMesh = true;
-        }
-        else {
-            cb.drawIndirect(indirectDrawCommandBuffer, sizeof(std::uint32_t), indirectDrawCommandBuffer.asValue<const std::uint32_t>(), sizeof(vk::DrawIndirectCommand));
-            hasBlendMesh = true;
-        }
+        visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
+        hasBlendMesh = true;
     }
 
     return hasBlendMesh;

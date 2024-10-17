@@ -85,6 +85,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/attachment_group/SceneWeightedBlended.cppm
         interface/vulkan/attachment_group/Swapchain.cppm
         interface/vulkan/buffer/CubeIndices.cppm
+        interface/vulkan/buffer/IndirectDrawCommands.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
         interface/vulkan/descriptor_set_layout/Scene.cppm
