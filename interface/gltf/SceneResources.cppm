@@ -6,8 +6,10 @@ export module vk_gltf_viewer:gltf.SceneResources;
 
 import std;
 export import :gltf.AssetResources;
+import :helpers.functional;
 import :helpers.ranges;
 export import :vulkan.Gpu;
+export import :vulkan.buffer.IndirectDrawCommands;
 
 namespace vk_gltf_viewer::gltf {
     export class SceneResources {
@@ -60,8 +62,8 @@ namespace vk_gltf_viewer::gltf {
         [[nodiscard]] auto createIndirectDrawCommandBuffers(
             const CriteriaGetter &criteriaGetter,
             const std::unordered_set<std::size_t> &nodeIndices
-        ) const -> std::map<Criteria, vku::MappedBuffer, Compare> {
-            std::map<Criteria, std::vector<std::variant<vk::DrawIndexedIndirectCommand, vk::DrawIndirectCommand>>> commandGroups;
+        ) const -> std::map<Criteria, std::variant<vulkan::buffer::IndirectDrawCommands<false>, vulkan::buffer::IndirectDrawCommands<true>>, Compare> {
+            std::map<Criteria, std::variant<std::vector<vk::DrawIndirectCommand>, std::vector<vk::DrawIndexedIndirectCommand>>> commandGroups;
 
             for (auto [primitiveIndex, nodePrimitiveInfo] : orderedNodePrimitiveInfoPtrs | ranges::views::enumerate) {
                 const auto [nodeIndex, pPrimitiveInfo] = nodePrimitiveInfo;
@@ -80,45 +82,43 @@ namespace vk_gltf_viewer::gltf {
                         }
                     }();
 
+                    auto &commandGroup = commandGroups
+                        .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndexedIndirectCommand>>)
+                        .first->second;
                     const std::uint32_t vertexOffset = static_cast<std::uint32_t>(pPrimitiveInfo->indexInfo->offset / indexByteSize);
-                    commandGroups[criteria].emplace_back(std::in_place_type<vk::DrawIndexedIndirectCommand>, pPrimitiveInfo->drawCount, 1, vertexOffset, 0, primitiveIndex);
+                    get_if<std::vector<vk::DrawIndexedIndirectCommand>>(&commandGroup)
+                        ->emplace_back(pPrimitiveInfo->drawCount, 1, vertexOffset, 0, primitiveIndex);
                 }
                 else {
-                    commandGroups[criteria].emplace_back(std::in_place_type<vk::DrawIndirectCommand>, pPrimitiveInfo->drawCount, 1, 0, primitiveIndex);
+                    auto &commandGroup = commandGroups
+                        .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndirectCommand>>)
+                        .first->second;
+                    get_if<std::vector<vk::DrawIndirectCommand>>(&commandGroup)
+                        ->emplace_back(pPrimitiveInfo->drawCount, 1, 0, primitiveIndex);
                 }
             }
 
-            std::map<Criteria, vku::MappedBuffer, Compare> result;
-            for (const auto &[criteria, commandVariants] : commandGroups) {
-                const std::variant flattenedCommands = [&]() -> std::variant<std::vector<vk::DrawIndexedIndirectCommand>, std::vector<vk::DrawIndirectCommand>> {
-                    if (criteria.indexType) {
-                        return commandVariants
-                            | std::views::transform([](const auto &commandVariant) { return *get_if<vk::DrawIndexedIndirectCommand>(&commandVariant); })
-                            | std::ranges::to<std::vector>();
-                    }
-                    else {
-                        return commandVariants
-                            | std::views::transform([](const auto &commandVariant) { return *get_if<vk::DrawIndirectCommand>(&commandVariant); })
-                            | std::ranges::to<std::vector>();
-                    }
-                }();
-                const std::span commandBytes = visit([](const auto &commands) {
-                    return as_bytes(std::span { commands });
-                }, flattenedCommands);
-
-                vku::MappedBuffer &buffer = result.try_emplace(
-                    criteria,
-                    gpu.allocator,
-                    vk::BufferCreateInfo{
-                        {},
-                        sizeof(std::uint32_t) /* draw count */ + commandBytes.size(),
-                        vk::BufferUsageFlagBits::eIndirectBuffer | vk::BufferUsageFlagBits::eStorageBuffer,
-                    },
-                    vku::allocation::hostRead).first->second;
-                buffer.asValue<std::uint32_t>() = commandVariants.size();
-                std::ranges::copy(commandBytes, static_cast<std::byte*>(buffer.data) + sizeof(std::uint32_t));
-            }
-            return result;
+            using result_type = std::variant<vulkan::buffer::IndirectDrawCommands<false>, vulkan::buffer::IndirectDrawCommands<true>>;
+            return commandGroups
+                | ranges::views::value_transform([allocator = gpu.allocator](const auto &variant) {
+                    return visit(multilambda {
+                        [allocator](std::span<const vk::DrawIndirectCommand> commands) {
+                            return result_type {
+                                std::in_place_type<vulkan::buffer::IndirectDrawCommands<false>>,
+                                allocator,
+                                commands,
+                            };
+                        },
+                        [allocator](std::span<const vk::DrawIndexedIndirectCommand> commands) {
+                            return result_type {
+                                std::in_place_type<vulkan::buffer::IndirectDrawCommands<true>>,
+                                allocator,
+                                commands,
+                            };
+                        },
+                    }, variant);
+                })
+                | std::ranges::to<std::map<Criteria, result_type, Compare>>();
         }
 
         /**

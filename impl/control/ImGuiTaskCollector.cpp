@@ -666,7 +666,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 #else
                                 switch (transformComponents.size()) {
                                 case 1:
-                                    ImGui::Text("%s", transformComponents[0].c_str());
+                                    ImGui::TextUnformatted(transformComponents[0]);
                                     break;
                                 case 2:
                                     ImGui::Text("%s * %s", transformComponents[0].c_str(), transformComponents[1].c_str());

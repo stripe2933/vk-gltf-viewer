@@ -82,6 +82,8 @@ namespace vk_gltf_viewer::vulkan {
             [[nodiscard]] auto operator()(fastgltf::AlphaMode lhs, const CommandSeparationCriteria &rhs) const noexcept -> bool { return lhs < rhs.alphaMode; }
         };
 
+        using CriteriaSeparatedIndirectDrawCommands = std::map<CommandSeparationCriteria, std::variant<buffer::IndirectDrawCommands<false>, buffer::IndirectDrawCommands<true>>, CommandSeparationCriteriaComparator>;
+
         class PassthruResources {
         public:
             struct JumpFloodResources {
@@ -123,19 +125,19 @@ namespace vk_gltf_viewer::vulkan {
 
         struct RenderingNodes {
             std::unordered_set<std::size_t> indices;
-            std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> indirectDrawCommandBuffers;
+            CriteriaSeparatedIndirectDrawCommands indirectDrawCommandBuffers;
         };
 
         struct SelectedNodes {
             std::unordered_set<std::size_t> indices;
-            std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> indirectDrawCommandBuffers;
+            CriteriaSeparatedIndirectDrawCommands indirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
 
         struct HoveringNode {
             std::size_t index;
-            std::map<CommandSeparationCriteria, vku::MappedBuffer, CommandSeparationCriteriaComparator> indirectDrawCommandBuffers;
+            CriteriaSeparatedIndirectDrawCommands indirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
