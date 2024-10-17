@@ -14,8 +14,8 @@ find_package(CGAL CONFIG REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
+find_package(imguizmo CONFIG REQUIRED)
 find_package(Ktx CONFIG REQUIRED)
-find_package(unofficial-imguizmo CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
 find_package(Stb REQUIRED)
@@ -133,7 +133,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     fastgltf::fastgltf
     imgui::imgui
     KTX::ktx
-    unofficial::imguizmo::imguizmo
+    imguizmo::imguizmo
     mikktspace::mikktspace
     nfd::nfd
     vku::vku
