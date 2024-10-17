@@ -11,6 +11,7 @@ export import glm;
 import :control.Camera;
 export import :helpers.full_optional;
 import :helpers.functional;
+import :helpers.optional;
 import :helpers.ranges;
 
 namespace vk_gltf_viewer {
@@ -101,12 +102,7 @@ namespace vk_gltf_viewer {
              */
             [[nodiscard]] std::optional<std::size_t> getParentNodeIndex(std::size_t nodeIndex) const noexcept {
                 const std::size_t parentNodeIndex = parentNodeIndices[nodeIndex];
-                if (parentNodeIndex == nodeIndex) {
-                    return std::nullopt;
-                }
-                else {
-                    return parentNodeIndex;
-                }
+                return value_if(parentNodeIndex != nodeIndex, parentNodeIndex);
             }
 
         private:

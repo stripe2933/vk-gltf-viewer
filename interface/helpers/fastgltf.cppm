@@ -7,16 +7,12 @@ export module vk_gltf_viewer:helpers.fastgltf;
 import std;
 export import glm;
 export import :helpers.cstring_view;
+export import :helpers.optional;
 
 namespace fastgltf {
     export template <typename T>
     [[nodiscard]] auto to_optional(OptionalWithFlagValue<T> v) noexcept -> std::optional<T> {
-        if (v) {
-            return *v;
-        }
-        else {
-            return std::nullopt;
-        }
+        return value_if(v.has_value(), [&]() { return *v; });
     }
 
     export
