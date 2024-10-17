@@ -834,7 +834,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                                 "attributes-table",
                                 ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_SizingFixedFit,
                                 ranges::views::concat(
-                                    ranges::to_range(to_optional(primitive.indicesAccessor).transform([&](std::size_t accessorIndex) {
+                                    to_range(to_optional(primitive.indicesAccessor).transform([&](std::size_t accessorIndex) {
                                         return std::pair<std::string_view, const fastgltf::Accessor&> { "Index"sv, asset.accessors[accessorIndex] };
                                     })),
                                     primitive.attributes | ranges::views::decompose_transform([&](std::string_view attributeName, std::size_t accessorIndex) {
