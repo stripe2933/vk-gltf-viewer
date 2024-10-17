@@ -26,6 +26,7 @@ import :helpers.formatters.joiner;
 #endif
 import :helpers.functional;
 import :helpers.imgui;
+import :helpers.optional;
 import :helpers.ranges;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})

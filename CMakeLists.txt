@@ -68,6 +68,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/functional.cppm
         interface/helpers/imgui/mod.cppm
         interface/helpers/imgui/table.cppm
+        interface/helpers/optional.cppm
         interface/helpers/ranges/mod.cppm
         interface/helpers/ranges/concat.cppm
         interface/helpers/ranges/contains.cppm

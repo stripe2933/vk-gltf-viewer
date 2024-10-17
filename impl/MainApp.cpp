@@ -18,6 +18,7 @@ import vku;
 import :gltf.AssetTextures;
 import :helpers.fastgltf;
 import :helpers.functional;
+import :helpers.optional;
 import :helpers.ranges;
 import :helpers.tristate;
 import :imgui.TaskCollector;
@@ -261,19 +262,15 @@ auto vk_gltf_viewer::MainApp::run() -> void {
             }))
             .background(appState.canSelectSkyboxBackground, appState.background)
             .inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.hoveringNodeOutline, appState.selectedNodeOutline)
-            .imguizmo(appState.camera, appState.gltfAsset.and_then([this](auto &x) -> std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION>> {
-                if (x.selectedNodeIndices.size() == 1) {
-                    return std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION>> {
-                        std::in_place,
+            .imguizmo(appState.camera, appState.gltfAsset.and_then([this](auto &x) {
+                return value_if(x.selectedNodeIndices.size() == 1, [&]() {
+                    return std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION> {
                         x.asset,
                         gltfAsset->sceneResources.nodeWorldTransformBuffer.asRange<const glm::mat4>(),
                         *x.selectedNodeIndices.begin(),
                         appState.imGuizmoOperation,
                     };
-                }
-                else {
-                    return std::nullopt;
-                }
+                });
             }));
 
         for (const control::Task &task : tasks) {
@@ -451,19 +448,15 @@ auto vk_gltf_viewer::MainApp::run() -> void {
             .frustum = appState.camera.getFrustum(),
             .cursorPosFromPassthruRectTopLeft = appState.hoveringMousePosition.and_then([&](const glm::vec2 &position) -> std::optional<vk::Offset2D> {
                 // If cursor is outside the framebuffer, cursor position is undefined.
-                const glm::vec2 framebufferCursorPosition = position * glm::vec2 { window.getFramebufferSize() } / glm::vec2 { window.getSize() };
-                if (glm::vec2 framebufferSize = window.getFramebufferSize(); framebufferCursorPosition.x >= framebufferSize.x || framebufferCursorPosition.y >= framebufferSize.y) return std::nullopt;
+                const glm::vec2 framebufferSize = window.getFramebufferSize();
+                const glm::vec2 framebufferCursorPosition = position * framebufferSize / glm::vec2 { window.getSize() };
+                if (framebufferCursorPosition.x >= framebufferSize.x || framebufferCursorPosition.y >= framebufferSize.y) return std::nullopt;
 
                 const vk::Offset2D offset {
                     static_cast<std::int32_t>(framebufferCursorPosition.x) - passthruRect.offset.x,
                     static_cast<std::int32_t>(framebufferCursorPosition.y) - passthruRect.offset.y
                 };
-                if (0 <= offset.x && offset.x < passthruRect.extent.width && 0 <= offset.y && offset.y < passthruRect.extent.height) {
-                    return offset;
-                }
-                else {
-                    return std::nullopt;
-                }
+                return value_if(0 <= offset.x && offset.x < passthruRect.extent.width && 0 <= offset.y && offset.y < passthruRect.extent.height, offset);
             }),
             .hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
             .selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
