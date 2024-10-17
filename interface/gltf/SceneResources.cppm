@@ -86,7 +86,7 @@ namespace vk_gltf_viewer::gltf {
                         .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndexedIndirectCommand>>)
                         .first->second;
                     const std::uint32_t vertexOffset = static_cast<std::uint32_t>(pPrimitiveInfo->indexInfo->offset / indexByteSize);
-                    get_if<std::vector<vk::DrawIndexedIndirectCommand>>(commandGroup)
+                    get_if<std::vector<vk::DrawIndexedIndirectCommand>>(&commandGroup)
                         ->emplace_back(pPrimitiveInfo->drawCount, 1, vertexOffset, 0, primitiveIndex);
                 }
                 else {
