@@ -56,6 +56,18 @@ namespace ranges {
         return it == c.end() ? default_value : it->second;
     }
 
+    /**
+     * @brief Make range from iterator and sentinel pair.
+     * @tparam I Iterator type.
+     * @tparam S Sentinel type.
+     * @param pair A pair of iterator and sentinel.
+     * @return A range from iterator to sentinel.
+     */
+    export template <std::input_or_output_iterator I, std::sentinel_for<I> S>
+    [[nodiscard]] auto make_subrange(std::pair<I, S> pair) {
+        return std::ranges::subrange(pair.first, pair.second);
+    }
+
 namespace views {
 #if __cpp_lib_ranges_enumerate >= 202302L
     export constexpr decltype(std::views::enumerate) enumerate;

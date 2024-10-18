@@ -569,44 +569,38 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
     ResourceBindingState resourceBindingState{};
     const auto drawPrimitives
         = [&](const CriteriaSeparatedIndirectDrawCommands &indirectDrawCommandBuffers, const auto &opaqueOrBlendRenderer, const auto &maskRenderer) {
-            // Render alphaMode=Opaque or BLEND meshes.
-            const auto drawOpaqueOrBlendMesh = [&](fastgltf::AlphaMode alphaMode) {
-                assert(alphaMode == fastgltf::AlphaMode::Opaque || alphaMode == fastgltf::AlphaMode::Blend);
-                for (auto [begin, end] = indirectDrawCommandBuffers.equal_range(alphaMode);
-                     const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
-
-                    if (!resourceBindingState.boundPipeline.holds_alternative<std::remove_cvref_t<decltype(opaqueOrBlendRenderer)>>()) {
-                        opaqueOrBlendRenderer.bindPipeline(cb);
-                        resourceBindingState.boundPipeline.emplace<std::remove_cvref_t<decltype(opaqueOrBlendRenderer)>>();
-                    }
-
-                    if (!resourceBindingState.sceneDescriptorSetBound) {
-                        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *opaqueOrBlendRenderer.pipelineLayout, 0, sharedData.sceneDescriptorSet, {});
-                        resourceBindingState.sceneDescriptorSetBound = true;
-                    }
-
-                    if (!resourceBindingState.pushConstantBound) {
-                        opaqueOrBlendRenderer.pushConstants(cb, { projectionViewMatrix });
-                        resourceBindingState.pushConstantBound = true;
-                    }
-
-                    if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
-                        cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
-                    }
-
-                    if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
-                        resourceBindingState.indexBuffer.emplace(*indexType);
-                        cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
-                    }
-                    visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
+            // Render opaque or blend meshes.
+            const auto opaqueMeshes = ranges::make_subrange(indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque));
+            const auto blendMeshes = ranges::make_subrange(indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Blend));
+            for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::views::concat(opaqueMeshes, blendMeshes)) {
+                if (!resourceBindingState.boundPipeline.holds_alternative<std::remove_cvref_t<decltype(opaqueOrBlendRenderer)>>()) {
+                    opaqueOrBlendRenderer.bindPipeline(cb);
+                    resourceBindingState.boundPipeline.emplace<std::remove_cvref_t<decltype(opaqueOrBlendRenderer)>>();
                 }
-            };
-            drawOpaqueOrBlendMesh(fastgltf::AlphaMode::Opaque);
-            drawOpaqueOrBlendMesh(fastgltf::AlphaMode::Blend);
 
-            // Render alphaMode=Mask meshes.
-            for (auto [begin, end] = indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
-                 const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+                if (!resourceBindingState.sceneDescriptorSetBound) {
+                    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *opaqueOrBlendRenderer.pipelineLayout, 0, sharedData.sceneDescriptorSet, {});
+                    resourceBindingState.sceneDescriptorSetBound = true;
+                }
+
+                if (!resourceBindingState.pushConstantBound) {
+                    opaqueOrBlendRenderer.pushConstants(cb, { projectionViewMatrix });
+                    resourceBindingState.pushConstantBound = true;
+                }
+
+                if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
+                    cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
+                }
+
+                if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
+                    resourceBindingState.indexBuffer.emplace(*indexType);
+                    cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
+                }
+                visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
+            }
+
+            // Render mask meshes.
+            for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask))) {
                 if (!resourceBindingState.boundPipeline.holds_alternative<std::remove_cvref_t<decltype(maskRenderer)>>()) {
                     maskRenderer.bindPipeline(cb);
                     resourceBindingState.boundPipeline.emplace<std::remove_cvref_t<decltype(maskRenderer)>>();
@@ -740,8 +734,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
     bool pushConstantBound = false;
 
     // Render alphaMode=Opaque meshes.
-    for (auto [begin, end] = renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque);
-         const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+    for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque))) {
         if (criteria.faceted && !boundPipeline.holds_alternative<PrimitiveRenderer>()) {
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveRenderer);
             boundPipeline.emplace<PrimitiveRenderer>();
@@ -772,8 +765,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
     }
 
     // Render alphaMode=Mask meshes.
-    for (auto [begin, end] = renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask);
-         const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+    for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask))) {
         if (criteria.faceted && !boundPipeline.holds_alternative<MaskPrimitiveRenderer>()) {
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.maskPrimitiveRenderer);
             boundPipeline.emplace<MaskPrimitiveRenderer>();
@@ -817,8 +809,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
 
     // Render alphaMode=Blend meshes.
     bool hasBlendMesh = false;
-    for (auto [begin, end] = renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Blend);
-         const auto &[criteria, indirectDrawCommandBuffer] : std::ranges::subrange(begin, end)) {
+    for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Blend))) {
         if (criteria.faceted && !boundPipeline.holds_alternative<BlendPrimitiveRenderer>()) {
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.blendPrimitiveRenderer);
             boundPipeline.emplace<BlendPrimitiveRenderer>();
