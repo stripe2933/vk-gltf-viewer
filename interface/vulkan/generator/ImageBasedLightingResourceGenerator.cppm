@@ -179,6 +179,18 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 .numCount = 27,
                 .multiplier = 4.f * std::numbers::pi_v<float> / (6U * cubemapImage.extent.width * cubemapImage.extent.width),
             });
+
+            // sphericalHarmonicsBuffer have to be available to the host.
+            computeCommandBuffer.pipelineBarrier(
+                vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eHost,
+                {},
+                {},
+                vk::BufferMemoryBarrier {
+                    vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eHostRead,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    sphericalHarmonicsBuffer, 0, vk::WholeSize,
+                },
+                {});
         }
 
     private:

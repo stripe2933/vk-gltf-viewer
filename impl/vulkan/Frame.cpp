@@ -690,6 +690,17 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 vk::Offset3D { *cursorPosFromPassthruRectTopLeft, 0 },
                 { 1, 1, 1 },
             });
+
+        // hoveringNodeIndexBuffer data have to be available to the host.
+        cb.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eHost,
+            {}, {},
+            vk::BufferMemoryBarrier {
+                vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eHostRead,
+                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                hoveringNodeIndexBuffer, 0, vk::WholeSize,
+            },
+            {});
     }
 }
 
