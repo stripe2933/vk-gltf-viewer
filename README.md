@@ -114,6 +114,7 @@ The extensions and feature used in this application are quite common in the mode
     - `scalarBlockLayout`
     - `timelineSemaphore`
     - `shaderInt8`
+    - (optional) `drawIndirectCount` (If not presented, GPU frustum culling will be unavailable and fallback to the CPU frustum culling.)
   - `VkPhysicalDeviceDynamicRenderingFeatures`
   - `VkPhysicalDeviceSynchronization2Features`
   - `VkPhysicalDeviceExtendedDynamicStateFeaturesEXT`
@@ -311,9 +312,12 @@ All shaders are located in the [shaders](/shaders) folder and need to be manuall
 ## Milestones
 
 - [x] Basis Universal texture support (`KHR_texture_basisu`).
-- [ ] Reduce skybox memory usage with BC6H compressed cubemap.
-- [ ] Frustum/occlusion culling.
 - [x] Automatic camera position adjustment based on the bounding sphere calculation.
+- [ ] Frustum culling
+  - [x] CPU frustum culling (Note: still experimental; unexpected popped in/out may happened.)
+  - [ ] GPU frustum culling
+- [ ] Occlusion culling
+- [ ] Reduce skybox memory usage with BC6H compressed cubemap.
 - [ ] Animations.
 
 ## License
