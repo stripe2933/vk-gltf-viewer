@@ -199,7 +199,6 @@ Add the following CMake user preset file in your project directory. I'll assume 
   "configurePresets": [
     {
       "name": "linux-clang-18",
-      "displayName": "Clang",
       "inherits": "default",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/usr/bin/clang-18",
@@ -260,7 +259,6 @@ Add the following CMake user preset file in your project directory. I'll assume 
     {
       "name": "macos-clang",
       "inherits": "default",
-      "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
         "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++",

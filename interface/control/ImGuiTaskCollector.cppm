@@ -11,7 +11,6 @@ import std;
 export import glm;
 export import vulkan_hpp;
 export import :AppState;
-export import :control.Camera;
 export import :control.Task;
 export import :helpers.full_optional;
 

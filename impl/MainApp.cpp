@@ -247,7 +247,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
         control::ImGuiTaskCollector { tasks, ImVec2 { framebufferSize.x, framebufferSize.y }, passthruRect }
             .menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths())
             .assetInspector(appState.gltfAsset.transform([this](auto &x) {
-                return std::forward_as_tuple(x.asset, x.assetDir, x.assetInspectorMaterialIndex, assetTextureDescriptorSets);
+                return std::forward_as_tuple(x.asset, gltfAsset->assetDir, x.assetInspectorMaterialIndex, assetTextureDescriptorSets);
             }))
             .sceneHierarchy(appState.gltfAsset.transform([](const auto &x) -> std::tuple<const fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::size_t>&, const std::unordered_set<std::size_t>&> {
                 // TODO: don't know why, but using std::forward_as_tuple will pass the scene index as reference and will
@@ -293,10 +293,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     imageInfos.emplace_back(*sharedData.singleTexelSampler, *assetFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
                     imageInfos.append_range(gltfAsset->get().textures | std::views::transform([this](const fastgltf::Texture &texture) {
                         return vk::DescriptorImageInfo {
-                            [&]() {
-                                if (texture.samplerIndex) return *gltfAsset->assetTextures.samplers[*texture.samplerIndex];
-                                return *assetDefaultSampler;
-                            }(),
+                            to_optional(texture.samplerIndex)
+                                .transform([this](std::size_t samplerIndex) { return *gltfAsset->assetTextures.samplers[samplerIndex]; })
+                                .value_or(*assetDefaultSampler),
                             *gltfAsset->imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture)),
                             vk::ImageLayout::eShaderReadOnlyOptimal,
                         };
@@ -322,7 +321,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                         | std::ranges::to<std::vector>();
 
                     // Update AppState.
-                    appState.gltfAsset.emplace(gltfAsset->get(), gltfAsset->assetDir);
+                    appState.gltfAsset.emplace(gltfAsset->get());
                     appState.pushRecentGltfPath(task.path);
 
                     // Adjust the camera based on the scene enclosing sphere.

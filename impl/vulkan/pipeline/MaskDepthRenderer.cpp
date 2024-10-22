@@ -6,6 +6,7 @@ module vk_gltf_viewer;
 import :vulkan.pipeline.MaskDepthRenderer;
 
 import std;
+import vku;
 
 vk_gltf_viewer::vulkan::pipeline::MaskDepthRenderer::MaskDepthRenderer(
     const vk::raii::Device &device,

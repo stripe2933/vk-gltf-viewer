@@ -1,6 +1,7 @@
 export module vk_gltf_viewer:vulkan.ag.SceneOpaque;
 
 import std;
+export import vku;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::ag {

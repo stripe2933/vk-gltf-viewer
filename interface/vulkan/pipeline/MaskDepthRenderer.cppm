@@ -2,7 +2,6 @@ export module vk_gltf_viewer:vulkan.pipeline.MaskDepthRenderer;
 
 import std;
 export import glm;
-export import vku;
 export import :vulkan.dsl.Asset;
 export import :vulkan.dsl.Scene;
 

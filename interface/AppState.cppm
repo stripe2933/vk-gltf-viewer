@@ -8,7 +8,7 @@ export module vk_gltf_viewer:AppState;
 
 import std;
 export import glm;
-import :control.Camera;
+export import :control.Camera;
 export import :helpers.full_optional;
 import :helpers.functional;
 import :helpers.optional;
@@ -46,15 +46,14 @@ namespace vk_gltf_viewer {
         class GltfAsset {
         public:
             fastgltf::Asset &asset;
-            std::filesystem::path assetDir;
             std::variant<std::vector<std::optional<bool>>, std::vector<bool>> nodeVisibilities { std::in_place_index<0>, asset.nodes.size(), true };
             std::optional<std::size_t> assetInspectorMaterialIndex = asset.materials.empty() ? std::optional<std::size_t>{} : std::optional<std::size_t> { 0 };
 
             std::unordered_set<std::size_t> selectedNodeIndices;
             std::optional<std::size_t> hoveringNodeIndex;
 
-            explicit GltfAsset(fastgltf::Asset &asset, std::filesystem::path assetDir) noexcept
-                : asset { asset }, assetDir { std::move(assetDir) } { }
+            explicit GltfAsset(fastgltf::Asset &asset) noexcept
+                : asset { asset } { }
 
             [[nodiscard]] auto getSceneIndex() const noexcept -> std::size_t { return sceneIndex; }
             [[nodiscard]] auto getScene() const noexcept -> fastgltf::Scene& { return asset.scenes[sceneIndex]; }
