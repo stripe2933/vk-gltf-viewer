@@ -15,7 +15,6 @@ import :MainApp;
 
 import std;
 import vku;
-import :gltf.algorithm.miniball;
 import :gltf.AssetGpuTextures;
 import :helpers.fastgltf;
 import :helpers.functional;
@@ -254,7 +253,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
         control::ImGuiTaskCollector { tasks, ImVec2 { framebufferSize.x, framebufferSize.y }, passthruRect }
             .menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths())
             .assetInspector(appState.gltfAsset.transform([this](auto &x) {
-                return std::forward_as_tuple(x.asset, gltfAsset->assetDir, x.assetInspectorMaterialIndex, assetTextureDescriptorSets);
+                return std::forward_as_tuple(x.asset, gltf->directory, x.assetInspectorMaterialIndex, assetTextureDescriptorSets);
             }))
             .sceneHierarchy(appState.gltfAsset.transform([](const auto &x) -> std::tuple<const fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::size_t>&, const std::unordered_set<std::size_t>&> {
                 // TODO: don't know why, but using std::forward_as_tuple will pass the scene index as reference and will
@@ -273,7 +272,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 return value_if(x.selectedNodeIndices.size() == 1, [&]() {
                     return std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION> {
                         x.asset,
-                        gltfAsset->assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>(),
+                        gltf->assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>(),
                         *x.selectedNodeIndices.begin(),
                         appState.imGuizmoOperation,
                     };
@@ -291,48 +290,48 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     //  so I'll just use it for now.
                     gpu.device.waitIdle();
 
-                    gltfAsset.emplace(parser, task.path, gpu);
+                    gltf.emplace(parser, task.path, gpu);
 
-                    sharedData.updateTextureCount(1 + gltfAsset->get().textures.size());
+                    sharedData.updateTextureCount(1 + gltf->asset.textures.size());
 
                     std::vector<vk::DescriptorImageInfo> imageInfos;
-                    imageInfos.reserve(1 + gltfAsset->get().textures.size());
+                    imageInfos.reserve(1 + gltf->asset.textures.size());
                     imageInfos.emplace_back(*sharedData.singleTexelSampler, *assetFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-                    imageInfos.append_range(gltfAsset->get().textures | std::views::transform([this](const fastgltf::Texture &texture) {
+                    imageInfos.append_range(gltf->asset.textures | std::views::transform([this](const fastgltf::Texture &texture) {
                         return vk::DescriptorImageInfo {
                             to_optional(texture.samplerIndex)
-                                .transform([this](std::size_t samplerIndex) { return *gltfAsset->assetGpuTextures.samplers[samplerIndex]; })
+                                .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
                                 .value_or(*assetDefaultSampler),
-                            *gltfAsset->assetGpuTextures.imageViews.at(gltf::AssetGpuTextures::getPreferredImageIndex(texture)),
+                            *gltf->assetGpuTextures.imageViews.at(gltf::AssetGpuTextures::getPreferredImageIndex(texture)),
                             vk::ImageLayout::eShaderReadOnlyOptimal,
                         };
                     }));
                     gpu.device.updateDescriptorSets({
                         sharedData.assetDescriptorSet.getWrite<0>(imageInfos),
-                        sharedData.assetDescriptorSet.getWriteOne<1>({ gltfAsset->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
-                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltfAsset->assetSceneGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
-                        sharedData.sceneDescriptorSet.getWriteOne<1>({ gltfAsset->assetSceneGpuBuffers.nodeWorldTransformBuffer, 0, vk::WholeSize }),
+                        sharedData.assetDescriptorSet.getWriteOne<1>({ gltf->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
+                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->assetSceneGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
+                        sharedData.sceneDescriptorSet.getWriteOne<1>({ gltf->assetSceneGpuBuffers.nodeWorldTransformBuffer, 0, vk::WholeSize }),
                     }, {});
 
                     // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
                     assetTextureDescriptorSets
-                        = gltfAsset->get().textures
+                        = gltf->asset.textures
                         | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
                             return ImGui_ImplVulkan_AddTexture(
                                 to_optional(texture.samplerIndex)
-                                    .transform([this](std::size_t samplerIndex) { return *gltfAsset->assetGpuTextures.samplers[samplerIndex]; })
+                                    .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
                                     .value_or(*assetDefaultSampler),
-                                *gltfAsset->assetGpuTextures.imageViews.at(gltf::AssetGpuTextures::getPreferredImageIndex(texture)),
+                                *gltf->assetGpuTextures.imageViews.at(gltf::AssetGpuTextures::getPreferredImageIndex(texture)),
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                         })
                         | std::ranges::to<std::vector>();
 
                     // Update AppState.
-                    appState.gltfAsset.emplace(gltfAsset->get());
+                    appState.gltfAsset.emplace(gltf->asset);
                     appState.pushRecentGltfPath(task.path);
 
                     // Adjust the camera based on the scene enclosing sphere.
-                    const auto &[center, radius] = gltfAsset->assetSceneMiniball;
+                    const auto &[center, radius] = gltf->assetSceneMiniball;
                     const float distance = radius / std::sin(appState.camera.fov / 2.f);
                     appState.camera.position = center - glm::dvec3 { distance * normalize(appState.camera.direction) };
                     appState.camera.zMin = distance - radius;
@@ -340,7 +339,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     appState.camera.targetDistance = distance;
                 },
                 [&](control::task::CloseGltf) {
-                    gltfAsset.reset();
+                    gltf.reset();
 
                     // Update AppState.
                     appState.gltfAsset.reset();
@@ -379,11 +378,11 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                             }
 
                             tristate::propagateTopDown(
-                                [&](auto i) -> decltype(auto) { return gltfAsset->get().nodes[i].children; },
+                                [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
                                 task.nodeIndex, visibilities);
                             tristate::propagateBottomUp(
                                 [&](auto i) { return appState.gltfAsset->getParentNodeIndex(i).value_or(i); },
-                                [&](auto i) -> decltype(auto) { return gltfAsset->get().nodes[i].children; },
+                                [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
                                 task.nodeIndex, visibilities);
                         },
                         [&](std::vector<bool> &visibilities) {
@@ -402,7 +401,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 },
                 [this](const control::task::ChangeNodeLocalTransform &task) {
                     // Update AssetSceneGpuBuffers::nodeWorldTransformBuffer.
-                    const std::span nodeWorldTransforms = gltfAsset->assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<glm::mat4>();
+                    const std::span nodeWorldTransforms = gltf->assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<glm::mat4>();
 
                     // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& and std::span<glm::mat4> are passed (but it is unnecessary). Remove the parameter when fixed.
                     const auto applyNodeLocalTransformChangeRecursive
@@ -423,25 +422,25 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                             return nodeWorldTransforms[parentNodeIndex];
                         })
                         .value_or(glm::mat4 { 1.f });
-                    applyNodeLocalTransformChangeRecursive(gltfAsset->get(), nodeWorldTransforms, task.nodeIndex, parentNodeWorldTransform);
+                    applyNodeLocalTransformChangeRecursive(gltf->asset, nodeWorldTransforms, task.nodeIndex, parentNodeWorldTransform);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
                         const auto &[center, radius]
-                            = (gltfAsset->assetSceneMiniball = gltf::algorithm::getMiniball(gltfAsset->get(), gltfAsset->get().scenes[gltfAsset->get().defaultScene.value_or(0)], gltfAsset->assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>()));
+                            = (gltf->assetSceneMiniball = gltf::algorithm::getMiniball(gltf->asset, gltf->scene, gltf->assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>()));
                         appState.camera.tightenNearFar(center, radius);
                     }
                 },
                 [this](control::task::TightenNearFarPlane) {
-                    if (gltfAsset) {
-                        const auto &[center, radius] = gltfAsset->assetSceneMiniball;
+                    if (gltf) {
+                        const auto &[center, radius] = gltf->assetSceneMiniball;
                         appState.camera.tightenNearFar(center, radius);
                     }
                 },
                 [this](control::task::ChangeCameraView) {
-                    if (appState.automaticNearFarPlaneAdjustment && gltfAsset) {
+                    if (appState.automaticNearFarPlaneAdjustment && gltf) {
                         // Tighten near/far plane based on the scene enclosing sphere.
-                        const auto &[center, radius] = gltfAsset->assetSceneMiniball;
+                        const auto &[center, radius] = gltf->assetSceneMiniball;
                         appState.camera.tightenNearFar(center, radius);
                     }
                 },
@@ -468,12 +467,12 @@ auto vk_gltf_viewer::MainApp::run() -> void {
             }),
             .hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
             .selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
-            .gltf = gltfAsset.transform([&](GltfAsset &gltfAsset) {
+            .gltf = gltf.transform([&](Gltf &gltf) {
                 assert(appState.gltfAsset && "Synchronization error: gltfAsset is not set in AppState.");
                 return vulkan::Frame::ExecutionTask::Gltf {
-                    .asset = gltfAsset.get(),
-                    .indexBuffers = gltfAsset.assetGpuBuffers.indexBuffers,
-                    .assetSceneGpuBuffers = gltfAsset.assetSceneGpuBuffers,
+                    .asset = gltf.asset,
+                    .indexBuffers = gltf.assetGpuBuffers.indexBuffers,
+                    .assetSceneGpuBuffers = gltf.assetSceneGpuBuffers,
                     .hoveringNodeIndex = appState.gltfAsset->hoveringNodeIndex,
                     .selectedNodeIndices = appState.gltfAsset->selectedNodeIndices,
                     .renderingNodeIndices = appState.gltfAsset->getVisibleNodeIndices(),
@@ -506,23 +505,25 @@ auto vk_gltf_viewer::MainApp::run() -> void {
     gpu.device.waitIdle();
 }
 
-vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
+vk_gltf_viewer::MainApp::Gltf::Gltf(
     fastgltf::Parser &parser,
     const std::filesystem::path &path,
-    const vulkan::Gpu &gpu [[clang::lifetimebound]],
+    const vulkan::Gpu &_gpu [[clang::lifetimebound]],
     fastgltf::GltfDataBuffer dataBuffer
-) : assetDir { path.parent_path() },
-    assetExpected { (checkDataBufferLoadResult(dataBuffer.loadFromFile(path)), parser.loadGltf(&dataBuffer, assetDir)) },
-    assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(get(), assetDir) },
-    assetGpuBuffers { get(), *assetExternalBuffers, gpu },
-    assetGpuTextures { get(), assetDir, *assetExternalBuffers, gpu },
-    assetSceneGpuBuffers { get(), assetGpuBuffers, get().scenes[get().defaultScene.value_or(0)], gpu },
-    assetSceneMiniball { gltf::algorithm::getMiniball(get(), get().scenes[get().defaultScene.value_or(0)], assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>()) } {
+) : directory { path.parent_path() },
+    assetExpected { (checkDataBufferLoadResult(dataBuffer.loadFromFile(path)), parser.loadGltf(&dataBuffer, directory)) },
+    gpu { _gpu },
+    assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(asset, directory) },
+    assetGpuBuffers { asset, *assetExternalBuffers, gpu },
+    assetGpuTextures { asset, directory, *assetExternalBuffers, gpu },
+    assetSceneGpuBuffers { asset, assetGpuBuffers, scene, gpu } {
     assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
 }
 
-auto vk_gltf_viewer::MainApp::GltfAsset::get() noexcept -> fastgltf::Asset& {
-    return assetExpected.get();
+void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
+    scene = asset.scenes[sceneIndex];
+    assetSceneGpuBuffers = { asset, assetGpuBuffers, scene, gpu };
+    assetSceneMiniball = gltf::algorithm::getMiniball(asset, scene, assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>());
 }
 
 auto vk_gltf_viewer::MainApp::createInstance() const -> vk::raii::Instance {
@@ -632,12 +633,12 @@ auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() -> decltype(imGuiDescr
         vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
         1 /* Default ImGui rendering */
             + 1 /* reducedEqmapImage texture */
-            + /*static_cast<std::uint32_t>(gltfAsset->get().textures.size())*/ 512 /* material textures */, // TODO: need proper texture count.
+            + /*static_cast<std::uint32_t>(gltf->asset.textures.size())*/ 512 /* material textures */, // TODO: need proper texture count.
         vku::unsafeProxy(vk::DescriptorPoolSize {
             vk::DescriptorType::eCombinedImageSampler,
             1 /* Default ImGui rendering */
                 + 1 /* reducedEqmapImage texture */
-                + /*static_cast<std::uint32_t>(gltfAsset->get().textures.size())*/ 512 /* material textures */ // TODO: need proper texture count.
+                + /*static_cast<std::uint32_t>(gltf->asset.textures.size())*/ 512 /* material textures */ // TODO: need proper texture count.
         }),
     } };
 }
