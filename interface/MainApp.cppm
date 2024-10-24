@@ -27,14 +27,6 @@ namespace vk_gltf_viewer {
 
     private:
         class GltfAsset {
-            struct DataBufferLoader {
-                fastgltf::GltfDataBuffer dataBuffer;
-
-                explicit DataBufferLoader(const std::filesystem::path &path);
-            };
-
-            DataBufferLoader dataBufferLoader;
-
         public:
             std::filesystem::path assetDir;
             fastgltf::Expected<fastgltf::Asset> assetExpected;
@@ -51,7 +43,11 @@ namespace vk_gltf_viewer {
             std::unordered_map<std::size_t, vk::raii::ImageView> imageViews;
             gltf::SceneResources sceneResources;
 
-            GltfAsset(fastgltf::Parser &parser, const std::filesystem::path &path, const vulkan::Gpu &gpu [[clang::lifetimebound]]);
+            GltfAsset(
+                fastgltf::Parser &parser,
+                const std::filesystem::path &path,
+                const vulkan::Gpu &gpu [[clang::lifetimebound]],
+                fastgltf::GltfDataBuffer dataBuffer = fastgltf::GltfDataBuffer{});
 
             [[nodiscard]] auto get() noexcept -> fastgltf::Asset&;
 

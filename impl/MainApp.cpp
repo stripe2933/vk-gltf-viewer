@@ -38,6 +38,12 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
 
+void checkDataBufferLoadResult(bool result) {
+    if (!result) {
+        throw std::runtime_error { "Failed to load glTF data into buffer" };
+    }
+}
+
 vk_gltf_viewer::MainApp::MainApp() {
     const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
 
@@ -499,19 +505,13 @@ auto vk_gltf_viewer::MainApp::run() -> void {
     gpu.device.waitIdle();
 }
 
-vk_gltf_viewer::MainApp::GltfAsset::DataBufferLoader::DataBufferLoader(const std::filesystem::path &path) {
-    if (!dataBuffer.loadFromFile(path)) {
-        throw std::runtime_error { "Failed to load glTF data buffer" };
-    }
-}
-
 vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
     fastgltf::Parser &parser,
     const std::filesystem::path &path,
-    const vulkan::Gpu &gpu [[clang::lifetimebound]]
-) : dataBufferLoader { path },
-    assetDir { path.parent_path() },
-    assetExpected { parser.loadGltf(&dataBufferLoader.dataBuffer, assetDir) },
+    const vulkan::Gpu &gpu [[clang::lifetimebound]],
+    fastgltf::GltfDataBuffer dataBuffer
+) : assetDir { path.parent_path() },
+    assetExpected { (checkDataBufferLoadResult(dataBuffer.loadFromFile(path)), parser.loadGltf(&dataBuffer, assetDir)) },
     assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(get(), assetDir) },
     assetResources { get(), *assetExternalBuffers, gpu },
     assetTextures { get(), assetDir, *assetExternalBuffers, gpu },
