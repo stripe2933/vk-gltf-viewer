@@ -41,6 +41,7 @@ namespace vk_gltf_viewer {
             gltf::AssetGpuBuffers assetGpuBuffers;
             gltf::AssetGpuTextures assetGpuTextures;
             gltf::AssetSceneGpuBuffers assetSceneGpuBuffers;
+            std::pair<glm::dvec3, double> assetSceneMiniball;
 
             GltfAsset(
                 fastgltf::Parser &parser,

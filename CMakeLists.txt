@@ -58,6 +58,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/control/ImGuiTaskCollector.cppm
         interface/control/Task.cppm
         interface/gltf/algorithm/MikktSpaceInterface.cppm
+        interface/gltf/algorithm/miniball.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetGpuBuffers.cppm
         interface/gltf/AssetGpuTextures.cppm

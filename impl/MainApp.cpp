@@ -15,6 +15,7 @@ import :MainApp;
 
 import std;
 import vku;
+import :gltf.algorithm.miniball;
 import :gltf.AssetGpuTextures;
 import :helpers.fastgltf;
 import :helpers.functional;
@@ -331,7 +332,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     appState.pushRecentGltfPath(task.path);
 
                     // Adjust the camera based on the scene enclosing sphere.
-                    const auto &[center, radius] = gltfAsset->assetSceneGpuBuffers.enclosingSphere;
+                    const auto &[center, radius] = gltfAsset->assetSceneMiniball;
                     const float distance = radius / std::sin(appState.camera.fov / 2.f);
                     appState.camera.position = center - glm::dvec3 { distance * normalize(appState.camera.direction) };
                     appState.camera.zMin = distance - radius;
@@ -426,21 +427,21 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
-                        gltfAsset->assetSceneGpuBuffers.updateEnclosingSphere();
-                        const auto &[center, radius] = gltfAsset->assetSceneGpuBuffers.enclosingSphere;
+                        const auto &[center, radius]
+                            = (gltfAsset->assetSceneMiniball = gltf::algorithm::getMiniball(gltfAsset->get(), gltfAsset->get().scenes[gltfAsset->get().defaultScene.value_or(0)], gltfAsset->assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>()));
                         appState.camera.tightenNearFar(center, radius);
                     }
                 },
                 [this](control::task::TightenNearFarPlane) {
                     if (gltfAsset) {
-                        const auto &[center, radius] = gltfAsset->assetSceneGpuBuffers.enclosingSphere;
+                        const auto &[center, radius] = gltfAsset->assetSceneMiniball;
                         appState.camera.tightenNearFar(center, radius);
                     }
                 },
                 [this](control::task::ChangeCameraView) {
                     if (appState.automaticNearFarPlaneAdjustment && gltfAsset) {
                         // Tighten near/far plane based on the scene enclosing sphere.
-                        const auto &[center, radius] = gltfAsset->assetSceneGpuBuffers.enclosingSphere;
+                        const auto &[center, radius] = gltfAsset->assetSceneMiniball;
                         appState.camera.tightenNearFar(center, radius);
                     }
                 },
@@ -515,7 +516,8 @@ vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
     assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(get(), assetDir) },
     assetGpuBuffers { get(), *assetExternalBuffers, gpu },
     assetGpuTextures { get(), assetDir, *assetExternalBuffers, gpu },
-    assetSceneGpuBuffers { get(), assetGpuBuffers, get().scenes[get().defaultScene.value_or(0)], gpu } {
+    assetSceneGpuBuffers { get(), assetGpuBuffers, get().scenes[get().defaultScene.value_or(0)], gpu },
+    assetSceneMiniball { gltf::algorithm::getMiniball(get(), get().scenes[get().defaultScene.value_or(0)], assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>()) } {
     assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
 }
 

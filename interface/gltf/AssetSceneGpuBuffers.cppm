@@ -22,7 +22,6 @@ namespace vk_gltf_viewer::gltf {
         const fastgltf::Asset &asset;
         const vulkan::Gpu &gpu;
         const AssetGpuBuffers &assetGpuBuffers;
-        const fastgltf::Scene &scene;
 
     public:
         struct GpuPrimitive {
@@ -39,15 +38,9 @@ namespace vk_gltf_viewer::gltf {
             std::int32_t materialIndex; // -1 for fallback material.
         };
 
-        std::vector<std::pair<std::size_t /* nodeIndex */, const AssetGpuBuffers::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs = createOrderedNodePrimitiveInfoPtrs();
-        vku::MappedBuffer nodeWorldTransformBuffer = createNodeWorldTransformBuffer();
-        vku::AllocatedBuffer primitiveBuffer = createPrimitiveBuffer();
-
-        /**
-         * The smallest enclosing sphere of the scene meshes' bounding boxes, i.e. tight-fitting sphere.
-         * First element is the center coordinate, and the second element is the radius.
-         */
-        std::pair<glm::dvec3, double> enclosingSphere = getEnclosingSphere();
+        std::vector<std::pair<std::size_t /* nodeIndex */, const AssetGpuBuffers::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs;
+        vku::MappedBuffer nodeWorldTransformBuffer;
+        vku::AllocatedBuffer primitiveBuffer;
 
         AssetSceneGpuBuffers(
             const fastgltf::Asset &asset [[clang::lifetimebound]],
@@ -127,17 +120,9 @@ namespace vk_gltf_viewer::gltf {
                 | std::ranges::to<std::map<Criteria, result_type, Compare>>();
         }
 
-        /**
-         * @brief Update the enclosing sphere of the scene meshes' bounding boxes based on the current nodes' world transforms.
-         */
-        void updateEnclosingSphere() {
-            enclosingSphere = getEnclosingSphere();
-        }
-
     private:
-        [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> std::vector<std::pair<std::size_t, const AssetGpuBuffers::PrimitiveInfo*>>;
-        [[nodiscard]] auto createNodeWorldTransformBuffer() const -> vku::MappedBuffer;
-        [[nodiscard]] auto createPrimitiveBuffer() const -> vku::AllocatedBuffer;
-        [[nodiscard]] auto getEnclosingSphere() const -> std::pair<glm::dvec3, double>;
+        [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs(const fastgltf::Scene &scene) const -> std::vector<std::pair<std::size_t, const AssetGpuBuffers::PrimitiveInfo*>>;
+        [[nodiscard]] auto createNodeWorldTransformBuffer(const fastgltf::Scene &scene) const -> vku::MappedBuffer;
+        [[nodiscard]] auto createPrimitiveBuffer(const fastgltf::Scene &scene) const -> vku::AllocatedBuffer;
     };
 }
