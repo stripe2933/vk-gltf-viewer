@@ -17,12 +17,11 @@ vk_gltf_viewer::gltf::AssetSceneGpuBuffers::AssetSceneGpuBuffers(
     const AssetGpuBuffers &assetGpuBuffers,
     const fastgltf::Scene &scene,
     const vulkan::Gpu &gpu
-) : asset { asset },
-    gpu { gpu },
-    assetGpuBuffers { assetGpuBuffers },
+) : pAsset { &asset },
+    pGpu { &gpu },
+    pAssetGpuBuffers { &assetGpuBuffers },
     orderedNodePrimitiveInfoPtrs { createOrderedNodePrimitiveInfoPtrs(scene) },
-    nodeWorldTransformBuffer { createNodeWorldTransformBuffer(scene) },
-    primitiveBuffer { createPrimitiveBuffer(scene) } { }
+    nodeWorldTransformBuffer { createNodeWorldTransformBuffer(scene) } { }
 
 auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createOrderedNodePrimitiveInfoPtrs(
     const fastgltf::Scene &scene
@@ -31,11 +30,11 @@ auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createOrderedNodePrimitiveInfoP
 
     // Traverse the scene nodes and collect the glTF mesh primitives with their node indices.
     const auto traverseMeshPrimitivesRecursive = [&](this auto self, std::size_t nodeIndex) -> void {
-        const fastgltf::Node &node = asset.nodes[nodeIndex];
+        const fastgltf::Node &node = pAsset->nodes[nodeIndex];
         if (node.meshIndex) {
-            const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+            const fastgltf::Mesh &mesh = pAsset->meshes[*node.meshIndex];
             for (const fastgltf::Primitive &primitive : mesh.primitives) {
-                const AssetGpuBuffers::PrimitiveInfo &primitiveInfo = assetGpuBuffers.primitiveInfos.at(&primitive);
+                const AssetGpuBuffers::PrimitiveInfo &primitiveInfo = pAssetGpuBuffers->primitiveInfos.at(&primitive);
                 nodePrimitiveInfoPtrs.emplace_back(nodeIndex, &primitiveInfo);
             }
         }
@@ -53,7 +52,7 @@ auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createOrderedNodePrimitiveInfoP
 }
 
 auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeWorldTransformBuffer(const fastgltf::Scene &scene) const -> vku::MappedBuffer {
-    std::vector<glm::mat4> nodeWorldTransforms(asset.nodes.size());
+    std::vector<glm::mat4> nodeWorldTransforms(pAsset->nodes.size());
 
     // Traverse the scene nodes and calculate the world transform of each node (by multiplying their local transform to
     // their parent's world transform).
@@ -62,7 +61,7 @@ auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeWorldTransformBuffer(
         //  to nodeWorldTransforms[nodeIndex], parentNodeWorldTransform parameter should be const-ref qualified. However,
         //  Clang ≤ 18 does not accept this signature (according to explicit object parameter bug). Change when it fixed.
         = [&](this const auto &self, std::size_t nodeIndex, glm::mat4 parentNodeWorldTransform = { 1.f }) -> void {
-            const fastgltf::Node &node = asset.nodes[nodeIndex];
+            const fastgltf::Node &node = pAsset->nodes[nodeIndex];
             parentNodeWorldTransform *= visit(LIFT(fastgltf::toMatrix), node.transform);
             nodeWorldTransforms[nodeIndex] = parentNodeWorldTransform;
 
@@ -74,12 +73,12 @@ auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeWorldTransformBuffer(
         calculateNodeWorldTransformsRecursive(nodeIndex);
     }
 
-    return { gpu.allocator, std::from_range, nodeWorldTransforms, vk::BufferUsageFlagBits::eStorageBuffer, vku::allocation::hostRead };
+    return { pGpu->allocator, std::from_range, nodeWorldTransforms, vk::BufferUsageFlagBits::eStorageBuffer, vku::allocation::hostRead };
 }
 
-auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createPrimitiveBuffer(const fastgltf::Scene &scene) const -> vku::AllocatedBuffer {
+auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createPrimitiveBuffer() const -> vku::AllocatedBuffer {
     return vku::MappedBuffer {
-        gpu.allocator,
+        pGpu->allocator,
         std::from_range, orderedNodePrimitiveInfoPtrs
             | ranges::views::decompose_transform([](std::size_t nodeIndex, const AssetGpuBuffers::PrimitiveInfo *pPrimitiveInfo) {
                 // If normal and tangent not presented (nullopt), it will use a faceted mesh renderer, and they will does not

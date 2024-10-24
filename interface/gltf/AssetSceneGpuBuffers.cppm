@@ -19,9 +19,9 @@ namespace vk_gltf_viewer::gltf {
      * (like materials, vertex/index buffers, etc.), see AssetGpuBuffers for that purpose.
      */
     export class AssetSceneGpuBuffers {
-        const fastgltf::Asset &asset;
-        const vulkan::Gpu &gpu;
-        const AssetGpuBuffers &assetGpuBuffers;
+        const fastgltf::Asset *pAsset;
+        const vulkan::Gpu *pGpu;
+        const AssetGpuBuffers *pAssetGpuBuffers;
 
     public:
         struct GpuPrimitive {
@@ -40,7 +40,7 @@ namespace vk_gltf_viewer::gltf {
 
         std::vector<std::pair<std::size_t /* nodeIndex */, const AssetGpuBuffers::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs;
         vku::MappedBuffer nodeWorldTransformBuffer;
-        vku::AllocatedBuffer primitiveBuffer;
+        vku::AllocatedBuffer primitiveBuffer = createPrimitiveBuffer();
 
         AssetSceneGpuBuffers(
             const fastgltf::Asset &asset [[clang::lifetimebound]],
@@ -99,7 +99,7 @@ namespace vk_gltf_viewer::gltf {
 
             using result_type = std::variant<vulkan::buffer::IndirectDrawCommands<false>, vulkan::buffer::IndirectDrawCommands<true>>;
             return commandGroups
-                | ranges::views::value_transform([allocator = gpu.allocator](const auto &variant) {
+                | ranges::views::value_transform([allocator = pGpu->allocator](const auto &variant) {
                     return visit(multilambda {
                         [allocator](std::span<const vk::DrawIndirectCommand> commands) {
                             return result_type {
@@ -123,6 +123,6 @@ namespace vk_gltf_viewer::gltf {
     private:
         [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs(const fastgltf::Scene &scene) const -> std::vector<std::pair<std::size_t, const AssetGpuBuffers::PrimitiveInfo*>>;
         [[nodiscard]] auto createNodeWorldTransformBuffer(const fastgltf::Scene &scene) const -> vku::MappedBuffer;
-        [[nodiscard]] auto createPrimitiveBuffer(const fastgltf::Scene &scene) const -> vku::AllocatedBuffer;
+        [[nodiscard]] auto createPrimitiveBuffer() const -> vku::AllocatedBuffer;
     };
 }
