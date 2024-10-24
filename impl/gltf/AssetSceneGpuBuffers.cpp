@@ -6,7 +6,7 @@ module;
 #include <fastgltf/core.hpp>
 
 module vk_gltf_viewer;
-import :gltf.SceneResources;
+import :gltf.AssetSceneGpuBuffers;
 
 import std;
 import :helpers.fastgltf;
@@ -16,17 +16,17 @@ import :math.extended_arithmetic;
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&x) { return __VA_ARGS__(FWD(x)); }
 
-vk_gltf_viewer::gltf::SceneResources::SceneResources(
+vk_gltf_viewer::gltf::AssetSceneGpuBuffers::AssetSceneGpuBuffers(
     const fastgltf::Asset &asset [[clang::lifetimebound]],
-    const AssetResources &assetResources,
+    const AssetGpuBuffers &assetGpuBuffers,
     const fastgltf::Scene &scene,
     const vulkan::Gpu &gpu
 ) : asset { asset },
     gpu { gpu },
-    assetResources { assetResources },
+    assetGpuBuffers { assetGpuBuffers },
     scene { scene } { }
 
-auto vk_gltf_viewer::gltf::SceneResources::getEnclosingSphere() const -> std::pair<glm::dvec3, double> {
+auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::getEnclosingSphere() const -> std::pair<glm::dvec3, double> {
     // See https://doc.cgal.org/latest/Bounding_volumes/index.html for the original code.
     using Traits = CGAL::Min_sphere_of_points_d_traits_3<CGAL::Simple_cartesian<double>, double>;
     std::vector<Traits::Point> meshBoundingBoxPoints;
@@ -65,8 +65,8 @@ auto vk_gltf_viewer::gltf::SceneResources::getEnclosingSphere() const -> std::pa
     return { center, ms.radius() };
 }
 
-auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() const -> std::vector<std::pair<std::size_t, const AssetResources::PrimitiveInfo*>> {
-    std::vector<std::pair<std::size_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> nodePrimitiveInfoPtrs;
+auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createOrderedNodePrimitiveInfoPtrs() const -> std::vector<std::pair<std::size_t, const AssetGpuBuffers::PrimitiveInfo*>> {
+    std::vector<std::pair<std::size_t /* nodeIndex */, const AssetGpuBuffers::PrimitiveInfo*>> nodePrimitiveInfoPtrs;
 
     // Traverse the scene nodes and collect the glTF mesh primitives with their node indices.
     const auto traverseMeshPrimitivesRecursive
@@ -75,7 +75,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() 
             if (node.meshIndex) {
                 const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
                 for (const fastgltf::Primitive &primitive : mesh.primitives) {
-                    const AssetResources::PrimitiveInfo &primitiveInfo = assetResources.primitiveInfos.at(&primitive);
+                    const AssetGpuBuffers::PrimitiveInfo &primitiveInfo = assetGpuBuffers.primitiveInfos.at(&primitive);
                     nodePrimitiveInfoPtrs.emplace_back(nodeIndex, &primitiveInfo);
                 }
             }
@@ -91,7 +91,7 @@ auto vk_gltf_viewer::gltf::SceneResources::createOrderedNodePrimitiveInfoPtrs() 
     return nodePrimitiveInfoPtrs;
 }
 
-auto vk_gltf_viewer::gltf::SceneResources::createNodeWorldTransformBuffer() const -> vku::MappedBuffer {
+auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeWorldTransformBuffer() const -> vku::MappedBuffer {
     std::vector<glm::mat4> nodeWorldTransforms(asset.nodes.size());
 
     // Traverse the scene nodes and calculate the world transform of each node (by multiplying their local transform to
@@ -116,15 +116,15 @@ auto vk_gltf_viewer::gltf::SceneResources::createNodeWorldTransformBuffer() cons
     return { gpu.allocator, std::from_range, nodeWorldTransforms, vk::BufferUsageFlagBits::eStorageBuffer, vku::allocation::hostRead };
 }
 
-auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer() const -> vku::AllocatedBuffer {
+auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createPrimitiveBuffer() const -> vku::AllocatedBuffer {
     return vku::MappedBuffer {
         gpu.allocator,
         std::from_range, orderedNodePrimitiveInfoPtrs
-            | ranges::views::decompose_transform([](std::size_t nodeIndex, const AssetResources::PrimitiveInfo *pPrimitiveInfo) {
+            | ranges::views::decompose_transform([](std::size_t nodeIndex, const AssetGpuBuffers::PrimitiveInfo *pPrimitiveInfo) {
                 // If normal and tangent not presented (nullopt), it will use a faceted mesh renderer, and they will does not
                 // dereference those buffers. Therefore, it is okay to pass nullptr into shaders
-                const auto normalInfo = pPrimitiveInfo->normalInfo.value_or(AssetResources::PrimitiveInfo::AttributeBufferInfo{});
-                const auto tangentInfo = pPrimitiveInfo->tangentInfo.value_or(AssetResources::PrimitiveInfo::AttributeBufferInfo{});
+                const auto normalInfo = pPrimitiveInfo->normalInfo.value_or(AssetGpuBuffers::PrimitiveInfo::AttributeBufferInfo{});
+                const auto tangentInfo = pPrimitiveInfo->tangentInfo.value_or(AssetGpuBuffers::PrimitiveInfo::AttributeBufferInfo{});
 
                 return GpuPrimitive {
                     .pPositionBuffer = pPrimitiveInfo->positionInfo.address,
@@ -133,11 +133,11 @@ auto vk_gltf_viewer::gltf::SceneResources::createPrimitiveBuffer() const -> vku:
                     .pTexcoordAttributeMappingInfoBuffer
                         = ranges::value_or(
                             pPrimitiveInfo->indexedAttributeMappingInfos,
-                            AssetResources::IndexedAttribute::Texcoord, {}).pMappingBuffer,
+                            AssetGpuBuffers::IndexedAttribute::Texcoord, {}).pMappingBuffer,
                     .pColorAttributeMappingInfoBuffer
                         = ranges::value_or(
                             pPrimitiveInfo->indexedAttributeMappingInfos,
-                            AssetResources::IndexedAttribute::Color, {}).pMappingBuffer,
+                            AssetGpuBuffers::IndexedAttribute::Color, {}).pMappingBuffer,
                     .positionByteStride = pPrimitiveInfo->positionInfo.byteStride,
                     .normalByteStride = normalInfo.byteStride,
                     .tangentByteStride = tangentInfo.byteStride,

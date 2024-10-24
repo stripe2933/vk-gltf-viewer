@@ -30,8 +30,8 @@ add_executable(vk-gltf-viewer
     impl/control/AppWindow.cpp
     impl/control/ImGuiTaskCollector.cpp
     impl/AppState.cpp
-    impl/gltf/AssetResources.cpp
-    impl/gltf/SceneResources.cpp
+    impl/gltf/AssetGpuBuffers.cpp
+    impl/gltf/AssetSceneGpuBuffers.cpp
     impl/MainApp.cpp
     impl/mod.cpp
     impl/vulkan/buffer/IndirectDrawCommands.cpp
@@ -59,9 +59,9 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/control/Task.cppm
         interface/gltf/algorithm/MikktSpaceInterface.cppm
         interface/gltf/AssetExternalBuffers.cppm
-        interface/gltf/AssetResources.cppm
-        interface/gltf/AssetTextures.cppm
-        interface/gltf/SceneResources.cppm
+        interface/gltf/AssetGpuBuffers.cppm
+        interface/gltf/AssetGpuTextures.cppm
+        interface/gltf/AssetSceneGpuBuffers.cppm
         interface/helpers/cstring_view.cppm
         interface/helpers/fastgltf.cppm
         interface/helpers/formatters/joiner.cppm

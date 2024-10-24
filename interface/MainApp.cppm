@@ -7,9 +7,9 @@ export module vk_gltf_viewer:MainApp;
 import std;
 import vku;
 import :control.AppWindow;
-import :gltf.AssetResources;
-import :gltf.AssetTextures;
-import :gltf.SceneResources;
+import :gltf.AssetGpuBuffers;
+import :gltf.AssetGpuTextures;
+import :gltf.AssetSceneGpuBuffers;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Scene;
@@ -38,9 +38,9 @@ namespace vk_gltf_viewer {
             std::unique_ptr<gltf::AssetExternalBuffers> assetExternalBuffers;
 
         public:
-            gltf::AssetResources assetResources;
-            gltf::AssetTextures assetTextures;
-            gltf::SceneResources sceneResources;
+            gltf::AssetGpuBuffers assetGpuBuffers;
+            gltf::AssetGpuTextures assetGpuTextures;
+            gltf::AssetSceneGpuBuffers assetSceneGpuBuffers;
 
             GltfAsset(
                 fastgltf::Parser &parser,

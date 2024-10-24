@@ -7,7 +7,7 @@ export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
 export import :AppState;
-export import :gltf.SceneResources;
+export import :gltf.AssetSceneGpuBuffers;
 import :helpers.type_variant;
 export import :vulkan.SharedData;
 import :vulkan.ag.DepthPrepass;
@@ -22,7 +22,7 @@ namespace vk_gltf_viewer::vulkan {
             struct Gltf {
                 const fastgltf::Asset &asset;
                 const std::unordered_map<vk::IndexType, vku::AllocatedBuffer> &indexBuffers;
-                const gltf::SceneResources &sceneResources;
+                const gltf::AssetSceneGpuBuffers &assetSceneGpuBuffers;
                 std::optional<std::uint32_t> hoveringNodeIndex;
                 std::unordered_set<std::size_t> selectedNodeIndices;
                 std::unordered_set<std::size_t> renderingNodeIndices;

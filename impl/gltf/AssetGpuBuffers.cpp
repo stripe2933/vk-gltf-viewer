@@ -6,7 +6,7 @@ module;
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
-import :gltf.AssetResources;
+import :gltf.AssetGpuBuffers;
 
 import std;
 import thread_pool;
@@ -88,7 +88,7 @@ import :helpers.ranges;
         | std::ranges::to<std::vector>();
 }
 
-vk_gltf_viewer::gltf::AssetResources::AssetResources(
+vk_gltf_viewer::gltf::AssetGpuBuffers::AssetGpuBuffers(
     const fastgltf::Asset &asset,
     const AssetExternalBuffers &externalBuffers,
     const vulkan::Gpu &gpu,
@@ -112,7 +112,7 @@ vk_gltf_viewer::gltf::AssetResources::AssetResources(
     stagingBuffers.clear();
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::createPrimitiveInfos() const -> std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> {
+auto vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveInfos() const -> std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> {
     std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> primitiveInfos;
     for (const fastgltf::Node &node : asset.nodes){
         if (!node.meshIndex) continue;
@@ -125,7 +125,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createPrimitiveInfos() const -> std::
     return primitiveInfos;
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer() const -> vku::AllocatedBuffer {
+auto vk_gltf_viewer::gltf::AssetGpuBuffers::createMaterialBuffer() const -> vku::AllocatedBuffer {
     return { gpu.allocator, vk::BufferCreateInfo {
         {},
         sizeof(GpuMaterial) * (1 /* fallback material */ + asset.materials.size()),
@@ -133,7 +133,7 @@ auto vk_gltf_viewer::gltf::AssetResources::createMaterialBuffer() const -> vku::
     } };
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(vk::CommandBuffer copyCommandBuffer) -> void {
+auto vk_gltf_viewer::gltf::AssetGpuBuffers::stageMaterials(vk::CommandBuffer copyCommandBuffer) -> void {
     std::vector<GpuMaterial> materials;
     materials.reserve(asset.materials.size() + 1);
     materials.push_back({}); // Fallback material.
@@ -177,7 +177,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stageMaterials(vk::CommandBuffer copy
     copyCommandBuffer.copyBuffer(stagingBuffer, materialBuffer, vk::BufferCopy { 0, 0, materialBuffer.size });
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
+auto vk_gltf_viewer::gltf::AssetGpuBuffers::stagePrimitiveAttributeBuffers(
     const AssetExternalBuffers &externalBuffers,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
@@ -293,7 +293,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveAttributeBuffers(
     }
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexedAttributeMappingBuffers(
+auto vk_gltf_viewer::gltf::AssetGpuBuffers::stagePrimitiveIndexedAttributeMappingBuffers(
     IndexedAttribute attributeType,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {
@@ -335,7 +335,7 @@ HAS_ATTRIBUTE_BUFFER:
     }
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
+auto vk_gltf_viewer::gltf::AssetGpuBuffers::stagePrimitiveTangentBuffers(
     const AssetExternalBuffers &externalBuffers,
     vk::CommandBuffer copyCommandBuffer,
     BS::thread_pool &threadPool
@@ -412,7 +412,7 @@ auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveTangentBuffers(
     }
 }
 
-auto vk_gltf_viewer::gltf::AssetResources::stagePrimitiveIndexBuffers(
+auto vk_gltf_viewer::gltf::AssetGpuBuffers::stagePrimitiveIndexBuffers(
     const AssetExternalBuffers &externalBuffers,
     vk::CommandBuffer copyCommandBuffer
 ) -> void {

@@ -2,20 +2,26 @@ module;
 
 #include <fastgltf/types.hpp>
 
-export module vk_gltf_viewer:gltf.SceneResources;
+export module vk_gltf_viewer:gltf.AssetSceneGpuBuffers;
 
 import std;
-export import :gltf.AssetResources;
+export import :gltf.AssetGpuBuffers;
 import :helpers.functional;
 import :helpers.ranges;
 export import :vulkan.Gpu;
 export import :vulkan.buffer.IndirectDrawCommands;
 
 namespace vk_gltf_viewer::gltf {
-    export class SceneResources {
+    /**
+     * @brief GPU buffers for <tt>fastgltf::Scene</tt>.
+     *
+     * These buffers should be used for only the scene passed by the parameter. If you're finding the asset-wide buffers
+     * (like materials, vertex/index buffers, etc.), see AssetGpuBuffers for that purpose.
+     */
+    export class AssetSceneGpuBuffers {
         const fastgltf::Asset &asset;
         const vulkan::Gpu &gpu;
-        const AssetResources &assetResources;
+        const AssetGpuBuffers &assetGpuBuffers;
         const fastgltf::Scene &scene;
 
     public:
@@ -33,7 +39,7 @@ namespace vk_gltf_viewer::gltf {
             std::int32_t materialIndex; // -1 for fallback material.
         };
 
-        std::vector<std::pair<std::size_t /* nodeIndex */, const AssetResources::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs = createOrderedNodePrimitiveInfoPtrs();
+        std::vector<std::pair<std::size_t /* nodeIndex */, const AssetGpuBuffers::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs = createOrderedNodePrimitiveInfoPtrs();
         vku::MappedBuffer nodeWorldTransformBuffer = createNodeWorldTransformBuffer();
         vku::AllocatedBuffer primitiveBuffer = createPrimitiveBuffer();
 
@@ -43,16 +49,16 @@ namespace vk_gltf_viewer::gltf {
          */
         std::pair<glm::dvec3, double> enclosingSphere = getEnclosingSphere();
 
-        SceneResources(
+        AssetSceneGpuBuffers(
             const fastgltf::Asset &asset [[clang::lifetimebound]],
-            const AssetResources &assetResources [[clang::lifetimebound]],
+            const AssetGpuBuffers &assetGpuBuffers [[clang::lifetimebound]],
             const fastgltf::Scene &scene [[clang::lifetimebound]],
             const vulkan::Gpu &gpu [[clang::lifetimebound]]);
 
         template <
             typename CriteriaGetter,
             typename Compare = std::less<CriteriaGetter>,
-            typename Criteria = std::invoke_result_t<CriteriaGetter, const AssetResources::PrimitiveInfo&>>
+            typename Criteria = std::invoke_result_t<CriteriaGetter, const AssetGpuBuffers::PrimitiveInfo&>>
         requires
             requires(const Criteria &criteria) {
                 // Draw commands with same criteria must have same kind of index type, or no index type (multi draw
@@ -129,7 +135,7 @@ namespace vk_gltf_viewer::gltf {
         }
 
     private:
-        [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> std::vector<std::pair<std::size_t, const AssetResources::PrimitiveInfo*>>;
+        [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs() const -> std::vector<std::pair<std::size_t, const AssetGpuBuffers::PrimitiveInfo*>>;
         [[nodiscard]] auto createNodeWorldTransformBuffer() const -> vku::MappedBuffer;
         [[nodiscard]] auto createPrimitiveBuffer() const -> vku::AllocatedBuffer;
         [[nodiscard]] auto getEnclosingSphere() const -> std::pair<glm::dvec3, double>;

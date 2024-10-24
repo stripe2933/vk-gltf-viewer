@@ -2,7 +2,7 @@ module;
 
 #include <fastgltf/types.hpp>
 
-export module vk_gltf_viewer:gltf.AssetResources;
+export module vk_gltf_viewer:gltf.AssetGpuBuffers;
 
 import std;
 export import glm;
@@ -11,7 +11,13 @@ export import :gltf.AssetExternalBuffers;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::gltf {
-    export class AssetResources {
+    /**
+     * @brief GPU buffers for <tt>fastgltf::Asset</tt>.
+     *
+     * These buffers could be used for all asset. If you're finding the scene specific buffers (like node transformation
+     * matrices, ordered node primitives, etc.), see AssetSceneGpuBuffers for that purpose.
+     */
+    export class AssetGpuBuffers {
         const fastgltf::Asset &asset;
         const vulkan::Gpu &gpu;
 
@@ -78,7 +84,7 @@ namespace vk_gltf_viewer::gltf {
          */
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
-        AssetResources(const fastgltf::Asset &asset, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, BS::thread_pool threadPool = {});
+        AssetGpuBuffers(const fastgltf::Asset &asset, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, BS::thread_pool threadPool = {});
 
     private:
         std::vector<vku::AllocatedBuffer> attributeBuffers;

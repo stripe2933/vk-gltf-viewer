@@ -6,7 +6,7 @@ module;
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:gltf.AssetTextures;
+export module vk_gltf_viewer:gltf.AssetGpuTextures;
 
 import std;
 import glm;
@@ -61,7 +61,7 @@ namespace vk_gltf_viewer::gltf {
      * <tt>std::unordered_map<std::size_t, vku::AllocatedImage></tt> instead of <tt>std::vector<vku::AllocatedImage></tt>
      * (also for <tt>imageViews</tt>). This does not hold for samplers (all the samplers are created).
      */
-    export class AssetTextures {
+    export class AssetGpuTextures {
         const fastgltf::Asset &asset;
         const vulkan::Gpu &gpu;
 
@@ -94,7 +94,7 @@ namespace vk_gltf_viewer::gltf {
          */
         std::vector<vk::raii::Sampler> samplers = createSamplers();
 
-        AssetTextures(
+        AssetGpuTextures(
             const fastgltf::Asset &asset,
             const std::filesystem::path &assetDir,
             const AssetExternalBuffers &externalBuffers,

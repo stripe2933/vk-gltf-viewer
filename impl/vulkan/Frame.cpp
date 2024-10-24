@@ -117,7 +117,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             | ranges::views::value_transform([](vk::Buffer buffer) { return buffer; })
             | std::ranges::to<std::unordered_map>();
 
-        const auto criteriaGetter = [&](const gltf::AssetResources::PrimitiveInfo &primitiveInfo) {
+        const auto criteriaGetter = [&](const gltf::AssetGpuBuffers::PrimitiveInfo &primitiveInfo) {
             CommandSeparationCriteria result {
                 .alphaMode = fastgltf::AlphaMode::Opaque,
                 .faceted = primitiveInfo.normalInfo.has_value(),
@@ -136,12 +136,12 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (!renderingNodes || (renderingNodes && renderingNodes->indices != task.gltf->renderingNodeIndices)) {
                 renderingNodes.emplace(
                     task.gltf->renderingNodeIndices,
-                    task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(criteriaGetter, task.gltf->renderingNodeIndices));
+                    task.gltf->assetSceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(criteriaGetter, task.gltf->renderingNodeIndices));
             }
 
             if (task.frustum) {
-                const std::span orderedNodeAndPrimitiveInfoPtrs = task.gltf->sceneResources.orderedNodePrimitiveInfoPtrs;
-                const std::span nodeWorldTransforms = task.gltf->sceneResources.nodeWorldTransformBuffer.asRange<const glm::mat4>();
+                const std::span orderedNodeAndPrimitiveInfoPtrs = task.gltf->assetSceneGpuBuffers.orderedNodePrimitiveInfoPtrs;
+                const std::span nodeWorldTransforms = task.gltf->assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>();
                 for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
                     visit([&]<bool Indexed>(buffer::IndirectDrawCommands<Indexed> &indirectDrawCommands) -> void {
                         indirectDrawCommands.partition([&](const buffer::IndirectDrawCommands<Indexed>::command_t &command) {
@@ -177,7 +177,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (selectedNodes) {
                 if (selectedNodes->indices != task.gltf->selectedNodeIndices) {
                     selectedNodes->indices = task.gltf->selectedNodeIndices;
-                    selectedNodes->indirectDrawCommandBuffers = task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(criteriaGetter, task.gltf->selectedNodeIndices);
+                    selectedNodes->indirectDrawCommandBuffers = task.gltf->assetSceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(criteriaGetter, task.gltf->selectedNodeIndices);
                 }
                 selectedNodes->outlineColor = task.selectedNodeOutline->color;
                 selectedNodes->outlineThickness = task.selectedNodeOutline->thickness;
@@ -185,7 +185,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             else {
                 selectedNodes.emplace(
                     task.gltf->selectedNodeIndices,
-                    task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(criteriaGetter, task.gltf->selectedNodeIndices),
+                    task.gltf->assetSceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(criteriaGetter, task.gltf->selectedNodeIndices),
                     task.selectedNodeOutline->color,
                     task.selectedNodeOutline->thickness);
             }
@@ -200,7 +200,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (hoveringNode) {
                 if (hoveringNode->index != *task.gltf->hoveringNodeIndex) {
                     hoveringNode->index = *task.gltf->hoveringNodeIndex;
-                    hoveringNode->indirectDrawCommandBuffers = task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(criteriaGetter, { *task.gltf->hoveringNodeIndex });
+                    hoveringNode->indirectDrawCommandBuffers = task.gltf->assetSceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(criteriaGetter, { *task.gltf->hoveringNodeIndex });
                 }
                 hoveringNode->outlineColor = task.hoveringNodeOutline->color;
                 hoveringNode->outlineThickness = task.hoveringNodeOutline->thickness;
@@ -208,7 +208,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             else {
                 hoveringNode.emplace(
                     *task.gltf->hoveringNodeIndex,
-                    task.gltf->sceneResources.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(criteriaGetter, { *task.gltf->hoveringNodeIndex }),
+                    task.gltf->assetSceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(criteriaGetter, { *task.gltf->hoveringNodeIndex }),
                     task.hoveringNodeOutline->color,
                     task.hoveringNodeOutline->thickness);
             }
