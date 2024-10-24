@@ -40,7 +40,6 @@ namespace vk_gltf_viewer {
         public:
             gltf::AssetResources assetResources;
             gltf::AssetTextures assetTextures;
-            std::unordered_map<std::size_t, vk::raii::ImageView> imageViews;
             gltf::SceneResources sceneResources;
 
             GltfAsset(
@@ -50,9 +49,6 @@ namespace vk_gltf_viewer {
                 fastgltf::GltfDataBuffer dataBuffer = fastgltf::GltfDataBuffer{});
 
             [[nodiscard]] auto get() noexcept -> fastgltf::Asset&;
-
-        private:
-            [[nodiscard]] auto createAssetImageViews(const vk::raii::Device &device) -> std::unordered_map<std::size_t, vk::raii::ImageView>;
         };
         
         struct SkyboxResources {

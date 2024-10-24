@@ -302,7 +302,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                             to_optional(texture.samplerIndex)
                                 .transform([this](std::size_t samplerIndex) { return *gltfAsset->assetTextures.samplers[samplerIndex]; })
                                 .value_or(*assetDefaultSampler),
-                            *gltfAsset->imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture)),
+                            *gltfAsset->assetTextures.imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture)),
                             vk::ImageLayout::eShaderReadOnlyOptimal,
                         };
                     }));
@@ -321,7 +321,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                                 to_optional(texture.samplerIndex)
                                     .transform([this](std::size_t samplerIndex) { return *gltfAsset->assetTextures.samplers[samplerIndex]; })
                                     .value_or(*assetDefaultSampler),
-                                *gltfAsset->imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture)),
+                                *gltfAsset->assetTextures.imageViews.at(gltf::AssetTextures::getPreferredImageIndex(texture)),
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                         })
                         | std::ranges::to<std::vector>();
@@ -515,23 +515,12 @@ vk_gltf_viewer::MainApp::GltfAsset::GltfAsset(
     assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(get(), assetDir) },
     assetResources { get(), *assetExternalBuffers, gpu },
     assetTextures { get(), assetDir, *assetExternalBuffers, gpu },
-    imageViews { createAssetImageViews(gpu.device) },
     sceneResources { get(), assetResources, get().scenes[get().defaultScene.value_or(0)], gpu } {
     assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
 }
 
 auto vk_gltf_viewer::MainApp::GltfAsset::get() noexcept -> fastgltf::Asset& {
     return assetExpected.get();
-}
-
-auto vk_gltf_viewer::MainApp::GltfAsset::createAssetImageViews(
-    const vk::raii::Device &device
-) -> std::unordered_map<std::size_t, vk::raii::ImageView> {
-    return assetTextures.images
-        | ranges::views::value_transform([&](const vku::Image &image) -> vk::raii::ImageView {
-            return { device, image.getViewCreateInfo() };
-        })
-        | std::ranges::to<std::unordered_map>();
 }
 
 auto vk_gltf_viewer::MainApp::createInstance() const -> vk::raii::Instance {

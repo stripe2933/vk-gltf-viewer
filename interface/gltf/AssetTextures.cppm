@@ -1,5 +1,6 @@
 module;
 
+#include <forward_list>
 #include <fastgltf/types.hpp>
 #include <ktx.h>
 #include <stb_image.h>
@@ -48,6 +49,18 @@ constexpr auto convertSamplerAddressMode(fastgltf::Wrap wrap) noexcept -> vk::Sa
 }
 
 namespace vk_gltf_viewer::gltf {
+    /**
+     * @brief GPU textures (images, image views and samplers) for <tt>fastgltf::Asset</tt>.
+     *
+     * It loads the required textures from <tt>fastgltf::Asset</tt> at the construction time with multithreaded image
+     * decoding and resource creation.
+     *
+     * The term "required" means only the textures that are used by rendering, which are base color, metallic,
+     * roughness, normal, occlusion and emissive textures. Therefore, even if the texture is presented in the glTF asset,
+     * it may not be presented in this class, which makes the type of the field <tt>images</tt> to be
+     * <tt>std::unordered_map<std::size_t, vku::AllocatedImage></tt> instead of <tt>std::vector<vku::AllocatedImage></tt>
+     * (also for <tt>imageViews</tt>). This does not hold for samplers (all the samplers are created).
+     */
     export class AssetTextures {
         const fastgltf::Asset &asset;
         const vulkan::Gpu &gpu;
@@ -60,13 +73,24 @@ namespace vk_gltf_viewer::gltf {
 
     public:
         /**
-         * Asset images. <tt>images[i]</tt> represents <tt>asset.images[i]</tt>.
-         * @note Only images that are used by a texture is created.
+         * @brief Asset images.
+         *
+         * Only images that are used by a texture is created.
+         * <tt>images[i]</tt> represents <tt>asset.images[i]</tt>.
          */
         std::unordered_map<std::size_t, vku::AllocatedImage> images;
 
         /**
-         * Asset samplers. <tt>samplers[i]</tt> represents <tt>asset.samplers[i]</tt>.
+         * @brief Image views for <tt>images</tt>.
+         *
+         * <tt>imageViews[i]</tt> is the view for <tt>images[i]</tt> with color aspect flag and full subresource range.
+         */
+        std::unordered_map<std::size_t, vk::raii::ImageView> imageViews;
+
+        /**
+         * @brief Asset samplers.
+         *
+         * <tt>samplers[i]</tt> represents <tt>asset.samplers[i]</tt>.
          */
         std::vector<vk::raii::Sampler> samplers = createSamplers();
 
@@ -461,6 +485,8 @@ namespace vk_gltf_viewer::gltf {
             if (vk::Result result = gpu.device.waitForFences(*graphicsFence, true, ~0ULL); result != vk::Result::eSuccess) {
                 throw std::runtime_error { std::format("Failed to generate the texture mipmaps: {}", to_string(result)) };
             }
+
+            imageViews = createImageViews(gpu.device);
         }
 
         /**
@@ -531,6 +557,14 @@ namespace vk_gltf_viewer::gltf {
                     return vk::raii::Sampler { gpu.device, createInfo };
                 })
                 | std::ranges::to<std::vector>();
+        }
+
+        std::unordered_map<std::size_t, vk::raii::ImageView> createImageViews(const vk::raii::Device &device) const {
+            return images
+                | ranges::views::value_transform([&](const vku::Image &image) -> vk::raii::ImageView {
+                    return { device, image.getViewCreateInfo() };
+                })
+                | std::ranges::to<std::unordered_map>();
         }
     };
 }
