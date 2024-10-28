@@ -26,12 +26,6 @@ jobs:
           vulkan-components: Vulkan-Headers, Vulkan-Loader
           vulkan-use-cache: true
 
-      - name: Install vcpkg
-        run: |
-          git clone https://github.com/microsoft/vcpkg.git --depth 1
-          cd vcpkg && .\bootstrap-vcpkg.bat
-          echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
-
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@v7
         with:
