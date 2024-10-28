@@ -540,7 +540,7 @@ const std::optional<std::tuple<fastgltf::Asset&, const std::filesystem::path&, s
 }
 
 auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
-    const std::optional<std::tuple<const fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::size_t>&, const std::unordered_set<std::size_t>&>> &assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices
+    const std::optional<std::tuple<fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::size_t>&, const std::unordered_set<std::size_t>&>> &assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices
 ) && -> ImGuiTaskCollector {
     if (ImGui::Begin("Scene Hierarchy")) {
         if (assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices) {
@@ -558,12 +558,22 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 ImGui::EndCombo();
             }
 
+            ImGui::InputTextWithHint("Name", "<empty>", &asset.scenes[sceneIndex].name);
+
             static bool mergeSingleChildNodes = true;
             ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
+            ImGui::SameLine();
+            ImGui::HelperMarker("If all nested nodes have only one child, they will be shown as a single node (with combined name).");
 
-            if (bool tristateVisibility = holds_alternative<std::vector<std::optional<bool>>>(visibilities); ImGui::Checkbox("Use tristate visibility", &tristateVisibility)) {
+            if (bool tristateVisibility = holds_alternative<std::vector<std::optional<bool>>>(visibilities);
+                ImGui::Checkbox("Use tristate visibility", &tristateVisibility)) {
                 tasks.emplace_back(std::in_place_type<task::ChangeNodeVisibilityType>);
             }
+            ImGui::SameLine();
+            ImGui::HelperMarker(
+                "If all children of a node are visible, the node will be checked. "
+                "If all children are hidden, the node will be unchecked. "
+                "If some children are visible and some are hidden, the node will be in an indeterminate state.");
 
             // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& is passed (but it is unnecessary). Remove the parameter when fixed.
             const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
@@ -592,19 +602,20 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
                 ImGui::TableSetColumnIndex(0);
                 ImGui::AlignTextToFramePadding();
-                const ImGuiTreeNodeFlags flags
-                    = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAllColumns | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap
-                    | (descendentNodeIndex == hoveringNodeIndex ? ImGuiTreeNodeFlags_Framed : 0)
-                    | (selectedNodeIndices.contains(descendentNodeIndex) ? ImGuiTreeNodeFlags_Selected : 0)
-                    | (descendentNode.children.empty() ? (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet) : 0);
                 ImGui::WithID(descendentNodeIndex, [&]() {
-                    const bool isTreeNodeOpen = ImGui::WithStyleColor(ImGuiCol_Header, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive), [flags]() {
+                    const bool isDescendentNodeSelected = selectedNodeIndices.contains(descendentNodeIndex);
+                    const bool isTreeNodeOpen = ImGui::WithStyleColor(ImGuiCol_Header, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive), [&]() {
+                        const ImGuiTreeNodeFlags flags
+                            = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAllColumns | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap
+                            | (descendentNodeIndex == hoveringNodeIndex ? ImGuiTreeNodeFlags_Framed : 0)
+                            | (isDescendentNodeSelected ? ImGuiTreeNodeFlags_Selected : 0)
+                            | (descendentNode.children.empty() ? (ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Bullet) : 0);
                         return ImGui::TreeNodeEx("", flags);
                     }, descendentNodeIndex == hoveringNodeIndex);
-                    if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && !(flags & ImGuiTreeNodeFlags_Selected)) {
+                    if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && !isDescendentNodeSelected) {
                         tasks.emplace_back(std::in_place_type<task::SelectNodeFromSceneHierarchy>, descendentNodeIndex, ImGui::GetIO().KeyCtrl);
                     }
-                    if (ImGui::IsItemHovered() && !(flags & ImGuiTreeNodeFlags_Framed)) {
+                    if (ImGui::IsItemHovered() && descendentNodeIndex != hoveringNodeIndex) {
                         tasks.emplace_back(std::in_place_type<task::HoverNodeFromSceneHierarchy>, descendentNodeIndex);
                     }
 

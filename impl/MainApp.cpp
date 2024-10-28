@@ -230,7 +230,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
             .assetInspector(appState.gltfAsset.transform([this](auto &x) {
                 return std::forward_as_tuple(x.asset, gltf->directory, x.assetInspectorMaterialIndex, assetTextureDescriptorSets);
             }))
-            .sceneHierarchy(appState.gltfAsset.transform([](const auto &x) -> std::tuple<const fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::size_t>&, const std::unordered_set<std::size_t>&> {
+            .sceneHierarchy(appState.gltfAsset.transform([](auto &x) -> std::tuple<fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::size_t>&, const std::unordered_set<std::size_t>&> {
                 // TODO: don't know why, but using std::forward_as_tuple will pass the scene index as reference and will
                 //  cause a dangling reference. Should be investigated.
                 return { x.asset, x.getSceneIndex(), x.nodeVisibilities, x.hoveringNodeIndex, x.selectedNodeIndices };
