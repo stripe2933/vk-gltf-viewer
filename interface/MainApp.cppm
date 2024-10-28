@@ -64,12 +64,11 @@ namespace vk_gltf_viewer {
              * @brief The glTF scene that is currently used by.
              *
              * This could be changed, but direct assignment is forbidden (because changing this field requires the additional
-             * modification of <tt>assetSceneGpuBuffers</tt> and <tt>assetSceneGpuTextures</tt>). Use <tt>setScene</tt>
-             * for the purpose.
+             * modification of <tt>sceneGpuBuffers</tt> and <tt>sceneMiniball</tt>). Use <tt>setScene</tt> for the purpose.
              */
             fastgltf::Scene &scene { asset.scenes[asset.defaultScene.value_or(0)] };
-            gltf::AssetSceneGpuBuffers assetSceneGpuBuffers;
-            std::pair<glm::dvec3, double> assetSceneMiniball { gltf::algorithm::getMiniball(asset, scene, assetSceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>()) };
+            gltf::AssetSceneGpuBuffers sceneGpuBuffers;
+            std::pair<glm::dvec3, double> sceneMiniball { gltf::algorithm::getMiniball(asset, scene, sceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>()) };
 
             Gltf(
                 fastgltf::Parser &parser,

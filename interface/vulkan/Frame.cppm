@@ -22,7 +22,7 @@ namespace vk_gltf_viewer::vulkan {
             struct Gltf {
                 const fastgltf::Asset &asset;
                 const std::unordered_map<vk::IndexType, vku::AllocatedBuffer> &indexBuffers;
-                const gltf::AssetSceneGpuBuffers &assetSceneGpuBuffers;
+                const gltf::AssetSceneGpuBuffers &sceneGpuBuffers;
                 std::optional<std::uint32_t> hoveringNodeIndex;
                 std::unordered_set<std::size_t> selectedNodeIndices;
                 std::unordered_set<std::size_t> renderingNodeIndices;
