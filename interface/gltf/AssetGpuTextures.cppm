@@ -559,7 +559,7 @@ namespace vk_gltf_viewer::gltf {
                 | std::ranges::to<std::vector>();
         }
 
-        std::unordered_map<std::size_t, vk::raii::ImageView> createImageViews(const vk::raii::Device &device) const {
+        [[nodiscard]] std::unordered_map<std::size_t, vk::raii::ImageView> createImageViews(const vk::raii::Device &device) const {
             return images
                 | ranges::views::value_transform([&](const vku::Image &image) -> vk::raii::ImageView {
                     return { device, image.getViewCreateInfo() };

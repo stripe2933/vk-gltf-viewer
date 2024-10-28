@@ -63,31 +63,6 @@ vk_gltf_viewer::MainApp::MainApp() {
     const auto [timelineSemaphores, finalWaitValues] = vku::executeHierarchicalCommands(
         gpu.device,
         std::forward_as_tuple(
-            // Clear asset fallback image by white.
-            vku::ExecutionInfo { [this](vk::CommandBuffer cb) {
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        {}, vk::AccessFlagBits::eTransferWrite,
-                        {}, vk::ImageLayout::eTransferDstOptimal,
-                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        assetFallbackImage, vku::fullSubresourceRange(),
-                    });
-                cb.clearColorImage(
-                    assetFallbackImage, vk::ImageLayout::eTransferDstOptimal,
-                    vk::ClearColorValue { 1.f, 1.f, 1.f, 1.f },
-                    vku::fullSubresourceRange());
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        vk::AccessFlagBits::eTransferWrite, {},
-                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        assetFallbackImage, vku::fullSubresourceRange(),
-                    });
-            }, *graphicsCommandPool, gpu.queues.graphicsPresent/*, 2*/ },
             // Initialize the image based lighting resources by default(white).
             vku::ExecutionInfo { [this](vk::CommandBuffer cb) {
                 // Clear prefilteredmapImage to white.
@@ -296,12 +271,12 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
                     std::vector<vk::DescriptorImageInfo> imageInfos;
                     imageInfos.reserve(1 + gltf->asset.textures.size());
-                    imageInfos.emplace_back(*sharedData.singleTexelSampler, *assetFallbackImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+                    imageInfos.emplace_back(*sharedData.singleTexelSampler, *gpuFallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
                     imageInfos.append_range(gltf->asset.textures | std::views::transform([this](const fastgltf::Texture &texture) {
                         return vk::DescriptorImageInfo {
                             to_optional(texture.samplerIndex)
                                 .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
-                                .value_or(*assetDefaultSampler),
+                                .value_or(*gpuFallbackTexture.sampler),
                             *gltf->assetGpuTextures.imageViews.at(gltf::AssetGpuTextures::getPreferredImageIndex(texture)),
                             vk::ImageLayout::eShaderReadOnlyOptimal,
                         };
@@ -320,7 +295,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                             return ImGui_ImplVulkan_AddTexture(
                                 to_optional(texture.samplerIndex)
                                     .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
-                                    .value_or(*assetDefaultSampler),
+                                    .value_or(*gpuFallbackTexture.sampler),
                                 *gltf->assetGpuTextures.imageViews.at(gltf::AssetGpuTextures::getPreferredImageIndex(texture)),
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                         })
@@ -553,31 +528,6 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> vk::raii::Instance {
     } };
     VULKAN_HPP_DEFAULT_DISPATCHER.init(*instance);
     return instance;
-}
-
-auto vk_gltf_viewer::MainApp::createAssetFallbackImage() const -> vku::AllocatedImage {
-    return { gpu.allocator, vk::ImageCreateInfo {
-        {},
-        vk::ImageType::e2D,
-        vk::Format::eR8G8B8A8Unorm,
-        vk::Extent3D { 1, 1, 1 },
-        1, 1,
-        vk::SampleCountFlagBits::e1,
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
-    } };
-}
-
-auto vk_gltf_viewer::MainApp::createAssetDefaultSampler() const -> vk::raii::Sampler {
-    return { gpu.device, vk::SamplerCreateInfo {
-        {},
-        vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
-        {}, {}, {},
-        {},
-        true, 16.f,
-        {}, {},
-        {}, vk::LodClampNone,
-    } };
 }
 
 auto vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources {

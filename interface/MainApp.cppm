@@ -10,13 +10,13 @@ import :control.AppWindow;
 import :gltf.algorithm.miniball;
 import :gltf.AssetGpuBuffers;
 import :gltf.AssetGpuTextures;
+import :gltf.AssetGpuFallbackTexture;
 import :gltf.AssetSceneGpuBuffers;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Scene;
 import :vulkan.dsl.Skybox;
 import :vulkan.Frame;
-import :vulkan.Gpu;
 
 namespace vk_gltf_viewer {
     export class MainApp {
@@ -27,6 +27,9 @@ namespace vk_gltf_viewer {
         auto run() -> void;
 
     private:
+        /**
+         * @brief Bundle of glTF asset and additional resources necessary for the rendering.
+         */
         class Gltf {
         public:
             /**
@@ -102,14 +105,12 @@ namespace vk_gltf_viewer {
         std::optional<Gltf> gltf;
 
         // Buffers, images, image views and samplers.
-        vku::AllocatedImage assetFallbackImage = createAssetFallbackImage();
-        vk::raii::ImageView assetFallbackImageView { gpu.device, assetFallbackImage.getViewCreateInfo() };
-        vk::raii::Sampler assetDefaultSampler = createAssetDefaultSampler();
         ImageBasedLightingResources imageBasedLightingResources = createDefaultImageBasedLightingResources();
         std::optional<SkyboxResources> skyboxResources{};
         vku::AllocatedImage brdfmapImage = createBrdfmapImage();
         vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
         vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
+        gltf::AssetGpuFallbackTexture gpuFallbackTexture { gpu };
 
         // Descriptor pools.
         vk::raii::DescriptorPool imGuiDescriptorPool = createImGuiDescriptorPool();

@@ -61,6 +61,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/algorithm/miniball.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetGpuBuffers.cppm
+        interface/gltf/AssetGpuFallbackTexture.cppm
         interface/gltf/AssetGpuTextures.cppm
         interface/gltf/AssetSceneGpuBuffers.cppm
         interface/helpers/cstring_view.cppm
