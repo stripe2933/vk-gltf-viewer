@@ -59,6 +59,9 @@ namespace vk_gltf_viewer {
             [[nodiscard]] auto getScene() const noexcept -> fastgltf::Scene& { return asset.scenes[sceneIndex]; }
             auto setScene(std::size_t _sceneIndex) noexcept -> void {
                 sceneIndex = _sceneIndex;
+                visit([](auto &visibilities) {
+                    std::ranges::fill(visibilities, true);
+                }, nodeVisibilities);
                 selectedNodeIndices.clear();
                 hoveringNodeIndex.reset();
             }

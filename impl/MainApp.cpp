@@ -325,8 +325,28 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     // Update AppState.
                     appState.pushRecentSkyboxPath(task.path);
                 },
-                [](control::task::ChangeScene task) {
-                    // TODO: handle scene changing event.
+                [this](control::task::ChangeScene task) {
+                    // TODO: I'm aware that there are more good solutions than waitIdle, but I don't have much time for it
+                    //  so I'll just use it for now.
+                    gpu.device.waitIdle();
+
+                    gltf->setScene(task.newSceneIndex);
+
+                    gpu.device.updateDescriptorSets({
+                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->assetSceneGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
+                        sharedData.sceneDescriptorSet.getWriteOne<1>({ gltf->assetSceneGpuBuffers.nodeWorldTransformBuffer, 0, vk::WholeSize }),
+                    }, {});
+
+                    // Update AppState.
+                    appState.gltfAsset->setScene(task.newSceneIndex);
+
+                    // Adjust the camera based on the scene enclosing sphere.
+                    const auto &[center, radius] = gltf->assetSceneMiniball;
+                    const float distance = radius / std::sin(appState.camera.fov / 2.f);
+                    appState.camera.position = center - glm::dvec3 { distance * normalize(appState.camera.direction) };
+                    appState.camera.zMin = distance - radius;
+                    appState.camera.zMax = distance + radius;
+                    appState.camera.targetDistance = distance;
                 },
                 [this](control::task::ChangeNodeVisibilityType) {
                     visit(multilambda {
