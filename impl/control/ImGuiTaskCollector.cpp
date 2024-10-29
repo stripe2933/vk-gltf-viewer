@@ -464,7 +464,10 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
         }
         if (ImGui::BeginMenu("Skybox")) {
             if (ImGui::MenuItem("Open Skybox")) {
-                constexpr std::array filterItems { nfdfilteritem_t { "HDR image", "hdr" } };
+                constexpr std::array filterItems {
+                    nfdfilteritem_t { "HDR image", "hdr" },
+                    nfdfilteritem_t { "EXR image", "exr" },
+                };
                 if (auto filename = processFileDialog(filterItems)) {
                     tasks.emplace_back(std::in_place_type<task::LoadEqmap>, *std::move(filename));
                 }

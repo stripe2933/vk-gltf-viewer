@@ -20,7 +20,8 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - Binary format (`.glb`).
   - GPU compressed texture (`KHR_texture_basisu`)
 - Use 4x MSAA by default.
-- Load glTF asset and equirectangular map image using native file dialog.
+- Support HDR and EXR skybox.
+- File loading using platform-native file dialog.
 - Pixel perfect node selection and transformation using [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo).
 - Arbitrary sized outline rendering using [Jump Flooding Algorithm](https://en.wikipedia.org/wiki/Jump_flooding_algorithm).
 - Conditionally render a node with three-state visibility in scene hierarchy tree.
@@ -152,6 +153,7 @@ This project depends on:
 - [KTX-Software](https://github.com/KhronosGroup/KTX-Software)
 - [MikkTSpace](http://www.mikktspace.com)
 - [Native File Dialog Extended](https://github.com/btzy/nativefiledialog-extended)
+- [OpenEXR](https://openexr.com/en/latest/)
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h)
 - My own Vulkan-Hpp helper library, [vku](https://github.com/stripe2933/vku/tree/module) (branch `module`), which has the following dependencies:
   - [Vulkan-Hpp](https://github.com/KhronosGroup/Vulkan-Hpp)

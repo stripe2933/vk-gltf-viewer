@@ -18,6 +18,7 @@ find_package(imguizmo CONFIG REQUIRED)
 find_package(Ktx CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
+find_package(OpenEXR CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(vku CONFIG REQUIRED)
 
@@ -78,7 +79,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/ranges/contains.cppm
         interface/helpers/tristate.cppm
         interface/helpers/type_variant.cppm
-        interface/io/StbDecoder.cppm
         interface/MainApp.cppm
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
@@ -139,6 +139,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     imguizmo::imguizmo
     mikktspace::mikktspace
     nfd::nfd
+    OpenEXR::OpenEXR
     vku::vku
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE

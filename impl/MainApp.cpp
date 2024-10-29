@@ -6,6 +6,10 @@ module;
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 #include <ImGuizmo.h>
+#include <OpenEXR/ImfInputFile.h>
+#include <OpenEXR/ImfFrameBuffer.h>
+#include <OpenEXR/ImfChannelList.h>
+#include <OpenEXR/ImfThreading.h>
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
@@ -21,7 +25,6 @@ import :helpers.optional;
 import :helpers.ranges;
 import :helpers.tristate;
 import :imgui.TaskCollector;
-import :io.StbDecoder;
 import :vulkan.Frame;
 import :vulkan.generator.ImageBasedLightingResourceGenerator;
 import :vulkan.generator.MipmappedCubemapGenerator;
@@ -615,13 +618,56 @@ auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() -> decltype(imGuiDescr
 auto vk_gltf_viewer::MainApp::processEqmapChange(
     const std::filesystem::path &eqmapPath
 ) -> void {
-    // Load equirectangular map image and stage it into eqmapImage.
-    int width, height;
-    if (!stbi_info(PATH_C_STR(eqmapPath), &width, &height, nullptr)) {
-        throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
-    }
+    const auto [eqmapImageExtent, eqmapStagingBuffer] = [&]() {
+        if (auto extension = eqmapPath.extension(); extension == ".hdr") {
+            int width, height;
+            std::unique_ptr<float[]> data; // It should be freed after copying to the staging buffer, therefore declared as unique_ptr.
+            data.reset(stbi_loadf(PATH_C_STR(eqmapPath), &width, &height, nullptr, 4));
+            if (!data) {
+                throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
+            }
 
-    const vk::Extent2D eqmapImageExtent { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) };
+            return std::pair {
+                vk::Extent2D { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) },
+                vku::MappedBuffer {
+                    gpu.allocator,
+                    std::from_range, std::span { data.get(), static_cast<std::size_t>(4 * width * height) },
+                    vk::BufferUsageFlagBits::eTransferSrc,
+                },
+            };
+        } // After this scope, data will be automatically freed.
+        else if (extension == ".exr") {
+            Imf::InputFile file { PATH_C_STR(eqmapPath), static_cast<int>(std::thread::hardware_concurrency()) };
+
+            const Imath::Box2i dw = file.header().dataWindow();
+            const vk::Extent2D eqmapExtent {
+                static_cast<std::uint32_t>(dw.max.x - dw.min.x + 1),
+                static_cast<std::uint32_t>(dw.max.y - dw.min.y + 1),
+            };
+
+            vku::MappedBuffer buffer { gpu.allocator, vk::BufferCreateInfo {
+                {},
+                blockSize(vk::Format::eR32G32B32A32Sfloat) * eqmapExtent.width * eqmapExtent.height,
+                vk::BufferUsageFlagBits::eTransferSrc,
+            } };
+            const std::span data = buffer.asRange<glm::vec4>();
+
+            // Create frame buffers for each channel.
+            // Note: Alpha channel will be ignored.
+            Imf::FrameBuffer frameBuffer;
+            const std::size_t rowBytes = eqmapExtent.width * sizeof(glm::vec4);
+            frameBuffer.insert("R", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].x), sizeof(glm::vec4), rowBytes });
+            frameBuffer.insert("G", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].y), sizeof(glm::vec4), rowBytes });
+            frameBuffer.insert("B", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].z), sizeof(glm::vec4), rowBytes });
+
+            file.readPixels(frameBuffer, dw.min.y, dw.max.y);
+
+            return std::pair { eqmapExtent, std::move(buffer) };
+        }
+
+        throw std::runtime_error { "Unknown file format: only HDR and EXR are supported." };
+    }();
+
     std::uint32_t eqmapImageMipLevels = 0;
     for (std::uint32_t mipWidth = eqmapImageExtent.width; mipWidth > 512; mipWidth >>= 1, ++eqmapImageMipLevels);
 
@@ -635,7 +681,6 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled /* cubemap generation */ | vk::ImageUsageFlagBits::eTransferSrc /* mipmap generation */,
     } };
-    std::unique_ptr<vku::AllocatedBuffer> eqmapStagingBuffer;
 
     const vk::Extent3D reducedEqmapImageExtent = eqmapImage.mipExtent(eqmapImage.mipLevels - 1);
     vku::AllocatedImage reducedEqmapImage { gpu.allocator, vk::ImageCreateInfo {
@@ -714,12 +759,6 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
         std::forward_as_tuple(
             // Create device-local eqmap image from staging buffer.
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
-                eqmapStagingBuffer = std::make_unique<vku::AllocatedBuffer>(vku::MappedBuffer {
-                    gpu.allocator,
-                    std::from_range, io::StbDecoder<float>::fromFile(PATH_C_STR(eqmapPath), 4).asSpan(),
-                    vk::BufferUsageFlagBits::eTransferSrc
-                }.unmap());
-
                 // eqmapImage layout transition for copy destination.
                 cb.pipelineBarrier(
                     vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
@@ -732,7 +771,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                     });
 
                 cb.copyBufferToImage(
-                    *eqmapStagingBuffer,
+                    eqmapStagingBuffer,
                     eqmapImage, vk::ImageLayout::eTransferDstOptimal,
                     vk::BufferImageCopy {
                         0, {}, {},
