@@ -48,7 +48,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                     vk::AttachmentDescription {
                         {},
                         vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e1,
-                        vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+                        vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eNone,
                         {}, {},
                         vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                     },
@@ -64,7 +64,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                     vk::AttachmentDescription {
                         {},
                         vk::Format::eR16Unorm, vk::SampleCountFlagBits::e1,
-                        vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+                        vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eNone,
                         {}, {},
                         vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                     },

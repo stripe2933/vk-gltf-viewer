@@ -562,9 +562,6 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
         {}, {}, {}, memoryBarriers);
 
-    cb.setViewport(0, vku::toViewport(*passthruExtent, true));
-    cb.setScissor(0, vk::Rect2D { { 0, 0 }, *passthruExtent });
-
     ResourceBindingState resourceBindingState{};
     const auto drawPrimitives
         = [&](const CriteriaSeparatedIndirectDrawCommands &indirectDrawCommandBuffers, const auto &opaqueOrBlendRenderer, const auto &maskRenderer) {
@@ -645,7 +642,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 { NO_INDEX, 0U, 0U, 0U },
             },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
+
+        cb.setViewport(0, vku::toViewport(*passthruExtent, true));
+        cb.setScissor(0, vk::Rect2D{ { 0, 0 }, *passthruExtent });
+
         drawPrimitives(renderingNodes->indirectDrawCommandBuffers, sharedData.depthRenderer, sharedData.maskDepthRenderer);
+
         cb.endRenderingKHR();
     }
 
@@ -654,7 +656,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.beginRenderingKHR(passthruResources->hoveringNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
             vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
+
+        cb.setViewport(0, vku::toViewport(*passthruExtent, true));
+        cb.setScissor(0, vk::Rect2D{ { 0, 0 }, *passthruExtent });
+
         drawPrimitives(hoveringNode->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.maskJumpFloodSeedRenderer);
+
         cb.endRenderingKHR();
     }
 
@@ -663,7 +670,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.beginRenderingKHR(passthruResources->selectedNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
             vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
+
+        cb.setViewport(0, vku::toViewport(*passthruExtent, true));
+        cb.setScissor(0, vk::Rect2D{ { 0, 0 }, *passthruExtent });
+
         drawPrimitives(selectedNodes->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.maskJumpFloodSeedRenderer);
+
         cb.endRenderingKHR();
     }
 
@@ -709,23 +721,26 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
     vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSet,
     std::uint32_t initialSampleOffset
 ) const -> bool {
-    cb.pipelineBarrier(
-        vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eComputeShader,
+    cb.pipelineBarrier2KHR({
         {}, {}, {},
-        {
-            vk::ImageMemoryBarrier {
-                {}, vk::AccessFlagBits::eShaderRead,
+        vku::unsafeProxy({
+            vk::ImageMemoryBarrier2 {
+                // Dependency chain: this srcStageMask must match to the cb's submission waitDstStageMask.
+                vk::PipelineStageFlagBits2::eComputeShader, {},
+                vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageRead,
                 vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                 image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
             },
-            vk::ImageMemoryBarrier{
-                {}, vk::AccessFlagBits::eShaderWrite,
+            vk::ImageMemoryBarrier2 {
+                {}, {},
+                vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageWrite,
                 {}, vk::ImageLayout::eGeneral,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                 image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 },
             }
-        });
+        }),
+    });
 
     // Compute jump flood and get the last execution direction.
     return sharedData.jumpFloodComputer.compute(cb, descriptorSet, initialSampleOffset, vku::toExtent2D(image.extent));
