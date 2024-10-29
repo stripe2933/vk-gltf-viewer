@@ -143,7 +143,7 @@ Additionally, you need vcpkg for dependency management. Make sure `VCPKG_ROOT` e
 
 This project depends on:
 - [boost-container](https://www.boost.org/doc/libs/1_86_0/doc/html/container.html)
-- [CGAL](https://www.cgal.org)
+- [CGAL](https://www.cgal.org) (due to its usage, **this project is licensed under GPL**.)
 - [fastgltf](https://github.com/spnda/fastgltf)
 - [GLFW](https://github.com/glfw/glfw)
 - [glm](https://github.com/g-truc/glm)
@@ -320,6 +320,6 @@ All shaders are located in the [shaders](/shaders) folder and need to be manuall
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE.txt) file for details.
+This project is **licensed under the GPL-v3 License**. See the [LICENSE](LICENSE.txt) file for details.
 
 [^1]: I like this term because it's hilarious for several reasons, but it's no joke! It has the **significantly faster glTF model loading speed than the other the viewers** I've tested. See [Performance Comparison](https://github.com/stripe2933/vk-gltf-viewer/blob/master/docs/performance-comparison.md) page for details.
