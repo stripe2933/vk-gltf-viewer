@@ -1,10 +1,12 @@
 module;
 
-#include <fastgltf/types.hpp>
+#include <cerrno>
+#include <cstring>
 
 export module vk_gltf_viewer:gltf.AssetExternalBuffers;
 
 import std;
+export import fastgltf;
 
 namespace vk_gltf_viewer::gltf {
     /**

@@ -3,11 +3,11 @@ module;
 #include <CGAL/Simple_cartesian.h>
 #include <CGAL/Min_sphere_of_points_d_traits_3.h>
 #include <CGAL/Min_sphere_of_spheres_d.h>
-#include <fastgltf/types.hpp>
 
 export module vk_gltf_viewer:gltf.algorithm.miniball;
 
 import std;
+export import fastgltf;
 export import glm;
 import :helpers.fastgltf;
 import :math.extended_arithmetic;

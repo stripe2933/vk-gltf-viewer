@@ -1,7 +1,6 @@
 module;
 
 #include <boost/container/static_vector.hpp>
-#include <fastgltf/core.hpp>
 #include <imgui_impl_vulkan.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 

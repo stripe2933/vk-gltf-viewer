@@ -1,6 +1,5 @@
 module;
 
-#include <fastgltf/core.hpp>
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <imgui_internal.h>

@@ -9,7 +9,6 @@ module vk_gltf_viewer;
 import :AppState;
 
 import std;
-import glm;
 import vku;
 
 vk_gltf_viewer::AppState::AppState() noexcept

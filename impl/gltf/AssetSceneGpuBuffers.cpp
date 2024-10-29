@@ -1,7 +1,3 @@
-module;
-
-#include <fastgltf/core.hpp>
-
 module vk_gltf_viewer;
 import :gltf.AssetSceneGpuBuffers;
 

@@ -1,7 +1,7 @@
 module;
 
+#include <cassert>
 #include <forward_list>
-#include <fastgltf/types.hpp>
 #include <ktx.h>
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>

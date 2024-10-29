@@ -5,7 +5,6 @@ module;
 #include <version>
 
 #include <boost/container/static_vector.hpp>
-#include <fastgltf/types.hpp>
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 #include <imgui_impl_glfw.h>

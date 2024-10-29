@@ -1,11 +1,6 @@
-module;
-
-#include <fastgltf/core.hpp>
-
 export module vk_gltf_viewer:MainApp;
 
 import std;
-import vku;
 import :control.AppWindow;
 import :gltf.algorithm.miniball;
 import :gltf.AssetGpuBuffers;

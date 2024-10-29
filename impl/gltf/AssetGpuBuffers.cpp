@@ -1,7 +1,6 @@
 module;
 
-#include <fastgltf/core.hpp>
-#include <fastgltf/tools.hpp>
+#include <cassert>
 #include <mikktspace.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 

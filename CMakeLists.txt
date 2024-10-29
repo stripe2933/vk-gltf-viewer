@@ -50,6 +50,7 @@ target_sources(vk-gltf-viewer PRIVATE
     FILE_SET CXX_MODULES
     FILES
         extlibs/thread_pool.cppm
+        extlibs/module-ports/fastgltf.cppm
         extlibs/module-ports/glm.cppm
         interface/mod.cppm
         interface/AppState.cppm

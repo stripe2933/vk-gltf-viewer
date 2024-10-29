@@ -1,10 +1,7 @@
-module;
-
-#include <fastgltf/types.hpp>
-
 export module vk_gltf_viewer:helpers.fastgltf;
 
 import std;
+export import fastgltf;
 export import glm;
 export import :helpers.cstring_view;
 export import :helpers.optional;

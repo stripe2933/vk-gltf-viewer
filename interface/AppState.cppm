@@ -1,12 +1,12 @@
 module;
 
-#include <fastgltf/types.hpp>
 #include <imgui.h>
 #include <ImGuizmo.h>
 
 export module vk_gltf_viewer:AppState;
 
 import std;
+export import fastgltf;
 export import glm;
 export import :control.Camera;
 export import :helpers.full_optional;
