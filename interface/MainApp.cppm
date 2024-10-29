@@ -122,8 +122,6 @@ namespace vk_gltf_viewer {
         std::array<vulkan::Frame, 2> frames{ vulkan::Frame { gpu, sharedData }, vulkan::Frame { gpu, sharedData } };
         
         [[nodiscard]] auto createInstance() const -> vk::raii::Instance;
-        [[nodiscard]] auto createAssetFallbackImage() const -> vku::AllocatedImage;
-        [[nodiscard]] auto createAssetDefaultSampler() const -> vk::raii::Sampler;
         [[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
         [[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;
         [[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
