@@ -39,6 +39,10 @@ vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::Surface
         vk::PhysicalDeviceProperties2,
         vk::PhysicalDeviceSubgroupProperties>();
     subgroupSize = physicalDeviceProperties.get<vk::PhysicalDeviceSubgroupProperties>().subgroupSize;
+
+	// Retrieve physical device memory properties.
+	const vk::PhysicalDeviceMemoryProperties memoryProperties = physicalDevice.getMemoryProperties();
+    isUmaDevice = memoryProperties.memoryHeapCount == 1;
 }
 
 vk_gltf_viewer::vulkan::Gpu::~Gpu() {

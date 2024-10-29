@@ -15,10 +15,6 @@ namespace vk_gltf_viewer::gltf {
      * (like materials, vertex/index buffers, etc.), see AssetGpuBuffers for that purpose.
      */
     export class AssetSceneGpuBuffers {
-        const fastgltf::Asset *pAsset;
-        const vulkan::Gpu *pGpu;
-        const AssetGpuBuffers *pAssetGpuBuffers;
-
     public:
         struct GpuPrimitive {
             vk::DeviceAddress pPositionBuffer;
@@ -34,9 +30,26 @@ namespace vk_gltf_viewer::gltf {
             std::int32_t materialIndex; // -1 for fallback material.
         };
 
+        /**
+         * @brief Asset primitives that are ordered by preorder scene traversal.
+         *
+         * It is a flattened list of (node index, primitive info) pairs that are collected by the preorder traversal of scene. Since a mesh has multiple primitives, two consecutive pairs may have the same node index.
+         */
         std::vector<std::pair<std::size_t /* nodeIndex */, const AssetGpuBuffers::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs;
+
+        /**
+         * @brief Buffer that contains world transformation matrices of each node.
+         *
+         * <tt>nodeWorldTransformBuffer.asRange<const glm::mat4>()[i]</tt> represents the world transformation matrix of the <tt>i</tt>-th node.
+         */
         vku::MappedBuffer nodeWorldTransformBuffer;
-        vku::AllocatedBuffer primitiveBuffer = createPrimitiveBuffer();
+
+        /**
+         * @brief Buffer that contains <tt>GpuPrimitive</tt>s.
+         *
+         * <tt>primitiveBuffer.asRange<const GpuPrimitive>()[i]</tt> represents the <tt>i</tt>-th primitive, whose order is as same as <tt>orderedNodePrimitiveInfoPtrs</tt>.
+         */
+        vku::AllocatedBuffer primitiveBuffer;
 
         AssetSceneGpuBuffers(
             const fastgltf::Asset &asset [[clang::lifetimebound]],
@@ -55,6 +68,7 @@ namespace vk_gltf_viewer::gltf {
                 { criteria.indexType } -> std::convertible_to<std::optional<vk::IndexType>>;
             }
         [[nodiscard]] auto createIndirectDrawCommandBuffers(
+            vma::Allocator allocator,
             const CriteriaGetter &criteriaGetter,
             const std::unordered_set<std::size_t> &nodeIndices
         ) const -> std::map<Criteria, std::variant<vulkan::buffer::IndirectDrawCommands<false>, vulkan::buffer::IndirectDrawCommands<true>>, Compare> {
@@ -95,7 +109,7 @@ namespace vk_gltf_viewer::gltf {
 
             using result_type = std::variant<vulkan::buffer::IndirectDrawCommands<false>, vulkan::buffer::IndirectDrawCommands<true>>;
             return commandGroups
-                | ranges::views::value_transform([allocator = pGpu->allocator](const auto &variant) {
+                | ranges::views::value_transform([allocator](const auto &variant) {
                     return visit(multilambda {
                         [allocator](std::span<const vk::DrawIndirectCommand> commands) {
                             return result_type {
@@ -117,8 +131,8 @@ namespace vk_gltf_viewer::gltf {
         }
 
     private:
-        [[nodiscard]] auto createOrderedNodePrimitiveInfoPtrs(const fastgltf::Scene &scene) const -> std::vector<std::pair<std::size_t, const AssetGpuBuffers::PrimitiveInfo*>>;
-        [[nodiscard]] auto createNodeWorldTransformBuffer(const fastgltf::Scene &scene) const -> vku::MappedBuffer;
-        [[nodiscard]] auto createPrimitiveBuffer() const -> vku::AllocatedBuffer;
+        [[nodiscard]] std::vector<std::pair<std::size_t, const AssetGpuBuffers::PrimitiveInfo*>> createOrderedNodePrimitiveInfoPtrs(const fastgltf::Asset &asset, const AssetGpuBuffers &assetGpuBuffers, const fastgltf::Scene &scene) const;
+        [[nodiscard]] vku::MappedBuffer createNodeWorldTransformBuffer(const fastgltf::Asset &asset, const fastgltf::Scene &scene, vma::Allocator allocator) const;
+        [[nodiscard]] vku::AllocatedBuffer createPrimitiveBuffer(const vulkan::Gpu &gpu) const;
     };
 }

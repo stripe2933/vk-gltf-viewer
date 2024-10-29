@@ -56,6 +56,7 @@ I initially developed this application for leveraging Vulkan's performance and u
   - Therefore, if scene consists of the primitives of all combinations, it requires 24 draw calls. **Of course, it would be ~6 draw calls in most case.**
 - Significant less asset loading time: **glTF buffer memories are directly `memcpy`ed into the GPU memory with dedicated transfer queue. No pre-processing is required!**
   - Thanks to the vertex pulling, pipeline is vertex input state agnostic, therefore no pre-processing is required.
+  - Also, it considers whether the GPU is UMA (unified memory architecture) or not, and use the optimal way to transfer the buffer data.
   - For downside, it does not support normalized texture coordinate accessors and sparse accessors.
 - **Asynchronous IBL resources generation using only compute shader**: cubemap generation (including mipmapping), spherical harmonics calculation and prefiltered map generation are done in compute shader, which can be done with the graphics operation in parallel.
   - Use subgroup operation to directly generate 5 mipmaps in a single dispatch with L2 cache friendly way (if you're wondering about this, here's [my repository](https://github.com/stripe2933/mipmap) which explains the method in detail).
