@@ -5,12 +5,6 @@ module;
 #include <version>
 
 #include <boost/container/static_vector.hpp>
-#define IMGUI_DEFINE_MATH_OPERATORS
-#include <imgui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_vulkan.h>
-#include <imgui_internal.h>
-#include <ImGuizmo.h>
 #include <nfd.hpp>
 
 module vk_gltf_viewer;
@@ -18,6 +12,11 @@ import :imgui.TaskCollector;
 
 import std;
 import glm;
+import imgui.glfw;
+import imgui.internal;
+import imgui.math;
+import imgui.vulkan;
+import ImGuizmo;
 import vku;
 import :helpers.fastgltf;
 #if __cpp_lib_format_ranges >= 202207L
@@ -117,7 +116,7 @@ auto assetBuffers(std::span<fastgltf::Buffer> buffers, const std::filesystem::pa
         buffers,
         ImGui::ColumnInfo { "Name", [](std::size_t row, fastgltf::Buffer &buffer) {
             ImGui::WithID(row, [&]() {
-                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::SetNextItemWidth(-std::numeric_limits<float>::lowest());
                 ImGui::InputTextWithHint("##name", "<empty>", &buffer.name);
 
             });
@@ -160,7 +159,7 @@ auto assetBufferViews(std::span<fastgltf::BufferView> bufferViews, std::span<fas
         bufferViews,
         ImGui::ColumnInfo { "Name", [&](std::size_t rowIndex, fastgltf::BufferView &bufferView) {
             ImGui::WithID(rowIndex, [&]() {
-                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::SetNextItemWidth(-std::numeric_limits<float>::lowest());
                 ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
             });
         }, ImGuiTableColumnFlags_WidthStretch },
@@ -206,7 +205,7 @@ auto assetImages(std::span<fastgltf::Image> images, const std::filesystem::path 
         images,
         ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Image &image) {
             ImGui::WithID(rowIndex, [&]() {
-                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::SetNextItemWidth(-std::numeric_limits<float>::lowest());
                 ImGui::InputTextWithHint("##name", "<empty>", &image.name);
             });
         }, ImGuiTableColumnFlags_WidthStretch },
@@ -292,7 +291,7 @@ auto assetMaterials(
                 hoverableImage(assetTextureImGuiDescriptorSets[baseColorTextureInfo->textureIndex], { 128.f, 128.f });
                 ImGui::SameLine();
             }
-            ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPos().x + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+            ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                 ImGui::WithGroup([&]() {
                     if (ImGui::DragFloat4("Factor", material.pbrData.baseColorFactor.data(), 0.01f, 0.f, 1.f)) {
                         // TODO
@@ -312,7 +311,7 @@ auto assetMaterials(
                 hoverableImage(assetTextureImGuiDescriptorSets[metallicRoughnessTextureInfo->textureIndex], { 128.f, 128.f }, { 0.f, 1.f, 0.f, 1.f });
                 ImGui::SameLine();
             }
-            ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPos().x + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+            ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                 ImGui::WithGroup([&]() {
                     if (ImGui::DragFloat("Metallic Factor", &material.pbrData.metallicFactor, 0.01f, 0.f, 1.f)) {
                         // TODO
@@ -331,9 +330,9 @@ auto assetMaterials(
         if (auto &textureInfo = material.normalTexture; textureInfo && ImGui::CollapsingHeader("Normal Mapping")) {
             hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f });
             ImGui::SameLine();
-            ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPos().x + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+            ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                 ImGui::WithGroup([&]() {
-                    if (ImGui::DragFloat("Scale", &textureInfo->scale, 0.01f, 0.f, FLT_MAX)) {
+                    if (ImGui::DragFloat("Scale", &textureInfo->scale, 0.01f, 0.f, std::numeric_limits<float>::max())) {
                         // TODO
                     }
                     ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
@@ -345,9 +344,9 @@ auto assetMaterials(
         if (auto &textureInfo = material.occlusionTexture; textureInfo && ImGui::CollapsingHeader("Occlusion Mapping")) {
             hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f }, { 1.f, 0.f, 0.f, 1.f });
             ImGui::SameLine();
-            ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPos().x + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+            ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                 ImGui::WithGroup([&]() {
-                    if (ImGui::DragFloat("Strength", &textureInfo->strength, 0.01f, 0.f, FLT_MAX)) {
+                    if (ImGui::DragFloat("Strength", &textureInfo->strength, 0.01f, 0.f, std::numeric_limits<float>::max())) {
                         // TODO
                     }
                     ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
@@ -362,7 +361,7 @@ auto assetMaterials(
                 hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f });
                 ImGui::SameLine();
             }
-            ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPos().x + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+            ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                 ImGui::WithGroup([&]() {
                     if (ImGui::DragFloat3("Factor", material.emissiveFactor.data(), 0.01f, 0.f, 1.f)) {
                         // TODO
@@ -384,7 +383,7 @@ auto assetSamplers(std::span<fastgltf::Sampler> samplers) -> void {
         samplers,
         ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Sampler &sampler) {
             ImGui::WithID(rowIndex, [&]() {
-                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::SetNextItemWidth(-std::numeric_limits<float>::lowest());
                 ImGui::InputTextWithHint("##name", "<empty>", &sampler.name);
             });
         }, ImGuiTableColumnFlags_WidthStretch },
@@ -1064,7 +1063,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
                 hoveringNodeOutline.set_active(showHoveringNodeOutline);
             }
             ImGui::WithDisabled([&]() {
-                ImGui::DragFloat("Thickness##hoveringNodeOutline", &hoveringNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
+                ImGui::DragFloat("Thickness##hoveringNodeOutline", &hoveringNodeOutline->thickness, 1.f, 1.f, std::numeric_limits<float>::max());
                 ImGui::ColorEdit4("Color##hoveringNodeOutline", value_ptr(hoveringNodeOutline->color));
             }, !showHoveringNodeOutline);
 
@@ -1073,7 +1072,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
                 selectedNodeOutline.set_active(showSelectedNodeOutline);
             }
             ImGui::WithDisabled([&]() {
-                ImGui::DragFloat("Thickness##selectedNodeOutline", &selectedNodeOutline->thickness, 1.f, 1.f, FLT_MAX);
+                ImGui::DragFloat("Thickness##selectedNodeOutline", &selectedNodeOutline->thickness, 1.f, 1.f, std::numeric_limits<float>::max());
                 ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(selectedNodeOutline->color));
             }, !showSelectedNodeOutline);
         }

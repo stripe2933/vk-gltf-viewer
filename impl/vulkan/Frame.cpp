@@ -1,13 +1,13 @@
 module;
 
 #include <boost/container/static_vector.hpp>
-#include <imgui_impl_vulkan.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 module vk_gltf_viewer;
 import :vulkan.Frame;
 
 import std;
+import imgui.vulkan;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;

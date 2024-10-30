@@ -1,10 +1,7 @@
-module;
-
-#include <imgui.h>
-
 export module vk_gltf_viewer:helpers.imgui.table;
 
 import std;
+import imgui;
 export import :helpers.cstring_view;
 
 #define INDEX_SEQ(Is, N, ...) [&]<auto... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})

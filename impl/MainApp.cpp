@@ -1,11 +1,7 @@
 module;
 
+#include <cassert>
 #include <GLFW/glfw3.h>
-#include <imgui.h>
-#include <imgui_internal.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_vulkan.h>
-#include <ImGuizmo.h>
 #include <OpenEXR/ImfInputFile.h>
 #include <OpenEXR/ImfFrameBuffer.h>
 #include <OpenEXR/ImfChannelList.h>
@@ -17,6 +13,9 @@ module vk_gltf_viewer;
 import :MainApp;
 
 import std;
+import imgui.glfw;
+import imgui.vulkan;
+import ImGuizmo;
 import vku;
 import :gltf.AssetGpuTextures;
 import :helpers.fastgltf;
@@ -150,7 +149,7 @@ vk_gltf_viewer::MainApp::MainApp() {
     }, {});
 
     // Init ImGui.
-    IMGUI_CHECKVERSION();
+    ImGui::CheckVersion();
     ImGui::CreateContext();
 
     ImGuiIO &io = ImGui::GetIO();

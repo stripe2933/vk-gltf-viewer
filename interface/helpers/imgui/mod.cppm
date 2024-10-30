@@ -1,11 +1,12 @@
 module;
 
-#include <imgui.h>
-#include <imgui_internal.h>
+#include <cassert>
 
 export module vk_gltf_viewer:helpers.imgui;
 
 import std;
+export import imgui;
+import imgui.internal;
 export import :helpers.imgui.table;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
@@ -24,7 +25,7 @@ namespace ImGui {
                 // Resize string callback
                 // If for some reason we refuse the new length (BufTextLen) and/or capacity (BufSize) we need to set them back to what we want.
                 auto* str = userData->Str;
-                IM_ASSERT(data->Buf == str->c_str());
+                assert(data->Buf == str->c_str());
                 str->resize(data->BufTextLen);
                 data->Buf = const_cast<char*>(str->c_str());
             }
@@ -36,7 +37,7 @@ namespace ImGui {
             return 0;
         };
 
-        IM_ASSERT((flags & ImGuiInputTextFlags_CallbackResize) == 0);
+        assert((flags & ImGuiInputTextFlags_CallbackResize) == 0);
         flags |= ImGuiInputTextFlags_CallbackResize;
 
         ChainedUserData chainedUserData {

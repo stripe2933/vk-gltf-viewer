@@ -6,14 +6,13 @@ module;
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#include <imgui.h>
-#include <ImGuizmo.h>
 
 module vk_gltf_viewer;
 import :control.AppWindow;
 
 import std;
 import glm;
+import ImGuizmo;
 
 vk_gltf_viewer::control::AppWindow::AppWindow(
     const vk::raii::Instance &instance,

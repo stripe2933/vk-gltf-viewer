@@ -1,13 +1,9 @@
-module;
-
-#include <imgui.h>
-#include <imgui_internal.h>
-#include <ImGuizmo.h>
-
 export module vk_gltf_viewer:imgui.TaskCollector;
 
 import std;
 export import glm;
+import imgui.internal;
+export import ImGuizmo;
 export import vulkan_hpp;
 export import :AppState;
 export import :control.Task;
