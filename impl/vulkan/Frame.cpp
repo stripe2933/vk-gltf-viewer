@@ -116,7 +116,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             | ranges::views::value_transform([](vk::Buffer buffer) { return buffer; })
             | std::ranges::to<std::unordered_map>();
 
-        const auto criteriaGetter = [&](const gltf::AssetGpuBuffers::PrimitiveInfo &primitiveInfo) {
+        const auto criteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
             CommandSeparationCriteria result {
                 .alphaMode = fastgltf::AlphaMode::Opaque,
                 .faceted = primitiveInfo.normalInfo.has_value(),

@@ -513,13 +513,13 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(asset, directory) },
     assetGpuBuffers { asset, *assetExternalBuffers, gpu },
     assetGpuTextures { asset, directory, *assetExternalBuffers, gpu },
-    sceneGpuBuffers { asset, assetGpuBuffers, scene, gpu } {
+    sceneGpuBuffers { asset, assetGpuBuffers.primitiveInfos, scene, gpu } {
     assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
 }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
-    sceneGpuBuffers = { asset, assetGpuBuffers, scene, gpu };
+    sceneGpuBuffers = { asset, assetGpuBuffers.primitiveInfos, scene, gpu };
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, sceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>());
 }
 

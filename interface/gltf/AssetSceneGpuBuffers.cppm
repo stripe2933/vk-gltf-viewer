@@ -1,7 +1,8 @@
 export module vk_gltf_viewer:gltf.AssetSceneGpuBuffers;
 
 import std;
-export import :gltf.AssetGpuBuffers;
+export import fastgltf;
+export import :gltf.AssetPrimitiveInfo;
 import :helpers.functional;
 import :helpers.ranges;
 export import :vulkan.Gpu;
@@ -35,7 +36,7 @@ namespace vk_gltf_viewer::gltf {
          *
          * It is a flattened list of (node index, primitive info) pairs that are collected by the preorder traversal of scene. Since a mesh has multiple primitives, two consecutive pairs may have the same node index.
          */
-        std::vector<std::pair<std::size_t /* nodeIndex */, const AssetGpuBuffers::PrimitiveInfo*>> orderedNodePrimitiveInfoPtrs;
+        std::vector<std::pair<std::size_t /* nodeIndex */, const AssetPrimitiveInfo*>> orderedNodePrimitiveInfoPtrs;
 
         /**
          * @brief Buffer that contains world transformation matrices of each node.
@@ -53,14 +54,14 @@ namespace vk_gltf_viewer::gltf {
 
         AssetSceneGpuBuffers(
             const fastgltf::Asset &asset [[clang::lifetimebound]],
-            const AssetGpuBuffers &assetGpuBuffers [[clang::lifetimebound]],
+            const std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> &primitiveInfos,
             const fastgltf::Scene &scene [[clang::lifetimebound]],
             const vulkan::Gpu &gpu [[clang::lifetimebound]]);
 
         template <
             typename CriteriaGetter,
             typename Compare = std::less<CriteriaGetter>,
-            typename Criteria = std::invoke_result_t<CriteriaGetter, const AssetGpuBuffers::PrimitiveInfo&>>
+            typename Criteria = std::invoke_result_t<CriteriaGetter, const AssetPrimitiveInfo&>>
         requires
             requires(const Criteria &criteria) {
                 // Draw commands with same criteria must have same kind of index type, or no index type (multi draw
@@ -131,7 +132,10 @@ namespace vk_gltf_viewer::gltf {
         }
 
     private:
-        [[nodiscard]] std::vector<std::pair<std::size_t, const AssetGpuBuffers::PrimitiveInfo*>> createOrderedNodePrimitiveInfoPtrs(const fastgltf::Asset &asset, const AssetGpuBuffers &assetGpuBuffers, const fastgltf::Scene &scene) const;
+        [[nodiscard]] std::vector<std::pair<std::size_t, const AssetPrimitiveInfo*>> createOrderedNodePrimitiveInfoPtrs(
+            const fastgltf::Asset &asset,
+            const std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> &primitiveInfos,
+            const fastgltf::Scene &scene) const;
         [[nodiscard]] vku::MappedBuffer createNodeWorldTransformBuffer(const fastgltf::Asset &asset, const fastgltf::Scene &scene, vma::Allocator allocator) const;
         [[nodiscard]] vku::AllocatedBuffer createPrimitiveBuffer(const vulkan::Gpu &gpu) const;
     };

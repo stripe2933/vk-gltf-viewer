@@ -110,8 +110,8 @@ vk_gltf_viewer::gltf::AssetGpuBuffers::AssetGpuBuffers(
     }
 }
 
-auto vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveInfos() const -> std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> {
-    std::unordered_map<const fastgltf::Primitive*, PrimitiveInfo> result;
+auto vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveInfos() const -> std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> {
+    std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> result;
     for (const fastgltf::Node &node : asset.nodes){
         if (!node.meshIndex) continue;
 
@@ -243,7 +243,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveAttributeBuffers(cons
     for (auto &[pPrimitive, primitiveInfo] : primitiveInfos) {
         for (const auto &[attributeName, accessorIndex] : pPrimitive->attributes) {
             const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
-            const auto getAttributeBufferInfo = [&]() -> PrimitiveInfo::AttributeBufferInfo {
+            const auto getAttributeBufferInfo = [&]() -> AssetPrimitiveInfo::AttributeBufferInfo {
                 const std::size_t byteStride
                     = asset.bufferViews[*accessor.bufferViewIndex].byteStride
                     .value_or(getElementByteSize(accessor.type, accessor.componentType));
@@ -271,7 +271,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveAttributeBuffers(cons
             else if (constexpr auto prefix = "TEXCOORD_"sv; attributeName.starts_with(prefix)) {
                 const std::size_t index = parse<std::size_t>(std::string_view { attributeName }.substr(prefix.size()));
 
-                std::vector<PrimitiveInfo::AttributeBufferInfo> &attributeBufferInfos = [&]() -> decltype(auto) {
+                std::vector<AssetPrimitiveInfo::AttributeBufferInfo> &attributeBufferInfos = [&]() -> decltype(auto) {
                     if (primitiveInfo.texcoordInfos) {
                         return *primitiveInfo.texcoordInfos;
                     }
@@ -296,8 +296,8 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexedAttributeMappi
     const std::vector primitiveWithTexcoordAttributeInfos
         = primitiveInfos
         | std::views::values
-        | std::views::filter([](const PrimitiveInfo &primitiveInfo) { return primitiveInfo.texcoordInfos.has_value(); })
-        | std::views::transform([](PrimitiveInfo &primitiveInfo) { return std::tie(primitiveInfo, primitiveInfo.texcoordInfos->attributeInfos); })
+        | std::views::filter([](const AssetPrimitiveInfo &primitiveInfo) { return primitiveInfo.texcoordInfos.has_value(); })
+        | std::views::transform([](AssetPrimitiveInfo &primitiveInfo) { return std::tie(primitiveInfo, primitiveInfo.texcoordInfos->attributeInfos); })
         | std::ranges::to<std::vector>();
 
     if (primitiveWithTexcoordAttributeInfos.empty()) {
@@ -409,7 +409,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexBuffers(const As
             }
 
             for (auto [pPrimitive, offset] : std::views::zip(primitiveAndIndexBytesPairs | std::views::keys, copyOffsets)) {
-                PrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
+                AssetPrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
                 primitiveInfo.indexInfo.emplace(offset, indexType);
                 primitiveInfo.drawCount = asset.accessors[*pPrimitive->indicesAccessor].count;
             }
@@ -423,7 +423,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveTangentBuffers(const 
     // Collect primitives that are missing tangent attributes (and require it).
     std::vector missingTangentPrimitives
         = primitiveInfos
-        | std::views::filter(decomposer([&](const fastgltf::Primitive *pPrimitive, PrimitiveInfo &primitiveInfo) {
+        | std::views::filter(decomposer([&](const fastgltf::Primitive *pPrimitive, AssetPrimitiveInfo &primitiveInfo) {
             // Skip if primitive already has a tangent attribute.
             if (primitiveInfo.tangentInfo) return false;
             // Skip if primitive doesn't have a material.
@@ -433,7 +433,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveTangentBuffers(const 
             // Skip if primitive is non-indexed geometry (screen-space normal and tangent will be generated in the shader).
             return pPrimitive->indicesAccessor.has_value();
         }))
-        | std::views::transform(decomposer([&](const fastgltf::Primitive *pPrimitive, PrimitiveInfo &primitiveInfo) {
+        | std::views::transform(decomposer([&](const fastgltf::Primitive *pPrimitive, AssetPrimitiveInfo &primitiveInfo) {
             // Validate the constraints for MikktSpaceInterface.
             if (auto normalIt = pPrimitive->findAttribute("NORMAL"); normalIt == pPrimitive->attributes.end()) {
                 throw std::runtime_error { "Missing NORMAL attribute" };
@@ -443,7 +443,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveTangentBuffers(const 
                 throw std::runtime_error { "Missing TEXCOORD attribute" };
             }
             else {
-                return std::pair<PrimitiveInfo*, algorithm::MikktSpaceMesh<AssetExternalBuffers>> {
+                return std::pair<AssetPrimitiveInfo*, algorithm::MikktSpaceMesh<AssetExternalBuffers>> {
                     std::piecewise_construct,
                     std::tuple { &primitiveInfo },
                     std::tie(

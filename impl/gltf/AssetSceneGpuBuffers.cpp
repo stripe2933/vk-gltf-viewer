@@ -14,19 +14,19 @@ import :helpers.ranges;
 
 vk_gltf_viewer::gltf::AssetSceneGpuBuffers::AssetSceneGpuBuffers(
     const fastgltf::Asset &asset [[clang::lifetimebound]],
-    const AssetGpuBuffers &assetGpuBuffers,
+    const std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> &primitiveInfos,
     const fastgltf::Scene &scene,
     const vulkan::Gpu &gpu
-) : orderedNodePrimitiveInfoPtrs { createOrderedNodePrimitiveInfoPtrs(asset, assetGpuBuffers, scene) },
+) : orderedNodePrimitiveInfoPtrs { createOrderedNodePrimitiveInfoPtrs(asset, primitiveInfos, scene) },
     nodeWorldTransformBuffer { createNodeWorldTransformBuffer(asset, scene, gpu.allocator) },
     primitiveBuffer { createPrimitiveBuffer(gpu) } { }
 
 auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createOrderedNodePrimitiveInfoPtrs(
     const fastgltf::Asset &asset,
-    const AssetGpuBuffers &assetGpuBuffers,
+    const std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> &primitiveInfos,
     const fastgltf::Scene &scene
-) const -> std::vector<std::pair<std::size_t, const AssetGpuBuffers::PrimitiveInfo*>> {
-    std::vector<std::pair<std::size_t /* nodeIndex */, const AssetGpuBuffers::PrimitiveInfo*>> nodePrimitiveInfoPtrs;
+) const -> std::vector<std::pair<std::size_t, const AssetPrimitiveInfo*>> {
+    std::vector<std::pair<std::size_t /* nodeIndex */, const AssetPrimitiveInfo*>> nodePrimitiveInfoPtrs;
 
     // Traverse the scene nodes and collect the glTF mesh primitives with their node indices.
     // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& is passed (but it is unnecessary). Remove the parameter when fixed.
@@ -35,7 +35,7 @@ auto vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createOrderedNodePrimitiveInfoP
         if (node.meshIndex) {
             const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
             for (const fastgltf::Primitive &primitive : mesh.primitives) {
-                const AssetGpuBuffers::PrimitiveInfo &primitiveInfo = assetGpuBuffers.primitiveInfos.at(&primitive);
+                const AssetPrimitiveInfo &primitiveInfo = primitiveInfos.at(&primitive);
                 nodePrimitiveInfoPtrs.emplace_back(nodeIndex, &primitiveInfo);
             }
         }
@@ -86,11 +86,11 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createPrimitive
         gpu.allocator,
         std::from_range,
         orderedNodePrimitiveInfoPtrs
-            | ranges::views::decompose_transform([](std::size_t nodeIndex, const AssetGpuBuffers::PrimitiveInfo* pPrimitiveInfo) {
+            | ranges::views::decompose_transform([](std::size_t nodeIndex, const AssetPrimitiveInfo* pPrimitiveInfo) {
             // If normal and tangent not presented (nullopt), it will use a faceted mesh renderer, and they will does not
             // dereference those buffers. Therefore, it is okay to pass nullptr into shaders
-            const auto normalInfo = pPrimitiveInfo->normalInfo.value_or(AssetGpuBuffers::PrimitiveInfo::AttributeBufferInfo{});
-            const auto tangentInfo = pPrimitiveInfo->tangentInfo.value_or(AssetGpuBuffers::PrimitiveInfo::AttributeBufferInfo{});
+            const auto normalInfo = pPrimitiveInfo->normalInfo.value_or(AssetPrimitiveInfo::AttributeBufferInfo{});
+            const auto tangentInfo = pPrimitiveInfo->tangentInfo.value_or(AssetPrimitiveInfo::AttributeBufferInfo{});
 
             return GpuPrimitive {
                 .pPositionBuffer = pPrimitiveInfo->positionInfo.address,
