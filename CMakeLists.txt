@@ -39,9 +39,7 @@ add_executable(vk-gltf-viewer
     impl/vulkan/Frame.cpp
     impl/vulkan/Gpu.cpp
     impl/vulkan/pipeline/BrdfmapComputer.cpp
-    impl/vulkan/pipeline/DepthRenderer.cpp
     impl/vulkan/pipeline/JumpFloodComputer.cpp
-    impl/vulkan/pipeline/MaskDepthRenderer.cpp
     main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE

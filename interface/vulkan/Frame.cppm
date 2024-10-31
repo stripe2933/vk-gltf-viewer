@@ -6,6 +6,7 @@ export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
 export import :AppState;
+export import :gltf.AssetGpuBuffers;
 export import :gltf.AssetSceneGpuBuffers;
 import :helpers.type_variant;
 export import :vulkan.SharedData;
@@ -20,7 +21,7 @@ namespace vk_gltf_viewer::vulkan {
         struct ExecutionTask {
             struct Gltf {
                 const fastgltf::Asset &asset;
-                const std::unordered_map<vk::IndexType, vku::AllocatedBuffer> &indexBuffers;
+                const gltf::AssetGpuBuffers &assetGpuBuffers;
                 const gltf::AssetSceneGpuBuffers &sceneGpuBuffers;
                 std::optional<std::uint32_t> hoveringNodeIndex;
                 std::unordered_set<std::size_t> selectedNodeIndices;
@@ -114,11 +115,9 @@ namespace vk_gltf_viewer::vulkan {
             std::optional<vk::IndexType> indexBuffer;
 
             // DepthRenderer, MaskDepthRenderer, JumpFloodSeedRenderer and MaskJumpFloodSeedRenderer have:
-            // - compatible scene descriptor set in set #0,
-            // - compatible asset descriptor set in set #1 (MaskDepthRenderer and MaskJumpFloodSeedRenderer only),
+            // - compatible asset descriptor set and scene descriptor set in set #0 and set #1, respectively.
             // - compatible push constant range.
-            bool sceneDescriptorSetBound = false;
-            bool assetDescriptorSetBound = false;
+            bool descriptorSetBound = false;
             bool pushConstantBound = false;
         };
 

@@ -6,10 +6,8 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_shader_8bit_storage : require
 
-// For convinience.
-#define PRIMITIVE primitives[gl_BaseInstance]
-#define MATERIAL materials[PRIMITIVE.materialIndex + 1]
-#define TRANSFORM nodeTransforms[PRIMITIVE.nodeIndex]
+#define VERTEX_SHADER
+#include "indexing.glsl"
 
 struct IndexedAttributeMappingInfo {
     uint64_t bytesPtr;
@@ -45,7 +43,6 @@ struct Primitive {
     uint8_t normalByteStride;
     uint8_t tangentByteStride;
     uint8_t padding;
-    uint nodeIndex;
     int materialIndex;
 };
 
@@ -55,16 +52,16 @@ layout (location = 2) out vec2 fragMetallicRoughnessTexcoord;
 layout (location = 3) out vec2 fragNormalTexcoord;
 layout (location = 4) out vec2 fragOcclusionTexcoord;
 layout (location = 5) out vec2 fragEmissiveTexcoord;
-layout (location = 6) flat out int materialIndex;
+layout (location = 6) flat out int outMaterialIndex;
 
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
-
-layout (set = 2, binding = 0) readonly buffer PrimitiveBuffer {
+layout (set = 1, binding = 2) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
-layout (set = 2, binding = 1) readonly buffer NodeTransformBuffer {
+
+layout (set = 2, binding = 0) readonly buffer NodeTransformBuffer {
     mat4 nodeTransforms[];
 };
 
@@ -115,7 +112,7 @@ void main(){
     if (int(MATERIAL.emissiveTextureIndex) != -1){
         fragEmissiveTexcoord = getTexcoord(uint(MATERIAL.emissiveTexcoordIndex));
     }
-    materialIndex = PRIMITIVE.materialIndex;
+    outMaterialIndex = MATERIAL_INDEX;
 
     gl_Position = pc.projectionView * vec4(fragPosition, 1.0);
 }

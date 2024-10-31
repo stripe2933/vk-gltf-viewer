@@ -285,8 +285,8 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     gpu.device.updateDescriptorSets({
                         sharedData.assetDescriptorSet.getWrite<0>(imageInfos),
                         sharedData.assetDescriptorSet.getWriteOne<1>({ gltf->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
-                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
-                        sharedData.sceneDescriptorSet.getWriteOne<1>({ gltf->sceneGpuBuffers.nodeWorldTransformBuffer, 0, vk::WholeSize }),
+                        sharedData.assetDescriptorSet.getWriteOne<2>({ gltf->assetGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
+                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeWorldTransformBuffer, 0, vk::WholeSize }),
                     }, {});
 
                     // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
@@ -333,10 +333,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
                     gltf->setScene(task.newSceneIndex);
 
-                    gpu.device.updateDescriptorSets({
-                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
-                        sharedData.sceneDescriptorSet.getWriteOne<1>({ gltf->sceneGpuBuffers.nodeWorldTransformBuffer, 0, vk::WholeSize }),
-                    }, {});
+                    gpu.device.updateDescriptorSets(
+                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeWorldTransformBuffer, 0, vk::WholeSize }),
+                        {});
 
                     // Update AppState.
                     appState.gltfAsset->setScene(task.newSceneIndex);
@@ -467,7 +466,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 assert(appState.gltfAsset && "Synchronization error: gltfAsset is not set in AppState.");
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .asset = gltf.asset,
-                    .indexBuffers = gltf.assetGpuBuffers.indexBuffers,
+                    .assetGpuBuffers = gltf.assetGpuBuffers,
                     .sceneGpuBuffers = gltf.sceneGpuBuffers,
                     .hoveringNodeIndex = appState.gltfAsset->hoveringNodeIndex,
                     .selectedNodeIndices = appState.gltfAsset->selectedNodeIndices,
@@ -512,13 +511,13 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(asset, directory) },
     assetGpuBuffers { asset, *assetExternalBuffers, gpu },
     assetGpuTextures { asset, directory, *assetExternalBuffers, gpu },
-    sceneGpuBuffers { asset, assetGpuBuffers.primitiveInfos, scene, gpu } {
+    sceneGpuBuffers { asset, scene, gpu } {
     assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
 }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
-    sceneGpuBuffers = { asset, assetGpuBuffers.primitiveInfos, scene, gpu };
+    sceneGpuBuffers = { asset, scene, gpu };
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, sceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>());
 }
 
@@ -903,10 +902,10 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                 mippedCubemapGenerator.recordCommands(cb, mippedCubemapGeneratorPipelines, eqmapImage);
 
                 cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eBottomOfPipe,
+                    vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
                     {}, {}, {},
                     vk::ImageMemoryBarrier {
-                        vk::AccessFlagBits::eShaderWrite, {},
+                        vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead,
                         vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                         mippedCubemapGenerator.cubemapImage, vku::fullSubresourceRange(),

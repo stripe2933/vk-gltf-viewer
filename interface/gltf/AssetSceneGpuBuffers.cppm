@@ -13,30 +13,34 @@ namespace vk_gltf_viewer::gltf {
      * @brief GPU buffers for <tt>fastgltf::Scene</tt>.
      *
      * These buffers should be used for only the scene passed by the parameter. If you're finding the asset-wide buffers
-     * (like materials, vertex/index buffers, etc.), see AssetGpuBuffers for that purpose.
+     * (like materials, vertex/index buffers, primitives, etc.), see <tt>AssetGpuBuffers</tt> for that purpose.
      */
     export class AssetSceneGpuBuffers {
     public:
-        struct GpuPrimitive {
-            vk::DeviceAddress pPositionBuffer;
-            vk::DeviceAddress pNormalBuffer;
-            vk::DeviceAddress pTangentBuffer;
-            vk::DeviceAddress pTexcoordAttributeMappingInfoBuffer;
-            vk::DeviceAddress pColorAttributeMappingInfoBuffer;
-            std::uint8_t positionByteStride;
-            std::uint8_t normalByteStride;
-            std::uint8_t tangentByteStride;
-            char padding[1];
+        /**
+         * @brief glTF primitive information that is necessary to generate <tt>vk::DrawIndirectCommand</tt> or <tt>vk::DrawIndexedIndirectCommand</tt>.
+         */
+        struct PrimitiveIndirectCommandInfo {
+            std::uint32_t drawCount;
+
+            /**
+             * @brief Index of the starting index data in the index buffer that the primitive rendering would use.
+             *
+             * If primitive is non-indexed, this MUST be <tt>std::nullopt</tt>.
+             */
+            std::optional<std::uint32_t> firstIndex;
+
             std::uint32_t nodeIndex;
-            std::int32_t materialIndex; // -1 for fallback material.
+            std::uint32_t index;
         };
 
         /**
          * @brief Asset primitives that are ordered by preorder scene traversal.
          *
-         * It is a flattened list of (node index, primitive info) pairs that are collected by the preorder traversal of scene. Since a mesh has multiple primitives, two consecutive pairs may have the same node index.
+         * It is a flattened list of (node index, &primitive) pairs that are collected by the preorder traversal of scene.
+         * Since a mesh has multiple primitives, two consecutive pairs may have the same node index.
          */
-        std::vector<std::pair<std::size_t /* nodeIndex */, const AssetPrimitiveInfo*>> orderedNodePrimitiveInfoPtrs;
+        std::vector<std::pair<std::size_t /* nodeIndex */, const fastgltf::Primitive*>> orderedNodePrimitives;
 
         /**
          * @brief Buffer that contains world transformation matrices of each node.
@@ -45,21 +49,13 @@ namespace vk_gltf_viewer::gltf {
          */
         vku::MappedBuffer nodeWorldTransformBuffer;
 
-        /**
-         * @brief Buffer that contains <tt>GpuPrimitive</tt>s.
-         *
-         * <tt>primitiveBuffer.asRange<const GpuPrimitive>()[i]</tt> represents the <tt>i</tt>-th primitive, whose order is as same as <tt>orderedNodePrimitiveInfoPtrs</tt>.
-         */
-        vku::AllocatedBuffer primitiveBuffer;
-
         AssetSceneGpuBuffers(
             const fastgltf::Asset &asset [[clang::lifetimebound]],
-            const std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> &primitiveInfos,
             const fastgltf::Scene &scene [[clang::lifetimebound]],
             const vulkan::Gpu &gpu [[clang::lifetimebound]]);
 
         template <
-            typename CriteriaGetter,
+            std::invocable<const AssetPrimitiveInfo&> CriteriaGetter,
             typename Compare = std::less<CriteriaGetter>,
             typename Criteria = std::invoke_result_t<CriteriaGetter, const AssetPrimitiveInfo&>>
         requires
@@ -71,18 +67,19 @@ namespace vk_gltf_viewer::gltf {
         [[nodiscard]] auto createIndirectDrawCommandBuffers(
             vma::Allocator allocator,
             const CriteriaGetter &criteriaGetter,
-            const std::unordered_set<std::size_t> &nodeIndices
+            const std::unordered_set<std::size_t> &nodeIndices,
+            std::invocable<const fastgltf::Primitive&> auto const &primitiveInfoGetter
         ) const -> std::map<Criteria, std::variant<vulkan::buffer::IndirectDrawCommands<false>, vulkan::buffer::IndirectDrawCommands<true>>, Compare> {
             std::map<Criteria, std::variant<std::vector<vk::DrawIndirectCommand>, std::vector<vk::DrawIndexedIndirectCommand>>> commandGroups;
 
-            for (auto [primitiveIndex, nodePrimitiveInfo] : orderedNodePrimitiveInfoPtrs | ranges::views::enumerate) {
-                const auto [nodeIndex, pPrimitiveInfo] = nodePrimitiveInfo;
+            for (auto [nodeIndex, pPrimitive] : orderedNodePrimitives) {
                 if (!nodeIndices.contains(nodeIndex)) {
                     continue;
                 }
 
-                const Criteria criteria = criteriaGetter(*pPrimitiveInfo);
-                if (const auto &indexInfo = pPrimitiveInfo->indexInfo) {
+                const AssetPrimitiveInfo &primitiveInfo = primitiveInfoGetter(*pPrimitive);
+                const Criteria criteria = criteriaGetter(primitiveInfo);
+                if (const auto &indexInfo = primitiveInfo.indexInfo) {
                     const std::size_t indexByteSize = [=]() {
                         switch (indexInfo->type) {
                             case vk::IndexType::eUint8KHR: return sizeof(std::uint8_t);
@@ -95,16 +92,16 @@ namespace vk_gltf_viewer::gltf {
                     auto &commandGroup = commandGroups
                         .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndexedIndirectCommand>>)
                         .first->second;
-                    const std::uint32_t vertexOffset = static_cast<std::uint32_t>(pPrimitiveInfo->indexInfo->offset / indexByteSize);
+                    const std::uint32_t firstIndex = static_cast<std::uint32_t>(primitiveInfo.indexInfo->offset / indexByteSize);
                     get_if<std::vector<vk::DrawIndexedIndirectCommand>>(&commandGroup)
-                        ->emplace_back(pPrimitiveInfo->drawCount, 1, vertexOffset, 0, primitiveIndex);
+                        ->emplace_back(primitiveInfo.drawCount, 1, firstIndex, 0, (nodeIndex << 16U) | primitiveInfo.index);
                 }
                 else {
                     auto &commandGroup = commandGroups
                         .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndirectCommand>>)
                         .first->second;
                     get_if<std::vector<vk::DrawIndirectCommand>>(&commandGroup)
-                        ->emplace_back(pPrimitiveInfo->drawCount, 1, 0, primitiveIndex);
+                        ->emplace_back(primitiveInfo.drawCount, 1, 0, (nodeIndex << 16U) | primitiveInfo.index);
                 }
             }
 
@@ -132,11 +129,7 @@ namespace vk_gltf_viewer::gltf {
         }
 
     private:
-        [[nodiscard]] std::vector<std::pair<std::size_t, const AssetPrimitiveInfo*>> createOrderedNodePrimitiveInfoPtrs(
-            const fastgltf::Asset &asset,
-            const std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> &primitiveInfos,
-            const fastgltf::Scene &scene) const;
+        [[nodiscard]] std::vector<std::pair<std::size_t, const fastgltf::Primitive*>> createOrderedNodePrimitives(const fastgltf::Asset &asset, const fastgltf::Scene &scene) const;
         [[nodiscard]] vku::MappedBuffer createNodeWorldTransformBuffer(const fastgltf::Asset &asset, const fastgltf::Scene &scene, vma::Allocator allocator) const;
-        [[nodiscard]] vku::AllocatedBuffer createPrimitiveBuffer(const vulkan::Gpu &gpu) const;
     };
 }

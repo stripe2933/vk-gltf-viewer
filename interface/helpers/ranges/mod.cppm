@@ -124,6 +124,10 @@ namespace views {
         return *FWD(x);
     });
 
+    export CLANG_INLINE constexpr auto addressof = std::views::transform([](const auto &x) {
+        return &x;
+    });
+
     /**
      * A range adaptor object that apply a transformation function, invocable with underlying sequence's tuple-like elements.
      * @example

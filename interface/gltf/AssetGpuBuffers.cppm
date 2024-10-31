@@ -18,16 +18,32 @@ namespace vk_gltf_viewer::gltf {
         const vulkan::Gpu &gpu;
 
         /**
+         * @brief Ordered asset primitives.
+         *
+         * glTF asset primitives are appeared inside the mesh, and they have no explicit ordering. This vector is constructed by traversing the asset meshes and collect the primitives with their appearing order.
+         */
+        std::vector<const fastgltf::Primitive*> orderedPrimitives = createOrderedPrimitives();
+
+        /**
+         * @brief Hashmap that maps the asset primitives to their appearing order.
+         *
+         * @code
+         * orderedPrimitives[i] = pPrimitive -> primitiveOrders[pPrimitive] = i.
+         * @endcode
+         */
+        std::unordered_map<const fastgltf::Primitive*, std::size_t> primitiveOrders = createPrimitiveOrders();
+
+        /**
          * @brief GPU buffers that would only be accessed by buffer device address.
          *
-         * Asset buffer view data that are used by attributes, missing tangents, indexed attribute (e.g. TEXCOORD_<i>) mapping information are staged into GPU buffer, but these are "unnamed". They are specific to this class' implementation, and cannot be accessed from outside this class. Instead, their device addresses are stored in AssetPrimitiveInfo and could be accessed in the shader.
+         * Asset buffer view data that are used by attributes, missing tangents, indexed attribute (e.g. <tt>TEXCOORD_<i></tt>) mapping information are staged into GPU buffer, but these are "unnamed". They are specific to this class' implementation, and cannot be accessed from outside this class. Instead, their device addresses are stored in AssetPrimitiveInfo and could be accessed in the shader.
          */
         std::vector<vku::AllocatedBuffer> internalBuffers;
 
         /**
          * @brief Staging buffers and their copy infos.
          *
-         * Consists of <tt>AllocatedBuffer</tt> that contains the data, <tt>Buffer</tt> that will be copied into, and <tt>BufferCopy</tt> that describes the copy region.
+         * Consisted of <tt>AllocatedBuffer</tt> that contains the data, <tt>Buffer</tt> that will be copied into, and <tt>BufferCopy</tt> that describes the copy region.
          * This should be cleared after the staging operation ends.
          */
         std::vector<std::tuple<vku::AllocatedBuffer, vk::Buffer, vk::BufferCopy>> stagingInfos;
@@ -54,6 +70,19 @@ namespace vk_gltf_viewer::gltf {
             float alphaCutOff;
         };
 
+        struct GpuPrimitive {
+            vk::DeviceAddress pPositionBuffer;
+            vk::DeviceAddress pNormalBuffer;
+            vk::DeviceAddress pTangentBuffer;
+            vk::DeviceAddress pTexcoordAttributeMappingInfoBuffer;
+            vk::DeviceAddress pColorAttributeMappingInfoBuffer;
+            std::uint8_t positionByteStride;
+            std::uint8_t normalByteStride;
+            std::uint8_t tangentByteStride;
+            char padding[1];
+            std::int32_t materialIndex; // -1 for fallback material.
+        };
+
         std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> primitiveInfos = createPrimitiveInfos();
 
         /**
@@ -70,15 +99,20 @@ namespace vk_gltf_viewer::gltf {
          */
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
+        vku::AllocatedBuffer primitiveBuffer = createPrimitiveBuffer();
+
         AssetGpuBuffers(const fastgltf::Asset &asset, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, BS::thread_pool threadPool = {});
 
     private:
+        [[nodiscard]] std::vector<const fastgltf::Primitive*> createOrderedPrimitives() const;
+        [[nodiscard]] std::unordered_map<const fastgltf::Primitive*, std::size_t> createPrimitiveOrders() const;
         [[nodiscard]] std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> createPrimitiveInfos() const;
         [[nodiscard]] vku::AllocatedBuffer createMaterialBuffer();
+        [[nodiscard]] std::unordered_map<vk::IndexType, vku::AllocatedBuffer> createPrimitiveIndexBuffers(const AssetExternalBuffers &externalBuffers);
+        [[nodiscard]] vku::AllocatedBuffer createPrimitiveBuffer();
 
         void createPrimitiveAttributeBuffers(const AssetExternalBuffers &externalBuffers);
         void createPrimitiveIndexedAttributeMappingBuffers();
-        void createPrimitiveIndexBuffers(const AssetExternalBuffers &externalBuffers);
         void createPrimitiveTangentBuffers(const AssetExternalBuffers &externalBuffers, BS::thread_pool &threadPool);
     };
 }

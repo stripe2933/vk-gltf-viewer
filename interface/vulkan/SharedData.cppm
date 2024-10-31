@@ -42,7 +42,7 @@ namespace vk_gltf_viewer::vulkan {
         SingleTexelSampler singleTexelSampler { gpu.device };
 
         // Descriptor set layouts.
-        dsl::Asset assetDescriptorSetLayout { gpu.device, 32 }; // TODO: set proper initial texture count.
+        dsl::Asset assetDescriptorSetLayout { gpu.device, 1 }; // TODO: set proper initial texture count.
         dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler };
         dsl::Scene sceneDescriptorSetLayout { gpu.device };
         dsl::Skybox skyboxDescriptorSetLayout { gpu.device, cubemapSampler };
@@ -56,13 +56,13 @@ namespace vk_gltf_viewer::vulkan {
         // Pipelines.
         BlendFacetedPrimitiveRenderer blendFacetedPrimitiveRenderer;
         BlendPrimitiveRenderer blendPrimitiveRenderer;
-        DepthRenderer depthRenderer { gpu.device, sceneDescriptorSetLayout };
+        DepthRenderer depthRenderer { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
         FacetedPrimitiveRenderer facetedPrimitiveRenderer;
         JumpFloodComputer jumpFloodComputer { gpu.device };
-        JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, sceneDescriptorSetLayout };
-        MaskDepthRenderer maskDepthRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+        JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+        MaskDepthRenderer maskDepthRenderer { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
         MaskFacetedPrimitiveRenderer maskFacetedPrimitiveRenderer;
-        MaskJumpFloodSeedRenderer maskJumpFloodSeedRenderer { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+        MaskJumpFloodSeedRenderer maskJumpFloodSeedRenderer { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
         MaskPrimitiveRenderer maskPrimitiveRenderer;
         OutlineRenderer outlineRenderer;
         PrimitiveRenderer primitiveRenderer;
@@ -143,8 +143,10 @@ namespace vk_gltf_viewer::vulkan {
 
             // Following pipelines are dependent to the assetDescriptorSetLayout or sceneRenderingPipelineLayout.
             blendPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
-            maskDepthRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
-            maskJumpFloodSeedRenderer = { gpu.device, std::tie(sceneDescriptorSetLayout, assetDescriptorSetLayout) };
+            depthRenderer = { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+            jumpFloodSeedRenderer = { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+            maskDepthRenderer = { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+            maskJumpFloodSeedRenderer = { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
             maskPrimitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
             primitiveRenderer = { gpu.device, sceneRenderingPipelineLayout, sceneRenderPass };
 

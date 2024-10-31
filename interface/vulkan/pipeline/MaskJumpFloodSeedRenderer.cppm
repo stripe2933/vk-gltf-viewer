@@ -21,7 +21,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         MaskJumpFloodSeedRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
-            std::tuple<const dsl::Scene&, const dsl::Asset&> descriptorSetLayouts [[clang::lifetimebound]]
+            const std::pair<const dsl::Asset&, const dsl::Scene&> &descriptorSetLayouts
         ) : pipelineLayout { device, vk::PipelineLayoutCreateInfo{
                 {},
                 vku::unsafeProxy(std::apply([](const auto &...x) { return std::array { *x... }; }, descriptorSetLayouts)),

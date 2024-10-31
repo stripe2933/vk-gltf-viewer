@@ -4,10 +4,9 @@
 #extension GL_EXT_shader_8bit_storage : require
 #extension GL_EXT_scalar_block_layout : require
 
+#define FRAGMENT_SHADER
+#include "indexing.glsl"
 #include "spherical_harmonics.glsl"
-
-// For convinience.
-#define MATERIAL materials[materialIndex + 1]
 
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
@@ -33,7 +32,7 @@ layout (location = 2) in vec2 fragMetallicRoughnessTexcoord;
 layout (location = 3) in vec2 fragNormalTexcoord;
 layout (location = 4) in vec2 fragOcclusionTexcoord;
 layout (location = 5) in vec2 fragEmissiveTexcoord;
-layout (location = 6) flat in int materialIndex;
+layout (location = 6) flat in int inMaterialIndex;
 
 layout (location = 0) out vec4 outAccumulation;
 layout (location = 1) out float outRevealage;

@@ -4,9 +4,8 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_shader_8bit_storage : require
 
-// For convinience.
-#define PRIMITIVE primitives[gl_BaseInstance]
-#define TRANSFORM nodeTransforms[PRIMITIVE.nodeIndex]
+#define VERTEX_SHADER
+#include "indexing.glsl"
 
 layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Vec2Ref { vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Vec4Ref { vec4 data; };
@@ -21,16 +20,16 @@ struct Primitive {
     uint8_t normalByteStride;
     uint8_t tangentByteStride;
     uint8_t padding;
-    uint nodeIndex;
     int materialIndex;
 };
 
-layout (location = 0) flat out uint nodeIndex;
+layout (location = 0) flat out uint outNodeIndex;
 
-layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
+layout (set = 0, binding = 2) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
-layout (set = 0, binding = 1) readonly buffer NodeTransformBuffer {
+
+layout (set = 1, binding = 0) readonly buffer NodeTransformBuffer {
     mat4 nodeTransforms[];
 };
 
@@ -47,7 +46,7 @@ vec3 getVec3(uint64_t address){
 }
 
 void main(){
-    nodeIndex = PRIMITIVE.nodeIndex;
+    outNodeIndex = NODE_INDEX;
 
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);

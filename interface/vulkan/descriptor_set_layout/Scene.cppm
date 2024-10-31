@@ -5,13 +5,12 @@ import vku;
 export import vulkan_hpp;
 
 namespace vk_gltf_viewer::vulkan::dsl {
-    export struct Scene : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer> {
+    export struct Scene : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer> {
         explicit Scene(const vk::raii::Device &device [[clang::lifetimebound]])
             : DescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
                 {},
                 vku::unsafeProxy({
-                    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment },
-                    vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+                    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
                 }),
             } } { }
     };

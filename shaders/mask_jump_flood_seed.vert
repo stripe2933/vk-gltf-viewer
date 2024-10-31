@@ -6,10 +6,8 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_shader_8bit_storage : require
 
-// For convinience.
-#define PRIMITIVE primitives[gl_BaseInstance]
-#define MATERIAL materials[PRIMITIVE.materialIndex + 1]
-#define TRANSFORM nodeTransforms[PRIMITIVE.nodeIndex]
+#define VERTEX_SHADER
+#include "indexing.glsl"
 
 struct IndexedAttributeMappingInfo {
     uint64_t bytesPtr;
@@ -51,22 +49,21 @@ struct Primitive {
     uint8_t normalByteStride;
     uint8_t tangentByteStride;
     uint8_t padding;
-    uint nodeIndex;
     int materialIndex;
 };
 
 layout (location = 0) out vec2 fragBaseColorTexcoord;
-layout (location = 1) flat out uint primitiveIndex;
+layout (location = 1) flat out int outMaterialIndex;
 
-layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
+layout (set = 0, binding = 1) readonly buffer MaterialBuffer {
+    Material materials[];
+};
+layout (set = 0, binding = 2) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
-layout (set = 0, binding = 1) readonly buffer NodeTransformBuffer {
-    mat4 nodeTransforms[];
-};
 
-layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
-    Material materials[];
+layout (set = 1, binding = 0) readonly buffer NodeTransformBuffer {
+    mat4 nodeTransforms[];
 };
 
 layout (push_constant, std430) uniform PushConstant {
@@ -94,7 +91,7 @@ void main(){
     if (int(MATERIAL.baseColorTextureIndex) != -1){
         fragBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
     }
-    primitiveIndex = gl_BaseInstance;
+    outMaterialIndex = MATERIAL_INDEX;
 
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);

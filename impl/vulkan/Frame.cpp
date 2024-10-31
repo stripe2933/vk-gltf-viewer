@@ -112,7 +112,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     // If there is a glTF scene to be rendered, related resources have to be updated.
     if (task.gltf) {
-        indexBuffers = task.gltf->indexBuffers
+        indexBuffers = task.gltf->assetGpuBuffers.indexBuffers
             | ranges::views::value_transform([](vk::Buffer buffer) { return buffer; })
             | std::ranges::to<std::unordered_map>();
 
@@ -135,21 +135,22 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (!renderingNodes || (renderingNodes && renderingNodes->indices != task.gltf->renderingNodeIndices)) {
                 renderingNodes.emplace(
                     task.gltf->renderingNodeIndices,
-                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->renderingNodeIndices));
+                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->renderingNodeIndices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }));
             }
 
             if (task.frustum) {
-                const std::span orderedNodeAndPrimitiveInfoPtrs = task.gltf->sceneGpuBuffers.orderedNodePrimitiveInfoPtrs;
+                const std::span orderedNodePrimitives = task.gltf->sceneGpuBuffers.orderedNodePrimitives;
                 const std::span nodeWorldTransforms = task.gltf->sceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>();
                 for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
                     visit([&]<bool Indexed>(buffer::IndirectDrawCommands<Indexed> &indirectDrawCommands) -> void {
                         indirectDrawCommands.partition([&](const buffer::IndirectDrawCommands<Indexed>::command_t &command) {
-                            const std::uint32_t primitiveIndex = command.firstInstance;
-                            const auto [nodeIndex, pPrimitiveInfo] = orderedNodeAndPrimitiveInfoPtrs[primitiveIndex];
+                            const std::uint32_t primitiveIndex = command.firstInstance & 0xFFFFU;
+                            const auto [nodeIndex, pPrimitiveInfo] = orderedNodePrimitives[primitiveIndex];
+                            const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(pPrimitiveInfo);
 
                             const glm::mat4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
-                            const glm::vec3 transformedMin = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { pPrimitiveInfo->min, 1.f });
-                            const glm::vec3 transformedMax = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { pPrimitiveInfo->max, 1.f });
+                            const glm::vec3 transformedMin = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { primitiveInfo.min, 1.f });
+                            const glm::vec3 transformedMax = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { primitiveInfo.max, 1.f });
 
                             const glm::vec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
                             const glm::vec3 center = transformedMin + halfDisplacement;
@@ -176,7 +177,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (selectedNodes) {
                 if (selectedNodes->indices != task.gltf->selectedNodeIndices) {
                     selectedNodes->indices = task.gltf->selectedNodeIndices;
-                    selectedNodes->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodeIndices);
+                    selectedNodes->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodeIndices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
                 }
                 selectedNodes->outlineColor = task.selectedNodeOutline->color;
                 selectedNodes->outlineThickness = task.selectedNodeOutline->thickness;
@@ -184,7 +185,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             else {
                 selectedNodes.emplace(
                     task.gltf->selectedNodeIndices,
-                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodeIndices),
+                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodeIndices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
                     task.selectedNodeOutline->color,
                     task.selectedNodeOutline->thickness);
             }
@@ -199,7 +200,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (hoveringNode) {
                 if (hoveringNode->index != *task.gltf->hoveringNodeIndex) {
                     hoveringNode->index = *task.gltf->hoveringNodeIndex;
-                    hoveringNode->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *task.gltf->hoveringNodeIndex });
+                    hoveringNode->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *task.gltf->hoveringNodeIndex }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
                 }
                 hoveringNode->outlineColor = task.hoveringNodeOutline->color;
                 hoveringNode->outlineThickness = task.hoveringNodeOutline->thickness;
@@ -207,7 +208,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             else {
                 hoveringNode.emplace(
                     *task.gltf->hoveringNodeIndex,
-                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *task.gltf->hoveringNodeIndex }),
+                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *task.gltf->hoveringNodeIndex }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
                     task.hoveringNodeOutline->color,
                     task.hoveringNodeOutline->thickness);
             }
@@ -570,13 +571,14 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             const auto blendMeshes = ranges::make_subrange(indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Blend));
             for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::views::concat(opaqueMeshes, blendMeshes)) {
                 if (!resourceBindingState.boundPipeline.holds_alternative<std::remove_cvref_t<decltype(opaqueOrBlendRenderer)>>()) {
-                    opaqueOrBlendRenderer.bindPipeline(cb);
+                    cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *opaqueOrBlendRenderer.pipeline);
                     resourceBindingState.boundPipeline.emplace<std::remove_cvref_t<decltype(opaqueOrBlendRenderer)>>();
                 }
 
-                if (!resourceBindingState.sceneDescriptorSetBound) {
-                    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *opaqueOrBlendRenderer.pipelineLayout, 0, sharedData.sceneDescriptorSet, {});
-                    resourceBindingState.sceneDescriptorSetBound = true;
+                if (!resourceBindingState.descriptorSetBound) {
+                    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *opaqueOrBlendRenderer.pipelineLayout,
+                        0, { sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
+                    resourceBindingState.descriptorSetBound = true;
                 }
 
                 if (!resourceBindingState.pushConstantBound) {
@@ -598,21 +600,14 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             // Render mask meshes.
             for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask))) {
                 if (!resourceBindingState.boundPipeline.holds_alternative<std::remove_cvref_t<decltype(maskRenderer)>>()) {
-                    maskRenderer.bindPipeline(cb);
+                    cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *maskRenderer.pipeline);
                     resourceBindingState.boundPipeline.emplace<std::remove_cvref_t<decltype(maskRenderer)>>();
                 }
 
-                if (!resourceBindingState.sceneDescriptorSetBound) {
+                if (!resourceBindingState.descriptorSetBound) {
                     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *maskRenderer.pipelineLayout,
-                        0, { sharedData.sceneDescriptorSet, sharedData.assetDescriptorSet }, {});
-                    resourceBindingState.sceneDescriptorSetBound = true;
-                }
-                else if (!resourceBindingState.assetDescriptorSetBound) {
-                    // Scene descriptor set already bound by DepthRenderer, therefore binding only asset descriptor set (in set #1)
-                    // is enough.
-                    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *maskRenderer.pipelineLayout,
-                        1, sharedData.assetDescriptorSet, {});
-                    resourceBindingState.assetDescriptorSetBound = true;
+                        0, { sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
+                    resourceBindingState.descriptorSetBound = true;
                 }
 
                 if (!resourceBindingState.pushConstantBound) {

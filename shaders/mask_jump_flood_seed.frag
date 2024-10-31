@@ -4,9 +4,8 @@
 #extension GL_EXT_shader_8bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
-// For convinience.
-#define PRIMITIVE primitives[primitiveIndex]
-#define MATERIAL materials[PRIMITIVE.materialIndex + 1]
+#define FRAGMENT_SHADER
+#include "indexing.glsl"
 
 struct Material {
     uint8_t baseColorTexcoordIndex;
@@ -44,16 +43,12 @@ struct Primitive {
 };
 
 layout (location = 0) in vec2 fragBaseColorTexcoord;
-layout (location = 1) flat in uint primitiveIndex;
+layout (location = 1) flat in int inMaterialIndex;
 
 layout (location = 0) out uvec2 outCoordinate;
 
-layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
-    Primitive primitives[];
-};
-
-layout (set = 1, binding = 0) uniform sampler2D textures[];
-layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
+layout (set = 0, binding = 0) uniform sampler2D textures[];
+layout (set = 0, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
 

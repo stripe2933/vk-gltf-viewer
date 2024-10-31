@@ -7,6 +7,7 @@ export module vk_gltf_viewer:vulkan.pipeline.JumpFloodSeedRenderer;
 import std;
 export import glm;
 export import vku;
+export import :vulkan.dsl.Asset;
 export import :vulkan.dsl.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -20,10 +21,10 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         JumpFloodSeedRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
-            const dsl::Scene &descriptorSetLayout [[clang::lifetimebound]]
+            const std::pair<const dsl::Asset&, const dsl::Scene&> &descriptorSetLayouts
         ) : pipelineLayout { device, vk::PipelineLayoutCreateInfo{
                 {},
-                *descriptorSetLayout,
+                vku::unsafeProxy(std::apply([](const auto &...x) { return std::array { *x... }; }, descriptorSetLayouts)),
                 vku::unsafeProxy(vk::PushConstantRange {
                     vk::ShaderStageFlagBits::eVertex,
                     0, sizeof(PushConstant),

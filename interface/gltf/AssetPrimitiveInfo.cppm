@@ -10,6 +10,7 @@ namespace vk_gltf_viewer::gltf {
         struct AttributeBufferInfo { vk::DeviceAddress address; std::uint8_t byteStride; };
         struct IndexedAttributeBufferInfos { vk::DeviceAddress pMappingBuffer; std::vector<AttributeBufferInfo> attributeInfos; };
 
+        std::uint32_t index;
         std::optional<std::size_t> materialIndex;
         std::uint32_t drawCount;
         std::optional<IndexBufferInfo> indexInfo{};

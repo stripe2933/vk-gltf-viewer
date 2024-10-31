@@ -88,12 +88,20 @@ vk_gltf_viewer::gltf::AssetGpuBuffers::AssetGpuBuffers(
     const vulkan::Gpu &gpu,
     BS::thread_pool threadPool
 ) : asset { asset },
-    gpu { gpu } {
-    createPrimitiveAttributeBuffers(externalBuffers);
-    createPrimitiveIndexedAttributeMappingBuffers();
-    createPrimitiveIndexBuffers(externalBuffers);
-    createPrimitiveTangentBuffers(externalBuffers, threadPool);
-
+    gpu { gpu },
+    indexBuffers { (
+        // Primitive attribute buffers MUST be created before index buffer creation (because fill the AssetPrimitiveInfo
+        // and determine the drawCount if primitive is non-indexed, and createIndexBuffers() will use it), therefore
+        // comma operator is used to ensure the order.
+        createPrimitiveAttributeBuffers(externalBuffers),
+        createPrimitiveIndexBuffers(externalBuffers)) },
+    primitiveBuffer { (
+        // Remaining buffers MUST be created before the primitive buffer creation (because they fill the
+        // AssetPrimitiveInfo and createPrimitiveBuffer() will stage it), therefore comma operator is used to ensure
+        // the order.
+        createPrimitiveIndexedAttributeMappingBuffers(),
+        createPrimitiveTangentBuffers(externalBuffers, threadPool),
+        createPrimitiveBuffer()) } {
     if (!stagingInfos.empty()) {
         // Transfer the asset resources into the GPU using transfer queue.
         const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
@@ -110,17 +118,36 @@ vk_gltf_viewer::gltf::AssetGpuBuffers::AssetGpuBuffers(
     }
 }
 
+std::vector<const fastgltf::Primitive*> vk_gltf_viewer::gltf::AssetGpuBuffers::createOrderedPrimitives() const {
+    return asset.meshes
+        | std::views::transform(&fastgltf::Mesh::primitives)
+        | std::views::join
+        | ranges::views::addressof
+        | std::ranges::to<std::vector>();
+}
+
+std::unordered_map<const fastgltf::Primitive*, std::size_t> vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveOrders() const {
+    return orderedPrimitives
+        | ranges::views::enumerate
+        | ranges::views::decompose_transform([](std::size_t i, const fastgltf::Primitive *pPrimitive) {
+            return std::pair { pPrimitive, i };
+        })
+        | std::ranges::to<std::unordered_map>();
+}
+
 auto vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveInfos() const -> std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> {
-    std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> result;
-    for (const fastgltf::Node &node : asset.nodes){
-        if (!node.meshIndex) continue;
-
-        for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex].primitives){
-            result.try_emplace(&primitive, to_optional(primitive.materialIndex));
-        }
-    }
-
-    return result;
+    return orderedPrimitives
+        | ranges::views::enumerate
+        | ranges::views::decompose_transform([](std::uint32_t primitiveIndex, const fastgltf::Primitive *pPrimitive) {
+            return std::pair {
+                pPrimitive,
+                AssetPrimitiveInfo {
+                    .index = primitiveIndex,
+                    .materialIndex = to_optional(pPrimitive->materialIndex),
+                },
+            };
+        })
+        | std::ranges::to<std::unordered_map>();
 }
 
 vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createMaterialBuffer() {
@@ -162,6 +189,52 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createMaterialBuffer
 
                 return gpuMaterial;
             })),
+        gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
+    }.unmap();
+
+    if (gpu.isUmaDevice) {
+        return stagingBuffer;
+    }
+
+    vku::AllocatedBuffer dstBuffer{ gpu.allocator, vk::BufferCreateInfo {
+        {},
+        stagingBuffer.size,
+        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+    } };
+    stagingInfos.emplace_back(
+        std::move(stagingBuffer),
+        dstBuffer,
+        vk::BufferCopy{ 0, 0, dstBuffer.size });
+    return dstBuffer;
+}
+
+vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveBuffer() {
+    vku::AllocatedBuffer stagingBuffer = vku::MappedBuffer {
+        gpu.allocator,
+        std::from_range, orderedPrimitives | std::views::transform([this](const fastgltf::Primitive *pPrimitive) {
+            const AssetPrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
+
+            // If normal and tangent not presented (nullopt), it will use a faceted mesh renderer, and they will does not
+            // dereference those buffers. Therefore, it is okay to pass nullptr into shaders
+            const auto normalInfo = primitiveInfo.normalInfo.value_or(AssetPrimitiveInfo::AttributeBufferInfo{});
+            const auto tangentInfo = primitiveInfo.tangentInfo.value_or(AssetPrimitiveInfo::AttributeBufferInfo{});
+
+            return GpuPrimitive {
+                .pPositionBuffer = primitiveInfo.positionInfo.address,
+                .pNormalBuffer = normalInfo.address,
+                .pTangentBuffer = tangentInfo.address,
+                .pTexcoordAttributeMappingInfoBuffer = primitiveInfo.texcoordsInfo.pMappingBuffer,
+                .pColorAttributeMappingInfoBuffer = 0ULL, // TODO: implement color attribute mapping.
+                .positionByteStride = primitiveInfo.positionInfo.byteStride,
+                .normalByteStride = normalInfo.byteStride,
+                .tangentByteStride = tangentInfo.byteStride,
+                .materialIndex
+                    = primitiveInfo.materialIndex.transform([](std::size_t index) {
+                        return static_cast<std::int32_t>(index);
+                    })
+                    .value_or(-1 /* will use the fallback material */),
+            };
+        }),
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
     }.unmap();
 
@@ -324,7 +397,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexedAttributeMappi
     internalBuffers.emplace_back(std::move(buffer));
 }
 
-void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexBuffers(const AssetExternalBuffers &externalBuffers) {
+std::unordered_map<vk::IndexType, vku::AllocatedBuffer> vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexBuffers(const AssetExternalBuffers &externalBuffers) {
     // Primitive that are contains an indices accessor.
     auto indexedPrimitives = asset.meshes
         | std::views::transform(&fastgltf::Mesh::primitives)
@@ -377,10 +450,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexBuffers(const As
         }
     }
 
-    // Combine index data into a single staging buffer, and create GPU local buffers for each index data. Record copy
-    // commands to copyCommandBuffer.
-    indexBuffers
-        = indexBufferBytesByType
+    return indexBufferBytesByType
         | ranges::views::decompose_transform([&](vk::IndexType indexType, const auto &primitiveAndIndexBytesPairs) {
             auto [buffer, copyOffsets] = createCombinedStagingBuffer(
                 gpu.allocator,
