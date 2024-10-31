@@ -16,7 +16,7 @@ namespace vk_gltf_viewer::gltf {
         AttributeBufferInfo positionInfo;
         std::optional<AttributeBufferInfo> normalInfo;
         std::optional<AttributeBufferInfo> tangentInfo;
-        std::optional<IndexedAttributeBufferInfos> texcoordInfos;
+        IndexedAttributeBufferInfos texcoordsInfo;
         glm::dvec3 min;
         glm::dvec3 max;
     };

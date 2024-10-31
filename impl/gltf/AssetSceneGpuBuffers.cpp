@@ -96,7 +96,7 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createPrimitive
                 .pPositionBuffer = pPrimitiveInfo->positionInfo.address,
                 .pNormalBuffer = normalInfo.address,
                 .pTangentBuffer = tangentInfo.address,
-                .pTexcoordAttributeMappingInfoBuffer = pPrimitiveInfo->texcoordInfos.transform([](const auto &info) { return info.pMappingBuffer; }).value_or(0ULL),
+                .pTexcoordAttributeMappingInfoBuffer = pPrimitiveInfo->texcoordsInfo.pMappingBuffer,
                 .pColorAttributeMappingInfoBuffer = 0ULL, // TODO: implement color attribute mapping.
                 .positionByteStride = pPrimitiveInfo->positionInfo.byteStride,
                 .normalByteStride = normalInfo.byteStride,

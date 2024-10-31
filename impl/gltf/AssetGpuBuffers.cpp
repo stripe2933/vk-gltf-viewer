@@ -271,18 +271,10 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveAttributeBuffers(cons
             else if (constexpr auto prefix = "TEXCOORD_"sv; attributeName.starts_with(prefix)) {
                 const std::size_t index = parse<std::size_t>(std::string_view { attributeName }.substr(prefix.size()));
 
-                std::vector<AssetPrimitiveInfo::AttributeBufferInfo> &attributeBufferInfos = [&]() -> decltype(auto) {
-                    if (primitiveInfo.texcoordInfos) {
-                        return *primitiveInfo.texcoordInfos;
-                    }
-
-                    return primitiveInfo.texcoordInfos.emplace();
-                }().attributeInfos;
-
-                if (attributeBufferInfos.size() <= index) {
-                    attributeBufferInfos.resize(index + 1);
+                if (primitiveInfo.texcoordsInfo.attributeInfos.size() <= index) {
+                    primitiveInfo.texcoordsInfo.attributeInfos.resize(index + 1);
                 }
-                attributeBufferInfos[index] = getAttributeBufferInfo();
+                primitiveInfo.texcoordsInfo.attributeInfos[index] = getAttributeBufferInfo();
             }
             // TODO: COLOR_<i> attribute processing.
         }
@@ -296,8 +288,8 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexedAttributeMappi
     const std::vector primitiveWithTexcoordAttributeInfos
         = primitiveInfos
         | std::views::values
-        | std::views::filter([](const AssetPrimitiveInfo &primitiveInfo) { return primitiveInfo.texcoordInfos.has_value(); })
-        | std::views::transform([](AssetPrimitiveInfo &primitiveInfo) { return std::tie(primitiveInfo, primitiveInfo.texcoordInfos->attributeInfos); })
+        | std::views::filter([](const AssetPrimitiveInfo &primitiveInfo) { return !primitiveInfo.texcoordsInfo.attributeInfos.empty(); })
+        | std::views::transform([](AssetPrimitiveInfo &primitiveInfo) { return std::tie(primitiveInfo, primitiveInfo.texcoordsInfo.attributeInfos); })
         | std::ranges::to<std::vector>();
 
     if (primitiveWithTexcoordAttributeInfos.empty()) {
@@ -326,7 +318,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexedAttributeMappi
 
     const vk::DeviceAddress pIndexAttributeMappingBuffer = gpu.device.getBufferAddress({ buffer });
     for (auto &&[primitiveInfo, copyOffset] : std::views::zip(primitiveWithTexcoordAttributeInfos | std::views::keys, copyOffsets)) {
-        primitiveInfo.texcoordInfos->pMappingBuffer = pIndexAttributeMappingBuffer + copyOffset;
+        primitiveInfo.texcoordsInfo.pMappingBuffer = pIndexAttributeMappingBuffer + copyOffset;
     }
 
     internalBuffers.emplace_back(std::move(buffer));
