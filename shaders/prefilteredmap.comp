@@ -82,8 +82,8 @@ float dGgx(float dotNH, float roughness){
 void main(){
     const float PI = 3.14159265359;
 
-    uvec2 prefilteredmapImageSize = imageSize(prefilteredmapMipImages[pc.mipLevel]);
-    if (gl_GlobalInvocationID.x >= prefilteredmapImageSize.x || gl_GlobalInvocationID.y >= prefilteredmapImageSize.y){
+    uint prefilteredmapImageSize = imageSize(prefilteredmapMipImages[0]).x >> pc.mipLevel;
+    if (gl_GlobalInvocationID.x >= prefilteredmapImageSize || gl_GlobalInvocationID.y >= prefilteredmapImageSize){
         return;
     }
 
@@ -92,7 +92,7 @@ void main(){
     float saTexel  = 4.0 * PI / (6 * cubemapSize * cubemapSize);
 
     // tagent space from origin point
-    vec3 N = getWorldDirection(ivec3(gl_GlobalInvocationID), prefilteredmapImageSize.x);
+    vec3 N = getWorldDirection(ivec3(gl_GlobalInvocationID), prefilteredmapImageSize);
     // assume view direction always equal to outgoing direction
     vec3 V = N;
 

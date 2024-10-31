@@ -74,7 +74,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
 #if __cpp_lib_ranges_chunk >= 202202L
              const std::vector indexChunks
-                 = std::views::iota(1U, mipLevels + 1U)                                    // [1, 2, ..., 11, 12]
+                 = std::views::iota(1U, mipLevels)                                         // [1, 2, ..., 11, 12]
                  | std::views::reverse                                                     // [12, 11, ..., 2, 1]
                  | std::views::chunk(5)                                                    // [[12, 11, 10, 9, 8], [7, 6, 5, 4, 3], [2, 1]]
                  | std::views::transform([](auto &&chunk) {
