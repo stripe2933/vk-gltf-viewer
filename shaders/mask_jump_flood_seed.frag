@@ -58,7 +58,7 @@ layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
 };
 
 void main(){
-    float baseColorAlpha = MATERIAL.baseColorFactor.a * texture(textures[uint(MATERIAL.baseColorTexcoordIndex) + 1], fragBaseColorTexcoord).a;
+    float baseColorAlpha = MATERIAL.baseColorFactor.a * texture(textures[uint(MATERIAL.baseColorTextureIndex) + 1], fragBaseColorTexcoord).a;
     if (baseColorAlpha < MATERIAL.alphaCutoff) discard;
 
     outCoordinate = uvec2(gl_FragCoord.xy);
