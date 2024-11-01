@@ -18,23 +18,6 @@ namespace vk_gltf_viewer::gltf {
     export class AssetSceneGpuBuffers {
     public:
         /**
-         * @brief glTF primitive information that is necessary to generate <tt>vk::DrawIndirectCommand</tt> or <tt>vk::DrawIndexedIndirectCommand</tt>.
-         */
-        struct PrimitiveIndirectCommandInfo {
-            std::uint32_t drawCount;
-
-            /**
-             * @brief Index of the starting index data in the index buffer that the primitive rendering would use.
-             *
-             * If primitive is non-indexed, this MUST be <tt>std::nullopt</tt>.
-             */
-            std::optional<std::uint32_t> firstIndex;
-
-            std::uint32_t nodeIndex;
-            std::uint32_t index;
-        };
-
-        /**
          * @brief Asset primitives that are ordered by preorder scene traversal.
          *
          * It is a flattened list of (node index, &primitive) pairs that are collected by the preorder traversal of scene.
