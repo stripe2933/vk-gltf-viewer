@@ -627,19 +627,17 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             }
         };
 
-    if (renderingNodes) {
+    if (renderingNodes && cursorPosFromPassthruRectTopLeft) {
         cb.beginRenderingKHR(passthruResources->depthPrepassAttachmentGroup.getRenderingInfo(
             vku::AttachmentGroup::ColorAttachmentInfo {
-                // If cursor is not inside the passthru rect, mouse picking will not happen; node index attachment
-                // doesn't have to be preserved.
-                cursorPosFromPassthruRectTopLeft ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare,
-                cursorPosFromPassthruRectTopLeft ? vk::AttachmentStoreOp::eStore : vk::AttachmentStoreOp::eDontCare,
+                vk::AttachmentLoadOp::eClear,
+                vk::AttachmentStoreOp::eStore,
                 { static_cast<std::uint32_t>(NO_INDEX), 0U, 0U, 0U },
             },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 
         cb.setViewport(0, vku::toViewport(*passthruExtent, true));
-        cb.setScissor(0, vk::Rect2D{ { 0, 0 }, *passthruExtent });
+        cb.setScissor(0, vk::Rect2D{ *cursorPosFromPassthruRectTopLeft, { 1, 1 } });
 
         drawPrimitives(renderingNodes->indirectDrawCommandBuffers, sharedData.depthRenderer, sharedData.maskDepthRenderer);
 
