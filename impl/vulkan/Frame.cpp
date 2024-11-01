@@ -15,7 +15,7 @@ import :helpers.type_variant;
 import :math.extended_arithmetic;
 import :vulkan.ag.DepthPrepass;
 
-constexpr auto NO_INDEX = std::numeric_limits<std::uint32_t>::max();
+constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
 
 vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedData)
     : gpu { gpu }
@@ -82,7 +82,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     // Get node index under the cursor from hoveringNodeIndexBuffer.
     // If it is not NO_INDEX (i.e. node index is found), update hoveringNodeIndex.
-    if (auto value = std::exchange(hoveringNodeIndexBuffer.asValue<std::uint32_t>(), NO_INDEX); value != NO_INDEX) {
+    if (auto value = std::exchange(hoveringNodeIndexBuffer.asValue<std::uint16_t>(), NO_INDEX); value != NO_INDEX) {
         result.hoveringNodeIndex = value;
     }
 
@@ -634,7 +634,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 // doesn't have to be preserved.
                 cursorPosFromPassthruRectTopLeft ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare,
                 cursorPosFromPassthruRectTopLeft ? vk::AttachmentStoreOp::eStore : vk::AttachmentStoreOp::eDontCare,
-                { NO_INDEX, 0U, 0U, 0U },
+                { static_cast<std::uint32_t>(NO_INDEX), 0U, 0U, 0U },
             },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 

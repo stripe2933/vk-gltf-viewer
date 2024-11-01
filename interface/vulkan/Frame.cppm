@@ -47,7 +47,7 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         struct UpdateResult {
-            std::optional<std::uint32_t> hoveringNodeIndex;
+            std::optional<std::uint16_t> hoveringNodeIndex;
         };
 
         Frame(const Gpu &gpu [[clang::lifetimebound]], const SharedData &sharedData [[clang::lifetimebound]]);

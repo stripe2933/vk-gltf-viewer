@@ -51,7 +51,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     })),
                 vk::PipelineRenderingCreateInfo {
                     {},
-                    vku::unsafeProxy(vk::Format::eR32Uint),
+                    vku::unsafeProxy(vk::Format::eR16Uint),
                     vk::Format::eD32Sfloat,
                 }
             }.get() } { }

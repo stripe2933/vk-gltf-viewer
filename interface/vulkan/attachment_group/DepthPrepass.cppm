@@ -11,7 +11,7 @@ namespace vk_gltf_viewer::vulkan::ag {
         ) : AttachmentGroup { extent } {
             addColorAttachment(
                 gpu.device,
-                storeImage(createColorImage(gpu.allocator, vk::Format::eR32Uint, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc)));
+                storeImage(createColorImage(gpu.allocator, vk::Format::eR16Uint, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc)));
             setDepthStencilAttachment(
                 gpu.device,
                 storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
