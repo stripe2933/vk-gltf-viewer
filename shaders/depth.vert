@@ -13,7 +13,7 @@ layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer V
 
 layout (location = 0) flat out uint outNodeIndex;
 
-layout (set = 0, binding = 2) readonly buffer PrimitiveBuffer {
+layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
 

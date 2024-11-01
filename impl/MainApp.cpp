@@ -283,9 +283,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                         };
                     }));
                     gpu.device.updateDescriptorSets({
-                        sharedData.assetDescriptorSet.getWrite<0>(imageInfos),
+                        sharedData.assetDescriptorSet.getWriteOne<0>({ gltf->assetGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
                         sharedData.assetDescriptorSet.getWriteOne<1>({ gltf->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
-                        sharedData.assetDescriptorSet.getWriteOne<2>({ gltf->assetGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
+                        sharedData.assetDescriptorSet.getWrite<2>(imageInfos),
                         sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeWorldTransformBuffer, 0, vk::WholeSize }),
                     }, {});
 

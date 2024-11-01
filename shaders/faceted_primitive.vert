@@ -21,11 +21,11 @@ layout (location = 4) out vec2 outOcclusionTexcoord;
 layout (location = 5) out vec2 outEmissiveTexcoord;
 layout (location = 6) flat out uint outMaterialIndex;
 
-layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
-    Material materials[];
-};
-layout (set = 1, binding = 2) readonly buffer PrimitiveBuffer {
+layout (set = 1, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
+};
+layout (set = 1, binding = 1)readonly buffer MaterialBuffer {
+    Material materials[];
 };
 
 layout (set = 2, binding = 0) readonly buffer NodeTransformBuffer {

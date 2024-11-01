@@ -13,10 +13,10 @@ layout (location = 2) flat in uint inMaterialIndex;
 
 layout (location = 0) out uint outNodeIndex;
 
-layout (set = 0, binding = 0) uniform sampler2D textures[];
 layout (set = 0, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
+layout (set = 0, binding = 2) uniform sampler2D textures[];
 
 void main(){
     float baseColorAlpha = MATERIAL.baseColorFactor.a * texture(textures[uint(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord).a;
