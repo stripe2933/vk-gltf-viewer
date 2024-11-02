@@ -116,7 +116,7 @@ auto assetBuffers(std::span<fastgltf::Buffer> buffers, const std::filesystem::pa
         buffers,
         ImGui::ColumnInfo { "Name", [](std::size_t row, fastgltf::Buffer &buffer) {
             ImGui::WithID(row, [&]() {
-                ImGui::SetNextItemWidth(-std::numeric_limits<float>::lowest());
+                ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
                 ImGui::InputTextWithHint("##name", "<empty>", &buffer.name);
 
             });
@@ -159,7 +159,7 @@ auto assetBufferViews(std::span<fastgltf::BufferView> bufferViews, std::span<fas
         bufferViews,
         ImGui::ColumnInfo { "Name", [&](std::size_t rowIndex, fastgltf::BufferView &bufferView) {
             ImGui::WithID(rowIndex, [&]() {
-                ImGui::SetNextItemWidth(-std::numeric_limits<float>::lowest());
+                ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
                 ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
             });
         }, ImGuiTableColumnFlags_WidthStretch },
@@ -205,7 +205,7 @@ auto assetImages(std::span<fastgltf::Image> images, const std::filesystem::path 
         images,
         ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Image &image) {
             ImGui::WithID(rowIndex, [&]() {
-                ImGui::SetNextItemWidth(-std::numeric_limits<float>::lowest());
+                ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
                 ImGui::InputTextWithHint("##name", "<empty>", &image.name);
             });
         }, ImGuiTableColumnFlags_WidthStretch },
@@ -383,7 +383,7 @@ auto assetSamplers(std::span<fastgltf::Sampler> samplers) -> void {
         samplers,
         ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Sampler &sampler) {
             ImGui::WithID(rowIndex, [&]() {
-                ImGui::SetNextItemWidth(-std::numeric_limits<float>::lowest());
+                ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
                 ImGui::InputTextWithHint("##name", "<empty>", &sampler.name);
             });
         }, ImGuiTableColumnFlags_WidthStretch },
