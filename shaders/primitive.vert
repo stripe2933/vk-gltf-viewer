@@ -8,51 +8,18 @@
 
 #define VERTEX_SHADER
 #include "indexing.glsl"
-
-struct IndexedAttributeMappingInfo {
-    uint64_t bytesPtr;
-    uint8_t stride;
-};
+#include "types.glsl"
 
 layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Vec2Ref { vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Vec4Ref { vec4 data; };
-layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer IndexedAttributeMappingInfos { IndexedAttributeMappingInfo data[]; };
 
-struct Material {
-    uint8_t baseColorTexcoordIndex;
-    uint8_t metallicRoughnessTexcoordIndex;
-    uint8_t normalTexcoordIndex;
-    uint8_t occlusionTexcoordIndex;
-    uint8_t emissiveTexcoordIndex;
-    uint8_t padding0[1];
-    int16_t baseColorTextureIndex;
-    int16_t metallicRoughnessTextureIndex;
-    int16_t normalTextureIndex;
-    int16_t occlusionTextureIndex;
-    int16_t emissiveTextureIndex;
-    uint8_t FRAGMENT_DATA[48];
-};
-
-struct Primitive {
-    uint64_t pPositionBuffer;
-    uint64_t pNormalBuffer;
-    uint64_t pTangentBuffer;
-    IndexedAttributeMappingInfos texcoordAttributeMappingInfos;
-    IndexedAttributeMappingInfos colorAttributeMappingInfos;
-    uint8_t positionByteStride;
-    uint8_t normalByteStride;
-    uint8_t tangentByteStride;
-    uint8_t padding;
-    int materialIndex;
-};
-
-layout (location = 0) out vec3 fragPosition;
-layout (location = 1) out mat3 fragTBN;
-layout (location = 4) out vec2 fragBaseColorTexcoord;
-layout (location = 5) out vec2 fragMetallicRoughnessTexcoord;
-layout (location = 6) out vec2 fragNormalTexcoord;
-layout (location = 7) out vec2 fragOcclusionTexcoord;
-layout (location = 8) out vec2 fragEmissiveTexcoord;
+layout (location = 0) out vec3 outPosition;
+layout (location = 1) out mat3 outTBN;
+layout (location = 4) out vec2 outBaseColorTexcoord;
+layout (location = 5) out vec2 outMetallicRoughnessTexcoord;
+layout (location = 6) out vec2 outNormalTexcoord;
+layout (location = 7) out vec2 outOcclusionTexcoord;
+layout (location = 8) out vec2 outEmissiveTexcoord;
 layout (location = 9) flat out int outMaterialIndex;
 
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
@@ -97,29 +64,29 @@ void main(){
     vec3 inNormal = getVec3(PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * gl_VertexIndex);
 
     mat4 transform = TRANSFORM;
-    fragPosition = (transform * vec4(inPosition, 1.0)).xyz;
-    fragTBN[2] = normalize(mat3(transform) * inNormal); // N
+    outPosition = (transform * vec4(inPosition, 1.0)).xyz;
+    outTBN[2] = normalize(mat3(transform) * inNormal); // N
 
     if (int(MATERIAL.baseColorTextureIndex) != -1){
-        fragBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
+        outBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
     }
     if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
-        fragMetallicRoughnessTexcoord = getTexcoord(uint(MATERIAL.metallicRoughnessTexcoordIndex));
+        outMetallicRoughnessTexcoord = getTexcoord(uint(MATERIAL.metallicRoughnessTexcoordIndex));
     }
     if (int(MATERIAL.normalTextureIndex) != -1){
         vec4 inTangent = getVec4(PRIMITIVE.pTangentBuffer + uint(PRIMITIVE.tangentByteStride) * gl_VertexIndex);
-        fragTBN[0] = normalize(mat3(transform) * inTangent.xyz); // T
-        fragTBN[1] = cross(fragTBN[2], fragTBN[0]) * -inTangent.w; // B
+        outTBN[0] = normalize(mat3(transform) * inTangent.xyz); // T
+        outTBN[1] = cross(outTBN[2], outTBN[0]) * -inTangent.w; // B
 
-        fragNormalTexcoord = getTexcoord(uint(MATERIAL.normalTexcoordIndex));
+        outNormalTexcoord = getTexcoord(uint(MATERIAL.normalTexcoordIndex));
     }
     if (int(MATERIAL.occlusionTextureIndex) != -1){
-        fragOcclusionTexcoord = getTexcoord(uint(MATERIAL.occlusionTexcoordIndex));
+        outOcclusionTexcoord = getTexcoord(uint(MATERIAL.occlusionTexcoordIndex));
     }
     if (int(MATERIAL.emissiveTextureIndex) != -1){
-        fragEmissiveTexcoord = getTexcoord(uint(MATERIAL.emissiveTexcoordIndex));
+        outEmissiveTexcoord = getTexcoord(uint(MATERIAL.emissiveTexcoordIndex));
     }
     outMaterialIndex = MATERIAL_INDEX;
 
-    gl_Position = pc.projectionView * vec4(fragPosition, 1.0);
+    gl_Position = pc.projectionView * vec4(outPosition, 1.0);
 }

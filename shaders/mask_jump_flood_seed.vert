@@ -8,51 +8,12 @@
 
 #define VERTEX_SHADER
 #include "indexing.glsl"
-
-struct IndexedAttributeMappingInfo {
-    uint64_t bytesPtr;
-    uint8_t stride;
-};
+#include "types.glsl"
 
 layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Vec2Ref { vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Vec4Ref { vec4 data; };
-layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer IndexedAttributeMappingInfos { IndexedAttributeMappingInfo data[]; };
 
-struct Material {
-    uint8_t baseColorTexcoordIndex;
-    uint8_t metallicRoughnessTexcoordIndex;
-    uint8_t normalTexcoordIndex;
-    uint8_t occlusionTexcoordIndex;
-    uint8_t emissiveTexcoordIndex;
-    uint8_t padding0[1];
-    int16_t baseColorTextureIndex;
-    int16_t metallicRoughnessTextureIndex;
-    int16_t normalTextureIndex;
-    int16_t occlusionTextureIndex;
-    int16_t emissiveTextureIndex;
-    vec4 baseColorFactor;
-    float metallicFactor;
-    float roughnessFactor;
-    float normalScale;
-    float occlusionStrength;
-    vec3 emissiveFactor;
-    float alphaCutoff;
-};
-
-struct Primitive {
-    uint64_t pPositionBuffer;
-    uint64_t pNormalBuffer;
-    uint64_t pTangentBuffer;
-    IndexedAttributeMappingInfos texcoordAttributeMappingInfos;
-    IndexedAttributeMappingInfos colorAttributeMappingInfos;
-    uint8_t positionByteStride;
-    uint8_t normalByteStride;
-    uint8_t tangentByteStride;
-    uint8_t padding;
-    int materialIndex;
-};
-
-layout (location = 0) out vec2 fragBaseColorTexcoord;
+layout (location = 0) out vec2 outBaseColorTexcoord;
 layout (location = 1) flat out int outMaterialIndex;
 
 layout (set = 0, binding = 1) readonly buffer MaterialBuffer {
@@ -89,7 +50,7 @@ vec2 getTexcoord(uint texcoordIndex){
 
 void main(){
     if (int(MATERIAL.baseColorTextureIndex) != -1){
-        fragBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
+        outBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
     }
     outMaterialIndex = MATERIAL_INDEX;
 

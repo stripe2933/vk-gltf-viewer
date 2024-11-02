@@ -6,22 +6,10 @@
 
 #define VERTEX_SHADER
 #include "indexing.glsl"
+#include "types.glsl"
 
 layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Vec2Ref { vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Vec4Ref { vec4 data; };
-
-struct Primitive {
-    uint64_t pPositionBuffer;
-    uint64_t pNormalBuffer;
-    uint64_t pTangentBuffer;
-    uint64_t texcoordAttributeMappingInfos;
-    uint64_t colorAttributeMappingInfos;
-    uint8_t positionByteStride;
-    uint8_t normalByteStride;
-    uint8_t tangentByteStride;
-    uint8_t padding;
-    int materialIndex;
-};
 
 layout (location = 0) flat out uint outNodeIndex;
 

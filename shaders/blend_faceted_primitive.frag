@@ -7,31 +7,16 @@
 #define FRAGMENT_SHADER
 #include "indexing.glsl"
 #include "spherical_harmonics.glsl"
+#include "types.glsl"
 
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
-struct Material {
-    uint8_t VERTEX_DATA[6];
-    int16_t baseColorTextureIndex;
-    int16_t metallicRoughnessTextureIndex;
-    int16_t normalTextureIndex;
-    int16_t occlusionTextureIndex;
-    int16_t emissiveTextureIndex;
-    vec4 baseColorFactor;
-    float metallicFactor;
-    float roughnessFactor;
-    float normalScale;
-    float occlusionStrength;
-    vec3 emissiveFactor;
-    float alphaCutoff;
-};
-
-layout (location = 0) in vec3 fragPosition;
-layout (location = 1) in vec2 fragBaseColorTexcoord;
-layout (location = 2) in vec2 fragMetallicRoughnessTexcoord;
-layout (location = 3) in vec2 fragNormalTexcoord;
-layout (location = 4) in vec2 fragOcclusionTexcoord;
-layout (location = 5) in vec2 fragEmissiveTexcoord;
+layout (location = 0) in vec3 inPosition;
+layout (location = 1) in vec2 inBaseColorTexcoord;
+layout (location = 2) in vec2 inMetallicRoughnessTexcoord;
+layout (location = 3) in vec2 inNormalTexcoord;
+layout (location = 4) in vec2 inOcclusionTexcoord;
+layout (location = 5) in vec2 inEmissiveTexcoord;
 layout (location = 6) flat in int inMaterialIndex;
 
 layout (location = 0) out vec4 outAccumulation;
@@ -69,19 +54,19 @@ vec3 diffuseIrradiance(vec3 normal){
 }
 
 void main(){
-    vec4 baseColor = MATERIAL.baseColorFactor * texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], fragBaseColorTexcoord);
+    vec4 baseColor = MATERIAL.baseColorFactor * texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord);
 
-    vec2 metallicRoughness = vec2(MATERIAL.metallicFactor, MATERIAL.roughnessFactor) * texture(textures[int(MATERIAL.metallicRoughnessTextureIndex) + 1], fragMetallicRoughnessTexcoord).bg;
+    vec2 metallicRoughness = vec2(MATERIAL.metallicFactor, MATERIAL.roughnessFactor) * texture(textures[int(MATERIAL.metallicRoughnessTextureIndex) + 1], inMetallicRoughnessTexcoord).bg;
     float metallic = metallicRoughness.x;
     float roughness = metallicRoughness.y;
 
-    vec3 tangent = dFdx(fragPosition);
-    vec3 bitangent = dFdy(fragPosition);
+    vec3 tangent = dFdx(inPosition);
+    vec3 bitangent = dFdy(inPosition);
     vec3 normal = normalize(cross(tangent, bitangent));
 
     vec3 N;
     if (int(MATERIAL.normalTextureIndex) != -1){
-        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], fragNormalTexcoord).rgb;
+        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], inNormalTexcoord).rgb;
         vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
         N = normalize(mat3(tangent, bitangent, normal) * scaledNormal);
     }
@@ -89,11 +74,11 @@ void main(){
         N = normal;
     }
 
-    float occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[int(MATERIAL.occlusionTextureIndex) + 1], fragOcclusionTexcoord).r - 1.0);
+    float occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[int(MATERIAL.occlusionTextureIndex) + 1], inOcclusionTexcoord).r - 1.0);
 
-    vec3 emissive = MATERIAL.emissiveFactor * texture(textures[int(MATERIAL.emissiveTextureIndex) + 1], fragEmissiveTexcoord).rgb;
+    vec3 emissive = MATERIAL.emissiveFactor * texture(textures[int(MATERIAL.emissiveTextureIndex) + 1], inEmissiveTexcoord).rgb;
 
-    vec3 V = normalize(pc.viewPosition - fragPosition);
+    vec3 V = normalize(pc.viewPosition - inPosition);
     float NdotV = dot(N, V);
     // If normal is not facing the camera, normal have to be flipped.
     if (NdotV < 0.0) {
