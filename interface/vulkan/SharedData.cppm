@@ -6,6 +6,7 @@ export module vk_gltf_viewer:vulkan.SharedData;
 
 import std;
 export import vku;
+import :helpers.ranges;
 export import :vulkan.ag.Swapchain;
 export import :vulkan.Gpu;
 export import :vulkan.pipeline.BlendFacetedPrimitiveRenderer;
@@ -71,7 +72,8 @@ namespace vk_gltf_viewer::vulkan {
 
         // Attachment groups.
         ag::Swapchain swapchainAttachmentGroup { gpu, swapchainExtent, swapchainImages };
-        ag::Swapchain imGuiSwapchainAttachmentGroup { gpu, swapchainExtent, swapchainImages, gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb };
+        // If GPU does not support mutable swapchain format, it will be const reference of swapchainAttachmentGroup.
+        std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> imGuiSwapchainAttachmentGroup = getImGuiSwapchainAttachmentGroup();
 
         // Descriptor pools.
         vk::raii::DescriptorPool textureDescriptorPool = createTextureDescriptorPool();
@@ -125,7 +127,7 @@ namespace vk_gltf_viewer::vulkan {
             swapchainImages = swapchain.getImages();
 
             swapchainAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
-            imGuiSwapchainAttachmentGroup = { gpu, swapchainExtent, swapchainImages, gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb };
+            imGuiSwapchainAttachmentGroup = getImGuiSwapchainAttachmentGroup();
 
             const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
             const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
@@ -196,6 +198,15 @@ namespace vk_gltf_viewer::vulkan {
             }
 
             return { gpu.device, createInfo.get() };
+        }
+
+        [[nodiscard]] std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> getImGuiSwapchainAttachmentGroup() {
+            if (gpu.supportSwapchainMutableFormat) {
+                return decltype(imGuiSwapchainAttachmentGroup) { std::in_place_index<0>, gpu, swapchainExtent, swapchainImages, vk::Format::eB8G8R8A8Unorm };
+            }
+            else {
+                return decltype(imGuiSwapchainAttachmentGroup) { std::in_place_index<1>, swapchainAttachmentGroup };
+            }
         }
 
         [[nodiscard]] auto createTextureDescriptorPool() const -> vk::raii::DescriptorPool {

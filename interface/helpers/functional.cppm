@@ -47,5 +47,5 @@ export template <typename F>
  */
 export template <typename T, std::convertible_to<T>... Ts>
 [[nodiscard]] auto visit_as(const std::variant<Ts...> &v) -> T {
-    return std::visit([](T x) { return x; }, v);
+    return std::visit([](T x) -> T { return x; }, v);
 }

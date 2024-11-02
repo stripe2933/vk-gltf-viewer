@@ -956,7 +956,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
     std::uint32_t swapchainImageIndex
 ) const -> void {
     // Start dynamic rendering with B8G8R8A8_UNORM format.
-    cb.beginRenderingKHR(sharedData.imGuiSwapchainAttachmentGroup.getRenderingInfo(
+    cb.beginRenderingKHR(visit_as<const ag::Swapchain&>(sharedData.imGuiSwapchainAttachmentGroup).getRenderingInfo(
         vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
         swapchainImageIndex));
 
