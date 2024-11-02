@@ -108,7 +108,6 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance 
             !vulkan12Features.runtimeDescriptorArray ||
             !vulkan12Features.storageBuffer8BitAccess ||
             !vulkan12Features.uniformAndStorageBuffer8BitAccess ||
-            !vulkan12Features.storagePushConstant8 ||
             !vulkan12Features.scalarBlockLayout ||
             !vulkan12Features.timelineSemaphore ||
             !vulkan12Features.shaderInt8 ||
@@ -206,7 +205,6 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
             .setRuntimeDescriptorArray(true)
             .setStorageBuffer8BitAccess(true)
             .setUniformAndStorageBuffer8BitAccess(true)
-            .setStoragePushConstant8(true)
             .setScalarBlockLayout(true)
             .setTimelineSemaphore(true)
             .setShaderInt8(true)

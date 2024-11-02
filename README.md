@@ -112,7 +112,6 @@ The extensions and feature used in this application are quite common in the mode
     - `runtimeDescriptorArray`
     - `storageBuffer8BitAccess`
     - `uniformAndStorageBuffer8BitAccess`
-    - `storagePushConstant8`
     - `scalarBlockLayout`
     - `timelineSemaphore`
     - `shaderInt8`
