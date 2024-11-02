@@ -18,7 +18,7 @@ layout (location = 5) in vec2 inMetallicRoughnessTexcoord;
 layout (location = 6) in vec2 inNormalTexcoord;
 layout (location = 7) in vec2 inOcclusionTexcoord;
 layout (location = 8) in vec2 inEmissiveTexcoord;
-layout (location = 9) flat in int inMaterialIndex;
+layout (location = 9) flat in uint inMaterialIndex;
 
 layout (location = 0) out vec4 outColor;
 

@@ -80,7 +80,7 @@ namespace vk_gltf_viewer::gltf {
             std::uint8_t normalByteStride;
             std::uint8_t tangentByteStride;
             char padding[1];
-            std::int32_t materialIndex; // -1 for fallback material.
+            std::uint32_t materialIndex;
         };
 
         std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> primitiveInfos = createPrimitiveInfos();

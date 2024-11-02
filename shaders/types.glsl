@@ -42,7 +42,7 @@ struct Primitive {
     uint8_t normalByteStride;
     uint8_t tangentByteStride;
     uint8_t padding;
-    int materialIndex;
+    uint materialIndex;
 };
 
 #endif

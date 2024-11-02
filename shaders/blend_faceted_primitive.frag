@@ -17,7 +17,7 @@ layout (location = 2) in vec2 inMetallicRoughnessTexcoord;
 layout (location = 3) in vec2 inNormalTexcoord;
 layout (location = 4) in vec2 inOcclusionTexcoord;
 layout (location = 5) in vec2 inEmissiveTexcoord;
-layout (location = 6) flat in int inMaterialIndex;
+layout (location = 6) flat in uint inMaterialIndex;
 
 layout (location = 0) out vec4 outAccumulation;
 layout (location = 1) out float outRevealage;

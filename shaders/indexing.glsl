@@ -9,7 +9,7 @@
 #define NODE_INDEX gl_BaseInstance >> 16U
 #define TRANSFORM nodeTransforms[NODE_INDEX]
 #define MATERIAL_INDEX PRIMITIVE.materialIndex
-#define MATERIAL materials[MATERIAL_INDEX + 1]
+#define MATERIAL materials[MATERIAL_INDEX]
 
 #elif defined(FRAGMENT_SHADER)
 
@@ -18,6 +18,6 @@
 // --------------------
 
 #define MATERIAL_INDEX inMaterialIndex
-#define MATERIAL materials[inMaterialIndex + 1]
+#define MATERIAL materials[inMaterialIndex]
 
 #endif

@@ -9,7 +9,7 @@
 
 layout (location = 0) in vec2 inBaseColorTexcoord;
 layout (location = 1) flat in uint inNodeIndex;
-layout (location = 2) flat in int inMaterialIndex;
+layout (location = 2) flat in uint inMaterialIndex;
 
 layout (location = 0) out uint outNodeIndex;
 

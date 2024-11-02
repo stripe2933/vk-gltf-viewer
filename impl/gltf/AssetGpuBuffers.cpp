@@ -230,9 +230,9 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveBuffe
                 .tangentByteStride = tangentInfo.byteStride,
                 .materialIndex
                     = primitiveInfo.materialIndex.transform([](std::size_t index) {
-                        return static_cast<std::int32_t>(index);
+                        return 1U /* index 0 is reserved for the fallback material */ + static_cast<std::uint32_t>(index);
                     })
-                    .value_or(-1 /* will use the fallback material */),
+                    .value_or(0U),
             };
         }),
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,

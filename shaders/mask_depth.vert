@@ -15,7 +15,7 @@ layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer V
 
 layout (location = 0) out vec2 outBaseColorTexcoord;
 layout (location = 1) flat out uint outNodeIndex;
-layout (location = 2) flat out int outMaterialIndex;
+layout (location = 2) flat out uint outMaterialIndex;
 
 layout (set = 0, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
