@@ -103,6 +103,74 @@ auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 
     }
 }
 
+void attributeTable(std::ranges::viewable_range auto const &attributes) {
+    static int floatingPointPrecision = 2;
+    ImGui::TableNoRowNumber(
+        "attributes-table",
+        ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_SizingFixedFit,
+        attributes,
+        ImGui::ColumnInfo { "Attribute", decomposer([](std::string_view attributeName, const auto&) {
+            ImGui::TextUnformatted(attributeName);
+        }) },
+        ImGui::ColumnInfo { "Type", decomposer([](auto, const fastgltf::Accessor &accessor) {
+            ImGui::Text("%s (%s)", to_string(accessor.type).c_str(), to_string(accessor.componentType).c_str());
+        }) },
+        ImGui::ColumnInfo { "Count", decomposer([](auto, const fastgltf::Accessor &accessor) {
+            ImGui::Text("%zu", accessor.count);
+        }) },
+        ImGui::ColumnInfo { "Bound", decomposer([](auto, const fastgltf::Accessor &accessor) {
+            std::visit(fastgltf::visitor {
+                [](const std::pmr::vector<std::int64_t> &min, const std::pmr::vector<std::int64_t> &max) {
+                    assert(min.size() == max.size() && "Different min/max dimension");
+                    if (min.size() == 1) ImGui::Text("[%" PRId64 ", %" PRId64 "]", min[0], max[0]);
+#if __cpp_lib_format_ranges >= 202207L
+                    else ImGui::TextUnformatted(std::format("{}x{}", min, max));
+#else
+                    else if (min.size() == 2) ImGui::Text("[%" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 "]", min[0], min[1], max[0], max[1]);
+                    else if (min.size() == 3) ImGui::Text("[%" PRId64 ", %" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 ", %" PRId64 "]", min[0], min[1], min[2], max[0], max[1], max[2]);
+                    else if (min.size() == 4) ImGui::Text("[%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "]", min[0], min[1], min[2], min[3], max[0], max[1], max[2], max[3]);
+                    else assert(false && "Unsupported min/max dimension");
+#endif
+                },
+                [](const std::pmr::vector<double> &min, const std::pmr::vector<double> &max) {
+                    assert(min.size() == max.size() && "Different min/max dimension");
+                    if (min.size() == 1) ImGui::Text("[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, max[0]);
+#if __cpp_lib_format_ranges >= 202207L
+                    else ImGui::TextUnformatted(std::format("{0::.{2}f}x{1::.{2}f}", min, max, floatingPointPrecision));
+#else
+                    else if (min.size() == 2) ImGui::Text("[%.*lf, %.*lf]x[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, max[0], floatingPointPrecision, max[1]);
+                    else if (min.size() == 3) ImGui::Text("[%.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2]);
+                    else if (min.size() == 4) ImGui::Text("[%.*lf, %.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], min[1], floatingPointPrecision, min[3], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2], floatingPointPrecision, max[3]);
+                    else assert(false && "Unsupported min/max dimension");
+#endif
+                },
+                [](const auto&...) {
+                    ImGui::TextUnformatted("-"sv);
+                }
+            }, accessor.min, accessor.max);
+        }) },
+        ImGui::ColumnInfo { "Normalized", decomposer([](auto, const fastgltf::Accessor &accessor) {
+            ImGui::TextUnformatted(accessor.normalized ? "Yes"sv : "No"sv);
+        }), ImGuiTableColumnFlags_DefaultHide },
+        ImGui::ColumnInfo { "Sparse", decomposer([](auto, const fastgltf::Accessor &accessor) {
+            ImGui::TextUnformatted(accessor.sparse ? "Yes"sv : "No"sv);
+        }), ImGuiTableColumnFlags_DefaultHide },
+        ImGui::ColumnInfo { "Buffer View", decomposer([](auto, const fastgltf::Accessor &accessor) {
+            if (accessor.bufferViewIndex) {
+                if (ImGui::TextLink(to_string(*accessor.bufferViewIndex).c_str())) {
+                    // TODO.
+                }
+            }
+            else {
+                ImGui::TextDisabled("-");
+            }
+        }) });
+
+    if (ImGui::InputInt("Bound fp precision", &floatingPointPrecision)) {
+        floatingPointPrecision = std::clamp(floatingPointPrecision, 0, 9);
+    }
+}
+
 auto assetInfo(fastgltf::AssetInfo &assetInfo) -> void {
     ImGui::InputTextWithHint("glTF Version", "<empty>", &assetInfo.gltfVersion);
     ImGui::InputTextWithHint("Generator", "<empty>", &assetInfo.generator);
@@ -820,6 +888,14 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                 },
             }, node.transform);
 
+            if (!node.instancingAttributes.empty() && ImGui::TreeNodeEx("EXT_mesh_gpu_instancing", ImGuiTreeNodeFlags_NoTreePushOnOpen)) {
+                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+                    attributeTable(node.instancingAttributes | ranges::views::decompose_transform([&](std::string_view attributeName, std::size_t accessorIndex) {
+                        return std::pair<std::string_view, const fastgltf::Accessor&> { attributeName, asset.accessors[accessorIndex] };
+                    }));
+                });
+            }
+
             if (ImGui::BeginTabBar("node-tab-bar")) {
                 if (node.meshIndex && ImGui::BeginTabItem("Mesh")) {
                     fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
@@ -841,77 +917,13 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                                 });
                             }
 
-                            static int floatingPointPrecision = 2;
-                            ImGui::TableNoRowNumber(
-                                "attributes-table",
-                                ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_SizingFixedFit,
-                                ranges::views::concat(
-                                    to_range(to_optional(primitive.indicesAccessor).transform([&](std::size_t accessorIndex) {
-                                        return std::pair<std::string_view, const fastgltf::Accessor&> { "Index"sv, asset.accessors[accessorIndex] };
-                                    })),
-                                    primitive.attributes | ranges::views::decompose_transform([&](std::string_view attributeName, std::size_t accessorIndex) {
-                                        return std::pair<std::string_view, const fastgltf::Accessor&> { attributeName, asset.accessors[accessorIndex] };
-                                    })),
-                                ImGui::ColumnInfo { "Attribute", decomposer([](std::string_view attributeName, const auto&) {
-                                    ImGui::TextUnformatted(attributeName);
-                                }) },
-                                ImGui::ColumnInfo { "Type", decomposer([](auto, const fastgltf::Accessor &accessor) {
-                                    ImGui::Text("%s (%s)", to_string(accessor.type).c_str(), to_string(accessor.componentType).c_str());
-                                }) },
-                                ImGui::ColumnInfo { "Count", decomposer([](auto, const fastgltf::Accessor &accessor) {
-                                    ImGui::Text("%zu", accessor.count);
-                                }) },
-                                ImGui::ColumnInfo { "Bound", decomposer([](auto, const fastgltf::Accessor &accessor) {
-                                    std::visit(fastgltf::visitor {
-                                        [](const std::pmr::vector<std::int64_t> &min, const std::pmr::vector<std::int64_t> &max) {
-                                            assert(min.size() == max.size() && "Different min/max dimension");
-                                            if (min.size() == 1) ImGui::Text("[%" PRId64 ", %" PRId64 "]", min[0], max[0]);
-#if __cpp_lib_format_ranges >= 202207L
-                                            else ImGui::TextUnformatted(std::format("{}x{}", min, max));
-#else
-                                            else if (min.size() == 2) ImGui::Text("[%" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 "]", min[0], min[1], max[0], max[1]);
-                                            else if (min.size() == 3) ImGui::Text("[%" PRId64 ", %" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 ", %" PRId64 "]", min[0], min[1], min[2], max[0], max[1], max[2]);
-                                            else if (min.size() == 4) ImGui::Text("[%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "]", min[0], min[1], min[2], min[3], max[0], max[1], max[2], max[3]);
-                                            else assert(false && "Unsupported min/max dimension");
-#endif
-                                        },
-                                        [](const std::pmr::vector<double> &min, const std::pmr::vector<double> &max) {
-                                            assert(min.size() == max.size() && "Different min/max dimension");
-                                            if (min.size() == 1) ImGui::Text("[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, max[0]);
-#if __cpp_lib_format_ranges >= 202207L
-                                            else ImGui::TextUnformatted(std::format("{0::.{2}f}x{1::.{2}f}", min, max, floatingPointPrecision));
-#else
-                                            else if (min.size() == 2) ImGui::Text("[%.*lf, %.*lf]x[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, max[0], floatingPointPrecision, max[1]);
-                                            else if (min.size() == 3) ImGui::Text("[%.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2]);
-                                            else if (min.size() == 4) ImGui::Text("[%.*lf, %.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], min[1], floatingPointPrecision, min[3], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2], floatingPointPrecision, max[3]);
-                                            else assert(false && "Unsupported min/max dimension");
-#endif
-                                        },
-                                        [](const auto&...) {
-                                            ImGui::TextUnformatted("-"sv);
-                                        }
-                                    }, accessor.min, accessor.max);
-                                }) },
-                                ImGui::ColumnInfo { "Normalized", decomposer([](auto, const fastgltf::Accessor &accessor) {
-                                    ImGui::TextUnformatted(accessor.normalized ? "Yes"sv : "No"sv);
-                                }), ImGuiTableColumnFlags_DefaultHide },
-                                ImGui::ColumnInfo { "Sparse", decomposer([](auto, const fastgltf::Accessor &accessor) {
-                                    ImGui::TextUnformatted(accessor.sparse ? "Yes"sv : "No"sv);
-                                }), ImGuiTableColumnFlags_DefaultHide },
-                                ImGui::ColumnInfo { "Buffer View", decomposer([](auto, const fastgltf::Accessor &accessor) {
-                                    if (accessor.bufferViewIndex) {
-                                        if (ImGui::TextLink(to_string(*accessor.bufferViewIndex).c_str())) {
-                                            // TODO.
-                                        }
-                                    }
-                                    else {
-                                        ImGui::TextDisabled("-");
-                                    }
-                                }) });
-
-                            if (ImGui::InputInt("Bound fp precision", &floatingPointPrecision)) {
-                                floatingPointPrecision = std::clamp(floatingPointPrecision, 0, 9);
-                            }
+                            attributeTable(ranges::views::concat(
+                                to_range(to_optional(primitive.indicesAccessor).transform([&](std::size_t accessorIndex) {
+                                    return std::pair<std::string_view, const fastgltf::Accessor&> { "Index"sv, asset.accessors[accessorIndex] };
+                                })),
+                                primitive.attributes | ranges::views::decompose_transform([&](std::string_view attributeName, std::size_t accessorIndex) {
+                                    return std::pair<std::string_view, const fastgltf::Accessor&> { attributeName, asset.accessors[accessorIndex] };
+                                })));
                         }
                     }
                     ImGui::EndTabItem();

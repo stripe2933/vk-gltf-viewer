@@ -139,17 +139,21 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
 
             if (task.frustum) {
-                const std::span nodeWorldTransforms = task.gltf->sceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>();
                 for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
                     visit([&]<bool Indexed>(buffer::IndirectDrawCommands<Indexed> &indirectDrawCommands) -> void {
                         indirectDrawCommands.partition([&](const buffer::IndirectDrawCommands<Indexed>::command_t &command) {
+                            if (command.instanceCount > 1) {
+                                // Do not perform frustum culling for instanced mesh.
+                                return true;
+                            }
+
                             const std::uint16_t nodeIndex = command.firstInstance >> 16U;
                             const std::uint16_t primitiveIndex = command.firstInstance & 0xFFFFU;
                             const fastgltf::Primitive &primitive = task.gltf->assetGpuBuffers.getPrimitiveByOrder(primitiveIndex);
 
                             const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
 
-                            const glm::mat4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
+                            const glm::mat4 &nodeWorldTransform = task.gltf->sceneHierarchy.nodeWorldTransforms[nodeIndex];
                             const glm::vec3 transformedMin = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { primitiveInfo.min, 1.f });
                             const glm::vec3 transformedMax = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { primitiveInfo.max, 1.f });
 

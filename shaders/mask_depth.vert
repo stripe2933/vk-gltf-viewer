@@ -12,6 +12,7 @@
 
 layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Vec2Ref { vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Vec4Ref { vec4 data; };
+layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
 
 layout (location = 0) out vec2 outBaseColorTexcoord;
 layout (location = 1) flat out uint outNodeIndex;
@@ -24,8 +25,8 @@ layout (set = 0, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
-layout (set = 1, binding = 0) readonly buffer NodeTransformBuffer {
-    mat4 nodeTransforms[];
+layout (set = 1, binding = 0, std430) readonly buffer NodeBuffer {
+    Node nodes[];
 };
 
 layout (push_constant) uniform PushConstant {

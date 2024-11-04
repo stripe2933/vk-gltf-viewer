@@ -22,6 +22,7 @@ namespace vk_gltf_viewer::vulkan {
             struct Gltf {
                 const fastgltf::Asset &asset;
                 const gltf::AssetGpuBuffers &assetGpuBuffers;
+                const gltf::AssetSceneHierarchy &sceneHierarchy;
                 const gltf::AssetSceneGpuBuffers &sceneGpuBuffers;
                 std::optional<std::uint16_t> hoveringNodeIndex;
                 std::unordered_set<std::uint16_t> selectedNodeIndices;

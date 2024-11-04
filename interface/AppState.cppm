@@ -43,7 +43,7 @@ namespace vk_gltf_viewer {
         public:
             fastgltf::Asset &asset;
             std::variant<std::vector<std::optional<bool>>, std::vector<bool>> nodeVisibilities { std::in_place_index<0>, asset.nodes.size(), true };
-            std::optional<std::size_t> assetInspectorMaterialIndex = asset.materials.empty() ? std::optional<std::size_t>{} : std::optional<std::size_t> { 0 };
+            std::optional<std::size_t> assetInspectorMaterialIndex = value_if(!asset.materials.empty(), std::size_t { 0 });
 
             std::unordered_set<std::uint16_t> selectedNodeIndices;
             std::optional<std::uint16_t> hoveringNodeIndex;
@@ -93,30 +93,8 @@ namespace vk_gltf_viewer {
                 }, nodeVisibilities);
             }
 
-            /**
-             * Get index of the parent node of the given node.
-             * @param nodeIndex Index of the node.
-             * @return Index of the parent node if the current node is not root node, otherwise <tt>std::nullopt</tt>.
-             */
-            [[nodiscard]] std::optional<std::uint16_t> getParentNodeIndex(std::uint16_t nodeIndex) const noexcept {
-                const std::uint16_t parentNodeIndex = parentNodeIndices[nodeIndex];
-                return value_if(parentNodeIndex != nodeIndex, parentNodeIndex);
-            }
-
         private:
             std::size_t sceneIndex = asset.defaultScene.value_or(0);
-            std::vector<std::uint16_t> parentNodeIndices = createParentNodeIndices();
-
-            [[nodiscard]] auto createParentNodeIndices() const noexcept -> std::vector<std::uint16_t> {
-                std::vector<std::uint16_t> indices(asset.nodes.size());
-                std::iota(indices.begin(), indices.end(), static_cast<std::uint16_t>(0));
-                for (const auto &[i, node] : asset.nodes | ranges::views::enumerate) {
-                    for (std::size_t childIndex : node.children) {
-                        indices[childIndex] = i;
-                    }
-                }
-                return indices;
-            }
         };
 
         control::Camera camera;

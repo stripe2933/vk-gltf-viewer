@@ -15,7 +15,7 @@ import :helpers.functional;
 import :helpers.ranges;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-#define LIFT(...) [](auto &&x) { return __VA_ARGS__(FWD(x)); }
+#define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
 
 /**
  * @brief Parse a number from given \p str.

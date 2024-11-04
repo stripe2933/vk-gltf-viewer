@@ -7,11 +7,15 @@ import :gltf.AssetGpuBuffers;
 import :gltf.AssetGpuTextures;
 import :gltf.AssetGpuFallbackTexture;
 import :gltf.AssetSceneGpuBuffers;
+import :gltf.AssetSceneHierarchy;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Scene;
 import :vulkan.dsl.Skybox;
 import :vulkan.Frame;
+
+#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+#define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
 
 namespace vk_gltf_viewer {
     export class MainApp {
@@ -45,7 +49,7 @@ namespace vk_gltf_viewer {
              */
             fastgltf::Asset &asset { assetExpected.get() };
 
-        private:
+        // private:
             /**
              * Intermediate buffer data that would be dropped after the field initialization. DO NOT use this outside the constructor!
              */
@@ -62,8 +66,9 @@ namespace vk_gltf_viewer {
              * modification of <tt>sceneGpuBuffers</tt> and <tt>sceneMiniball</tt>). Use <tt>setScene</tt> for the purpose.
              */
             fastgltf::Scene &scene { asset.scenes[asset.defaultScene.value_or(0)] };
+            gltf::AssetSceneHierarchy sceneHierarchy { asset, scene };
             gltf::AssetSceneGpuBuffers sceneGpuBuffers;
-            std::pair<glm::dvec3, double> sceneMiniball { gltf::algorithm::getMiniball(asset, scene, sceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>()) };
+            std::pair<glm::dvec3, double> sceneMiniball { gltf::algorithm::getMiniball(asset, scene, LIFT(sceneGpuBuffers.getMeshNodeWorldTransform)) };
 
             Gltf(
                 fastgltf::Parser &parser,
@@ -95,7 +100,7 @@ namespace vk_gltf_viewer {
         control::AppWindow window { instance, appState };
         vulkan::Gpu gpu { instance, window.getSurface() };
 
-        fastgltf::Parser parser { fastgltf::Extensions::KHR_texture_basisu };
+        fastgltf::Parser parser { fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::EXT_mesh_gpu_instancing };
         std::optional<Gltf> gltf;
 
         // Buffers, images, image views and samplers.

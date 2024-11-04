@@ -6,43 +6,74 @@ module vk_gltf_viewer;
 import :gltf.AssetSceneGpuBuffers;
 
 import std;
+import :gltf.algorithm.traversal;
 import :helpers.fastgltf;
 import :helpers.ranges;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-#define LIFT(...) [](auto &&x) { return __VA_ARGS__(FWD(x)); }
+#define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
 
-vk_gltf_viewer::gltf::AssetSceneGpuBuffers::AssetSceneGpuBuffers(
-    const fastgltf::Asset &asset [[clang::lifetimebound]],
-    const fastgltf::Scene &scene [[clang::lifetimebound]],
-    const vulkan::Gpu &gpu [[clang::lifetimebound]]
-) : pAsset { &asset },
-    nodeWorldTransformBuffer { createNodeWorldTransformBuffer(scene, gpu.allocator) } { }
+const glm::mat4 &vk_gltf_viewer::gltf::AssetSceneGpuBuffers::getMeshNodeWorldTransform(std::uint16_t nodeIndex, std::uint32_t instanceIndex) const noexcept {
+    return meshNodeWorldTransformBuffer.asRange<const glm::mat4>()[instanceOffsets[nodeIndex] + instanceIndex];
+}
 
-vku::MappedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeWorldTransformBuffer(
-    const fastgltf::Scene &scene,
-    vma::Allocator allocator
-) const {
-    std::vector<glm::mat4> nodeWorldTransforms(pAsset->nodes.size());
-
-    // Traverse the scene nodes and calculate the world transform of each node (by multiplying their local transform to
-    // their parent's world transform).
-    const auto calculateNodeWorldTransformsRecursive
-        // TODO: since the multiplication of parent node's world transform and node's local transform will be assigned
-        //  to nodeWorldTransforms[nodeIndex], parentNodeWorldTransform parameter should be const-ref qualified. However,
-        //  Clang ≤ 18 does not accept this signature (according to explicit object parameter bug). Change when it fixed.
-        = [&](this const auto &self, std::uint16_t nodeIndex, glm::mat4 parentNodeWorldTransform = { 1.f }) -> void {
+std::vector<std::uint32_t> vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createInstanceCounts(const fastgltf::Scene &scene) const {
+    std::vector<std::uint32_t> result(pAsset->nodes.size(), 0U);
+    algorithm::traverseScene(*pAsset, scene, [&](std::size_t nodeIndex) {
+        result[nodeIndex] = [&]() -> std::uint32_t {
             const fastgltf::Node &node = pAsset->nodes[nodeIndex];
-            parentNodeWorldTransform *= visit(LIFT(fastgltf::toMatrix), node.transform);
-            nodeWorldTransforms[nodeIndex] = parentNodeWorldTransform;
-
-            for (std::uint16_t childNodeIndex : node.children) {
-                self(childNodeIndex, parentNodeWorldTransform);
+            if (!node.meshIndex) {
+                return 0;
             }
-        };
-    for (std::uint16_t nodeIndex : scene.nodeIndices) {
-        calculateNodeWorldTransformsRecursive(nodeIndex);
+            if (node.instancingAttributes.empty()) {
+                return 1;
+            }
+            else {
+                // According to the EXT_mesh_gpu_instancing specification, all attribute accessors in a given node
+                // must have the same count. Therefore, we can use the count of the first attribute accessor.
+                return pAsset->accessors[node.instancingAttributes[0].second].count;
+            }
+        }();
+    });
+    return result;
+}
+
+std::vector<std::uint32_t> vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createInstanceOffsets() const {
+    std::vector<std::uint32_t> result(instanceCounts.size());
+    std::exclusive_scan(instanceCounts.cbegin(), instanceCounts.cend(), result.begin(), 0U);
+    return result;
+}
+
+vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeBuffer(const vulkan::Gpu &gpu) const {
+    const vk::DeviceAddress nodeTransformBufferStartAddress = gpu.device.getBufferAddress({ meshNodeWorldTransformBuffer });
+
+    vku::AllocatedBuffer stagingBuffer = vku::MappedBuffer {
+        gpu.allocator,
+        std::from_range, instanceOffsets | std::views::transform([=](std::uint32_t offset) {
+            return nodeTransformBufferStartAddress + sizeof(glm::mat4) * offset;
+        }),
+        gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
+    }.unmap();
+
+    if (gpu.isUmaDevice) {
+        return stagingBuffer;
     }
 
-    return { allocator, std::from_range, nodeWorldTransforms, vk::BufferUsageFlagBits::eStorageBuffer, vku::allocation::hostRead };
+    vku::AllocatedBuffer dstBuffer{ gpu.allocator, vk::BufferCreateInfo {
+        {},
+        stagingBuffer.size,
+        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+    } };
+
+    const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
+    const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+    vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
+        cb.copyBuffer(stagingBuffer, dstBuffer, vk::BufferCopy { 0, 0, dstBuffer.size });
+    }, *fence);
+
+    if (gpu.device.waitForFences(*fence, true, ~0ULL) != vk::Result::eSuccess) {
+        throw std::runtime_error { "Failed to transfer the node buffer" };
+    }
+
+    return dstBuffer;
 }

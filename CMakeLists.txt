@@ -63,14 +63,18 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/control/Camera.cppm
         interface/control/ImGuiTaskCollector.cppm
         interface/control/Task.cppm
+        interface/gltf/algorithm/bounding_box.cppm
         interface/gltf/algorithm/MikktSpaceInterface.cppm
         interface/gltf/algorithm/miniball.cppm
+        interface/gltf/algorithm/traversal.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetGpuBuffers.cppm
         interface/gltf/AssetGpuFallbackTexture.cppm
         interface/gltf/AssetGpuTextures.cppm
         interface/gltf/AssetPrimitiveInfo.cppm
         interface/gltf/AssetSceneGpuBuffers.cppm
+        interface/gltf/AssetSceneHierarchy.cppm
+        interface/helpers/concepts.cppm
         interface/helpers/cstring_view.cppm
         interface/helpers/fastgltf.cppm
         interface/helpers/formatters/joiner.cppm

@@ -18,7 +18,9 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - `OPAQUE`, `MASK` (using alpha testing and Alpha To Coverage) and `BLEND` (using Weighted Blended OIT) materials.
   - Multiple scenes.
   - Binary format (`.glb`).
-  - GPU compressed texture (`KHR_texture_basisu`)
+- Support glTF 2.0 extensions:
+  - `KHR_texture_basisu` for BC7 GPU compression texture decoding
+  - `EXT_mesh_gpu_instancing` for instancing multiple meshes with the same geometry
 - Use 4x MSAA by default.
 - Support HDR and EXR skybox.
 - File loading using platform-native file dialog.
@@ -49,7 +51,7 @@ I initially developed this application for leveraging Vulkan's performance and u
   - Descriptor sets are only updated at the model loading time.
   - Textures are accessed with runtime-descriptor indexing using [`VK_EXT_descriptor_indexing`](https://docs.vulkan.org/samples/latest/samples/extensions/descriptor_indexing/README.html) extension.
   - Use Vertex Pulling with [`VK_KHR_buffer_device_address`](https://docs.vulkan.org/samples/latest/samples/extensions/buffer_device_address/README.html). Only index buffers are bound to the command buffer.
-- Fully GPU driven rendering: uses multi draw indirect with optimally sorted rendering order. **Regardless of the material count and scene's complexity, all scene nodes can be rendered with up to 24 draw calls** in the worst case.
+- Fully GPU driven rendering: uses both instancing and multi draw indirect with optimally sorted rendering order. **Regardless of the material count and scene's complexity, all scene nodes can be rendered with up to 24 draw calls** in the worst case.
   - Has 6 pipelines for 3 material types (`OPAQUE`, `MASK`, `BLEND`) and 2 primitive types (Indexed, Non-Indexed) combinations.
   - Indexed primitive index type can be either `UNSIGNED_BYTE` (if GPU supports [`VK_EXT_index_type_uint8`](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_EXT_index_type_uint8.html)), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
   - Each material can be either double-sided or not, and cull mode have to be set based on this.

@@ -16,7 +16,7 @@ namespace vk_gltf_viewer::gltf {
      *
      * Also, this class implements <tt>operator(const fastgltf::Buffer&) const -> const std::byte*</tt> for compatibility
      * with <tt>fastgltf::DefaultBufferDataAdapter</tt>. You can directly pass the class instance as the fastgltf's
-     * buffer data adaptor, such like <tt>fastgltf::iterateAccessor</tt>.
+     * buffer data adapter, such like <tt>fastgltf::iterateAccessor</tt>.
      */
     export class AssetExternalBuffers {
         const fastgltf::Asset &asset;

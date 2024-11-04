@@ -2,7 +2,11 @@ export module vk_gltf_viewer:gltf.AssetSceneGpuBuffers;
 
 import std;
 export import fastgltf;
+import :gltf.algorithm.traversal;
+export import :gltf.AssetExternalBuffers;
 export import :gltf.AssetPrimitiveInfo;
+export import :gltf.AssetSceneHierarchy;
+import :helpers.concepts;
 import :helpers.functional;
 import :helpers.ranges;
 export import :vulkan.Gpu;
@@ -18,19 +22,80 @@ namespace vk_gltf_viewer::gltf {
     export class AssetSceneGpuBuffers {
         const fastgltf::Asset *pAsset;
 
+        std::vector<std::uint32_t> instanceCounts;
+        std::vector<std::uint32_t> instanceOffsets = createInstanceOffsets();
+
     public:
+        /**
+         * @brief Buffer that stores the mesh nodes' transform matrices, with flattened instance matrices.
+         *
+         * The term "mesh node" means a node that has a mesh. This buffer only contains transform matrices of mesh nodes. In other words, <tt>meshNodeWorldTransformBuffer.asRange<const glm::mat4>()[nodeIndex]</tt> may NOT represent the world transformation matrix of the <tt>nodeIndex</tt>-th node, because maybe there were nodes with no mesh prior to the <tt>nodeIndex</tt>-th node.
+         *
+         * For example, a scene has 4 nodes (denoted as A B C D) and A has 2 instances (<tt>M1</tt>, <tt>M2</tt>), B has 3 instances (<tt>M3</tt>, <tt>M4</tt>, <tt>M5</tt>), C is meshless, and D has 1 instance (<tt>M6</tt>), then the flattened matrices will be laid out as:
+         * @code
+         * [MA * M1, MA * M2, MB * M3, MB * M4, MB * M5, MD * M6]
+         * @endcode
+         * Be careful that there is no transform matrix related about node C, because it is meshless.
+         */
+        vku::MappedBuffer meshNodeWorldTransformBuffer;
 
         /**
-         * @brief Buffer that contains world transformation matrices of each node.
-         *
-         * <tt>nodeWorldTransformBuffer.asRange<const glm::mat4>()[i]</tt> represents the world transformation matrix of the <tt>i</tt>-th node.
+         * @brief Buffer that stores the start address of the flattened node world transform matrices buffer.
          */
-        vku::MappedBuffer nodeWorldTransformBuffer;
+        vku::AllocatedBuffer nodeBuffer;
 
+        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         AssetSceneGpuBuffers(
             const fastgltf::Asset &asset [[clang::lifetimebound]],
             const fastgltf::Scene &scene [[clang::lifetimebound]],
-            const vulkan::Gpu &gpu [[clang::lifetimebound]]);
+            const AssetSceneHierarchy &sceneHierarchy,
+            const vulkan::Gpu &gpu [[clang::lifetimebound]],
+            const BufferDataAdapter &adapter = {}
+        ) : pAsset { &asset },
+            instanceCounts { createInstanceCounts(scene) },
+            meshNodeWorldTransformBuffer { createMeshNodeWorldTransformBuffer(scene, sceneHierarchy, gpu.allocator, adapter) },
+            nodeBuffer { createNodeBuffer(gpu) } { }
+
+        /**
+         * @brief Get world transform matrix of \p nodeIndex-th mesh node's \p instanceIndex-th instance in the scene.
+         *
+         * The term "mesh node" means a node that has a mesh, and this function only cares about mesh nodes (you MUST NOT pass a node index that doesn't have a mesh).
+         *
+         * @param nodeIndex Index of the mesh node.
+         * @param instanceIndex Index of the instance in the node. If EXT_mesh_gpu_instancing extension is not used, this value must be 0 (omitted).
+         * @return World transformation matrix of the mesh node's instance, calculated by post-multiply accumulated transformation matrices from scene root.
+         * @warning \p nodeIndex-th node MUST have a mesh. No exception thrown for constraint violation.
+         * @warning \p instanceIndex-th instance MUST be less than the instance count of the node. No exception thrown for constraint violation.
+         */
+        [[nodiscard]] const glm::mat4 &getMeshNodeWorldTransform(std::uint16_t nodeIndex, std::uint32_t instanceIndex = 0) const noexcept;
+
+        /**
+         * @brief Update the mesh node world transforms from given \p nodeIndex, to its descendants.
+         * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view. If you provided <tt>fastgltf::Options::LoadExternalBuffers</tt> to the <tt>fastgltf::Parser</tt> while loading the glTF, the parameter can be omitted.
+         * @param nodeIndex Node index to be started. The target node MUST have a mesh.
+         * @param sceneHierarchy Scene hierarchy that contains the world transform matrices of the nodes.
+         * @param adapter Buffer data adapter.
+         */
+        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
+        void updateMeshNodeTransformsFrom(std::uint16_t nodeIndex, const AssetSceneHierarchy &sceneHierarchy, const BufferDataAdapter &adapter = {}) {
+            const std::span<glm::mat4> meshNodeWorldTransforms = meshNodeWorldTransformBuffer.asRange<glm::mat4>();
+            algorithm::traverseNode(*pAsset, nodeIndex, [&](std::size_t nodeIndex) {
+                const fastgltf::Node &node = pAsset->nodes[nodeIndex];
+                if (!node.meshIndex) {
+                    return;
+                }
+
+                if (std::vector<glm::mat4> instanceTransforms = getInstanceTransforms(*pAsset, node, adapter); instanceTransforms.empty()) {
+                    meshNodeWorldTransforms[instanceOffsets[nodeIndex]] = sceneHierarchy.nodeWorldTransforms[nodeIndex];
+                }
+                else {
+                    for (std::uint32_t instanceIndex : std::views::iota(0U, instanceCounts[nodeIndex])) {
+                        meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex]
+                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * instanceTransforms[instanceIndex];
+                    }
+                }
+            });
+        }
 
         template <
             std::invocable<const AssetPrimitiveInfo&> CriteriaGetter,
@@ -46,7 +111,7 @@ namespace vk_gltf_viewer::gltf {
             vma::Allocator allocator,
             const CriteriaGetter &criteriaGetter,
             const std::unordered_set<std::uint16_t> &nodeIndices,
-            std::invocable<const fastgltf::Primitive&> auto const &primitiveInfoGetter
+            concepts::compatible_signature_of<const AssetPrimitiveInfo&, const fastgltf::Primitive&> auto const &primitiveInfoGetter
         ) const -> std::map<Criteria, std::variant<vulkan::buffer::IndirectDrawCommands<false>, vulkan::buffer::IndirectDrawCommands<true>>, Compare> {
             std::map<Criteria, std::variant<std::vector<vk::DrawIndirectCommand>, std::vector<vk::DrawIndexedIndirectCommand>>> commandGroups;
 
@@ -54,6 +119,12 @@ namespace vk_gltf_viewer::gltf {
                 const fastgltf::Node &node = pAsset->nodes[nodeIndex];
                 if (!node.meshIndex) {
                     continue;
+                }
+
+                // EXT_mesh_gpu_instancing support.
+                std::uint32_t instanceCount = 1;
+                if (!node.instancingAttributes.empty()) {
+                    instanceCount = pAsset->accessors[node.instancingAttributes[0].second].count;
                 }
 
                 const fastgltf::Mesh &mesh = pAsset->meshes[*node.meshIndex];
@@ -75,14 +146,18 @@ namespace vk_gltf_viewer::gltf {
                             .first->second;
                         const std::uint32_t firstIndex = static_cast<std::uint32_t>(primitiveInfo.indexInfo->offset / indexByteSize);
                         get_if<std::vector<vk::DrawIndexedIndirectCommand>>(&commandGroup)
-                            ->emplace_back(primitiveInfo.drawCount, 1, firstIndex, 0, (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index));
+                            ->emplace_back(
+                                primitiveInfo.drawCount, instanceCount, firstIndex, 0,
+                                (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index));
                     }
                     else {
                         auto &commandGroup = commandGroups
                             .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndirectCommand>>)
                             .first->second;
                         get_if<std::vector<vk::DrawIndirectCommand>>(&commandGroup)
-                            ->emplace_back(primitiveInfo.drawCount, 1, 0, (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index));
+                            ->emplace_back(
+                                primitiveInfo.drawCount, instanceCount, 0,
+                                (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index));
                     }
                 }
             }
@@ -111,6 +186,41 @@ namespace vk_gltf_viewer::gltf {
         }
 
     private:
-        [[nodiscard]] vku::MappedBuffer createNodeWorldTransformBuffer(const fastgltf::Scene &scene, vma::Allocator allocator) const;
+        [[nodiscard]] std::vector<std::uint32_t> createInstanceCounts(const fastgltf::Scene &scene) const;
+        [[nodiscard]] std::vector<std::uint32_t> createInstanceOffsets() const;
+
+        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
+        [[nodiscard]] vku::MappedBuffer createMeshNodeWorldTransformBuffer(
+            const fastgltf::Scene &scene,
+            const AssetSceneHierarchy &sceneHierarchy,
+            vma::Allocator allocator,
+            const BufferDataAdapter &adapter
+        ) const {
+            std::vector<glm::mat4> meshNodeWorldTransforms(instanceOffsets.back() + instanceCounts.back());
+            algorithm::traverseScene(*pAsset, scene, [&](std::size_t nodeIndex) {
+                const fastgltf::Node &node = pAsset->nodes[nodeIndex];
+                if (!node.meshIndex) {
+                    return;
+                }
+
+                if (std::vector<glm::mat4> instanceTransforms = getInstanceTransforms(*pAsset, node, adapter); instanceTransforms.empty()) {
+                    meshNodeWorldTransforms[instanceOffsets[nodeIndex]] = sceneHierarchy.nodeWorldTransforms[nodeIndex];
+                }
+                else {
+                    for (std::uint32_t instanceIndex : std::views::iota(0U, instanceCounts[nodeIndex])) {
+                        meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex]
+                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * instanceTransforms[instanceIndex];
+                    }
+                }
+            });
+
+            return vku::MappedBuffer {
+                allocator,
+                std::from_range, meshNodeWorldTransforms,
+                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            };
+        }
+
+        [[nodiscard]] vku::AllocatedBuffer createNodeBuffer(const vulkan::Gpu &gpu) const;
     };
 }

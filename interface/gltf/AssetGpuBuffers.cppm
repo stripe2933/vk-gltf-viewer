@@ -52,7 +52,7 @@ namespace vk_gltf_viewer::gltf {
             std::int16_t normalTextureIndex = -1;
             std::int16_t occlusionTextureIndex = -1;
             std::int16_t emissiveTextureIndex = -1;
-            glm::vec4 baseColorFactor = { 1.f, 0.f, 1.f, 1.f }; // Magenta.
+            glm::vec4 baseColorFactor = { 1.f, 1.f, 1.f, 1.f };
             float metallicFactor = 1.f;
             float roughnessFactor = 1.f;
             float normalScale = 1.f;

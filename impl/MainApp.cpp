@@ -17,6 +17,7 @@ import imgui.glfw;
 import imgui.vulkan;
 import ImGuizmo;
 import vku;
+import :gltf.AssetExternalBuffers;
 import :gltf.AssetGpuTextures;
 import :helpers.fastgltf;
 import :helpers.functional;
@@ -32,7 +33,7 @@ import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-#define LIFT(...) [](auto &&x) { return __VA_ARGS__(FWD(x)); }
+#define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
 #ifdef _MSC_VER
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
@@ -248,7 +249,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 return value_if(x.selectedNodeIndices.size() == 1, [&]() {
                     return std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::uint16_t, ImGuizmo::OPERATION> {
                         x.asset,
-                        gltf->sceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>(),
+                        gltf->sceneHierarchy.nodeWorldTransforms,
                         *x.selectedNodeIndices.begin(),
                         appState.imGuizmoOperation,
                     };
@@ -286,7 +287,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                         sharedData.assetDescriptorSet.getWriteOne<0>({ gltf->assetGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
                         sharedData.assetDescriptorSet.getWriteOne<1>({ gltf->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
                         sharedData.assetDescriptorSet.getWrite<2>(imageInfos),
-                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeWorldTransformBuffer, 0, vk::WholeSize }),
+                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeBuffer, 0, vk::WholeSize }),
                     }, {});
 
                     // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
@@ -334,7 +335,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     gltf->setScene(task.newSceneIndex);
 
                     gpu.device.updateDescriptorSets(
-                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeWorldTransformBuffer, 0, vk::WholeSize }),
+                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeBuffer, 0, vk::WholeSize }),
                         {});
 
                     // Update AppState.
@@ -365,7 +366,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 [this](control::task::ChangeNodeVisibility task) {
                     visit(multilambda {
                         [&](std::span<std::optional<bool>> visibilities) {
-                            if (auto &visibility = visibilities[task.nodeIndex]; visibility) {
+                            if (auto &visibility = visibilities[task.nodeIndex]) {
                                 *visibility = !*visibility;
                             }
                             else {
@@ -376,7 +377,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                                 [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
                                 task.nodeIndex, visibilities);
                             tristate::propagateBottomUp(
-                                [&](auto i) { return appState.gltfAsset->getParentNodeIndex(i).value_or(i); },
+                                [&](auto i) { return gltf->sceneHierarchy.getParentNodeIndex(i).value_or(i); },
                                 [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
                                 task.nodeIndex, visibilities);
                         },
@@ -395,34 +396,16 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     appState.gltfAsset->hoveringNodeIndex.emplace(task.nodeIndex);
                 },
                 [this](const control::task::ChangeNodeLocalTransform &task) {
-                    // Update AssetSceneGpuBuffers::nodeWorldTransformBuffer.
-                    const std::span nodeWorldTransforms = gltf->sceneGpuBuffers.nodeWorldTransformBuffer.asRange<glm::mat4>();
+                    // Update the current and its descendant nodes' world transforms in sceneHierarchy.
+                    gltf->sceneHierarchy.updateDescendantNodeTransformsFrom(task.nodeIndex);
 
-                    // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& and std::span<glm::mat4> are passed (but it is unnecessary). Remove the parameter when fixed.
-                    const auto applyNodeLocalTransformChangeRecursive
-                        = [](this auto self, const fastgltf::Asset &asset, std::span<glm::mat4> nodeWorldTransforms, std::uint16_t nodeIndex, const glm::mat4 &parentNodeWorldTransform = { 1.f }) -> void {
-                            const fastgltf::Node &node = asset.nodes[nodeIndex];
-                            nodeWorldTransforms[nodeIndex] = parentNodeWorldTransform * visit(LIFT(fastgltf::toMatrix), node.transform);
-
-                            for (std::uint16_t childNodeIndex : node.children) {
-                                self(asset, nodeWorldTransforms, childNodeIndex, nodeWorldTransforms[nodeIndex]);
-                            }
-                    };
-
-                    // Start from the current selected node, execute applyNodeLocalTransformChangeRecursive with its
-                    // parent node's world transform (it must be identity matrix if selected node is root node).
-                    const glm::mat4 parentNodeWorldTransform
-                        = appState.gltfAsset->getParentNodeIndex(task.nodeIndex)
-                        .transform([&](std::uint16_t parentNodeIndex) {
-                            return nodeWorldTransforms[parentNodeIndex];
-                        })
-                        .value_or(glm::mat4 { 1.f });
-                    applyNodeLocalTransformChangeRecursive(gltf->asset, nodeWorldTransforms, task.nodeIndex, parentNodeWorldTransform);
+                    // Passing sceneHierarchy into sceneGpuBuffers to update GPU mesh node transform buffer.
+                    gltf->sceneGpuBuffers.updateMeshNodeTransformsFrom(task.nodeIndex, gltf->sceneHierarchy, *gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
                         const auto &[center, radius]
-                            = (gltf->sceneMiniball = gltf::algorithm::getMiniball(gltf->asset, gltf->scene, gltf->sceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>()));
+                            = (gltf->sceneMiniball = gltf::algorithm::getMiniball(gltf->asset, gltf->scene, LIFT(gltf->sceneGpuBuffers.getMeshNodeWorldTransform)));
                         appState.camera.tightenNearFar(center, radius);
                     }
                 },
@@ -467,6 +450,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .asset = gltf.asset,
                     .assetGpuBuffers = gltf.assetGpuBuffers,
+                    .sceneHierarchy = gltf.sceneHierarchy,
                     .sceneGpuBuffers = gltf.sceneGpuBuffers,
                     .hoveringNodeIndex = appState.gltfAsset->hoveringNodeIndex,
                     .selectedNodeIndices = appState.gltfAsset->selectedNodeIndices,
@@ -511,14 +495,15 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(asset, directory) },
     assetGpuBuffers { asset, *assetExternalBuffers, gpu },
     assetGpuTextures { asset, directory, *assetExternalBuffers, gpu },
-    sceneGpuBuffers { asset, scene, gpu } {
-    assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
+    sceneGpuBuffers { asset, scene, sceneHierarchy, gpu, *assetExternalBuffers } {
+    // assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
 }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
-    sceneGpuBuffers = { asset, scene, gpu };
-    sceneMiniball = gltf::algorithm::getMiniball(asset, scene, sceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>());
+    sceneHierarchy = { asset, scene };
+    sceneGpuBuffers = { asset, scene, sceneHierarchy, gpu, *assetExternalBuffers };
+    sceneMiniball = gltf::algorithm::getMiniball(asset, scene, LIFT(sceneGpuBuffers.getMeshNodeWorldTransform));
 }
 
 auto vk_gltf_viewer::MainApp::createInstance() const -> vk::raii::Instance {

@@ -5,6 +5,8 @@ module;
 
 export module fastgltf;
 
+export import glm;
+
 namespace fastgltf {
     export using fastgltf::Accessor;
     export using fastgltf::AccessorType;
@@ -16,6 +18,7 @@ namespace fastgltf {
     export using fastgltf::BufferView;
     export using fastgltf::Camera;
     export using fastgltf::ComponentType;
+    export using fastgltf::copyFromAccessor;
     export using fastgltf::decomposeTransformMatrix;
     export using fastgltf::DefaultBufferDataAdapter;
     export using fastgltf::ElementTraits;
@@ -43,6 +46,23 @@ namespace fastgltf {
     export using fastgltf::TRS;
     export using fastgltf::visitor;
     export using fastgltf::Wrap;
+
+    export using fastgltf::operator|;
+    export using fastgltf::operator&;
+    export using fastgltf::operator-;
+    export using fastgltf::operator~;
+
+    export template <>
+    struct ElementTraits<glm::vec2> : ElementTraitsBase<glm::vec2, AccessorType::Vec2, float> {};
+    export template <>
+    struct ElementTraits<glm::vec3> : ElementTraitsBase<glm::vec3, AccessorType::Vec3, float> {};
+    export template <>
+    struct ElementTraits<glm::vec4> : ElementTraitsBase<glm::vec4, AccessorType::Vec4, float> {};
+#ifndef GLM_FORCE_QUAT_DATA_WXYZ
+    // Unless GLM_FORCE_QUAT_DATA_WXYZ is defined, glm::quat components are stored as xyzw, which has the same manner in the glTF's quaternion.
+    export template <>
+    struct ElementTraits<glm::quat> : ElementTraitsBase<glm::quat, AccessorType::Vec4, float> {};
+#endif
 
 namespace sources {
     export using sources::Array;
