@@ -45,7 +45,7 @@ namespace vk_gltf_viewer::gltf {
         [[nodiscard]] auto createIndirectDrawCommandBuffers(
             vma::Allocator allocator,
             const CriteriaGetter &criteriaGetter,
-            const std::unordered_set<std::size_t> &nodeIndices,
+            const std::unordered_set<std::uint16_t> &nodeIndices,
             std::invocable<const fastgltf::Primitive&> auto const &primitiveInfoGetter
         ) const -> std::map<Criteria, std::variant<vulkan::buffer::IndirectDrawCommands<false>, vulkan::buffer::IndirectDrawCommands<true>>, Compare> {
             std::map<Criteria, std::variant<std::vector<vk::DrawIndirectCommand>, std::vector<vk::DrawIndexedIndirectCommand>>> commandGroups;

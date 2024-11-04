@@ -23,9 +23,9 @@ namespace vk_gltf_viewer::vulkan {
                 const fastgltf::Asset &asset;
                 const gltf::AssetGpuBuffers &assetGpuBuffers;
                 const gltf::AssetSceneGpuBuffers &sceneGpuBuffers;
-                std::optional<std::uint32_t> hoveringNodeIndex;
-                std::unordered_set<std::size_t> selectedNodeIndices;
-                std::unordered_set<std::size_t> renderingNodeIndices;
+                std::optional<std::uint16_t> hoveringNodeIndex;
+                std::unordered_set<std::uint16_t> selectedNodeIndices;
+                std::unordered_set<std::uint16_t> renderingNodeIndices;
             };
 
             vk::Rect2D passthruRect;
@@ -60,7 +60,7 @@ namespace vk_gltf_viewer::vulkan {
             gpu.device.resetFences(*inFlightFence);
         }
 
-        auto update(const ExecutionTask &task) -> UpdateResult;
+        UpdateResult update(const ExecutionTask &task);
 
         [[nodiscard]] auto execute() const -> bool; // false -> Swapchain image acquire/release failed. Swapchain have to be recreated.
 
@@ -122,19 +122,19 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         struct RenderingNodes {
-            std::unordered_set<std::size_t> indices;
+            std::unordered_set<std::uint16_t> indices;
             CriteriaSeparatedIndirectDrawCommands indirectDrawCommandBuffers;
         };
 
         struct SelectedNodes {
-            std::unordered_set<std::size_t> indices;
+            std::unordered_set<std::uint16_t> indices;
             CriteriaSeparatedIndirectDrawCommands indirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
 
         struct HoveringNode {
-            std::size_t index;
+            std::uint16_t index;
             CriteriaSeparatedIndirectDrawCommands indirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;

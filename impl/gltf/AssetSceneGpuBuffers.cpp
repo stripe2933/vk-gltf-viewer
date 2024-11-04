@@ -31,16 +31,16 @@ vku::MappedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeWorldTra
         // TODO: since the multiplication of parent node's world transform and node's local transform will be assigned
         //  to nodeWorldTransforms[nodeIndex], parentNodeWorldTransform parameter should be const-ref qualified. However,
         //  Clang ≤ 18 does not accept this signature (according to explicit object parameter bug). Change when it fixed.
-        = [&](this const auto &self, std::size_t nodeIndex, glm::mat4 parentNodeWorldTransform = { 1.f }) -> void {
+        = [&](this const auto &self, std::uint16_t nodeIndex, glm::mat4 parentNodeWorldTransform = { 1.f }) -> void {
             const fastgltf::Node &node = pAsset->nodes[nodeIndex];
             parentNodeWorldTransform *= visit(LIFT(fastgltf::toMatrix), node.transform);
             nodeWorldTransforms[nodeIndex] = parentNodeWorldTransform;
 
-            for (std::size_t childNodeIndex : node.children) {
+            for (std::uint16_t childNodeIndex : node.children) {
                 self(childNodeIndex, parentNodeWorldTransform);
             }
         };
-    for (std::size_t nodeIndex : scene.nodeIndices) {
+    for (std::uint16_t nodeIndex : scene.nodeIndices) {
         calculateNodeWorldTransformsRecursive(nodeIndex);
     }
 

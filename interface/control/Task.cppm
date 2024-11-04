@@ -11,10 +11,10 @@ namespace vk_gltf_viewer::control {
         struct LoadEqmap { std::filesystem::path path; };
         struct ChangeScene { std::size_t newSceneIndex; };
         struct ChangeNodeVisibilityType { };
-        struct ChangeNodeVisibility { std::size_t nodeIndex; };
-        struct SelectNodeFromSceneHierarchy { std::size_t nodeIndex; bool combine; };
-        struct HoverNodeFromSceneHierarchy { std::size_t nodeIndex; };
-        struct ChangeNodeLocalTransform { std::size_t nodeIndex; };
+        struct ChangeNodeVisibility { std::uint16_t nodeIndex; };
+        struct SelectNodeFromSceneHierarchy { std::uint16_t nodeIndex; bool combine; };
+        struct HoverNodeFromSceneHierarchy { std::uint16_t nodeIndex; };
+        struct ChangeNodeLocalTransform { std::uint16_t nodeIndex; };
         struct TightenNearFarPlane { };
         struct ChangeCameraView { };
     }

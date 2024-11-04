@@ -45,8 +45,8 @@ namespace vk_gltf_viewer {
             std::variant<std::vector<std::optional<bool>>, std::vector<bool>> nodeVisibilities { std::in_place_index<0>, asset.nodes.size(), true };
             std::optional<std::size_t> assetInspectorMaterialIndex = asset.materials.empty() ? std::optional<std::size_t>{} : std::optional<std::size_t> { 0 };
 
-            std::unordered_set<std::size_t> selectedNodeIndices;
-            std::optional<std::size_t> hoveringNodeIndex;
+            std::unordered_set<std::uint16_t> selectedNodeIndices;
+            std::optional<std::uint16_t> hoveringNodeIndex;
 
             explicit GltfAsset(fastgltf::Asset &asset) noexcept
                 : asset { asset } { }
@@ -68,27 +68,27 @@ namespace vk_gltf_viewer {
              * @note Since the result only contains node which is visible, nodes without mesh are excluded regardless of
              * its corresponding <tt>nodeVisibilities</tt> is <tt>true</tt>.
              */
-            [[nodiscard]] auto getVisibleNodeIndices() const noexcept -> std::unordered_set<std::size_t> {
+            [[nodiscard]] auto getVisibleNodeIndices() const noexcept -> std::unordered_set<std::uint16_t> {
                 return visit(multilambda {
                     [this](std::span<const std::optional<bool>> tristateVisibilities) {
                         return tristateVisibilities
                             | ranges::views::enumerate
-                            | std::views::filter(decomposer([this](std::size_t nodeIndex, std::optional<bool> visibility) {
+                            | std::views::filter(decomposer([this](auto nodeIndex, std::optional<bool> visibility) {
                                 return visibility.value_or(false) && asset.nodes[nodeIndex].meshIndex.has_value();
                             }))
                             | std::views::keys
-                            // Explicit value type must be specified, because std::views::enumerate's index type is range_difference_t<R> (!= std::size_t).
-                            | std::ranges::to<std::unordered_set<std::size_t>>();
+                            // Explicit value type must be specified, because std::views::enumerate's index type is range_difference_t<R> (!= std::uint16_t).
+                            | std::ranges::to<std::unordered_set<std::uint16_t>>();
                     },
                     [this](const std::vector<bool> &visibilities) {
                         return visibilities
                             | ranges::views::enumerate
-                            | std::views::filter(decomposer([this](std::size_t nodeIndex, bool visibility) {
+                            | std::views::filter(decomposer([this](auto nodeIndex, bool visibility) {
                                 return visibility && asset.nodes[nodeIndex].meshIndex.has_value();
                             }))
                             | std::views::keys
-                            // Explicit value type must be specified, because std::views::enumerate's index type is range_difference_t<R> (!= std::size_t).
-                            | std::ranges::to<std::unordered_set<std::size_t>>();
+                            // Explicit value type must be specified, because std::views::enumerate's index type is range_difference_t<R> (!= std::uint16_t).
+                            | std::ranges::to<std::unordered_set<std::uint16_t>>();
                     }
                 }, nodeVisibilities);
             }
@@ -98,17 +98,18 @@ namespace vk_gltf_viewer {
              * @param nodeIndex Index of the node.
              * @return Index of the parent node if the current node is not root node, otherwise <tt>std::nullopt</tt>.
              */
-            [[nodiscard]] std::optional<std::size_t> getParentNodeIndex(std::size_t nodeIndex) const noexcept {
-                const std::size_t parentNodeIndex = parentNodeIndices[nodeIndex];
+            [[nodiscard]] std::optional<std::uint16_t> getParentNodeIndex(std::uint16_t nodeIndex) const noexcept {
+                const std::uint16_t parentNodeIndex = parentNodeIndices[nodeIndex];
                 return value_if(parentNodeIndex != nodeIndex, parentNodeIndex);
             }
 
         private:
             std::size_t sceneIndex = asset.defaultScene.value_or(0);
-            std::vector<std::size_t> parentNodeIndices = createParentNodeIndices();
+            std::vector<std::uint16_t> parentNodeIndices = createParentNodeIndices();
 
-            [[nodiscard]] auto createParentNodeIndices() const noexcept -> std::vector<std::size_t> {
-                std::vector indices{ std::from_range, std::views::iota(std::size_t{ 0 }, asset.nodes.size()) };
+            [[nodiscard]] auto createParentNodeIndices() const noexcept -> std::vector<std::uint16_t> {
+                std::vector<std::uint16_t> indices(asset.nodes.size());
+                std::iota(indices.begin(), indices.end(), static_cast<std::uint16_t>(0));
                 for (const auto &[i, node] : asset.nodes | ranges::views::enumerate) {
                     for (std::size_t childIndex : node.children) {
                         indices[childIndex] = i;

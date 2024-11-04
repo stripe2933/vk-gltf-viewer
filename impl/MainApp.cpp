@@ -231,7 +231,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
             .assetInspector(appState.gltfAsset.transform([this](auto &x) {
                 return std::forward_as_tuple(x.asset, gltf->directory, x.assetInspectorMaterialIndex, assetTextureDescriptorSets);
             }))
-            .sceneHierarchy(appState.gltfAsset.transform([](auto &x) -> std::tuple<fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::size_t>&, const std::unordered_set<std::size_t>&> {
+            .sceneHierarchy(appState.gltfAsset.transform([](auto &x) -> std::tuple<fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::uint16_t>&, const std::unordered_set<std::uint16_t>&> {
                 // TODO: don't know why, but using std::forward_as_tuple will pass the scene index as reference and will
                 //  cause a dangling reference. Should be investigated.
                 return { x.asset, x.getSceneIndex(), x.nodeVisibilities, x.hoveringNodeIndex, x.selectedNodeIndices };
@@ -246,7 +246,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
             .inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline)
             .imguizmo(appState.camera, appState.gltfAsset.and_then([this](auto &x) {
                 return value_if(x.selectedNodeIndices.size() == 1, [&]() {
-                    return std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION> {
+                    return std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::uint16_t, ImGuizmo::OPERATION> {
                         x.asset,
                         gltf->sceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>(),
                         *x.selectedNodeIndices.begin(),
@@ -400,11 +400,11 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
                     // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& and std::span<glm::mat4> are passed (but it is unnecessary). Remove the parameter when fixed.
                     const auto applyNodeLocalTransformChangeRecursive
-                        = [](this auto self, const fastgltf::Asset &asset, std::span<glm::mat4> nodeWorldTransforms, std::size_t nodeIndex, const glm::mat4 &parentNodeWorldTransform = { 1.f }) -> void {
+                        = [](this auto self, const fastgltf::Asset &asset, std::span<glm::mat4> nodeWorldTransforms, std::uint16_t nodeIndex, const glm::mat4 &parentNodeWorldTransform = { 1.f }) -> void {
                             const fastgltf::Node &node = asset.nodes[nodeIndex];
                             nodeWorldTransforms[nodeIndex] = parentNodeWorldTransform * visit(LIFT(fastgltf::toMatrix), node.transform);
 
-                            for (std::size_t childNodeIndex : node.children) {
+                            for (std::uint16_t childNodeIndex : node.children) {
                                 self(asset, nodeWorldTransforms, childNodeIndex, nodeWorldTransforms[nodeIndex]);
                             }
                     };
@@ -413,7 +413,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     // parent node's world transform (it must be identity matrix if selected node is root node).
                     const glm::mat4 parentNodeWorldTransform
                         = appState.gltfAsset->getParentNodeIndex(task.nodeIndex)
-                        .transform([&](std::size_t parentNodeIndex) {
+                        .transform([&](std::uint16_t parentNodeIndex) {
                             return nodeWorldTransforms[parentNodeIndex];
                         })
                         .value_or(glm::mat4 { 1.f });

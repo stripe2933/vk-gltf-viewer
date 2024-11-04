@@ -541,7 +541,7 @@ const std::optional<std::tuple<fastgltf::Asset&, const std::filesystem::path&, s
 }
 
 auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
-    const std::optional<std::tuple<fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::size_t>&, const std::unordered_set<std::size_t>&>> &assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices
+    const std::optional<std::tuple<fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::uint16_t>&, const std::unordered_set<std::uint16_t>&>> &assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices
 ) && -> ImGuiTaskCollector {
     if (ImGui::Begin("Scene Hierarchy")) {
         if (assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices) {
@@ -577,8 +577,8 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 "If some children are visible and some are hidden, the node will be in an indeterminate state.");
 
             // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& is passed (but it is unnecessary). Remove the parameter when fixed.
-            const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
-                std::size_t descendentNodeIndex = nodeIndex;
+            const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::uint16_t nodeIndex) -> void {
+                std::uint16_t descendentNodeIndex = nodeIndex;
 
                 std::vector<std::string> directDescendentNodeNames;
                 while (true) {
@@ -731,7 +731,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                     }
 
                     if (isTreeNodeOpen) {
-                        for (std::size_t childNodeIndex : descendentNode.children) {
+                        for (std::uint16_t childNodeIndex : descendentNode.children) {
                             self(asset, childNodeIndex);
                         }
                         ImGui::TreePop();
@@ -749,7 +749,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 ImGui::TableSetupColumn("Camera", ImGuiTableColumnFlags_WidthFixed);
                 ImGui::TableHeadersRow();
 
-                for (std::size_t nodeIndex : asset.scenes[sceneIndex].nodeIndices) {
+                for (std::uint16_t nodeIndex : asset.scenes[sceneIndex].nodeIndices) {
                     addChildNode(asset, nodeIndex);
                 }
                 ImGui::EndTable();
@@ -765,7 +765,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 }
 
 auto vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
-    std::optional<std::pair<fastgltf::Asset &, const std::unordered_set<std::size_t>&>> assetAndSelectedNodeIndices
+    std::optional<std::pair<fastgltf::Asset &, const std::unordered_set<std::uint16_t>&>> assetAndSelectedNodeIndices
 ) && -> ImGuiTaskCollector {
     if (ImGui::Begin("Node inspector")) {
         if (!assetAndSelectedNodeIndices) {
@@ -775,7 +775,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
             ImGui::TextUnformatted("No nodes are selected."sv);
         }
         else if (selectedNodeIndices.size() == 1) {
-            const std::size_t selectedNodeIndex = *selectedNodeIndices.begin();
+            const std::uint16_t selectedNodeIndex = *selectedNodeIndices.begin();
             fastgltf::Node &node = asset.nodes[selectedNodeIndex];
             ImGui::InputTextWithHint("Name", "<empty>", &node.name);
 
@@ -1085,7 +1085,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
 
 auto vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
     Camera &camera,
-    const std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::size_t, ImGuizmo::OPERATION>> &assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation
+    const std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::uint16_t, ImGuizmo::OPERATION>> &assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation
 ) && -> ImGuiTaskCollector {
     // Set ImGuizmo rect.
     ImGuizmo::BeginFrame();
