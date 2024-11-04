@@ -25,15 +25,6 @@ namespace vk_gltf_viewer::gltf {
         std::vector<const fastgltf::Primitive*> orderedPrimitives = createOrderedPrimitives();
 
         /**
-         * @brief Hashmap that maps the asset primitives to their appearing order.
-         *
-         * @code
-         * orderedPrimitives[i] = pPrimitive -> primitiveOrders[pPrimitive] = i.
-         * @endcode
-         */
-        std::unordered_map<const fastgltf::Primitive*, std::size_t> primitiveOrders = createPrimitiveOrders();
-
-        /**
          * @brief GPU buffers that would only be accessed by buffer device address.
          *
          * Asset buffer view data that are used by attributes, missing tangents, indexed attribute (e.g. <tt>TEXCOORD_<i></tt>) mapping information are staged into GPU buffer, but these are "unnamed". They are specific to this class' implementation, and cannot be accessed from outside this class. Instead, their device addresses are stored in AssetPrimitiveInfo and could be accessed in the shader.
@@ -103,9 +94,15 @@ namespace vk_gltf_viewer::gltf {
 
         AssetGpuBuffers(const fastgltf::Asset &asset, const AssetExternalBuffers &externalBuffers, const vulkan::Gpu &gpu, BS::thread_pool threadPool = {});
 
+        /**
+         * @brief Get the primitive by its order, which has the same manner of <tt>primitiveBuffer</tt>.
+         * @param index The order of the primitive.
+         * @return The primitive.
+         */
+        [[nodiscard]] const fastgltf::Primitive &getPrimitiveByOrder(std::uint16_t index) const { return *orderedPrimitives[index]; }
+
     private:
         [[nodiscard]] std::vector<const fastgltf::Primitive*> createOrderedPrimitives() const;
-        [[nodiscard]] std::unordered_map<const fastgltf::Primitive*, std::size_t> createPrimitiveOrders() const;
         [[nodiscard]] std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> createPrimitiveInfos() const;
         [[nodiscard]] vku::AllocatedBuffer createMaterialBuffer();
         [[nodiscard]] std::unordered_map<vk::IndexType, vku::AllocatedBuffer> createPrimitiveIndexBuffers(const AssetExternalBuffers &externalBuffers);

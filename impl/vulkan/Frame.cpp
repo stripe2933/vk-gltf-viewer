@@ -139,14 +139,15 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
 
             if (task.frustum) {
-                const std::span orderedNodePrimitives = task.gltf->sceneGpuBuffers.orderedNodePrimitives;
                 const std::span nodeWorldTransforms = task.gltf->sceneGpuBuffers.nodeWorldTransformBuffer.asRange<const glm::mat4>();
                 for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
                     visit([&]<bool Indexed>(buffer::IndirectDrawCommands<Indexed> &indirectDrawCommands) -> void {
                         indirectDrawCommands.partition([&](const buffer::IndirectDrawCommands<Indexed>::command_t &command) {
-                            const std::uint32_t primitiveIndex = command.firstInstance & 0xFFFFU;
-                            const auto [nodeIndex, pPrimitiveInfo] = orderedNodePrimitives[primitiveIndex];
-                            const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(pPrimitiveInfo);
+                            const std::uint16_t nodeIndex = command.firstInstance >> 16U;
+                            const std::uint16_t primitiveIndex = command.firstInstance & 0xFFFFU;
+                            const fastgltf::Primitive &primitive = task.gltf->assetGpuBuffers.getPrimitiveByOrder(primitiveIndex);
+
+                            const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
 
                             const glm::mat4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
                             const glm::vec3 transformedMin = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { primitiveInfo.min, 1.f });

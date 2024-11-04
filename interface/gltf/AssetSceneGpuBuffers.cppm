@@ -16,14 +16,9 @@ namespace vk_gltf_viewer::gltf {
      * (like materials, vertex/index buffers, primitives, etc.), see <tt>AssetGpuBuffers</tt> for that purpose.
      */
     export class AssetSceneGpuBuffers {
+        const fastgltf::Asset *pAsset;
+
     public:
-        /**
-         * @brief Asset primitives that are ordered by preorder scene traversal.
-         *
-         * It is a flattened list of (node index, &primitive) pairs that are collected by the preorder traversal of scene.
-         * Since a mesh has multiple primitives, two consecutive pairs may have the same node index.
-         */
-        std::vector<std::pair<std::size_t /* nodeIndex */, const fastgltf::Primitive*>> orderedNodePrimitives;
 
         /**
          * @brief Buffer that contains world transformation matrices of each node.
@@ -55,36 +50,40 @@ namespace vk_gltf_viewer::gltf {
         ) const -> std::map<Criteria, std::variant<vulkan::buffer::IndirectDrawCommands<false>, vulkan::buffer::IndirectDrawCommands<true>>, Compare> {
             std::map<Criteria, std::variant<std::vector<vk::DrawIndirectCommand>, std::vector<vk::DrawIndexedIndirectCommand>>> commandGroups;
 
-            for (auto [nodeIndex, pPrimitive] : orderedNodePrimitives) {
-                if (!nodeIndices.contains(nodeIndex)) {
+            for (std::uint16_t nodeIndex : nodeIndices) {
+                const fastgltf::Node &node = pAsset->nodes[nodeIndex];
+                if (!node.meshIndex) {
                     continue;
                 }
 
-                const AssetPrimitiveInfo &primitiveInfo = primitiveInfoGetter(*pPrimitive);
-                const Criteria criteria = criteriaGetter(primitiveInfo);
-                if (const auto &indexInfo = primitiveInfo.indexInfo) {
-                    const std::size_t indexByteSize = [=]() {
-                        switch (indexInfo->type) {
-                            case vk::IndexType::eUint8KHR: return sizeof(std::uint8_t);
-                            case vk::IndexType::eUint16: return sizeof(std::uint16_t);
-                            case vk::IndexType::eUint32: return sizeof(std::uint32_t);
-                            default: throw std::runtime_error{ "Unsupported index type: only Uint8KHR, Uint16 and Uint32 are supported." };
-                        }
-                    }();
+                const fastgltf::Mesh &mesh = pAsset->meshes[*node.meshIndex];
+                for (const fastgltf::Primitive &primitive : mesh.primitives) {
+                    const AssetPrimitiveInfo &primitiveInfo = primitiveInfoGetter(primitive);
+                    const Criteria criteria = criteriaGetter(primitiveInfo);
+                    if (const auto &indexInfo = primitiveInfo.indexInfo) {
+                        const std::size_t indexByteSize = [=]() {
+                            switch (indexInfo->type) {
+                                case vk::IndexType::eUint8KHR: return sizeof(std::uint8_t);
+                                case vk::IndexType::eUint16: return sizeof(std::uint16_t);
+                                case vk::IndexType::eUint32: return sizeof(std::uint32_t);
+                                default: throw std::runtime_error{ "Unsupported index type: only Uint8KHR, Uint16 and Uint32 are supported." };
+                            }
+                        }();
 
-                    auto &commandGroup = commandGroups
-                        .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndexedIndirectCommand>>)
-                        .first->second;
-                    const std::uint32_t firstIndex = static_cast<std::uint32_t>(primitiveInfo.indexInfo->offset / indexByteSize);
-                    get_if<std::vector<vk::DrawIndexedIndirectCommand>>(&commandGroup)
-                        ->emplace_back(primitiveInfo.drawCount, 1, firstIndex, 0, (nodeIndex << 16U) | primitiveInfo.index);
-                }
-                else {
-                    auto &commandGroup = commandGroups
-                        .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndirectCommand>>)
-                        .first->second;
-                    get_if<std::vector<vk::DrawIndirectCommand>>(&commandGroup)
-                        ->emplace_back(primitiveInfo.drawCount, 1, 0, (nodeIndex << 16U) | primitiveInfo.index);
+                        auto &commandGroup = commandGroups
+                            .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndexedIndirectCommand>>)
+                            .first->second;
+                        const std::uint32_t firstIndex = static_cast<std::uint32_t>(primitiveInfo.indexInfo->offset / indexByteSize);
+                        get_if<std::vector<vk::DrawIndexedIndirectCommand>>(&commandGroup)
+                            ->emplace_back(primitiveInfo.drawCount, 1, firstIndex, 0, (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index));
+                    }
+                    else {
+                        auto &commandGroup = commandGroups
+                            .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndirectCommand>>)
+                            .first->second;
+                        get_if<std::vector<vk::DrawIndirectCommand>>(&commandGroup)
+                            ->emplace_back(primitiveInfo.drawCount, 1, 0, (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index));
+                    }
                 }
             }
 
@@ -112,7 +111,6 @@ namespace vk_gltf_viewer::gltf {
         }
 
     private:
-        [[nodiscard]] std::vector<std::pair<std::size_t, const fastgltf::Primitive*>> createOrderedNodePrimitives(const fastgltf::Asset &asset, const fastgltf::Scene &scene) const;
-        [[nodiscard]] vku::MappedBuffer createNodeWorldTransformBuffer(const fastgltf::Asset &asset, const fastgltf::Scene &scene, vma::Allocator allocator) const;
+        [[nodiscard]] vku::MappedBuffer createNodeWorldTransformBuffer(const fastgltf::Scene &scene, vma::Allocator allocator) const;
     };
 }

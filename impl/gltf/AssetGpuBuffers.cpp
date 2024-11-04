@@ -126,15 +126,6 @@ std::vector<const fastgltf::Primitive*> vk_gltf_viewer::gltf::AssetGpuBuffers::c
         | std::ranges::to<std::vector>();
 }
 
-std::unordered_map<const fastgltf::Primitive*, std::size_t> vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveOrders() const {
-    return orderedPrimitives
-        | ranges::views::enumerate
-        | ranges::views::decompose_transform([](std::size_t i, const fastgltf::Primitive *pPrimitive) {
-            return std::pair { pPrimitive, i };
-        })
-        | std::ranges::to<std::unordered_map>();
-}
-
 auto vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveInfos() const -> std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> {
     return orderedPrimitives
         | ranges::views::enumerate
