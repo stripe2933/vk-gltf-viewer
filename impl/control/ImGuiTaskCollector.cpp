@@ -504,8 +504,8 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Open glTF File", "Ctrl+O")) {
                 constexpr std::array filterItems {
-                    nfdfilteritem_t { "glTF File", "gltf" },
-                    nfdfilteritem_t { "glTf Binary File", "glb" },
+                    nfdfilteritem_t { "All Supported Files", "gltf,glb" },
+                    nfdfilteritem_t { "glTF File", "gltf,glb" },
                 };
                 if (auto filename = processFileDialog(filterItems)) {
                     tasks.emplace_back(std::in_place_type<task::LoadGltf>, *std::move(filename));
@@ -532,8 +532,9 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
         if (ImGui::BeginMenu("Skybox")) {
             if (ImGui::MenuItem("Open Skybox")) {
                 constexpr std::array filterItems {
-                    nfdfilteritem_t { "HDR image", "hdr" },
-                    nfdfilteritem_t { "EXR image", "exr" },
+                    nfdfilteritem_t { "All Supported Images", "hdr,exr" },
+                    nfdfilteritem_t { "HDR Image", "hdr" },
+                    nfdfilteritem_t { "EXR Image", "exr" },
                 };
                 if (auto filename = processFileDialog(filterItems)) {
                     tasks.emplace_back(std::in_place_type<task::LoadEqmap>, *std::move(filename));
