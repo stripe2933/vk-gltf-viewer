@@ -171,7 +171,7 @@ namespace vk_gltf_viewer::gltf {
         AssetGpuBuffers(
             const fastgltf::Asset &asset,
             const vulkan::Gpu &gpu,
-            BS::thread_pool threadPool = {},
+            BS::thread_pool &threadPool,
             const BufferDataAdapter &adapter = {}
         ) : asset { asset },
             gpu { gpu },

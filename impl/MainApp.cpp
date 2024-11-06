@@ -488,13 +488,14 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     fastgltf::Parser &parser,
     const std::filesystem::path &path,
     const vulkan::Gpu &_gpu [[clang::lifetimebound]],
-    fastgltf::GltfDataBuffer dataBuffer
+    fastgltf::GltfDataBuffer dataBuffer,
+    BS::thread_pool threadPool
 ) : directory { path.parent_path() },
     assetExpected { (checkDataBufferLoadResult(dataBuffer.loadFromFile(path)), parser.loadGltf(&dataBuffer, directory)) },
     gpu { _gpu },
     assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(asset, directory) },
-    assetGpuBuffers { asset, gpu, BS::thread_pool{}, *assetExternalBuffers },
-    assetGpuTextures { asset, directory, gpu, BS::thread_pool{}, *assetExternalBuffers },
+    assetGpuBuffers { asset, gpu, threadPool, *assetExternalBuffers },
+    assetGpuTextures { asset, directory, gpu, threadPool, *assetExternalBuffers },
     sceneGpuBuffers { asset, scene, sceneHierarchy, gpu, *assetExternalBuffers } {
     // assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
 }

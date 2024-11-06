@@ -75,7 +75,8 @@ namespace vk_gltf_viewer {
                 fastgltf::Parser &parser,
                 const std::filesystem::path &path,
                 const vulkan::Gpu &gpu [[clang::lifetimebound]],
-                fastgltf::GltfDataBuffer dataBuffer = fastgltf::GltfDataBuffer{});
+                fastgltf::GltfDataBuffer dataBuffer = fastgltf::GltfDataBuffer{},
+                BS::thread_pool threadPool = {});
 
             void setScene(std::size_t sceneIndex);
         };
