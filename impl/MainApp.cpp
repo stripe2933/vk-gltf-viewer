@@ -493,8 +493,8 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     assetExpected { (checkDataBufferLoadResult(dataBuffer.loadFromFile(path)), parser.loadGltf(&dataBuffer, directory)) },
     gpu { _gpu },
     assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(asset, directory) },
-    assetGpuBuffers { asset, *assetExternalBuffers, gpu },
-    assetGpuTextures { asset, directory, *assetExternalBuffers, gpu },
+    assetGpuBuffers { asset, gpu, BS::thread_pool{}, *assetExternalBuffers },
+    assetGpuTextures { asset, directory, gpu, BS::thread_pool{}, *assetExternalBuffers },
     sceneGpuBuffers { asset, scene, sceneHierarchy, gpu, *assetExternalBuffers } {
     // assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
 }

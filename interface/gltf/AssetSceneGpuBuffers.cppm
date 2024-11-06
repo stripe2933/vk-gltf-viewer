@@ -3,7 +3,6 @@ export module vk_gltf_viewer:gltf.AssetSceneGpuBuffers;
 import std;
 export import fastgltf;
 import :gltf.algorithm.traversal;
-export import :gltf.AssetExternalBuffers;
 export import :gltf.AssetPrimitiveInfo;
 export import :gltf.AssetSceneHierarchy;
 import :helpers.concepts;

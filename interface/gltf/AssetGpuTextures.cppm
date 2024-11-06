@@ -9,9 +9,10 @@ module;
 export module vk_gltf_viewer:gltf.AssetGpuTextures;
 
 import std;
+export import fastgltf;
 import glm;
 export import thread_pool;
-export import :gltf.AssetExternalBuffers;
+import :helpers.fastgltf;
 import :helpers.ranges;
 export import :vulkan.Gpu;
 import :vulkan.mipmap;
@@ -94,12 +95,13 @@ namespace vk_gltf_viewer::gltf {
          */
         std::vector<vk::raii::Sampler> samplers = createSamplers();
 
+        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         AssetGpuTextures(
             const fastgltf::Asset &asset,
             const std::filesystem::path &assetDir,
-            const AssetExternalBuffers &externalBuffers,
             const vulkan::Gpu &gpu,
-            BS::thread_pool threadPool = {}
+            BS::thread_pool threadPool = {},
+            const BufferDataAdapter &adapter = {}
         ) : asset { asset },
             gpu { gpu } {
             // Get images that are used by asset textures.
@@ -356,10 +358,10 @@ namespace vk_gltf_viewer::gltf {
                             switch (bufferView.mimeType) {
                                 case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
                                     return processNonCompressedImageFromMemory(
-                                        as_span<const stbi_uc>(externalBuffers.getByteRegion(asset.bufferViews[bufferView.bufferViewIndex])));
+                                        as_span<const stbi_uc>(getByteRegion(asset, asset.bufferViews[bufferView.bufferViewIndex], adapter)));
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(
-                                        as_span<const ktx_uint8_t>(externalBuffers.getByteRegion(asset.bufferViews[bufferView.bufferViewIndex])));
+                                        as_span<const ktx_uint8_t>(getByteRegion(asset, asset.bufferViews[bufferView.bufferViewIndex], adapter)));
                                 default:
                                     throw std::runtime_error { "Unsupported image MIME type" };
                             }

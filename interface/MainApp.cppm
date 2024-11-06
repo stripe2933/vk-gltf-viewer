@@ -3,6 +3,7 @@ export module vk_gltf_viewer:MainApp;
 import std;
 import :control.AppWindow;
 import :gltf.algorithm.miniball;
+import :gltf.AssetExternalBuffers;
 import :gltf.AssetGpuBuffers;
 import :gltf.AssetGpuTextures;
 import :gltf.AssetGpuFallbackTexture;

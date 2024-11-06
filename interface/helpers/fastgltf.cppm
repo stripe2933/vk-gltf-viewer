@@ -126,6 +126,38 @@ namespace fastgltf {
     }
 
     /**
+     * Get buffer byte region of \p bufferView.
+     * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view. If you provided <tt>fastgltf::Options::LoadExternalBuffers</tt> to the <tt>fastgltf::Parser</tt> while loading the glTF, the parameter can be omitted.
+     * @param asset fastgltf Asset.
+     * @param bufferView Buffer view to get the byte region. This MUST be originated from the \p asset.
+     * @param adapter Buffer data adapter.
+     * @return Span of bytes.
+     */
+    export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
+    [[nodiscard]] std::span<const std::byte> getByteRegion(const Asset &asset, const BufferView &bufferView, const BufferDataAdapter &adapter = {}) noexcept {
+        return std::span { adapter(asset.buffers[bufferView.bufferIndex]) + bufferView.byteOffset, bufferView.byteLength };
+    }
+
+    /**
+     * Get buffer byte region of \p accessor.
+     * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view. If you provided <tt>fastgltf::Options::LoadExternalBuffers</tt> to the <tt>fastgltf::Parser</tt> while loading the glTF, the parameter can be omitted.
+     * @param asset fastgltf Asset.
+     * @param accessor Accessor to get the byte region.
+     * @param adapter Buffer data adapter.
+     * @return Span of bytes.
+     * @throw std::runtime_error If the accessor is sparse or has no buffer view.
+     */
+    export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
+    [[nodiscard]] std::span<const std::byte> getByteRegion(const Asset &asset, const Accessor &accessor, const BufferDataAdapter &adapter = {}) {
+        if (accessor.sparse) throw std::runtime_error { "Sparse accessor not supported." };
+        if (!accessor.bufferViewIndex) throw std::runtime_error { "Accessor has no buffer view." };
+
+        const BufferView &bufferView = asset.bufferViews[*accessor.bufferViewIndex];
+        const std::size_t byteStride = bufferView.byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType));
+        return getByteRegion(asset, bufferView, adapter).subspan(accessor.byteOffset, byteStride * accessor.count);
+    }
+
+    /**
      * @brief Get transform matrices of \p node instances.
      *
      * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view. If you provided <tt>fastgltf::Options::LoadExternalBuffers</tt> to the <tt>fastgltf::Parser</tt> while loading the glTF, the parameter can be omitted.
