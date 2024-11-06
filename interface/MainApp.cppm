@@ -15,9 +15,6 @@ import :vulkan.dsl.Scene;
 import :vulkan.dsl.Skybox;
 import :vulkan.Frame;
 
-#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
-
 namespace vk_gltf_viewer {
     export class MainApp {
     public:
@@ -69,7 +66,7 @@ namespace vk_gltf_viewer {
             fastgltf::Scene &scene { asset.scenes[asset.defaultScene.value_or(0)] };
             gltf::AssetSceneHierarchy sceneHierarchy { asset, scene };
             gltf::AssetSceneGpuBuffers sceneGpuBuffers;
-            std::pair<glm::dvec3, double> sceneMiniball { gltf::algorithm::getMiniball(asset, scene, LIFT(sceneGpuBuffers.getMeshNodeWorldTransform)) };
+            std::pair<glm::dvec3, double> sceneMiniball;
 
             Gltf(
                 fastgltf::Parser &parser,

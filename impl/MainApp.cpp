@@ -496,7 +496,8 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(asset, directory) },
     assetGpuBuffers { asset, gpu, threadPool, *assetExternalBuffers },
     assetGpuTextures { asset, directory, gpu, threadPool, *assetExternalBuffers },
-    sceneGpuBuffers { asset, scene, sceneHierarchy, gpu, *assetExternalBuffers } {
+    sceneGpuBuffers { asset, scene, sceneHierarchy, gpu, *assetExternalBuffers },
+    sceneMiniball{ gltf::algorithm::getMiniball(asset, scene, LIFT(sceneGpuBuffers.getMeshNodeWorldTransform)) } {
     // assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
 }
 
