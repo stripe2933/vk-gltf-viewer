@@ -47,13 +47,13 @@ namespace vk_gltf_viewer {
              */
             fastgltf::Asset &asset { assetExpected.get() };
 
-        // private:
             /**
-             * Intermediate buffer data that would be dropped after the field initialization. DO NOT use this outside the constructor!
+			 * @brief External buffers that are not embedded in the glTF file, such like .bin files.
+             * 
+             * If you specified <tt>fastgltf::Options::LoadExternalBuffers</tt>, this should be omitted.
              */
-            std::unique_ptr<gltf::AssetExternalBuffers> assetExternalBuffers;
+            gltf::AssetExternalBuffers assetExternalBuffers{ asset, directory };
 
-        public:
             gltf::AssetGpuBuffers assetGpuBuffers;
             gltf::AssetGpuTextures assetGpuTextures;
 
@@ -64,15 +64,29 @@ namespace vk_gltf_viewer {
              * modification of <tt>sceneGpuBuffers</tt> and <tt>sceneMiniball</tt>). Use <tt>setScene</tt> for the purpose.
              */
             fastgltf::Scene &scene { asset.scenes[asset.defaultScene.value_or(0)] };
+
+            /**
+             * @brief Hierarchy information of current scene.
+             */
             gltf::AssetSceneHierarchy sceneHierarchy { asset, scene };
+
+			/**
+			 * @brief GPU buffers that are used for rendering the current scene.
+			 */
             gltf::AssetSceneGpuBuffers sceneGpuBuffers;
+
+			/**
+			 * @brief Smallest enclosing sphere of all meshes (a.k.a. miniball) in the scene.
+             * 
+			 * The first of the pair is the center, and the second is the radius of the miniball.
+			 */
             std::pair<glm::dvec3, double> sceneMiniball;
 
             Gltf(
                 fastgltf::Parser &parser,
+                fastgltf::GltfDataBuffer &dataBuffer [[clang::lifetimebound]],
                 const std::filesystem::path &path,
                 const vulkan::Gpu &gpu [[clang::lifetimebound]],
-                fastgltf::GltfDataBuffer dataBuffer = fastgltf::GltfDataBuffer{},
                 BS::thread_pool threadPool = {});
 
             void setScene(std::size_t sceneIndex);
@@ -100,6 +114,7 @@ namespace vk_gltf_viewer {
         vulkan::Gpu gpu { instance, window.getSurface() };
 
         fastgltf::Parser parser { fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::EXT_mesh_gpu_instancing };
+        fastgltf::GltfDataBuffer dataBuffer;
         std::optional<Gltf> gltf;
 
         // Buffers, images, image views and samplers.

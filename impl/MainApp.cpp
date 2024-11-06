@@ -267,7 +267,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     //  so I'll just use it for now.
                     gpu.device.waitIdle();
 
-                    gltf.emplace(parser, task.path, gpu);
+                    gltf.emplace(parser, dataBuffer, task.path, gpu);
 
                     sharedData.updateTextureCount(1 + gltf->asset.textures.size());
 
@@ -400,7 +400,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     gltf->sceneHierarchy.updateDescendantNodeTransformsFrom(task.nodeIndex);
 
                     // Passing sceneHierarchy into sceneGpuBuffers to update GPU mesh node transform buffer.
-                    gltf->sceneGpuBuffers.updateMeshNodeTransformsFrom(task.nodeIndex, gltf->sceneHierarchy, *gltf->assetExternalBuffers);
+                    gltf->sceneGpuBuffers.updateMeshNodeTransformsFrom(task.nodeIndex, gltf->sceneHierarchy, gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -486,25 +486,22 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
 vk_gltf_viewer::MainApp::Gltf::Gltf(
     fastgltf::Parser &parser,
+    fastgltf::GltfDataBuffer &dataBuffer,
     const std::filesystem::path &path,
-    const vulkan::Gpu &_gpu [[clang::lifetimebound]],
-    fastgltf::GltfDataBuffer dataBuffer,
+    const vulkan::Gpu &gpu [[clang::lifetimebound]],
     BS::thread_pool threadPool
 ) : directory { path.parent_path() },
     assetExpected { (checkDataBufferLoadResult(dataBuffer.loadFromFile(path)), parser.loadGltf(&dataBuffer, directory)) },
-    gpu { _gpu },
-    assetExternalBuffers { std::make_unique<gltf::AssetExternalBuffers>(asset, directory) },
-    assetGpuBuffers { asset, gpu, threadPool, *assetExternalBuffers },
-    assetGpuTextures { asset, directory, gpu, threadPool, *assetExternalBuffers },
-    sceneGpuBuffers { asset, scene, sceneHierarchy, gpu, *assetExternalBuffers },
-    sceneMiniball{ gltf::algorithm::getMiniball(asset, scene, LIFT(sceneGpuBuffers.getMeshNodeWorldTransform)) } {
-    // assetExternalBuffers.reset(); // Drop the intermediate result that are not used in rendering.
-}
+    gpu { gpu },
+    assetGpuBuffers { asset, gpu, threadPool, assetExternalBuffers },
+    assetGpuTextures { asset, directory, gpu, threadPool, assetExternalBuffers },
+    sceneGpuBuffers { asset, scene, sceneHierarchy, gpu, assetExternalBuffers },
+    sceneMiniball{ gltf::algorithm::getMiniball(asset, scene, LIFT(sceneGpuBuffers.getMeshNodeWorldTransform)) } { }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
     sceneHierarchy = { asset, scene };
-    sceneGpuBuffers = { asset, scene, sceneHierarchy, gpu, *assetExternalBuffers };
+    sceneGpuBuffers = { asset, scene, sceneHierarchy, gpu, assetExternalBuffers };
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, LIFT(sceneGpuBuffers.getMeshNodeWorldTransform));
 }
 
