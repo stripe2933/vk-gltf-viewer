@@ -56,6 +56,10 @@ vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedDat
 auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateResult {
     UpdateResult result{};
 
+    // --------------------
+    // Update CPU resources.
+    // --------------------
+
     if (task.handleSwapchainResize) {
         // Attachment images that have to be matched to the swapchain extent must be recreated.
         sceneOpaqueAttachmentGroup = { gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
@@ -87,12 +91,11 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     }
 
     // If passthru extent is different from the current's, dependent images have to be recreated.
-    if (!passthruExtent || *passthruExtent != task.passthruRect.extent) {
-        passthruExtent.emplace(task.passthruRect.extent);
+    if (!passthruResources || passthruResources->extent != task.passthruRect.extent) {
         // TODO: can this operation be non-blocking?
         const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
         vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-            passthruResources.emplace(gpu, *passthruExtent, cb);
+            passthruResources.emplace(gpu, task.passthruRect.extent, cb);
         }, *fence);
         if (gpu.device.waitForFences(*fence, true, ~0ULL) != vk::Result::eSuccess) {
             throw std::runtime_error { "Failed to initialize the rendering region GPU resources." };
@@ -112,7 +115,8 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     // If there is a glTF scene to be rendered, related resources have to be updated.
     if (task.gltf) {
-        indexBuffers = task.gltf->assetGpuBuffers.indexBuffers
+        indexBuffers
+            = task.gltf->assetGpuBuffers.indexBuffers
             | ranges::views::value_transform([](vk::Buffer buffer) { return buffer; })
             | std::ranges::to<std::unordered_map>();
 
@@ -178,44 +182,44 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             renderingNodes.reset();
         }
 
-        if (!task.gltf->selectedNodeIndices.empty() && task.selectedNodeOutline) {
+        if (task.gltf->selectedNodes) {
             if (selectedNodes) {
-                if (selectedNodes->indices != task.gltf->selectedNodeIndices) {
-                    selectedNodes->indices = task.gltf->selectedNodeIndices;
-                    selectedNodes->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodeIndices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
+                if (selectedNodes->indices != task.gltf->selectedNodes->first) {
+                    selectedNodes->indices = task.gltf->selectedNodes->first;
+                    selectedNodes->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodes->first, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
                 }
-                selectedNodes->outlineColor = task.selectedNodeOutline->color;
-                selectedNodes->outlineThickness = task.selectedNodeOutline->thickness;
+                selectedNodes->outlineColor = task.gltf->selectedNodes->second.color;
+                selectedNodes->outlineThickness = task.gltf->selectedNodes->second.thickness;
             }
             else {
                 selectedNodes.emplace(
-                    task.gltf->selectedNodeIndices,
-                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodeIndices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
-                    task.selectedNodeOutline->color,
-                    task.selectedNodeOutline->thickness);
+                    task.gltf->selectedNodes->first,
+                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodes->first, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
+                    task.gltf->selectedNodes->second.color,
+                    task.gltf->selectedNodes->second.thickness);
             }
         }
         else {
             selectedNodes.reset();
         }
 
-        if (task.gltf->hoveringNodeIndex && task.hoveringNodeOutline &&
+        if (task.gltf->hoveringNode &&
             // If selectedNodeIndices == hoveringNodeIndex, hovering node outline doesn't have to be drawn.
-            !(task.gltf->selectedNodeIndices.size() == 1 && *task.gltf->selectedNodeIndices.begin() == *task.gltf->hoveringNodeIndex)) {
+            !(task.gltf->selectedNodes && task.gltf->selectedNodes->first.size() == 1 && *task.gltf->selectedNodes->first.begin() == task.gltf->hoveringNode->first)) {
             if (hoveringNode) {
-                if (hoveringNode->index != *task.gltf->hoveringNodeIndex) {
-                    hoveringNode->index = *task.gltf->hoveringNodeIndex;
-                    hoveringNode->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *task.gltf->hoveringNodeIndex }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
+                if (hoveringNode->index != task.gltf->hoveringNode->first) {
+                    hoveringNode->index = task.gltf->hoveringNode->first;
+                    hoveringNode->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { task.gltf->hoveringNode->first }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
                 }
-                hoveringNode->outlineColor = task.hoveringNodeOutline->color;
-                hoveringNode->outlineThickness = task.hoveringNodeOutline->thickness;
+                hoveringNode->outlineColor = task.gltf->hoveringNode->second.color;
+                hoveringNode->outlineThickness = task.gltf->hoveringNode->second.thickness;
             }
             else {
                 hoveringNode.emplace(
-                    *task.gltf->hoveringNodeIndex,
-                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { *task.gltf->hoveringNodeIndex }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
-                    task.hoveringNodeOutline->color,
-                    task.hoveringNodeOutline->thickness);
+                    task.gltf->hoveringNode->first,
+                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { task.gltf->hoveringNode->first }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
+                    task.gltf->hoveringNode->second.color,
+                    task.gltf->hoveringNode->second.thickness);
             }
         }
         else {
@@ -466,7 +470,8 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
     const Gpu &gpu,
     const vk::Extent2D &extent,
     vk::CommandBuffer graphicsCommandBuffer
-) : hoveringNodeOutlineJumpFloodResources { gpu, extent },
+) : extent { extent },
+    hoveringNodeOutlineJumpFloodResources { gpu, extent },
     selectedNodeOutlineJumpFloodResources { gpu, extent },
     depthPrepassAttachmentGroup { gpu, extent },
     hoveringNodeJumpFloodSeedAttachmentGroup { gpu, hoveringNodeOutlineJumpFloodResources.image },
@@ -568,7 +573,17 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
         {}, {}, {}, memoryBarriers);
 
-    ResourceBindingState resourceBindingState{};
+    struct {
+        type_variant<std::monostate, DepthRenderer, MaskDepthRenderer, JumpFloodSeedRenderer, MaskJumpFloodSeedRenderer> boundPipeline{};
+        std::optional<vk::CullModeFlagBits> cullMode{};
+        std::optional<vk::IndexType> indexBuffer;
+
+        // (Mask)DepthRenderer and (Mask)JumpFloodSeedRenderer have compatible descriptor set layouts and push constant range,
+        // therefore they only need to be bound once.
+        bool descriptorSetBound = false;
+        bool pushConstantBound = false;
+    } resourceBindingState{};
+
     const auto drawPrimitives
         = [&](const CriteriaSeparatedIndirectDrawCommands &indirectDrawCommandBuffers, const auto &opaqueOrBlendRenderer, const auto &maskRenderer) {
             // Render opaque or blend meshes.
@@ -641,7 +656,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 
-        cb.setViewport(0, vku::toViewport(*passthruExtent, true));
+        cb.setViewport(0, vku::toViewport(passthruResources->extent, true));
         cb.setScissor(0, vk::Rect2D{ *cursorPosFromPassthruRectTopLeft, { 1, 1 } });
 
         drawPrimitives(renderingNodes->indirectDrawCommandBuffers, sharedData.depthRenderer, sharedData.maskDepthRenderer);
@@ -655,8 +670,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 
-        cb.setViewport(0, vku::toViewport(*passthruExtent, true));
-        cb.setScissor(0, vk::Rect2D{ { 0, 0 }, *passthruExtent });
+        cb.setViewport(0, vku::toViewport(passthruResources->extent, true));
+        cb.setScissor(0, vk::Rect2D{ { 0, 0 }, passthruResources->extent });
 
         drawPrimitives(hoveringNode->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.maskJumpFloodSeedRenderer);
 
@@ -669,8 +684,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
 
-        cb.setViewport(0, vku::toViewport(*passthruExtent, true));
-        cb.setScissor(0, vk::Rect2D{ { 0, 0 }, *passthruExtent });
+        cb.setViewport(0, vku::toViewport(passthruResources->extent, true));
+        cb.setScissor(0, vk::Rect2D{ { 0, 0 }, passthruResources->extent });
 
         drawPrimitives(selectedNodes->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.maskJumpFloodSeedRenderer);
 
@@ -747,41 +762,43 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
 auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const -> void {
     assert(renderingNodes && "No nodes have to be rendered.");
 
-    type_variant<std::monostate, PrimitiveRenderer, MaskPrimitiveRenderer, FacetedPrimitiveRenderer, MaskFacetedPrimitiveRenderer> boundPipeline{};
-    std::optional<vk::CullModeFlagBits> currentCullMode{};
-    std::optional<vk::IndexType> currentIndexBuffer{};
+    struct {
+        type_variant<std::monostate, PrimitiveRenderer, MaskPrimitiveRenderer, FacetedPrimitiveRenderer, MaskFacetedPrimitiveRenderer> boundPipeline{};
+        std::optional<vk::CullModeFlagBits> cullMode{};
+        std::optional<vk::IndexType> indexBuffer{};
 
-    // (Mask)(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
-    // therefore they only need to be bound once.
-    bool descriptorBound = false;
-    bool pushConstantBound = false;
+        // (Mask)(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
+        // therefore they only need to be bound once.
+        bool descriptorBound = false;
+        bool pushConstantBound = false;
+    } resourceBindingState{};
 
     // Render alphaMode=Opaque meshes.
     for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque))) {
-        if (criteria.faceted && !boundPipeline.holds_alternative<PrimitiveRenderer>()) {
+        if (criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<PrimitiveRenderer>()) {
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveRenderer);
-            boundPipeline.emplace<PrimitiveRenderer>();
+            resourceBindingState.boundPipeline.emplace<PrimitiveRenderer>();
         }
-        else if (!criteria.faceted && !boundPipeline.holds_alternative<FacetedPrimitiveRenderer>()){
+        else if (!criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<FacetedPrimitiveRenderer>()){
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.facetedPrimitiveRenderer);
-            boundPipeline.emplace<FacetedPrimitiveRenderer>();
+            resourceBindingState.boundPipeline.emplace<FacetedPrimitiveRenderer>();
         }
-        if (!descriptorBound) {
+        if (!resourceBindingState.descriptorBound) {
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0,
                 { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
-            descriptorBound = true;
+            resourceBindingState.descriptorBound = true;
         }
-        if (!pushConstantBound) {
+        if (!resourceBindingState.pushConstantBound) {
             sharedData.sceneRenderingPipelineLayout.pushConstants(cb, { projectionViewMatrix, viewPosition });
-            pushConstantBound = true;
+            resourceBindingState.pushConstantBound = true;
         }
 
-        if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; currentCullMode != cullMode) {
-            cb.setCullMode(currentCullMode.emplace(cullMode));
+        if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
+            cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
         }
 
-        if (const auto &indexType = criteria.indexType; indexType && currentIndexBuffer != *indexType) {
-            currentIndexBuffer.emplace(*indexType);
+        if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
+            resourceBindingState.indexBuffer.emplace(*indexType);
             cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
         }
         visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
@@ -789,30 +806,30 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
 
     // Render alphaMode=Mask meshes.
     for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask))) {
-        if (criteria.faceted && !boundPipeline.holds_alternative<MaskPrimitiveRenderer>()) {
+        if (criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<MaskPrimitiveRenderer>()) {
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.maskPrimitiveRenderer);
-            boundPipeline.emplace<MaskPrimitiveRenderer>();
+            resourceBindingState.boundPipeline.emplace<MaskPrimitiveRenderer>();
         }
-        else if (!criteria.faceted && !boundPipeline.holds_alternative<MaskFacetedPrimitiveRenderer>()){
+        else if (!criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<MaskFacetedPrimitiveRenderer>()){
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.maskFacetedPrimitiveRenderer);
-            boundPipeline.emplace<MaskFacetedPrimitiveRenderer>();
+            resourceBindingState.boundPipeline.emplace<MaskFacetedPrimitiveRenderer>();
         }
-        if (!descriptorBound) {
+        if (!resourceBindingState.descriptorBound) {
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0,
                 { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
-            descriptorBound = true;
+            resourceBindingState.descriptorBound = true;
         }
-        if (!pushConstantBound) {
+        if (!resourceBindingState.pushConstantBound) {
             sharedData.sceneRenderingPipelineLayout.pushConstants(cb, { projectionViewMatrix, viewPosition });
-            pushConstantBound = true;
+            resourceBindingState.pushConstantBound = true;
         }
 
-        if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; currentCullMode != cullMode) {
-            cb.setCullMode(currentCullMode.emplace(cullMode));
+        if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
+            cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
         }
 
-        if (const auto &indexType = criteria.indexType; indexType && currentIndexBuffer != *indexType) {
-            currentIndexBuffer.emplace(*indexType);
+        if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
+            resourceBindingState.indexBuffer.emplace(*indexType);
             cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
         }
         visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
@@ -822,37 +839,39 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
 auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const -> bool {
     assert(renderingNodes && "No nodes have to be rendered.");
 
-    type_variant<std::monostate, BlendPrimitiveRenderer, BlendFacetedPrimitiveRenderer> boundPipeline{};
-    std::optional<vk::IndexType> currentIndexBuffer{};
+    struct {
+        type_variant<std::monostate, BlendPrimitiveRenderer, BlendFacetedPrimitiveRenderer> boundPipeline{};
+        std::optional<vk::IndexType> indexBuffer{};
 
-    // Blend(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
-    // therefore they only need to be bound once.
-    bool descriptorBound = false;
-    bool pushConstantBound = false;
+        // Blend(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
+        // therefore they only need to be bound once.
+        bool descriptorBound = false;
+        bool pushConstantBound = false;
+    } resourceBindingState;
 
     // Render alphaMode=Blend meshes.
     bool hasBlendMesh = false;
     for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Blend))) {
-        if (criteria.faceted && !boundPipeline.holds_alternative<BlendPrimitiveRenderer>()) {
+        if (criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<BlendPrimitiveRenderer>()) {
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.blendPrimitiveRenderer);
-            boundPipeline.emplace<BlendPrimitiveRenderer>();
+            resourceBindingState.boundPipeline.emplace<BlendPrimitiveRenderer>();
         }
-        else if (!criteria.faceted && !boundPipeline.holds_alternative<BlendFacetedPrimitiveRenderer>()){
+        else if (!criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<BlendFacetedPrimitiveRenderer>()){
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.blendFacetedPrimitiveRenderer);
-            boundPipeline.emplace<BlendFacetedPrimitiveRenderer>();
+            resourceBindingState.boundPipeline.emplace<BlendFacetedPrimitiveRenderer>();
         }
-        if (!descriptorBound) {
+        if (!resourceBindingState.descriptorBound) {
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0,
                 { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
-            descriptorBound = true;
+            resourceBindingState.descriptorBound = true;
         }
-        if (!pushConstantBound) {
+        if (!resourceBindingState.pushConstantBound) {
             sharedData.sceneRenderingPipelineLayout.pushConstants(cb, { projectionViewMatrix, viewPosition });
-            pushConstantBound = true;
+            resourceBindingState.pushConstantBound = true;
         }
 
-        if (const auto &indexType = criteria.indexType; indexType && currentIndexBuffer != *indexType) {
-            currentIndexBuffer.emplace(*indexType);
+        if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
+            resourceBindingState.indexBuffer.emplace(*indexType);
             cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
         }
         visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);

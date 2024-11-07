@@ -8,7 +8,6 @@ import std;
 export import :AppState;
 export import :gltf.AssetGpuBuffers;
 export import :gltf.AssetSceneGpuBuffers;
-import :helpers.type_variant;
 export import :vulkan.SharedData;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
@@ -24,12 +23,16 @@ namespace vk_gltf_viewer::vulkan {
                 const gltf::AssetGpuBuffers &assetGpuBuffers;
                 const gltf::AssetSceneHierarchy &sceneHierarchy;
                 const gltf::AssetSceneGpuBuffers &sceneGpuBuffers;
-                std::optional<std::uint16_t> hoveringNodeIndex;
-                std::unordered_set<std::uint16_t> selectedNodeIndices;
+                std::optional<std::pair<std::uint16_t /* index */, AppState::Outline>> hoveringNode;
+                std::optional<std::pair<const std::unordered_set<std::uint16_t>&, AppState::Outline>> selectedNodes;
                 std::unordered_set<std::uint16_t> renderingNodeIndices;
             };
 
             vk::Rect2D passthruRect;
+
+            /**
+             * @brief Camera matrices.
+             */
             struct { glm::mat4 view, projection; } camera;
 
             /**
@@ -39,22 +42,41 @@ namespace vk_gltf_viewer::vulkan {
              */
             std::optional<math::Frustum> frustum;
 
+            /**
+             * @brief Cursor position from passthru rect's top left. <tt>std::nullopt</tt> if cursor is outside the passthru rect.
+             */
             std::optional<vk::Offset2D> cursorPosFromPassthruRectTopLeft;
-            std::optional<AppState::Outline> hoveringNodeOutline;
-            std::optional<AppState::Outline> selectedNodeOutline;
+
+            /**
+             * @brief Information of glTF to be rendered. <tt>std::nullopt</tt> if no glTF scene to be rendered.
+             */
             std::optional<Gltf> gltf;
             std::optional<glm::vec3> solidBackground; // If this is nullopt, use SharedData::SkyboxDescriptorSet instead.
+
+            /**
+             * @brief Indication whether the frame should handle swapchain resizing.
+             *
+             * This MUST be <tt>true</tt> if previous frame's execution result (obtained by <tt>Frame::execute()</tt>) is <tt>false</tt>.
+             */
             bool handleSwapchainResize;
         };
 
         struct UpdateResult {
+            /**
+             * @brief Node index of the current pointing mesh. <tt>std::nullopt</tt> if there is no mesh under the cursor.
+             */
             std::optional<std::uint16_t> hoveringNodeIndex;
         };
 
         Frame(const Gpu &gpu [[clang::lifetimebound]], const SharedData &sharedData [[clang::lifetimebound]]);
 
-        auto waitForPreviousExecution() const -> void {
-            // Wait for the previous frame execution to finish.
+        /**
+         * @brief Wait for the previous frame execution to finish.
+         *
+         * This function is blocking.
+         * You should call this function before mutating the frame GPU resources for avoiding synchronization error.
+         */
+        void waitForPreviousExecution() const {
             if (auto result = gpu.device.waitForFences(*inFlightFence, true, ~0ULL); result != vk::Result::eSuccess) {
                 throw std::runtime_error{ std::format("Failed to wait for in-flight fence: {}", to_string(result)) };
             }
@@ -96,6 +118,8 @@ namespace vk_gltf_viewer::vulkan {
                 JumpFloodResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent);
             };
 
+            vk::Extent2D extent;
+
             JumpFloodResources hoveringNodeOutlineJumpFloodResources;
             JumpFloodResources selectedNodeOutlineJumpFloodResources;
 
@@ -108,18 +132,6 @@ namespace vk_gltf_viewer::vulkan {
 
         private:
             auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
-        };
-
-        struct ResourceBindingState {
-            type_variant<std::monostate, DepthRenderer, MaskDepthRenderer, JumpFloodSeedRenderer, MaskJumpFloodSeedRenderer> boundPipeline{};
-            std::optional<vk::CullModeFlagBits> cullMode{};
-            std::optional<vk::IndexType> indexBuffer;
-
-            // DepthRenderer, MaskDepthRenderer, JumpFloodSeedRenderer and MaskJumpFloodSeedRenderer have:
-            // - compatible asset descriptor set and scene descriptor set in set #0 and set #1, respectively.
-            // - compatible push constant range.
-            bool descriptorSetBound = false;
-            bool pushConstantBound = false;
         };
 
         struct RenderingNodes {
@@ -146,7 +158,6 @@ namespace vk_gltf_viewer::vulkan {
 
         // Buffer, image and image views.
         vku::MappedBuffer hoveringNodeIndexBuffer;
-        std::optional<vk::Extent2D> passthruExtent = std::nullopt;
         std::optional<PassthruResources> passthruResources = std::nullopt;
 
         // Attachment groups.

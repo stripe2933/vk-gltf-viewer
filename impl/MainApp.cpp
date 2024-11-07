@@ -33,7 +33,7 @@ import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
+#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 #ifdef _MSC_VER
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
@@ -446,8 +446,6 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 };
                 return value_if(0 <= offset.x && offset.x < passthruRect.extent.width && 0 <= offset.y && offset.y < passthruRect.extent.height, offset);
             }),
-            .hoveringNodeOutline = appState.hoveringNodeOutline.to_optional(),
-            .selectedNodeOutline = appState.selectedNodeOutline.to_optional(),
             .gltf = gltf.transform([&](Gltf &gltf) {
                 assert(appState.gltfAsset && "Synchronization error: gltfAsset is not set in AppState.");
                 return vulkan::Frame::ExecutionTask::Gltf {
@@ -455,8 +453,10 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     .assetGpuBuffers = gltf.assetGpuBuffers,
                     .sceneHierarchy = gltf.sceneHierarchy,
                     .sceneGpuBuffers = gltf.sceneGpuBuffers,
-                    .hoveringNodeIndex = appState.gltfAsset->hoveringNodeIndex,
-                    .selectedNodeIndices = appState.gltfAsset->selectedNodeIndices,
+                    .hoveringNode = transform(LIFT(std::pair), appState.gltfAsset->hoveringNodeIndex, appState.hoveringNodeOutline.to_optional()),
+                    .selectedNodes = value_if(!appState.gltfAsset->selectedNodeIndices.empty() && appState.selectedNodeOutline.has_value(), [&]() {
+                        return std::tie(appState.gltfAsset->selectedNodeIndices, *appState.selectedNodeOutline);
+                    }),
                     .renderingNodeIndices = appState.gltfAsset->getVisibleNodeIndices(),
                 };
             }),

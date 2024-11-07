@@ -48,6 +48,25 @@ export template <std::invocable F>
     return std::nullopt;
 }
 
+/**
+ * @brief If all \p opts... contain values, invokes \p f with the contained values as arguments, and returns an std::optional that contains the result of that invocation; otherwise, returns an empty <tt>std::optional</tt>.
+ *
+ * This is generalization of <tt>std::optional::transform</tt> with multiple optional values.
+ *
+ * @tparam Ts Optional inner types.
+ * @tparam F Function type.
+ * @param f Function to invoke.
+ * @param opts Optional values.
+ * @return An std::optional that contains the result of invoking \p f with the contained values of \p opts... as arguments if all \p opts... contain values; otherwise, an empty <tt>std::optional</tt>.
+ */
+export template <typename... Ts, std::invocable<const Ts&...> F>
+[[nodiscard]] std::optional<std::invoke_result_t<F, const Ts&...>> transform(F &&f, const std::optional<Ts> &...opts) {
+    if ((opts && ...)) {
+        return FWD(f)(*opts...);
+    }
+    return std::nullopt;
+}
+
 struct to_range_fn {
     template <typename T>
     constexpr auto operator()(const std::optional<T> &opt) const -> std::span<const T> {
