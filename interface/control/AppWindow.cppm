@@ -27,6 +27,10 @@ namespace vk_gltf_viewer::control {
         [[nodiscard]] auto getCursorPos() const -> glm::dvec2;
         [[nodiscard]] auto getContentScale() const -> glm::vec2;
 
+        void setTitle(const char *title) {
+            glfwSetWindowTitle(window, title);
+        }
+
         auto handleEvents(std::vector<Task> &tasks) -> void;
 
     private:
@@ -39,9 +43,10 @@ namespace vk_gltf_viewer::control {
 
         [[nodiscard]] auto createSurface(const vk::raii::Instance &instance) const -> vk::raii::SurfaceKHR;
 
-        auto onScrollCallback(glm::dvec2 offset) -> void;
-        auto onCursorPosCallback(glm::dvec2 position) -> void;
-        auto onMouseButtonCallback(int button, int action, int mods) -> void;
-        auto onKeyCallback(int key, int scancode, int action, int mods) -> void;
+        void onScrollCallback(glm::dvec2 offset);
+        void onCursorPosCallback(glm::dvec2 position);
+        void onMouseButtonCallback(int button, int action, int mods);
+        void onKeyCallback(int key, int scancode, int action, int mods);
+        void onDropCallback(std::span<const char* const> paths);
     };
 }

@@ -33,6 +33,9 @@ vk_gltf_viewer::control::AppWindow::AppWindow(
     glfwSetScrollCallback(window, [](GLFWwindow *window, double xoffset, double yoffset) {
         static_cast<AppWindow*>(glfwGetWindowUserPointer(window))->onScrollCallback({ xoffset, yoffset });
     });
+    glfwSetDropCallback(window, [](GLFWwindow *window, int count, const char *paths[]) {
+        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))->onDropCallback({ paths, static_cast<std::size_t>(count) });
+    });
 }
 
 vk_gltf_viewer::control::AppWindow::~AppWindow() {
@@ -86,7 +89,7 @@ auto vk_gltf_viewer::control::AppWindow::createSurface(const vk::raii::Instance 
     throw std::runtime_error { std::format("Failed to create window surface: {} (error code {})", error, code) };
 }
 
-auto vk_gltf_viewer::control::AppWindow::onScrollCallback(glm::dvec2 offset) -> void {
+void vk_gltf_viewer::control::AppWindow::onScrollCallback(glm::dvec2 offset) {
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
     const float factor = std::powf(1.01f, -offset.y);
@@ -97,7 +100,7 @@ auto vk_gltf_viewer::control::AppWindow::onScrollCallback(glm::dvec2 offset) -> 
     pTasks->emplace_back(std::in_place_type<task::ChangeCameraView>);
 }
 
-auto vk_gltf_viewer::control::AppWindow::onCursorPosCallback(glm::dvec2 position) -> void {
+void vk_gltf_viewer::control::AppWindow::onCursorPosCallback(glm::dvec2 position) {
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) {
         appState.hoveringMousePosition.reset();
         return;
@@ -136,7 +139,7 @@ void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(int button, int a
     }
 }
 
-auto vk_gltf_viewer::control::AppWindow::onKeyCallback(int key, int scancode, int action, int mods) -> void {
+void vk_gltf_viewer::control::AppWindow::onKeyCallback(int key, int scancode, int action, int mods) {
     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureKeyboard) return;
 
     if (action == GLFW_PRESS && appState.canManipulateImGuizmo()) {
@@ -150,6 +153,32 @@ auto vk_gltf_viewer::control::AppWindow::onKeyCallback(int key, int scancode, in
             case GLFW_KEY_S:
                 appState.imGuizmoOperation = ImGuizmo::OPERATION::SCALE;
                 break;
+        }
+    }
+}
+
+void vk_gltf_viewer::control::AppWindow::onDropCallback(std::span<const char * const> paths) {
+    for (std::filesystem::path path : paths) {
+        if (std::filesystem::is_directory(path)) {
+            // If directory contains glTF file, load it.
+            for (const std::filesystem::directory_entry &entry : std::filesystem::directory_iterator { path }) {
+                if (entry.is_directory()) {
+                    continue;
+                }
+
+                std::filesystem::path path = entry.path();
+                const std::filesystem::path extension = path.extension();
+                if (extension == ".gltf" || extension == ".glb") {
+                    pTasks->emplace_back(std::in_place_type<task::LoadGltf>, std::move(path));
+                    return;
+                }
+            }
+        }
+        else if (const std::filesystem::path extension = path.extension(); extension == ".gltf" || extension == ".glb") {
+            pTasks->emplace_back(std::in_place_type<task::LoadGltf>, std::move(path));
+        }
+        else if (extension == ".hdr" || extension == ".exr") {
+            pTasks->emplace_back(std::in_place_type<task::LoadEqmap>, std::move(path));
         }
     }
 }

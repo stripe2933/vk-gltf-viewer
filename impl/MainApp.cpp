@@ -303,6 +303,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                         })
                         | std::ranges::to<std::vector>();
 
+                    // Change window title.
+                    window.setTitle(PATH_C_STR(task.path.filename()));
+
                     // Update AppState.
                     appState.gltfAsset.emplace(gltf->asset);
                     appState.pushRecentGltfPath(task.path);
