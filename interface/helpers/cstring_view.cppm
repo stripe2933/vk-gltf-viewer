@@ -137,8 +137,20 @@ public:
     constexpr auto find_last_not_of(const CharT *s, size_type pos, size_type count) const -> size_type;
     constexpr auto find_last_not_of(const CharT *s, size_type pos = npos) const -> size_type;
 
+    [[nodiscard]] static constexpr basic_cstring_view unsafeFrom(const CharT *str) noexcept {
+        std::size_t n = 0;
+        for (; str[n] != '\0'; ++n);
+        return { str, n };
+    }
+
+    [[nodiscard]] static constexpr basic_cstring_view unsafeFrom(const CharT *str, std::size_t n) noexcept {
+        return { str, n };
+    }
+
 private:
     view_type view;
+
+    constexpr basic_cstring_view(const CharT *str, std::size_t n) : view { str, n } { }
 };
 
 export using cstring_view = basic_cstring_view<char>;
@@ -146,3 +158,12 @@ export using wcstring_view = basic_cstring_view<wchar_t>;
 export using u8cstring_view = basic_cstring_view<char8_t>;
 export using u16cstring_view = basic_cstring_view<char16_t>;
 export using u32cstring_view = basic_cstring_view<char32_t>;
+
+namespace std {
+    export template <typename CharT, class Traits>
+    struct formatter<basic_cstring_view<CharT, Traits>, CharT> : formatter<basic_string_view<CharT, Traits>, CharT> {
+        auto format(const basic_cstring_view<CharT, Traits> &t, auto &ctx) const {
+            return formatter<basic_string_view<CharT, Traits>, CharT>::format(t, ctx);
+        }
+    };
+}

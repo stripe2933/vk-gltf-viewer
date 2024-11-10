@@ -6,6 +6,15 @@ export import glm;
 export import :helpers.cstring_view;
 export import :helpers.optional;
 
+#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+#define DEFINE_FORMATTER(Type) \
+    export template <> \
+    struct formatter<Type> : formatter<string_view> { \
+        auto format(Type v, auto &ctx) const { \
+            return formatter<string_view>::format(to_string(v), ctx); \
+        } \
+    }
+
 namespace fastgltf {
     export template <typename T>
     [[nodiscard]] auto to_optional(OptionalWithFlagValue<T> v) noexcept -> std::optional<T> {
@@ -111,6 +120,25 @@ namespace fastgltf {
             case Wrap::MirroredRepeat: return "MirroredRepeat";
         }
         std::unreachable();
+    }
+
+    export
+    [[nodiscard]] cstring_view to_string(AnimationPath path) noexcept {
+        switch (path) {
+            case AnimationPath::Translation: return "translation";
+            case AnimationPath::Rotation: return "rotation";
+            case AnimationPath::Scale: return "scale";
+            case AnimationPath::Weights: return "weights";
+        }
+    }
+
+    export
+    [[nodiscard]] cstring_view to_string(AnimationInterpolation interpolation) noexcept {
+        switch (interpolation) {
+            case AnimationInterpolation::Linear: return "LINEAR";
+            case AnimationInterpolation::Step: return "STEP";
+            case AnimationInterpolation::CubicSpline: return "CUBICSPLINE";
+        }
     }
 
     export
@@ -225,4 +253,17 @@ namespace fastgltf {
 
         return result;
     }
+}
+
+namespace std {
+    DEFINE_FORMATTER(fastgltf::PrimitiveType);
+    DEFINE_FORMATTER(fastgltf::AccessorType);
+    DEFINE_FORMATTER(fastgltf::ComponentType);
+    DEFINE_FORMATTER(fastgltf::BufferTarget);
+    DEFINE_FORMATTER(fastgltf::MimeType);
+    DEFINE_FORMATTER(fastgltf::AlphaMode);
+    DEFINE_FORMATTER(fastgltf::Filter);
+    DEFINE_FORMATTER(fastgltf::Wrap);
+    DEFINE_FORMATTER(fastgltf::AnimationPath);
+    DEFINE_FORMATTER(fastgltf::AnimationInterpolation);
 }

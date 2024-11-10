@@ -18,6 +18,7 @@ import imgui.math;
 import imgui.vulkan;
 import ImGuizmo;
 import vku;
+import :helpers.concepts;
 import :helpers.fastgltf;
 #if __cpp_lib_format_ranges >= 202207L
 import :helpers.formatters.joiner;
@@ -26,7 +27,10 @@ import :helpers.functional;
 import :helpers.imgui;
 import :helpers.optional;
 import :helpers.ranges;
+import :helpers.TempStringBuffer;
 
+#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #ifdef _MSC_VER
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
@@ -37,36 +41,15 @@ import :helpers.ranges;
 using namespace std::string_view_literals;
 
 /**
- * Return \p str if it is not empty, otherwise return \p fallback.
- * @param str Null-terminated non-owning string view to check.
- * @param fallback Fallback to be used if \p str is empty.
- * @return \p str if it is not empty, otherwise \p fallback.
- */
-[[nodiscard]] auto nonempty_or(cstring_view str, cstring_view fallback) -> cstring_view {
-    return str.empty() ? fallback : str;
-}
-
-/**
  * Return \p str if it is not empty, otherwise return the result of \p fallback.
  * @param str Null-terminated non-owning string view to check.
  * @param fallback Fallback function to call if \p str is empty.
- * @return A variant that contains either the <tt>cstring_view</tt> of the original \p str, or string of the result of \p fallback.
+ * @return <tt>cstring_view</tt> that contains either the original \p str, or the result of \p fallback.
  */
-[[nodiscard]] auto nonempty_or(cstring_view str, std::invocable auto &&fallback) -> std::variant<cstring_view, std::string> {
-    if (str.empty()) return fallback();
+template <concepts::signature_of<cstring_view> F>
+[[nodiscard]] auto nonempty_or(cstring_view str, F &&fallback) -> cstring_view {
+    if (str.empty()) return FWD(fallback)();
     else return str;
-}
-
-template <std::integral T>
-[[nodiscard]] auto to_string(T value) -> cstring_view {
-    static constexpr T MAX_NUM = 4096;
-    static const std::vector numStrings
-        = std::views::iota(T { 0 }, T { MAX_NUM + 1 })
-        | std::views::transform([](T i) { return std::format("{}", i); })
-        | std::ranges::to<std::vector>();
-
-    assert(value <= MAX_NUM && "Value is too large");
-    return numStrings[value];
 }
 
 [[nodiscard]] auto processFileDialog(std::span<const nfdfilteritem_t> filterItems) -> std::optional<std::filesystem::path> {
@@ -97,7 +80,7 @@ auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 
 
         constexpr float zoomScale = 4.0f;
         ImGui::Image(texture, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size, tint);
-        ImGui::Text("Showing: [%.0f, %.0f]x[%.0f, %.0f]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y);
+        ImGui::TextUnformatted(tempStringBuffer.write("Showing: [{:.0f}, {:.0f}]x[{:.0f}, {:.0f}]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y));
 
         ImGui::EndTooltip();
     }
@@ -113,18 +96,18 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
             ImGui::TextUnformatted(attributeName);
         }) },
         ImGui::ColumnInfo { "Type", decomposer([](auto, const fastgltf::Accessor &accessor) {
-            ImGui::Text("%s (%s)", to_string(accessor.type).c_str(), to_string(accessor.componentType).c_str());
+            ImGui::TextUnformatted(tempStringBuffer.write("{} ({})", accessor.type, accessor.componentType));
         }) },
         ImGui::ColumnInfo { "Count", decomposer([](auto, const fastgltf::Accessor &accessor) {
-            ImGui::Text("%zu", accessor.count);
+            ImGui::TextUnformatted(tempStringBuffer.write(accessor.count));
         }) },
         ImGui::ColumnInfo { "Bound", decomposer([](auto, const fastgltf::Accessor &accessor) {
             std::visit(fastgltf::visitor {
                 [](const std::pmr::vector<std::int64_t> &min, const std::pmr::vector<std::int64_t> &max) {
                     assert(min.size() == max.size() && "Different min/max dimension");
-                    if (min.size() == 1) ImGui::Text("[%" PRId64 ", %" PRId64 "]", min[0], max[0]);
+                    if (min.size() == 1) ImGui::TextUnformatted(tempStringBuffer.write("[{}, {}]", min[0], max[0]));
 #if __cpp_lib_format_ranges >= 202207L
-                    else ImGui::TextUnformatted(std::format("{}x{}", min, max));
+                    else ImGui::TextUnformatted(tempStringBuffer.write("{}x{}", min, max));
 #else
                     else if (min.size() == 2) ImGui::Text("[%" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 "]", min[0], min[1], max[0], max[1]);
                     else if (min.size() == 3) ImGui::Text("[%" PRId64 ", %" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 ", %" PRId64 "]", min[0], min[1], min[2], max[0], max[1], max[2]);
@@ -134,9 +117,9 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
                 },
                 [](const std::pmr::vector<double> &min, const std::pmr::vector<double> &max) {
                     assert(min.size() == max.size() && "Different min/max dimension");
-                    if (min.size() == 1) ImGui::Text("[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, max[0]);
+                    if (min.size() == 1) ImGui::TextUnformatted(tempStringBuffer.write("[{1:.{0}f}, {2:.{0}f}]", floatingPointPrecision, min[0], max[0]));
 #if __cpp_lib_format_ranges >= 202207L
-                    else ImGui::TextUnformatted(std::format("{0::.{2}f}x{1::.{2}f}", min, max, floatingPointPrecision));
+                    else ImGui::TextUnformatted(tempStringBuffer.write("{1::.{0}f}x{2::.{0}f}", floatingPointPrecision, min, max));
 #else
                     else if (min.size() == 2) ImGui::Text("[%.*lf, %.*lf]x[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, max[0], floatingPointPrecision, max[1]);
                     else if (min.size() == 3) ImGui::Text("[%.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2]);
@@ -157,7 +140,7 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
         }), ImGuiTableColumnFlags_DefaultHide },
         ImGui::ColumnInfo { "Buffer View", decomposer([](auto, const fastgltf::Accessor &accessor) {
             if (accessor.bufferViewIndex) {
-                if (ImGui::TextLink(to_string(*accessor.bufferViewIndex).c_str())) {
+                if (ImGui::TextLink(tempStringBuffer.write(*accessor.bufferViewIndex).view().c_str())) {
                     // TODO.
                 }
             }
@@ -190,7 +173,7 @@ auto assetBuffers(std::span<fastgltf::Buffer> buffers, const std::filesystem::pa
             });
         }, ImGuiTableColumnFlags_WidthStretch },
         ImGui::ColumnInfo { "Length", [](const fastgltf::Buffer &buffer) {
-            ImGui::Text("%zu", buffer.byteLength);
+            ImGui::TextUnformatted(tempStringBuffer.write(buffer.byteLength));
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "MIME", [](const fastgltf::Buffer &buffer) {
             visit(fastgltf::visitor {
@@ -208,7 +191,7 @@ auto assetBuffers(std::span<fastgltf::Buffer> buffers, const std::filesystem::pa
                     ImGui::TextUnformatted("Embedded (Array)"sv);
                 },
                 [](const fastgltf::sources::BufferView &bufferView) {
-                    ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
+                    ImGui::TextUnformatted(tempStringBuffer.write("BufferView ({})", bufferView.bufferViewIndex));
                 },
                 [&](const fastgltf::sources::URI &uri) {
                     ImGui::TextLinkOpenURL("\u2197" /*↗*/, PATH_C_STR(assetDir / uri.uri.fspath()));
@@ -236,21 +219,21 @@ auto assetBufferViews(std::span<fastgltf::BufferView> bufferViews, std::span<fas
                 // TODO
             }
             if (ImGui::BeginItemTooltip()) {
-                ImGui::TextUnformatted(visit_as<cstring_view>(nonempty_or(
+                ImGui::TextUnformatted(nonempty_or(
                     buffers[bufferView.bufferIndex].name,
-                    [&]() { return std::format("<Unnamed buffer {}>", bufferView.bufferIndex); })));
+                    [&]() { return tempStringBuffer.write("<Unnamed buffer {}>", bufferView.bufferIndex).view(); }));
                 ImGui::EndTooltip();
             }
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "Offset", [&](const fastgltf::BufferView &bufferView) {
-            ImGui::Text("%zu", bufferView.byteOffset);
+            ImGui::TextUnformatted(tempStringBuffer.write(bufferView.byteOffset));
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "Length", [&](const fastgltf::BufferView &bufferView) {
-            ImGui::Text("%zu", bufferView.byteLength);
+            ImGui::TextUnformatted(tempStringBuffer.write(bufferView.byteLength));
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "Stride", [&](const fastgltf::BufferView &bufferView) {
             if (const auto &byteStride = bufferView.byteStride) {
-                ImGui::Text("%zu", *byteStride);
+                ImGui::TextUnformatted(tempStringBuffer.write(*byteStride));
             }
             else {
                 ImGui::TextDisabled("-");
@@ -293,7 +276,7 @@ auto assetImages(std::span<fastgltf::Image> images, const std::filesystem::path 
                     ImGui::TextUnformatted("Embedded (Array)"sv);
                 },
                 [](const fastgltf::sources::BufferView &bufferView) {
-                    ImGui::Text("BufferView (%zu)", bufferView.bufferViewIndex);
+                    ImGui::TextUnformatted(tempStringBuffer.write("BufferView ({})", bufferView.bufferViewIndex));
                 },
                 [&](const fastgltf::sources::URI &uri) {
                     ImGui::TextLinkOpenURL("\u2197" /*↗*/, PATH_C_STR(assetDir / uri.uri.fspath()));
@@ -315,9 +298,9 @@ auto assetMaterials(
             return ImGui::BeginCombo("Material", "<empty>");
         }
         else if (selectedMaterialIndex) {
-            return ImGui::BeginCombo("Material", visit_as<cstring_view>(nonempty_or(
+            return ImGui::BeginCombo("Material", nonempty_or(
                 materials[*selectedMaterialIndex].name,
-                [&]() { return std::format("<Unnamed material {}>", *selectedMaterialIndex); })).c_str());
+                [&]() { return tempStringBuffer.write("<Unnamed material {}>", *selectedMaterialIndex).view(); }).c_str());
         }
         else {
             return ImGui::BeginCombo("Material", "<select...>");
@@ -326,7 +309,7 @@ auto assetMaterials(
     if (isComboBoxOpened) {
         for (const auto &[i, material] : materials | ranges::views::enumerate) {
             const bool isSelected = i == selectedMaterialIndex;
-            if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(material.name, [&]() { return std::format("<Unnamed material {}>", i); })).c_str(), isSelected)) {
+            if (ImGui::Selectable(nonempty_or(material.name, [&]() { return tempStringBuffer.write("<Unnamed material {}>", i).view(); }).c_str(), isSelected)) {
                 selectedMaterialIndex.emplace(i);
             }
             if (isSelected) {
@@ -456,14 +439,15 @@ auto assetSamplers(std::span<fastgltf::Sampler> samplers) -> void {
             });
         }, ImGuiTableColumnFlags_WidthStretch },
         ImGui::ColumnInfo { "Filter (Mag/Min)", [](const fastgltf::Sampler &sampler) {
-            ImGui::Text("%s / %s",
-                to_optional(sampler.magFilter).transform([](fastgltf::Filter filter) { return to_string(filter).c_str(); }).value_or("-"),
-                to_optional(sampler.minFilter).transform([](fastgltf::Filter filter) { return to_string(filter).c_str(); }).value_or("-"));
+            ImGui::TextUnformatted(
+                tempStringBuffer.write(
+                    "{} / {}",
+                    to_optional(sampler.magFilter).transform(LIFT(to_string)).value_or("-"),
+                    to_optional(sampler.minFilter).transform(LIFT(to_string)).value_or("-")));
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "Wrap (S/T)", [](const fastgltf::Sampler &sampler) {
-            ImGui::Text("%s / %s", to_string(sampler.wrapS).c_str(), to_string(sampler.wrapT).c_str());
+            ImGui::TextUnformatted(tempStringBuffer.write("{} / {}", sampler.wrapS, sampler.wrapT));
         }, ImGuiTableColumnFlags_WidthFixed });
-
 }
 
 vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
@@ -615,10 +599,10 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
     if (ImGui::Begin("Scene Hierarchy")) {
         if (assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices) {
             const auto &[asset, sceneIndex, visibilities, hoveringNodeIndex, selectedNodeIndices] = *assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices;
-            if (ImGui::BeginCombo("Scene", visit_as<cstring_view>(nonempty_or(asset.scenes[sceneIndex].name, [&]() { return std::format("<Unnamed scene {}>", sceneIndex); })).c_str())) {
+            if (ImGui::BeginCombo("Scene", nonempty_or(asset.scenes[sceneIndex].name, [&]() { return tempStringBuffer.write("<Unnamed scene {}>", sceneIndex).view(); }).c_str())) {
                 for (const auto &[i, scene] : asset.scenes | ranges::views::enumerate) {
                     const bool isSelected = i == sceneIndex;
-                    if (ImGui::Selectable(visit_as<cstring_view>(nonempty_or(scene.name, [&]() { return std::format("<Unnamed scene {}>", i); })).c_str(), isSelected)) {
+                    if (ImGui::Selectable(nonempty_or(scene.name, [&]() { return tempStringBuffer.write("<Unnamed scene {}>", i).view(); }).c_str(), isSelected)) {
                         tasks.emplace_back(std::in_place_type<task::ChangeScene>, i);
                     }
                     if (isSelected) {
@@ -743,7 +727,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
                             if (!transformComponents.empty()) {
 #if __cpp_lib_format_ranges >= 202207L
-                                ImGui::TextUnformatted(std::format("{::s}", make_joiner<" * ">(transformComponents)));
+                                ImGui::TextUnformatted(tempStringBuffer.write("{::s}", make_joiner<" * ">(transformComponents)));
 #else
                                 switch (transformComponents.size()) {
                                 case 1:
@@ -763,11 +747,11 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                             constexpr fastgltf::Node::TransformMatrix identity { 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f };
                             if (transformMatrix != identity) {
 #if __cpp_lib_ranges_chunk >= 202202L && __cpp_lib_format_ranges >= 202207L
-                                ImGui::TextUnformatted(std::format("{:::.2f}", transformMatrix | std::views::chunk(4)));
+                                ImGui::TextUnformatted(tempStringBuffer.write("{:::.2f}", transformMatrix | std::views::chunk(4)));
 #elif __cpp_lib_format_ranges >= 202207L
                                 const std::span components { transformMatrix };
                                 INDEX_SEQ(Is, 4, {
-                                    ImGui::TextUnformatted(std::format("[{::.2f}, {::.2f}, {::.2f}, {::.2f}]", components.subspan(4 * Is, 4)...));
+                                    ImGui::TextUnformatted(tempStringBuffer.write("[{::.2f}, {::.2f}, {::.2f}, {::.2f}]", components.subspan(4 * Is, 4)...));
                                 });
 #else
                                 std::apply([](auto ...components) {
@@ -780,21 +764,21 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
                     if (const auto &meshIndex = descendentNode.meshIndex) {
                         ImGui::TableSetColumnIndex(2);
-                        if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.meshes[*meshIndex].name, [&]() { return std::format("<Unnamed mesh {}>", *meshIndex); })).c_str())) {
+                        if (ImGui::TextLink(nonempty_or(asset.meshes[*meshIndex].name, [&]() { return tempStringBuffer.write("<Unnamed mesh {}>", *meshIndex).view(); }).c_str())) {
                             // TODO
                         }
                     }
 
                     if (const auto &lightIndex = descendentNode.lightIndex) {
                         ImGui::TableSetColumnIndex(3);
-                        if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.lights[*lightIndex].name, [&]() { return std::format("<Unnamed light {}>", *lightIndex); })).c_str())) {
+                        if (ImGui::TextLink(nonempty_or(asset.lights[*lightIndex].name, [&]() { return tempStringBuffer.write("<Unnamed light {}>", *lightIndex).view(); }).c_str())) {
                             // TODO
                         }
                     }
 
                     if (const auto &cameraIndex = descendentNode.cameraIndex) {
                         ImGui::TableSetColumnIndex(4);
-                        if (ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.cameras[*cameraIndex].name, [&]() { return std::format("<Unnamed camera {}>", *cameraIndex); })).c_str())) {
+                        if (ImGui::TextLink(nonempty_or(asset.cameras[*cameraIndex].name, [&]() { return tempStringBuffer.write("<Unnamed camera {}>", *cameraIndex).view(); }).c_str())) {
                             // TODO
                         }
                     }
@@ -907,9 +891,11 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                             ImGui::LabelText("Type", "%s", to_string(primitive.type).c_str());
                             if (primitive.materialIndex) {
                                 ImGui::WithID(*primitive.materialIndex, [&]() {
-                                    if (ImGui::WithLabel("Material"sv, [&]() { return ImGui::TextLink(visit_as<cstring_view>(nonempty_or(asset.materials[*primitive.materialIndex].name, [&]() { return std::format("<Unnamed material {}>", *primitive.materialIndex); })).c_str()); })) {
-                                        // TODO.
-                                    }
+                                    ImGui::WithLabel("Material"sv, [&]() {
+                                        if (ImGui::TextLink(nonempty_or(asset.materials[*primitive.materialIndex].name, [&]() { return tempStringBuffer.write("<Unnamed material {}>", *primitive.materialIndex).view(); }).c_str())) {
+                                            // TODO.
+                                        }
+                                    });
                                 });
                             }
                             else {
@@ -1007,9 +993,9 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
                     ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable,
                     std::views::zip(bandLabels, info.diffuseIrradiance.sphericalHarmonicCoefficients),
                     ImGui::ColumnInfo { "Band", decomposer([](std::string_view label, const auto&) { ImGui::TextUnformatted(label); }) },
-                    ImGui::ColumnInfo { "x", decomposer([](auto, const glm::vec3 &coeff) { ImGui::Text("%.3f", coeff.x); }) },
-                    ImGui::ColumnInfo { "y", decomposer([](auto, const glm::vec3 &coeff) { ImGui::Text("%.3f", coeff.y); }) },
-                    ImGui::ColumnInfo { "z", decomposer([](auto, const glm::vec3 &coeff) { ImGui::Text("%.3f", coeff.z); }) });
+                    ImGui::ColumnInfo { "x", decomposer([](auto, const glm::vec3 &coeff) { ImGui::TextUnformatted(tempStringBuffer.write(coeff.x)); }) },
+                    ImGui::ColumnInfo { "y", decomposer([](auto, const glm::vec3 &coeff) { ImGui::TextUnformatted(tempStringBuffer.write(coeff.y)); }) },
+                    ImGui::ColumnInfo { "z", decomposer([](auto, const glm::vec3 &coeff) { ImGui::TextUnformatted(tempStringBuffer.write(coeff.z)); }) });
             }
 
             if (ImGui::CollapsingHeader("Prefiltered map")) {

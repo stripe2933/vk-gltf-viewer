@@ -11,6 +11,11 @@ namespace fastgltf {
     export using fastgltf::Accessor;
     export using fastgltf::AccessorType;
     export using fastgltf::AlphaMode;
+    export using fastgltf::Animation;
+    export using fastgltf::AnimationChannel;
+    export using fastgltf::AnimationInterpolation;
+    export using fastgltf::AnimationPath;
+    export using fastgltf::AnimationSampler;
     export using fastgltf::Asset;
     export using fastgltf::AssetInfo;
     export using fastgltf::Buffer;
@@ -30,6 +35,8 @@ namespace fastgltf {
     export using fastgltf::getElementByteSize;
     export using fastgltf::GltfDataBuffer;
     export using fastgltf::Image;
+    export using fastgltf::IterableAccessor;
+    export using fastgltf::iterateAccessor;
     export using fastgltf::iterateAccessorWithIndex;
     export using fastgltf::Light;
     export using fastgltf::Material;
