@@ -184,19 +184,19 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         if (task.gltf->selectedNodes) {
             if (selectedNodes) {
-                if (selectedNodes->indices != task.gltf->selectedNodes->first) {
-                    selectedNodes->indices = task.gltf->selectedNodes->first;
-                    selectedNodes->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodes->first, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
+                if (selectedNodes->indices != task.gltf->selectedNodes->indices) {
+                    selectedNodes->indices = task.gltf->selectedNodes->indices;
+                    selectedNodes->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodes->indices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
                 }
-                selectedNodes->outlineColor = task.gltf->selectedNodes->second.color;
-                selectedNodes->outlineThickness = task.gltf->selectedNodes->second.thickness;
+                selectedNodes->outlineColor = task.gltf->selectedNodes->outlineColor;
+                selectedNodes->outlineThickness = task.gltf->selectedNodes->outlineThickness;
             }
             else {
                 selectedNodes.emplace(
-                    task.gltf->selectedNodes->first,
-                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodes->first, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
-                    task.gltf->selectedNodes->second.color,
-                    task.gltf->selectedNodes->second.thickness);
+                    task.gltf->selectedNodes->indices,
+                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodes->indices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
+                    task.gltf->selectedNodes->outlineColor,
+                    task.gltf->selectedNodes->outlineThickness);
             }
         }
         else {
@@ -205,21 +205,21 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         if (task.gltf->hoveringNode &&
             // If selectedNodeIndices == hoveringNodeIndex, hovering node outline doesn't have to be drawn.
-            !(task.gltf->selectedNodes && task.gltf->selectedNodes->first.size() == 1 && *task.gltf->selectedNodes->first.begin() == task.gltf->hoveringNode->first)) {
+            !(task.gltf->selectedNodes && task.gltf->selectedNodes->indices.size() == 1 && *task.gltf->selectedNodes->indices.begin() == task.gltf->hoveringNode->index)) {
             if (hoveringNode) {
-                if (hoveringNode->index != task.gltf->hoveringNode->first) {
-                    hoveringNode->index = task.gltf->hoveringNode->first;
-                    hoveringNode->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { task.gltf->hoveringNode->first }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
+                if (hoveringNode->index != task.gltf->hoveringNode->index) {
+                    hoveringNode->index = task.gltf->hoveringNode->index;
+                    hoveringNode->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { task.gltf->hoveringNode->index }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
                 }
-                hoveringNode->outlineColor = task.gltf->hoveringNode->second.color;
-                hoveringNode->outlineThickness = task.gltf->hoveringNode->second.thickness;
+                hoveringNode->outlineColor = task.gltf->hoveringNode->outlineColor;
+                hoveringNode->outlineThickness = task.gltf->hoveringNode->outlineThickness;
             }
             else {
                 hoveringNode.emplace(
-                    task.gltf->hoveringNode->first,
-                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { task.gltf->hoveringNode->first }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
-                    task.gltf->hoveringNode->second.color,
-                    task.gltf->hoveringNode->second.thickness);
+                    task.gltf->hoveringNode->index,
+                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { task.gltf->hoveringNode->index }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
+                    task.gltf->hoveringNode->outlineColor,
+                    task.gltf->hoveringNode->outlineThickness);
             }
         }
         else {

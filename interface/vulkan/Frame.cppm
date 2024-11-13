@@ -5,9 +5,9 @@ module;
 export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
-export import :AppState;
 export import :gltf.AssetGpuBuffers;
 export import :gltf.AssetSceneGpuBuffers;
+export import :math.Frustum;
 export import :vulkan.SharedData;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
@@ -19,12 +19,24 @@ namespace vk_gltf_viewer::vulkan {
     public:
         struct ExecutionTask {
             struct Gltf {
+                struct HoveringNode {
+                    std::uint16_t index;
+                    glm::vec4 outlineColor;
+                    float outlineThickness;
+                };
+
+                struct SelectedNodes {
+                    const std::unordered_set<std::uint16_t>& indices;
+                    glm::vec4 outlineColor;
+                    float outlineThickness;
+                };
+
                 const fastgltf::Asset &asset;
                 const gltf::AssetGpuBuffers &assetGpuBuffers;
                 const gltf::AssetSceneHierarchy &sceneHierarchy;
                 const gltf::AssetSceneGpuBuffers &sceneGpuBuffers;
-                std::optional<std::pair<std::uint16_t /* index */, AppState::Outline>> hoveringNode;
-                std::optional<std::pair<const std::unordered_set<std::uint16_t>&, AppState::Outline>> selectedNodes;
+                std::optional<HoveringNode> hoveringNode;
+                std::optional<SelectedNodes> selectedNodes;
                 std::unordered_set<std::uint16_t> renderingNodeIndices;
             };
 

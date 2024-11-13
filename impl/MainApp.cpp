@@ -453,9 +453,17 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     .assetGpuBuffers = gltf.assetGpuBuffers,
                     .sceneHierarchy = gltf.sceneHierarchy,
                     .sceneGpuBuffers = gltf.sceneGpuBuffers,
-                    .hoveringNode = transform(LIFT(std::pair), appState.gltfAsset->hoveringNodeIndex, appState.hoveringNodeOutline.to_optional()),
+                    .hoveringNode = transform([](std::uint16_t index, const AppState::Outline &outline) {
+                        return vulkan::Frame::ExecutionTask::Gltf::HoveringNode {
+                            index, outline.color, outline.thickness,
+                        };
+                    }, appState.gltfAsset->hoveringNodeIndex, appState.hoveringNodeOutline.to_optional()),
                     .selectedNodes = value_if(!appState.gltfAsset->selectedNodeIndices.empty() && appState.selectedNodeOutline.has_value(), [&]() {
-                        return std::tie(appState.gltfAsset->selectedNodeIndices, *appState.selectedNodeOutline);
+                        return vulkan::Frame::ExecutionTask::Gltf::SelectedNodes {
+                            appState.gltfAsset->selectedNodeIndices,
+                            appState.selectedNodeOutline->color,
+                            appState.selectedNodeOutline->thickness,
+                        };
                     }),
                     .renderingNodeIndices = appState.gltfAsset->getVisibleNodeIndices(),
                 };
