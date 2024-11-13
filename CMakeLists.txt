@@ -77,7 +77,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/concepts.cppm
         interface/helpers/cstring_view.cppm
         interface/helpers/fastgltf.cppm
-        interface/helpers/formatters/joiner.cppm
         interface/helpers/full_optional.cppm
         interface/helpers/functional.cppm
         interface/helpers/imgui/mod.cppm

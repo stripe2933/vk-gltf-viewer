@@ -12,6 +12,7 @@ export import :helpers.cstring_view;
  * @warning Thread unsafe. Also written value should be directly consumed. (It's result is temporary!)
  */
 template <typename CharT, std::size_t BufferSize = 512>
+    requires (BufferSize >= 1) // Buffer size must be at least 1 for storing '\0'.
 class TempStringBuffer {
 public:
     /**
@@ -33,6 +34,28 @@ public:
     }
 
     /**
+     * @brief Append formatted output to the temporary buffer.
+     *
+     * Like <tt>write</tt>, but appends to the end of the buffer (the previous content is preserved).
+     * If you want to clear the buffer before writing, use <tt>clear</tt> method.
+     * Since the return type is <tt>TempStringBuffer</tt> itself, you can chain the method calls (like builder pattern).
+     *
+     * @tparam Args
+     * @param fmt Format string.
+     * @param args Arguments to format.
+     * @return Reference to itself.
+     */
+    template <typename... Args>
+    TempStringBuffer &append(std::format_string<Args...> fmt, Args &&...args) {
+        if (size + 1 < BufferSize) {
+            auto it = std::format_to_n(buffer.data() + size, BufferSize - size - 1 /* last must be '\0' */, fmt, FWD(args)...).out;
+            *it = '\0';
+            size = it - buffer.data();
+        }
+        return *this;
+    }
+
+    /**
      * @brief Convenience method to write a single argument.
      *
      * Since the return type is <tt>TempStringBuffer</tt> itself, you can chain the method calls (like builder pattern).
@@ -44,6 +67,40 @@ public:
     template <typename Arg>
     TempStringBuffer &write(Arg &&arg) {
         return write("{}", FWD(arg));
+    }
+
+    /**
+     * @brief Convenience method to append a single argument.
+     *
+     * Like <tt>write</tt>, but appends to the end of the buffer (the previous content is preserved).
+     * If you want to clear the buffer before writing, use <tt>clear</tt> method.
+     * Since the return type is <tt>TempStringBuffer</tt> itself, you can chain the method calls (like builder pattern).
+     *
+     * @tparam Arg
+     * @param arg Argument to be formatted.
+     * @return Reference to itself.
+     */
+    template <typename Arg>
+    TempStringBuffer &append(Arg &&arg) {
+        return append("{}", FWD(arg));
+    }
+
+    /**
+     * @brief Clear the buffer content.
+     *
+     * This method is for <tt>append()</tt> usage, to clear the buffer before writing.
+     * If you're using only <tt>write()</tt>, you don't need to call this method (each call will overwrite the previous content).
+     * Since the return type is <tt>TempStringBuffer</tt> itself, you can chain the method calls (like builder pattern).
+     *
+     * @return Reference to itself.
+     */
+    TempStringBuffer &clear() noexcept {
+        size = 0;
+        return *this;
+    }
+
+    [[nodiscard]] bool empty() const noexcept {
+        return size == 0;
     }
 
     [[nodiscard]] operator std::basic_string_view<CharT>() const noexcept {
