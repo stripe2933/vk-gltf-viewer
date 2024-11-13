@@ -63,6 +63,14 @@ namespace vk_gltf_viewer {
             }
 
             /**
+             * @brief Switch node visibility type between tristate and binary.
+             *
+             * If the current visibility type is tristate, it will be switched to binary. All binary visibilities will be remained, and indeterminate visibilities will be set to <tt>true</tt>.
+             * If the current visibility type is binary, it will be switched to tristate. All visibilities will be set to <tt>true</tt>.
+             */
+            void switchNodeVisibilityType();
+
+            /**
              * From <tt>nodeVisibilities</tt>, get the unique indices of the visible nodes.
              * @return <tt>std::unordered_set</tt> of the visible node indices.
              * @note Since the result only contains node which is visible, nodes without mesh are excluded regardless of

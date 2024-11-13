@@ -353,18 +353,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     appState.camera.targetDistance = distance;
                 },
                 [this](control::task::ChangeNodeVisibilityType) {
-                    visit(multilambda {
-                        [this](std::span<const std::optional<bool>> visibilities) {
-                            appState.gltfAsset->nodeVisibilities.emplace<std::vector<bool>>(
-                                std::from_range,
-                                visibilities | std::views::transform([](std::optional<bool> visibility) {
-                                    return visibility.value_or(true);
-                                }));
-                        },
-                        [this](const std::vector<bool> &visibilities) {
-                            appState.gltfAsset->nodeVisibilities.emplace<std::vector<std::optional<bool>>>(visibilities.size(), true);
-                        },
-                    }, appState.gltfAsset->nodeVisibilities);
+                    appState.gltfAsset->switchNodeVisibilityType();
                 },
                 [this](control::task::ChangeNodeVisibility task) {
                     visit(multilambda {
