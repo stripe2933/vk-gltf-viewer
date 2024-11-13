@@ -1,7 +1,6 @@
 module;
 
 #include <cassert>
-#include <cinttypes>
 #include <version>
 
 #include <boost/container/static_vector.hpp>
@@ -20,9 +19,7 @@ import ImGuizmo;
 import vku;
 import :helpers.concepts;
 import :helpers.fastgltf;
-#if __cpp_lib_format_ranges >= 202207L
 import :helpers.formatters.joiner;
-#endif
 import :helpers.functional;
 import :helpers.imgui;
 import :helpers.optional;
@@ -106,26 +103,12 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
                 [](const std::pmr::vector<std::int64_t> &min, const std::pmr::vector<std::int64_t> &max) {
                     assert(min.size() == max.size() && "Different min/max dimension");
                     if (min.size() == 1) ImGui::TextUnformatted(tempStringBuffer.write("[{}, {}]", min[0], max[0]));
-#if __cpp_lib_format_ranges >= 202207L
                     else ImGui::TextUnformatted(tempStringBuffer.write("{}x{}", min, max));
-#else
-                    else if (min.size() == 2) ImGui::Text("[%" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 "]", min[0], min[1], max[0], max[1]);
-                    else if (min.size() == 3) ImGui::Text("[%" PRId64 ", %" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 ", %" PRId64 "]", min[0], min[1], min[2], max[0], max[1], max[2]);
-                    else if (min.size() == 4) ImGui::Text("[%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "]x[%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "]", min[0], min[1], min[2], min[3], max[0], max[1], max[2], max[3]);
-                    else assert(false && "Unsupported min/max dimension");
-#endif
                 },
                 [](const std::pmr::vector<double> &min, const std::pmr::vector<double> &max) {
                     assert(min.size() == max.size() && "Different min/max dimension");
                     if (min.size() == 1) ImGui::TextUnformatted(tempStringBuffer.write("[{1:.{0}f}, {2:.{0}f}]", floatingPointPrecision, min[0], max[0]));
-#if __cpp_lib_format_ranges >= 202207L
                     else ImGui::TextUnformatted(tempStringBuffer.write("{1::.{0}f}x{2::.{0}f}", floatingPointPrecision, min, max));
-#else
-                    else if (min.size() == 2) ImGui::Text("[%.*lf, %.*lf]x[%.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, max[0], floatingPointPrecision, max[1]);
-                    else if (min.size() == 3) ImGui::Text("[%.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2]);
-                    else if (min.size() == 4) ImGui::Text("[%.*lf, %.*lf, %.*lf, %.*lf]x[%.*lf, %.*lf, %.*lf, %.*lf]", floatingPointPrecision, min[0], floatingPointPrecision, min[1], floatingPointPrecision, min[2], min[1], floatingPointPrecision, min[3], floatingPointPrecision, max[0], floatingPointPrecision, max[1], floatingPointPrecision, max[2], floatingPointPrecision, max[3]);
-                    else assert(false && "Unsupported min/max dimension");
-#endif
                 },
                 [](const auto&...) {
                     ImGui::TextUnformatted("-"sv);
@@ -675,15 +658,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
                     ImGui::SameLine();
 
-#if __cpp_lib_format_ranges >= 202207L
                     const std::string concat = std::format("{::s}", make_joiner<" / ">(directDescendentNodeNames));
-#else
-                    std::string concat = directDescendentNodeNames[0];
-                    for (std::string_view name : directDescendentNodeNames | std::views::drop(1)) {
-                        using namespace std::string_literals;
-                        concat += std::format(" / {}", name);
-                    }
-#endif
 
                     const bool visibilityChanged = visit(multilambda {
                         [&](std::span<const std::optional<bool>> visibilities) {
@@ -704,59 +679,29 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                         [](const fastgltf::TRS &trs) {
                             boost::container::static_vector<std::string, 3> transformComponents;
                             if (trs.translation != std::array { 0.f, 0.f, 0.f }) {
-#if __cpp_lib_format_ranges >= 202207L
                                 transformComponents.emplace_back(std::format("T{::.2f}", trs.translation));
-#else
-                                transformComponents.emplace_back(std::format("T[{:.2f}, {:.2f}, {:.2f}]", trs.translation[0], trs.translation[1], trs.translation[2]));
-#endif
                             }
                             if (trs.rotation != std::array { 0.f, 0.f, 0.f, 1.f }) {
-#if __cpp_lib_format_ranges >= 202207L
                                 transformComponents.emplace_back(std::format("R{::.2f}", trs.rotation));
-#else
-                                transformComponents.emplace_back(std::format("R[{:.2f}, {:.2f}, {:.2f}, {:.2f}]", trs.rotation[0], trs.rotation[1], trs.rotation[2], trs.rotation[3]));
-#endif
                             }
                             if (trs.scale != std::array { 1.f, 1.f, 1.f }) {
-#if __cpp_lib_format_ranges >= 202207L
                                 transformComponents.emplace_back(std::format("S{::.2f}", trs.scale));
-#else
-                                transformComponents.emplace_back(std::format("S[{:.2f}, {:.2f}, {:.2f}]", trs.scale[0], trs.scale[1], trs.scale[2]));
-#endif
                             }
 
                             if (!transformComponents.empty()) {
-#if __cpp_lib_format_ranges >= 202207L
                                 ImGui::TextUnformatted(tempStringBuffer.write("{::s}", make_joiner<" * ">(transformComponents)));
-#else
-                                switch (transformComponents.size()) {
-                                case 1:
-                                    ImGui::TextUnformatted(transformComponents[0]);
-                                    break;
-                                case 2:
-                                    ImGui::Text("%s * %s", transformComponents[0].c_str(), transformComponents[1].c_str());
-                                    break;
-                                case 3:
-                                    ImGui::Text("%s * %s * %s", transformComponents[0].c_str(), transformComponents[1].c_str(), transformComponents[2].c_str());
-                                    break;
-                                }
-#endif
                             }
                         },
                         [](const fastgltf::Node::TransformMatrix &transformMatrix) {
                             constexpr fastgltf::Node::TransformMatrix identity { 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f };
                             if (transformMatrix != identity) {
-#if __cpp_lib_ranges_chunk >= 202202L && __cpp_lib_format_ranges >= 202207L
+#if __cpp_lib_ranges_chunk >= 202202L
                                 ImGui::TextUnformatted(tempStringBuffer.write("{:::.2f}", transformMatrix | std::views::chunk(4)));
-#elif __cpp_lib_format_ranges >= 202207L
+#else
                                 const std::span components { transformMatrix };
                                 INDEX_SEQ(Is, 4, {
                                     ImGui::TextUnformatted(tempStringBuffer.write("[{::.2f}, {::.2f}, {::.2f}, {::.2f}]", components.subspan(4 * Is, 4)...));
                                 });
-#else
-                                std::apply([](auto ...components) {
-                                    ImGui::Text("[[%.2f, %.2f, %.2f, %.2f], [%.2f, %.2f, %.2f, %.2f], [%.2f, %.2f, %.2f, %.2f], [%.2f, %.2f, %.2f, %.2f]]", components...);
-                                }, transformMatrix);
 #endif
                             }
                         },

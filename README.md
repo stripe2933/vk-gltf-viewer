@@ -132,9 +132,9 @@ The extensions and feature used in this application are quite common in the mode
 
 ### Build
 
-This project requires support for C++20 modules and the C++23 standard library. The supported compiler is:
+This project requires support for C++20 modules and the C++23 standard library. The supported compilers are:
 - Clang 18.1.2
-- MSVC 19.40
+- MSVC 19.42
 
 The following build tools are required:
 - CMake 3.30

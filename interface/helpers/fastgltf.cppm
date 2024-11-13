@@ -9,7 +9,7 @@ export import :helpers.optional;
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define DEFINE_FORMATTER(Type) \
     export template <> \
-    struct formatter<Type> : formatter<string_view> { \
+    struct std::formatter<Type> : formatter<string_view> { \
         auto format(Type v, auto &ctx) const { \
             return formatter<string_view>::format(to_string(v), ctx); \
         } \
@@ -255,15 +255,13 @@ namespace fastgltf {
     }
 }
 
-namespace std {
-    DEFINE_FORMATTER(fastgltf::PrimitiveType);
-    DEFINE_FORMATTER(fastgltf::AccessorType);
-    DEFINE_FORMATTER(fastgltf::ComponentType);
-    DEFINE_FORMATTER(fastgltf::BufferTarget);
-    DEFINE_FORMATTER(fastgltf::MimeType);
-    DEFINE_FORMATTER(fastgltf::AlphaMode);
-    DEFINE_FORMATTER(fastgltf::Filter);
-    DEFINE_FORMATTER(fastgltf::Wrap);
-    DEFINE_FORMATTER(fastgltf::AnimationPath);
-    DEFINE_FORMATTER(fastgltf::AnimationInterpolation);
-}
+DEFINE_FORMATTER(fastgltf::PrimitiveType);
+DEFINE_FORMATTER(fastgltf::AccessorType);
+DEFINE_FORMATTER(fastgltf::ComponentType);
+DEFINE_FORMATTER(fastgltf::BufferTarget);
+DEFINE_FORMATTER(fastgltf::MimeType);
+DEFINE_FORMATTER(fastgltf::AlphaMode);
+DEFINE_FORMATTER(fastgltf::Filter);
+DEFINE_FORMATTER(fastgltf::Wrap);
+DEFINE_FORMATTER(fastgltf::AnimationPath);
+DEFINE_FORMATTER(fastgltf::AnimationInterpolation);

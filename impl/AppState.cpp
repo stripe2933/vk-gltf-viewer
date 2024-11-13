@@ -1,10 +1,3 @@
-module;
-
-#ifdef _MSC_VER
-// TODO: I don't know why this workaround work... I've never seen this C++20 module issue in MSVC. Need investigation.
-#include <fstream>
-#endif
-
 module vk_gltf_viewer;
 import :AppState;
 

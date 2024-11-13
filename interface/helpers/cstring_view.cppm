@@ -159,11 +159,9 @@ export using u8cstring_view = basic_cstring_view<char8_t>;
 export using u16cstring_view = basic_cstring_view<char16_t>;
 export using u32cstring_view = basic_cstring_view<char32_t>;
 
-namespace std {
-    export template <typename CharT, class Traits>
-    struct formatter<basic_cstring_view<CharT, Traits>, CharT> : formatter<basic_string_view<CharT, Traits>, CharT> {
-        auto format(const basic_cstring_view<CharT, Traits> &t, auto &ctx) const {
-            return formatter<basic_string_view<CharT, Traits>, CharT>::format(t, ctx);
-        }
-    };
-}
+export template <typename CharT, class Traits>
+struct std::formatter<basic_cstring_view<CharT, Traits>, CharT> : formatter<basic_string_view<CharT, Traits>, CharT> {
+    auto format(const basic_cstring_view<CharT, Traits> &t, auto &ctx) const {
+        return formatter<basic_string_view<CharT, Traits>, CharT>::format(t, ctx);
+    }
+};

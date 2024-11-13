@@ -1,9 +1,5 @@
 module;
 
-#ifdef _MSC_VER
-#include <istream>
-#endif
-
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
