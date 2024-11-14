@@ -44,6 +44,7 @@ namespace vk_gltf_viewer::control {
         [[nodiscard]] auto createSurface(const vk::raii::Instance &instance) const -> vk::raii::SurfaceKHR;
 
         void onScrollCallback(glm::dvec2 offset);
+        void onTrackpadRotateCallback(double angle);
         void onCursorPosCallback(glm::dvec2 position);
         void onMouseButtonCallback(int button, int action, int mods);
         void onKeyCallback(int key, int scancode, int action, int mods);

@@ -1,0 +1,244 @@
+Subject: [PATCH] Initial commit
+---
+Index: src/cocoa_window.m
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/cocoa_window.m b/src/cocoa_window.m
+--- a/src/cocoa_window.m	(revision 9d09a6c09cf6baa9595d2541f2d8e15909ab474a)
++++ b/src/cocoa_window.m	(date 1731605456439)
+@@ -613,6 +613,22 @@
+         _glfwInputScroll(window, deltaX, deltaY);
+ }
+ 
++- (void)magnifyWithEvent:(NSEvent *)event
++{
++    double magnification = [event magnification];
++
++    if (fabs(magnification) > 0.0)
++        _glfwInputTrackpadZoom(window, magnification);
++}
++
++- (void)rotateWithEvent:(NSEvent *)event
++{
++    double rotation = [event rotation];
++
++    if (fabs(rotation) > 0.0)
++        _glfwInputTrackpadRotate(window, rotation);
++}
++
+ - (NSDragOperation)draggingEntered:(id <NSDraggingInfo>)sender
+ {
+     // HACK: We don't know what to say here because we don't know what the
+Index: src/internal.h
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/internal.h b/src/internal.h
+--- a/src/internal.h	(revision 9d09a6c09cf6baa9595d2541f2d8e15909ab474a)
++++ b/src/internal.h	(date 1731605341947)
+@@ -567,6 +567,8 @@
+         GLFWcursorposfun          cursorPos;
+         GLFWcursorenterfun        cursorEnter;
+         GLFWscrollfun             scroll;
++        GLFWtrackpadzoomfun       trackpadZoom;
++        GLFWtrackpadrotatefun     trackpadRotate;
+         GLFWkeyfun                key;
+         GLFWcharfun               character;
+         GLFWcharmodsfun           charmods;
+@@ -922,6 +924,8 @@
+ void _glfwInputChar(_GLFWwindow* window,
+                     uint32_t codepoint, int mods, GLFWbool plain);
+ void _glfwInputScroll(_GLFWwindow* window, double xoffset, double yoffset);
++void _glfwInputTrackpadZoom(_GLFWwindow* window, double scale);
++void _glfwInputTrackpadRotate(_GLFWwindow* window, double angle);
+ void _glfwInputMouseClick(_GLFWwindow* window, int button, int action, int mods);
+ void _glfwInputCursorPos(_GLFWwindow* window, double xpos, double ypos);
+ void _glfwInputCursorEnter(_GLFWwindow* window, GLFWbool entered);
+Index: include/GLFW/glfw3.h
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/include/GLFW/glfw3.h b/include/GLFW/glfw3.h
+--- a/include/GLFW/glfw3.h	(revision 9d09a6c09cf6baa9595d2541f2d8e15909ab474a)
++++ b/include/GLFW/glfw3.h	(date 1731605341930)
+@@ -1870,6 +1870,41 @@
+  */
+ typedef void (* GLFWscrollfun)(GLFWwindow* window, double xoffset, double yoffset);
+ 
++/*! @brief The function pointer type for trackpad zoom callbacks.
++ *
++ *  This is the function pointer type for trackpad zoom callbacks.  A zoom
++ *  callback function has the following signature:
++ *  @code
++ *  void function_name(GLFWwindow* window, double scale)
++ *  @endcode
++ *
++ *  @param[in] window The window that received the event.
++ *  @param[in] scale The manigification amount, to be multiplied by the current
++ *  scale factor to get the new scale factor.
++ *
++ *  @sa @ref glfwSetTrackpadZoomCallback
++ *
++ *  @ingroup input
++ */
++typedef void (* GLFWtrackpadzoomfun)(GLFWwindow* window, double scale);
++
++/*! @brief The function pointer type for trackpad rotate callbacks.
++ *
++ *  This is the function pointer type for trackpad rotate callbacks.  A rotate
++ *  callback function has the following signature:
++ *  @code
++ *  void function_name(GLFWwindow* window, double angle)
++ *  @endcode
++ *
++ *  @param[in] window The window that received the event.
++ *  @param[in] angle The rotation amount, in degrees
++ *
++ *  @sa @ref glfwSetTrackpadRotateCallback
++ *
++ *  @ingroup input
++ */
++typedef void (* GLFWtrackpadrotatefun)(GLFWwindow* window, double angle);
++
+ /*! @brief The function pointer type for keyboard key callbacks.
+  *
+  *  This is the function pointer type for keyboard key callbacks.  A keyboard
+@@ -5416,6 +5451,66 @@
+  */
+ GLFWAPI GLFWscrollfun glfwSetScrollCallback(GLFWwindow* window, GLFWscrollfun callback);
+ 
++/*! @brief Sets the trackpad zoom callback.
++ *
++ *  This function sets the trackpad zoom of the specified window, which is
++ *  called when a trackpad magnification gesture is used on macOS.
++ *
++ *  @param[in] window The window whose callback to set.
++ *  @param[in] callback The new trackpad zoom callback, or `NULL` to remove the
++ *  currently set callback.
++ *  @return The previously set callback, or `NULL` if no callback was set or the
++ *  library had not been [initialized](@ref intro_init).
++ *
++ *  @callback_signature
++ *  @code
++ *  void function_name(GLFWwindow* window, double scale)
++ *  @endcode
++ *  For more information about the callback parameters, see the
++ *  [function pointer type](@ref GLFWtrackpadzoomfun).
++ *
++ *  @errors Possible errors include @ref GLFW_NOT_INITIALIZED.
++ *
++ *  @thread_safety This function must only be called from the main thread.
++ *
++ *  @sa @ref input_mouse_trackpad_gestures
++ *
++ *  @since Added in version 3.5.
++ *
++ *  @ingroup input
++ */
++GLFWAPI GLFWtrackpadzoomfun glfwSetTrackpadZoomCallback(GLFWwindow* window, GLFWtrackpadzoomfun callback);
++
++/*! @brief Sets the trackpad rotate callback.
++ *
++ *  This function sets the trackpad rotate of the specified window, which is
++ *  called when a trackpad rotation gesture is used on macOS.
++ *
++ *  @param[in] window The window whose callback to set.
++ *  @param[in] callback The new trackpad rotate callback, or `NULL` to remove the
++ *  currently set callback.
++ *  @return The previously set callback, or `NULL` if no callback was set or the
++ *  library had not been [initialized](@ref intro_init).
++ *
++ *  @callback_signature
++ *  @code
++ *  void function_name(GLFWwindow* window, double angle)
++ *  @endcode
++ *  For more information about the callback parameters, see the
++ *  [function pointer type](@ref GLFWtrackpadrotatefun).
++ *
++ *  @errors Possible errors include @ref GLFW_NOT_INITIALIZED.
++ *
++ *  @thread_safety This function must only be called from the main thread.
++ *
++ *  @sa @ref input_mouse_trackpad_gestures
++ *
++ *  @since Added in version 3.5.
++ *
++ *  @ingroup input
++ */
++GLFWAPI GLFWtrackpadrotatefun glfwSetTrackpadRotateCallback(GLFWwindow* window, GLFWtrackpadrotatefun callback);
++
+ /*! @brief Sets the path drop callback.
+  *
+  *  This function sets the path drop callback of the specified window, which is
+Index: src/input.c
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/input.c b/src/input.c
+--- a/src/input.c	(revision 9d09a6c09cf6baa9595d2541f2d8e15909ab474a)
++++ b/src/input.c	(date 1731605341944)
+@@ -342,6 +342,30 @@
+         window->callbacks.scroll((GLFWwindow*) window, xoffset, yoffset);
+ }
+ 
++// Notifies shared code of a trackpad zoom event
++//
++void _glfwInputTrackpadZoom(_GLFWwindow* window, double scale)
++{
++    assert(window != NULL);
++    assert(scale > -FLT_MAX);
++    assert(scale < FLT_MAX);
++
++    if (window->callbacks.trackpadZoom)
++        window->callbacks.trackpadZoom((GLFWwindow*) window, scale);
++}
++
++// Notifies shared code of a trackpad rotate event
++//
++void _glfwInputTrackpadRotate(_GLFWwindow* window, double angle)
++{
++    assert(window != NULL);
++    assert(angle > -FLT_MAX);
++    assert(angle < FLT_MAX);
++
++    if (window->callbacks.trackpadRotate)
++        window->callbacks.trackpadRotate((GLFWwindow*) window, angle);
++}
++
+ // Notifies shared code of a mouse button click event
+ //
+ void _glfwInputMouseClick(_GLFWwindow* window, int button, int action, int mods)
+@@ -1016,6 +1040,28 @@
+     _GLFW_SWAP(GLFWscrollfun, window->callbacks.scroll, cbfun);
+     return cbfun;
+ }
++
++GLFWAPI GLFWtrackpadzoomfun glfwSetTrackpadZoomCallback(GLFWwindow* handle,
++                                                        GLFWtrackpadzoomfun cbfun)
++{
++    _GLFWwindow* window = (_GLFWwindow*) handle;
++    assert(window != NULL);
++
++    _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
++    _GLFW_SWAP(GLFWtrackpadzoomfun, window->callbacks.trackpadZoom, cbfun);
++    return cbfun;
++}
++
++GLFWAPI GLFWtrackpadrotatefun glfwSetTrackpadRotateCallback(GLFWwindow* handle,
++                                                          GLFWtrackpadrotatefun cbfun)
++{
++    _GLFWwindow* window = (_GLFWwindow*) handle;
++    assert(window != NULL);
++
++    _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
++    _GLFW_SWAP(GLFWtrackpadrotatefun, window->callbacks.trackpadRotate, cbfun);
++    return cbfun;
++}
+ 
+ GLFWAPI GLFWdropfun glfwSetDropCallback(GLFWwindow* handle, GLFWdropfun cbfun)
+ {

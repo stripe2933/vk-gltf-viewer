@@ -9,6 +9,7 @@ import :control.AppWindow;
 import std;
 import glm;
 import ImGuizmo;
+import :math.extended_arithmetic;
 
 vk_gltf_viewer::control::AppWindow::AppWindow(
     const vk::raii::Instance &instance,
@@ -28,6 +29,14 @@ vk_gltf_viewer::control::AppWindow::AppWindow(
     });
     glfwSetScrollCallback(window, [](GLFWwindow *window, double xoffset, double yoffset) {
         static_cast<AppWindow*>(glfwGetWindowUserPointer(window))->onScrollCallback({ xoffset, yoffset });
+    });
+    glfwSetTrackpadZoomCallback(window, [](GLFWwindow *window, double scale) {
+        // TODO: should onScrollCallback method be renamed to zoomScene?
+        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))->onScrollCallback({ 0.0, 1e2 * scale });
+    });
+    glfwSetTrackpadRotateCallback(window, [](GLFWwindow *window, double angle) {
+        // TODO: should onScrollCallback method be renamed to zoomScene?
+        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))->onTrackpadRotateCallback(angle);
     });
     glfwSetDropCallback(window, [](GLFWwindow *window, int count, const char *paths[]) {
         static_cast<AppWindow*>(glfwGetWindowUserPointer(window))->onDropCallback({ paths, static_cast<std::size_t>(count) });
@@ -92,6 +101,18 @@ void vk_gltf_viewer::control::AppWindow::onScrollCallback(glm::dvec2 offset) {
     const glm::vec3 displacementToTarget = appState.camera.direction * appState.camera.targetDistance;
     appState.camera.targetDistance *= factor;
     appState.camera.position += (1.f - factor) * displacementToTarget;
+
+    pTasks->emplace_back(std::in_place_type<task::ChangeCameraView>);
+}
+
+void vk_gltf_viewer::control::AppWindow::onTrackpadRotateCallback(double angle) {
+    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
+
+    // Rotate the camera around the Y-axis lied on the target point.
+    const glm::vec3 target = appState.camera.position + appState.camera.direction * appState.camera.targetDistance;
+    const glm::mat4 rotation = rotate(-glm::radians<float>(angle), glm::vec3 { 0.f, 1.f, 0.f });
+    appState.camera.direction = glm::mat3 { rotation } * appState.camera.direction;
+    appState.camera.position = target - appState.camera.direction * appState.camera.targetDistance;
 
     pTasks->emplace_back(std::in_place_type<task::ChangeCameraView>);
 }
