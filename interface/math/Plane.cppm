@@ -1,7 +1,3 @@
-module;
-
-#include <cassert>
-
 export module vk_gltf_viewer:math.Plane;
 
 export import glm;
@@ -32,7 +28,7 @@ namespace vk_gltf_viewer::math {
         /**
          * @brief Get signed distance of the Plane and given \p point.
          *
-         * The sign is positive if the displacement vector from plane to \point is toward to \p normal, otherwise it is negative.
+         * The sign is positive if the displacement vector from plane to \p point is toward to \p normal, otherwise it is negative.
          *
          * @param point Point to get the signed distance for.
          * @return Signed distance.

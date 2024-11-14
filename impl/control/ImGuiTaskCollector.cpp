@@ -274,20 +274,14 @@ auto assetMaterials(
     std::optional<std::size_t> &selectedMaterialIndex,
     std::span<const vk::DescriptorSet> assetTextureImGuiDescriptorSets
 ) -> void {
-    const bool isComboBoxOpened = [&]() {
-        if (materials.empty()) {
-            return ImGui::BeginCombo("Material", "<empty>");
-        }
-        else if (selectedMaterialIndex) {
-            return ImGui::BeginCombo("Material", nonempty_or(
-                materials[*selectedMaterialIndex].name,
-                [&]() { return tempStringBuffer.write("<Unnamed material {}>", *selectedMaterialIndex).view(); }).c_str());
-        }
-        else {
-            return ImGui::BeginCombo("Material", "<select...>");
-        }
+    const char* const previewText = [&]() {
+        if (materials.empty()) return "<empty>";
+        else if (selectedMaterialIndex) return nonempty_or(
+            materials[*selectedMaterialIndex].name,
+            [&]() { return tempStringBuffer.write("<Unnamed material {}>", *selectedMaterialIndex).view(); }).c_str();
+        else return "<select...>";
     }();
-    if (isComboBoxOpened) {
+    if (ImGui::BeginCombo("Material", previewText)) {
         for (const auto &[i, material] : materials | ranges::views::enumerate) {
             const bool isSelected = i == selectedMaterialIndex;
             if (ImGui::Selectable(nonempty_or(material.name, [&]() { return tempStringBuffer.write("<Unnamed material {}>", i).view(); }).c_str(), isSelected)) {
@@ -527,7 +521,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
 }
 
 auto vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(
-const std::optional<std::tuple<fastgltf::Asset&, const std::filesystem::path&, std::optional<std::size_t>&, std::span<const vk::DescriptorSet>>> &assetAndAssetDirAndAssetInspectorMaterialIndexAssetTextureImGuiDescriptorSets
+    const std::optional<std::tuple<fastgltf::Asset&, const std::filesystem::path&, std::optional<std::size_t>&, std::span<const vk::DescriptorSet>>> &assetAndAssetDirAndAssetInspectorMaterialIndexAssetTextureImGuiDescriptorSets
 ) && -> ImGuiTaskCollector {
     if (assetAndAssetDirAndAssetInspectorMaterialIndexAssetTextureImGuiDescriptorSets) {
         auto &[asset, assetDir, assetInspectorMaterialIndex, assetTexturesImGuiDescriptorSets] = *assetAndAssetDirAndAssetInspectorMaterialIndexAssetTextureImGuiDescriptorSets;
@@ -808,7 +802,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                 }
                 if (ImGui::Selectable("Transform Matrix", !isTrs) && isTrs) {
                     const auto &trs = get<fastgltf::TRS>(node.transform);
-                    const glm::mat4 matrix = glm::translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data())) * glm::mat4_cast(glm::make_quat(trs.rotation.data())) * glm::scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
+                    const glm::mat4 matrix = translate(glm::make_vec3(trs.translation.data())) * glm::mat4_cast(glm::make_quat(trs.rotation.data())) * scale(glm::make_vec3(trs.scale.data()));
 
                     auto &transform = node.transform.emplace<fastgltf::Node::TransformMatrix>();
                     std::copy_n(value_ptr(matrix), 16, transform.data());
@@ -942,7 +936,7 @@ auto vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
                 hoverableImage(eqmapTextureImGuiDescriptorSet, eqmapTextureSize);
 
                 ImGui::WithLabel("File"sv, [&]() {
-                    ImGui::TextLinkOpenURL(PATH_C_STR(info.eqmap.path.stem()), PATH_C_STR(info.eqmap.path));
+                    ImGui::TextLinkOpenURL(PATH_C_STR(info.eqmap.path.filename()), PATH_C_STR(info.eqmap.path));
                 });
                 ImGui::LabelText("Dimension", "%ux%u", info.eqmap.dimension.x, info.eqmap.dimension.y);
             }

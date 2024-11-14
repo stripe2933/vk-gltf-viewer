@@ -3,6 +3,7 @@ import :AppState;
 
 import std;
 import vku;
+import :helpers.functional;
 
 vk_gltf_viewer::AppState::AppState() noexcept
     : camera {

@@ -148,9 +148,9 @@ namespace fastgltf {
 
     export
     [[nodiscard]] glm::mat4 toMatrix(const TRS &trs) noexcept {
-        return translate(glm::mat4 { 1.f }, glm::make_vec3(trs.translation.data()))
+        return translate(glm::make_vec3(trs.translation.data()))
             * mat4_cast(glm::make_quat(trs.rotation.data()))
-            * scale(glm::mat4 { 1.f }, glm::make_vec3(trs.scale.data()));
+            * scale(glm::make_vec3(trs.scale.data()));
     }
 
     /**
@@ -245,10 +245,7 @@ namespace fastgltf {
         std::vector<glm::mat4> result;
         result.reserve(instanceCount);
         for (std::uint32_t i = 0; i < instanceCount; ++i) {
-            result.push_back(
-                glm::translate(glm::mat4 { 1.f }, translations[i])
-                    * mat4_cast(glm::make_quat(value_ptr(rotations[i])))
-                    * glm::scale(glm::mat4 { 1.f }, scale[i]));
+            result.push_back(translate(translations[i]) * mat4_cast(glm::make_quat(value_ptr(rotations[i]))) * glm::scale(scale[i]));
         }
 
         return result;

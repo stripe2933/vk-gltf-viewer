@@ -16,7 +16,6 @@ import std;
 import imgui.glfw;
 import imgui.vulkan;
 import ImGuizmo;
-import vku;
 import :gltf.AssetExternalBuffers;
 import :gltf.AssetGpuTextures;
 import :helpers.fastgltf;
