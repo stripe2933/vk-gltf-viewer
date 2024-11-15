@@ -110,6 +110,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/BlendFacetedPrimitiveRenderer.cppm
         interface/vulkan/pipeline/BlendPrimitiveRenderer.cppm
+        interface/vulkan/pipeline/BlendUnlitPrimitiveRenderer.cppm
         interface/vulkan/pipeline/BrdfmapComputer.cppm
         interface/vulkan/pipeline/CubemapComputer.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
@@ -121,6 +122,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/MaskFacetedPrimitiveRenderer.cppm
         interface/vulkan/pipeline/MaskJumpFloodSeedRenderer.cppm
         interface/vulkan/pipeline/MaskPrimitiveRenderer.cppm
+        interface/vulkan/pipeline/MaskUnlitPrimitiveRenderer.cppm
         interface/vulkan/pipeline/MultiplyComputer.cppm
         interface/vulkan/pipeline/OutlineRenderer.cppm
         interface/vulkan/pipeline/PrefilteredmapComputer.cppm
@@ -130,6 +132,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/SubgroupMipmapComputer.cppm
         interface/vulkan/pipeline/SkyboxRenderer.cppm
         interface/vulkan/pipeline/tag.cppm
+        interface/vulkan/pipeline/UnlitPrimitiveRenderer.cppm
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderer.cppm
         interface/vulkan/pipeline_layout/Primitive.cppm
         interface/vulkan/pipeline_layout/PrimitiveNoShading.cppm

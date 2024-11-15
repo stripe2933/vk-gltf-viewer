@@ -113,7 +113,7 @@ namespace vk_gltf_viewer {
         control::AppWindow window { instance, appState };
         vulkan::Gpu gpu { instance, window.getSurface() };
 
-        fastgltf::Parser parser { fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::EXT_mesh_gpu_instancing };
+        fastgltf::Parser parser { fastgltf::Extensions::KHR_materials_unlit | fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::EXT_mesh_gpu_instancing };
         fastgltf::GltfDataBuffer dataBuffer;
         std::optional<Gltf> gltf;
 

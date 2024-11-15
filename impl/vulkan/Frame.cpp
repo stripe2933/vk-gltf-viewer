@@ -128,12 +128,30 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             };
             if (primitiveInfo.materialIndex) {
                 const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
-                if (material.alphaMode == fastgltf::AlphaMode::Mask) {
-                    result.strategy = primitiveInfo.normalInfo.has_value() ? RenderingStrategy::Mask : RenderingStrategy::MaskFaceted;
+                switch (material.alphaMode) {
+                case fastgltf::AlphaMode::Opaque:
+                    if (material.unlit) {
+                        result.strategy = RenderingStrategy::OpaqueUnlit;
+                    }
+                    break;
+                case fastgltf::AlphaMode::Mask:
+                    if (material.unlit) {
+                        result.strategy = RenderingStrategy::MaskUnlit;
+                    }
+                    else {
+                        result.strategy = primitiveInfo.normalInfo.has_value() ? RenderingStrategy::Mask : RenderingStrategy::MaskFaceted;
+                    }
+                    break;
+                case fastgltf::AlphaMode::Blend:
+                    if (material.unlit) {
+                        result.strategy = RenderingStrategy::BlendUnlit;
+                    }
+                    else {
+                        result.strategy = primitiveInfo.normalInfo.has_value() ? RenderingStrategy::Blend : RenderingStrategy::BlendFaceted;
+                    }
+                    break;
                 }
-                else if (material.alphaMode == fastgltf::AlphaMode::Blend) {
-                    result.strategy = primitiveInfo.normalInfo.has_value() ? RenderingStrategy::Blend : RenderingStrategy::BlendFaceted;
-                }
+
                 result.doubleSided = material.doubleSided;
             }
             return result;
@@ -632,7 +650,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.setScissor(0, vk::Rect2D{ *cursorPosFromPassthruRectTopLeft, { 1, 1 } });
 
         drawPrimitives(renderingNodes->indirectDrawCommandBuffers, [this](RenderingStrategy strategy) {
-            if (strategy == RenderingStrategy::Mask || strategy == RenderingStrategy::MaskFaceted) {
+            if (ranges::contains(std::array { RenderingStrategy::Mask, RenderingStrategy::MaskUnlit, RenderingStrategy::MaskFaceted }, strategy)) {
                 return *sharedData.maskDepthRenderer;
             }
             return *sharedData.depthRenderer;
@@ -651,7 +669,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.setScissor(0, vk::Rect2D{ { 0, 0 }, passthruResources->extent });
 
         drawPrimitives(hoveringNode->indirectDrawCommandBuffers, [this](RenderingStrategy strategy) {
-            if (strategy == RenderingStrategy::Mask || strategy == RenderingStrategy::MaskFaceted) {
+            if (ranges::contains(std::array { RenderingStrategy::Mask, RenderingStrategy::MaskUnlit, RenderingStrategy::MaskFaceted }, strategy)) {
                 return *sharedData.maskJumpFloodSeedRenderer;
             }
             return *sharedData.jumpFloodSeedRenderer;
@@ -670,7 +688,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.setScissor(0, vk::Rect2D{ { 0, 0 }, passthruResources->extent });
 
         drawPrimitives(selectedNodes->indirectDrawCommandBuffers, [this](RenderingStrategy strategy) {
-            if (strategy == RenderingStrategy::Mask || strategy == RenderingStrategy::MaskFaceted) {
+            if (ranges::contains(std::array { RenderingStrategy::Mask, RenderingStrategy::MaskUnlit, RenderingStrategy::MaskFaceted }, strategy)) {
                 return *sharedData.maskJumpFloodSeedRenderer;
             }
             return *sharedData.jumpFloodSeedRenderer;
@@ -764,10 +782,14 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         switch (strategy) {
         case RenderingStrategy::Opaque:
             return *sharedData.primitiveRenderer;
+        case RenderingStrategy::OpaqueUnlit:
+            return *sharedData.unlitPrimitiveRenderer;
         case RenderingStrategy::OpaqueFaceted:
             return *sharedData.facetedPrimitiveRenderer;
         case RenderingStrategy::Mask:
             return *sharedData.maskPrimitiveRenderer;
+        case RenderingStrategy::MaskUnlit:
+            return *sharedData.maskUnlitPrimitiveRenderer;
         case RenderingStrategy::MaskFaceted:
             return *sharedData.maskFacetedPrimitiveRenderer;
         default:
@@ -821,6 +843,8 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
         switch (strategy) {
             case RenderingStrategy::Blend:
                 return *sharedData.blendPrimitiveRenderer;
+            case RenderingStrategy::BlendUnlit:
+                return *sharedData.blendUnlitPrimitiveRenderer;
             case RenderingStrategy::BlendFaceted:
                 return *sharedData.blendFacetedPrimitiveRenderer;
             default:

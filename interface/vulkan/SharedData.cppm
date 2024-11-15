@@ -11,6 +11,7 @@ export import :vulkan.ag.Swapchain;
 export import :vulkan.Gpu;
 export import :vulkan.pipeline.BlendFacetedPrimitiveRenderer;
 export import :vulkan.pipeline.BlendPrimitiveRenderer;
+export import :vulkan.pipeline.BlendUnlitPrimitiveRenderer;
 export import :vulkan.pipeline.DepthRenderer;
 export import :vulkan.pipeline.FacetedPrimitiveRenderer;
 export import :vulkan.pipeline.JumpFloodComputer;
@@ -19,9 +20,11 @@ export import :vulkan.pipeline.MaskDepthRenderer;
 export import :vulkan.pipeline.MaskFacetedPrimitiveRenderer;
 export import :vulkan.pipeline.MaskJumpFloodSeedRenderer;
 export import :vulkan.pipeline.MaskPrimitiveRenderer;
+export import :vulkan.pipeline.MaskUnlitPrimitiveRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
 export import :vulkan.pipeline.PrimitiveRenderer;
 export import :vulkan.pipeline.SkyboxRenderer;
+export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
 export import :vulkan.rp.Scene;
 import :vulkan.sampler.SingleTexelSampler;
@@ -58,6 +61,7 @@ namespace vk_gltf_viewer::vulkan {
         // Pipelines.
         BlendFacetedPrimitiveRenderer blendFacetedPrimitiveRenderer;
         BlendPrimitiveRenderer blendPrimitiveRenderer;
+        BlendUnlitPrimitiveRenderer blendUnlitPrimitiveRenderer;
         DepthRenderer depthRenderer { gpu.device, primitiveNoShadingPipelineLayout };
         FacetedPrimitiveRenderer facetedPrimitiveRenderer;
         JumpFloodComputer jumpFloodComputer { gpu.device };
@@ -66,9 +70,11 @@ namespace vk_gltf_viewer::vulkan {
         MaskFacetedPrimitiveRenderer maskFacetedPrimitiveRenderer;
         MaskJumpFloodSeedRenderer maskJumpFloodSeedRenderer { gpu.device, primitiveNoShadingPipelineLayout };
         MaskPrimitiveRenderer maskPrimitiveRenderer;
+        MaskUnlitPrimitiveRenderer maskUnlitPrimitiveRenderer;
         OutlineRenderer outlineRenderer;
         PrimitiveRenderer primitiveRenderer;
         SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices };
+        UnlitPrimitiveRenderer unlitPrimitiveRenderer;
         WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
 
         // Attachment groups.
@@ -92,10 +98,13 @@ namespace vk_gltf_viewer::vulkan {
             , swapchainExtent { swapchainExtent }
             , blendFacetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
             , blendPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
+            , blendUnlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
             , facetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
             , maskFacetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
             , maskPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
+            , maskUnlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
             , outlineRenderer { gpu.device }
+            , unlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
             , weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass }
             , primitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass } {
             const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
@@ -147,12 +156,15 @@ namespace vk_gltf_viewer::vulkan {
 
             // Following pipelines are dependent to the assetDescriptorSetLayout.
             blendPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
+            blendUnlitPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
             depthRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
             jumpFloodSeedRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
             maskDepthRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
             maskJumpFloodSeedRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
             maskPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
+            maskUnlitPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
             primitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
+            unlitPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
 
             if (gpu.supportTessellationShader) {
                 blendFacetedPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };

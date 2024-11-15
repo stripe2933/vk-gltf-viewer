@@ -102,10 +102,16 @@ namespace vk_gltf_viewer::vulkan {
     private:
         enum class RenderingStrategy : std::uint8_t {
             Blend,
+            // Note: KHR_materials_unlit is not affected by lighting, therefore per-fragment normal and tangent
+            // calculation is unnecessary. Therefore, regardless whether it is faceted or not, it can be rendered with
+            // the same way.
+            BlendUnlit,
             BlendFaceted,
             Opaque,
+            OpaqueUnlit,
             OpaqueFaceted,
             Mask,
+            MaskUnlit,
             MaskFaceted,
         };
 

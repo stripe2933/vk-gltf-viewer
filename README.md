@@ -19,8 +19,9 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - Multiple scenes.
   - Binary format (`.glb`).
 - Support glTF 2.0 extensions:
-  - `KHR_texture_basisu` for BC7 GPU compression texture decoding
-  - `EXT_mesh_gpu_instancing` for instancing multiple meshes with the same geometry
+  - [`KHR_materials_unlit`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_unlit) for lighting independent material shading
+  - [`KHR_texture_basisu`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_texture_basisu) for BC7 GPU compression texture decoding
+  - [`EXT_mesh_gpu_instancing`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Vendor/EXT_mesh_gpu_instancing) for instancing multiple meshes with the same geometry
 - Use 4x MSAA by default.
 - Support HDR and EXR skybox.
 - File loading using platform-native file dialog.
@@ -51,7 +52,7 @@ I initially developed this application for leveraging Vulkan's performance and u
   - Descriptor sets are only updated at the model loading time.
   - Textures are accessed with runtime-descriptor indexing using [`VK_EXT_descriptor_indexing`](https://docs.vulkan.org/samples/latest/samples/extensions/descriptor_indexing/README.html) extension.
   - Use Vertex Pulling with [`VK_KHR_buffer_device_address`](https://docs.vulkan.org/samples/latest/samples/extensions/buffer_device_address/README.html). Only index buffers are bound to the command buffer.
-- Fully GPU driven rendering: uses both instancing and multi draw indirect with optimally sorted rendering order. **Regardless of the material count and scene's complexity, all scene nodes can be rendered with up to 24 draw calls** in the worst case.
+- Fully GPU driven rendering: uses both instancing and multi draw indirect with optimally sorted rendering order. **Regardless of the material count and scene's complexity, all scene nodes can be rendered with up to 24 draw calls** in the worst case[^2].
   - Has 6 pipelines for 3 material types (`OPAQUE`, `MASK`, `BLEND`) and 2 primitive types (Indexed, Non-Indexed) combinations.
   - Indexed primitive index type can be either `UNSIGNED_BYTE` (if GPU supports [`VK_EXT_index_type_uint8`](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_EXT_index_type_uint8.html)), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
   - Each material can be either double-sided or not, and cull mode have to be set based on this.
@@ -327,3 +328,4 @@ All shaders are located in the [shaders](/shaders) folder and need to be manuall
 This project is **licensed under the GPL-v3 License**. See the [LICENSE](LICENSE.txt) file for details.
 
 [^1]: I like this term because it's hilarious for several reasons, but it's no joke! It has the **significantly faster glTF model loading speed than the other the viewers** I've tested. See [Performance Comparison](https://github.com/stripe2933/vk-gltf-viewer/blob/master/docs/performance-comparison.md) page for details.
+[^2]: Applied for standard glTF 2.0 asset only. Asset with material related extensions may require additional draw calls for pipeline changing.

@@ -304,6 +304,10 @@ auto assetMaterials(
             // TODO
         }
 
+        if (ImGui::Checkbox("KHR_materials_unlit", &material.unlit)) {
+            // TODO
+        }
+
         constexpr std::array alphaModes { "OPAQUE", "MASK", "BLEND" };
         if (int alphaMode = static_cast<int>(material.alphaMode); ImGui::Combo("Alpha mode", &alphaMode, alphaModes.data(), alphaModes.size())) {
             material.alphaMode = static_cast<fastgltf::AlphaMode>(alphaMode);
