@@ -15,17 +15,24 @@ namespace vk_gltf_viewer::control {
         ImGuiTaskCollector(std::vector<Task> &tasks, const ImVec2 &framebufferSize, const vk::Rect2D &oldPassthruRect);
         ~ImGuiTaskCollector();
 
-        ImGuiTaskCollector menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes) &&;
-        ImGuiTaskCollector assetInspector(const std::optional<std::tuple<fastgltf::Asset&, const std::filesystem::path&, std::optional<std::size_t>&, std::span<const vk::DescriptorSet>>> &assetAndAssetDirAndAssetInspectorMaterialIndexAssetTextureImGuiDescriptorSets) &&;
-        ImGuiTaskCollector sceneHierarchy(const std::optional<std::tuple<fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::uint16_t>&, const std::unordered_set<std::uint16_t>&>> &assetAndSceneIndexAndNodeVisibilitiesAndHoveringNodeIndexAndSelectedNodeIndices) &&;
-        ImGuiTaskCollector nodeInspector(std::optional<std::pair<fastgltf::Asset &, const std::unordered_set<std::uint16_t>&>> assetAndSelectedNodeIndices) &&;
-        ImGuiTaskCollector background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground) &&;
-        ImGuiTaskCollector imageBasedLighting(const std::optional<std::pair<const AppState::ImageBasedLighting&, vk::DescriptorSet>> &imageBasedLightingInfoAndEqmapTextureImGuiDescriptorSet) &&;
-        ImGuiTaskCollector inputControl(Camera &camera, bool& automaticNearFarPlaneAdjustment, bool &useFrustumCulling, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline) &&;
-        ImGuiTaskCollector imguizmo(Camera &camera, const std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::uint16_t, ImGuizmo::OPERATION>> &assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation) &&;
+        void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes);
+        void assetInspector(fastgltf::Asset &asset, const std::filesystem::path &assetDir);
+        void materialEditor(fastgltf::Asset &asset, std::optional<std::size_t> &selectedMaterialIndex, std::span<const vk::DescriptorSet> assetTextureImGuiDescriptorSets);
+        void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities, const std::optional<std::uint16_t> &hoveringNodeIndex, const std::unordered_set<std::uint16_t> &selectedNodeIndices);
+        void nodeInspector(fastgltf::Asset &asset, const std::unordered_set<std::uint16_t> &selectedNodeIndices);
+        void background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground);
+        void imageBasedLighting(const AppState::ImageBasedLighting &info, vk::DescriptorSet eqmapTextureImGuiDescriptorSet);
+        void inputControl(Camera &camera, bool& automaticNearFarPlaneAdjustment, bool &useFrustumCulling, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline);
+        void imguizmo(Camera &camera, const std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::uint16_t, ImGuizmo::OPERATION>> &assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation);
 
     private:
         std::vector<Task> &tasks;
         ImRect centerNodeRect;
+
+        bool assetInspectorCalled = false;
+        bool materialEditorCalled = false;
+        bool sceneHierarchyCalled = false;
+        bool nodeInspectorCalled = false;
+        bool imageBasedLightingCalled = false;
     };
 }

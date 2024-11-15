@@ -17,6 +17,7 @@ namespace vk_gltf_viewer::control {
         struct ChangeNodeLocalTransform { std::uint16_t nodeIndex; };
         struct TightenNearFarPlane { };
         struct ChangeCameraView { };
+        struct InvalidateDrawCommandSeparation { };
     }
 
     export using Task = std::variant<
@@ -31,5 +32,6 @@ namespace vk_gltf_viewer::control {
         task::HoverNodeFromSceneHierarchy,
         task::ChangeNodeLocalTransform,
         task::TightenNearFarPlane,
-        task::ChangeCameraView>;
+        task::ChangeCameraView,
+        task::InvalidateDrawCommandSeparation>;
 }

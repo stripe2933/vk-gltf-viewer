@@ -226,25 +226,22 @@ auto vk_gltf_viewer::MainApp::run() -> void {
 
         const glm::vec2 framebufferSize = window.getFramebufferSize();
         static vk::Rect2D passthruRect{};
-        control::ImGuiTaskCollector { tasks, ImVec2 { framebufferSize.x, framebufferSize.y }, passthruRect }
-            .menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths())
-            .assetInspector(appState.gltfAsset.transform([this](auto &x) {
-                return std::forward_as_tuple(x.asset, gltf->directory, x.assetInspectorMaterialIndex, assetTextureDescriptorSets);
-            }))
-            .sceneHierarchy(appState.gltfAsset.transform([](auto &x) -> std::tuple<fastgltf::Asset&, std::size_t, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>>&, const std::optional<std::uint16_t>&, const std::unordered_set<std::uint16_t>&> {
-                // TODO: don't know why, but using std::forward_as_tuple will pass the scene index as reference and will
-                //  cause a dangling reference. Should be investigated.
-                return { x.asset, x.getSceneIndex(), x.nodeVisibilities, x.hoveringNodeIndex, x.selectedNodeIndices };
-            }))
-            .nodeInspector(appState.gltfAsset.transform([](auto &x) {
-                return std::forward_as_tuple(x.asset, x.selectedNodeIndices);
-            }))
-            .imageBasedLighting(appState.imageBasedLightingProperties.transform([this](const auto &info) {
-                return std::forward_as_tuple(info, skyboxResources->imGuiEqmapTextureDescriptorSet);
-            }))
-            .background(appState.canSelectSkyboxBackground, appState.background)
-            .inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline)
-            .imguizmo(appState.camera, appState.gltfAsset.and_then([this](auto &x) {
+
+        {
+            control::ImGuiTaskCollector imguiTaskCollector { tasks, ImVec2 { framebufferSize.x, framebufferSize.y }, passthruRect };
+            imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths());
+            if (auto &gltfAsset = appState.gltfAsset) {
+                imguiTaskCollector.assetInspector(gltfAsset->asset, gltf->directory);
+                imguiTaskCollector.materialEditor(gltfAsset->asset, gltfAsset->assetInspectorMaterialIndex, assetTextureDescriptorSets);
+                imguiTaskCollector.sceneHierarchy(gltfAsset->asset, gltfAsset->getSceneIndex(), gltfAsset->nodeVisibilities, gltfAsset->hoveringNodeIndex, gltfAsset->selectedNodeIndices);
+                imguiTaskCollector.nodeInspector(gltfAsset->asset, gltfAsset->selectedNodeIndices);
+            }
+            if (const auto &iblInfo = appState.imageBasedLightingProperties) {
+                imguiTaskCollector.imageBasedLighting(*iblInfo, skyboxResources->imGuiEqmapTextureDescriptorSet);
+            }
+            imguiTaskCollector.background(appState.canSelectSkyboxBackground, appState.background);
+            imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline);
+            imguiTaskCollector.imguizmo(appState.camera, appState.gltfAsset.and_then([this](auto &x) {
                 return value_if(x.selectedNodeIndices.size() == 1, [&]() {
                     return std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::uint16_t, ImGuizmo::OPERATION> {
                         x.asset,
@@ -254,7 +251,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     };
                 });
             }));
+        }
 
+        bool regenerateDrawCommands = false;
         for (const control::Task &task : tasks) {
             visit(multilambda {
                 [this](const control::task::ChangePassthruRect &task) {
@@ -413,6 +412,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                         appState.camera.tightenNearFar(center, radius);
                     }
                 },
+                [&](control::task::InvalidateDrawCommandSeparation) {
+                    regenerateDrawCommands = true;
+                },
             }, task);
         }
 
@@ -441,9 +443,13 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                     .assetGpuBuffers = gltf.assetGpuBuffers,
                     .sceneHierarchy = gltf.sceneHierarchy,
                     .sceneGpuBuffers = gltf.sceneGpuBuffers,
-                    .hoveringNode = transform([](std::uint16_t index, const AppState::Outline &outline) {
+                    .renderingNodes = {
+                        .indices = appState.gltfAsset->getVisibleNodeIndices(),
+                        .shouldRegenerateDrawCommands = regenerateDrawCommands,
+                    },
+                    .hoveringNode = transform([&](std::uint16_t index, const AppState::Outline &outline) {
                         return vulkan::Frame::ExecutionTask::Gltf::HoveringNode {
-                            index, outline.color, outline.thickness,
+                            index, outline.color, outline.thickness, regenerateDrawCommands,
                         };
                     }, appState.gltfAsset->hoveringNodeIndex, appState.hoveringNodeOutline.to_optional()),
                     .selectedNodes = value_if(!appState.gltfAsset->selectedNodeIndices.empty() && appState.selectedNodeOutline.has_value(), [&]() {
@@ -451,9 +457,9 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                             appState.gltfAsset->selectedNodeIndices,
                             appState.selectedNodeOutline->color,
                             appState.selectedNodeOutline->thickness,
+                            regenerateDrawCommands,
                         };
                     }),
-                    .renderingNodeIndices = appState.gltfAsset->getVisibleNodeIndices(),
                 };
             }),
             .solidBackground = appState.background.to_optional(),

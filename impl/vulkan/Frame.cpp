@@ -157,11 +157,13 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             return result;
         };
 
-        if (!task.gltf->renderingNodeIndices.empty()) {
-            if (!renderingNodes || (renderingNodes && renderingNodes->indices != task.gltf->renderingNodeIndices)) {
+        if (!task.gltf->renderingNodes.indices.empty()) {
+            if (!renderingNodes ||
+                task.gltf->renderingNodes.shouldRegenerateDrawCommands ||
+                (renderingNodes && renderingNodes->indices != task.gltf->renderingNodes.indices)) {
                 renderingNodes.emplace(
-                    task.gltf->renderingNodeIndices,
-                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->renderingNodeIndices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }));
+                    task.gltf->renderingNodes.indices,
+                    task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->renderingNodes.indices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }));
             }
 
             if (task.frustum) {
@@ -206,7 +208,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         if (task.gltf->selectedNodes) {
             if (selectedNodes) {
-                if (selectedNodes->indices != task.gltf->selectedNodes->indices) {
+                if (task.gltf->selectedNodes->shouldRegenerateDrawCommands || selectedNodes->indices != task.gltf->selectedNodes->indices) {
                     selectedNodes->indices = task.gltf->selectedNodes->indices;
                     selectedNodes->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, task.gltf->selectedNodes->indices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
                 }
@@ -229,7 +231,8 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             // If selectedNodeIndices == hoveringNodeIndex, hovering node outline doesn't have to be drawn.
             !(task.gltf->selectedNodes && task.gltf->selectedNodes->indices.size() == 1 && *task.gltf->selectedNodes->indices.begin() == task.gltf->hoveringNode->index)) {
             if (hoveringNode) {
-                if (hoveringNode->index != task.gltf->hoveringNode->index) {
+                if (task.gltf->hoveringNode->shouldRegenerateDrawCommands ||
+                    hoveringNode->index != task.gltf->hoveringNode->index) {
                     hoveringNode->index = task.gltf->hoveringNode->index;
                     hoveringNode->indirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers<decltype(criteriaGetter), CommandSeparationCriteriaComparator>(gpu.allocator, criteriaGetter, { task.gltf->hoveringNode->index }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
                 }
