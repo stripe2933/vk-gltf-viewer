@@ -100,11 +100,19 @@ namespace vk_gltf_viewer::vulkan {
         [[nodiscard]] auto execute() const -> bool; // false -> Swapchain image acquire/release failed. Swapchain have to be recreated.
 
     private:
+        enum class RenderingStrategy : std::uint8_t {
+            Blend,
+            BlendFaceted,
+            Opaque,
+            OpaqueFaceted,
+            Mask,
+            MaskFaceted,
+        };
+
         struct CommandSeparationCriteria {
-            fastgltf::AlphaMode alphaMode;
-            bool faceted;
-            bool doubleSided;
+            RenderingStrategy strategy;
             std::optional<vk::IndexType> indexType;
+            bool doubleSided;
 
             [[nodiscard]] constexpr auto operator<=>(const CommandSeparationCriteria&) const noexcept -> std::strong_ordering = default;
         };
@@ -113,8 +121,8 @@ namespace vk_gltf_viewer::vulkan {
             using is_transparent = void;
 
             [[nodiscard]] auto operator()(const CommandSeparationCriteria &lhs, const CommandSeparationCriteria &rhs) const noexcept -> bool { return lhs < rhs; }
-            [[nodiscard]] auto operator()(const CommandSeparationCriteria &lhs, fastgltf::AlphaMode rhs) const noexcept -> bool { return lhs.alphaMode < rhs; }
-            [[nodiscard]] auto operator()(fastgltf::AlphaMode lhs, const CommandSeparationCriteria &rhs) const noexcept -> bool { return lhs < rhs.alphaMode; }
+            [[nodiscard]] auto operator()(const CommandSeparationCriteria &lhs, RenderingStrategy rhs) const noexcept -> bool { return lhs.strategy < rhs; }
+            [[nodiscard]] auto operator()(RenderingStrategy lhs, const CommandSeparationCriteria &rhs) const noexcept -> bool { return lhs < rhs.strategy; }
         };
 
         using CriteriaSeparatedIndirectDrawCommands = std::map<CommandSeparationCriteria, std::variant<buffer::IndirectDrawCommands<false>, buffer::IndirectDrawCommands<true>>, CommandSeparationCriteriaComparator>;

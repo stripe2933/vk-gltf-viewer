@@ -1,14 +1,14 @@
 export module vk_gltf_viewer:vulkan.pipeline.PrimitiveRenderer;
 
 import vku;
-export import :vulkan.pl.SceneRendering;
+export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct PrimitiveRenderer : vk::raii::Pipeline {
         PrimitiveRenderer(
             const vk::raii::Device &device [[clang::lifetimebound]],
-            const pl::SceneRendering &layout [[clang::lifetimebound]],
+            const pl::Primitive &layout [[clang::lifetimebound]],
             const rp::Scene &sceneRenderPass [[clang::lifetimebound]]
         ) : Pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(

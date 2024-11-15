@@ -8,10 +8,10 @@ import :vulkan.Frame;
 
 import std;
 import imgui.vulkan;
+import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
-import :helpers.type_variant;
 import :math.extended_arithmetic;
 import :vulkan.ag.DepthPrepass;
 
@@ -122,14 +122,18 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         const auto criteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
             CommandSeparationCriteria result {
-                .alphaMode = fastgltf::AlphaMode::Opaque,
-                .faceted = primitiveInfo.normalInfo.has_value(),
-                .doubleSided = false,
+                .strategy = primitiveInfo.normalInfo.has_value() ? RenderingStrategy::Opaque : RenderingStrategy::OpaqueFaceted,
                 .indexType = primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
+                .doubleSided = false,
             };
             if (primitiveInfo.materialIndex) {
                 const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
-                result.alphaMode = material.alphaMode;
+                if (material.alphaMode == fastgltf::AlphaMode::Mask) {
+                    result.strategy = primitiveInfo.normalInfo.has_value() ? RenderingStrategy::Mask : RenderingStrategy::MaskFaceted;
+                }
+                else if (material.alphaMode == fastgltf::AlphaMode::Blend) {
+                    result.strategy = primitiveInfo.normalInfo.has_value() ? RenderingStrategy::Blend : RenderingStrategy::BlendFaceted;
+                }
                 result.doubleSided = material.doubleSided;
             }
             return result;
@@ -574,78 +578,46 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         {}, {}, {}, memoryBarriers);
 
     struct {
-        type_variant<std::monostate, DepthRenderer, MaskDepthRenderer, JumpFloodSeedRenderer, MaskJumpFloodSeedRenderer> boundPipeline{};
+        std::optional<vk::Pipeline> boundPipeline{};
         std::optional<vk::CullModeFlagBits> cullMode{};
         std::optional<vk::IndexType> indexBuffer;
 
-        // (Mask)DepthRenderer and (Mask)JumpFloodSeedRenderer have compatible descriptor set layouts and push constant range,
+        // (Mask){Depth|JumpFloodSeed}Renderer have compatible descriptor set layouts and push constant range,
         // therefore they only need to be bound once.
         bool descriptorSetBound = false;
         bool pushConstantBound = false;
     } resourceBindingState{};
 
-    const auto drawPrimitives
-        = [&](const CriteriaSeparatedIndirectDrawCommands &indirectDrawCommandBuffers, const auto &opaqueOrBlendRenderer, const auto &maskRenderer) {
-            // Render opaque or blend meshes.
-            const auto opaqueMeshes = ranges::make_subrange(indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque));
-            const auto blendMeshes = ranges::make_subrange(indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Blend));
-            for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::views::concat(opaqueMeshes, blendMeshes)) {
-                if (!resourceBindingState.boundPipeline.holds_alternative<std::remove_cvref_t<decltype(opaqueOrBlendRenderer)>>()) {
-                    cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *opaqueOrBlendRenderer.pipeline);
-                    resourceBindingState.boundPipeline.emplace<std::remove_cvref_t<decltype(opaqueOrBlendRenderer)>>();
-                }
-
-                if (!resourceBindingState.descriptorSetBound) {
-                    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *opaqueOrBlendRenderer.pipelineLayout,
-                        0, { sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
-                    resourceBindingState.descriptorSetBound = true;
-                }
-
-                if (!resourceBindingState.pushConstantBound) {
-                    opaqueOrBlendRenderer.pushConstants(cb, { projectionViewMatrix });
-                    resourceBindingState.pushConstantBound = true;
-                }
-
-                if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
-                    cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
-                }
-
-                if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
-                    resourceBindingState.indexBuffer.emplace(*indexType);
-                    cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
-                }
-                visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
+    const auto drawPrimitives = [&](
+        const CriteriaSeparatedIndirectDrawCommands &indirectDrawCommandBuffers,
+        concepts::signature_of<vk::Pipeline, RenderingStrategy> auto const &pipelineGetter
+    ) {
+        for (const auto &[criteria, indirectDrawCommandBuffer] : indirectDrawCommandBuffers) {
+            if (vk::Pipeline pipeline = pipelineGetter(criteria.strategy); resourceBindingState.boundPipeline != pipeline) {
+                cb.bindPipeline(vk::PipelineBindPoint::eGraphics, resourceBindingState.boundPipeline.emplace(pipeline));
             }
 
-            // Render mask meshes.
-            for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask))) {
-                if (!resourceBindingState.boundPipeline.holds_alternative<std::remove_cvref_t<decltype(maskRenderer)>>()) {
-                    cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *maskRenderer.pipeline);
-                    resourceBindingState.boundPipeline.emplace<std::remove_cvref_t<decltype(maskRenderer)>>();
-                }
-
-                if (!resourceBindingState.descriptorSetBound) {
-                    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *maskRenderer.pipelineLayout,
-                        0, { sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
-                    resourceBindingState.descriptorSetBound = true;
-                }
-
-                if (!resourceBindingState.pushConstantBound) {
-                    maskRenderer.pushConstants(cb, { projectionViewMatrix });
-                    resourceBindingState.pushConstantBound = true;
-                }
-
-                if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
-                    cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
-                }
-
-                if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
-                    resourceBindingState.indexBuffer.emplace(*indexType);
-                    cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
-                }
-                visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
+            if (!resourceBindingState.descriptorSetBound) {
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveNoShadingPipelineLayout,
+                    0, { sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
+                resourceBindingState.descriptorSetBound = true;
             }
-        };
+
+            if (!resourceBindingState.pushConstantBound) {
+                sharedData.primitiveNoShadingPipelineLayout.pushConstants(cb, { projectionViewMatrix });
+                resourceBindingState.pushConstantBound = true;
+            }
+
+            if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
+                cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
+            }
+
+            if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
+                cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, resourceBindingState.indexBuffer.emplace(*indexType));
+            }
+            visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
+        }
+    };
 
     if (renderingNodes && cursorPosFromPassthruRectTopLeft) {
         cb.beginRenderingKHR(passthruResources->depthPrepassAttachmentGroup.getRenderingInfo(
@@ -659,7 +631,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.setViewport(0, vku::toViewport(passthruResources->extent, true));
         cb.setScissor(0, vk::Rect2D{ *cursorPosFromPassthruRectTopLeft, { 1, 1 } });
 
-        drawPrimitives(renderingNodes->indirectDrawCommandBuffers, sharedData.depthRenderer, sharedData.maskDepthRenderer);
+        drawPrimitives(renderingNodes->indirectDrawCommandBuffers, [this](RenderingStrategy strategy) {
+            if (strategy == RenderingStrategy::Mask || strategy == RenderingStrategy::MaskFaceted) {
+                return *sharedData.maskDepthRenderer;
+            }
+            return *sharedData.depthRenderer;
+        });
 
         cb.endRenderingKHR();
     }
@@ -673,7 +650,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.setViewport(0, vku::toViewport(passthruResources->extent, true));
         cb.setScissor(0, vk::Rect2D{ { 0, 0 }, passthruResources->extent });
 
-        drawPrimitives(hoveringNode->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.maskJumpFloodSeedRenderer);
+        drawPrimitives(hoveringNode->indirectDrawCommandBuffers, [this](RenderingStrategy strategy) {
+            if (strategy == RenderingStrategy::Mask || strategy == RenderingStrategy::MaskFaceted) {
+                return *sharedData.maskJumpFloodSeedRenderer;
+            }
+            return *sharedData.jumpFloodSeedRenderer;
+        });
 
         cb.endRenderingKHR();
     }
@@ -687,7 +669,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.setViewport(0, vku::toViewport(passthruResources->extent, true));
         cb.setScissor(0, vk::Rect2D{ { 0, 0 }, passthruResources->extent });
 
-        drawPrimitives(selectedNodes->indirectDrawCommandBuffers, sharedData.jumpFloodSeedRenderer, sharedData.maskJumpFloodSeedRenderer);
+        drawPrimitives(selectedNodes->indirectDrawCommandBuffers, [this](RenderingStrategy strategy) {
+            if (strategy == RenderingStrategy::Mask || strategy == RenderingStrategy::MaskFaceted) {
+                return *sharedData.maskJumpFloodSeedRenderer;
+            }
+            return *sharedData.jumpFloodSeedRenderer;
+        });
 
         cb.endRenderingKHR();
     }
@@ -763,7 +750,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
     assert(renderingNodes && "No nodes have to be rendered.");
 
     struct {
-        type_variant<std::monostate, PrimitiveRenderer, MaskPrimitiveRenderer, FacetedPrimitiveRenderer, MaskFacetedPrimitiveRenderer> boundPipeline{};
+        std::optional<vk::Pipeline> boundPipeline{};
         std::optional<vk::CullModeFlagBits> cullMode{};
         std::optional<vk::IndexType> indexBuffer{};
 
@@ -773,23 +760,36 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         bool pushConstantBound = false;
     } resourceBindingState{};
 
-    // Render alphaMode=Opaque meshes.
-    for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Opaque))) {
-        if (criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<PrimitiveRenderer>()) {
-            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveRenderer);
-            resourceBindingState.boundPipeline.emplace<PrimitiveRenderer>();
+    const auto getPipeline = [this](RenderingStrategy strategy) {
+        switch (strategy) {
+        case RenderingStrategy::Opaque:
+            return *sharedData.primitiveRenderer;
+        case RenderingStrategy::OpaqueFaceted:
+            return *sharedData.facetedPrimitiveRenderer;
+        case RenderingStrategy::Mask:
+            return *sharedData.maskPrimitiveRenderer;
+        case RenderingStrategy::MaskFaceted:
+            return *sharedData.maskFacetedPrimitiveRenderer;
+        default:
+            throw std::invalid_argument { "Invalid rendering strategy for this function" };
         }
-        else if (!criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<FacetedPrimitiveRenderer>()){
-            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.facetedPrimitiveRenderer);
-            resourceBindingState.boundPipeline.emplace<FacetedPrimitiveRenderer>();
+    };
+
+    // Render alphaMode=Opaque | Mask meshes.
+    const auto drawCommandBuffers = std::ranges::subrange(
+        renderingNodes->indirectDrawCommandBuffers.lower_bound(RenderingStrategy::Opaque),
+        renderingNodes->indirectDrawCommandBuffers.end());
+    for (const auto &[criteria, indirectDrawCommandBuffer] : drawCommandBuffers) {
+        if (vk::Pipeline pipeline = getPipeline(criteria.strategy); resourceBindingState.boundPipeline != pipeline) {
+            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, resourceBindingState.boundPipeline.emplace(pipeline));
         }
         if (!resourceBindingState.descriptorBound) {
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0,
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout, 0,
                 { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
             resourceBindingState.descriptorBound = true;
         }
         if (!resourceBindingState.pushConstantBound) {
-            sharedData.sceneRenderingPipelineLayout.pushConstants(cb, { projectionViewMatrix, viewPosition });
+            sharedData.primitivePipelineLayout.pushConstants(cb, { projectionViewMatrix, viewPosition });
             resourceBindingState.pushConstantBound = true;
         }
 
@@ -798,39 +798,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         }
 
         if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
-            resourceBindingState.indexBuffer.emplace(*indexType);
-            cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
-        }
-        visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
-    }
-
-    // Render alphaMode=Mask meshes.
-    for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Mask))) {
-        if (criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<MaskPrimitiveRenderer>()) {
-            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.maskPrimitiveRenderer);
-            resourceBindingState.boundPipeline.emplace<MaskPrimitiveRenderer>();
-        }
-        else if (!criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<MaskFacetedPrimitiveRenderer>()){
-            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.maskFacetedPrimitiveRenderer);
-            resourceBindingState.boundPipeline.emplace<MaskFacetedPrimitiveRenderer>();
-        }
-        if (!resourceBindingState.descriptorBound) {
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0,
-                { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
-            resourceBindingState.descriptorBound = true;
-        }
-        if (!resourceBindingState.pushConstantBound) {
-            sharedData.sceneRenderingPipelineLayout.pushConstants(cb, { projectionViewMatrix, viewPosition });
-            resourceBindingState.pushConstantBound = true;
-        }
-
-        if (auto cullMode = criteria.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack; resourceBindingState.cullMode != cullMode) {
-            cb.setCullMode(resourceBindingState.cullMode.emplace(cullMode));
-        }
-
-        if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
-            resourceBindingState.indexBuffer.emplace(*indexType);
-            cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
+            cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, resourceBindingState.indexBuffer.emplace(*indexType));
         }
         visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
     }
@@ -840,7 +808,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
     assert(renderingNodes && "No nodes have to be rendered.");
 
     struct {
-        type_variant<std::monostate, BlendPrimitiveRenderer, BlendFacetedPrimitiveRenderer> boundPipeline{};
+        std::optional<vk::Pipeline> boundPipeline{};
         std::optional<vk::IndexType> indexBuffer{};
 
         // Blend(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
@@ -849,30 +817,39 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
         bool pushConstantBound = false;
     } resourceBindingState;
 
+    const auto getPipeline = [this](RenderingStrategy strategy) {
+        switch (strategy) {
+            case RenderingStrategy::Blend:
+                return *sharedData.blendPrimitiveRenderer;
+            case RenderingStrategy::BlendFaceted:
+                return *sharedData.blendFacetedPrimitiveRenderer;
+            default:
+                throw std::invalid_argument { "Invalid rendering strategy for this function" };
+        }
+    };
+
     // Render alphaMode=Blend meshes.
     bool hasBlendMesh = false;
-    for (const auto &[criteria, indirectDrawCommandBuffer] : ranges::make_subrange(renderingNodes->indirectDrawCommandBuffers.equal_range(fastgltf::AlphaMode::Blend))) {
-        if (criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<BlendPrimitiveRenderer>()) {
-            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.blendPrimitiveRenderer);
-            resourceBindingState.boundPipeline.emplace<BlendPrimitiveRenderer>();
-        }
-        else if (!criteria.faceted && !resourceBindingState.boundPipeline.holds_alternative<BlendFacetedPrimitiveRenderer>()){
-            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.blendFacetedPrimitiveRenderer);
-            resourceBindingState.boundPipeline.emplace<BlendFacetedPrimitiveRenderer>();
+    const auto drawCommandBuffers = std::ranges::subrange(
+        renderingNodes->indirectDrawCommandBuffers.begin(),
+        renderingNodes->indirectDrawCommandBuffers.upper_bound(RenderingStrategy::BlendFaceted));
+    for (const auto &[criteria, indirectDrawCommandBuffer] : drawCommandBuffers) {
+        if (vk::Pipeline pipeline = getPipeline(criteria.strategy); resourceBindingState.boundPipeline != pipeline) {
+            resourceBindingState.boundPipeline = pipeline;
+            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *resourceBindingState.boundPipeline);
         }
         if (!resourceBindingState.descriptorBound) {
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.sceneRenderingPipelineLayout, 0,
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout, 0,
                 { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
             resourceBindingState.descriptorBound = true;
         }
         if (!resourceBindingState.pushConstantBound) {
-            sharedData.sceneRenderingPipelineLayout.pushConstants(cb, { projectionViewMatrix, viewPosition });
+            sharedData.primitivePipelineLayout.pushConstants(cb, { projectionViewMatrix, viewPosition });
             resourceBindingState.pushConstantBound = true;
         }
 
         if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
-            resourceBindingState.indexBuffer.emplace(*indexType);
-            cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, *indexType);
+            cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, resourceBindingState.indexBuffer.emplace(*indexType));
         }
         visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
         hasBlendMesh = true;
