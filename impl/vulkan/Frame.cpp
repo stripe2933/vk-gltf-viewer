@@ -281,6 +281,13 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
         scenePrepassCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
         recordScenePrepassCommands(scenePrepassCommandBuffer);
         scenePrepassCommandBuffer.end();
+
+        gpu.queues.graphicsPresent.submit(vk::SubmitInfo {
+            {},
+            {},
+            scenePrepassCommandBuffer,
+            *scenePrepassFinishSema,
+        });
     }
 
     // Jump flood calculation pass.
@@ -321,6 +328,13 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
                 {});
         }
         jumpFloodCommandBuffer.end();
+
+        gpu.queues.compute.submit(vk::SubmitInfo {
+            *scenePrepassFinishSema,
+            vku::unsafeProxy(vk::Flags { vk::PipelineStageFlagBits::eComputeShader }),
+            jumpFloodCommandBuffer,
+            *jumpFloodFinishSema,
+        });
     }
 
     // glTF scene rendering pass.
@@ -421,21 +435,6 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
 
         compositionCommandBuffer.end();
     }
-
-    // Submit commands to the corresponding queues.
-    gpu.queues.graphicsPresent.submit(vk::SubmitInfo {
-        {},
-        {},
-        scenePrepassCommandBuffer,
-        *scenePrepassFinishSema,
-    });
-
-    gpu.queues.compute.submit(vk::SubmitInfo {
-        *scenePrepassFinishSema,
-        vku::unsafeProxy(vk::Flags { vk::PipelineStageFlagBits::eComputeShader }),
-        jumpFloodCommandBuffer,
-        *jumpFloodFinishSema,
-    });
 
     gpu.queues.graphicsPresent.submit({
         vk::SubmitInfo {
