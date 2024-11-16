@@ -262,16 +262,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     return result;
 }
 
-auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
-    // Acquire the next swapchain image.
-    std::uint32_t imageIndex;
-    try {
-        imageIndex = (*gpu.device).acquireNextImageKHR(*sharedData.swapchain, ~0ULL, *swapchainImageAcquireSema).value;
-    }
-    catch (const vk::OutOfDateKHRError&) {
-        return false;
-    }
-
+void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapchainImageIndex) const {
     // Record commands.
     graphicsCommandPool.reset();
     computeCommandPool.reset();
@@ -347,7 +338,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
         }
         sceneRenderingCommandBuffer.beginRenderPass({
             *sharedData.sceneRenderPass,
-            *framebuffers[imageIndex],
+            *framebuffers[swapchainImageIndex],
             vk::Rect2D { { 0, 0 }, sharedData.swapchainExtent },
             vku::unsafeProxy<vk::ClearValue>({
                 backgroundColor,
@@ -407,7 +398,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
         compositionCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
         if (selectedNodes || hoveringNode) {
-            recordNodeOutlineCompositionCommands(compositionCommandBuffer, hoveringNodeJumpFloodForward, selectedNodeJumpFloodForward, imageIndex);
+            recordNodeOutlineCompositionCommands(compositionCommandBuffer, hoveringNodeJumpFloodForward, selectedNodeJumpFloodForward, swapchainImageIndex);
 
             // Make sure the outline composition is done before rendering ImGui.
             compositionCommandBuffer.pipelineBarrier(
@@ -420,7 +411,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
                 {}, {});
         }
 
-        recordImGuiCompositionCommands(compositionCommandBuffer, imageIndex);
+        recordImGuiCompositionCommands(compositionCommandBuffer, swapchainImageIndex);
 
         // Change swapchain image layout from ColorAttachmentOptimal to PresentSrcKHR.
         compositionCommandBuffer.pipelineBarrier(
@@ -430,7 +421,7 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
                 vk::AccessFlagBits::eColorAttachmentWrite, {},
                 vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sharedData.swapchainImages[imageIndex], vku::fullSubresourceRange(),
+                sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
             });
 
         compositionCommandBuffer.end();
@@ -453,20 +444,6 @@ auto vk_gltf_viewer::vulkan::Frame::execute() const -> bool {
             *compositionFinishSema,
         },
     }, *inFlightFence);
-
-    // Present the image to the swapchain.
-    try {
-        // The result codes VK_ERROR_OUT_OF_DATE_KHR and VK_SUBOPTIMAL_KHR have the same meaning when
-        // returned by vkQueuePresentKHR as they do when returned by vkAcquireNextImageKHR.
-        if (gpu.queues.graphicsPresent.presentKHR({ *compositionFinishSema, *sharedData.swapchain, imageIndex }) == vk::Result::eSuboptimalKHR) {
-            return false;
-        }
-    }
-    catch (const vk::OutOfDateKHRError&) {
-        return false;
-    }
-
-    return true;
 }
 
 vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodResources(

@@ -6,7 +6,6 @@ export module vk_gltf_viewer:vulkan.SharedData;
 
 import std;
 export import vku;
-import :helpers.ranges;
 export import :vulkan.ag.Swapchain;
 export import :vulkan.Gpu;
 export import :vulkan.pipeline.BlendFacetedPrimitiveRenderer;
@@ -34,10 +33,12 @@ namespace vk_gltf_viewer::vulkan {
         const Gpu &gpu;
 
     public:
-        // Swapchain.
-        vk::raii::SwapchainKHR swapchain;
+        // --------------------
+        // Non-owning swapchain resources.
+        // --------------------
+
         vk::Extent2D swapchainExtent;
-        std::vector<vk::Image> swapchainImages = swapchain.getImages();
+        std::span<const vk::Image> swapchainImages;
 
         // Buffer, image and image views and samplers.
         buffer::CubeIndices cubeIndices { gpu.allocator };
@@ -59,27 +60,30 @@ namespace vk_gltf_viewer::vulkan {
         pl::PrimitiveNoShading primitiveNoShadingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
 
         // Pipelines.
-        BlendFacetedPrimitiveRenderer blendFacetedPrimitiveRenderer;
-        BlendPrimitiveRenderer blendPrimitiveRenderer;
-        BlendUnlitPrimitiveRenderer blendUnlitPrimitiveRenderer;
+        BlendFacetedPrimitiveRenderer blendFacetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
+        BlendPrimitiveRenderer blendPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
+        BlendUnlitPrimitiveRenderer blendUnlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
         DepthRenderer depthRenderer { gpu.device, primitiveNoShadingPipelineLayout };
-        FacetedPrimitiveRenderer facetedPrimitiveRenderer;
+        FacetedPrimitiveRenderer facetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
         JumpFloodComputer jumpFloodComputer { gpu.device };
         JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, primitiveNoShadingPipelineLayout };
         MaskDepthRenderer maskDepthRenderer { gpu.device, primitiveNoShadingPipelineLayout };
-        MaskFacetedPrimitiveRenderer maskFacetedPrimitiveRenderer;
+        MaskFacetedPrimitiveRenderer maskFacetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
         MaskJumpFloodSeedRenderer maskJumpFloodSeedRenderer { gpu.device, primitiveNoShadingPipelineLayout };
-        MaskPrimitiveRenderer maskPrimitiveRenderer;
-        MaskUnlitPrimitiveRenderer maskUnlitPrimitiveRenderer;
-        OutlineRenderer outlineRenderer;
-        PrimitiveRenderer primitiveRenderer;
+        MaskPrimitiveRenderer maskPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
+        MaskUnlitPrimitiveRenderer maskUnlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
+        OutlineRenderer outlineRenderer { gpu.device };
+        PrimitiveRenderer primitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
         SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices };
-        UnlitPrimitiveRenderer unlitPrimitiveRenderer;
-        WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
+        UnlitPrimitiveRenderer unlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
+        WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass };
 
+        // --------------------
         // Attachment groups.
+        // --------------------
+
         ag::Swapchain swapchainAttachmentGroup { gpu, swapchainExtent, swapchainImages };
-        // If GPU does not support mutable swapchain format, it will be const reference of swapchainAttachmentGroup.
+        // If GPU does not support mutable swapchain format, it will be the reference of swapchainAttachmentGroup.
         std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> imGuiSwapchainAttachmentGroup = getImGuiSwapchainAttachmentGroup();
 
         // Descriptor pools.
@@ -92,30 +96,10 @@ namespace vk_gltf_viewer::vulkan {
         vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
         vku::DescriptorSet<dsl::Skybox> skyboxDescriptorSet;
 
-        SharedData(const Gpu &gpu [[clang::lifetimebound]], vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent)
+        SharedData(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages)
             : gpu { gpu }
-            , swapchain { createSwapchain(surface, swapchainExtent) }
             , swapchainExtent { swapchainExtent }
-            , blendFacetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
-            , blendPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
-            , blendUnlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
-            , facetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
-            , maskFacetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
-            , maskPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
-            , maskUnlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
-            , outlineRenderer { gpu.device }
-            , unlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass }
-            , weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass }
-            , primitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass } {
-            const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
-            const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-            vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
-                recordSwapchainImageLayoutTransitionCommands(cb);
-            }, *fence);
-            if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
-                throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
-            }
-
+            , swapchainImages { swapchainImages } {
             std::tie(assetDescriptorSet)
                 = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(
                     assetDescriptorSetLayout));
@@ -131,22 +115,12 @@ namespace vk_gltf_viewer::vulkan {
         // submission.
         // --------------------
 
-        auto handleSwapchainResize(vk::SurfaceKHR surface, const vk::Extent2D &newExtent) -> void {
-            swapchain = createSwapchain(surface, newExtent, *swapchain);
-            swapchainExtent = newExtent;
-            swapchainImages = swapchain.getImages();
+        void handleSwapchainResize(const vk::Extent2D &newSwapchainExtent, std::span<const vk::Image> newSwapchainImages) {
+            swapchainExtent = newSwapchainExtent;
+            swapchainImages = newSwapchainImages;
 
             swapchainAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
             imGuiSwapchainAttachmentGroup = getImGuiSwapchainAttachmentGroup();
-
-            const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
-            const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-            vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
-                recordSwapchainImageLayoutTransitionCommands(cb);
-            }, *fence);
-            if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
-                throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
-            }
         }
 
         auto updateTextureCount(std::uint32_t textureCount) -> void {
@@ -182,38 +156,6 @@ namespace vk_gltf_viewer::vulkan {
         }
 
     private:
-        [[nodiscard]] auto createSwapchain(vk::SurfaceKHR surface, const vk::Extent2D &extent, vk::SwapchainKHR oldSwapchain = {}) const -> decltype(swapchain) {
-            const vk::SurfaceCapabilitiesKHR surfaceCapabilities = gpu.physicalDevice.getSurfaceCapabilitiesKHR(surface);
-            const auto viewFormats = { vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm };
-            vk::StructureChain createInfo {
-                vk::SwapchainCreateInfoKHR{
-                    gpu.supportSwapchainMutableFormat ? vk::SwapchainCreateFlagBitsKHR::eMutableFormat : vk::SwapchainCreateFlagsKHR{},
-                    surface,
-                    std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount),
-                    vk::Format::eB8G8R8A8Srgb,
-                    vk::ColorSpaceKHR::eSrgbNonlinear,
-                    extent,
-                    1,
-                    vk::ImageUsageFlagBits::eColorAttachment,
-                    {}, {},
-                    surfaceCapabilities.currentTransform,
-                    vk::CompositeAlphaFlagBitsKHR::eOpaque,
-                    vk::PresentModeKHR::eFifo,
-                    true,
-                    oldSwapchain,
-                },
-                vk::ImageFormatListCreateInfo {
-                    viewFormats,
-                }
-            };
-
-            if (!gpu.supportSwapchainMutableFormat) {
-                createInfo.unlink<vk::ImageFormatListCreateInfo>();
-            }
-
-            return { gpu.device, createInfo.get() };
-        }
-
         [[nodiscard]] std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> getImGuiSwapchainAttachmentGroup() {
             if (gpu.supportSwapchainMutableFormat) {
                 return decltype(imGuiSwapchainAttachmentGroup) { std::in_place_index<0>, gpu, swapchainExtent, swapchainImages, vk::Format::eB8G8R8A8Unorm };
@@ -229,22 +171,6 @@ namespace vk_gltf_viewer::vulkan {
 
         [[nodiscard]] auto createDescriptorPool() const -> vk::raii::DescriptorPool {
             return { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, sceneDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() };
-        }
-
-        auto recordSwapchainImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void {
-            graphicsCommandBuffer.pipelineBarrier(
-                vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-                {}, {}, {},
-                swapchainImages
-                    | std::views::transform([](vk::Image swapchainImage) {
-                        return vk::ImageMemoryBarrier {
-                            {}, {},
-                            {}, vk::ImageLayout::ePresentSrcKHR,
-                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                            swapchainImage, vku::fullSubresourceRange(),
-                        };
-                    })
-                    | std::ranges::to<std::vector>());
         }
     };
 }

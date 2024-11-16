@@ -113,6 +113,18 @@ namespace vk_gltf_viewer {
         control::AppWindow window { instance, appState };
         vulkan::Gpu gpu { instance, window.getSurface() };
 
+        // --------------------
+        // Vulkan swapchain.
+        // --------------------
+
+        vk::Extent2D swapchainExtent = getSwapchainExtent();
+        vk::raii::SwapchainKHR swapchain = createSwapchain();
+        std::vector<vk::Image> swapchainImages = swapchain.getImages();
+
+        // --------------------
+        // glTF resources.
+        // --------------------
+
         fastgltf::Parser parser { fastgltf::Extensions::KHR_materials_unlit | fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::EXT_mesh_gpu_instancing };
         fastgltf::GltfDataBuffer dataBuffer;
         std::optional<Gltf> gltf;
@@ -132,15 +144,24 @@ namespace vk_gltf_viewer {
         std::vector<vk::DescriptorSet> assetTextureDescriptorSets;
 
         // Frames.
-        vulkan::SharedData sharedData { gpu, window.getSurface(), vk::Extent2D { static_cast<std::uint32_t>(window.getFramebufferSize().x), static_cast<std::uint32_t>(window.getFramebufferSize().y) } };
+        vulkan::SharedData sharedData { gpu, swapchainExtent, swapchainImages };
         std::array<vulkan::Frame, 2> frames{ vulkan::Frame { gpu, sharedData }, vulkan::Frame { gpu, sharedData } };
         
         [[nodiscard]] auto createInstance() const -> vk::raii::Instance;
+        [[nodiscard]] vk::raii::SwapchainKHR createSwapchain(vk::SwapchainKHR oldSwapchain = {}) const;
+
         [[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
         [[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;
         [[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
         [[nodiscard]] auto createImGuiDescriptorPool() -> decltype(imGuiDescriptorPool);
 
         auto processEqmapChange(const std::filesystem::path &eqmapPath) -> void;
+
+        [[nodiscard]] vk::Extent2D getSwapchainExtent() const {
+            const glm::ivec2 framebufferSize = window.getFramebufferSize();
+            return { static_cast<std::uint32_t>(framebufferSize.x), static_cast<std::uint32_t>(framebufferSize.y) };
+        }
+
+        void recordSwapchainImageLayoutTransitionCommands(vk::CommandBuffer cb) const;
     };
 }

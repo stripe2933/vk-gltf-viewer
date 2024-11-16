@@ -142,6 +142,14 @@ vk_gltf_viewer::MainApp::MainApp() {
         throw std::runtime_error { "Failed to launch application!" };
     }
 
+    const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+    vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
+        recordSwapchainImageLayoutTransitionCommands(cb);
+    }, *fence);
+    if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
+        throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
+    }
+
     gpu.device.updateDescriptorSets({
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
@@ -214,21 +222,22 @@ auto vk_gltf_viewer::MainApp::run() -> void {
     // Booleans that indicates frame at the corresponding index should handle swapchain resizing.
     std::array<bool, std::tuple_size_v<decltype(frames)>> shouldHandleSwapchainResize{};
 
-    float elapsedTime = 0.f;
     std::vector<control::Task> tasks;
     for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); ++frameIndex) {
-        // Wait for previous frame execution to end.
-        frames[frameIndex % frames.size()].waitForPreviousExecution();
-
         tasks.clear();
 
+        // Collect task from window event (mouse, keyboard, drag and drop, ...).
         window.handleEvents(tasks);
 
-        const glm::vec2 framebufferSize = window.getFramebufferSize();
+        // Collect task from ImGui (button click, menu selection, ...).
         static vk::Rect2D passthruRect{};
-
         {
-            control::ImGuiTaskCollector imguiTaskCollector { tasks, ImVec2 { framebufferSize.x, framebufferSize.y }, passthruRect };
+            control::ImGuiTaskCollector imguiTaskCollector {
+                tasks,
+                ImVec2 { static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height) },
+                passthruRect,
+            };
+
             imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths());
             if (auto &gltfAsset = appState.gltfAsset) {
                 imguiTaskCollector.assetInspector(gltfAsset->asset, gltf->directory);
@@ -418,7 +427,12 @@ auto vk_gltf_viewer::MainApp::run() -> void {
             }, task);
         }
 
-        const vulkan::Frame::ExecutionTask task {
+        // Wait for previous frame execution to end.
+        vulkan::Frame &frame = frames[frameIndex % frames.size()];
+        frame.waitForPreviousExecution();
+
+        // Update frame resources.
+        const vulkan::Frame::UpdateResult updateResult = frame.update({
             .passthruRect = passthruRect,
             .camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
             .frustum = value_if(appState.useFrustumCulling, [this]() {
@@ -464,25 +478,57 @@ auto vk_gltf_viewer::MainApp::run() -> void {
             }),
             .solidBackground = appState.background.to_optional(),
             .handleSwapchainResize = std::exchange(shouldHandleSwapchainResize[frameIndex % frames.size()], false),
-        };
+        });
 
-        const vulkan::Frame::UpdateResult updateResult = frames[frameIndex % frames.size()].update(task);
-        // Updating hovering node index should be only done if mouse cursor is inside the passthru rect (otherwise, it
-        // should be manipulated by ImGui scene hierarchy tree).
-        if (task.cursorPosFromPassthruRectTopLeft && appState.gltfAsset) {
+        // Feedback the update result into this.
+        if (appState.gltfAsset) {
             appState.gltfAsset->hoveringNodeIndex = updateResult.hoveringNodeIndex;
         }
 
-        if (!frames[frameIndex % frames.size()].execute()) {
+        try {
+            // Acquire the next swapchain image.
+            // Note: ignoring vk::Result is okay because it would be handled by the outer try-catch block.
+            const std::uint32_t swapchainImageIndex = (*gpu.device).acquireNextImageKHR(
+                *swapchain, ~0ULL, frame.getSwapchainImageAcquireSemaphore()).value;
+
+            // Execute frame.
+            frame.recordCommandsAndSubmit(swapchainImageIndex);
+
+            // Present the rendered swapchain image to swapchain.
+            if (gpu.queues.graphicsPresent.presentKHR({
+                vku::unsafeProxy(frame.getSwapchainImageReadySemaphore()),
+                *swapchain,
+                swapchainImageIndex,
+            }) == vk::Result::eSuboptimalKHR) {
+                // The result codes VK_ERROR_OUT_OF_DATE_KHR and VK_SUBOPTIMAL_KHR have the same meaning when
+                // returned by vkQueuePresentKHR as they do when returned by vkAcquireNextImageKHR.
+                throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
+            }
+        }
+        catch (const vk::OutOfDateKHRError&) {
             gpu.device.waitIdle();
 
-            // Yield while window is minimized.
-            glm::u32vec2 framebufferSize;
-            while (!glfwWindowShouldClose(window) && (framebufferSize = window.getFramebufferSize()) == glm::u32vec2 { 0, 0 }) {
+            // Make process idle state if window is minimized.
+            while (!glfwWindowShouldClose(window) && (swapchainExtent = getSwapchainExtent()) == vk::Extent2D{}) {
                 std::this_thread::yield();
             }
 
-            sharedData.handleSwapchainResize(window.getSurface(), { framebufferSize.x, framebufferSize.y });
+            // Update swapchain.
+            swapchain = createSwapchain(*swapchain);
+            swapchainImages = swapchain.getImages();
+
+            // Change swapchain image layout.
+            const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+            const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+            vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+                recordSwapchainImageLayoutTransitionCommands(cb);
+            }, *fence);
+            if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
+                throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
+            }
+
+            // Update frame shared data and frames.
+            sharedData.handleSwapchainResize(swapchainExtent, swapchainImages);
             shouldHandleSwapchainResize.fill(true);
         }
     }
@@ -537,6 +583,39 @@ auto vk_gltf_viewer::MainApp::createInstance() const -> vk::raii::Instance {
     } };
     VULKAN_HPP_DEFAULT_DISPATCHER.init(*instance);
     return instance;
+}
+
+vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR oldSwapchain) const {
+    const vk::SurfaceKHR surface = window.getSurface();
+    const vk::SurfaceCapabilitiesKHR surfaceCapabilities = gpu.physicalDevice.getSurfaceCapabilitiesKHR(surface);
+    const auto viewFormats = { vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm };
+
+    vk::StructureChain createInfo {
+        vk::SwapchainCreateInfoKHR{
+            gpu.supportSwapchainMutableFormat ? vk::SwapchainCreateFlagBitsKHR::eMutableFormat : vk::SwapchainCreateFlagsKHR{},
+            surface,
+            std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount),
+            vk::Format::eB8G8R8A8Srgb,
+            vk::ColorSpaceKHR::eSrgbNonlinear,
+            swapchainExtent,
+            1,
+            vk::ImageUsageFlagBits::eColorAttachment,
+            {}, {},
+            surfaceCapabilities.currentTransform,
+            vk::CompositeAlphaFlagBitsKHR::eOpaque,
+            vk::PresentModeKHR::eFifo,
+            true,
+            oldSwapchain,
+        },
+        vk::ImageFormatListCreateInfo {
+            viewFormats,
+        }
+    };
+    if (!gpu.supportSwapchainMutableFormat) {
+        createInfo.unlink<vk::ImageFormatListCreateInfo>();
+    }
+
+    return { gpu.device, createInfo.get() };
 }
 
 auto vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources {
@@ -1024,4 +1103,20 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
         sharedData.skyboxDescriptorSet.getWriteOne<0>({ {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
     }, {});
+}
+
+void vk_gltf_viewer::MainApp::recordSwapchainImageLayoutTransitionCommands(vk::CommandBuffer cb) const {
+    cb.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
+        {}, {}, {},
+        swapchainImages
+        | std::views::transform([](vk::Image swapchainImage) {
+            return vk::ImageMemoryBarrier {
+                {}, {},
+                {}, vk::ImageLayout::ePresentSrcKHR,
+                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                swapchainImage, vku::fullSubresourceRange(),
+            };
+        })
+        | std::ranges::to<std::vector>());
 }

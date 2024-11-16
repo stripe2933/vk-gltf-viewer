@@ -104,7 +104,19 @@ namespace vk_gltf_viewer::vulkan {
 
         UpdateResult update(const ExecutionTask &task);
 
-        [[nodiscard]] auto execute() const -> bool; // false -> Swapchain image acquire/release failed. Swapchain have to be recreated.
+        void recordCommandsAndSubmit(std::uint32_t swapchainImageIndex) const;
+
+        /**
+         * @brief Frame exclusive semaphore that have to be signaled when the swapchain image is acquired.
+         * @return The semaphore.
+         */
+        [[nodiscard]] vk::Semaphore getSwapchainImageAcquireSemaphore() const noexcept { return *swapchainImageAcquireSema; }
+
+        /**
+         * @brief Frame exclusive semaphore that will to be signaled when the swapchain image is rendered and ready to be presented.
+         * @return The semaphore.
+         */
+        [[nodiscard]] vk::Semaphore getSwapchainImageReadySemaphore() const noexcept { return *compositionFinishSema; }
 
     private:
         enum class RenderingStrategy : std::uint8_t {
