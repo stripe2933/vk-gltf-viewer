@@ -32,12 +32,16 @@ import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+#define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
+#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 #ifdef _MSC_VER
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
+
+constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
 
 void checkDataBufferLoadResult(bool result) {
     if (!result) {
@@ -150,12 +154,6 @@ vk_gltf_viewer::MainApp::MainApp() {
         throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
     }
 
-    gpu.device.updateDescriptorSets({
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-    }, {});
-
     // Init ImGui.
     ImGui::CheckVersion();
     ImGui::CreateContext();
@@ -194,8 +192,9 @@ vk_gltf_viewer::MainApp::MainApp() {
         .Device = *gpu.device,
         .Queue = gpu.queues.graphicsPresent,
         .DescriptorPool = *imGuiDescriptorPool,
-        .MinImageCount = 2,
-        .ImageCount = 2,
+        // ImGui requires ImGui_ImplVulkan_InitInfo::{MinImageCount,ImageCount} ≥ 2 (I don't know why...).
+        .MinImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
+        .ImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
         .UseDynamicRendering = true,
         .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
             {},
@@ -218,12 +217,21 @@ vk_gltf_viewer::MainApp::~MainApp() {
     ImGui::DestroyContext();
 }
 
-auto vk_gltf_viewer::MainApp::run() -> void {
+void vk_gltf_viewer::MainApp::run() {
+    vulkan::SharedData sharedData { gpu, swapchainExtent, swapchainImages };
+    std::array frames = ARRAY_OF(FRAMES_IN_FLIGHT, vulkan::Frame { gpu, sharedData });
+
+    gpu.device.updateDescriptorSets({
+        sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
+        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        sharedData.imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+    }, {});
+
     // Booleans that indicates frame at the corresponding index should handle swapchain resizing.
-    std::array<bool, std::tuple_size_v<decltype(frames)>> shouldHandleSwapchainResize{};
+    std::array<bool, FRAMES_IN_FLIGHT> shouldHandleSwapchainResize{};
 
     std::vector<control::Task> tasks;
-    for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); ++frameIndex) {
+    for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % FRAMES_IN_FLIGHT) {
         tasks.clear();
 
         // Collect task from window event (mouse, keyboard, drag and drop, ...).
@@ -334,10 +342,17 @@ auto vk_gltf_viewer::MainApp::run() -> void {
                 [&](const control::task::LoadEqmap &task) {
                     processEqmapChange(task.path);
 
+                    // Update the related descriptor sets.
+                    gpu.device.updateDescriptorSets({
+                        sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
+                        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                        sharedData.skyboxDescriptorSet.getWriteOne<0>({ {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                    }, {});
+
                     // Update AppState.
                     appState.pushRecentSkyboxPath(task.path);
                 },
-                [this](control::task::ChangeScene task) {
+                [&](control::task::ChangeScene task) {
                     // TODO: I'm aware that there are more good solutions than waitIdle, but I don't have much time for it
                     //  so I'll just use it for now.
                     gpu.device.waitIdle();
@@ -428,7 +443,7 @@ auto vk_gltf_viewer::MainApp::run() -> void {
         }
 
         // Wait for previous frame execution to end.
-        vulkan::Frame &frame = frames[frameIndex % frames.size()];
+        vulkan::Frame &frame = frames[frameIndex];
         frame.waitForPreviousExecution();
 
         // Update frame resources.
@@ -1096,13 +1111,6 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
         std::move(iblGenerator.prefilteredmapImage),
         std::move(prefilteredmapImageView),
     };
-
-    // Update the related descriptor sets.
-    gpu.device.updateDescriptorSets({
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-        sharedData.skyboxDescriptorSet.getWriteOne<0>({ {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-    }, {});
 }
 
 void vk_gltf_viewer::MainApp::recordSwapchainImageLayoutTransitionCommands(vk::CommandBuffer cb) const {
