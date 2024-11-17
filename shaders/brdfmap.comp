@@ -1,4 +1,6 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+
 #include "pbr.glsl"
 
 const float PI = 3.1415926535;

@@ -307,10 +307,7 @@ The executable will be located in `build` folder.
 
 #### Shader compilation
 
-All shaders are located in the [shaders](/shaders) folder and need to be manually compiled into `<shader-filename>.spv` before the application launch. To make this easier, script files are available:
-
-- Run [`compile.sh`](/shaders/compile.sh) script if you're using bash.
-- Run [`compile.bat`](/shaders/compile.bat) batch file if you're using Windows.
+All shaders are located in the [shaders](/shaders) folder and will be automatically compiled to SPIR-V format during the CMake configuration time. The result SPIR-V binary files are located in the `build/shader` folder.
 
 ## Milestones
 

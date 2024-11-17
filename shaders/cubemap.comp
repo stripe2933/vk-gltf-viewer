@@ -1,4 +1,6 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+
 #include "cubemap.glsl"
 
 const vec2 INV_ATAN = vec2(0.1591, 0.3183);

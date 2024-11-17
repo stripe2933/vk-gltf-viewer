@@ -156,7 +156,6 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     vku::vku
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE
-    COMPILED_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
     GLFW_INCLUDE_NONE
     GLM_FORCE_DEPTH_ZERO_TO_ONE
     GLM_FORCE_XYZW_ONLY
@@ -164,4 +163,51 @@ target_compile_definitions(vk-gltf-viewer PRIVATE
     GLM_GTC_INLINE_NAMESPACE
     GLM_EXT_INLINE_NAMESPACE
     GLM_GTX_INLINE_NAMESPACE
+)
+
+# --------------------
+# Shader compilation.
+# --------------------
+
+include(cmake/CompileShader.cmake)
+
+target_link_shaders(vk-gltf-viewer
+    shaders/blend_faceted_primitive.frag
+    shaders/blend_primitive.frag
+    shaders/blend_unlit_primitive.frag
+    shaders/brdfmap.comp
+    shaders/cubemap_tone_mapping.frag
+    shaders/cubemap.comp
+    shaders/depth.frag
+    shaders/depth.vert
+    shaders/faceted_primitive.frag
+    shaders/faceted_primitive.tesc
+    shaders/faceted_primitive.tese
+    shaders/faceted_primitive.vert
+    shaders/jump_flood_seed.frag
+    shaders/jump_flood_seed.vert
+    shaders/jump_flood.comp
+    shaders/mask_depth.frag
+    shaders/mask_depth.vert
+    shaders/mask_faceted_primitive.frag
+    shaders/mask_jump_flood_seed.frag
+    shaders/mask_jump_flood_seed.vert
+    shaders/mask_primitive.frag
+    shaders/mask_unlit_primitive.frag
+    shaders/multiply.comp
+    shaders/outline.frag
+    shaders/prefilteredmap.comp
+    shaders/primitive.frag
+    shaders/primitive.vert
+    shaders/screen_quad.vert
+    shaders/skybox.frag
+    shaders/skybox.vert
+    shaders/spherical_harmonic_coefficients_sum.comp
+    shaders/spherical_harmonics.comp
+    shaders/subgroup_mipmap_16.comp
+    shaders/subgroup_mipmap_32.comp
+    shaders/subgroup_mipmap_64.comp
+    shaders/unlit_primitive.frag
+    shaders/unlit_primitive.vert
+    shaders/weighted_blended_composition.frag
 )
