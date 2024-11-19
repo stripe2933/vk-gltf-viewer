@@ -1,8 +1,6 @@
 # Vulkan glTF Viewer
 
-![Windows](https://github.com/stripe2933/vk-gltf-viewer/actions/workflows/windows.yml/badge.svg)
-![macOS](https://github.com/stripe2933/vk-gltf-viewer/actions/workflows/macos.yml/badge.svg)
-![Linux](https://github.com/stripe2933/vk-gltf-viewer/actions/workflows/linux.yml/badge.svg)
+![Build](https://github.com/stripe2933/vk-gltf-viewer/actions/workflows/build.yml/badge.svg)
 
 Blazingly fast[^1] Vulkan glTF viewer.
 

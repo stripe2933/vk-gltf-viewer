@@ -1,4 +1,4 @@
-name: macOS
+name: Build
 
 env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
@@ -10,12 +10,16 @@ on:
       - '!README.md'
       - '!LICENSE.txt'
       - '!docs/**'
-      - '!.github/workflows/*.yml'
-      - '.github/workflows/macos.yml'
 
 jobs:
   build:
-    runs-on: macOS-latest
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-24.04]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,10 +30,16 @@ jobs:
           vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
           vulkan-use-cache: true
 
-      - name: Install latest LLVM, Ninja and build dependencies
+      - name: Install build dependencies (macOS)
+        if: ${{ matrix.os == 'macos-latest' }}
         run: brew install llvm ninja autoconf automake libtool nasm
 
-      - name: Install vcpkg
+      - name: Install build dependencies (ubuntu-24.04)
+        if: ${{ matrix.os == 'ubuntu-24.04' }}
+        run: sudo apt-get install ninja-build libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev
+
+      - name: Setup vcpkg (macOS)
+        if: ${{ matrix.os == 'macos-latest' }}
         run: |
           git clone https://github.com/microsoft/vcpkg.git --depth 1
           cd vcpkg && ./bootstrap-vcpkg.sh
@@ -42,13 +52,18 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Workaround for CMake issue that cannot find __CMAKE::CXX23 target
+      - name: Enable Developer Command Prompt (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Workaround for CMake bug that cannot find __CMAKE::CXX23 target when using homebrew libc++ (macOS)
+        if: ${{ matrix.os == 'macos-latest' }}
         run: sed -i '' 's|libc++.modules.json|../../c++/libc++.modules.json|g' /opt/homebrew/opt/cmake/share/cmake/Modules/Compiler/Clang-CXX-CXXImportStd.cmake # https://gitlab.kitware.com/cmake/cmake/-/issues/25965#note_1523575
 
       - name: Configure
         run: |
           mv .github/workflows/scripts/* .
-          cmake --preset=macos-clang
+          cmake --preset=${{ matrix.os }}
 
       - name: Build
         run: cmake --build build --config release
