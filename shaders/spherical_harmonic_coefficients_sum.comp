@@ -21,15 +21,15 @@ shared vec3 subgroupReduction[32][9]; // gl_NumSubgroups ≤ 32 (subgroup size m
 void main(){
     vec3 pingPongData[] = gl_GlobalInvocationID.x < pc.count ? data[pc.srcOffset + gl_GlobalInvocationID.x] : _9_ZERO_VEC3S;
     vec3 reductions[] = vec3[9](
-    subgroupAdd(pingPongData[0]),
-    subgroupAdd(pingPongData[1]),
-    subgroupAdd(pingPongData[2]),
-    subgroupAdd(pingPongData[3]),
-    subgroupAdd(pingPongData[4]),
-    subgroupAdd(pingPongData[5]),
-    subgroupAdd(pingPongData[6]),
-    subgroupAdd(pingPongData[7]),
-    subgroupAdd(pingPongData[8])
+        subgroupAdd(pingPongData[0]),
+        subgroupAdd(pingPongData[1]),
+        subgroupAdd(pingPongData[2]),
+        subgroupAdd(pingPongData[3]),
+        subgroupAdd(pingPongData[4]),
+        subgroupAdd(pingPongData[5]),
+        subgroupAdd(pingPongData[6]),
+        subgroupAdd(pingPongData[7]),
+        subgroupAdd(pingPongData[8])
     );
     if (subgroupElect()){
         subgroupReduction[gl_SubgroupID] = reductions;
@@ -42,15 +42,15 @@ void main(){
     // TODO: this code is not tested yet.
     if ((gl_SubgroupSize == 8U) && (gl_SubgroupID < 4U)){
         reductions = vec3[9](
-        subgroupAdd(pingPongData[0]),
-        subgroupAdd(pingPongData[1]),
-        subgroupAdd(pingPongData[2]),
-        subgroupAdd(pingPongData[3]),
-        subgroupAdd(pingPongData[4]),
-        subgroupAdd(pingPongData[5]),
-        subgroupAdd(pingPongData[6]),
-        subgroupAdd(pingPongData[7]),
-        subgroupAdd(pingPongData[8])
+            subgroupAdd(pingPongData[0]),
+            subgroupAdd(pingPongData[1]),
+            subgroupAdd(pingPongData[2]),
+            subgroupAdd(pingPongData[3]),
+            subgroupAdd(pingPongData[4]),
+            subgroupAdd(pingPongData[5]),
+            subgroupAdd(pingPongData[6]),
+            subgroupAdd(pingPongData[7]),
+            subgroupAdd(pingPongData[8])
         );
         if (subgroupElect()){
             subgroupReduction[gl_SubgroupID] = reductions;

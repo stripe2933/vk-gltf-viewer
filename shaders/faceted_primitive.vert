@@ -26,7 +26,7 @@ layout (location = 6) flat out uint outMaterialIndex;
 layout (set = 1, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
-layout (set = 1, binding = 1)readonly buffer MaterialBuffer {
+layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
@@ -63,8 +63,7 @@ vec2 getTexcoord(uint texcoordIndex){
 void main(){
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
 
-    mat4 transform = TRANSFORM;
-    outPosition = (transform * vec4(inPosition, 1.0)).xyz;
+    outPosition = (TRANSFORM * vec4(inPosition, 1.0)).xyz;
 
     if (int(MATERIAL.baseColorTextureIndex) != -1){
         outBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));

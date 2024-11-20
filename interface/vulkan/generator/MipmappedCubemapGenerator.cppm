@@ -54,10 +54,6 @@ namespace vk_gltf_viewer::vulkan::inline generator {
             const Pipelines &pipelines [[clang::lifetimebound]],
             const vku::Image &eqmapImage
         ) -> void {
-            constexpr auto getWorkgroupTotal = [](std::span<const std::uint32_t, 3> workgroupCount) {
-                return workgroupCount[0] * workgroupCount[1] * workgroupCount[2];
-            };
-
             // --------------------
             // Allocate Vulkan resources that must not be destroyed until the command buffer execution is finished.
             // --------------------

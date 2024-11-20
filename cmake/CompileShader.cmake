@@ -1,7 +1,7 @@
 function(target_link_shaders TARGET)
     if (${Vulkan_glslc_FOUND})
         message(STATUS "Using Vulkan glslc for shader compilation.")
-    elseif (NOT ${Vulkan_glslc_FOUND} AND ${Vulkan_glslangValidator_FOUND})
+    elseif (${Vulkan_glslangValidator_FOUND})
         message(WARNING "Vulkan glslc not found, using glslangValidator for shader compilation instead. Modifying indirectly included files will NOT trigger recompilation.")
     else()
         message(FATAL_ERROR "No shader compiler found.")

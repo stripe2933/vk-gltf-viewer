@@ -479,10 +479,10 @@ namespace vk_gltf_viewer::gltf {
 
             if (!gpu.isUmaDevice) {
                 vku::AllocatedBuffer dstBuffer { gpu.allocator, vk::BufferCreateInfo {
-                        {},
-                        buffer.size,
-                        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-                    } };
+                    {},
+                    buffer.size,
+                    vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                } };
                 stagingInfos.emplace_back(
                     std::move(buffer),
                     dstBuffer,

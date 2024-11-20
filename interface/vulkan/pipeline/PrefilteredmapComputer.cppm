@@ -34,7 +34,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         vk::DescriptorSetLayoutCreateInfo {
                             vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
                             vku::unsafeProxy({
-                                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eCompute, &sampler },
+                                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eCompute, sampler },
                                 vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageImage, roughnessLevels, vk::ShaderStageFlagBits::eCompute },
                             }),
                         },
