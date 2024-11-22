@@ -564,7 +564,27 @@ namespace vk_gltf_viewer::gltf {
         [[nodiscard]] std::unordered_map<std::size_t, vk::raii::ImageView> createImageViews(const vk::raii::Device &device) const {
             return images
                 | ranges::views::value_transform([&](const vku::Image &image) -> vk::raii::ImageView {
-                    return { device, image.getViewCreateInfo() };
+                    return { device, vk::ImageViewCreateInfo {
+                        {},
+                        image,
+                        vk::ImageViewType::e2D,
+                        image.format,
+                        [&]() -> vk::ComponentMapping {
+                            switch (componentCount(image.format)) {
+                            case 1:
+                                // Grayscale: red channel have to be propagated to green/blue channels.
+                                return { {}, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne };
+                            case 2:
+                                // Grayscale \w alpha: red channel have to be propagated to green/blue channels, and alpha channel uses given green value.
+                                return { {}, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG };
+                            case 3: case 4:
+                                // RGB or RGBA.
+                                return {};
+                            }
+                            std::unreachable();
+                        }(),
+                        vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
+                    } };
                 })
                 | std::ranges::to<std::unordered_map>();
         }
