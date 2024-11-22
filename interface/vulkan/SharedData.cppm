@@ -129,27 +129,19 @@ namespace vk_gltf_viewer::vulkan {
             primitiveNoShadingPipelineLayout = { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
 
             // Following pipelines are dependent to the assetDescriptorSetLayout.
+            blendFacetedPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
             blendPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
             blendUnlitPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
             depthRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
+            facetedPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
             jumpFloodSeedRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
             maskDepthRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
+            maskFacetedPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
             maskJumpFloodSeedRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
             maskPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
             maskUnlitPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
             primitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
             unlitPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
-
-            if (gpu.supportTessellationShader) {
-                blendFacetedPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
-                facetedPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
-                maskFacetedPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
-            }
-            else {
-                blendFacetedPrimitiveRenderer = { use_tessellation, gpu.device, primitivePipelineLayout, sceneRenderPass };
-                facetedPrimitiveRenderer = { use_tessellation, gpu.device, primitivePipelineLayout, sceneRenderPass };
-                maskFacetedPrimitiveRenderer = { use_tessellation, gpu.device, primitivePipelineLayout, sceneRenderPass };
-            }
 
             textureDescriptorPool = createTextureDescriptorPool();
             std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(assetDescriptorSetLayout));

@@ -131,7 +131,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/SphericalHarmonicsComputer.cppm
         interface/vulkan/pipeline/SubgroupMipmapComputer.cppm
         interface/vulkan/pipeline/SkyboxRenderer.cppm
-        interface/vulkan/pipeline/tag.cppm
         interface/vulkan/pipeline/UnlitPrimitiveRenderer.cppm
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderer.cppm
         interface/vulkan/pipeline_layout/Primitive.cppm
@@ -181,8 +180,6 @@ target_link_shaders(vk-gltf-viewer
     shaders/depth.frag
     shaders/depth.vert
     shaders/faceted_primitive.frag
-    shaders/faceted_primitive.tesc
-    shaders/faceted_primitive.tese
     shaders/faceted_primitive.vert
     shaders/jump_flood_seed.frag
     shaders/jump_flood_seed.vert

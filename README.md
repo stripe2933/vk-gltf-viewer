@@ -10,8 +10,8 @@ Blazingly fast[^1] Vulkan glTF viewer.
 
 - Support glTF 2.0, including:
   - PBR material rendering with runtime IBL resources (spherical harmonics + pre-filtered environment map) generation from input equirectangular map.
-  - Runtime missing tangent attribute generation using MikkTSpace algorithm for indexed primitive.
-  - Runtime missing per-face normal and tangent attribute generation using tessellation shader (if supported) or screen-space fragment shader for non-indexed primitive.
+  - Runtime missing tangent attribute generation using MikkTSpace algorithm for indexed geometry.
+  - Runtime missing per-face normal and tangent attribute generation for non-indexed geometry.
   - Unlimited `TEXCOORD_<i>` attributes: **can render a primitive that has arbitrary number of texture coordinates.**
   - `OPAQUE`, `MASK` (using alpha testing and Alpha To Coverage) and `BLEND` (using Weighted Blended OIT) materials.
   - Multiple scenes.
@@ -52,7 +52,7 @@ I initially developed this application for leveraging Vulkan's performance and u
   - Use Vertex Pulling with [`VK_KHR_buffer_device_address`](https://docs.vulkan.org/samples/latest/samples/extensions/buffer_device_address/README.html). Only index buffers are bound to the command buffer.
 - Fully GPU driven rendering: uses both instancing and multi draw indirect with optimally sorted rendering order. **Regardless of the material count and scene's complexity, all scene nodes can be rendered with up to 24 draw calls** in the worst case[^2].
   - Has 6 pipelines for 3 material types (`OPAQUE`, `MASK`, `BLEND`) and 2 primitive types (Indexed, Non-Indexed) combinations.
-  - Indexed primitive index type can be either `UNSIGNED_BYTE` (if GPU supports [`VK_EXT_index_type_uint8`](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_EXT_index_type_uint8.html)), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
+  - Indexed geometry index type can be either `UNSIGNED_BYTE` (if GPU supports [`VK_EXT_index_type_uint8`](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_EXT_index_type_uint8.html)), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
   - Each material can be either double-sided or not, and cull mode have to be set based on this.
   - Therefore, if scene consists of the primitives of all combinations, it requires 24 draw calls. **Of course, it would be ~6 draw calls in most case.**
 - Significant less asset loading time: **glTF buffer memories are directly `memcpy`ed into the GPU memory with dedicated transfer queue. No pre-processing is required!**
@@ -99,7 +99,6 @@ The extensions and feature used in this application are quite common in the mode
     - `multiDrawIndirect`
     - `shaderStorageImageWriteWithoutFormat`
     - `independentBlend` (Weighted Blended OIT)
-    - (optional) `tessellationShader` (if not presented, non-indexed primitive's per-face normal/tangent will be generated in fragment shader)
   - `VkPhysicalDeviceVulkan11Features`
     - `shaderDrawParameters` (use `gl_BaseInstance` for primitive index)
     - `storageBuffer16BitAccess`

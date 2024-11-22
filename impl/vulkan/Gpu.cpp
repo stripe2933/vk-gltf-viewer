@@ -171,7 +171,6 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
             vk::PhysicalDeviceVulkan12Features,
             vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
 
-    supportTessellationShader = availableFeatures.get<vk::PhysicalDeviceFeatures2>().features.tessellationShader;
     supportDrawIndirectCount = availableFeatures.template get<vk::PhysicalDeviceVulkan12Features>().drawIndirectCount;
     supportUint8Index = availableFeatures.template get<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>().indexTypeUint8;
 
@@ -189,8 +188,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
                 .setShaderInt64(true)
                 .setMultiDrawIndirect(true)
                 .setShaderStorageImageWriteWithoutFormat(true)
-                .setIndependentBlend(true)
-                .setTessellationShader(supportTessellationShader),
+                .setIndependentBlend(true),
         },
         vk::PhysicalDeviceVulkan11Features{}
             .setShaderDrawParameters(true)
@@ -216,9 +214,6 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
     };
 
     // Unlink unsupported features.
-    if (!supportTessellationShader) {
-        createInfo.template get<vk::PhysicalDeviceFeatures2>().features.tessellationShader = false;
-    }
     if (!supportUint8Index) {
         createInfo.template unlink<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
     }
