@@ -108,18 +108,15 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/generator/MipmappedCubemapGenerator.cppm
         interface/vulkan/Gpu.cppm
         interface/vulkan/mipmap.cppm
-        interface/vulkan/pipeline/BlendFacetedPrimitiveRenderer.cppm
         interface/vulkan/pipeline/BlendPrimitiveRenderer.cppm
         interface/vulkan/pipeline/BlendUnlitPrimitiveRenderer.cppm
         interface/vulkan/pipeline/BrdfmapComputer.cppm
         interface/vulkan/pipeline/CubemapComputer.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
         interface/vulkan/pipeline/DepthRenderer.cppm
-        interface/vulkan/pipeline/FacetedPrimitiveRenderer.cppm
         interface/vulkan/pipeline/JumpFloodComputer.cppm
         interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
         interface/vulkan/pipeline/MaskDepthRenderer.cppm
-        interface/vulkan/pipeline/MaskFacetedPrimitiveRenderer.cppm
         interface/vulkan/pipeline/MaskJumpFloodSeedRenderer.cppm
         interface/vulkan/pipeline/MaskPrimitiveRenderer.cppm
         interface/vulkan/pipeline/MaskUnlitPrimitiveRenderer.cppm
