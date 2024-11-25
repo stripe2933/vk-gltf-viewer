@@ -23,6 +23,29 @@ find_package(Stb REQUIRED)
 find_package(vku CONFIG REQUIRED)
 
 # --------------------
+# Module configurations for the external dependencies.
+# --------------------
+
+add_library(fastgltf_module)
+target_sources(fastgltf_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/module-ports/fastgltf.ixx)
+target_link_libraries(fastgltf_module PRIVATE fastgltf::fastgltf)
+target_compile_definitions(fastgltf_module PRIVATE FASTGLTF_USE_STD_MODULE=1)
+add_library(fastgltf::module ALIAS fastgltf_module)
+
+add_library(glm_module)
+target_sources(glm_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/module-ports/glm.cppm)
+target_link_libraries(glm_module PRIVATE glm::glm)
+target_compile_definitions(glm_module PRIVATE
+    GLM_FORCE_DEPTH_ZERO_TO_ONE
+    GLM_FORCE_XYZW_ONLY
+    GLM_ENABLE_EXPERIMENTAL
+    GLM_GTC_INLINE_NAMESPACE
+    GLM_EXT_INLINE_NAMESPACE
+    GLM_GTX_INLINE_NAMESPACE
+)
+add_library(glm::module ALIAS glm_module)
+
+# --------------------
 # Project targets.
 # --------------------
 
@@ -49,8 +72,6 @@ target_sources(vk-gltf-viewer PRIVATE
     FILE_SET CXX_MODULES
     FILES
         extlibs/thread_pool.cppm
-        extlibs/module-ports/fastgltf.ixx
-        extlibs/module-ports/glm.cppm
         extlibs/module-ports/imgui/imgui.cppm
         extlibs/module-ports/imgui/imgui.math.cppm
         extlibs/module-ports/imgui/imgui.glfw.cppm
@@ -142,7 +163,8 @@ target_sources(vk-gltf-viewer PRIVATE
 target_link_libraries(vk-gltf-viewer PRIVATE
     Boost::container
     CGAL::CGAL
-    fastgltf::fastgltf
+    fastgltf::module
+    glm::module
     imgui::imgui
     KTX::ktx
     imguizmo::imguizmo
@@ -152,14 +174,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     vku::vku
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE
-    FASTGLTF_USE_STD_MODULE=1
     GLFW_INCLUDE_NONE
-    GLM_FORCE_DEPTH_ZERO_TO_ONE
-    GLM_FORCE_XYZW_ONLY
-    GLM_ENABLE_EXPERIMENTAL
-    GLM_GTC_INLINE_NAMESPACE
-    GLM_EXT_INLINE_NAMESPACE
-    GLM_GTX_INLINE_NAMESPACE
 )
 
 # --------------------

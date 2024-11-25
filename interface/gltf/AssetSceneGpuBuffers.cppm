@@ -6,6 +6,7 @@ import :gltf.algorithm.traversal;
 export import :gltf.AssetPrimitiveInfo;
 export import :gltf.AssetSceneHierarchy;
 import :helpers.concepts;
+import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
 export import :vulkan.Gpu;
