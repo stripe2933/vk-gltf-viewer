@@ -12,7 +12,6 @@ import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
-import :math.extended_arithmetic;
 import :vulkan.ag.DepthPrepass;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
@@ -182,8 +181,8 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                             const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
 
                             const glm::mat4 &nodeWorldTransform = task.gltf->sceneHierarchy.nodeWorldTransforms[nodeIndex];
-                            const glm::vec3 transformedMin = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { primitiveInfo.min, 1.f });
-                            const glm::vec3 transformedMax = math::toEuclideanCoord(nodeWorldTransform * glm::vec4 { primitiveInfo.max, 1.f });
+                            const glm::vec3 transformedMin { nodeWorldTransform * glm::vec4 { primitiveInfo.min, 1.f } };
+                            const glm::vec3 transformedMax { nodeWorldTransform * glm::vec4 { primitiveInfo.max, 1.f } };
 
                             const glm::vec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
                             const glm::vec3 center = transformedMin + halfDisplacement;

@@ -13,7 +13,6 @@ import :gltf.algorithm.bounding_box;
 import :gltf.algorithm.traversal;
 import :helpers.concepts;
 import :helpers.ranges;
-import :math.extended_arithmetic;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
@@ -45,7 +44,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
             const auto collectTransformedBoundingBoxPoints = [&](const glm::dmat4 &worldTransform) {
                 for (const fastgltf::Primitive &primitive : mesh.primitives) {
                     for (const glm::dvec3 &point : getBoundingBoxCornerPoints(asset, primitive)) {
-                        const glm::dvec3 transformedPoint = math::toEuclideanCoord(worldTransform * glm::dvec4 { point, 1.0 });
+                        const glm::dvec3 transformedPoint { worldTransform * glm::dvec4 { point, 1.0 } };
                         meshBoundingBoxPoints.emplace_back(transformedPoint.x, transformedPoint.y, transformedPoint.z);
                     }
                 }
