@@ -78,7 +78,7 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createMaterialBuffer
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
     }.unmap();
 
-    if (gpu.isUmaDevice) {
+    if (gpu.isUmaDevice || vku::contains(gpu.allocator.getAllocationMemoryProperties(stagingBuffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
         return stagingBuffer;
     }
 
@@ -124,7 +124,7 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveBuffe
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
     }.unmap();
 
-    if (gpu.isUmaDevice) {
+    if (gpu.isUmaDevice || vku::contains(gpu.allocator.getAllocationMemoryProperties(stagingBuffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
         return stagingBuffer;
     }
 
@@ -160,7 +160,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexedAttributeMappi
             ? vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress
             : vk::BufferUsageFlagBits::eTransferSrc);
 
-    if (!gpu.isUmaDevice) {
+    if (!gpu.isUmaDevice && !vku::contains(gpu.allocator.getAllocationMemoryProperties(buffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
         vku::AllocatedBuffer dstBuffer { gpu.allocator, vk::BufferCreateInfo {
             {},
             buffer.size,

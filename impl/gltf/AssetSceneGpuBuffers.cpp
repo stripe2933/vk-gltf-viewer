@@ -55,7 +55,7 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeBuffe
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
     }.unmap();
 
-    if (gpu.isUmaDevice) {
+    if (gpu.isUmaDevice || vku::contains(gpu.allocator.getAllocationMemoryProperties(stagingBuffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
         return stagingBuffer;
     }
 

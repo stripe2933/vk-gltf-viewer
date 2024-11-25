@@ -335,7 +335,7 @@ namespace vk_gltf_viewer::gltf {
                     ? vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress
                     : vk::BufferUsageFlagBits::eTransferSrc);
 
-            if (!gpu.isUmaDevice) {
+            if (!gpu.isUmaDevice && !vku::contains(gpu.allocator.getAllocationMemoryProperties(buffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
                 vku::AllocatedBuffer dstBuffer { gpu.allocator, vk::BufferCreateInfo {
                     {},
                     buffer.size,
@@ -477,7 +477,7 @@ namespace vk_gltf_viewer::gltf {
                     ? vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress
                     : vk::BufferUsageFlagBits::eTransferSrc);
 
-            if (!gpu.isUmaDevice) {
+            if (!gpu.isUmaDevice && !vku::contains(gpu.allocator.getAllocationMemoryProperties(buffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
                 vku::AllocatedBuffer dstBuffer { gpu.allocator, vk::BufferCreateInfo {
                     {},
                     buffer.size,
