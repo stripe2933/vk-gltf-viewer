@@ -43,12 +43,6 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 
 constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
 
-void checkDataBufferLoadResult(bool result) {
-    if (!result) {
-        throw std::runtime_error { "Failed to load glTF data into buffer" };
-    }
-}
-
 vk_gltf_viewer::MainApp::MainApp() {
     const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
 
@@ -557,7 +551,7 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     const vulkan::Gpu &gpu [[clang::lifetimebound]],
     BS::thread_pool threadPool
 ) : directory { path.parent_path() },
-    assetExpected { (checkDataBufferLoadResult(dataBuffer.loadFromFile(path)), parser.loadGltf(&dataBuffer, directory)) },
+    asset { (dataBuffer = get_checked(fastgltf::GltfDataBuffer::FromPath(path)), get_checked(parser.loadGltf(dataBuffer, directory))) },
     gpu { gpu },
     assetGpuBuffers { asset, gpu, threadPool, assetExternalBuffers },
     assetGpuTextures { asset, directory, gpu, threadPool, assetExternalBuffers },

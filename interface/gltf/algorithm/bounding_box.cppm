@@ -22,7 +22,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
      */
     export
     [[nodiscard]] std::array<glm::dvec3, 8> getBoundingBoxCornerPoints(const fastgltf::Asset &asset, const fastgltf::Primitive &primitive) {
-        const fastgltf::Accessor &accessor = asset.accessors.at(primitive.findAttribute("POSITION")->second);
+        const fastgltf::Accessor &accessor = asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];
 
         // TODO: current glTF specification guarantees that there are min/max attributes for POSITION with
         //  dvec3 type, but KHR_mesh_quantization extension offers non-double precision POSITION attributes,

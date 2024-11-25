@@ -14,31 +14,33 @@ namespace vk_gltf_viewer::gltf {
      *
      * This loads the external and GLB buffers at construction, and organize them into <tt>std::span<const std::byte></tt> by their indices. Since this operation done in the initialization, you don't have to make branches for <tt>fastgltf::DataSource</tt> variant type.
      *
-     * Also, this class implements <tt>const std::byte* operator(const fastgltf::Buffer&) const</tt> for compatibility with <tt>fastgltf::DefaultBufferDataAdapter</tt>. You can directly pass the class instance as the fastgltf's buffer data adapter, such like <tt>fastgltf::iterateAccessor</tt>.
+     * Also, this class implements <tt>const std::byte* operator(const fastgltf::Asset&, std::size_t) const</tt> for compatibility with <tt>fastgltf::DefaultBufferDataAdapter</tt>. You can directly pass the class instance as the fastgltf's buffer data adapter, such like <tt>fastgltf::iterateAccessor</tt>.
      */
     export class AssetExternalBuffers {
-        const fastgltf::Asset &asset;
         std::vector<std::vector<std::byte>> cache;
 
     public:
         std::vector<std::span<const std::byte>> bytes;
 
         AssetExternalBuffers(const fastgltf::Asset &asset, const std::filesystem::path &directory)
-            : asset { asset }
-            , bytes { createBufferBytes(directory) } { }
+            : bytes { createBufferBytes(asset, directory) } { }
 
         /**
          * Interface for <tt>fastgltf::BufferDataAdapter</tt>.
-         * @param buffer buffer to get the byte address.
+         * @param asset asset that contains the buffer.
+         * @param bufferViewIndex Index of the buffer view.
          * @return First byte address of the buffer.
          */
-        [[nodiscard]] const std::byte* operator()(const fastgltf::Buffer &buffer) const {
-            const std::size_t bufferIndex = &buffer - asset.buffers.data();
-            return bytes[bufferIndex].data();
+        [[nodiscard]] const std::span<const std::byte> operator()(const fastgltf::Asset &asset, std::size_t bufferViewIndex) const {
+            const fastgltf::BufferView &bufferView = asset.bufferViews[bufferViewIndex];
+            return bytes[bufferView.bufferIndex].subspan(bufferView.byteOffset, bufferView.byteLength);
         }
 
     private:
-        [[nodiscard]] std::vector<std::span<const std::byte>> createBufferBytes(const std::filesystem::path &directory) {
+        [[nodiscard]] std::vector<std::span<const std::byte>> createBufferBytes(
+            const fastgltf::Asset &asset,
+            const std::filesystem::path &directory
+        ) {
             return asset.buffers
                 | std::views::transform([&](const fastgltf::Buffer &buffer) {
                     return visit(fastgltf::visitor {

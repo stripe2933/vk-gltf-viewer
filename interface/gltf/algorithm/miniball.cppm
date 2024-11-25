@@ -54,7 +54,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
                 collectTransformedBoundingBoxPoints(transformGetter(nodeIndex, 0U));
             }
             else {
-                for (std::size_t instanceIndex : std::views::iota(std::size_t { 0 }, asset.accessors[node.instancingAttributes[0].second].count)) {
+                for (std::size_t instanceIndex : std::views::iota(std::size_t { 0 }, asset.accessors[node.instancingAttributes[0].accessorIndex].count)) {
                     collectTransformedBoundingBoxPoints(transformGetter(nodeIndex, instanceIndex));
                 }
             }

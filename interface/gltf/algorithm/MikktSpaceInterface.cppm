@@ -6,7 +6,6 @@ export module vk_gltf_viewer:gltf.algorithm.MikktSpaceInterface;
 
 import std;
 export import fastgltf;
-export import glm;
 
 namespace vk_gltf_viewer::gltf::algorithm {
     export template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
@@ -14,7 +13,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
         const fastgltf::Asset &asset;
         const fastgltf::Accessor &indicesAccessor, &positionAccessor, &normalAccessor, &texcoordAccessor;
         const BufferDataAdapter &bufferDataAdapter;
-        std::vector<glm::vec4> tangents = std::vector<glm::vec4>(positionAccessor.count);
+        std::vector<fastgltf::math::fvec4> tangents = std::vector<fastgltf::math::fvec4>(positionAccessor.count);
     };
 
     template <std::unsigned_integral IndexType, typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
@@ -30,25 +29,34 @@ namespace vk_gltf_viewer::gltf::algorithm {
                 },
                 .m_getPosition = [](const SMikkTSpaceContext *pContext, float fvPosOut[], int iFace, int iVert) {
                     const auto *meshData = static_cast<const MikktSpaceMesh<BufferDataAdapter>*>(pContext->m_pUserData);
-                    const glm::vec3 position = fastgltf::getAccessorElement<glm::vec3>(
-                        meshData->asset, meshData->positionAccessor, getIndex(*meshData, iFace, iVert), meshData->bufferDataAdapter);
-                    std::ranges::copy_n(value_ptr(position), 3, fvPosOut);
+                    const fastgltf::math::fvec3 position = fastgltf::getAccessorElement<fastgltf::math::fvec3>(
+                        meshData->asset,
+                        meshData->positionAccessor,
+                        getIndex(*meshData, iFace, iVert),
+                        meshData->bufferDataAdapter);
+                    std::copy_n(position.data(), 3, fvPosOut);
                 },
                 .m_getNormal = [](const SMikkTSpaceContext *pContext, float fvNormOut[], int iFace, int iVert) {
                     const auto *meshData = static_cast<const MikktSpaceMesh<BufferDataAdapter>*>(pContext->m_pUserData);
-                    const glm::vec3 normal = fastgltf::getAccessorElement<glm::vec3>(
-                        meshData->asset, meshData->normalAccessor, getIndex(*meshData, iFace, iVert), meshData->bufferDataAdapter);
-                    std::ranges::copy_n(value_ptr(normal), 3, fvNormOut);
+                    const fastgltf::math::fvec3 normal = fastgltf::getAccessorElement<fastgltf::math::fvec3>(
+                        meshData->asset,
+                        meshData->normalAccessor,
+                        getIndex(*meshData, iFace, iVert),
+                        meshData->bufferDataAdapter);
+                    std::copy_n(normal.data(), 3, fvNormOut);
                 },
                 .m_getTexCoord = [](const SMikkTSpaceContext *pContext, float fvTexcOut[], int iFace, int iVert) {
                     const auto *meshData = static_cast<const MikktSpaceMesh<BufferDataAdapter>*>(pContext->m_pUserData);
-                    const glm::vec2 texcoord = fastgltf::getAccessorElement<glm::vec2>(
-                        meshData->asset, meshData->texcoordAccessor, getIndex(*meshData, iFace, iVert), meshData->bufferDataAdapter);
-                    std::ranges::copy_n(value_ptr(texcoord), 2, fvTexcOut);
+                    const fastgltf::math::fvec2 texcoord = fastgltf::getAccessorElement<fastgltf::math::fvec2>(
+                        meshData->asset,
+                        meshData->texcoordAccessor,
+                        getIndex(*meshData, iFace, iVert),
+                        meshData->bufferDataAdapter);
+                    std::copy_n(texcoord.data(), 2, fvTexcOut);
                 },
                 .m_setTSpaceBasic = [](const SMikkTSpaceContext *pContext, const float *fvTangent, float fSign, int iFace, int iVert) {
                     auto *meshData = static_cast<MikktSpaceMesh<BufferDataAdapter>*>(pContext->m_pUserData);
-                    *std::ranges::copy_n(fvTangent, 3, value_ptr(meshData->tangents[getIndex(*meshData, iFace, iVert)])).out = fSign;
+                    *std::copy_n(fvTangent, 3, meshData->tangents[getIndex(*meshData, iFace, iVert)].data()) = fSign;
                 },
             } { }
 

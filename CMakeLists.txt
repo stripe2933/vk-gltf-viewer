@@ -49,7 +49,7 @@ target_sources(vk-gltf-viewer PRIVATE
     FILE_SET CXX_MODULES
     FILES
         extlibs/thread_pool.cppm
-        extlibs/module-ports/fastgltf.cppm
+        extlibs/module-ports/fastgltf.ixx
         extlibs/module-ports/glm.cppm
         extlibs/module-ports/imgui/imgui.cppm
         extlibs/module-ports/imgui/imgui.math.cppm
@@ -152,6 +152,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     vku::vku
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE
+    FASTGLTF_USE_STD_MODULE=1
     GLFW_INCLUDE_NONE
     GLM_FORCE_DEPTH_ZERO_TO_ONE
     GLM_FORCE_XYZW_ONLY

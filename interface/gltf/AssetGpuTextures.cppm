@@ -357,11 +357,9 @@ namespace vk_gltf_viewer::gltf {
                         [&](const fastgltf::sources::BufferView& bufferView) {
                             switch (bufferView.mimeType) {
                                 case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
-                                    return processNonCompressedImageFromMemory(
-                                        as_span<const stbi_uc>(getByteRegion(asset, asset.bufferViews[bufferView.bufferViewIndex], adapter)));
+                                    return processNonCompressedImageFromMemory(as_span<const stbi_uc>(adapter(asset, bufferView.bufferViewIndex)));
                                 case fastgltf::MimeType::KTX2:
-                                    return processCompressedImageFromMemory(
-                                        as_span<const ktx_uint8_t>(getByteRegion(asset, asset.bufferViews[bufferView.bufferViewIndex], adapter)));
+                                    return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(adapter(asset, bufferView.bufferViewIndex)));
                                 default:
                                     throw std::runtime_error { "Unsupported image MIME type" };
                             }

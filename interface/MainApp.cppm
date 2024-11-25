@@ -33,19 +33,18 @@ namespace vk_gltf_viewer {
              */
             std::filesystem::path directory;
 
-        private:
-            fastgltf::Expected<fastgltf::Asset> assetExpected;
-            const vulkan::Gpu &gpu;
-
-        public:
             /**
              * @brief The glTF asset that is loaded from the file.
              *
              * This MUST not be assigned (Gltf and fastgltf::Asset is one-to-one relationship). The reason this field
              * type is mutable reference is to allow the user to change some trivial properties.
              */
-            fastgltf::Asset &asset { assetExpected.get() };
+            fastgltf::Asset asset;
 
+        private:
+            const vulkan::Gpu &gpu;
+
+        public:
             /**
 			 * @brief External buffers that are not embedded in the glTF file, such like .bin files.
              * 

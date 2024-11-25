@@ -37,6 +37,7 @@ export using ::ImGuiTreeNodeFlags_NoTreePushOnOpen;
 export using ::ImGuiTreeNodeFlags_OpenOnArrow;
 export using ::ImGuiTreeNodeFlags_SpanAllColumns;
 export using ::ImGuiTreeNodeFlags_Selected;
+export using ::ImTextureID;
 export using ::ImU32;
 export using ::ImVec2;
 export using ::ImVec4;

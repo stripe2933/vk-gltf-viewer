@@ -31,7 +31,7 @@ std::vector<std::uint32_t> vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createIns
             else {
                 // According to the EXT_mesh_gpu_instancing specification, all attribute accessors in a given node
                 // must have the same count. Therefore, we can use the count of the first attribute accessor.
-                return pAsset->accessors[node.instancingAttributes[0].second].count;
+                return pAsset->accessors[node.instancingAttributes[0].accessorIndex].count;
             }
         }();
     });

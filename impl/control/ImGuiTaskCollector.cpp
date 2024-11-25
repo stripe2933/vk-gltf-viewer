@@ -63,7 +63,7 @@ template <concepts::signature_of<cstring_view> F>
 
 auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f}) -> void {
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
-    ImGui::Image(texture, size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
+    ImGui::Image(vku::toUint64(texture), size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
 
     if (ImGui::BeginItemTooltip()) {
         const ImGuiIO &io = ImGui::GetIO();
@@ -74,7 +74,7 @@ auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 
         region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
 
         constexpr float zoomScale = 4.0f;
-        ImGui::Image(texture, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size, tint);
+        ImGui::Image(vku::toUint64(texture), zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size, tint);
         ImGui::TextUnformatted(tempStringBuffer.write("Showing: [{:.0f}, {:.0f}]x[{:.0f}, {:.0f}]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y));
 
         ImGui::EndTooltip();
@@ -724,29 +724,28 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 visit(fastgltf::visitor {
                     [](const fastgltf::TRS &trs) {
                         tempStringBuffer.clear();
-                        if (trs.translation != std::array { 0.f, 0.f, 0.f }) {
-                            tempStringBuffer.append("T{::.2f}", trs.translation);
+                        if (trs.translation != fastgltf::math::fvec3{}) {
+                            tempStringBuffer.append("T[{:.2f}, {:.2f}, {:.2f}]", trs.translation.x(), trs.translation.y(), trs.translation.z());
                         }
-                        if (trs.rotation != std::array { 0.f, 0.f, 0.f, 1.f }) {
+                        if (trs.rotation != fastgltf::math::fquat{}) {
                             if (!tempStringBuffer.empty()) tempStringBuffer.append(" * ");
-                            tempStringBuffer.append("R{::.2f}", trs.rotation);
+                            tempStringBuffer.append("R[{:.2f}, {:.2f}, {:.2f}, {:.2f}]", trs.rotation.x(), trs.rotation.y(), trs.rotation.z(), trs.rotation.w());
                         }
-                        if (trs.scale != std::array { 1.f, 1.f, 1.f }) {
+                        if (trs.scale != fastgltf::math::fvec3 { 1.f, 1.f, 1.f }) {
                             if (!tempStringBuffer.empty()) tempStringBuffer.append(" * ");
-                            tempStringBuffer.append("S{::.2f}", trs.scale);
+                            tempStringBuffer.append("S[{:.2f}, {:.2f}, {:.2f}]", trs.scale.x(), trs.scale.y(), trs.scale.z());
                         }
 
                         if (!tempStringBuffer.empty()) {
                             ImGui::TextUnformatted(tempStringBuffer);
                         }
                     },
-                    [](const fastgltf::Node::TransformMatrix &transformMatrix) {
-                        constexpr fastgltf::Node::TransformMatrix identity { 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f };
-                        if (transformMatrix != identity) {
+                    [](const fastgltf::math::fmat4x4 &transformMatrix) {
+                        if (transformMatrix != fastgltf::math::fmat4x4 { 1.f }) {
+                            const std::span components { transformMatrix.data(), 16 };
 #if __cpp_lib_ranges_chunk >= 202202L
-                            ImGui::TextUnformatted(tempStringBuffer.write("{:::.2f}", transformMatrix | std::views::chunk(4)));
+                            ImGui::TextUnformatted(tempStringBuffer.write("{:::.2f}", components | std::views::chunk(4)));
 #else
-                            const std::span components { transformMatrix };
                             INDEX_SEQ(Is, 4, {
                                 ImGui::TextUnformatted(tempStringBuffer.write("[{::.2f}, {::.2f}, {::.2f}, {::.2f}]", components.subspan(4 * Is, 4)...));
                             });
@@ -833,15 +832,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
             if (bool isTrs = holds_alternative<fastgltf::TRS>(node.transform); ImGui::BeginCombo("Local transform", isTrs ? "TRS" : "Transform Matrix")) {
                 if (ImGui::Selectable("TRS", isTrs) && !isTrs) {
                     fastgltf::TRS trs;
-                    fastgltf::decomposeTransformMatrix(get<fastgltf::Node::TransformMatrix>(node.transform), trs.scale, trs.rotation, trs.translation);
+                    decomposeTransformMatrix(get<fastgltf::math::fmat4x4>(node.transform), trs.scale, trs.rotation, trs.translation);
                     node.transform = trs;
                 }
                 if (ImGui::Selectable("Transform Matrix", !isTrs) && isTrs) {
                     const auto &trs = get<fastgltf::TRS>(node.transform);
-                    const glm::mat4 matrix = translate(glm::make_vec3(trs.translation.data())) * glm::mat4_cast(glm::make_quat(trs.rotation.data())) * scale(glm::make_vec3(trs.scale.data()));
-
-                    auto &transform = node.transform.emplace<fastgltf::Node::TransformMatrix>();
-                    std::copy_n(value_ptr(matrix), 16, transform.data());
+                    constexpr fastgltf::math::fmat4x4 identity { 1.f };
+                    node.transform.emplace<fastgltf::math::fmat4x4>(translate(identity, trs.translation) * rotate(identity, trs.rotation) * scale(identity, trs.scale));
                 }
                 ImGui::EndCombo();
             }
@@ -849,19 +846,19 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                 [&](fastgltf::TRS &trs) {
                     // | operator cannot be chained, because of the short circuit evaluation.
                     bool transformChanged = ImGui::DragFloat3("Translation", trs.translation.data());
-                    transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.data());
+                    transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.value_ptr());
                     transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
 
                     if (transformChanged) {
                         tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);
                     }
                 },
-                [&](fastgltf::Node::TransformMatrix &matrix) {
+                [&](fastgltf::math::fmat4x4 &matrix) {
                     // | operator cannot be chained, because of the short circuit evaluation.
-                    bool transformChanged = ImGui::DragFloat4("Column 0", &matrix[0]);
-                    transformChanged |= ImGui::DragFloat4("Column 1", &matrix[4]);
-                    transformChanged |= ImGui::DragFloat4("Column 2", &matrix[8]);
-                    transformChanged |= ImGui::DragFloat4("Column 3", &matrix[12]);
+                    bool transformChanged = ImGui::DragFloat4("Column 0", matrix.col(0).data());
+                    transformChanged |= ImGui::DragFloat4("Column 1", matrix.col(4).data());
+                    transformChanged |= ImGui::DragFloat4("Column 2", matrix.col(8).data());
+                    transformChanged |= ImGui::DragFloat4("Column 3", matrix.col(12).data());
 
                     if (transformChanged) {
                         tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);
@@ -871,8 +868,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
             if (!node.instancingAttributes.empty() && ImGui::TreeNodeEx("EXT_mesh_gpu_instancing", ImGuiTreeNodeFlags_NoTreePushOnOpen)) {
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    attributeTable(node.instancingAttributes | ranges::views::decompose_transform([&](std::string_view attributeName, std::size_t accessorIndex) {
-                        return std::pair<std::string_view, const fastgltf::Accessor&> { attributeName, asset.accessors[accessorIndex] };
+                    attributeTable(node.instancingAttributes | std::views::transform([&](const fastgltf::Attribute &attribute) {
+                        return std::pair<std::string_view, const fastgltf::Accessor&> { attribute.name, asset.accessors[attribute.accessorIndex] };
                     }));
                 });
             }
@@ -904,8 +901,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                                 to_range(to_optional(primitive.indicesAccessor).transform([&](std::size_t accessorIndex) {
                                     return std::pair<std::string_view, const fastgltf::Accessor&> { "Index"sv, asset.accessors[accessorIndex] };
                                 })),
-                                primitive.attributes | ranges::views::decompose_transform([&](std::string_view attributeName, std::size_t accessorIndex) {
-                                    return std::pair<std::string_view, const fastgltf::Accessor&> { attributeName, asset.accessors[accessorIndex] };
+                                primitive.attributes | std::views::transform([&](const fastgltf::Attribute &attribute) {
+                                    return std::pair<std::string_view, const fastgltf::Accessor&> { attribute.name, asset.accessors[attribute.accessorIndex] };
                                 })));
                         }
                     }
@@ -1083,15 +1080,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
 
             const glm::mat4 deltaMatrix = worldTransform * inverse(nodeWorldTransforms[selectedNodeIndex]);
             visit(fastgltf::visitor {
-                [&](fastgltf::Node::TransformMatrix &transformMatrix) {
+                [&](fastgltf::math::fmat4x4 &transformMatrix) {
                     const glm::mat4 newTransform = deltaMatrix * fastgltf::toMatrix(transformMatrix);
                     std::copy_n(value_ptr(newTransform), 16, transformMatrix.data());
                 },
                 [&](fastgltf::TRS &trs) {
                     const glm::mat4 newTransform = deltaMatrix * toMatrix(trs);
-                    fastgltf::Node::TransformMatrix newTransformMatrix;
+                    fastgltf::math::fmat4x4 newTransformMatrix;
                     std::copy_n(value_ptr(newTransform), 16, newTransformMatrix.data());
-                    fastgltf::decomposeTransformMatrix(newTransformMatrix, trs.scale, trs.rotation, trs.translation);
+                    fastgltf::math::decomposeTransformMatrix(newTransformMatrix, trs.scale, trs.rotation, trs.translation);
                 },
             }, asset.nodes[selectedNodeIndex].transform);
             tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);

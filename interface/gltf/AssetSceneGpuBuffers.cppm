@@ -84,13 +84,13 @@ namespace vk_gltf_viewer::gltf {
                     return;
                 }
 
-                if (std::vector<glm::mat4> instanceTransforms = getInstanceTransforms(*pAsset, node, adapter); instanceTransforms.empty()) {
+                if (std::vector instanceTransforms = getInstanceTransforms(*pAsset, node, adapter); instanceTransforms.empty()) {
                     meshNodeWorldTransforms[instanceOffsets[nodeIndex]] = sceneHierarchy.nodeWorldTransforms[nodeIndex];
                 }
                 else {
                     for (std::uint32_t instanceIndex : std::views::iota(0U, instanceCounts[nodeIndex])) {
                         meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex]
-                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * instanceTransforms[instanceIndex];
+                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * fastgltf::toMatrix(instanceTransforms[instanceIndex]);
                     }
                 }
             });
@@ -123,7 +123,7 @@ namespace vk_gltf_viewer::gltf {
                 // EXT_mesh_gpu_instancing support.
                 std::uint32_t instanceCount = 1;
                 if (!node.instancingAttributes.empty()) {
-                    instanceCount = pAsset->accessors[node.instancingAttributes[0].second].count;
+                    instanceCount = pAsset->accessors[node.instancingAttributes[0].accessorIndex].count;
                 }
 
                 const fastgltf::Mesh &mesh = pAsset->meshes[*node.meshIndex];
@@ -202,13 +202,13 @@ namespace vk_gltf_viewer::gltf {
                     return;
                 }
 
-                if (std::vector<glm::mat4> instanceTransforms = getInstanceTransforms(*pAsset, node, adapter); instanceTransforms.empty()) {
+                if (std::vector instanceTransforms = getInstanceTransforms(*pAsset, node, adapter); instanceTransforms.empty()) {
                     meshNodeWorldTransforms[instanceOffsets[nodeIndex]] = sceneHierarchy.nodeWorldTransforms[nodeIndex];
                 }
                 else {
                     for (std::uint32_t instanceIndex : std::views::iota(0U, instanceCounts[nodeIndex])) {
                         meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex]
-                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * instanceTransforms[instanceIndex];
+                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * fastgltf::toMatrix(instanceTransforms[instanceIndex]);
                     }
                 }
             });

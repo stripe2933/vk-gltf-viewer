@@ -306,7 +306,7 @@ namespace vk_gltf_viewer::gltf {
             const std::unordered_set attributeBufferViewIndices
                 = primitives
                 | std::views::transform([](const fastgltf::Primitive &primitive) {
-                    return primitive.attributes | std::views::values;
+                    return primitive.attributes | std::views::transform(&fastgltf::Attribute::accessorIndex);
                 })
                 | std::views::join
                 | std::views::transform([&](std::size_t accessorIndex) {
@@ -324,7 +324,7 @@ namespace vk_gltf_viewer::gltf {
             const std::vector attributeBufferViewBytes
                 = attributeBufferViewIndices
                 | std::views::transform([&](std::size_t bufferViewIndex) {
-                    return std::pair { bufferViewIndex, getByteRegion(asset, asset.bufferViews[bufferViewIndex], adapter) };
+                    return std::pair { bufferViewIndex, adapter(asset, bufferViewIndex) };
                 })
                 | std::ranges::to<std::vector>();
 
@@ -434,9 +434,9 @@ namespace vk_gltf_viewer::gltf {
                             std::tie(
                                 asset,
                                 asset.accessors[*pPrimitive->indicesAccessor],
-                                asset.accessors[pPrimitive->findAttribute("POSITION")->second],
-                                asset.accessors[normalIt->second],
-                                asset.accessors[texcoordIt->second],
+                                asset.accessors[pPrimitive->findAttribute("POSITION")->accessorIndex],
+                                asset.accessors[normalIt->accessorIndex],
+                                asset.accessors[texcoordIt->accessorIndex],
                                 adapter),
                         };
                     }

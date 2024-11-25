@@ -142,28 +142,14 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] glm::mat4 toMatrix(const Node::TransformMatrix &transformMatrix) noexcept {
+    [[nodiscard]] glm::mat4 toMatrix(const math::fmat4x4 &transformMatrix) noexcept {
         return glm::make_mat4(transformMatrix.data());
     }
 
     export
     [[nodiscard]] glm::mat4 toMatrix(const TRS &trs) noexcept {
-        return translate(glm::make_vec3(trs.translation.data()))
-            * mat4_cast(glm::make_quat(trs.rotation.data()))
-            * scale(glm::make_vec3(trs.scale.data()));
-    }
-
-    /**
-     * Get buffer byte region of \p bufferView.
-     * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view. If you provided <tt>fastgltf::Options::LoadExternalBuffers</tt> to the <tt>fastgltf::Parser</tt> while loading the glTF, the parameter can be omitted.
-     * @param asset fastgltf Asset.
-     * @param bufferView Buffer view to get the byte region. This MUST be originated from the \p asset.
-     * @param adapter Buffer data adapter.
-     * @return Span of bytes.
-     */
-    export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
-    [[nodiscard]] std::span<const std::byte> getByteRegion(const Asset &asset, const BufferView &bufferView, const BufferDataAdapter &adapter = {}) noexcept {
-        return std::span { adapter(asset.buffers[bufferView.bufferIndex]) + bufferView.byteOffset, bufferView.byteLength };
+        constexpr math::fmat4x4 identity { 1.f };
+        return toMatrix(translate(identity, trs.translation) * rotate(identity, trs.rotation) * scale(identity, trs.scale));
     }
 
     /**
@@ -182,7 +168,7 @@ namespace fastgltf {
 
         const BufferView &bufferView = asset.bufferViews[*accessor.bufferViewIndex];
         const std::size_t byteStride = bufferView.byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType));
-        return getByteRegion(asset, bufferView, adapter).subspan(accessor.byteOffset, byteStride * accessor.count);
+        return adapter(asset, *accessor.bufferViewIndex).subspan(accessor.byteOffset, byteStride * accessor.count);
     }
 
     /**
@@ -196,7 +182,7 @@ namespace fastgltf {
      * @note This function has effect only if \p asset is loaded with EXT_mesh_gpu_instancing extension supporting parser (otherwise, it will return the empty vector).
      */
     export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
-    [[nodiscard]] std::vector<glm::mat4> getInstanceTransforms(const Asset &asset, const Node &node, const BufferDataAdapter &adapter = {}) {
+    [[nodiscard]] std::vector<math::fmat4x4> getInstanceTransforms(const Asset &asset, const Node &node, const BufferDataAdapter &adapter = {}) {
         if (node.instancingAttributes.empty()) {
             // No instance transforms. Returning an empty vector.
             return {};
@@ -204,18 +190,18 @@ namespace fastgltf {
 
         // According to the EXT_mesh_gpu_instancing specification, all attribute accessors in a given node must
         // have the same count. Therefore, we can use the count of the first attribute accessor.
-        const std::uint32_t instanceCount = asset.accessors[node.instancingAttributes[0].second].count;
+        const std::uint32_t instanceCount = asset.accessors[node.instancingAttributes[0].accessorIndex].count;
 
-        std::vector translations(instanceCount, glm::vec3 { 0.f });
+        std::vector<math::fvec3> translations(instanceCount);
         if (auto it = node.findInstancingAttribute("TRANSLATION"); it != node.instancingAttributes.end()) {
-            const Accessor &accessor = asset.accessors[it->second];
-            copyFromAccessor<glm::vec3>(asset, accessor, translations.data(), adapter);
+            const Accessor &accessor = asset.accessors[it->accessorIndex];
+            copyFromAccessor<math::fvec3>(asset, accessor, translations.data(), adapter);
         }
 
-        std::vector rotations(instanceCount, glm::vec4 { 0.f, 0.f, 0.f, 1.f });
+        std::vector<math::fquat> rotations(instanceCount);
         if (auto it = node.findInstancingAttribute("ROTATION"); it != node.instancingAttributes.end()) {
-            const Accessor &accessor = asset.accessors[it->second];
-            copyFromAccessor<glm::vec4>(asset, accessor, rotations.data(), adapter);
+            const Accessor &accessor = asset.accessors[it->accessorIndex];
+            copyFromAccessor<math::fquat>(asset, accessor, rotations.data(), adapter);
 
             // TODO: why fastgltf::copyFromAccessor does not respect the normalized accessor? Need investigation.
             if (accessor.normalized) {
@@ -230,25 +216,42 @@ namespace fastgltf {
                     }
                 }();
 
-                for (glm::vec4 &rotation : rotations) {
+                for (math::fquat &rotation : rotations) {
                     rotation *= multiplier;
                 }
             }
         }
 
-        std::vector scale(instanceCount, glm::vec3 { 1.f, 1.f, 1.f });
+        std::vector<math::fvec3> scale(instanceCount);
         if (auto it = node.findInstancingAttribute("SCALE"); it != node.instancingAttributes.end()) {
-            const Accessor &accessor = asset.accessors[it->second];
-            fastgltf::copyFromAccessor<glm::vec3>(asset, accessor, scale.data(), adapter);
+            const Accessor &accessor = asset.accessors[it->accessorIndex];
+            fastgltf::copyFromAccessor<math::fvec3>(asset, accessor, scale.data(), adapter);
         }
 
-        std::vector<glm::mat4> result;
+        std::vector<math::fmat4x4> result;
         result.reserve(instanceCount);
         for (std::uint32_t i = 0; i < instanceCount; ++i) {
-            result.push_back(translate(translations[i]) * mat4_cast(glm::make_quat(value_ptr(rotations[i]))) * glm::scale(scale[i]));
+            constexpr math::fmat4x4 identity { 1.f };
+            result.push_back(translate(identity, translations[i]) * rotate(identity, rotations[i]) * math::scale(identity, scale[i]));
         }
 
         return result;
+    }
+
+    /**
+     * @brief Unwrap the value of the expected, or throw an exception if it is an error.
+     * @tparam T Type of the expected value. This have to be move constructible.
+     * @param expected fastgltf Expected.
+     * @return The value of the expected if it is not an error.
+     * @throw std::runtime_error If the expected is an error.
+     */
+    template <std::move_constructible T>
+    [[nodiscard]] T get_checked(Expected<T> expected) {
+        if (Error error = expected.error(); error != Error::None) {
+            throw std::runtime_error { std::format("Unexpected: {}", getErrorMessage(error)) };
+        }
+
+        return std::move(expected.get());
     }
 }
 
