@@ -12,6 +12,7 @@ export import glm;
 import :gltf.algorithm.bounding_box;
 import :gltf.algorithm.traversal;
 import :helpers.concepts;
+import :helpers.ranges;
 import :math.extended_arithmetic;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
@@ -54,7 +55,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
                 collectTransformedBoundingBoxPoints(transformGetter(nodeIndex, 0U));
             }
             else {
-                for (std::size_t instanceIndex : std::views::iota(std::size_t { 0 }, asset.accessors[node.instancingAttributes[0].accessorIndex].count)) {
+                for (std::size_t instanceIndex : ranges::views::upto(asset.accessors[node.instancingAttributes[0].accessorIndex].count)) {
                     collectTransformedBoundingBoxPoints(transformGetter(nodeIndex, instanceIndex));
                 }
             }

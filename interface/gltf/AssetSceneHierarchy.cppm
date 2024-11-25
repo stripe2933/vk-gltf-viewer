@@ -68,7 +68,7 @@ namespace vk_gltf_viewer::gltf {
 
     private:
         [[nodiscard]] std::vector<std::size_t> createParentNodeIndices() const noexcept {
-            std::vector<std::size_t> result { std::from_range, std::views::iota(std::size_t { 0 }, pAsset->nodes.size()) };
+            std::vector<std::size_t> result { std::from_range, ranges::views::upto(pAsset->nodes.size()) };
             for (const auto &[i, node] : pAsset->nodes | ranges::views::enumerate) {
                 for (std::size_t childIndex : node.children) {
                     result[childIndex] = i;

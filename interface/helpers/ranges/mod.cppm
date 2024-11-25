@@ -1,5 +1,6 @@
 module;
 
+#include <cassert>
 #include <version>
 
 export module vk_gltf_viewer:helpers.ranges;
@@ -69,6 +70,12 @@ namespace ranges {
     }
 
 namespace views {
+    export template <std::integral T>
+    [[nodiscard]] constexpr auto upto(T n) noexcept {
+        assert(n >= 0 && "n must be non-negative.");
+        return std::views::iota(T { 0 }, n);
+    }
+
 #if __cpp_lib_ranges_enumerate >= 202302L
     export constexpr decltype(std::views::enumerate) enumerate;
 #else
@@ -76,9 +83,7 @@ namespace views {
         template <std::ranges::viewable_range R>
         [[nodiscard]] static constexpr auto operator()(R &&r) -> auto {
             if constexpr (std::ranges::sized_range<R>) {
-                return std::views::zip(
-                    std::views::iota(static_cast<std::ranges::range_difference_t<R>>(0), static_cast<std::ranges::range_difference_t<R>>(r.size())),
-                    FWD(r));
+                return std::views::zip(upto<std::ranges::range_difference_t<R>>(r.size()), FWD(r));
             }
             else {
                 return std::views::zip(

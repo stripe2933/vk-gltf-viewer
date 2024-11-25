@@ -88,7 +88,7 @@ namespace vk_gltf_viewer::gltf {
                     meshNodeWorldTransforms[instanceOffsets[nodeIndex]] = sceneHierarchy.nodeWorldTransforms[nodeIndex];
                 }
                 else {
-                    for (std::uint32_t instanceIndex : std::views::iota(0U, instanceCounts[nodeIndex])) {
+                    for (std::uint32_t instanceIndex : ranges::views::upto(instanceCounts[nodeIndex])) {
                         meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex]
                             = sceneHierarchy.nodeWorldTransforms[nodeIndex] * fastgltf::toMatrix(instanceTransforms[instanceIndex]);
                     }
@@ -206,7 +206,7 @@ namespace vk_gltf_viewer::gltf {
                     meshNodeWorldTransforms[instanceOffsets[nodeIndex]] = sceneHierarchy.nodeWorldTransforms[nodeIndex];
                 }
                 else {
-                    for (std::uint32_t instanceIndex : std::views::iota(0U, instanceCounts[nodeIndex])) {
+                    for (std::uint32_t instanceIndex : ranges::views::upto(instanceCounts[nodeIndex])) {
                         meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex]
                             = sceneHierarchy.nodeWorldTransforms[nodeIndex] * fastgltf::toMatrix(instanceTransforms[instanceIndex]);
                     }
