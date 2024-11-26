@@ -23,7 +23,7 @@ namespace vk_gltf_viewer::control {
         void background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, vk::DescriptorSet eqmapTextureImGuiDescriptorSet);
         void inputControl(Camera &camera, bool& automaticNearFarPlaneAdjustment, bool &useFrustumCulling, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline);
-        void imguizmo(Camera &camera, const std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::uint16_t, ImGuizmo::OPERATION>> &assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation);
+        void imguizmo(Camera &camera, const std::optional<std::tuple<fastgltf::Asset&, std::span<const fastgltf::math::fmat4x4>, std::uint16_t, ImGuizmo::OPERATION>> &assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation);
 
     private:
         std::vector<Task> &tasks;

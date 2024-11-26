@@ -2,7 +2,6 @@ export module vk_gltf_viewer:gltf.algorithm.bounding_box;
 
 import std;
 export import fastgltf;
-export import glm;
 
 namespace vk_gltf_viewer::gltf::algorithm {
     /**
@@ -21,24 +20,24 @@ namespace vk_gltf_viewer::gltf::algorithm {
      * @return Array of 8 corner points of the bounding box.
      */
     export
-    [[nodiscard]] std::array<glm::dvec3, 8> getBoundingBoxCornerPoints(const fastgltf::Asset &asset, const fastgltf::Primitive &primitive) {
+    [[nodiscard]] std::array<fastgltf::math::dvec3, 8> getBoundingBoxCornerPoints(const fastgltf::Asset &asset, const fastgltf::Primitive &primitive) {
         const fastgltf::Accessor &accessor = asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];
 
         // TODO: current glTF specification guarantees that there are min/max attributes for POSITION with
         //  dvec3 type, but KHR_mesh_quantization extension offers non-double precision POSITION attributes,
         //  which would be problematic in future. Need caution.
-        const std::span min { std::get_if<std::pmr::vector<double>>(&accessor.min)->data(), 3 };
-        const std::span max { std::get_if<std::pmr::vector<double>>(&accessor.max)->data(), 3 };
+        const double *const pMin = std::get_if<std::pmr::vector<double>>(&accessor.min)->data();
+        const double *const pMax = std::get_if<std::pmr::vector<double>>(&accessor.max)->data();
 
         return {
-            glm::dvec3 { min[0], min[1], min[2] },
-            glm::dvec3 { min[0], min[1], max[2] },
-            glm::dvec3 { min[0], max[1], min[2] },
-            glm::dvec3 { min[0], max[1], max[2] },
-            glm::dvec3 { max[0], min[1], min[2] },
-            glm::dvec3 { max[0], min[1], max[2] },
-            glm::dvec3 { max[0], max[1], min[2] },
-            glm::dvec3 { max[0], max[1], max[2] },
+            fastgltf::math::dvec3 { pMin[0], pMin[1], pMin[2] },
+            fastgltf::math::dvec3 { pMin[0], pMin[1], pMax[2] },
+            fastgltf::math::dvec3 { pMin[0], pMax[1], pMin[2] },
+            fastgltf::math::dvec3 { pMin[0], pMax[1], pMax[2] },
+            fastgltf::math::dvec3 { pMax[0], pMin[1], pMin[2] },
+            fastgltf::math::dvec3 { pMax[0], pMin[1], pMax[2] },
+            fastgltf::math::dvec3 { pMax[0], pMax[1], pMin[2] },
+            fastgltf::math::dvec3 { pMax[0], pMax[1], pMax[2] },
         };
     }
 }

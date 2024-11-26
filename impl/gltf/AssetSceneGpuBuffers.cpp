@@ -13,8 +13,8 @@ import :helpers.ranges;
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
 
-const glm::mat4 &vk_gltf_viewer::gltf::AssetSceneGpuBuffers::getMeshNodeWorldTransform(std::uint16_t nodeIndex, std::uint32_t instanceIndex) const noexcept {
-    return meshNodeWorldTransformBuffer.asRange<const glm::mat4>()[instanceOffsets[nodeIndex] + instanceIndex];
+const fastgltf::math::fmat4x4 &vk_gltf_viewer::gltf::AssetSceneGpuBuffers::getMeshNodeWorldTransform(std::uint16_t nodeIndex, std::uint32_t instanceIndex) const noexcept {
+    return meshNodeWorldTransformBuffer.asRange<const fastgltf::math::fmat4x4>()[instanceOffsets[nodeIndex] + instanceIndex];
 }
 
 std::vector<std::uint32_t> vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createInstanceCounts(const fastgltf::Scene &scene) const {
@@ -50,7 +50,7 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeBuffe
     vku::AllocatedBuffer stagingBuffer = vku::MappedBuffer {
         gpu.allocator,
         std::from_range, instanceOffsets | std::views::transform([=](std::uint32_t offset) {
-            return nodeTransformBufferStartAddress + sizeof(glm::mat4) * offset;
+            return nodeTransformBufferStartAddress + sizeof(fastgltf::math::fmat4x4) * offset;
         }),
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
     }.unmap();

@@ -29,7 +29,7 @@ namespace vk_gltf_viewer::gltf {
         /**
          * @brief Buffer that stores the mesh nodes' transform matrices, with flattened instance matrices.
          *
-         * The term "mesh node" means a node that has a mesh. This buffer only contains transform matrices of mesh nodes. In other words, <tt>meshNodeWorldTransformBuffer.asRange<const glm::mat4>()[nodeIndex]</tt> may NOT represent the world transformation matrix of the <tt>nodeIndex</tt>-th node, because maybe there were nodes with no mesh prior to the <tt>nodeIndex</tt>-th node.
+         * The term "mesh node" means a node that has a mesh. This buffer only contains transform matrices of mesh nodes. In other words, <tt>meshNodeWorldTransformBuffer.asRange<const fastgltf::math::fmat4x4>()[nodeIndex]</tt> may NOT represent the world transformation matrix of the <tt>nodeIndex</tt>-th node, because maybe there were nodes with no mesh prior to the <tt>nodeIndex</tt>-th node.
          *
          * For example, a scene has 4 nodes (denoted as A B C D) and A has 2 instances (<tt>M1</tt>, <tt>M2</tt>), B has 3 instances (<tt>M3</tt>, <tt>M4</tt>, <tt>M5</tt>), C is meshless, and D has 1 instance (<tt>M6</tt>), then the flattened matrices will be laid out as:
          * @code
@@ -67,7 +67,7 @@ namespace vk_gltf_viewer::gltf {
          * @warning \p nodeIndex-th node MUST have a mesh. No exception thrown for constraint violation.
          * @warning \p instanceIndex-th instance MUST be less than the instance count of the node. No exception thrown for constraint violation.
          */
-        [[nodiscard]] const glm::mat4 &getMeshNodeWorldTransform(std::uint16_t nodeIndex, std::uint32_t instanceIndex = 0) const noexcept;
+        [[nodiscard]] const fastgltf::math::fmat4x4 &getMeshNodeWorldTransform(std::uint16_t nodeIndex, std::uint32_t instanceIndex = 0) const noexcept;
 
         /**
          * @brief Update the mesh node world transforms from given \p nodeIndex, to its descendants.
@@ -78,7 +78,7 @@ namespace vk_gltf_viewer::gltf {
          */
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         void updateMeshNodeTransformsFrom(std::uint16_t nodeIndex, const AssetSceneHierarchy &sceneHierarchy, const BufferDataAdapter &adapter = {}) {
-            const std::span<glm::mat4> meshNodeWorldTransforms = meshNodeWorldTransformBuffer.asRange<glm::mat4>();
+            const std::span<fastgltf::math::fmat4x4> meshNodeWorldTransforms = meshNodeWorldTransformBuffer.asRange<fastgltf::math::fmat4x4>();
             algorithm::traverseNode(*pAsset, nodeIndex, [&](std::size_t nodeIndex) {
                 const fastgltf::Node &node = pAsset->nodes[nodeIndex];
                 if (!node.meshIndex) {
@@ -91,7 +91,7 @@ namespace vk_gltf_viewer::gltf {
                 else {
                     for (std::uint32_t instanceIndex : ranges::views::upto(instanceCounts[nodeIndex])) {
                         meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex]
-                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * fastgltf::toMatrix(instanceTransforms[instanceIndex]);
+                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * instanceTransforms[instanceIndex];
                     }
                 }
             });
@@ -196,7 +196,7 @@ namespace vk_gltf_viewer::gltf {
             vma::Allocator allocator,
             const BufferDataAdapter &adapter
         ) const {
-            std::vector<glm::mat4> meshNodeWorldTransforms(instanceOffsets.back() + instanceCounts.back());
+            std::vector<fastgltf::math::fmat4x4> meshNodeWorldTransforms(instanceOffsets.back() + instanceCounts.back());
             algorithm::traverseScene(*pAsset, scene, [&](std::size_t nodeIndex) {
                 const fastgltf::Node &node = pAsset->nodes[nodeIndex];
                 if (!node.meshIndex) {
@@ -209,14 +209,14 @@ namespace vk_gltf_viewer::gltf {
                 else {
                     for (std::uint32_t instanceIndex : ranges::views::upto(instanceCounts[nodeIndex])) {
                         meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex]
-                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * fastgltf::toMatrix(instanceTransforms[instanceIndex]);
+                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * instanceTransforms[instanceIndex];
                     }
                 }
             });
 
             return vku::MappedBuffer {
                 allocator,
-                std::from_range, meshNodeWorldTransforms,
+                std::from_range, as_bytes(std::span { meshNodeWorldTransforms }),
                 vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
             };
         }

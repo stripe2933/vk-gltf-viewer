@@ -2,14 +2,10 @@ export module vk_gltf_viewer:gltf.AssetSceneHierarchy;
 
 import std;
 export import fastgltf;
-export import glm;
 import :gltf.algorithm.traversal;
 import :helpers.fastgltf;
 import :helpers.optional;
 import :helpers.ranges;
-
-#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
 
 namespace vk_gltf_viewer::gltf {
     /**
@@ -31,7 +27,7 @@ namespace vk_gltf_viewer::gltf {
         /**
          * @brief World transformation matrices of each node. <tt>nodeWorldTransforms[i]</tt> = (world transformation matrix of the <tt>i</tt>-th node).
          */
-        std::vector<glm::mat4> nodeWorldTransforms;
+        std::vector<fastgltf::math::fmat4x4> nodeWorldTransforms;
 
         AssetSceneHierarchy(const fastgltf::Asset &asset, const fastgltf::Scene &scene)
             : pAsset { &asset }
@@ -55,13 +51,17 @@ namespace vk_gltf_viewer::gltf {
          * @param nodeIndex Node index to be started.
          */
         void updateDescendantNodeTransformsFrom(std::size_t nodeIndex) {
-            glm::mat4 currentNodeWorldTransform = visit(LIFT(fastgltf::toMatrix), pAsset->nodes[nodeIndex].transform);
+            fastgltf::math::fmat4x4 currentNodeWorldTransform = visit(fastgltf::visitor {
+
+                [&](const fastgltf::TRS &trs) { return toMatrix(trs); },
+                [&](const fastgltf::math::fmat4x4 &matrix) { return matrix; },
+            }, pAsset->nodes[nodeIndex].transform);
             // If node is not root node, pre-multiply the parent node's world transform.
             if (auto parentNodeIndex = getParentNodeIndex(nodeIndex)) {
                 currentNodeWorldTransform = nodeWorldTransforms[*parentNodeIndex] * currentNodeWorldTransform;
             }
 
-            algorithm::traverseNode(*pAsset, nodeIndex, [this](std::size_t nodeIndex, const glm::mat4 &nodeWorldTransform) {
+            algorithm::traverseNode(*pAsset, nodeIndex, [this](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
                 nodeWorldTransforms[nodeIndex] = nodeWorldTransform;
             }, currentNodeWorldTransform);
         }
@@ -77,9 +77,9 @@ namespace vk_gltf_viewer::gltf {
             return result;
         }
 
-        [[nodiscard]] std::vector<glm::mat4> createNodeWorldTransforms(const fastgltf::Scene &scene) const noexcept {
-            std::vector<glm::mat4> result(pAsset->nodes.size());
-            algorithm::traverseScene(*pAsset, scene, [&](std::size_t nodeIndex, const glm::mat4 &nodeWorldTransform) {
+        [[nodiscard]] std::vector<fastgltf::math::fmat4x4> createNodeWorldTransforms(const fastgltf::Scene &scene) const noexcept {
+            std::vector<fastgltf::math::fmat4x4> result(pAsset->nodes.size());
+            algorithm::traverseScene(*pAsset, scene, [&](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
                 result[nodeIndex] = nodeWorldTransform;
             });
             return result;

@@ -78,7 +78,7 @@ namespace vk_gltf_viewer {
              * 
 			 * The first of the pair is the center, and the second is the radius of the miniball.
 			 */
-            std::pair<glm::dvec3, double> sceneMiniball;
+            std::pair<fastgltf::math::dvec3, double> sceneMiniball;
 
             Gltf(
                 fastgltf::Parser &parser,

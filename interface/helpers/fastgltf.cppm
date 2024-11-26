@@ -2,11 +2,10 @@ export module vk_gltf_viewer:helpers.fastgltf;
 
 import std;
 export import fastgltf;
-export import glm;
 export import :helpers.cstring_view;
 export import :helpers.optional;
 
-#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+#define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define DEFINE_FORMATTER(Type) \
     export template <> \
     struct std::formatter<Type> : formatter<string_view> { \
@@ -141,15 +140,15 @@ namespace fastgltf {
         }
     }
 
+    /**
+     * @brief Convert TRS to 4x4 matrix.
+     * @param trs TRS to convert.
+     * @return 4x4 matrix.
+     */
     export
-    [[nodiscard]] glm::mat4 toMatrix(const math::fmat4x4 &transformMatrix) noexcept {
-        return glm::make_mat4(transformMatrix.data());
-    }
-
-    export
-    [[nodiscard]] glm::mat4 toMatrix(const TRS &trs) noexcept {
+    [[nodiscard]] math::fmat4x4 toMatrix(const TRS &trs) noexcept {
         constexpr math::fmat4x4 identity { 1.f };
-        return toMatrix(translate(identity, trs.translation) * rotate(identity, trs.rotation) * scale(identity, trs.scale));
+        return translate(identity, trs.translation) * rotate(identity, trs.rotation) * scale(identity, trs.scale);
     }
 
     /**
@@ -253,6 +252,24 @@ namespace fastgltf {
 
         return std::move(expected.get());
     }
+
+namespace math {
+    /**
+     * @brief Convert matrix of type \tp U to matrix of type \tp T.
+     * @tparam T The destination matrix type.
+     * @tparam U The source matrix type.
+     * @tparam N The number of columns.
+     * @tparam M The number of rows.
+     * @param m The source matrix.
+     * @return The converted matrix of type \tp T.
+     */
+    export template <typename T, typename U, std::size_t N, std::size_t M>
+    [[nodiscard]] mat<T, N, M> cast(const mat<U, N, M> &m) noexcept {
+        return INDEX_SEQ(Is, M, {
+            return mat<T, N, M> { vec<T, N> { m[Is] }... };
+        });
+    }
+}
 }
 
 DEFINE_FORMATTER(fastgltf::PrimitiveType);

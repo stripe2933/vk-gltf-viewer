@@ -837,8 +837,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                 }
                 if (ImGui::Selectable("Transform Matrix", !isTrs) && isTrs) {
                     const auto &trs = get<fastgltf::TRS>(node.transform);
-                    constexpr fastgltf::math::fmat4x4 identity { 1.f };
-                    node.transform.emplace<fastgltf::math::fmat4x4>(translate(identity, trs.translation) * rotate(identity, trs.rotation) * scale(identity, trs.scale));
+                    node.transform.emplace<fastgltf::math::fmat4x4>(toMatrix(trs));
                 }
                 ImGui::EndCombo();
             }
@@ -1067,7 +1066,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
     Camera &camera,
-    const std::optional<std::tuple<fastgltf::Asset&, std::span<const glm::mat4>, std::uint16_t, ImGuizmo::OPERATION>> &assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation
+    const std::optional<std::tuple<fastgltf::Asset&, std::span<const fastgltf::math::fmat4x4>, std::uint16_t, ImGuizmo::OPERATION>> &assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation
 ) {
     // Set ImGuizmo rect.
     ImGuizmo::BeginFrame();
@@ -1075,20 +1074,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
 
     if (assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation) {
         auto &[asset, nodeWorldTransforms, selectedNodeIndex, operation] = *assetAndNodeWorldTransformsAndSelectedNodeIndexAndImGuizmoOperation;
-        if (glm::mat4 worldTransform = nodeWorldTransforms[selectedNodeIndex];
-            Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::WORLD, value_ptr(worldTransform))) {
+        fastgltf::math::fmat4x4 deltaMatrix;
+        if (fastgltf::math::fmat4x4 worldTransform = nodeWorldTransforms[selectedNodeIndex];
+            Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::WORLD, worldTransform.data(), deltaMatrix.data())) {
 
-            const glm::mat4 deltaMatrix = worldTransform * inverse(nodeWorldTransforms[selectedNodeIndex]);
             visit(fastgltf::visitor {
                 [&](fastgltf::math::fmat4x4 &transformMatrix) {
-                    const glm::mat4 newTransform = deltaMatrix * fastgltf::toMatrix(transformMatrix);
-                    std::copy_n(value_ptr(newTransform), 16, transformMatrix.data());
+                    transformMatrix = deltaMatrix * transformMatrix;
                 },
                 [&](fastgltf::TRS &trs) {
-                    const glm::mat4 newTransform = deltaMatrix * toMatrix(trs);
-                    fastgltf::math::fmat4x4 newTransformMatrix;
-                    std::copy_n(value_ptr(newTransform), 16, newTransformMatrix.data());
-                    fastgltf::math::decomposeTransformMatrix(newTransformMatrix, trs.scale, trs.rotation, trs.translation);
+                    const fastgltf::math::fmat4x4 newTransform = deltaMatrix * toMatrix(trs);
+                    decomposeTransformMatrix(newTransform, trs.scale, trs.rotation, trs.translation);
                 },
             }, asset.nodes[selectedNodeIndex].transform);
             tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);

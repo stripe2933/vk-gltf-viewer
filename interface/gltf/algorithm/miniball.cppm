@@ -8,14 +8,10 @@ export module vk_gltf_viewer:gltf.algorithm.miniball;
 
 import std;
 export import fastgltf;
-export import glm;
 import :gltf.algorithm.bounding_box;
 import :gltf.algorithm.traversal;
 import :helpers.concepts;
 import :helpers.ranges;
-
-#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
 
 namespace vk_gltf_viewer::gltf::algorithm {
     /**
@@ -27,8 +23,8 @@ namespace vk_gltf_viewer::gltf::algorithm {
      * @param transformGetter A function that follows the MeshNodeTransformGetter concept.
      * @return The pair of the miniball's center and radius.
      */
-    template <concepts::compatible_signature_of<glm::dmat4, std::size_t, std::size_t> MeshNodeTransformGetter>
-    [[nodiscard]] std::pair<glm::dvec3, double> getMiniball(const fastgltf::Asset &asset, const fastgltf::Scene &scene, const MeshNodeTransformGetter &transformGetter) {
+    template <concepts::compatible_signature_of<fastgltf::math::dmat4x4, std::size_t, std::size_t> MeshNodeTransformGetter>
+    [[nodiscard]] std::pair<fastgltf::math::dvec3, double> getMiniball(const fastgltf::Asset &asset, const fastgltf::Scene &scene, const MeshNodeTransformGetter &transformGetter) {
         // See https://doc.cgal.org/latest/Bounding_volumes/index.html for the original code.
         using Traits = CGAL::Min_sphere_of_points_d_traits_3<CGAL::Simple_cartesian<double>, double>;
         std::vector<Traits::Point> meshBoundingBoxPoints;
@@ -41,11 +37,11 @@ namespace vk_gltf_viewer::gltf::algorithm {
             }
 
             const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-            const auto collectTransformedBoundingBoxPoints = [&](const glm::dmat4 &worldTransform) {
+            const auto collectTransformedBoundingBoxPoints = [&](const fastgltf::math::dmat4x4 &worldTransform) {
                 for (const fastgltf::Primitive &primitive : mesh.primitives) {
-                    for (const glm::dvec3 &point : getBoundingBoxCornerPoints(asset, primitive)) {
-                        const glm::dvec3 transformedPoint { worldTransform * glm::dvec4 { point, 1.0 } };
-                        meshBoundingBoxPoints.emplace_back(transformedPoint.x, transformedPoint.y, transformedPoint.z);
+                    for (const fastgltf::math::dvec3 &point : getBoundingBoxCornerPoints(asset, primitive)) {
+                        const fastgltf::math::dvec3 transformedPoint { worldTransform * fastgltf::math::dvec4 { point.x(), point.y(), point.z(), 1.0 } };
+                        meshBoundingBoxPoints.emplace_back(transformedPoint.x(), transformedPoint.y(), transformedPoint.z());
                     }
                 }
             };
@@ -62,8 +58,8 @@ namespace vk_gltf_viewer::gltf::algorithm {
 
         CGAL::Min_sphere_of_spheres_d<Traits> ms { meshBoundingBoxPoints.begin(), meshBoundingBoxPoints.end() };
 
-        glm::dvec3 center;
-        std::copy(ms.center_cartesian_begin(), ms.center_cartesian_end(), value_ptr(center));
+        fastgltf::math::dvec3 center;
+        std::copy(ms.center_cartesian_begin(), ms.center_cartesian_end(), center.data());
         return { center, ms.radius() };
     }
 }
