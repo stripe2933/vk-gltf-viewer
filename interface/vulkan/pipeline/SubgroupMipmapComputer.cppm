@@ -13,27 +13,34 @@ export import :vulkan.Gpu;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class SubgroupMipmapComputer {
         struct PushConstant {
-            std::uint32_t baseLevel;
+            std::int32_t baseLevel;
             std::uint32_t remainingMipLevels;
         };
 
     public:
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
             DescriptorSetLayout(
-                const vk::raii::Device &device [[clang::lifetimebound]],
+                const Gpu &gpu [[clang::lifetimebound]],
                 std::uint32_t mipImageCount
             ) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
-                    device,
-                    vk::StructureChain {
-                        vk::DescriptorSetLayoutCreateInfo {
-                            vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-                            vku::unsafeProxy(vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, mipImageCount, vk::ShaderStageFlagBits::eCompute }),
-                        },
-                        vk::DescriptorSetLayoutBindingFlagsCreateInfo {
+                gpu.device,
+                vk::DescriptorSetLayoutCreateInfo {
+                    gpu.supportShaderImageLoadStoreLod
+                        ? vk::DescriptorSetLayoutCreateFlags{}
+                        : vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
+                    vku::unsafeProxy(vk::DescriptorSetLayoutBinding {
+                        0,
+                        vk::DescriptorType::eStorageImage,
+                        gpu.supportShaderImageLoadStoreLod ? 1U : mipImageCount,
+                        vk::ShaderStageFlagBits::eCompute,
+                    }),
+                    gpu.supportShaderImageLoadStoreLod
+                        ? nullptr
+                        : vku::unsafeAddress(vk::DescriptorSetLayoutBindingFlagsCreateInfo {
                             vku::unsafeProxy(vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind }),
-                        },
-                    }.get(),
-                } { }
+                        })
+                },
+            } { }
         };
 
         DescriptorSetLayout descriptorSetLayout;
@@ -43,7 +50,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         SubgroupMipmapComputer(
             const Gpu &gpu [[clang::lifetimebound]],
             std::uint32_t mipImageCount
-        ) : descriptorSetLayout { gpu.device, mipImageCount },
+        ) : descriptorSetLayout { gpu, mipImageCount },
             pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
                 {},
                 *descriptorSetLayout,
@@ -56,7 +63,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 {},
                 createPipelineStages(
                     gpu.device,
-                    vku::Shader::fromSpirvFile(std::format(COMPILED_SHADER_DIR "/subgroup_mipmap_{}.comp.spv", gpu.subgroupSize), vk::ShaderStageFlagBits::eCompute)).get()[0],
+                    vku::Shader::fromSpirvFile(std::format(
+                        COMPILED_SHADER_DIR "/subgroup_mipmap_{}.comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_{}.spv",
+                        gpu.subgroupSize, gpu.supportShaderImageLoadStoreLod ? 1 : 0), vk::ShaderStageFlagBits::eCompute)).get()[0],
                 *pipelineLayout,
             } } { }
 
@@ -74,7 +83,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
 #if __cpp_lib_ranges_chunk >= 202202L
              const std::vector indexChunks
-                 = std::views::iota(1U, mipLevels)                                         // [1, 2, ..., 11, 12]
+                 = std::views::iota(1, static_cast<std::int32_t>(mipLevels))               // [1, 2, ..., 11, 12]
                  | std::views::reverse                                                     // [12, 11, ..., 2, 1]
                  | std::views::chunk(5)                                                    // [[12, 11, 10, 9, 8], [7, 6, 5, 4, 3], [2, 1]]
                  | std::views::transform([](auto &&chunk) {
@@ -83,13 +92,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                  | std::views::reverse                                                     // [[1, 2], [3, 4, 5, 6, 7], [8, 9, 10, 11, 12]]
                  | std::ranges::to<std::vector>();
 #else
-            std::vector<std::vector<std::uint32_t>> indexChunks;
+            std::vector<std::vector<std::int32_t>> indexChunks;
             for (int endMipLevel = mipLevels; endMipLevel > 1; endMipLevel -= 5) {
-                indexChunks.emplace_back(
-                    std::views::iota(
-                        static_cast<std::uint32_t>(std::max(1, endMipLevel - 5)),
-                        static_cast<std::uint32_t>(endMipLevel))
-                    | std::ranges::to<std::vector>());
+                indexChunks.emplace_back(std::from_range, std::views::iota(std::max(1, endMipLevel - 5), endMipLevel));
             }
             std::ranges::reverse(indexChunks);
 #endif
@@ -108,7 +113,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 }
 
                 commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, PushConstant {
-                    mipIndices.front() - 1U,
+                    mipIndices.front() - 1,
                     static_cast<std::uint32_t>(mipIndices.size()),
                 });
                 commandBuffer.dispatch(

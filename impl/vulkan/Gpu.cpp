@@ -21,6 +21,7 @@ constexpr std::array requiredExtensions {
 constexpr std::array optionalExtensions {
     vk::KHRSwapchainMutableFormatExtensionName,
     vk::EXTIndexTypeUint8ExtensionName,
+    vk::AMDShaderImageLoadStoreLodExtensionName,
 };
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
@@ -80,6 +81,9 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance 
             return 0U;
         }
 
+        const bool supportShaderImageLoadStoreLod = std::ranges::binary_search(
+            availableExtensionNames, std::string_view { vk::AMDShaderImageLoadStoreLodExtensionName });
+
         // Check physical device feature availability.
         const vk::StructureChain availableFeatures
             = physicalDevice.getFeatures2<
@@ -104,7 +108,9 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance 
             !vulkan12Features.bufferDeviceAddress ||
             !vulkan12Features.descriptorIndexing ||
             !vulkan12Features.descriptorBindingSampledImageUpdateAfterBind ||
-            !vulkan12Features.descriptorBindingStorageImageUpdateAfterBind ||
+            // STORAGE_IMAGE_UPDATE_AFTER_BIND feature is used for compute shader based cubemap mipmapping and prefiltered
+            // map generation, which can be replaced with VK_AMD_shader_image_load_store_lod.
+            !(supportShaderImageLoadStoreLod || vulkan12Features.descriptorBindingStorageImageUpdateAfterBind) ||
             !vulkan12Features.runtimeDescriptorArray ||
             !vulkan12Features.storageBuffer8BitAccess ||
             !vulkan12Features.uniformAndStorageBuffer8BitAccess ||
@@ -163,6 +169,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
     }
 
     supportSwapchainMutableFormat = availableExtensionNames.contains(vk::KHRSwapchainMutableFormatExtensionName);
+    supportShaderImageLoadStoreLod = availableExtensionNames.contains(vk::AMDShaderImageLoadStoreLodExtensionName);
 
     // Set optional features if available.
     const vk::StructureChain availableFeatures

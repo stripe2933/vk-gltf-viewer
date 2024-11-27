@@ -1,5 +1,8 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
+#if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
+#extension GL_AMD_shader_image_load_store_lod : enable
+#endif
 
 #include "cubemap.glsl"
 #include "pbr.glsl"
@@ -8,10 +11,14 @@ layout (constant_id = 0) const uint ROUGHNESS_LEVELS = 8;
 layout (constant_id = 1) const uint SAMPLES = 1024;
 
 layout (set = 0, binding = 0) uniform samplerCube cubemapSampler;
+#if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
+layout (set = 0, binding = 1) writeonly uniform imageCube prefilteredmapImage;
+#else
 layout (set = 0, binding = 1) writeonly uniform imageCube prefilteredmapMipImages[ROUGHNESS_LEVELS];
+#endif
 
 layout (push_constant) uniform PushConstant {
-    uint mipLevel;
+    int mipLevel;
 } pc;
 
 layout (local_size_x = 16, local_size_y = 16) in;
@@ -19,7 +26,12 @@ layout (local_size_x = 16, local_size_y = 16) in;
 void main(){
     const float PI = 3.14159265359;
 
-    uint prefilteredmapImageSize = imageSize(prefilteredmapMipImages[0]).x >> pc.mipLevel;
+    uint prefilteredmapImageSize
+#if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
+        = imageSize(prefilteredmapImage).x >> pc.mipLevel;
+#else
+        = imageSize(prefilteredmapMipImages[0]).x >> pc.mipLevel;
+#endif
     if (gl_GlobalInvocationID.x >= prefilteredmapImageSize || gl_GlobalInvocationID.y >= prefilteredmapImageSize){
         return;
     }
@@ -58,5 +70,9 @@ void main(){
     }
     prefilteredColor /= totalWeight;
 
+#if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
+    imageStoreLodAMD(prefilteredmapImage, ivec3(gl_GlobalInvocationID), pc.mipLevel, vec4(prefilteredColor, 1.0));
+#else
     imageStore(prefilteredmapMipImages[pc.mipLevel], ivec3(gl_GlobalInvocationID), vec4(prefilteredColor, 1.0));
+#endif
 }
