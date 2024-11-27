@@ -208,7 +208,6 @@ target_link_shaders(vk-gltf-viewer
     shaders/mask_unlit_primitive.frag
     shaders/multiply.comp
     shaders/outline.frag
-    shaders/prefilteredmap.comp
     shaders/primitive.frag
     shaders/primitive.vert
     shaders/screen_quad.vert
@@ -216,10 +215,14 @@ target_link_shaders(vk-gltf-viewer
     shaders/skybox.vert
     shaders/spherical_harmonic_coefficients_sum.comp
     shaders/spherical_harmonics.comp
-    shaders/subgroup_mipmap_16.comp
-    shaders/subgroup_mipmap_32.comp
-    shaders/subgroup_mipmap_64.comp
     shaders/unlit_primitive.frag
     shaders/unlit_primitive.vert
     shaders/weighted_blended_composition.frag
+)
+target_link_shaders_variant(vk-gltf-viewer
+    AMD_SHADER_IMAGE_LOAD_STORE_LOD "0;1"
+    shaders/prefilteredmap.comp
+    shaders/subgroup_mipmap_16.comp
+    shaders/subgroup_mipmap_32.comp
+    shaders/subgroup_mipmap_64.comp
 )

@@ -7,14 +7,13 @@ module;
 export module vk_gltf_viewer:vulkan.pipeline.PrefilteredmapComputer;
 
 import std;
-import vku;
-export import vulkan_hpp;
 import :math.extended_arithmetic;
+export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class PrefilteredmapComputer {
         struct PushConstant {
-            std::uint32_t mipLevel;
+            std::int32_t mipLevel;
         };
 
     public:
@@ -25,27 +24,34 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> {
             DescriptorSetLayout(
-                const vk::raii::Device &device [[clang::lifetimebound]],
+                const Gpu &gpu [[clang::lifetimebound]],
                 const vk::Sampler &sampler [[clang::lifetimebound]],
                 std::uint32_t roughnessLevels
-            )  : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> {
-                    device,
-                    vk::StructureChain {
-                        vk::DescriptorSetLayoutCreateInfo {
-                            vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-                            vku::unsafeProxy({
-                                vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eCompute, sampler },
-                                vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageImage, roughnessLevels, vk::ShaderStageFlagBits::eCompute },
-                            }),
+            ) : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> {
+                gpu.device,
+                vk::DescriptorSetLayoutCreateInfo {
+                    gpu.supportShaderImageLoadStoreLod
+                        ? vk::DescriptorSetLayoutCreateFlags{}
+                        : vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
+                    vku::unsafeProxy({
+                        vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eCompute, sampler },
+                        vk::DescriptorSetLayoutBinding {
+                            1,
+                            vk::DescriptorType::eStorageImage,
+                            gpu.supportShaderImageLoadStoreLod ? 1U : roughnessLevels,
+                            vk::ShaderStageFlagBits::eCompute,
                         },
-                        vk::DescriptorSetLayoutBindingFlagsCreateInfo {
+                    }),
+                    gpu.supportShaderImageLoadStoreLod
+                        ? nullptr
+                        : vku::unsafeAddress(vk::DescriptorSetLayoutBindingFlagsCreateInfo {
                             vku::unsafeProxy({
                                 vk::DescriptorBindingFlags{},
                                 vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind },
                             }),
-                        },
-                    }.get(),
-                } { }
+                        })
+                },
+            } { }
         };
 
         vk::raii::Sampler cubemapSampler;
@@ -55,9 +61,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::Pipeline pipeline;
 
         PrefilteredmapComputer(
-            const vk::raii::Device &device [[clang::lifetimebound]],
+            const Gpu &gpu [[clang::lifetimebound]],
             const SpecializationConstants &specializationConstants
-        ) : cubemapSampler { device, vk::SamplerCreateInfo {
+        ) : cubemapSampler { gpu.device, vk::SamplerCreateInfo {
                 {},
                 vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eNearest,
                 {}, {}, {},
@@ -66,8 +72,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 {}, {},
                 0.f, vk::LodClampNone,
             } },
-            descriptorSetLayout { device, *cubemapSampler, specializationConstants.roughnessLevels },
-            pipelineLayout { device, vk::PipelineLayoutCreateInfo {
+            descriptorSetLayout { gpu, *cubemapSampler, specializationConstants.roughnessLevels },
+            pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
                 {},
                 *descriptorSetLayout,
                 vku::unsafeProxy(vk::PushConstantRange {
@@ -76,12 +82,14 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 }),
             } },
             roughnessLevels { specializationConstants.roughnessLevels },
-            pipeline { device, nullptr, vk::ComputePipelineCreateInfo {
+            pipeline { gpu.device, nullptr, vk::ComputePipelineCreateInfo {
                 {},
                 createPipelineStages(
-                    device,
+                    gpu.device,
                     vku::Shader::fromSpirvFile(
-                        COMPILED_SHADER_DIR "/prefilteredmap.comp.spv",
+                        gpu.supportShaderImageLoadStoreLod
+                            ? COMPILED_SHADER_DIR "/prefilteredmap.comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_1.spv"
+                            : COMPILED_SHADER_DIR "/prefilteredmap.comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_0.spv",
                         vk::ShaderStageFlagBits::eCompute,
                         vku::unsafeAddress(vk::SpecializationInfo {
                             vku::unsafeProxy({
@@ -101,7 +109,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
             for (std::uint32_t mipLevel = 0; mipLevel < roughnessLevels; ++mipLevel) {
-                commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, PushConstant { mipLevel });
+                commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, PushConstant { static_cast<std::int32_t>(mipLevel) });
                 commandBuffer.dispatch(
                     math::divCeil(prefilteredmapSize >> mipLevel, 16U),
                     math::divCeil(prefilteredmapSize >> mipLevel, 16U),

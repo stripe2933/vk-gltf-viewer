@@ -880,7 +880,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
     };
     vulkan::ImageBasedLightingResourceGenerator iblGenerator { gpu, iblGeneratorConfig };
     const vulkan::ImageBasedLightingResourceGenerator::Pipelines iblGeneratorPipelines {
-        vulkan::pipeline::PrefilteredmapComputer { gpu.device, { vku::Image::maxMipLevels(iblGeneratorConfig.prefilteredmapSize), 1024 } },
+        vulkan::pipeline::PrefilteredmapComputer { gpu, { vku::Image::maxMipLevels(iblGeneratorConfig.prefilteredmapSize), 1024 } },
         vulkan::pipeline::SphericalHarmonicsComputer { gpu.device },
         vulkan::pipeline::SphericalHarmonicCoefficientsSumComputer { gpu.device },
         vulkan::pipeline::MultiplyComputer { gpu.device },
