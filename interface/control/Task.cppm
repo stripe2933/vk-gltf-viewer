@@ -1,6 +1,7 @@
 export module vk_gltf_viewer:control.Task;
 
 import std;
+export import fastgltf;
 export import vulkan_hpp;
 
 namespace vk_gltf_viewer::control {
@@ -15,6 +16,7 @@ namespace vk_gltf_viewer::control {
         struct SelectNodeFromSceneHierarchy { std::uint16_t nodeIndex; bool combine; };
         struct HoverNodeFromSceneHierarchy { std::uint16_t nodeIndex; };
         struct ChangeNodeLocalTransform { std::uint16_t nodeIndex; };
+        struct ChangeSelectedNodeWorldTransform{};
         struct TightenNearFarPlane { };
         struct ChangeCameraView { };
         struct InvalidateDrawCommandSeparation { };
@@ -31,6 +33,7 @@ namespace vk_gltf_viewer::control {
         task::SelectNodeFromSceneHierarchy,
         task::HoverNodeFromSceneHierarchy,
         task::ChangeNodeLocalTransform,
+        task::ChangeSelectedNodeWorldTransform,
         task::TightenNearFarPlane,
         task::ChangeCameraView,
         task::InvalidateDrawCommandSeparation>;

@@ -49,21 +49,12 @@ namespace vk_gltf_viewer::gltf {
          * You can call this function when <tt>asset.nodes[nodeIndex]</tt> (local transform of the node) is changed, to update the world transform matrices of the current and its descendant nodes.
          *
          * @param nodeIndex Node index to be started.
+         * @param worldTransform Start node world transform matrix.
          */
-        void updateDescendantNodeTransformsFrom(std::size_t nodeIndex) {
-            fastgltf::math::fmat4x4 currentNodeWorldTransform = visit(fastgltf::visitor {
-
-                [&](const fastgltf::TRS &trs) { return toMatrix(trs); },
-                [&](const fastgltf::math::fmat4x4 &matrix) { return matrix; },
-            }, pAsset->nodes[nodeIndex].transform);
-            // If node is not root node, pre-multiply the parent node's world transform.
-            if (auto parentNodeIndex = getParentNodeIndex(nodeIndex)) {
-                currentNodeWorldTransform = nodeWorldTransforms[*parentNodeIndex] * currentNodeWorldTransform;
-            }
-
+        void updateDescendantNodeTransformsFrom(std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) {
             algorithm::traverseNode(*pAsset, nodeIndex, [this](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
                 nodeWorldTransforms[nodeIndex] = nodeWorldTransform;
-            }, currentNodeWorldTransform);
+            }, worldTransform);
         }
 
     private:

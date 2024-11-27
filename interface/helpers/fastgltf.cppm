@@ -143,12 +143,12 @@ namespace fastgltf {
     /**
      * @brief Convert TRS to 4x4 matrix.
      * @param trs TRS to convert.
+     * @param matrix matrix to be transformed. Default: identity matrix.
      * @return 4x4 matrix.
      */
     export
-    [[nodiscard]] math::fmat4x4 toMatrix(const TRS &trs) noexcept {
-        constexpr math::fmat4x4 identity { 1.f };
-        return translate(identity, trs.translation) * rotate(identity, trs.rotation) * scale(identity, trs.scale);
+    [[nodiscard]] math::fmat4x4 toMatrix(const TRS &trs, const math::fmat4x4 &matrix = math::fmat4x4 { 1.f }) noexcept {
+        return scale(rotate(translate(matrix, trs.translation), trs.rotation), trs.scale);
     }
 
     /**
