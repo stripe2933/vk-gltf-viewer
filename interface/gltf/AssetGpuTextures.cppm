@@ -3,14 +3,23 @@ module;
 #include <cassert>
 #include <cerrno>
 #include <ktx.h>
-#include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
+#define WUFFS_CONFIG__MODULES
+#define WUFFS_CONFIG__MODULE__AUX__BASE
+#define WUFFS_CONFIG__MODULE__AUX__IMAGE
+#define WUFFS_CONFIG__MODULE__BASE
+#define WUFFS_CONFIG__MODULE__ADLER32
+#define WUFFS_CONFIG__MODULE__CRC32
+#define WUFFS_CONFIG__MODULE__DEFLATE
+#define WUFFS_CONFIG__MODULE__ZLIB
+#define WUFFS_CONFIG__MODULE__JPEG
+#define WUFFS_CONFIG__MODULE__PNG
+#include <wuffs-unsupported-snapshot.c>
 
 export module vk_gltf_viewer:gltf.AssetGpuTextures;
 
 import std;
 export import fastgltf;
-import glm;
 export import thread_pool;
 export import :gltf.AssetProcessError;
 import :helpers.fastgltf;
@@ -72,6 +81,24 @@ constexpr auto convertSamplerAddressMode(fastgltf::Wrap wrap) noexcept -> vk::Sa
     }
     std::unreachable();
 }
+
+/**
+ * @brief Customized <tt>wuffs_aux::DecodeImageCallbacks</tt> that uses raw data as the image source if channels are 1, 2 or 4, and pad alpha channel if channels are 3.
+ */
+struct Rgb2RgbaDecodeImageCallbacks final : wuffs_aux::DecodeImageCallbacks {
+    wuffs_base__pixel_format SelectPixfmt(const wuffs_base__image_config &image_config) override {
+        switch (image_config.pixcfg.pixel_format().bits_per_pixel()) {
+            case 8U:
+                return { WUFFS_BASE__PIXEL_FORMAT__Y };
+            case 16U:
+                return { WUFFS_BASE__PIXEL_FORMAT__YA_NONPREMUL };
+            case 24U:
+            case 32U:
+                return { WUFFS_BASE__PIXEL_FORMAT__RGBA_NONPREMUL };
+        }
+        std::unreachable();
+    }
+};
 
 namespace vk_gltf_viewer::gltf {
     /**
@@ -158,16 +185,16 @@ namespace vk_gltf_viewer::gltf {
                     }
                 }
 
-                const auto determineNonCompressedImageFormat = [&](int channels, std::size_t imageIndex) {
+                const auto determineNonCompressedImageFormat = [&](std::uint32_t channels, std::size_t imageIndex) {
                     switch (channels) {
-                        case 1:
+                        case 1U:
                             return vk::Format::eR8Unorm;
-                        case 2:
+                        case 2U:
                             return vk::Format::eR8G8Unorm;
-                        case 3: case 4:
+                        case 4U:
                             return srgbImageIndices.contains(imageIndex) ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
                         default:
-                            throw std::runtime_error { "Unsupported image channel: channel count must be 1, 2, 3 or 4." };
+                            throw std::runtime_error { "Unsupported image channel: channel count must be 1, 2 or 4." };
                     }
                 };
 
@@ -183,42 +210,32 @@ namespace vk_gltf_viewer::gltf {
 
                     // 1. Create images and load data into staging buffers, collect the copy infos.
 
-                    // WARNING: data WOULD BE DESTROYED IN THE FUNCTION (for reducing memory footprint)!
-                    // Therefore, I explicitly marked the parameter type of data as stbi_uc*&& (which force the user to
-                    // pass it like std::move(data).
-                    const auto processNonCompressedImageFromLoadResult = [&](std::uint32_t width, std::uint32_t height, int channels, stbi_uc* &&data) {
-                        vku::MappedBuffer stagingBuffer { gpu.allocator, vk::BufferCreateInfo {
-                            {},
-                            // Vulkan is not friendly to 3-channel images, therefore stagingBuffer have to
-                            // be manually padded the alpha channel as 1.0, and channel it could be treated
-                            // as 4 channel image.
-                            sizeof(stbi_uc) * width * height * (channels == 3 ? 4 : channels),
+                    // result WOULD BE DESTROYED IN THE FUNCTION (for reducing memory footprint)!
+                    // Therefore, I explicitly marked the parameter type of data as wuffs_aux::DecodeImageResult&&
+                    // (which force the user to pass it like std::move(result).
+                    const auto processNonCompressedImageFromLoadResult = [&](wuffs_aux::DecodeImageResult &&result) {
+                        const std::uint32_t channels = result.pixbuf.pixcfg.pixel_format().bits_per_pixel() / 8;
+                        assert(channels != 3 && "3-channel image is not supported: check if you're using Rgb2RgbaImageDecodeCallbacks");
+
+                        auto [data, width, height, _] = result.pixbuf.plane(0);
+                        assert(width % channels == 0 && "Why width is not divisible by channels?");
+                        width /= channels;
+
+                        vku::MappedBuffer stagingBuffer {
+                            gpu.allocator,
+                            std::from_range, std::span { data, width * height * channels },
                             vk::BufferUsageFlagBits::eTransferSrc,
-                        } };
+                        };
 
-                        if (channels == 3) {
-                            std::ranges::copy(
-                                std::span { reinterpret_cast<const glm::u8vec3*>(data), static_cast<std::size_t>(width * height) }
-                                    | std::views::transform([](const auto &rgb) { return glm::u8vec4 { rgb, 255 }; }),
-                                static_cast<glm::u8vec4*>(stagingBuffer.data));
-                            channels = 4;
-                        }
-                        else {
-                            std::ranges::copy(
-                                std::span { data, static_cast<std::size_t>(width * height * channels) },
-                                static_cast<stbi_uc*>(stagingBuffer.data));
-                        }
-
-                        // Now image data copied into stagingBuffer, therefore it should be freed before image
-                        // creation to reduce the memory footprint.
-                        stbi_image_free(data);
+                        // Release the memory ownership for reduced memory footprint.
+                        result.pixbuf_mem_owner.release();
 
                         vku::AllocatedImage image { gpu.allocator, vk::ImageCreateInfo {
                             {},
                             vk::ImageType::e2D,
                             determineNonCompressedImageFormat(channels, imageIndex),
-                            { width, height, 1 },
-                            vku::Image::maxMipLevels(vk::Extent2D { width, height }), 1,
+                            { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), 1 },
+                            vku::Image::maxMipLevels(vk::Extent2D { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) }), 1,
                             vk::SampleCountFlagBits::e1,
                             vk::ImageTiling::eOptimal,
                             vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
@@ -238,24 +255,28 @@ namespace vk_gltf_viewer::gltf {
                         return image;
                     };
 
-                    const auto processNonCompressedImageFromMemory = [&](std::span<const stbi_uc> memory) {
-                        int width, height, channels;
-                        stbi_uc* data = stbi_load_from_memory(memory.data(), memory.size(), &width, &height, &channels, 0);
-                        if (!data) {
-                            throw std::runtime_error { std::format("Failed to get the image info: {}", stbi_failure_reason()) };
+                    const auto processNonCompressedImageFromMemory = [&](std::span<const std::uint8_t> memory) {
+                        Rgb2RgbaDecodeImageCallbacks callbacks;
+                        wuffs_aux::sync_io::MemoryInput input { memory.data(), memory.size_bytes() };
+                        wuffs_aux::DecodeImageResult result = wuffs_aux::DecodeImage(callbacks, input);
+                        if (!result.pixbuf.pixcfg.is_valid()) {
+                            throw std::runtime_error { std::format("Failed to decode the image: {}", result.error_message) };
                         }
 
-                        return processNonCompressedImageFromLoadResult(width, height, channels, std::move(data));
+                        return processNonCompressedImageFromLoadResult(std::move(result));
                     };
 
                     const auto processNonCompressedImageFromFile = [&](const char *path) {
-                        int width, height, channels;
-                        stbi_uc* data = stbi_load(path, &width, &height, &channels, 0);
-                        if (!data) {
-                            throw std::runtime_error { std::format("Failed to get the image info: {}", stbi_failure_reason()) };
+                        Rgb2RgbaDecodeImageCallbacks callbacks;
+                        FILE* const file = fopen(path, "rb");
+                        wuffs_aux::sync_io::FileInput input { file };
+                        wuffs_aux::DecodeImageResult result = DecodeImage(callbacks, input);
+                        fclose(file);
+                        if (!result.pixbuf.pixcfg.is_valid()) {
+                            throw std::runtime_error { std::format("Failed to decode the image: {}", result.error_message) };
                         }
 
-                        return processNonCompressedImageFromLoadResult(width, height, channels, std::move(data));
+                        return processNonCompressedImageFromLoadResult(std::move(result));
                     };
 
                     // WARNING: texture WOULD BE DESTROYED IN THE FUNCTION (for reducing memory footprint)!
@@ -350,7 +371,7 @@ namespace vk_gltf_viewer::gltf {
                         [&](const fastgltf::sources::Array& array) {
                             switch (array.mimeType) {
                                 case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
-                                    return processNonCompressedImageFromMemory(as_span<const stbi_uc>(std::span { array.bytes }));
+                                    return processNonCompressedImageFromMemory(as_span<const std::uint8_t>(std::span { array.bytes }));
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(std::span { array.bytes }));
                                 default:
@@ -360,7 +381,7 @@ namespace vk_gltf_viewer::gltf {
                         [&](const fastgltf::sources::ByteView& byteView) {
                             switch (byteView.mimeType) {
                                 case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
-                                    return processNonCompressedImageFromMemory(as_span<const stbi_uc>(static_cast<std::span<const std::byte>>(byteView.bytes)));
+                                    return processNonCompressedImageFromMemory(as_span<const std::uint8_t>(static_cast<std::span<const std::byte>>(byteView.bytes)));
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(static_cast<std::span<const std::byte>>(byteView.bytes)));
                                 default:
@@ -382,7 +403,7 @@ namespace vk_gltf_viewer::gltf {
                                 else {
                                     // Non-zero file byte offset is not supported for stbi_load.
                                     std::vector<std::byte> data = loadFileAsBinary(PATH_C_STR(assetDir / uri.uri.fspath()), uri.fileByteOffset);
-                                    return processNonCompressedImageFromMemory(as_span<const stbi_uc>(std::span { data }));
+                                    return processNonCompressedImageFromMemory(as_span<const std::uint8_t>(std::span { data }));
                                 }
                             }
                             else if (uri.mimeType == fastgltf::MimeType::KTX2 || extension == ".ktx2") {
@@ -402,7 +423,7 @@ namespace vk_gltf_viewer::gltf {
                         [&](const fastgltf::sources::BufferView& bufferView) {
                             switch (bufferView.mimeType) {
                                 case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
-                                    return processNonCompressedImageFromMemory(as_span<const stbi_uc>(adapter(asset, bufferView.bufferViewIndex)));
+                                    return processNonCompressedImageFromMemory(as_span<const std::uint8_t>(adapter(asset, bufferView.bufferViewIndex)));
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(adapter(asset, bufferView.bufferViewIndex)));
                                 default:
