@@ -72,6 +72,7 @@ add_executable(vk-gltf-viewer
     main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
+    extlibs/include
     ${Stb_INCLUDE_DIR}
 )
 target_sources(vk-gltf-viewer PRIVATE
@@ -116,6 +117,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/tristate.cppm
         interface/helpers/type_map.cppm
         interface/helpers/type_variant.cppm
+        interface/io/Rgb2RgbaDecodeImageCallbacks.cppm
         interface/MainApp.cppm
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
