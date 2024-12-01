@@ -57,7 +57,14 @@ vk_gltf_viewer::MainApp::MainApp() {
         {});
 
     const vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
-    const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+    std::variant<vk::CommandPool, vk::raii::CommandPool> graphicsCommandPool = *computeCommandPool;
+    if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
+        graphicsCommandPool = decltype(graphicsCommandPool) {
+            std::in_place_type<vk::raii::CommandPool>,
+            gpu.device,
+            vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent },
+        };
+    }
 
     const auto [timelineSemaphores, finalWaitValues] = vku::executeHierarchicalCommands(
         gpu.device,
@@ -87,7 +94,7 @@ vk_gltf_viewer::MainApp::MainApp() {
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                         imageBasedLightingResources.prefilteredmapImage, vku::fullSubresourceRange(),
                     });
-            }, *graphicsCommandPool, gpu.queues.graphicsPresent },
+            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent },
             // Create BRDF LUT image.
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
                 // Change brdfmapImage layout to GENERAL.
@@ -129,7 +136,7 @@ vk_gltf_viewer::MainApp::MainApp() {
                             brdfmapImage, vku::fullSubresourceRange(),
                         });
                 }
-            }, *graphicsCommandPool, gpu.queues.graphicsPresent }));
+            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent }));
 
     std::ignore = gpu.device.waitSemaphores({
         {},
@@ -138,7 +145,7 @@ vk_gltf_viewer::MainApp::MainApp() {
     }, ~0ULL);
 
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-    vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
+    vku::executeSingleCommand(*gpu.device, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
         recordSwapchainImageLayoutTransitionCommands(cb);
     }, *fence);
     std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
@@ -894,8 +901,22 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
     } };
 
     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-    const vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
-    const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+    std::variant<vk::CommandPool, vk::raii::CommandPool> computeCommandPool = *transferCommandPool;
+    std::variant<vk::CommandPool, vk::raii::CommandPool> graphicsCommandPool = *transferCommandPool;
+    if (gpu.queueFamilies.compute != gpu.queueFamilies.transfer) {
+        computeCommandPool = decltype(computeCommandPool) {
+            std::in_place_type<vk::raii::CommandPool>,
+            gpu.device,
+            vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute },
+        };
+    }
+    else if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.transfer) {
+        graphicsCommandPool = decltype(graphicsCommandPool) {
+            std::in_place_type<vk::raii::CommandPool>,
+            gpu.device,
+            vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent },
+        };
+    }
 
     const auto [timelineSemaphores, finalWaitValues] = executeHierarchicalCommands(
         gpu.device,
@@ -993,7 +1014,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                         gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
                         eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
                     });
-            }, *graphicsCommandPool, gpu.queues.graphicsPresent }),
+            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent }),
         std::forward_as_tuple(
             // Generate reducedEqmapImage mipmaps.
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
@@ -1028,7 +1049,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                         reducedEqmapImage, vku::fullSubresourceRange(),
                     });
-            }, *graphicsCommandPool, gpu.queues.graphicsPresent/*, 4*/ },
+            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent/*, 4*/ },
             // Generate cubemap with mipmaps from eqmapImage, and generate IBL resources from the cubemap.
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
                 if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
@@ -1076,7 +1097,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                             iblGenerator.prefilteredmapImage, vku::fullSubresourceRange(),
                         },
                     });
-            }, *computeCommandPool, gpu.queues.compute }),
+            }, visit_as<vk::CommandPool>(computeCommandPool), gpu.queues.compute }),
         std::forward_as_tuple(
             // Acquire resources' queue family ownership from compute to graphicsPresent (if necessary), and create tone
             // mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=mippedCubemapGenerator.cubemapImage).
@@ -1115,7 +1136,7 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                 cb.draw(3, 1, 0, 0);
 
                 cb.endRenderPass();
-            }, *graphicsCommandPool, gpu.queues.graphicsPresent }));
+            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent }));
 
     std::ignore = gpu.device.waitSemaphores({
         {},
