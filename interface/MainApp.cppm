@@ -27,6 +27,8 @@ namespace vk_gltf_viewer {
          * @brief Bundle of glTF asset and additional resources necessary for the rendering.
          */
         class Gltf {
+            fastgltf::GltfDataBuffer dataBuffer;
+
         public:
             /**
              * @brief The directory where the glTF file is located.
@@ -82,7 +84,6 @@ namespace vk_gltf_viewer {
 
             Gltf(
                 fastgltf::Parser &parser,
-                fastgltf::GltfDataBuffer &dataBuffer [[clang::lifetimebound]],
                 const std::filesystem::path &path,
                 const vulkan::Gpu &gpu [[clang::lifetimebound]],
                 BS::thread_pool threadPool = {});

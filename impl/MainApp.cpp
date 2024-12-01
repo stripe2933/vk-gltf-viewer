@@ -273,7 +273,7 @@ void vk_gltf_viewer::MainApp::run() {
                     //  so I'll just use it for now.
                     gpu.device.waitIdle();
 
-                    gltf.emplace(parser, dataBuffer, task.path, gpu);
+                    gltf.emplace(parser, task.path, gpu);
 
                     sharedData.updateTextureCount(1 + gltf->asset.textures.size());
 
@@ -617,12 +617,12 @@ void vk_gltf_viewer::MainApp::run() {
 
 vk_gltf_viewer::MainApp::Gltf::Gltf(
     fastgltf::Parser &parser,
-    fastgltf::GltfDataBuffer &dataBuffer,
     const std::filesystem::path &path,
     const vulkan::Gpu &gpu [[clang::lifetimebound]],
     BS::thread_pool threadPool
-) : directory { path.parent_path() },
-    asset { (dataBuffer = get_checked(fastgltf::GltfDataBuffer::FromPath(path)), get_checked(parser.loadGltf(dataBuffer, directory))) },
+) : dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) },
+    directory { path.parent_path() },
+    asset { get_checked(parser.loadGltf(dataBuffer, directory)) },
     gpu { gpu },
     assetGpuBuffers { asset, gpu, threadPool, assetExternalBuffers },
     assetGpuTextures { asset, directory, gpu, threadPool, assetExternalBuffers },
