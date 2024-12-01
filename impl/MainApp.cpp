@@ -131,22 +131,17 @@ vk_gltf_viewer::MainApp::MainApp() {
                 }
             }, *graphicsCommandPool, gpu.queues.graphicsPresent }));
 
-    const vk::Result semaphoreWaitResult = gpu.device.waitSemaphores({
+    std::ignore = gpu.device.waitSemaphores({
         {},
         vku::unsafeProxy(timelineSemaphores | ranges::views::deref | std::ranges::to<std::vector>()),
         finalWaitValues
     }, ~0ULL);
-    if (semaphoreWaitResult != vk::Result::eSuccess) {
-        throw std::runtime_error { "Failed to launch application!" };
-    }
 
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
     vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
         recordSwapchainImageLayoutTransitionCommands(cb);
     }, *fence);
-    if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
-        throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
-    }
+    std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
     // Init ImGui.
     ImGui::CheckVersion();
@@ -603,9 +598,7 @@ void vk_gltf_viewer::MainApp::run() {
             vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
                 recordSwapchainImageLayoutTransitionCommands(cb);
             }, *fence);
-            if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
-                throw std::runtime_error { std::format("Failed to initialize the swapchain images: {}", to_string(result)) };
-            }
+            std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
             // Update frame shared data and frames.
             sharedData.handleSwapchainResize(swapchainExtent, swapchainImages);
@@ -1124,14 +1117,11 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
                 cb.endRenderPass();
             }, *graphicsCommandPool, gpu.queues.graphicsPresent }));
 
-    const vk::Result semaphoreWaitResult = gpu.device.waitSemaphores({
+    std::ignore = gpu.device.waitSemaphores({
         {},
         vku::unsafeProxy(timelineSemaphores | ranges::views::deref | std::ranges::to<std::vector>()),
         finalWaitValues
     }, ~0ULL);
-    if (semaphoreWaitResult != vk::Result::eSuccess) {
-        throw std::runtime_error { "Failed to launch application!" };
-    }
 
     // Update AppState.
     appState.canSelectSkyboxBackground = true;

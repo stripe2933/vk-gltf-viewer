@@ -80,9 +80,7 @@ namespace vk_gltf_viewer::gltf {
                     });
             }, *fence);
             // Wait for the command to be executed.
-            if (vk::Result result = gpu.device.waitForFences(*fence, true, ~0ULL); result != vk::Result::eSuccess) {
-                throw std::runtime_error { std::format("Failed to clear the fallback image: {}", to_string(result)) };
-            }
+            std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
         }
     };
 }

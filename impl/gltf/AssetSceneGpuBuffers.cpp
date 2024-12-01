@@ -71,9 +71,7 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeBuffe
         cb.copyBuffer(stagingBuffer, dstBuffer, vk::BufferCopy { 0, 0, dstBuffer.size });
     }, *fence);
 
-    if (gpu.device.waitForFences(*fence, true, ~0ULL) != vk::Result::eSuccess) {
-        throw std::runtime_error { "Failed to transfer the node buffer" };
-    }
+    std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
     return dstBuffer;
 }

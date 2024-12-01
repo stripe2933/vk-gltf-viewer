@@ -96,9 +96,7 @@ namespace vk_gltf_viewer::vulkan {
          * You should call this function before mutating the frame GPU resources for avoiding synchronization error.
          */
         void waitForPreviousExecution() const {
-            if (auto result = gpu.device.waitForFences(*inFlightFence, true, ~0ULL); result != vk::Result::eSuccess) {
-                throw std::runtime_error{ std::format("Failed to wait for in-flight fence: {}", to_string(result)) };
-            }
+            std::ignore = gpu.device.waitForFences(*inFlightFence, true, ~0ULL); // TODO: failure handling
             gpu.device.resetFences(*inFlightFence);
         }
 

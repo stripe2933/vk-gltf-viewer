@@ -421,9 +421,7 @@ namespace vk_gltf_viewer::gltf {
                         | std::ranges::to<std::vector>());
                 }
             }, *transferFence);
-            if (vk::Result result = gpu.device.waitForFences(*transferFence, true, ~0ULL); result != vk::Result::eSuccess) {
-                throw std::runtime_error { std::format("Failed to transfer the asset resources into the GPU: {}", to_string(result)) };
-            }
+            std::ignore = gpu.device.waitForFences(*transferFence, true, ~0ULL); // TODO: failure handling
 
             // TODO: I cannot certain which way is better: 1) use semaphore for submit the transfer and graphics command at once
             //  and clear the staging buffers when all operations are done, or 2) use fences for both command submissions and
@@ -482,9 +480,7 @@ namespace vk_gltf_viewer::gltf {
                         })
                         | std::ranges::to<std::vector>());
             }, *graphicsFence);
-            if (vk::Result result = gpu.device.waitForFences(*graphicsFence, true, ~0ULL); result != vk::Result::eSuccess) {
-                throw std::runtime_error { std::format("Failed to generate the texture mipmaps: {}", to_string(result)) };
-            }
+            std::ignore = gpu.device.waitForFences(*graphicsFence, true, ~0ULL); // TODO: failure handling
 
             imageViews = createImageViews(gpu.device);
         }

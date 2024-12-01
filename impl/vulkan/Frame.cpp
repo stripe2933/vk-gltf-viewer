@@ -25,9 +25,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedDat
     vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
         recordSwapchainExtentDependentImageLayoutTransitionCommands(cb);
     }, *fence);
-    if (gpu.device.waitForFences(*fence, true, ~0ULL) != vk::Result::eSuccess) {
-        throw std::runtime_error { "Failed to initialize the rendering region GPU resources." };
-    }
+    std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
     // Allocate descriptor sets.
     std::tie(hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet)
@@ -78,9 +76,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
             recordSwapchainExtentDependentImageLayoutTransitionCommands(cb);
         }, *fence);
-        if (gpu.device.waitForFences(*fence, true, ~0ULL) != vk::Result::eSuccess) {
-            throw std::runtime_error { "Failed to initialize the rendering region GPU resources." };
-        }
+        std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
     }
 
     // Get node index under the cursor from hoveringNodeIndexBuffer.
@@ -96,9 +92,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
             passthruResources.emplace(gpu, task.passthruRect.extent, cb);
         }, *fence);
-        if (gpu.device.waitForFences(*fence, true, ~0ULL) != vk::Result::eSuccess) {
-            throw std::runtime_error { "Failed to initialize the rendering region GPU resources." };
-        }
+        std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
         gpu.device.updateDescriptorSets({
             hoveringNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),

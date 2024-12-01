@@ -191,9 +191,7 @@ namespace vk_gltf_viewer::gltf {
                         cb.copyBuffer(srcBuffer, dstBuffer, copyRegion);
                     }
                 }, *transferFence);
-                if (vk::Result result = gpu.device.waitForFences(*transferFence, true, ~0ULL); result != vk::Result::eSuccess) {
-                    throw std::runtime_error { std::format("Failed to transfer the asset resources into the GPU: {}", to_string(result)) };
-                }
+                std::ignore = gpu.device.waitForFences(*transferFence, true, ~0ULL); // TODO: failure handling
                 stagingInfos.clear();
             }
         }
