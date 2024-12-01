@@ -7,6 +7,7 @@ export module vk_gltf_viewer:gltf.AssetExternalBuffers;
 
 import std;
 export import fastgltf;
+export import :gltf.AssetProcessError;
 
 namespace vk_gltf_viewer::gltf {
     /**
@@ -31,7 +32,7 @@ namespace vk_gltf_viewer::gltf {
          * @param bufferViewIndex Index of the buffer view.
          * @return First byte address of the buffer.
          */
-        [[nodiscard]] const std::span<const std::byte> operator()(const fastgltf::Asset &asset, std::size_t bufferViewIndex) const {
+        [[nodiscard]] std::span<const std::byte> operator()(const fastgltf::Asset &asset, std::size_t bufferViewIndex) const {
             const fastgltf::BufferView &bufferView = asset.bufferViews[bufferViewIndex];
             return bytes[bufferView.bufferIndex].subspan(bufferView.byteOffset, bufferView.byteLength);
         }
@@ -51,7 +52,7 @@ namespace vk_gltf_viewer::gltf {
                             return byteView.bytes;
                         },
                         [&](const fastgltf::sources::URI &uri) -> std::span<const std::byte> {
-                            if (!uri.uri.isLocalPath()) throw std::runtime_error { "Non-local source URI not supported." };
+                            if (!uri.uri.isLocalPath()) throw AssetProcessError::UnsupportedSourceDataType;
 
                             std::ifstream file { directory / uri.uri.fspath(), std::ios::binary };
                             if (!file) throw std::runtime_error { std::format("Failed to open file: {} (error code={})", strerror(errno), errno) };
@@ -69,8 +70,10 @@ namespace vk_gltf_viewer::gltf {
 
                             return data;
                         },
+                        // Note: fastgltf::source::{BufferView,Vector} should not be handled since they are not used
+                        // for fastgltf::Buffer::data.
                         [](const auto&) -> std::span<const std::byte> {
-                            throw std::runtime_error { "Unsupported source data type" };
+                            throw AssetProcessError::UnsupportedSourceDataType;
                         },
                     }, buffer.data);
                 })

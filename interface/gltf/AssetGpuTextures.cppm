@@ -1,7 +1,7 @@
 module;
 
 #include <cassert>
-#include <forward_list>
+#include <cerrno>
 #include <ktx.h>
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
@@ -12,6 +12,7 @@ import std;
 export import fastgltf;
 import glm;
 export import thread_pool;
+export import :gltf.AssetProcessError;
 import :helpers.fastgltf;
 import :helpers.ranges;
 export import :vulkan.Gpu;
@@ -35,6 +36,29 @@ template <typename T, typename U>
 [[nodiscard]] auto as_span(std::span<U> span) -> std::span<T> {
     assert(span.size_bytes() % sizeof(T) == 0 && "Span size mismatch: span of T does not fully fit into the current span.");
     return { reinterpret_cast<T*>(span.data()), span.size_bytes() / sizeof(T) };
+}
+
+[[nodiscard]] std::vector<std::byte> loadFileAsBinary(const std::filesystem::path &path, std::size_t offset = 0) {
+    std::ifstream file { path, std::ios::binary };
+    if (!file) {
+#if __clang__
+        // Using std::format in Clang causes template instantiation of formatter<wchar_t, const char*>.
+        // TODO: report to Clang developers.
+        using namespace std::string_literals;
+        throw std::runtime_error { "Failed to open file: "s + std::strerror(errno) + " (error code=" + std::to_string(errno) + ")" };
+#else
+        throw std::runtime_error { std::format("Failed to open file: {} (error code={})", std::strerror(errno), errno) };
+#endif
+    }
+
+    file.seekg(0, std::ios::end);
+    const std::size_t fileSize = file.tellg();
+    file.seekg(offset);
+
+    std::vector<std::byte> result(fileSize - offset);
+    file.read(reinterpret_cast<char*>(result.data()), result.size());
+
+    return result;
 }
 
 constexpr auto convertSamplerAddressMode(fastgltf::Wrap wrap) noexcept -> vk::SamplerAddressMode {
@@ -330,14 +354,21 @@ namespace vk_gltf_viewer::gltf {
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(std::span { array.bytes }));
                                 default:
-                                    throw std::runtime_error { "Unsupported image MIME type" };
+                                    throw AssetProcessError::IndeterminateImageMimeType;
+                            }
+                        },
+                        [&](const fastgltf::sources::ByteView& byteView) {
+                            switch (byteView.mimeType) {
+                                case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
+                                    return processNonCompressedImageFromMemory(as_span<const stbi_uc>(static_cast<std::span<const std::byte>>(byteView.bytes)));
+                                case fastgltf::MimeType::KTX2:
+                                    return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(static_cast<std::span<const std::byte>>(byteView.bytes)));
+                                default:
+                                    throw AssetProcessError::IndeterminateImageMimeType;
                             }
                         },
                         [&](const fastgltf::sources::URI& uri) {
-                            if (uri.fileByteOffset != 0) {
-                                throw std::runtime_error { "Non-zero file byte offset not supported." };
-                            }
-                            if (!uri.uri.isLocalPath()) throw std::runtime_error { "Non-local source URI not supported." };
+                            if (!uri.uri.isLocalPath()) throw AssetProcessError::UnsupportedSourceDataType;
 
                             // As the glTF specification, uri source may doesn't have MIME type. Therefore, we have to determine
                             // the MIME type from the file extension if it isn't provided.
@@ -345,13 +376,27 @@ namespace vk_gltf_viewer::gltf {
                             if (ranges::one_of(uri.mimeType, fastgltf::MimeType::JPEG, fastgltf::MimeType::PNG) ||
                                 ranges::one_of(extension, ".jpg", ".jpeg", ".png")) {
 
-                                return processNonCompressedImageFromFile(PATH_C_STR(assetDir / uri.uri.fspath()));
+                                if (uri.fileByteOffset == 0) {
+                                    return processNonCompressedImageFromFile(PATH_C_STR(assetDir / uri.uri.fspath()));
+                                }
+                                else {
+                                    // Non-zero file byte offset is not supported for stbi_load.
+                                    std::vector<std::byte> data = loadFileAsBinary(PATH_C_STR(assetDir / uri.uri.fspath()), uri.fileByteOffset);
+                                    return processNonCompressedImageFromMemory(as_span<const stbi_uc>(std::span { data }));
+                                }
                             }
                             else if (uri.mimeType == fastgltf::MimeType::KTX2 || extension == ".ktx2") {
-                                return processCompressedImageFromFile(PATH_C_STR(assetDir / uri.uri.fspath()));
+                                if (uri.fileByteOffset == 0) {
+                                    return processCompressedImageFromFile(PATH_C_STR(assetDir / uri.uri.fspath()));
+                                }
+                                else {
+                                    // Non-zero file byte offset is not supported for ktxTexture2_CreateFromNamedFile.
+                                    std::vector<std::byte> data = loadFileAsBinary(PATH_C_STR(assetDir / uri.uri.fspath()), uri.fileByteOffset);
+                                    return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(std::span { data }));
+                                }
                             }
                             else {
-                                throw std::runtime_error { "Unsupported image MIME type" };
+                                throw AssetProcessError::IndeterminateImageMimeType;
                             }
                         },
                         [&](const fastgltf::sources::BufferView& bufferView) {
@@ -361,11 +406,12 @@ namespace vk_gltf_viewer::gltf {
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(adapter(asset, bufferView.bufferViewIndex)));
                                 default:
-                                    throw std::runtime_error { "Unsupported image MIME type" };
+                                    throw AssetProcessError::IndeterminateImageMimeType;
                             }
                         },
+                        // Note: fastgltf::source::Vector should not be handled since it is not used for fastgltf::Image::data.
                         [](const auto&) -> vku::AllocatedImage {
-                            throw std::runtime_error { "Unsupported source data type" };
+                            throw AssetProcessError::UnsupportedSourceDataType;
                         },
                     }, asset.images[imageIndex].data);
 

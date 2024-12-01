@@ -238,19 +238,18 @@ namespace fastgltf {
     }
 
     /**
-     * @brief Unwrap the value of the expected, or throw an exception if it is an error.
+     * @brief Unwrap the value of the expected, or <tt>fastgltf::Error</tt> if it is an error.
      * @tparam T Type of the expected value. This have to be move constructible.
      * @param expected fastgltf Expected.
      * @return The value of the expected if it is not an error.
-     * @throw std::runtime_error If the expected is an error.
+     * @throw fastgltf::Error If the expected is an error.
      */
     template <std::move_constructible T>
     [[nodiscard]] T get_checked(Expected<T> expected) {
-        if (Error error = expected.error(); error != Error::None) {
-            throw std::runtime_error { std::format("Unexpected: {}", getErrorMessage(error)) };
+        if (expected) {
+            return std::move(expected.get());
         }
-
-        return std::move(expected.get());
+        throw expected.error();
     }
 
 namespace math {
