@@ -158,12 +158,11 @@ namespace fastgltf {
      * @param accessor Accessor to get the byte region.
      * @param adapter Buffer data adapter.
      * @return Span of bytes.
-     * @throw std::runtime_error If the accessor is sparse or has no buffer view.
+     * @throw std::runtime_error If the accessor doesn't have buffer view.
      */
     export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
     [[nodiscard]] std::span<const std::byte> getByteRegion(const Asset &asset, const Accessor &accessor, const BufferDataAdapter &adapter = {}) {
-        if (accessor.sparse) throw std::runtime_error { "Sparse accessor not supported." };
-        if (!accessor.bufferViewIndex) throw std::runtime_error { "Accessor has no buffer view." };
+        if (!accessor.bufferViewIndex) throw std::runtime_error { "No buffer view in accessor." };
 
         const BufferView &bufferView = asset.bufferViews[*accessor.bufferViewIndex];
         const std::size_t byteStride = bufferView.byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType));
