@@ -32,7 +32,8 @@ Followings are not supported:
 
 - Primitive Type except for `TRIANGLES`.
 - Animation.
-- Normalized/Sparse accessors.
+- Sparse accessors (indices accessor is supported).
+- Normalized accessors.
 
 ## Performance
 

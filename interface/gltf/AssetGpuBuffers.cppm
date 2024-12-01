@@ -13,6 +13,7 @@ export import :gltf.AssetPrimitiveInfo;
 export import :gltf.AssetProcessError;
 import :helpers.functional;
 import :helpers.ranges;
+import :helpers.type_map;
 export import :vulkan.Gpu;
 
 /**
@@ -219,36 +220,65 @@ namespace vk_gltf_viewer::gltf {
 
             // Index data is either
             // - span of the buffer view region, or
-            // - vector of uint16 indices if accessor have unsigned byte component and native uint8 index is not supported.
-            std::vector<std::vector<std::uint16_t>> generated16BitIndices;
+            // - generated indices if accessor data layout couldn't be represented in Vulkan buffer.
+            std::vector<std::vector<std::byte>> generatedIndexBytes;
             std::unordered_map<vk::IndexType, std::vector<std::pair<const fastgltf::Primitive*, std::span<const std::byte>>>> indexBufferBytesByType;
 
             // Get buffer view bytes from indexedPrimitives and group them by index type.
             for (const fastgltf::Primitive &primitive : indexedPrimitives) {
                 const fastgltf::Accessor &accessor = asset.accessors[*primitive.indicesAccessor];
 
-                // Check accessor validity.
-                if (accessor.sparse) throw std::runtime_error { "Sparse indices accessor not supported" };
-                if (accessor.normalized) throw std::runtime_error { "Normalized indices accessor not supported" };
+                bool shouldGenerateIndices = false;
+
+                // Sparse accessor have to be handled.
+                shouldGenerateIndices |= accessor.sparse.has_value();
 
                 // Vulkan does not support interleaved index buffer.
                 if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride) {
-                    const std::size_t componentByteSize = getElementByteSize(accessor.type, accessor.componentType);
-                    if (*byteStride != componentByteSize) {
-                        throw std::runtime_error { "Interleaved index buffer not supported" };
-                    }
+                    const bool isAccessorStrided = *byteStride != getElementByteSize(accessor.type, accessor.componentType);
+                    shouldGenerateIndices |= isAccessorStrided;
                 }
 
-                if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) {
-                    // Make vector of uint16 indices.
-                    std::vector<std::uint16_t> indices(accessor.count);
-                    iterateAccessorWithIndex<std::uint8_t>(asset, accessor, [&](std::uint8_t index, std::size_t i) {
-                        indices[i] = index; // Index converted from uint8 to uint16.
-                    }, adapter);
+                // Unsigned byte indices have to be converted to uint16 if the device does not support it.
+                shouldGenerateIndices |= accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index;
 
-                    indexBufferBytesByType[vk::IndexType::eUint16].emplace_back(
-                        &primitive,
-                        as_bytes(std::span { generated16BitIndices.emplace_back(std::move(indices)) }));
+                if (shouldGenerateIndices) {
+                    constexpr type_map indexGenerationTypeMap {
+                        make_type_map_entry<std::pair<std::uint8_t, std::uint8_t>>(0),
+                        make_type_map_entry<std::pair<std::uint16_t, std::uint16_t>>(1),
+                        make_type_map_entry<std::pair<std::uint32_t, std::uint32_t>>(2),
+                        make_type_map_entry<std::pair<std::uint8_t, std::uint16_t>>(3),
+                    };
+
+                    const int key = [&]() {
+                        switch (accessor.componentType) {
+                            case fastgltf::ComponentType::UnsignedByte:
+                                return gpu.supportUint8Index ? 0 : 3;
+                            case fastgltf::ComponentType::UnsignedShort:
+                                return 1;
+                            case fastgltf::ComponentType::UnsignedInt:
+                                return 2;
+                            default:
+                                // glTF Specification:
+                                // The indices accessor MUST have SCALAR type and an unsigned integer component type.
+                                std::unreachable();
+                        }
+                    }();
+                    visit([&]<typename SrcT, typename DstT>(std::type_identity<std::pair<SrcT, DstT>>) {
+                        std::vector<std::byte> indexBytes(sizeof(DstT) * accessor.count);
+                        if constexpr (std::same_as<SrcT, DstT>) {
+                            copyFromAccessor<DstT>(asset, accessor, indexBytes.data(), adapter);
+                        }
+                        else {
+                            iterateAccessorWithIndex<SrcT>(asset, accessor, [&](SrcT index, std::size_t i) {
+                                *reinterpret_cast<DstT*>(indexBytes.data() + sizeof(DstT) * i) = index; // Index converted from uint8 to uint16.
+                            }, adapter);
+                        }
+
+                        indexBufferBytesByType[vk::IndexTypeValue<DstT>::value].emplace_back(
+                            &primitive,
+                            generatedIndexBytes.emplace_back(std::move(indexBytes)));
+                    }, indexGenerationTypeMap.get_variant(key));
                 }
                 else {
                     const vk::IndexType indexType = [&]() -> vk::IndexType {
@@ -256,7 +286,10 @@ namespace vk_gltf_viewer::gltf {
                             case fastgltf::ComponentType::UnsignedByte: return vk::IndexType::eUint8EXT;
                             case fastgltf::ComponentType::UnsignedShort: return vk::IndexType::eUint16;
                             case fastgltf::ComponentType::UnsignedInt: return vk::IndexType::eUint32;
-                            default: throw std::runtime_error { "Unsupported index type: only Uint8EXT, Uint16 and Uint32 are supported." };
+                            default:
+                                // glTF Specification:
+                                // The indices accessor MUST have SCALAR type and an unsigned integer component type.
+                                std::unreachable();
                         }
                     }();
 
