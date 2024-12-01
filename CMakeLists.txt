@@ -93,6 +93,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/AssetGpuFallbackTexture.cppm
         interface/gltf/AssetGpuTextures.cppm
         interface/gltf/AssetPrimitiveInfo.cppm
+        interface/gltf/AssetProcessError.cppm
         interface/gltf/AssetSceneGpuBuffers.cppm
         interface/gltf/AssetSceneHierarchy.cppm
         interface/helpers/concepts.cppm

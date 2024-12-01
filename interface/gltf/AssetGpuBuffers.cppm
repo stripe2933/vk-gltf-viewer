@@ -10,6 +10,7 @@ export import glm;
 export import thread_pool;
 import :gltf.algorithm.MikktSpaceInterface;
 export import :gltf.AssetPrimitiveInfo;
+export import :gltf.AssetProcessError;
 import :helpers.functional;
 import :helpers.ranges;
 export import :vulkan.Gpu;
@@ -18,17 +19,17 @@ export import :vulkan.Gpu;
  * @brief Parse a number from given \p str.
  * @tparam T Type of the number.
  * @param str String to parse.
- * @return Parsed number.
- * @throw std::runtime_error If the parsing failed.
+ * @return Expected of parsed number, or error code if failed.
  */
 template <std::integral T>
-[[nodiscard]] T parse(std::string_view str) {
+[[nodiscard]] std::expected<T, std::errc> parse(std::string_view str) {
     T value;
     if (auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value); ec == std::errc{}) {
         return value;
     }
-
-    throw std::runtime_error { std::format("Failed to parse the number from \"{}\"", str) };
+    else {
+        return std::unexpected { ec };
+    }
 }
 
 /**
@@ -311,8 +312,8 @@ namespace vk_gltf_viewer::gltf {
                     const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
 
                     // Check accessor validity.
-                    if (accessor.sparse) throw std::runtime_error { "Sparse accessor is not supported." };
-                    if (accessor.normalized) throw std::runtime_error { "Normalized accessor is not supported." };
+                    if (accessor.sparse) throw AssetProcessError::SparseAttributeBufferAccessor;
+                    if (accessor.normalized) throw AssetProcessError::NormalizedAttributeBufferAccessor;
 
                     return *accessor.bufferViewIndex;
                 })
@@ -363,7 +364,7 @@ namespace vk_gltf_viewer::gltf {
                         const std::size_t byteStride
                             = asset.bufferViews[*accessor.bufferViewIndex].byteStride
                             .value_or(getElementByteSize(accessor.type, accessor.componentType));
-                        if (!std::in_range<std::uint8_t>(byteStride)) throw std::runtime_error { "Too large byteStride" };
+                        if (!std::in_range<std::uint8_t>(byteStride)) throw AssetProcessError::TooLargeAccessorByteStride;
                         return {
                             .address = bufferDeviceAddressMappings.at(*accessor.bufferViewIndex) + accessor.byteOffset,
                             .byteStride = static_cast<std::uint8_t>(byteStride),
@@ -385,7 +386,15 @@ namespace vk_gltf_viewer::gltf {
                         primitiveInfo.tangentInfo.emplace(getAttributeBufferInfo());
                     }
                     else if (constexpr auto prefix = "TEXCOORD_"sv; attributeName.starts_with(prefix)) {
-                        const std::size_t index = parse<std::size_t>(std::string_view { attributeName }.substr(prefix.size()));
+                        std::size_t index;
+                        if (auto result = parse<std::size_t>(std::string_view { attributeName }.substr(prefix.size()))) {
+                            index = *result;
+                        }
+                        else {
+                            // Attribute name starting with "TEXCOORD_", but the following string is not a number.
+                            // TODO: would it be filtered by the glTF validation?
+                            throw fastgltf::Error::InvalidOrMissingAssetField;
+                        }
 
                         if (primitiveInfo.texcoordsInfo.attributeInfos.size() <= index) {
                             primitiveInfo.texcoordsInfo.attributeInfos.resize(index + 1);
@@ -458,7 +467,9 @@ namespace vk_gltf_viewer::gltf {
                             case fastgltf::ComponentType::UnsignedInt:
                                 return &algorithm::mikktSpaceInterface<std::uint32_t, BufferDataAdapter>;
                             default:
-                                throw std::runtime_error{ "Unsupported index type: only unsigned byte/short/int are supported." };
+                                // glTF Specification:
+                                // The indices accessor MUST have SCALAR type and an unsigned integer component type.
+                                std::unreachable();
                         }
                     }();
                 if (const SMikkTSpaceContext context{ pInterface, &mesh }; !genTangSpaceDefault(&context)) {

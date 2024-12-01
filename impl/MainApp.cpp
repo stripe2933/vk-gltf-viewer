@@ -275,7 +275,23 @@ void vk_gltf_viewer::MainApp::run() {
                     //  so I'll just use it for now.
                     gpu.device.waitIdle();
 
-                    gltf.emplace(parser, task.path, gpu);
+                    try {
+                        gltf.emplace(parser, task.path, gpu);
+                    }
+                    catch (gltf::AssetProcessError error) {
+                        std::println(std::cerr, "The glTF file cannot be processed because of an error: {}", to_string(error));
+                        return;
+                    }
+                    catch (fastgltf::Error error) {
+                        // If error is due to missing or unknown required extension, show a message and return.
+                        if (ranges::one_of(error, fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension)) {
+                            std::println(std::cerr, "The glTF file requires an extension that is not supported by this application.");
+                            return;
+                        }
+
+                        // Application fault.
+                        std::rethrow_exception(std::current_exception());
+                    }
 
                     sharedData.updateTextureCount(1 + gltf->asset.textures.size());
 
@@ -306,7 +322,10 @@ void vk_gltf_viewer::MainApp::run() {
                                 to_optional(texture.samplerIndex)
                                     .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
                                     .value_or(*gpuFallbackTexture.sampler),
-                                *gltf->assetGpuTextures.imageViews.at(gltf::AssetGpuTextures::getPreferredImageIndex(texture)),
+                                ranges::value_or(
+                                    gltf->assetGpuTextures.imageViews,
+                                    gltf::AssetGpuTextures::getPreferredImageIndex(texture),
+                                    *gpuFallbackTexture.imageView),
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                         })
                         | std::ranges::to<std::vector>();
