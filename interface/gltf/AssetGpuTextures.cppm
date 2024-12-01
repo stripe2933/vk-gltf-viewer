@@ -342,8 +342,8 @@ namespace vk_gltf_viewer::gltf {
                             // As the glTF specification, uri source may doesn't have MIME type. Therefore, we have to determine
                             // the MIME type from the file extension if it isn't provided.
                             const std::filesystem::path extension = uri.uri.fspath().extension();
-                            if (ranges::contains(std::array { fastgltf::MimeType::JPEG, fastgltf::MimeType::PNG }, uri.mimeType) ||
-                                ranges::contains(std::array { ".jpg", ".jpeg", ".png" }, extension)) {
+                            if (ranges::one_of(uri.mimeType, fastgltf::MimeType::JPEG, fastgltf::MimeType::PNG) ||
+                                ranges::one_of(extension, ".jpg", ".jpeg", ".png")) {
 
                                 return processNonCompressedImageFromFile(PATH_C_STR(assetDir / uri.uri.fspath()));
                             }

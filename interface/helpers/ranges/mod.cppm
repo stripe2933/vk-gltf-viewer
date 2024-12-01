@@ -12,6 +12,7 @@ import std;
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
+#define NOEXCEPT_IF(...) noexcept(noexcept(__VA_ARGS__))
 
 // This macro is for Clang's false-positive build error when using lambda in initializer of non-inline variable in named
 // modules. We can specify the inline keyword to workaround this.
@@ -67,6 +68,11 @@ namespace ranges {
     export template <std::input_or_output_iterator I, std::sentinel_for<I> S>
     [[nodiscard]] auto make_subrange(std::pair<I, S> pair) {
         return std::ranges::subrange(pair.first, pair.second);
+    }
+
+    export template <typename T, std::equality_comparable_with<T>... Ts>
+    [[nodiscard]] constexpr bool one_of(T value, Ts... candidates) NOEXCEPT_IF(((std::declval<T>() == std::declval<Ts>()) && ...)) {
+        return ((value == candidates) || ...);
     }
 
 namespace views {

@@ -628,7 +628,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.setScissor(0, vk::Rect2D{ *cursorPosFromPassthruRectTopLeft, { 1, 1 } });
 
         drawPrimitives(renderingNodes->indirectDrawCommandBuffers, [this](RenderingStrategy strategy) {
-            if (ranges::contains(std::array { RenderingStrategy::Mask, RenderingStrategy::MaskUnlit, RenderingStrategy::MaskFaceted }, strategy)) {
+            if (ranges::one_of(strategy, RenderingStrategy::Mask, RenderingStrategy::MaskUnlit, RenderingStrategy::MaskFaceted)) {
                 return *sharedData.maskDepthRenderer;
             }
             return *sharedData.depthRenderer;
@@ -647,7 +647,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.setScissor(0, vk::Rect2D{ { 0, 0 }, passthruResources->extent });
 
         drawPrimitives(hoveringNode->indirectDrawCommandBuffers, [this](RenderingStrategy strategy) {
-            if (ranges::contains(std::array { RenderingStrategy::Mask, RenderingStrategy::MaskUnlit, RenderingStrategy::MaskFaceted }, strategy)) {
+            if (ranges::one_of(strategy, RenderingStrategy::Mask, RenderingStrategy::MaskUnlit, RenderingStrategy::MaskFaceted)) {
                 return *sharedData.maskJumpFloodSeedRenderer;
             }
             return *sharedData.jumpFloodSeedRenderer;
@@ -666,7 +666,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.setScissor(0, vk::Rect2D{ { 0, 0 }, passthruResources->extent });
 
         drawPrimitives(selectedNodes->indirectDrawCommandBuffers, [this](RenderingStrategy strategy) {
-            if (ranges::contains(std::array { RenderingStrategy::Mask, RenderingStrategy::MaskUnlit, RenderingStrategy::MaskFaceted }, strategy)) {
+            if (ranges::one_of(strategy, RenderingStrategy::Mask, RenderingStrategy::MaskUnlit, RenderingStrategy::MaskFaceted)) {
                 return *sharedData.maskJumpFloodSeedRenderer;
             }
             return *sharedData.jumpFloodSeedRenderer;
