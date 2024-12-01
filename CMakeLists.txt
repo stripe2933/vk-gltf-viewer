@@ -109,6 +109,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/ranges/contains.cppm
         interface/helpers/TempStringBuffer.cppm
         interface/helpers/tristate.cppm
+        interface/helpers/type_map.cppm
         interface/helpers/type_variant.cppm
         interface/MainApp.cppm
         interface/math/extended_arithmetic.cppm
