@@ -93,6 +93,7 @@ The extensions and feature used in this application are quite common in the mode
   - `VK_KHR_swapchain`
   - (optional) `VK_KHR_swapchain_mutable_format` (proper ImGui gamma correction, UI color will lose the color if the extension not presented)
   - (optional) `VK_EXT_index_type_uint8` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
+  - (optional) `VK_AMD_shader_image_load_store_lod` (can replace the descriptor indexing based cubemap mipmapping and prefilteredmap generation[^3])
 - Device Features
   - `VkPhysicalDeviceFeatures`
     - `samplerAnistropy`
@@ -109,7 +110,7 @@ The extensions and feature used in this application are quite common in the mode
     - `bufferDeviceAddress`
     - `descriptorIndexing`
     - `descriptorBindingSampledImageUpdateAfterBind`
-    - `descriptorBindingStorageImageUpdateAfterBind`
+    - `descriptorBindingStorageImageUpdateAfterBind` (if `VK_AMD_shader_image_load_store_lod` is not available)
     - `runtimeDescriptorArray`
     - `storageBuffer8BitAccess`
     - `uniformAndStorageBuffer8BitAccess`
@@ -125,7 +126,7 @@ The extensions and feature used in this application are quite common in the mode
   - Subgroup size must be at least 16 and 64 at maximum.
   - Sampler anisotropy must support 16x.
   - Loading asset texture count must be less than `maxDescriptorSetUpdateAfterBindSampledImages`
-  - Cubemap size must be less than `2^(maxDescriptorSetUpdateAfterBindStorageImages)`.
+  - Cubemap size must be less than `2^(maxDescriptorSetUpdateAfterBindStorageImages)` unless `VK_AMD_shader_image_load_store_lod` is available.
 
 </details>
 
@@ -324,3 +325,4 @@ This project is **licensed under the GPL-v3 License**. See the [LICENSE](LICENSE
 
 [^1]: I like this term because it's hilarious for several reasons, but it's no joke! It has the **significantly faster glTF model loading speed than the other the viewers** I've tested. See [Performance Comparison](https://github.com/stripe2933/vk-gltf-viewer/blob/master/docs/performance-comparison.md) page for details.
 [^2]: Applied for standard glTF 2.0 asset only. Asset with material related extensions may require additional draw calls for pipeline changing.
+[^3]: On Apple GPU platform prior to the MoltenVK 1.2.11 (which enables the Metal Argument Buffer by default), [`maxPerStageDescriptorUpdateAfterBindStorageImages` is 8](https://vulkan.gpuinfo.org/displaycoreproperty.php?platform=macos&name=maxPerStageDescriptorUpdateAfterBindStorageImages&core=1.2). It limited the cubemap resoluton and prefilteredmap roughnesslevels. Instead, it can use `VK_AMD_shader_image_load_store_lod` extension to replace the descriptor indexing based cubemap mipmapping and prefilteredmap generation.
