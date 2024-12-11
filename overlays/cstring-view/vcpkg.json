@@ -1,0 +1,17 @@
+{
+  "name": "cstring-view",
+  "version": "1.0.1",
+  "homepage": "https://github.com/stripe2933/cstring_view",
+  "description": "Implementation of P1402R0 for a cstring_view.",
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name" : "vcpkg-cmake",
+      "host" : true
+    },
+    {
+      "name" : "vcpkg-cmake-config",
+      "host" : true
+    }
+  ]
+}

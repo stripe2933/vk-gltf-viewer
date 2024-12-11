@@ -1,0 +1,4 @@
+cstring-view provides CMake targets:
+
+    find_package(cstring_view CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE cpp_util::cstring_view)

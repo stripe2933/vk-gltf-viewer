@@ -1,7 +1,7 @@
 export module vk_gltf_viewer:gltf.AssetProcessError;
 
 import std;
-export import :helpers.cstring_view;
+export import cstring_view;
 
 namespace vk_gltf_viewer::gltf {
     export enum class AssetProcessError : std::uint8_t {
@@ -12,7 +12,7 @@ namespace vk_gltf_viewer::gltf {
         UnsupportedSourceDataType,         /// The source data type is not supported.
     };
 
-    export cstring_view to_string(AssetProcessError error) noexcept {
+    export cpp_util::cstring_view to_string(AssetProcessError error) noexcept {
         switch (error) {
             case AssetProcessError::SparseAttributeBufferAccessor:
                 return "Attribute buffer accessor is sparse.";

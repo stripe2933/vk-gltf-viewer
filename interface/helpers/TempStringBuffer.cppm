@@ -1,7 +1,7 @@
 export module vk_gltf_viewer:helpers.TempStringBuffer;
 
 import std;
-export import :helpers.cstring_view;
+export import cstring_view;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
@@ -107,16 +107,16 @@ public:
         return { buffer.data(), size };
     }
 
-    [[nodiscard]] operator basic_cstring_view<CharT>() const noexcept {
-        return basic_cstring_view<CharT>::unsafeFrom(buffer.data(), size);
+    [[nodiscard]] operator cpp_util::basic_cstring_view<CharT>() const noexcept {
+        return { cpp_util::basic_cstring_view<CharT>::null_terminated, buffer.data(), size };
     }
 
     /**
      * @brief Get sized view for null-terminated string.
      * @return Sized view. The data past the end iterator will have '\0' character.
      */
-    [[nodiscard]] basic_cstring_view<CharT> view() const noexcept {
-        return basic_cstring_view<CharT>::unsafeFrom(buffer.data(), size);
+    [[nodiscard]] cpp_util::basic_cstring_view<CharT> view() const noexcept {
+        return { cpp_util::basic_cstring_view<CharT>::null_terminated, buffer.data(), size };
     }
 
 private:

@@ -1,8 +1,8 @@
 export module vk_gltf_viewer:helpers.fastgltf;
 
 import std;
+export import cstring_view;
 export import fastgltf;
-export import :helpers.cstring_view;
 export import :helpers.optional;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
@@ -21,7 +21,7 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] auto to_string(PrimitiveType value) noexcept -> cstring_view {
+    [[nodiscard]] auto to_string(PrimitiveType value) noexcept -> cpp_util::cstring_view {
         switch (value) {
             case PrimitiveType::Points: return "Points";
             case PrimitiveType::Lines: return "Lines";
@@ -35,7 +35,7 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] auto to_string(AccessorType value) noexcept -> cstring_view {
+    [[nodiscard]] auto to_string(AccessorType value) noexcept -> cpp_util::cstring_view {
         switch (value) {
             case AccessorType::Invalid: return "Invalid";
             case AccessorType::Scalar: return "Scalar";
@@ -50,7 +50,7 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] auto to_string(ComponentType value) noexcept -> cstring_view {
+    [[nodiscard]] auto to_string(ComponentType value) noexcept -> cpp_util::cstring_view {
         switch (value) {
             case ComponentType::Byte: return "Byte";
             case ComponentType::UnsignedByte: return "UnsignedByte";
@@ -66,7 +66,7 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] auto to_string(BufferTarget target) noexcept -> cstring_view {
+    [[nodiscard]] auto to_string(BufferTarget target) noexcept -> cpp_util::cstring_view {
         switch (target) {
             case BufferTarget::ArrayBuffer: return "ArrayBuffer";
             case BufferTarget::ElementArrayBuffer: return "ElementArrayBuffer";
@@ -75,7 +75,7 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] auto to_string(MimeType mime) noexcept -> cstring_view {
+    [[nodiscard]] auto to_string(MimeType mime) noexcept -> cpp_util::cstring_view {
         switch (mime) {
             case MimeType::None: return "-";
             case MimeType::JPEG: return "image/jpeg";
@@ -89,7 +89,7 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] auto to_string(AlphaMode alphaMode) noexcept -> cstring_view {
+    [[nodiscard]] auto to_string(AlphaMode alphaMode) noexcept -> cpp_util::cstring_view {
         switch (alphaMode) {
             case AlphaMode::Opaque: return "Opaque";
             case AlphaMode::Mask: return "Mask";
@@ -99,7 +99,7 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] auto to_string(Filter filter) noexcept -> cstring_view {
+    [[nodiscard]] auto to_string(Filter filter) noexcept -> cpp_util::cstring_view {
         switch (filter) {
             case Filter::Linear: return "Linear";
             case Filter::Nearest: return "Nearest";
@@ -112,7 +112,7 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] auto to_string(Wrap wrap) noexcept -> cstring_view {
+    [[nodiscard]] auto to_string(Wrap wrap) noexcept -> cpp_util::cstring_view {
         switch (wrap) {
             case Wrap::Repeat: return "Repeat";
             case Wrap::ClampToEdge: return "ClampToEdge";
@@ -122,7 +122,7 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] cstring_view to_string(AnimationPath path) noexcept {
+    [[nodiscard]] cpp_util::cstring_view to_string(AnimationPath path) noexcept {
         switch (path) {
             case AnimationPath::Translation: return "translation";
             case AnimationPath::Rotation: return "rotation";
@@ -132,7 +132,7 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] cstring_view to_string(AnimationInterpolation interpolation) noexcept {
+    [[nodiscard]] cpp_util::cstring_view to_string(AnimationInterpolation interpolation) noexcept {
         switch (interpolation) {
             case AnimationInterpolation::Linear: return "LINEAR";
             case AnimationInterpolation::Step: return "STEP";
