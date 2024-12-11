@@ -512,7 +512,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                     ImGui::WithGroup([&]() {
                         ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat4("Factor", material.pbrData.baseColorFactor.data(), 0.01f, 0.f, 1.f)) {
+                            if (ImGui::DragFloat4("Factor##basecolor", material.pbrData.baseColorFactor.data(), 0.01f, 0.f, 1.f)) {
                                 // TODO
                             }
                         });
@@ -590,7 +590,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                     ImGui::WithGroup([&]() {
                         ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat3("Factor", material.emissiveFactor.data(), 0.01f, 0.f, 1.f)) {
+                            if (ImGui::DragFloat3("Factor##emissive", material.emissiveFactor.data(), 0.01f, 0.f, 1.f)) {
                                 // TODO
                             }
                         });
