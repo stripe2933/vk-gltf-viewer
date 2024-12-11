@@ -1,6 +1,7 @@
 {
   "dependencies": [
     "boost-container",
+    "cstring-view",
     "cgal",
     "fastgltf",
     "glfw3",

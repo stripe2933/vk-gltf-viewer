@@ -11,6 +11,7 @@ set(CMAKE_CXX_MODULE_STD 1)
 
 find_package(boost_container CONFIG REQUIRED)
 find_package(CGAL CONFIG REQUIRED)
+find_package(cstring_view CONFIG REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
@@ -25,6 +26,11 @@ find_package(vku CONFIG REQUIRED)
 # --------------------
 # Module configurations for the external dependencies.
 # --------------------
+
+add_library(cstring_view_module)
+target_sources(cstring_view_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/module-ports/cstring_view.cppm)
+target_link_libraries(cstring_view_module PRIVATE cpp_util::cstring_view)
+add_library(cpp_util::cstring_view::module ALIAS cstring_view_module)
 
 add_library(fastgltf_module)
 target_sources(fastgltf_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/module-ports/fastgltf.ixx)
@@ -97,7 +103,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/AssetSceneGpuBuffers.cppm
         interface/gltf/AssetSceneHierarchy.cppm
         interface/helpers/concepts.cppm
-        interface/helpers/cstring_view.cppm
         interface/helpers/fastgltf.cppm
         interface/helpers/full_optional.cppm
         interface/helpers/functional.cppm
@@ -165,6 +170,7 @@ target_sources(vk-gltf-viewer PRIVATE
 target_link_libraries(vk-gltf-viewer PRIVATE
     Boost::container
     CGAL::CGAL
+    cpp_util::cstring_view::module
     fastgltf::module
     glm::module
     imgui::imgui

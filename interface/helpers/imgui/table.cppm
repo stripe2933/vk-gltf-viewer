@@ -1,8 +1,8 @@
 export module vk_gltf_viewer:helpers.imgui.table;
 
 import std;
+export import cstring_view;
 import imgui;
-export import :helpers.cstring_view;
 
 #define INDEX_SEQ(Is, N, ...) [&]<auto... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
@@ -12,13 +12,13 @@ namespace ImGui {
     struct ColumnInfo {
         using function_t = F;
 
-        cstring_view label;
+        cpp_util::cstring_view label;
         F f;
         ImGuiTableColumnFlags flags;
     };
 
     export template <typename... Fs>
-    auto Table(cstring_view str_id, ImGuiTableFlags flags, std::ranges::input_range auto &&items, const ColumnInfo<Fs> &...columnInfos) -> void {
+    auto Table(cpp_util::cstring_view str_id, ImGuiTableFlags flags, std::ranges::input_range auto &&items, const ColumnInfo<Fs> &...columnInfos) -> void {
         if (BeginTable(str_id.c_str(), 1 /* row index */ + sizeof...(Fs), flags)) {
             TableSetupScrollFreeze(0, 1);
             TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
@@ -45,7 +45,7 @@ namespace ImGui {
     }
 
     export template <typename... Fs>
-    auto TableNoRowNumber(cstring_view str_id, ImGuiTableFlags flags, std::ranges::input_range auto &&items, const ColumnInfo<Fs> &...columnInfos) -> void {
+    auto TableNoRowNumber(cpp_util::cstring_view str_id, ImGuiTableFlags flags, std::ranges::input_range auto &&items, const ColumnInfo<Fs> &...columnInfos) -> void {
         if (BeginTable(str_id.c_str(), sizeof...(Fs), flags)) {
             TableSetupScrollFreeze(0, 1);
             (TableSetupColumn(columnInfos.label.c_str(), columnInfos.flags), ...);

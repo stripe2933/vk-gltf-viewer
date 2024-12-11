@@ -39,10 +39,10 @@ using namespace std::string_view_literals;
  * Return \p str if it is not empty, otherwise return the result of \p fallback.
  * @param str Null-terminated non-owning string view to check.
  * @param fallback Fallback function to call if \p str is empty.
- * @return <tt>cstring_view</tt> that contains either the original \p str, or the result of \p fallback.
+ * @return <tt>cpp_util::cstring_view</tt> that contains either the original \p str, or the result of \p fallback.
  */
-template <concepts::signature_of<cstring_view> F>
-[[nodiscard]] auto nonempty_or(cstring_view str, F &&fallback) -> cstring_view {
+template <concepts::signature_of<cpp_util::cstring_view> F>
+[[nodiscard]] auto nonempty_or(cpp_util::cstring_view str, F &&fallback) -> cpp_util::cstring_view {
     if (str.empty()) return FWD(fallback)();
     else return str;
 }

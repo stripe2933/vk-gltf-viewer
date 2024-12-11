@@ -12,7 +12,7 @@ export import :helpers.imgui.table;
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
 namespace ImGui {
-    export bool InputTextWithHint(cstring_view label, cstring_view hint, std::pmr::string* str, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = nullptr, void* userData = nullptr) {
+    export bool InputTextWithHint(cpp_util::cstring_view label, cpp_util::cstring_view hint, std::pmr::string* str, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = nullptr, void* userData = nullptr) {
         struct ChainedUserData {
             std::pmr::string*       Str;
             ImGuiInputTextCallback  ChainCallback;
@@ -48,7 +48,7 @@ namespace ImGui {
         return InputTextWithHint(label.c_str(), hint.c_str(), str->data(), str->capacity() + 1, flags, chainCallback, &chainedUserData);
     }
 
-    export bool CheckboxTristate(cstring_view label, std::optional<bool> &tristate) {
+    export bool CheckboxTristate(cpp_util::cstring_view label, std::optional<bool> &tristate) {
         bool ret;
         if (tristate) {
             if (bool b = *tristate; (ret = Checkbox(label.c_str(), &b))) {
@@ -66,7 +66,7 @@ namespace ImGui {
     }
 
     // https://github.com/ocornut/imgui/pull/6526
-    export bool SmallCheckbox(cstring_view label, bool* v) {
+    export bool SmallCheckbox(cpp_util::cstring_view label, bool* v) {
         ImGuiStyle &style = GetStyle();
         const float backup_padding_y = style.FramePadding.y;
         style.FramePadding.y = 0.0f;
