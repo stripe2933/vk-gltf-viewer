@@ -218,6 +218,10 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
         vk::PhysicalDeviceSynchronization2Features { true },
         vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true },
         vk::PhysicalDeviceIndexTypeUint8FeaturesKHR { supportUint8Index },
+#if __APPLE__
+        vk::PhysicalDevicePortabilitySubsetFeaturesKHR{}
+            .setImageViewFormatSwizzle(true),
+#endif
     };
 
     // Unlink unsupported features.
