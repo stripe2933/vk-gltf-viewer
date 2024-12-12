@@ -104,6 +104,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/AssetSceneHierarchy.cppm
         interface/helpers/concepts.cppm
         interface/helpers/fastgltf.cppm
+        interface/helpers/formatter/ByteSize.cppm
         interface/helpers/full_optional.cppm
         interface/helpers/functional.cppm
         interface/helpers/imgui/mod.cppm

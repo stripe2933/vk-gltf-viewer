@@ -14,6 +14,7 @@ import ImGuizmo;
 import vku;
 import :helpers.concepts;
 import :helpers.fastgltf;
+import :helpers.formatter.ByteSize;
 import :helpers.functional;
 import :helpers.imgui;
 import :helpers.optional;
@@ -135,8 +136,8 @@ auto assetBuffers(std::span<fastgltf::Buffer> buffers, const std::filesystem::pa
 
             });
         }, ImGuiTableColumnFlags_WidthStretch },
-        ImGui::ColumnInfo { "Length", [](const fastgltf::Buffer &buffer) {
-            ImGui::TextUnformatted(tempStringBuffer.write(buffer.byteLength));
+        ImGui::ColumnInfo { "Size", [](const fastgltf::Buffer &buffer) {
+            ImGui::TextUnformatted(tempStringBuffer.write(ByteSize { buffer.byteLength }));
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "MIME", [](const fastgltf::Buffer &buffer) {
             visit(fastgltf::visitor {
@@ -188,11 +189,12 @@ auto assetBufferViews(std::span<fastgltf::BufferView> bufferViews, std::span<fas
                 ImGui::EndTooltip();
             }
         }, ImGuiTableColumnFlags_WidthFixed },
-        ImGui::ColumnInfo { "Offset", [&](const fastgltf::BufferView &bufferView) {
-            ImGui::TextUnformatted(tempStringBuffer.write(bufferView.byteOffset));
+        ImGui::ColumnInfo { "Range", [&](const fastgltf::BufferView &bufferView) {
+            ImGui::TextUnformatted(tempStringBuffer.write(
+                "[{}, {}]", bufferView.byteOffset, bufferView.byteOffset + bufferView.byteLength));
         }, ImGuiTableColumnFlags_WidthFixed },
-        ImGui::ColumnInfo { "Length", [&](const fastgltf::BufferView &bufferView) {
-            ImGui::TextUnformatted(tempStringBuffer.write(bufferView.byteLength));
+        ImGui::ColumnInfo { "Size", [&](const fastgltf::BufferView &bufferView) {
+            ImGui::TextUnformatted(tempStringBuffer.write(ByteSize(bufferView.byteLength)));
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "Stride", [&](const fastgltf::BufferView &bufferView) {
             if (const auto &byteStride = bufferView.byteStride) {
