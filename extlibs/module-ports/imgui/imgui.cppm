@@ -15,6 +15,7 @@ export using ::ImGuiInputTextCallbackData;
 export using ::ImGuiInputTextFlags;
 export using ::ImGuiID;
 export using ::ImGuiIO;
+export using ::ImGuiListClipper;
 export using ::ImGuiStyle;
 export using ::ImGuiTableColumnFlags;
 export using ::ImGuiTableColumnFlags_DefaultHide;

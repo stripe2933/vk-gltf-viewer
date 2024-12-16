@@ -66,7 +66,7 @@ auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 
 
 void attributeTable(std::ranges::viewable_range auto const &attributes) {
     static int floatingPointPrecision = 2;
-    ImGui::TableNoRowNumber(
+    ImGui::Table<false>(
         "attributes-table",
         ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_SizingFixedFit,
         attributes,
@@ -168,7 +168,7 @@ auto assetBuffers(std::span<fastgltf::Buffer> buffers, const std::filesystem::pa
 }
 
 auto assetBufferViews(std::span<fastgltf::BufferView> bufferViews, std::span<fastgltf::Buffer> buffers) -> void {
-    ImGui::Table(
+    ImGui::TableWithVirtualization(
         "gltf-buffer-views-table",
         ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
         bufferViews,
@@ -215,7 +215,7 @@ auto assetBufferViews(std::span<fastgltf::BufferView> bufferViews, std::span<fas
 }
 
 auto assetImages(std::span<fastgltf::Image> images, const std::filesystem::path &assetDir) -> void {
-    ImGui::Table(
+    ImGui::TableWithVirtualization(
         "gltf-images-table",
         ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
         images,
@@ -945,7 +945,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
         if (ImGui::CollapsingHeader("Diffuse Irradiance")) {
             ImGui::TextUnformatted("Spherical harmonic coefficients (up to 3rd band)"sv);
             constexpr std::array bandLabels { "L0"sv, "L1_1"sv, "L10"sv, "L11"sv, "L2_2"sv, "L2_1"sv, "L20"sv, "L21"sv, "L22"sv };
-            ImGui::TableNoRowNumber(
+            ImGui::Table<false>(
                 "spherical-harmonic-coeffs",
                 ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable,
                 std::views::zip(bandLabels, info.diffuseIrradiance.sphericalHarmonicCoefficients),
