@@ -21,6 +21,7 @@ export using ::ImGuiDir_Down;
 namespace ImGui {
     export using ImGui::FindWindowByName;
     export using ImGui::FocusWindow;
+    export using ImGui::PushMultiItemsWidths;
 
 #ifdef IMGUI_HAS_DOCK
     export using ImGui::DockBuilderDockWindow;

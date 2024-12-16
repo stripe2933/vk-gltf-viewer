@@ -950,8 +950,65 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                     ImGui::EndTabItem();
                 }
                 if (node.cameraIndex && ImGui::BeginTabItem("Camera")) {
-                    fastgltf::Camera &camera = asset.cameras[*node.cameraIndex];
-                    ImGui::InputTextWithHint("Name", "<empty>", &camera.name);
+                    auto &[camera, name] = asset.cameras[*node.cameraIndex];
+                    ImGui::InputTextWithHint("Name", "<empty>", &name);
+
+                    ImGui::WithDisabled([&]() {
+                        if (int type = camera.index(); ImGui::Combo("Type", &type, "Perspective\0Orthographic\0")) {
+                            // TODO
+                        }
+
+                    });
+
+                    constexpr auto noAffectHelperMarker = []() {
+                        ImGui::SameLine();
+                        ImGui::HelperMarker("This property will not affect to the actual rendering, as it is calculated from the actual viewport size.");
+                    };
+
+                    visit(fastgltf::visitor {
+                        [&](fastgltf::Camera::Perspective &camera) {
+                            if (camera.aspectRatio) {
+                                ImGui::DragFloat("Aspect Ratio", &*camera.aspectRatio, 0.01f, 1e-2f, 1e-2f);
+                            }
+                            else {
+                                ImGui::WithDisabled([this]() {
+                                    float aspectRatio = centerNodeRect.GetWidth() / centerNodeRect.GetHeight();
+                                    ImGui::DragFloat("Aspect Ratio", &aspectRatio);
+                                });
+                            }
+                            noAffectHelperMarker();
+
+                            if (float fovInDegree = glm::degrees(camera.yfov); ImGui::DragFloat("FOV", &fovInDegree, 1.f, 15.f, 120.f, "%.2f deg")) {
+                                camera.yfov = glm::radians(fovInDegree);
+                            }
+
+                            if (camera.zfar) {
+                                ImGui::DragFloatRange2("Near/Far", &camera.znear, &*camera.zfar, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+                            }
+                            else {
+                                ImGui::PushMultiItemsWidths(2, ImGui::CalcItemWidth());
+                                ImGui::DragFloat("##near", &camera.znear, 1.f, 1e-6f, 1e-6f, "%.2e", ImGuiSliderFlags_Logarithmic);
+                                ImGui::SameLine(0, ImGui::GetStyle().ItemInnerSpacing.x);
+                                ImGui::WithDisabled([]() {
+                                    float zFar = std::numeric_limits<float>::infinity();
+                                    ImGui::DragFloat("##far", &zFar);
+                                });
+                                ImGui::PopItemWidth();
+                                ImGui::SameLine(0, ImGui::GetStyle().ItemInnerSpacing.x);
+                                ImGui::TextUnformatted("Near/Far");
+                            }
+                        },
+                        [&](fastgltf::Camera::Orthographic &camera) {
+                            ImGui::DragFloat("Half Width", &camera.xmag);
+                            noAffectHelperMarker();
+
+                            ImGui::DragFloat("Half Height", &camera.ymag);
+                            noAffectHelperMarker();
+
+                            ImGui::DragFloatRange2("Near/Far", &camera.znear, &camera.zfar, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+                        },
+                    }, camera);
+
                     ImGui::EndTabItem();
                 }
                 if (node.lightIndex && ImGui::BeginTabItem("Light")) {
