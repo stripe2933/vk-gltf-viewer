@@ -8,10 +8,8 @@ import :imgui.TaskCollector;
 
 import std;
 import glm;
-import imgui.glfw;
 import imgui.internal;
 import imgui.math;
-import imgui.vulkan;
 import ImGuizmo;
 import vku;
 import :helpers.concepts;
@@ -281,8 +279,6 @@ vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
     const ImVec2 &framebufferSize,
     const vk::Rect2D &oldPassthruRect
 ) : tasks { tasks } {
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
     // Enable global docking.

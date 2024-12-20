@@ -242,6 +242,8 @@ void vk_gltf_viewer::MainApp::run() {
         // Collect task from ImGui (button click, menu selection, ...).
         static vk::Rect2D passthruRect{};
         {
+            ImGui_ImplGlfw_NewFrame();
+            ImGui_ImplVulkan_NewFrame();
             control::ImGuiTaskCollector imguiTaskCollector {
                 tasks,
                 ImVec2 { static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height) },
