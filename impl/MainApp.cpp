@@ -2,6 +2,7 @@ module;
 
 #include <cassert>
 #include <GLFW/glfw3.h>
+#include <nfd.hpp>
 #include <OpenEXR/ImfInputFile.h>
 #include <OpenEXR/ImfFrameBuffer.h>
 #include <OpenEXR/ImfChannelList.h>
@@ -36,6 +37,20 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 #else
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
+
+[[nodiscard]] std::optional<std::filesystem::path> processFileDialog(std::span<const nfdfilteritem_t> filterItems) {
+    NFD::UniquePath outPath;
+    if (nfdresult_t nfdResult = OpenDialog(outPath, filterItems.data(), filterItems.size()); nfdResult == NFD_OKAY) {
+        return outPath.get();
+    }
+    else if (nfdResult == NFD_CANCEL) {
+        return std::nullopt;
+        // Do nothing.
+    }
+    else {
+        throw std::runtime_error { std::format("File dialog error: {}", NFD::GetError() ) };
+    }
+}
 
 vk_gltf_viewer::MainApp::MainApp() {
     const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
@@ -261,6 +276,15 @@ void vk_gltf_viewer::MainApp::run() {
                     appState.camera.aspectRatio = vku::aspect(task.newRect.extent);
                     passthruRect = task.newRect;
                 },
+                [&](control::task::ShowGltfLoadFileDialog) {
+                    constexpr std::array filterItems {
+                        nfdfilteritem_t { "All Supported Files", "gltf,glb" },
+                        nfdfilteritem_t { "glTF File", "gltf,glb" },
+                    };
+                    if (auto filename = processFileDialog(filterItems)) {
+                        loadGltf(*filename);
+                    }
+                },
                 [&](const control::task::LoadGltf &task) {
                     loadGltf(task.path);
                 },
@@ -269,6 +293,16 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Update AppState.
                     appState.gltfAsset.reset();
+                },
+                [&](control::task::ShowEqmapLoadFileDialog) {
+                    constexpr std::array filterItems {
+                        nfdfilteritem_t { "All Supported Images", "hdr,exr" },
+                        nfdfilteritem_t { "HDR Image", "hdr" },
+                        nfdfilteritem_t { "EXR Image", "exr" },
+                    };
+                    if (auto filename = processFileDialog(filterItems)) {
+                        loadEqmap(*filename);
+                    }
                 },
                 [&](const control::task::LoadEqmap &task) {
                     loadEqmap(task.path);

@@ -3,8 +3,6 @@ module;
 #include <cassert>
 #include <version>
 
-#include <nfd.hpp>
-
 module vk_gltf_viewer;
 import :imgui.TaskCollector;
 
@@ -45,20 +43,6 @@ template <concepts::signature_of<cpp_util::cstring_view> F>
 [[nodiscard]] auto nonempty_or(cpp_util::cstring_view str, F &&fallback) -> cpp_util::cstring_view {
     if (str.empty()) return FWD(fallback)();
     else return str;
-}
-
-[[nodiscard]] auto processFileDialog(std::span<const nfdfilteritem_t> filterItems) -> std::optional<std::filesystem::path> {
-    NFD::UniquePath outPath;
-    if (nfdresult_t nfdResult = OpenDialog(outPath, filterItems.data(), filterItems.size()); nfdResult == NFD_OKAY) {
-        return outPath.get();
-    }
-    else if (nfdResult == NFD_CANCEL) {
-        return std::nullopt;
-        // Do nothing.
-    }
-    else {
-        throw std::runtime_error { std::format("File dialog error: {}", NFD::GetError() ) };
-    }
 }
 
 auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f}) -> void {
@@ -362,13 +346,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Open glTF File", "Ctrl+O")) {
-                constexpr std::array filterItems {
-                    nfdfilteritem_t { "All Supported Files", "gltf,glb" },
-                    nfdfilteritem_t { "glTF File", "gltf,glb" },
-                };
-                if (auto filename = processFileDialog(filterItems)) {
-                    tasks.emplace_back(std::in_place_type<task::LoadGltf>, *std::move(filename));
-                }
+                tasks.emplace_back(std::in_place_type<task::ShowGltfLoadFileDialog>);
             }
             if (ImGui::BeginMenu("Recent glTF Files")) {
                 if (recentGltfs.empty()) {
@@ -390,14 +368,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
         }
         if (ImGui::BeginMenu("Skybox")) {
             if (ImGui::MenuItem("Open Skybox")) {
-                constexpr std::array filterItems {
-                    nfdfilteritem_t { "All Supported Images", "hdr,exr" },
-                    nfdfilteritem_t { "HDR Image", "hdr" },
-                    nfdfilteritem_t { "EXR Image", "exr" },
-                };
-                if (auto filename = processFileDialog(filterItems)) {
-                    tasks.emplace_back(std::in_place_type<task::LoadEqmap>, *std::move(filename));
-                }
+                tasks.emplace_back(std::in_place_type<task::ShowEqmapLoadFileDialog>);
             }
             if (ImGui::BeginMenu("Recent Skyboxes")) {
                 if (recentSkyboxes.empty()) {
