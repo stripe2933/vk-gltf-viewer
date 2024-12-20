@@ -207,7 +207,7 @@ Add the following CMake user preset file in your project directory. I'll assume 
       "inherits": "default",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/usr/bin/clang-18",
-        "CMAKE_CXX_COMPILER": "/usr/bin/clang++-18",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
         "CMAKE_CXX_FLAGS": "-stdlib=libc++",
         "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++ -lc++abi",
         "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
