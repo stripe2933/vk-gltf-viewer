@@ -31,17 +31,11 @@ import :vulkan.mipmap;
 import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
-#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-#define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
-#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
-#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 #ifdef _MSC_VER
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
-
-constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
 
 vk_gltf_viewer::MainApp::MainApp() {
     const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
@@ -144,6 +138,12 @@ vk_gltf_viewer::MainApp::MainApp() {
         finalWaitValues
     }, ~0ULL);
 
+    gpu.device.updateDescriptorSets({
+        sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
+        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        sharedData.imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+    }, {});
+
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
     vku::executeSingleCommand(*gpu.device, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
         recordSwapchainImageLayoutTransitionCommands(cb);
@@ -214,15 +214,6 @@ vk_gltf_viewer::MainApp::~MainApp() {
 }
 
 void vk_gltf_viewer::MainApp::run() {
-    vulkan::SharedData sharedData { gpu, swapchainExtent, swapchainImages };
-    std::array frames = ARRAY_OF(FRAMES_IN_FLIGHT, vulkan::Frame { gpu, sharedData });
-
-    gpu.device.updateDescriptorSets({
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-    }, {});
-
     // Booleans that indicates frame at the corresponding index should handle swapchain resizing.
     std::array<bool, FRAMES_IN_FLIGHT> shouldHandleSwapchainResize{};
 
@@ -271,79 +262,7 @@ void vk_gltf_viewer::MainApp::run() {
                     passthruRect = task.newRect;
                 },
                 [&](const control::task::LoadGltf &task) {
-                    // TODO: I'm aware that there are more good solutions than waitIdle, but I don't have much time for it
-                    //  so I'll just use it for now.
-                    gpu.device.waitIdle();
-
-                    try {
-                        gltf.emplace(parser, task.path, gpu);
-                    }
-                    catch (gltf::AssetProcessError error) {
-                        std::println(std::cerr, "The glTF file cannot be processed because of an error: {}", to_string(error));
-                        return;
-                    }
-                    catch (fastgltf::Error error) {
-                        // If error is due to missing or unknown required extension, show a message and return.
-                        if (ranges::one_of(error, fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension)) {
-                            std::println(std::cerr, "The glTF file requires an extension that is not supported by this application.");
-                            return;
-                        }
-
-                        // Application fault.
-                        std::rethrow_exception(std::current_exception());
-                    }
-
-                    sharedData.updateTextureCount(1 + gltf->asset.textures.size());
-
-                    std::vector<vk::DescriptorImageInfo> imageInfos;
-                    imageInfos.reserve(1 + gltf->asset.textures.size());
-                    imageInfos.emplace_back(*sharedData.singleTexelSampler, *gpuFallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-                    imageInfos.append_range(gltf->asset.textures | std::views::transform([this](const fastgltf::Texture &texture) {
-                        return vk::DescriptorImageInfo {
-                            to_optional(texture.samplerIndex)
-                                .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
-                                .value_or(*gpuFallbackTexture.sampler),
-                            *gltf->assetGpuTextures.imageViews.at(gltf::AssetGpuTextures::getPreferredImageIndex(texture)),
-                            vk::ImageLayout::eShaderReadOnlyOptimal,
-                        };
-                    }));
-                    gpu.device.updateDescriptorSets({
-                        sharedData.assetDescriptorSet.getWriteOne<0>({ gltf->assetGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
-                        sharedData.assetDescriptorSet.getWriteOne<1>({ gltf->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
-                        sharedData.assetDescriptorSet.getWrite<2>(imageInfos),
-                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeBuffer, 0, vk::WholeSize }),
-                    }, {});
-
-                    // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
-                    assetTextureDescriptorSets
-                        = gltf->asset.textures
-                        | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
-                            return ImGui_ImplVulkan_AddTexture(
-                                to_optional(texture.samplerIndex)
-                                    .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
-                                    .value_or(*gpuFallbackTexture.sampler),
-                                ranges::value_or(
-                                    gltf->assetGpuTextures.imageViews,
-                                    gltf::AssetGpuTextures::getPreferredImageIndex(texture),
-                                    *gpuFallbackTexture.imageView),
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                        })
-                        | std::ranges::to<std::vector>();
-
-                    // Change window title.
-                    window.setTitle(PATH_C_STR(task.path.filename()));
-
-                    // Update AppState.
-                    appState.gltfAsset.emplace(gltf->asset);
-                    appState.pushRecentGltfPath(task.path);
-
-                    // Adjust the camera based on the scene enclosing sphere.
-                    const auto &[center, radius] = gltf->sceneMiniball;
-                    const float distance = radius / std::sin(appState.camera.fov / 2.f);
-                    appState.camera.position = glm::make_vec3(center.data()) - glm::dvec3 { distance * normalize(appState.camera.direction) };
-                    appState.camera.zMin = distance - radius;
-                    appState.camera.zMax = distance + radius;
-                    appState.camera.targetDistance = distance;
+                    loadGltf(task.path);
                 },
                 [&](control::task::CloseGltf) {
                     gltf.reset();
@@ -352,17 +271,7 @@ void vk_gltf_viewer::MainApp::run() {
                     appState.gltfAsset.reset();
                 },
                 [&](const control::task::LoadEqmap &task) {
-                    processEqmapChange(task.path);
-
-                    // Update the related descriptor sets.
-                    gpu.device.updateDescriptorSets({
-                        sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
-                        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                        sharedData.skyboxDescriptorSet.getWriteOne<0>({ {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                    }, {});
-
-                    // Update AppState.
-                    appState.pushRecentSkyboxPath(task.path);
+                    loadEqmap(task.path);
                 },
                 [&](control::task::ChangeScene task) {
                     // TODO: I'm aware that there are more good solutions than waitIdle, but I don't have much time for it
@@ -792,9 +701,83 @@ auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() -> decltype(imGuiDescr
     } };
 }
 
-auto vk_gltf_viewer::MainApp::processEqmapChange(
-    const std::filesystem::path &eqmapPath
-) -> void {
+void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
+    // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
+    //  so I'll just use it for now.
+    gpu.device.waitIdle();
+
+    try {
+        gltf.emplace(parser, path, gpu);
+    }
+    catch (gltf::AssetProcessError error) {
+        std::println(std::cerr, "The glTF file cannot be processed because of an error: {}", to_string(error));
+        return;
+    }
+    catch (fastgltf::Error error) {
+        // If error is due to missing or unknown required extension, show a message and return.
+        if (ranges::one_of(error, fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension)) {
+            std::println(std::cerr, "The glTF file requires an extension that is not supported by this application.");
+            return;
+        }
+
+        // Application fault.
+        std::rethrow_exception(std::current_exception());
+    }
+
+    sharedData.updateTextureCount(1 + gltf->asset.textures.size());
+
+    std::vector<vk::DescriptorImageInfo> imageInfos;
+    imageInfos.reserve(1 + gltf->asset.textures.size());
+    imageInfos.emplace_back(*sharedData.singleTexelSampler, *gpuFallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+    imageInfos.append_range(gltf->asset.textures | std::views::transform([this](const fastgltf::Texture &texture) {
+        return vk::DescriptorImageInfo {
+            to_optional(texture.samplerIndex)
+                .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
+                .value_or(*gpuFallbackTexture.sampler),
+            *gltf->assetGpuTextures.imageViews.at(gltf::AssetGpuTextures::getPreferredImageIndex(texture)),
+            vk::ImageLayout::eShaderReadOnlyOptimal,
+        };
+    }));
+    gpu.device.updateDescriptorSets({
+        sharedData.assetDescriptorSet.getWriteOne<0>({ gltf->assetGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
+        sharedData.assetDescriptorSet.getWriteOne<1>({ gltf->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
+        sharedData.assetDescriptorSet.getWrite<2>(imageInfos),
+        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeBuffer, 0, vk::WholeSize }),
+    }, {});
+
+    // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
+    assetTextureDescriptorSets
+        = gltf->asset.textures
+        | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
+            return ImGui_ImplVulkan_AddTexture(
+                to_optional(texture.samplerIndex)
+                    .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
+                    .value_or(*gpuFallbackTexture.sampler),
+                ranges::value_or(
+                    gltf->assetGpuTextures.imageViews,
+                    gltf::AssetGpuTextures::getPreferredImageIndex(texture),
+                    *gpuFallbackTexture.imageView),
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        })
+        | std::ranges::to<std::vector>();
+
+    // Change window title.
+    window.setTitle(PATH_C_STR(path.filename()));
+
+    // Update AppState.
+    appState.gltfAsset.emplace(gltf->asset);
+    appState.pushRecentGltfPath(path);
+
+    // Adjust the camera based on the scene enclosing sphere.
+    const auto &[center, radius] = gltf->sceneMiniball;
+    const float distance = radius / std::sin(appState.camera.fov / 2.f);
+    appState.camera.position = glm::make_vec3(center.data()) - glm::dvec3 { distance * normalize(appState.camera.direction) };
+    appState.camera.zMin = distance - radius;
+    appState.camera.zMax = distance + radius;
+    appState.camera.targetDistance = distance;
+}
+
+void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) {
     const auto [eqmapImageExtent, eqmapStagingBuffer] = [&]() {
         if (auto extension = eqmapPath.extension(); extension == ".hdr") {
             int width, height;
@@ -1220,6 +1203,16 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
         std::move(iblGenerator.prefilteredmapImage),
         std::move(prefilteredmapImageView),
     };
+
+    // Update the related descriptor sets.
+    gpu.device.updateDescriptorSets({
+        sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
+        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        sharedData.skyboxDescriptorSet.getWriteOne<0>({ {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+    }, {});
+
+    // Update AppState.
+    appState.pushRecentSkyboxPath(eqmapPath);
 }
 
 void vk_gltf_viewer::MainApp::recordSwapchainImageLayoutTransitionCommands(vk::CommandBuffer cb) const {
