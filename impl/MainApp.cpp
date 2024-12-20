@@ -697,7 +697,15 @@ vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR
         vk::SwapchainCreateInfoKHR{
             gpu.supportSwapchainMutableFormat ? vk::SwapchainCreateFlagBitsKHR::eMutableFormat : vk::SwapchainCreateFlagsKHR{},
             surface,
-            std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount),
+            // The spec says:
+            //
+            //   maxImageCount is the maximum number of images the specified device supports for a swapchain created for
+            //   the surface, and will be either 0, or greater than or equal to minImageCount. A value of 0 means that
+            //   there is no limit on the number of images, though there may be limits related to the total amount of
+            //   memory used by presentable images.
+            //
+            // Therefore, if maxImageCount is zero, it is set to the UINT_MAX and minImageCount + 1 will be used.
+            std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount == 0 ? ~0U : surfaceCapabilities.maxImageCount),
             vk::Format::eB8G8R8A8Srgb,
             vk::ColorSpaceKHR::eSrgbNonlinear,
             swapchainExtent,
@@ -920,8 +928,8 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
     } };
 
     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
+
     std::variant<vk::CommandPool, vk::raii::CommandPool> computeCommandPool = *transferCommandPool;
-    std::variant<vk::CommandPool, vk::raii::CommandPool> graphicsCommandPool = *transferCommandPool;
     if (gpu.queueFamilies.compute != gpu.queueFamilies.transfer) {
         computeCommandPool = decltype(computeCommandPool) {
             std::in_place_type<vk::raii::CommandPool>,
@@ -929,7 +937,9 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
             vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute },
         };
     }
-    else if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.transfer) {
+
+    std::variant<vk::CommandPool, vk::raii::CommandPool> graphicsCommandPool = *transferCommandPool;
+    if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.transfer) {
         graphicsCommandPool = decltype(graphicsCommandPool) {
             std::in_place_type<vk::raii::CommandPool>,
             gpu.device,

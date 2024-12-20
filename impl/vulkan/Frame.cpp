@@ -453,8 +453,8 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodR
         vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */
             | vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer */
             | vk::ImageUsageFlagBits::eSampled /* read in OutlineRenderer */,
-        gpu.queueFamilies.getUniqueIndices().size() == 1 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
-        vku::unsafeProxy(gpu.queueFamilies.getUniqueIndices()),
+        gpu.queueFamilies.uniqueIndices.size() == 1 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+        gpu.queueFamilies.uniqueIndices,
     } },
     imageView { gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2DArray) },
     pingImageView { gpu.device, image.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },

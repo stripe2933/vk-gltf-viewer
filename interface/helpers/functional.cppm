@@ -45,7 +45,25 @@ export template <typename F>
  * visit_as<float>(std::variant<int, float>{ 3 }); // Returns 3.f
  * @endcode
  */
-export template <typename T, std::convertible_to<T>... Ts>
+export template <typename T, typename... Ts>
+    requires (std::convertible_to<const Ts&, T> && ...)
 [[nodiscard]] auto visit_as(const std::variant<Ts...> &v) -> T {
+    return std::visit([](T x) -> T { return x; }, v);
+}
+
+/**
+ * Visit \p v as \p T, and return the result.
+ * @tparam T Visited type.
+ * @tparam Ts Types of \p v's alternatives. These types must be convertible to \p T.
+ * @param v Variant to visit.
+ * @return Visited value.
+ * @example
+ * @code
+ * visit_as<float>(std::variant<int, float>{ 3 }); // Returns 3.f
+ * @endcode
+ */
+export template <typename T, typename... Ts>
+    requires (std::convertible_to<Ts&, T> && ...)
+[[nodiscard]] auto visit_as(std::variant<Ts...> &v) -> T {
     return std::visit([](T x) -> T { return x; }, v);
 }

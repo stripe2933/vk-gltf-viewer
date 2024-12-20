@@ -147,6 +147,7 @@ Additionally, you need vcpkg for dependency management. Make sure `VCPKG_ROOT` e
 This project depends on:
 - [boost-container](https://www.boost.org/doc/libs/1_86_0/doc/html/container.html)
 - [CGAL](https://www.cgal.org) (due to its usage, **this project is licensed under GPL**.)
+- [cstring_view](https://github.com/stripe2933/cstring_view)
 - [fastgltf](https://github.com/spnda/fastgltf)
 - [GLFW](https://github.com/glfw/glfw)
 - [glm](https://github.com/g-truc/glm)
