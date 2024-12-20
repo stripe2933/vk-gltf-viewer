@@ -928,8 +928,8 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
     } };
 
     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
+
     std::variant<vk::CommandPool, vk::raii::CommandPool> computeCommandPool = *transferCommandPool;
-    std::variant<vk::CommandPool, vk::raii::CommandPool> graphicsCommandPool = *transferCommandPool;
     if (gpu.queueFamilies.compute != gpu.queueFamilies.transfer) {
         computeCommandPool = decltype(computeCommandPool) {
             std::in_place_type<vk::raii::CommandPool>,
@@ -937,7 +937,9 @@ auto vk_gltf_viewer::MainApp::processEqmapChange(
             vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute },
         };
     }
-    else if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.transfer) {
+
+    std::variant<vk::CommandPool, vk::raii::CommandPool> graphicsCommandPool = *transferCommandPool;
+    if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.transfer) {
         graphicsCommandPool = decltype(graphicsCommandPool) {
             std::in_place_type<vk::raii::CommandPool>,
             gpu.device,
