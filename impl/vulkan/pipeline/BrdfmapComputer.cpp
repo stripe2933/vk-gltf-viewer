@@ -7,6 +7,7 @@ import :vulkan.pipeline.BrdfmapComputer;
 
 import std;
 
+#define COMPILED_SHADER_DIR "shader"  
 vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::DescriptorSetLayout::DescriptorSetLayout(
     const vk::raii::Device &device
 ) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {

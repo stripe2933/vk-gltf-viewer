@@ -523,14 +523,24 @@ auto vk_gltf_viewer::vulkan::Frame::createFramebuffers() const -> std::vector<vk
         | std::ranges::to<std::vector>();
 }
 
+
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {
-    return {
-        gpu.device,
-        (2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout)
-            + sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize())
-            .getDescriptorPoolCreateInfo(),
-    };
+
+    auto poolCreateInfo = 
+    (2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout)
+        + sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize())
+        .getDescriptorPoolCreateInfo();
+
+auto& createInfo = poolCreateInfo.get();  
+createInfo.flags |= vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
+
+return {
+    gpu.device,
+    poolCreateInfo
+};
+
 }
+
 
 auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer cb) const -> void {
     boost::container::static_vector<vk::ImageMemoryBarrier, 3> memoryBarriers;

@@ -154,12 +154,20 @@ namespace vk_gltf_viewer::vulkan {
             }
         }
 
-        [[nodiscard]] auto createTextureDescriptorPool() const -> vk::raii::DescriptorPool {
-            return { gpu.device, getPoolSizes(assetDescriptorSetLayout).getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind) };
-        }
 
-        [[nodiscard]] auto createDescriptorPool() const -> vk::raii::DescriptorPool {
-            return { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, sceneDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() };
-        }
+
+    [[nodiscard]] auto createTextureDescriptorPool() const -> vk::raii::DescriptorPool {
+    return { gpu.device, 
+             getPoolSizes(assetDescriptorSetLayout).getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind | vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet) 
+    };
+}
+
+[[nodiscard]] auto createDescriptorPool() const -> vk::raii::DescriptorPool {
+    return { gpu.device, 
+             getPoolSizes(imageBasedLightingDescriptorSetLayout, sceneDescriptorSetLayout, skyboxDescriptorSetLayout)
+             .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet)
+    };
+}
+
     };
 }

@@ -46,10 +46,15 @@ constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
 vk_gltf_viewer::MainApp::MainApp() {
     const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
 
-    const vk::raii::DescriptorPool descriptorPool {
-        gpu.device,
-        brdfmapComputer.descriptorSetLayout.getPoolSize().getDescriptorPoolCreateInfo(),
-    };
+
+    vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo = brdfmapComputer.descriptorSetLayout.getPoolSize().getDescriptorPoolCreateInfo();
+descriptorPoolCreateInfo.flags |= vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
+
+const vk::raii::DescriptorPool descriptorPool {
+    gpu.device,
+    descriptorPoolCreateInfo,
+};
+
 
     const auto [brdfmapSet] = allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(brdfmapComputer.descriptorSetLayout));
     gpu.device.updateDescriptorSets(
@@ -173,7 +178,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 #elif __APPLE__
         "/Library/Fonts/Arial Unicode.ttf",
 #elif __linux__
-        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+        "/usr/share/fonts/noto/NotoSansMono-Medium.ttf",
 #else
 #error "Type your own font file in here!"
 #endif
