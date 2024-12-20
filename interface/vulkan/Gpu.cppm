@@ -10,30 +10,22 @@ export import vku;
 namespace vk_gltf_viewer::vulkan {
     export struct QueueFamilies {
         std::uint32_t compute, graphicsPresent, transfer;
+        std::vector<std::uint32_t> uniqueIndices;
 
         QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface) {
             const std::vector queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
 
-            // TODO: looks like vku::executeHierarchicalCommands implementation is TOTALLY incorrect... using it for multiple queues
-            //  would cause undebuggable error, therefore I'll just use the single universal queue for workaround now.
-            /*compute = vku::getComputeSpecializedQueueFamily(queueFamilyProperties)
+            compute = vku::getComputeSpecializedQueueFamily(queueFamilyProperties)
                 .or_else([&]() { return vku::getComputeQueueFamily(queueFamilyProperties); })
                 .value();
             graphicsPresent = vku::getGraphicsPresentQueueFamily(physicalDevice, surface, queueFamilyProperties).value();
-            transfer = vku::getTransferSpecializedQueueFamily(queueFamilyProperties).value_or(compute);*/
-            compute = vku::getGraphicsPresentQueueFamily(physicalDevice, surface, queueFamilyProperties).value();
-            graphicsPresent = compute;
-			transfer = compute;
-        }
+            transfer = vku::getTransferSpecializedQueueFamily(queueFamilyProperties).value_or(compute);
 
-        [[nodiscard]] auto getUniqueIndices() const noexcept -> std::vector<std::uint32_t> {
-            std::vector indices { compute, graphicsPresent, transfer };
-            std::ranges::sort(indices);
-
-            const auto ret = std::ranges::unique(indices);
-            indices.erase(ret.begin(), ret.end());
-
-            return indices;
+            // Calculate unique queue family indices.
+            uniqueIndices = { compute, graphicsPresent, transfer };
+            std::ranges::sort(uniqueIndices);
+            const auto ret = std::ranges::unique(uniqueIndices);
+            uniqueIndices.erase(ret.begin(), ret.end());
         }
     };
 
@@ -45,13 +37,13 @@ namespace vk_gltf_viewer::vulkan {
             , graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) }
             , transfer { device.getQueue(queueFamilies.transfer, 0) } { }
 
-        [[nodiscard]] static auto getCreateInfos(
+        [[nodiscard]] static vku::RefHolder<std::vector<vk::DeviceQueueCreateInfo>> getCreateInfos(
             vk::PhysicalDevice,
             const QueueFamilies &queueFamilies
-        ) noexcept -> vku::RefHolder<std::vector<vk::DeviceQueueCreateInfo>> {
+        ) noexcept {
             return vku::RefHolder { [&]() {
                 static constexpr std::array priorities { 1.f };
-                return queueFamilies.getUniqueIndices()
+                return queueFamilies.uniqueIndices
                     | std::views::transform([=](std::uint32_t queueFamilyIndex) {
                         return vk::DeviceQueueCreateInfo {
                             {},
