@@ -1,7 +1,6 @@
 export module vk_gltf_viewer:control.Task;
 
 import std;
-export import fastgltf;
 export import vulkan_hpp;
 
 namespace vk_gltf_viewer::control {

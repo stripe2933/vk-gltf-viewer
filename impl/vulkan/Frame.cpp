@@ -958,7 +958,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
         swapchainImageIndex));
 
     // Draw ImGui.
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cb);
+    if (ImDrawData *drawData = ImGui::GetDrawData()) {
+        ImGui_ImplVulkan_RenderDrawData(drawData, cb);
+    }
 
     cb.endRenderingKHR();
 }

@@ -29,7 +29,6 @@ import :MainApp;
 import std;
 import imgui.glfw;
 import imgui.vulkan;
-import ImGuizmo;
 import :gltf.AssetExternalBuffers;
 import :gltf.AssetGpuTextures;
 import :helpers.fastgltf;
@@ -185,11 +184,11 @@ vk_gltf_viewer::MainApp::MainApp() {
     ImGui::CreateContext();
 
     ImGuiIO &io = ImGui::GetIO();
-    const glm::vec2 framebufferSize = window.getFramebufferSize();
-    io.DisplaySize = { framebufferSize.x, framebufferSize.y };
     const glm::vec2 contentScale = window.getContentScale();
     io.DisplayFramebufferScale = { contentScale.x, contentScale.y };
+#if __APPLE__
     io.FontGlobalScale = 1.f / io.DisplayFramebufferScale.x;
+#endif
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     ImVector<ImWchar> ranges;
@@ -633,7 +632,7 @@ void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     });
 }
 
-auto vk_gltf_viewer::MainApp::createInstance() const -> vk::raii::Instance {
+vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {
     std::vector<const char*> extensions{
 #if __APPLE__
         vk::KHRPortabilityEnumerationExtensionName,

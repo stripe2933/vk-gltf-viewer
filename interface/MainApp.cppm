@@ -128,10 +128,12 @@ namespace vk_gltf_viewer {
         // --------------------
 
         fastgltf::Parser parser { fastgltf::Extensions::KHR_materials_unlit | fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::EXT_mesh_gpu_instancing };
-        fastgltf::GltfDataBuffer dataBuffer;
         std::optional<Gltf> gltf;
 
+        // --------------------
         // Buffers, images, image views and samplers.
+        // --------------------
+
         ImageBasedLightingResources imageBasedLightingResources = createDefaultImageBasedLightingResources();
         std::optional<SkyboxResources> skyboxResources{};
         vku::AllocatedImage brdfmapImage = createBrdfmapImage();
@@ -139,10 +141,11 @@ namespace vk_gltf_viewer {
         vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
         gltf::AssetGpuFallbackTexture gpuFallbackTexture { gpu };
 
-        // Descriptor pools.
-        vk::raii::DescriptorPool imGuiDescriptorPool = createImGuiDescriptorPool();
-
+        // --------------------
         // Descriptor sets.
+        // --------------------
+
+        vk::raii::DescriptorPool imGuiDescriptorPool = createImGuiDescriptorPool();
         std::vector<vk::DescriptorSet> assetTextureDescriptorSets;
 
         // --------------------
@@ -152,7 +155,7 @@ namespace vk_gltf_viewer {
         vulkan::SharedData sharedData { gpu, swapchainExtent, swapchainImages };
         std::array<vulkan::Frame, FRAMES_IN_FLIGHT> frames{ vulkan::Frame { gpu, sharedData }, vulkan::Frame { gpu, sharedData } };
         
-        [[nodiscard]] auto createInstance() const -> vk::raii::Instance;
+        [[nodiscard]] vk::raii::Instance createInstance() const;
         [[nodiscard]] vk::raii::SwapchainKHR createSwapchain(vk::SwapchainKHR oldSwapchain = {}) const;
 
         [[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
