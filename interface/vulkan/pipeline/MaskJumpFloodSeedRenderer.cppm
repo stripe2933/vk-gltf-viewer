@@ -1,6 +1,8 @@
 export module vk_gltf_viewer:vulkan.pipeline.MaskJumpFloodSeedRenderer;
 
 import vku;
+import :shader.mask_jump_flood_seed_vert;
+import :shader.mask_jump_flood_seed_frag;
 export import :vulkan.pl.PrimitiveNoShading;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -12,8 +14,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
                         device,
-                        vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/mask_jump_flood_seed.vert.spv", vk::ShaderStageFlagBits::eVertex),
-                        vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/mask_jump_flood_seed.frag.spv", vk::ShaderStageFlagBits::eFragment)).get(),
+                        vku::Shader { shader::mask_jump_flood_seed_vert, vk::ShaderStageFlagBits::eVertex },
+                        vku::Shader { shader::mask_jump_flood_seed_frag, vk::ShaderStageFlagBits::eFragment }).get(),
                     *layout, 1, true)
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},

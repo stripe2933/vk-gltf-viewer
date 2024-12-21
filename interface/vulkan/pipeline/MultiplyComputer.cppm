@@ -8,6 +8,7 @@ import std;
 import vku;
 export import vulkan_hpp;
 import :math.extended_arithmetic;
+import :shader.multiply_comp;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class MultiplyComputer {
@@ -51,7 +52,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 {},
                 createPipelineStages(
                     device,
-                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/multiply.comp.spv", vk::ShaderStageFlagBits::eCompute)).get()[0],
+                    vku::Shader { shader::multiply_comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
                 *pipelineLayout,
             } } { }
 

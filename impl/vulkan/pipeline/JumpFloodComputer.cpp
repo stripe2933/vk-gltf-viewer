@@ -7,6 +7,7 @@ import :vulkan.pipeline.JumpFloodComputer;
 
 import std;
 import :math.extended_arithmetic;
+import :shader.jump_flood_comp;
 
 struct vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::PushConstant {
     vk::Bool32 forward;
@@ -38,7 +39,7 @@ vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::JumpFloodComputer(
         {},
         createPipelineStages(
             device,
-            vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/jump_flood.comp.spv", vk::ShaderStageFlagBits::eCompute)).get()[0],
+            vku::Shader { shader::jump_flood_comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
         *pipelineLayout,
     } } { }
 

@@ -7,6 +7,7 @@ export module vk_gltf_viewer:vulkan.pipeline.CubemapComputer;
 import std;
 import vku;
 export import vulkan_hpp;
+import :shader.cubemap_comp;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct CubemapComputer {
@@ -51,7 +52,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 {},
                 createPipelineStages(
                     device,
-                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/cubemap.comp.spv", vk::ShaderStageFlagBits::eCompute)).get()[0],
+                    vku::Shader { shader::cubemap_comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
                 *pipelineLayout,
             } } { }
 

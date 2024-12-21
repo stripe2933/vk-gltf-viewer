@@ -8,6 +8,7 @@ import std;
 import vku;
 export import vulkan_hpp;
 import :math.extended_arithmetic;
+import :shader.spherical_harmonic_coefficients_sum_comp;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class SphericalHarmonicCoefficientsSumComputer {
@@ -49,7 +50,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 {},
                 createPipelineStages(
                     device,
-                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/spherical_harmonic_coefficients_sum.comp.spv", vk::ShaderStageFlagBits::eCompute)).get()[0],
+                    vku::Shader { shader::spherical_harmonic_coefficients_sum_comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
                 *pipelineLayout,
             } } { }
 
