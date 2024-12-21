@@ -1,6 +1,11 @@
 export module vk_gltf_viewer:vulkan.pipeline.PrimitiveRenderer;
 
+import std;
 import vku;
+import :shader.faceted_primitive_vert;
+import :shader.primitive_vert;
+import :shader.faceted_primitive_frag;
+import :shader.primitive_frag;
 export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
 
@@ -14,16 +19,18 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         ) : Pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(
                     device,
-                    vku::Shader::fromSpirvFile(
+                    vku::Shader {
                         fragmentShaderTBN
-                            ? COMPILED_SHADER_DIR "/faceted_primitive.vert.spv"
-                            : COMPILED_SHADER_DIR "/primitive.vert.spv",
-                        vk::ShaderStageFlagBits::eVertex),
-                    vku::Shader::fromSpirvFile(
+                            ? std::span<const std::uint32_t> { shader::faceted_primitive_vert }
+                            : std::span<const std::uint32_t> { shader::primitive_vert },
+                        vk::ShaderStageFlagBits::eVertex,
+                    },
+                    vku::Shader {
                         fragmentShaderTBN
-                            ? COMPILED_SHADER_DIR "/faceted_primitive.frag.spv"
-                            : COMPILED_SHADER_DIR "/primitive.frag.spv",
-                        vk::ShaderStageFlagBits::eFragment)).get(),
+                            ? std::span<const std::uint32_t> { shader::faceted_primitive_frag }
+                            : std::span<const std::uint32_t> { shader::primitive_frag },
+                        vk::ShaderStageFlagBits::eFragment,
+                    }).get(),
                 *layout, 1, true, vk::SampleCountFlagBits::e4)
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},

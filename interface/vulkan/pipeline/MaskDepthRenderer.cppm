@@ -1,6 +1,8 @@
 export module vk_gltf_viewer:vulkan.pipeline.MaskDepthRenderer;
 
 import vku;
+import :shader.mask_depth_vert;
+import :shader.mask_depth_frag;
 export import :vulkan.pl.PrimitiveNoShading;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -12,8 +14,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
                         device,
-                        vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/mask_depth.vert.spv", vk::ShaderStageFlagBits::eVertex),
-                        vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/mask_depth.frag.spv", vk::ShaderStageFlagBits::eFragment)).get(),
+                        vku::Shader { shader::mask_depth_vert, vk::ShaderStageFlagBits::eVertex },
+                        vku::Shader { shader::mask_depth_frag, vk::ShaderStageFlagBits::eFragment }).get(),
                     *layout, 1, true)
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},
