@@ -1,7 +1,20 @@
 module;
 
 #include <cassert>
-#include <GLFW/glfw3.h>
+
+#ifdef _WIN32
+#define GLFW_EXPOSE_NATIVE_WIN32
+#define NOMINMAX // prevent min/max macro redeclaration from <windows.h>
+#elifdef __APPLE__
+#define GLFW_EXPOSE_NATIVE_COCOA
+#elifdef __linux__
+#ifdef WAYLAND_DISPLAY
+#define GLFW_EXPOSE_NATIVE_WAYLAND
+#else
+#define GLFW_EXPOSE_NATIVE_X11
+#endif
+#endif
+#include <nfd_glfw3.h>
 #include <nfd.hpp>
 #include <OpenEXR/ImfInputFile.h>
 #include <OpenEXR/ImfFrameBuffer.h>
@@ -38,9 +51,11 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
 
-[[nodiscard]] std::optional<std::filesystem::path> processFileDialog(std::span<const nfdfilteritem_t> filterItems) {
+[[nodiscard]] std::optional<std::filesystem::path> processFileDialog(std::span<const nfdfilteritem_t> filterItems, const nfdwindowhandle_t &windowHandle) {
+    static NFD::Guard nfdGuard;
+
     NFD::UniquePath outPath;
-    if (nfdresult_t nfdResult = OpenDialog(outPath, filterItems.data(), filterItems.size()); nfdResult == NFD_OKAY) {
+    if (nfdresult_t nfdResult = OpenDialog(outPath, filterItems.data(), filterItems.size(), nullptr, windowHandle); nfdResult == NFD_OKAY) {
         return outPath.get();
     }
     else if (nfdResult == NFD_CANCEL) {
@@ -283,7 +298,14 @@ void vk_gltf_viewer::MainApp::run() {
                         nfdfilteritem_t { "All Supported Files", "gltf,glb" },
                         nfdfilteritem_t { "glTF File", "gltf,glb" },
                     };
-                    if (auto filename = processFileDialog(filterItems)) {
+
+                    // Get native window handle.
+                    nfdwindowhandle_t windowHandle = {};
+                    if (!NFD_GetNativeWindowFromGLFWWindow(window, &windowHandle)) {
+                        std::println(std::cerr, "Failed to get window handle from GLFW window.");
+                    }
+
+                    if (auto filename = processFileDialog(filterItems, windowHandle)) {
                         loadGltf(*filename);
                     }
                 },
@@ -302,7 +324,14 @@ void vk_gltf_viewer::MainApp::run() {
                         nfdfilteritem_t { "HDR Image", "hdr" },
                         nfdfilteritem_t { "EXR Image", "exr" },
                     };
-                    if (auto filename = processFileDialog(filterItems)) {
+
+                    // Get native window handle.
+                    nfdwindowhandle_t windowHandle = {};
+                    if (!NFD_GetNativeWindowFromGLFWWindow(window, &windowHandle)) {
+                        std::println(std::cerr, "Failed to get window handle from GLFW window.");
+                    }
+
+                    if (auto filename = processFileDialog(filterItems, windowHandle)) {
                         loadEqmap(*filename);
                     }
                 },

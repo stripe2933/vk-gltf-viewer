@@ -185,6 +185,12 @@ target_compile_definitions(vk-gltf-viewer PRIVATE
     GLFW_INCLUDE_NONE
 )
 
+if (UNIX AND NOT APPLE) # Linux?
+    if (DEFINED ENV{WAYLAND_DISPLAY})
+        target_compile_definitions(vk-gltf-viewer PRIVATE WAYLAND_DISPLAY)
+    endif()
+endif()
+
 # --------------------
 # Shader compilation.
 # --------------------
