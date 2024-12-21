@@ -67,3 +67,12 @@ jobs:
 
       - name: Build
         run: cmake --build build --config release
+
+      - name: Upload Binary as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}
+          path: |
+            build/vk-gltf-viewer
+            build/vk-gltf-viewer.exe
+            build/*.dll
