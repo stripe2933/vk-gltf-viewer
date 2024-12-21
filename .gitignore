@@ -4,3 +4,4 @@ clang-toolchain.cmake
 CMakeUserPresets.json
 recent_gltf.txt
 recent_skybox.txt
+/triplets/

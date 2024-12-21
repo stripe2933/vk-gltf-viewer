@@ -710,7 +710,7 @@ vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR
             //   memory used by presentable images.
             //
             // Therefore, if maxImageCount is zero, it is set to the UINT_MAX and minImageCount + 1 will be used.
-            std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount == 0 ? ~0U : surfaceCapabilities.maxImageCount),
+                 std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount == 0 ? ~0U : surfaceCapabilities.maxImageCount), 
             vk::Format::eB8G8R8A8Srgb,
             vk::ColorSpaceKHR::eSrgbNonlinear,
             swapchainExtent,
