@@ -99,14 +99,8 @@ namespace vk_gltf_viewer::gltf {
 
         template <
             std::invocable<const AssetPrimitiveInfo&> CriteriaGetter,
-            typename Compare = std::less<CriteriaGetter>,
-            typename Criteria = std::invoke_result_t<CriteriaGetter, const AssetPrimitiveInfo&>>
-        requires
-            requires(const Criteria &criteria) {
-                // Draw commands with same criteria must have same kind of index type, or no index type (multi draw
-                // indirect requires the same index type).
-                { criteria.indexType } -> std::convertible_to<std::optional<vk::IndexType>>;
-            }
+            typename Criteria = std::invoke_result_t<CriteriaGetter, const AssetPrimitiveInfo&>,
+            typename Compare = std::less<Criteria>>
         [[nodiscard]] auto createIndirectDrawCommandBuffers(
             vma::Allocator allocator,
             const CriteriaGetter &criteriaGetter,
