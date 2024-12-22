@@ -5,6 +5,7 @@ module;
 export module vk_gltf_viewer:vulkan.SharedData;
 
 import std;
+export import fastgltf;
 export import vku;
 export import :vulkan.ag.Swapchain;
 export import :vulkan.Gpu;
@@ -105,6 +106,53 @@ namespace vk_gltf_viewer::vulkan {
                     sceneDescriptorSetLayout,
                     imageBasedLightingDescriptorSetLayout,
                     skyboxDescriptorSetLayout));
+        }
+
+        /**
+         * @brief Get corresponding Vulkan pipeline for given \p material and TBN generation policy.
+         * @param material Material of primitive to render.
+         * @param fragmentShaderTBN Flag whether to generate the TBN matrix in the fragment shader or not. If rendering primitive is non-indexed geometry, this flag MUST be set to <tt>true</tt>.
+         * @return Vulkan pipeline for the given material.
+         */
+        [[nodiscard]] vk::Pipeline getPrimitiveRenderer(const fastgltf::Material &material, bool fragmentShaderTBN) const noexcept {
+            switch (material.alphaMode) {
+                case fastgltf::AlphaMode::Opaque:
+                    return material.unlit
+                        ? *unlitPrimitiveRenderer
+                        : fragmentShaderTBN
+                            ? *facetedPrimitiveRenderer
+                            : *primitiveRenderer;
+                case fastgltf::AlphaMode::Mask:
+                    return material.unlit
+                        ? *maskUnlitPrimitiveRenderer
+                        : fragmentShaderTBN
+                            ? *maskFacetedPrimitiveRenderer
+                            : *maskPrimitiveRenderer;
+                case fastgltf::AlphaMode::Blend:
+                    return material.unlit
+                        ? *blendUnlitPrimitiveRenderer
+                        : fragmentShaderTBN
+                            ? *blendFacetedPrimitiveRenderer
+                            : *blendPrimitiveRenderer;
+            }
+        }
+
+        /**
+         * @brief Get corresponding Vulkan pipeline for depth prepass rendering.
+         * @param alphaMode Alpha mode of the material.
+         * @return Vulkan pipeline for depth prepass rendering.
+         */
+        [[nodiscard]] vk::Pipeline getDepthPrepassRenderer(fastgltf::AlphaMode alphaMode) const noexcept {
+            return alphaMode == fastgltf::AlphaMode::Mask? *maskDepthRenderer : *depthRenderer;
+        }
+
+        /**
+         * @brief Get corresponding Vulkan pipeline for jump flood seeding.
+         * @param alphaMode Alpha mode of the material.
+         * @return Vulkan pipeline for jump flood seeding.
+         */
+        [[nodiscard]] vk::Pipeline getJumpFloodSeedRenderer(fastgltf::AlphaMode alphaMode) const noexcept {
+            return alphaMode == fastgltf::AlphaMode::Mask? *maskJumpFloodSeedRenderer : *jumpFloodSeedRenderer;
         }
 
         // --------------------

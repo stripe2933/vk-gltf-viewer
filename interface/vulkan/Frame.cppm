@@ -14,6 +14,33 @@ import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.SceneOpaque;
 import :vulkan.ag.SceneWeightedBlended;
 
+/**
+ * @brief A type that represents the state for a single multi-draw-indirect call.
+ *
+ * Multi-draw-indirect call execute multiple draw calls with single state. Therefore, if there are many draw calls whose
+ * PSOs are different, they need to be grouped by each draw call's required state, and the grouped call can be executed
+ * with a single multi-draw-indirect call.
+ *
+ * This type will be used for the key of associated grouped draw calls.
+ */
+struct CommandSeparationCriteria {
+    std::uint32_t subpass;
+    vk::Pipeline pipeline;
+    std::optional<vk::IndexType> indexType;
+    vk::CullModeFlagBits cullMode;
+
+    [[nodiscard]] std::strong_ordering operator<=>(const CommandSeparationCriteria&) const noexcept = default;
+};
+
+template <>
+struct std::less<CommandSeparationCriteria> {
+    using is_transparent = void;
+
+    [[nodiscard]] bool operator()(const CommandSeparationCriteria &lhs, const CommandSeparationCriteria &rhs) const noexcept { return lhs < rhs; }
+    [[nodiscard]] bool operator()(const CommandSeparationCriteria &lhs, std::uint32_t rhs) const noexcept { return lhs.subpass < rhs; }
+    [[nodiscard]] bool operator()(std::uint32_t lhs, const CommandSeparationCriteria &rhs) const noexcept { return lhs < rhs.subpass; }
+};
+
 namespace vk_gltf_viewer::vulkan {
     export class Frame {
     public:
@@ -116,38 +143,7 @@ namespace vk_gltf_viewer::vulkan {
         [[nodiscard]] vk::Semaphore getSwapchainImageReadySemaphore() const noexcept { return *compositionFinishSema; }
 
     private:
-        enum class RenderingStrategy : std::uint8_t {
-            Blend,
-            // Note: KHR_materials_unlit is not affected by lighting, therefore per-fragment normal and tangent
-            // calculation is unnecessary. Therefore, regardless whether it is faceted or not, it can be rendered with
-            // the same way.
-            BlendUnlit,
-            BlendFaceted,
-            Opaque,
-            OpaqueUnlit,
-            OpaqueFaceted,
-            Mask,
-            MaskUnlit,
-            MaskFaceted,
-        };
-
-        struct CommandSeparationCriteria {
-            RenderingStrategy strategy;
-            std::optional<vk::IndexType> indexType;
-            bool doubleSided;
-
-            [[nodiscard]] constexpr auto operator<=>(const CommandSeparationCriteria&) const noexcept -> std::strong_ordering = default;
-        };
-
-        struct CommandSeparationCriteriaComparator {
-            using is_transparent = void;
-
-            [[nodiscard]] auto operator()(const CommandSeparationCriteria &lhs, const CommandSeparationCriteria &rhs) const noexcept -> bool { return lhs < rhs; }
-            [[nodiscard]] auto operator()(const CommandSeparationCriteria &lhs, RenderingStrategy rhs) const noexcept -> bool { return lhs.strategy < rhs; }
-            [[nodiscard]] auto operator()(RenderingStrategy lhs, const CommandSeparationCriteria &rhs) const noexcept -> bool { return lhs < rhs.strategy; }
-        };
-
-        using CriteriaSeparatedIndirectDrawCommands = std::map<CommandSeparationCriteria, std::variant<buffer::IndirectDrawCommands<false>, buffer::IndirectDrawCommands<true>>, CommandSeparationCriteriaComparator>;
+        using CriteriaSeparatedIndirectDrawCommands = std::map<CommandSeparationCriteria, std::variant<buffer::IndirectDrawCommands<false>, buffer::IndirectDrawCommands<true>>>;
 
         class PassthruResources {
         public:
@@ -179,18 +175,19 @@ namespace vk_gltf_viewer::vulkan {
         struct RenderingNodes {
             std::unordered_set<std::uint16_t> indices;
             CriteriaSeparatedIndirectDrawCommands indirectDrawCommandBuffers;
+            CriteriaSeparatedIndirectDrawCommands depthPrepassIndirectDrawCommandBuffers;
         };
 
         struct SelectedNodes {
             std::unordered_set<std::uint16_t> indices;
-            CriteriaSeparatedIndirectDrawCommands indirectDrawCommandBuffers;
+            CriteriaSeparatedIndirectDrawCommands jumpFloodSeedIndirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
 
         struct HoveringNode {
             std::uint16_t index;
-            CriteriaSeparatedIndirectDrawCommands indirectDrawCommandBuffers;
+            CriteriaSeparatedIndirectDrawCommands jumpFloodSeedIndirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
