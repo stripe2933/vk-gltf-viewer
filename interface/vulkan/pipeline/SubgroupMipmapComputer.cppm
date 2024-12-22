@@ -69,15 +69,15 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     vku::Shader {
                         gpu.subgroupSize == 16U
                             ? gpu.supportShaderImageLoadStoreLod
-                                ? std::span<const std::uint32_t> { shader::subgroup_mipmap_16_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_1 }
-                                : std::span<const std::uint32_t> { shader::subgroup_mipmap_16_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_0 }
+                                ? std::span<const std::uint32_t> { shader::subgroup_mipmap_16_comp<1> }
+                                : std::span<const std::uint32_t> { shader::subgroup_mipmap_16_comp<0> }
                             : gpu.subgroupSize == 32U
                                 ? gpu.supportShaderImageLoadStoreLod
-                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_32_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_1 }
-                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_32_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_0 }
+                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_32_comp<1> }
+                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_32_comp<0> }
                                 : gpu.supportShaderImageLoadStoreLod
-                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_64_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_1 }
-                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_64_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_0 },
+                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_64_comp<1> }
+                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_64_comp<0> },
                         vk::ShaderStageFlagBits::eCompute,
                     }).get()[0],
                 *pipelineLayout,

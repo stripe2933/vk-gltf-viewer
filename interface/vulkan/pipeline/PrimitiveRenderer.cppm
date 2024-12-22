@@ -27,8 +27,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     },
                     vku::Shader {
                         fragmentShaderTBN
-                            ? std::span<const std::uint32_t> { shader::faceted_primitive_frag }
-                            : std::span<const std::uint32_t> { shader::primitive_frag },
+                            ? std::span<const std::uint32_t> { shader::faceted_primitive_frag<0> }
+                            : std::span<const std::uint32_t> { shader::primitive_frag<0> },
                         vk::ShaderStageFlagBits::eFragment,
                     }).get(),
                 *layout, 1, true, vk::SampleCountFlagBits::e4)

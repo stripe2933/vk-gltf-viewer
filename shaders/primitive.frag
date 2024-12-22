@@ -21,7 +21,12 @@ layout (location = 7) in vec2 inOcclusionTexcoord;
 layout (location = 8) in vec2 inEmissiveTexcoord;
 layout (location = 9) flat in uint inMaterialIndex;
 
+#if ALPHA_MODE == 0 || ALPHA_MODE == 1
 layout (location = 0) out vec4 outColor;
+#elif ALPHA_MODE == 2
+layout (location = 0) out vec4 outAccumulation;
+layout (location = 1) out float outRevealage;
+#endif
 
 layout (set = 0, binding = 0, scalar) uniform SphericalHarmonicsBuffer {
     vec3 coefficients[9];
@@ -39,7 +44,9 @@ layout (push_constant, std430) uniform PushConstant {
     vec3 viewPosition;
 } pc;
 
+#if ALPHA_MODE == 0 || ALPHA_MODE == 2
 layout (early_fragment_tests) in;
+#endif
 
 // --------------------
 // Functions.
@@ -52,6 +59,29 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness){
 vec3 diffuseIrradiance(vec3 normal){
     SphericalHarmonicBasis basis = SphericalHarmonicBasis_construct(normal);
     return SphericalHarmonicBasis_restore(basis, sphericalHarmonics.coefficients) / 3.141593;
+}
+
+float geometricMean(vec2 v){
+    return sqrt(v.x * v.y);
+}
+
+void writeOutput(vec4 color) {
+#if ALPHA_MODE == 0
+    outColor = vec4(color.rgb, 1.0);
+#elif ALPHA_MODE == 1
+    color.a *= 1.0 + geometricMean(textureQueryLod(textures[int(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord)) * 0.25;
+    // Apply sharpness to the alpha.
+    // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
+    color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
+    outColor = color;
+#elif ALPHA_MODE == 2
+    // Weighted Blended.
+    float weight = clamp(
+        pow(min(1.0, color.a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - gl_FragCoord.z * 0.9, 3.0),
+        1e-2, 3e3);
+    outAccumulation = vec4(color.rgb * color.a, color.a) * weight;
+    outRevealage = color.a;
+#endif
 }
 
 void main(){
@@ -105,5 +135,5 @@ void main(){
     float colorLuminance = dot(color, REC_709_LUMA);
     vec3 correctedColor = color / (1.0 + colorLuminance);
 
-    outColor = vec4(correctedColor, 1.0);
+    writeOutput(vec4(correctedColor, baseColor.a));
 }
