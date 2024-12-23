@@ -59,7 +59,7 @@ function(target_link_shaders TARGET)
     target_sources(${TARGET} PRIVATE FILE_SET CXX_MODULES FILES ${outputs})
 endfunction()
 
-function(target_link_shaders_variant TARGET SOURCE MACRO_NAMES)
+function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
     # Make target identifier.
     string(MAKE_C_IDENTIFIER ${TARGET} target_identifier)
 

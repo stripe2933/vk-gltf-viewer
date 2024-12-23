@@ -222,24 +222,24 @@ target_link_shaders(vk-gltf-viewer
     shaders/unlit_primitive.vert
     shaders/weighted_blended_composition.frag
 )
-target_link_shaders_variant(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer
     shaders/prefilteredmap.comp
     "AMD_SHADER_IMAGE_LOAD_STORE_LOD" 0 1
 )
-target_link_shaders_variant(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer
     shaders/subgroup_mipmap.comp
     "SUBGROUP_SIZE;AMD_SHADER_IMAGE_LOAD_STORE_LOD"
     "16 0" "16 1"
     "32 0" "32 1"
     "64 0" "64 1"
 )
-target_link_shaders_variant(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer
     shaders/primitive.frag
     "FRAGMENT_SHADER_GENERATED_TBN;ALPHA_MODE"
     "0 0" "0 1" "0 2"
     "1 0" "1 1" "1 2"
 )
-target_link_shaders_variant(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer
     shaders/unlit_primitive.frag
     "ALPHA_MODE" 0 1 2
 )
