@@ -4,7 +4,6 @@ import std;
 import vku;
 import :shader.faceted_primitive_vert;
 import :shader.primitive_vert;
-import :shader.faceted_primitive_frag;
 import :shader.primitive_frag;
 export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
@@ -27,8 +26,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     },
                     vku::Shader {
                         fragmentShaderTBN
-                            ? std::span<const std::uint32_t> { shader::faceted_primitive_frag<1> }
-                            : std::span<const std::uint32_t> { shader::primitive_frag<1> },
+                            ? std::span<const std::uint32_t> { shader::primitive_frag<1, 1> }
+                            : std::span<const std::uint32_t> { shader::primitive_frag<0, 1> },
                         vk::ShaderStageFlagBits::eFragment,
                     }).get(),
                 *layout, 1, true, vk::SampleCountFlagBits::e4)

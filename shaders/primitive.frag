@@ -13,6 +13,14 @@
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
 layout (location = 0) in vec3 inPosition;
+#if FRAGMENT_SHADER_GENERATED_TBN
+layout (location = 1) in vec2 inBaseColorTexcoord;
+layout (location = 2) in vec2 inMetallicRoughnessTexcoord;
+layout (location = 3) in vec2 inNormalTexcoord;
+layout (location = 4) in vec2 inOcclusionTexcoord;
+layout (location = 5) in vec2 inEmissiveTexcoord;
+layout (location = 6) flat in uint inMaterialIndex;
+#else
 layout (location = 1) in mat3 inTBN;
 layout (location = 4) in vec2 inBaseColorTexcoord;
 layout (location = 5) in vec2 inMetallicRoughnessTexcoord;
@@ -20,6 +28,7 @@ layout (location = 6) in vec2 inNormalTexcoord;
 layout (location = 7) in vec2 inOcclusionTexcoord;
 layout (location = 8) in vec2 inEmissiveTexcoord;
 layout (location = 9) flat in uint inMaterialIndex;
+#endif
 
 #if ALPHA_MODE == 0 || ALPHA_MODE == 1
 layout (location = 0) out vec4 outColor;
@@ -92,6 +101,20 @@ void main(){
     float roughness = metallicRoughness.y;
 
     vec3 N;
+#if FRAGMENT_SHADER_GENERATED_TBN
+    vec3 tangent = dFdx(inPosition);
+    vec3 bitangent = dFdy(inPosition);
+    vec3 normal = normalize(cross(tangent, bitangent));
+
+    if (int(MATERIAL.normalTextureIndex) != -1){
+        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], inNormalTexcoord).rgb;
+        vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
+        N = normalize(mat3(tangent, bitangent, normal) * scaledNormal);
+    }
+    else {
+        N = normal;
+    }
+#else
     if (int(MATERIAL.normalTextureIndex) != -1){
         vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], inNormalTexcoord).rgb;
         vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
@@ -100,6 +123,7 @@ void main(){
     else {
         N = normalize(inTBN[2]);
     }
+#endif
 
     float occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[int(MATERIAL.occlusionTextureIndex) + 1], inOcclusionTexcoord).r - 1.0);
 
