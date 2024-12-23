@@ -9,10 +9,14 @@ vcpkg_from_github(
 vcpkg_cmake_configure(SOURCE_PATH "${SOURCE_PATH}")
 vcpkg_cmake_install()
 
-file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/debug/share)
-file(RENAME ${CURRENT_PACKAGES_DIR}/debug/cmake/cstring_view ${CURRENT_PACKAGES_DIR}/debug/share/cstring_view)
-file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/share)
-file(RENAME ${CURRENT_PACKAGES_DIR}/cmake/cstring_view ${CURRENT_PACKAGES_DIR}/share/cstring_view)
+if (NOT VCPKG_BUILD_TYPE STREQUAL "release")
+    file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/debug/share)
+    file(RENAME ${CURRENT_PACKAGES_DIR}/debug/cmake/cstring_view ${CURRENT_PACKAGES_DIR}/debug/share/cstring_view)
+endif()
+if (NOT VCPKG_BUILD_TYPE STREQUAL "debug")
+    file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/share)
+    file(RENAME ${CURRENT_PACKAGES_DIR}/cmake/cstring_view ${CURRENT_PACKAGES_DIR}/share/cstring_view)
+endif()
 
 vcpkg_cmake_config_fixup(PACKAGE_NAME "cstring_view")
 
