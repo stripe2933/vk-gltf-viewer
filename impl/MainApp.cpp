@@ -594,7 +594,7 @@ void vk_gltf_viewer::MainApp::run() {
                 };
             }),
             .solidBackground = appState.background.to_optional(),
-            .handleSwapchainResize = std::exchange(shouldHandleSwapchainResize[frameIndex % frames.size()], false),
+            .handleSwapchainResize = std::exchange(shouldHandleSwapchainResize[frameIndex], false),
         });
 
         // Feedback the update result into this.
