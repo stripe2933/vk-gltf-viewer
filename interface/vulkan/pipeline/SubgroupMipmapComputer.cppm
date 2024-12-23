@@ -8,9 +8,7 @@ export module vk_gltf_viewer:vulkan.pipeline.SubgroupMipmapComputer;
 
 import std;
 import :helpers.ranges;
-import :shader.subgroup_mipmap_16_comp;
-import :shader.subgroup_mipmap_32_comp;
-import :shader.subgroup_mipmap_64_comp;
+import :shader.subgroup_mipmap_comp;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -69,15 +67,15 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     vku::Shader {
                         gpu.subgroupSize == 16U
                             ? gpu.supportShaderImageLoadStoreLod
-                                ? std::span<const std::uint32_t> { shader::subgroup_mipmap_16_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_1 }
-                                : std::span<const std::uint32_t> { shader::subgroup_mipmap_16_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_0 }
+                                ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<16, 1> }
+                                : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<16, 0> }
                             : gpu.subgroupSize == 32U
                                 ? gpu.supportShaderImageLoadStoreLod
-                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_32_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_1 }
-                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_32_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_0 }
+                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<32, 1> }
+                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<32, 0> }
                                 : gpu.supportShaderImageLoadStoreLod
-                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_64_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_1 }
-                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_64_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_0 },
+                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<64, 1> }
+                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<64, 0> },
                         vk::ShaderStageFlagBits::eCompute,
                     }).get()[0],
                 *pipelineLayout,

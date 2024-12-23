@@ -16,7 +16,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 createPipelineStages(
                     device,
                     vku::Shader { shader::unlit_primitive_vert, vk::ShaderStageFlagBits::eVertex },
-                    vku::Shader { shader::unlit_primitive_frag, vk::ShaderStageFlagBits::eFragment }).get(),
+                    vku::Shader { shader::unlit_primitive_frag<0>, vk::ShaderStageFlagBits::eFragment }).get(),
                 *layout, 1, true, vk::SampleCountFlagBits::e4)
             .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                 {},

@@ -2,10 +2,8 @@ export module vk_gltf_viewer:vulkan.pipeline.MaskPrimitiveRenderer;
 
 import std;
 import vku;
-import :shader.faceted_primitive_vert;
 import :shader.primitive_vert;
-import :shader.mask_faceted_primitive_frag;
-import :shader.mask_primitive_frag;
+import :shader.primitive_frag;
 export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
 
@@ -21,14 +19,14 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     device,
                     vku::Shader {
                         fragmentShaderTBN
-                            ? std::span<const std::uint32_t> { shader::faceted_primitive_vert }
-                            : std::span<const std::uint32_t> { shader::primitive_vert },
+                            ? std::span<const std::uint32_t> { shader::primitive_vert<1> }
+                            : std::span<const std::uint32_t> { shader::primitive_vert<0> },
                         vk::ShaderStageFlagBits::eVertex,
                     },
                     vku::Shader {
                         fragmentShaderTBN
-                            ? std::span<const std::uint32_t> { shader::mask_faceted_primitive_frag }
-                            : std::span<const std::uint32_t> { shader::mask_primitive_frag },
+                            ? std::span<const std::uint32_t> { shader::primitive_frag<1, 1> }
+                            : std::span<const std::uint32_t> { shader::primitive_frag<0, 1> },
                         vk::ShaderStageFlagBits::eFragment,
                     }).get(),
                 *layout, 1, true, vk::SampleCountFlagBits::e4)

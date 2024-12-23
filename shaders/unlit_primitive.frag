@@ -11,16 +11,46 @@
 layout (location = 0) in vec2 inBaseColorTexcoord;
 layout (location = 1) flat in uint inMaterialIndex;
 
+#if ALPHA_MODE == 0 || ALPHA_MODE == 1
 layout (location = 0) out vec4 outColor;
+#elif ALPHA_MODE == 2
+layout (location = 0) out vec4 outAccumulation;
+layout (location = 1) out float outRevealage;
+#endif
 
 layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
 layout (set = 1, binding = 2) uniform sampler2D textures[];
 
+#if ALPHA_MODE == 0 || ALPHA_MODE == 2
 layout (early_fragment_tests) in;
+#endif
+
+float geometricMean(vec2 v){
+    return sqrt(v.x * v.y);
+}
+
+void writeOutput(vec4 color) {
+#if ALPHA_MODE == 0
+    outColor = vec4(color.rgb, 1.0);
+#elif ALPHA_MODE == 1
+    color.a *= 1.0 + geometricMean(textureQueryLod(textures[int(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord)) * 0.25;
+    // Apply sharpness to the alpha.
+    // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
+    color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
+    outColor = color;
+#elif ALPHA_MODE == 2
+    // Weighted Blended.
+    float weight = clamp(
+        pow(min(1.0, color.a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - gl_FragCoord.z * 0.9, 3.0),
+        1e-2, 3e3);
+    outAccumulation = vec4(color.rgb * color.a, color.a) * weight;
+    outRevealage = color.a;
+#endif
+}
 
 void main(){
     vec4 baseColor = MATERIAL.baseColorFactor * texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord);
-    outColor = vec4(baseColor.rgb, 1.0);
+    writeOutput(baseColor);
 }

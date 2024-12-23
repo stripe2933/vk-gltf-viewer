@@ -89,8 +89,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     gpu.device,
                     vku::Shader {
                         gpu.supportShaderImageLoadStoreLod
-                            ? std::span<const std::uint32_t> { shader::prefilteredmap_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_1 }
-                            : std::span<const std::uint32_t> { shader::prefilteredmap_comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_0 },
+                            ? std::span<const std::uint32_t> { shader::prefilteredmap_comp<1> }
+                            : std::span<const std::uint32_t> { shader::prefilteredmap_comp<0> },
                         vk::ShaderStageFlagBits::eCompute,
                         vku::unsafeAddress(vk::SpecializationInfo {
                             vku::unsafeProxy({

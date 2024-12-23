@@ -198,43 +198,50 @@ endif()
 include(cmake/CompileShader.cmake)
 
 target_link_shaders(vk-gltf-viewer
-    shaders/blend_faceted_primitive.frag
-    shaders/blend_primitive.frag
-    shaders/blend_unlit_primitive.frag
     shaders/brdfmap.comp
     shaders/cubemap_tone_mapping.frag
     shaders/cubemap.comp
     shaders/depth.frag
     shaders/depth.vert
-    shaders/faceted_primitive.frag
-    shaders/faceted_primitive.vert
     shaders/jump_flood_seed.frag
     shaders/jump_flood_seed.vert
     shaders/jump_flood.comp
     shaders/mask_depth.frag
     shaders/mask_depth.vert
-    shaders/mask_faceted_primitive.frag
     shaders/mask_jump_flood_seed.frag
     shaders/mask_jump_flood_seed.vert
-    shaders/mask_primitive.frag
-    shaders/mask_unlit_primitive.frag
     shaders/multiply.comp
     shaders/outline.frag
-    shaders/primitive.frag
-    shaders/primitive.vert
     shaders/screen_quad.vert
     shaders/skybox.frag
     shaders/skybox.vert
     shaders/spherical_harmonic_coefficients_sum.comp
     shaders/spherical_harmonics.comp
-    shaders/unlit_primitive.frag
     shaders/unlit_primitive.vert
     shaders/weighted_blended_composition.frag
 )
-target_link_shaders_variant(vk-gltf-viewer
-    AMD_SHADER_IMAGE_LOAD_STORE_LOD "0;1"
+target_link_shader_variants(vk-gltf-viewer
     shaders/prefilteredmap.comp
-    shaders/subgroup_mipmap_16.comp
-    shaders/subgroup_mipmap_32.comp
-    shaders/subgroup_mipmap_64.comp
+    "AMD_SHADER_IMAGE_LOAD_STORE_LOD" 0 1
+)
+target_link_shader_variants(vk-gltf-viewer
+    shaders/subgroup_mipmap.comp
+    "SUBGROUP_SIZE;AMD_SHADER_IMAGE_LOAD_STORE_LOD"
+    "16 0" "16 1"
+    "32 0" "32 1"
+    "64 0" "64 1"
+)
+target_link_shader_variants(vk-gltf-viewer
+    shaders/primitive.vert
+    "FRAGMENT_SHADER_GENERATED_TBN" 0 1
+)
+target_link_shader_variants(vk-gltf-viewer
+    shaders/primitive.frag
+    "FRAGMENT_SHADER_GENERATED_TBN;ALPHA_MODE"
+    "0 0" "0 1" "0 2"
+    "1 0" "1 1" "1 2"
+)
+target_link_shader_variants(vk-gltf-viewer
+    shaders/unlit_primitive.frag
+    "ALPHA_MODE" 0 1 2
 )
