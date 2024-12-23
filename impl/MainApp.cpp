@@ -245,6 +245,7 @@ vk_gltf_viewer::MainApp::~MainApp() {
 void vk_gltf_viewer::MainApp::run() {
     // Booleans that indicates frame at the corresponding index should handle swapchain resizing.
     std::array<bool, FRAMES_IN_FLIGHT> shouldHandleSwapchainResize{};
+    std::array<bool, FRAMES_IN_FLIGHT> shouldRegenerateDrawCommands{};
 
     std::vector<control::Task> tasks;
     for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % FRAMES_IN_FLIGHT) {
@@ -285,7 +286,6 @@ void vk_gltf_viewer::MainApp::run() {
             }
         }
 
-        bool regenerateDrawCommands = false;
         for (const control::Task &task : tasks) {
             visit(multilambda {
                 [this](const control::task::ChangePassthruRect &task) {
@@ -306,10 +306,12 @@ void vk_gltf_viewer::MainApp::run() {
 
                     if (auto filename = processFileDialog(filterItems, windowHandle)) {
                         loadGltf(*filename);
+                        shouldRegenerateDrawCommands.fill(true);
                     }
                 },
                 [&](const control::task::LoadGltf &task) {
                     loadGltf(task.path);
+                    shouldRegenerateDrawCommands.fill(true);
                 },
                 [&](control::task::CloseGltf) {
                     gltf.reset();
@@ -496,7 +498,7 @@ void vk_gltf_viewer::MainApp::run() {
                     }
                 },
                 [&](control::task::InvalidateDrawCommandSeparation) {
-                    regenerateDrawCommands = true;
+                    shouldRegenerateDrawCommands.fill(true);
                 },
             }, task);
         }
@@ -531,13 +533,13 @@ void vk_gltf_viewer::MainApp::run() {
                     .assetGpuBuffers = gltf.assetGpuBuffers,
                     .sceneHierarchy = gltf.sceneHierarchy,
                     .sceneGpuBuffers = gltf.sceneGpuBuffers,
+                    .shouldRegenerateDrawCommands = std::exchange(shouldRegenerateDrawCommands[frameIndex], false),
                     .renderingNodes = {
                         .indices = appState.gltfAsset->getVisibleNodeIndices(),
-                        .shouldRegenerateDrawCommands = regenerateDrawCommands,
                     },
                     .hoveringNode = transform([&](std::uint16_t index, const AppState::Outline &outline) {
                         return vulkan::Frame::ExecutionTask::Gltf::HoveringNode {
-                            index, outline.color, outline.thickness, regenerateDrawCommands,
+                            index, outline.color, outline.thickness,
                         };
                     }, appState.gltfAsset->hoveringNodeIndex, appState.hoveringNodeOutline.to_optional()),
                     .selectedNodes = value_if(!appState.gltfAsset->selectedNodeIndices.empty() && appState.selectedNodeOutline.has_value(), [&]() {
@@ -545,7 +547,6 @@ void vk_gltf_viewer::MainApp::run() {
                             appState.gltfAsset->selectedNodeIndices,
                             appState.selectedNodeOutline->color,
                             appState.selectedNodeOutline->thickness,
-                            regenerateDrawCommands,
                         };
                     }),
                 };
