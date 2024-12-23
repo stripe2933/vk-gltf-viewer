@@ -67,7 +67,7 @@ namespace vk_gltf_viewer::vulkan {
                 const gltf::AssetSceneHierarchy &sceneHierarchy;
                 const gltf::AssetSceneGpuBuffers &sceneGpuBuffers;
 
-                bool shouldRegenerateDrawCommands;
+                bool regenerateDrawCommands;
                 RenderingNodes renderingNodes;
                 std::optional<HoveringNode> hoveringNode;
                 std::optional<SelectedNodes> selectedNodes;

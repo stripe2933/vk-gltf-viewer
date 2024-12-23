@@ -166,7 +166,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         if (!task.gltf->renderingNodes.indices.empty()) {
             if (!renderingNodes ||
-                task.gltf->shouldRegenerateDrawCommands ||
+                task.gltf->regenerateDrawCommands ||
                 renderingNodes->indices != task.gltf->renderingNodes.indices) {
                 renderingNodes.emplace(
                     task.gltf->renderingNodes.indices,
@@ -226,7 +226,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         if (task.gltf->selectedNodes) {
             if (selectedNodes) {
-                if (task.gltf->shouldRegenerateDrawCommands ||
+                if (task.gltf->regenerateDrawCommands ||
                     selectedNodes->indices != task.gltf->selectedNodes->indices) {
                     selectedNodes->indices = task.gltf->selectedNodes->indices;
                     selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers(gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
@@ -250,7 +250,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             // If selectedNodeIndices == hoveringNodeIndex, hovering node outline doesn't have to be drawn.
             !(task.gltf->selectedNodes && task.gltf->selectedNodes->indices.size() == 1 && *task.gltf->selectedNodes->indices.begin() == task.gltf->hoveringNode->index)) {
             if (hoveringNode) {
-                if (task.gltf->shouldRegenerateDrawCommands ||
+                if (task.gltf->regenerateDrawCommands ||
                     hoveringNode->index != task.gltf->hoveringNode->index) {
                     hoveringNode->index = task.gltf->hoveringNode->index;
                     hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers = task.gltf->sceneGpuBuffers.createIndirectDrawCommandBuffers(gpu.allocator, jumpFloodSeedCriteriaGetter, { task.gltf->hoveringNode->index }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });

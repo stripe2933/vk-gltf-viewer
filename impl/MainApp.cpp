@@ -258,7 +258,7 @@ vk_gltf_viewer::MainApp::~MainApp() {
 void vk_gltf_viewer::MainApp::run() {
     // Booleans that indicates frame at the corresponding index should handle swapchain resizing.
     std::array<bool, FRAMES_IN_FLIGHT> shouldHandleSwapchainResize{};
-    std::array<bool, FRAMES_IN_FLIGHT> shouldRegenerateDrawCommands{};
+    std::array<bool, FRAMES_IN_FLIGHT> regenerateDrawCommands{};
 
     // TODO: we need more general mechanism to upload the GPU buffer data in shared data. This is just a stopgap solution
     //  for current KHR_materials_variants implementation.
@@ -328,12 +328,12 @@ void vk_gltf_viewer::MainApp::run() {
 
                     if (auto filename = processFileDialog(filterItems, windowHandle)) {
                         loadGltf(*filename);
-                        shouldRegenerateDrawCommands.fill(true);
+                        regenerateDrawCommands.fill(true);
                     }
                 },
                 [&](const control::task::LoadGltf &task) {
                     loadGltf(task.path);
-                    shouldRegenerateDrawCommands.fill(true);
+                    regenerateDrawCommands.fill(true);
                 },
                 [&](control::task::CloseGltf) {
                     gltf.reset();
@@ -520,7 +520,7 @@ void vk_gltf_viewer::MainApp::run() {
                     }
                 },
                 [&](control::task::InvalidateDrawCommandSeparation) {
-                    shouldRegenerateDrawCommands.fill(true);
+                    regenerateDrawCommands.fill(true);
                 },
                 [&](const control::task::SelectMaterialVariants &task) {
                     assert(gltf && "Synchronization error: gltf is unset but material variants are selected.");
@@ -575,7 +575,7 @@ void vk_gltf_viewer::MainApp::run() {
                     .assetGpuBuffers = gltf.assetGpuBuffers,
                     .sceneHierarchy = gltf.sceneHierarchy,
                     .sceneGpuBuffers = gltf.sceneGpuBuffers,
-                    .shouldRegenerateDrawCommands = std::exchange(shouldRegenerateDrawCommands[frameIndex], false),
+                    .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
                     .renderingNodes = {
                         .indices = appState.gltfAsset->getVisibleNodeIndices(),
                     },
