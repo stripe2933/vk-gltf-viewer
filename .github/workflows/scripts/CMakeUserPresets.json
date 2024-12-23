@@ -3,7 +3,11 @@
   "configurePresets": [
     {
       "name": "windows-latest",
-      "inherits": "default"
+      "inherits": "default",
+      "cacheVariables": {
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-release"
+      }
     },
     {
       "name": "macos-latest",

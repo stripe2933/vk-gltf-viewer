@@ -26,10 +26,14 @@ vcpkg_cmake_configure(
 )
 vcpkg_cmake_install()
 
-file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/debug/share)
-file(RENAME ${CURRENT_PACKAGES_DIR}/debug/cmake/vku ${CURRENT_PACKAGES_DIR}/debug/share/vku)
-file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/share)
-file(RENAME ${CURRENT_PACKAGES_DIR}/cmake/vku ${CURRENT_PACKAGES_DIR}/share/vku)
+if (NOT VCPKG_BUILD_TYPE STREQUAL "release")
+    file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/debug/share)
+    file(RENAME ${CURRENT_PACKAGES_DIR}/debug/cmake/vku ${CURRENT_PACKAGES_DIR}/debug/share/vku)
+endif()
+if (NOT VCPKG_BUILD_TYPE STREQUAL "debug")
+    file(MAKE_DIRECTORY ${CURRENT_PACKAGES_DIR}/share)
+    file(RENAME ${CURRENT_PACKAGES_DIR}/cmake/vku ${CURRENT_PACKAGES_DIR}/share/vku)
+endif()
 
 vcpkg_cmake_config_fixup(PACKAGE_NAME "vku")
 
