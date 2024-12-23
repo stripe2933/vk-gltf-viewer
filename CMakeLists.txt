@@ -203,7 +203,6 @@ target_link_shaders(vk-gltf-viewer
     shaders/cubemap.comp
     shaders/depth.frag
     shaders/depth.vert
-    shaders/faceted_primitive.vert
     shaders/jump_flood_seed.frag
     shaders/jump_flood_seed.vert
     shaders/jump_flood.comp
@@ -213,7 +212,6 @@ target_link_shaders(vk-gltf-viewer
     shaders/mask_jump_flood_seed.vert
     shaders/multiply.comp
     shaders/outline.frag
-    shaders/primitive.vert
     shaders/screen_quad.vert
     shaders/skybox.frag
     shaders/skybox.vert
@@ -232,6 +230,10 @@ target_link_shader_variants(vk-gltf-viewer
     "16 0" "16 1"
     "32 0" "32 1"
     "64 0" "64 1"
+)
+target_link_shader_variants(vk-gltf-viewer
+    shaders/primitive.vert
+    "FRAGMENT_SHADER_GENERATED_TBN" 0 1
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/primitive.frag

@@ -16,6 +16,14 @@ layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer V
 layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
 
 layout (location = 0) out vec3 outPosition;
+#if FRAGMENT_SHADER_GENERATED_TBN
+layout (location = 1) out vec2 outBaseColorTexcoord;
+layout (location = 2) out vec2 outMetallicRoughnessTexcoord;
+layout (location = 3) out vec2 outNormalTexcoord;
+layout (location = 4) out vec2 outOcclusionTexcoord;
+layout (location = 5) out vec2 outEmissiveTexcoord;
+layout (location = 6) flat out uint outMaterialIndex;
+#else
 layout (location = 1) out mat3 outTBN;
 layout (location = 4) out vec2 outBaseColorTexcoord;
 layout (location = 5) out vec2 outMetallicRoughnessTexcoord;
@@ -23,6 +31,7 @@ layout (location = 6) out vec2 outNormalTexcoord;
 layout (location = 7) out vec2 outOcclusionTexcoord;
 layout (location = 8) out vec2 outEmissiveTexcoord;
 layout (location = 9) flat out uint outMaterialIndex;
+#endif
 
 layout (set = 1, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
@@ -63,11 +72,14 @@ vec2 getTexcoord(uint texcoordIndex){
 
 void main(){
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
-    vec3 inNormal = getVec3(PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * gl_VertexIndex);
 
     mat4 transform = TRANSFORM;
     outPosition = (transform * vec4(inPosition, 1.0)).xyz;
+
+#if !FRAGMENT_SHADER_GENERATED_TBN
+    vec3 inNormal = getVec3(PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * gl_VertexIndex);
     outTBN[2] = normalize(mat3(transform) * inNormal); // N
+#endif
 
     if (int(MATERIAL.baseColorTextureIndex) != -1){
         outBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
@@ -76,9 +88,11 @@ void main(){
         outMetallicRoughnessTexcoord = getTexcoord(uint(MATERIAL.metallicRoughnessTexcoordIndex));
     }
     if (int(MATERIAL.normalTextureIndex) != -1){
+#if !FRAGMENT_SHADER_GENERATED_TBN
         vec4 inTangent = getVec4(PRIMITIVE.pTangentBuffer + uint(PRIMITIVE.tangentByteStride) * gl_VertexIndex);
         outTBN[0] = normalize(mat3(transform) * inTangent.xyz); // T
         outTBN[1] = cross(outTBN[2], outTBN[0]) * -inTangent.w; // B
+#endif
 
         outNormalTexcoord = getTexcoord(uint(MATERIAL.normalTexcoordIndex));
     }

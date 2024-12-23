@@ -2,7 +2,6 @@ export module vk_gltf_viewer:vulkan.pipeline.MaskPrimitiveRenderer;
 
 import std;
 import vku;
-import :shader.faceted_primitive_vert;
 import :shader.primitive_vert;
 import :shader.primitive_frag;
 export import :vulkan.pl.Primitive;
@@ -20,8 +19,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     device,
                     vku::Shader {
                         fragmentShaderTBN
-                            ? std::span<const std::uint32_t> { shader::faceted_primitive_vert }
-                            : std::span<const std::uint32_t> { shader::primitive_vert },
+                            ? std::span<const std::uint32_t> { shader::primitive_vert<1> }
+                            : std::span<const std::uint32_t> { shader::primitive_vert<0> },
                         vk::ShaderStageFlagBits::eVertex,
                     },
                     vku::Shader {
