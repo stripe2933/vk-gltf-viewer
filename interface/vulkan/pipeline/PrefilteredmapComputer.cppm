@@ -8,6 +8,7 @@ export module vk_gltf_viewer:vulkan.pipeline.PrefilteredmapComputer;
 
 import std;
 import :math.extended_arithmetic;
+import :shader.prefilteredmap_comp;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -86,10 +87,10 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 {},
                 createPipelineStages(
                     gpu.device,
-                    vku::Shader::fromSpirvFile(
+                    vku::Shader {
                         gpu.supportShaderImageLoadStoreLod
-                            ? COMPILED_SHADER_DIR "/prefilteredmap.comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_1.spv"
-                            : COMPILED_SHADER_DIR "/prefilteredmap.comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_0.spv",
+                            ? std::span<const std::uint32_t> { shader::prefilteredmap_comp<1> }
+                            : std::span<const std::uint32_t> { shader::prefilteredmap_comp<0> },
                         vk::ShaderStageFlagBits::eCompute,
                         vku::unsafeAddress(vk::SpecializationInfo {
                             vku::unsafeProxy({
@@ -97,7 +98,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                                 vk::SpecializationMapEntry { 1, offsetof(SpecializationConstants, samples), sizeof(SpecializationConstants::samples) },
                             }),
                             vk::ArrayProxyNoTemporaries<const SpecializationConstants>(specializationConstants),
-                        }))).get()[0],
+                        }),
+                    }).get()[0],
                 *pipelineLayout,
             } } { }
 

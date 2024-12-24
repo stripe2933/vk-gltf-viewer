@@ -1,6 +1,8 @@
 export module vk_gltf_viewer:vulkan.pipeline.BlendUnlitPrimitiveRenderer;
 
 import vku;
+import :shader.unlit_primitive_vert;
+import :shader.unlit_primitive_frag;
 export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
 
@@ -13,8 +15,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         ) : Pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(
                     device,
-                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/unlit_primitive.vert.spv", vk::ShaderStageFlagBits::eVertex),
-                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/blend_unlit_primitive.frag.spv", vk::ShaderStageFlagBits::eFragment)).get(),
+                    vku::Shader { shader::unlit_primitive_vert, vk::ShaderStageFlagBits::eVertex },
+                    vku::Shader { shader::unlit_primitive_frag<2>, vk::ShaderStageFlagBits::eFragment }).get(),
                 *layout, 1, true, vk::SampleCountFlagBits::e4)
             .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                 {},

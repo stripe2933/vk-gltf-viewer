@@ -21,27 +21,26 @@ namespace vk_gltf_viewer::vulkan {
             struct Gltf {
                 struct RenderingNodes {
                     std::unordered_set<std::uint16_t> indices;
-                    bool shouldRegenerateDrawCommands;
                 };
 
                 struct HoveringNode {
                     std::uint16_t index;
                     glm::vec4 outlineColor;
                     float outlineThickness;
-                    bool shouldRegenerateDrawCommands;
                 };
 
                 struct SelectedNodes {
                     const std::unordered_set<std::uint16_t>& indices;
                     glm::vec4 outlineColor;
                     float outlineThickness;
-                    bool shouldRegenerateDrawCommands;
                 };
 
                 const fastgltf::Asset &asset;
                 const gltf::AssetGpuBuffers &assetGpuBuffers;
                 const gltf::AssetSceneHierarchy &sceneHierarchy;
                 const gltf::AssetSceneGpuBuffers &sceneGpuBuffers;
+
+                bool shouldRegenerateDrawCommands;
                 RenderingNodes renderingNodes;
                 std::optional<HoveringNode> hoveringNode;
                 std::optional<SelectedNodes> selectedNodes;

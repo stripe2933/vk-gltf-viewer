@@ -415,7 +415,7 @@ namespace vk_gltf_viewer::gltf {
                         },
                     }, asset.images[imageIndex].data);
 
-                    return std::pair { i, std::move(image) };
+                    return std::pair { imageIndex, std::move(image) };
                 }).get() | std::views::as_rvalue | std::ranges::to<std::unordered_map>();
 
                 // 2. Copy image data from staging buffers to images.

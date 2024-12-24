@@ -3,6 +3,8 @@ export module vk_gltf_viewer:vulkan.pipeline.OutlineRenderer;
 import std;
 export import glm;
 export import vku;
+import :shader.screen_quad_vert;
+import :shader.outline_frag;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct OutlineRenderer {
@@ -42,8 +44,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
                         device,
-                        vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/screen_quad.vert.spv", vk::ShaderStageFlagBits::eVertex),
-                        vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/outline.frag.spv", vk::ShaderStageFlagBits::eFragment)).get(),
+                        vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
+                        vku::Shader { shader::outline_frag, vk::ShaderStageFlagBits::eFragment }).get(),
                     *pipelineLayout,
                     1)
                     .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {

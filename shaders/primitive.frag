@@ -13,6 +13,14 @@
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
 layout (location = 0) in vec3 inPosition;
+#if FRAGMENT_SHADER_GENERATED_TBN
+layout (location = 1) in vec2 inBaseColorTexcoord;
+layout (location = 2) in vec2 inMetallicRoughnessTexcoord;
+layout (location = 3) in vec2 inNormalTexcoord;
+layout (location = 4) in vec2 inOcclusionTexcoord;
+layout (location = 5) in vec2 inEmissiveTexcoord;
+layout (location = 6) flat in uint inMaterialIndex;
+#else
 layout (location = 1) in mat3 inTBN;
 layout (location = 4) in vec2 inBaseColorTexcoord;
 layout (location = 5) in vec2 inMetallicRoughnessTexcoord;
@@ -20,8 +28,14 @@ layout (location = 6) in vec2 inNormalTexcoord;
 layout (location = 7) in vec2 inOcclusionTexcoord;
 layout (location = 8) in vec2 inEmissiveTexcoord;
 layout (location = 9) flat in uint inMaterialIndex;
+#endif
 
+#if ALPHA_MODE == 0 || ALPHA_MODE == 1
 layout (location = 0) out vec4 outColor;
+#elif ALPHA_MODE == 2
+layout (location = 0) out vec4 outAccumulation;
+layout (location = 1) out float outRevealage;
+#endif
 
 layout (set = 0, binding = 0, scalar) uniform SphericalHarmonicsBuffer {
     vec3 coefficients[9];
@@ -39,7 +53,9 @@ layout (push_constant, std430) uniform PushConstant {
     vec3 viewPosition;
 } pc;
 
+#if ALPHA_MODE == 0 || ALPHA_MODE == 2
 layout (early_fragment_tests) in;
+#endif
 
 // --------------------
 // Functions.
@@ -54,6 +70,29 @@ vec3 diffuseIrradiance(vec3 normal){
     return SphericalHarmonicBasis_restore(basis, sphericalHarmonics.coefficients) / 3.141593;
 }
 
+float geometricMean(vec2 v){
+    return sqrt(v.x * v.y);
+}
+
+void writeOutput(vec4 color) {
+#if ALPHA_MODE == 0
+    outColor = vec4(color.rgb, 1.0);
+#elif ALPHA_MODE == 1
+    color.a *= 1.0 + geometricMean(textureQueryLod(textures[int(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord)) * 0.25;
+    // Apply sharpness to the alpha.
+    // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
+    color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
+    outColor = color;
+#elif ALPHA_MODE == 2
+    // Weighted Blended.
+    float weight = clamp(
+        pow(min(1.0, color.a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - gl_FragCoord.z * 0.9, 3.0),
+        1e-2, 3e3);
+    outAccumulation = vec4(color.rgb * color.a, color.a) * weight;
+    outRevealage = color.a;
+#endif
+}
+
 void main(){
     vec4 baseColor = MATERIAL.baseColorFactor * texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord);
 
@@ -62,6 +101,20 @@ void main(){
     float roughness = metallicRoughness.y;
 
     vec3 N;
+#if FRAGMENT_SHADER_GENERATED_TBN
+    vec3 tangent = dFdx(inPosition);
+    vec3 bitangent = dFdy(inPosition);
+    vec3 normal = normalize(cross(tangent, bitangent));
+
+    if (int(MATERIAL.normalTextureIndex) != -1){
+        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], inNormalTexcoord).rgb;
+        vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
+        N = normalize(mat3(tangent, bitangent, normal) * scaledNormal);
+    }
+    else {
+        N = normal;
+    }
+#else
     if (int(MATERIAL.normalTextureIndex) != -1){
         vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], inNormalTexcoord).rgb;
         vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
@@ -70,6 +123,7 @@ void main(){
     else {
         N = normalize(inTBN[2]);
     }
+#endif
 
     float occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[int(MATERIAL.occlusionTextureIndex) + 1], inOcclusionTexcoord).r - 1.0);
 
@@ -105,5 +159,5 @@ void main(){
     float colorLuminance = dot(color, REC_709_LUMA);
     vec3 correctedColor = color / (1.0 + colorLuminance);
 
-    outColor = vec4(correctedColor, 1.0);
+    writeOutput(vec4(correctedColor, baseColor.a));
 }

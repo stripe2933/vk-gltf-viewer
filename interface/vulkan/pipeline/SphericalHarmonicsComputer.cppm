@@ -7,6 +7,7 @@ export module vk_gltf_viewer:vulkan.pipeline.SphericalHarmonicsComputer;
 import std;
 import vku;
 export import vulkan_hpp;
+import :shader.spherical_harmonics_comp;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     class SphericalHarmonicsComputer {
@@ -41,7 +42,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 {},
                 createPipelineStages(
                     device,
-                    vku::Shader::fromSpirvFile(COMPILED_SHADER_DIR "/spherical_harmonics.comp.spv", vk::ShaderStageFlagBits::eCompute)).get()[0],
+                    vku::Shader { shader::spherical_harmonics_comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
                 *pipelineLayout,
             } } { }
 

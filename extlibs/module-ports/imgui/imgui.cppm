@@ -4,6 +4,7 @@ module;
 
 export module imgui;
 
+export using ::ImDrawData;
 export using ::ImDrawList;
 export using ::ImFontGlyphRangesBuilder;
 export using ::ImGuiCol_Header;

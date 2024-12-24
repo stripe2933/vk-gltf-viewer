@@ -13,6 +13,7 @@ import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Scene;
 import :vulkan.dsl.Skybox;
+import :vulkan.Frame;
 
 namespace vk_gltf_viewer {
     export class MainApp {
@@ -23,6 +24,8 @@ namespace vk_gltf_viewer {
         void run();
 
     private:
+        static constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
+
         /**
          * @brief Bundle of glTF asset and additional resources necessary for the rendering.
          */
@@ -125,10 +128,12 @@ namespace vk_gltf_viewer {
         // --------------------
 
         fastgltf::Parser parser { fastgltf::Extensions::KHR_materials_unlit | fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::EXT_mesh_gpu_instancing };
-        fastgltf::GltfDataBuffer dataBuffer;
         std::optional<Gltf> gltf;
 
+        // --------------------
         // Buffers, images, image views and samplers.
+        // --------------------
+
         ImageBasedLightingResources imageBasedLightingResources = createDefaultImageBasedLightingResources();
         std::optional<SkyboxResources> skyboxResources{};
         vku::AllocatedImage brdfmapImage = createBrdfmapImage();
@@ -136,13 +141,21 @@ namespace vk_gltf_viewer {
         vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
         gltf::AssetGpuFallbackTexture gpuFallbackTexture { gpu };
 
-        // Descriptor pools.
-        vk::raii::DescriptorPool imGuiDescriptorPool = createImGuiDescriptorPool();
-
+        // --------------------
         // Descriptor sets.
+        // --------------------
+
+        vk::raii::DescriptorPool imGuiDescriptorPool = createImGuiDescriptorPool();
         std::vector<vk::DescriptorSet> assetTextureDescriptorSets;
+
+        // --------------------
+        // Frames.
+        // --------------------
+
+        vulkan::SharedData sharedData { gpu, swapchainExtent, swapchainImages };
+        std::array<vulkan::Frame, FRAMES_IN_FLIGHT> frames{ vulkan::Frame { gpu, sharedData }, vulkan::Frame { gpu, sharedData } };
         
-        [[nodiscard]] auto createInstance() const -> vk::raii::Instance;
+        [[nodiscard]] vk::raii::Instance createInstance() const;
         [[nodiscard]] vk::raii::SwapchainKHR createSwapchain(vk::SwapchainKHR oldSwapchain = {}) const;
 
         [[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
@@ -150,7 +163,8 @@ namespace vk_gltf_viewer {
         [[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
         [[nodiscard]] auto createImGuiDescriptorPool() -> decltype(imGuiDescriptorPool);
 
-        auto processEqmapChange(const std::filesystem::path &eqmapPath) -> void;
+        void loadGltf(const std::filesystem::path &path);
+        void loadEqmap(const std::filesystem::path &eqmapPath);
 
         [[nodiscard]] vk::Extent2D getSwapchainExtent() const {
             const glm::ivec2 framebufferSize = window.getFramebufferSize();

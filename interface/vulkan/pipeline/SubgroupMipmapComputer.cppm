@@ -8,6 +8,7 @@ export module vk_gltf_viewer:vulkan.pipeline.SubgroupMipmapComputer;
 
 import std;
 import :helpers.ranges;
+import :shader.subgroup_mipmap_comp;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -63,9 +64,20 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 {},
                 createPipelineStages(
                     gpu.device,
-                    vku::Shader::fromSpirvFile(std::format(
-                        COMPILED_SHADER_DIR "/subgroup_mipmap_{}.comp_AMD_SHADER_IMAGE_LOAD_STORE_LOD_{}.spv",
-                        gpu.subgroupSize, gpu.supportShaderImageLoadStoreLod ? 1 : 0), vk::ShaderStageFlagBits::eCompute)).get()[0],
+                    vku::Shader {
+                        gpu.subgroupSize == 16U
+                            ? gpu.supportShaderImageLoadStoreLod
+                                ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<16, 1> }
+                                : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<16, 0> }
+                            : gpu.subgroupSize == 32U
+                                ? gpu.supportShaderImageLoadStoreLod
+                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<32, 1> }
+                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<32, 0> }
+                                : gpu.supportShaderImageLoadStoreLod
+                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<64, 1> }
+                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<64, 0> },
+                        vk::ShaderStageFlagBits::eCompute,
+                    }).get()[0],
                 *pipelineLayout,
             } } { }
 
