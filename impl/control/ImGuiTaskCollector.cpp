@@ -32,6 +32,9 @@ import :helpers.TempStringBuffer;
 
 using namespace std::string_view_literals;
 
+std::optional<std::size_t> vk_gltf_viewer::control::ImGuiTaskCollector::selectedMaterialIndex = std::nullopt;
+int boundFpPrecision = 2;
+
 /**
  * Return \p str if it is not empty, otherwise return the result of \p fallback.
  * @param str Null-terminated non-owning string view to check.
@@ -65,7 +68,6 @@ auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 
 }
 
 void attributeTable(std::ranges::viewable_range auto const &attributes) {
-    static int floatingPointPrecision = 2;
     ImGui::Table<false>(
         "attributes-table",
         ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_SizingFixedFit,
@@ -88,8 +90,8 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
                 },
                 [](const std::pmr::vector<double> &min, const std::pmr::vector<double> &max) {
                     assert(min.size() == max.size() && "Different min/max dimension");
-                    if (min.size() == 1) ImGui::TextUnformatted(tempStringBuffer.write("[{1:.{0}f}, {2:.{0}f}]", floatingPointPrecision, min[0], max[0]));
-                    else ImGui::TextUnformatted(tempStringBuffer.write("{1::.{0}f}x{2::.{0}f}", floatingPointPrecision, min, max));
+                    if (min.size() == 1) ImGui::TextUnformatted(tempStringBuffer.write("[{1:.{0}f}, {2:.{0}f}]", boundFpPrecision, min[0], max[0]));
+                    else ImGui::TextUnformatted(tempStringBuffer.write("{1::.{0}f}x{2::.{0}f}", boundFpPrecision, min, max));
                 },
                 [](const auto&...) {
                     ImGui::TextUnformatted("-"sv);
@@ -112,19 +114,15 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
                 ImGui::TextDisabled("-");
             }
         }) });
-
-    if (ImGui::InputInt("Bound fp precision", &floatingPointPrecision)) {
-        floatingPointPrecision = std::clamp(floatingPointPrecision, 0, 9);
-    }
 }
 
-auto assetInfo(fastgltf::AssetInfo &assetInfo) -> void {
+void vk_gltf_viewer::control::ImGuiTaskCollector::assetInfo(fastgltf::AssetInfo &assetInfo) {
     ImGui::InputTextWithHint("glTF Version", "<empty>", &assetInfo.gltfVersion);
     ImGui::InputTextWithHint("Generator", "<empty>", &assetInfo.generator);
     ImGui::InputTextWithHint("Copyright", "<empty>", &assetInfo.copyright);
 }
 
-auto assetBuffers(std::span<fastgltf::Buffer> buffers, const std::filesystem::path &assetDir) -> void {
+void vk_gltf_viewer::control::ImGuiTaskCollector::assetBuffers(std::span<fastgltf::Buffer> buffers, const std::filesystem::path &assetDir) {
     ImGui::Table(
         "gltf-buffers-table",
         ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
@@ -149,7 +147,7 @@ auto assetBuffers(std::span<fastgltf::Buffer> buffers, const std::filesystem::pa
                 },
             }, buffer.data);
         }, ImGuiTableColumnFlags_WidthFixed },
-        ImGui::ColumnInfo { "Location", [&](const fastgltf::Buffer &buffer) {
+        ImGui::ColumnInfo { "Location", [&](std::size_t row, const fastgltf::Buffer &buffer) {
             visit(fastgltf::visitor {
                 [](const fastgltf::sources::Array&) {
                     ImGui::TextUnformatted("Embedded (Array)"sv);
@@ -158,7 +156,9 @@ auto assetBuffers(std::span<fastgltf::Buffer> buffers, const std::filesystem::pa
                     ImGui::TextUnformatted(tempStringBuffer.write("BufferView ({})", bufferView.bufferViewIndex));
                 },
                 [&](const fastgltf::sources::URI &uri) {
+                    ImGui::PushID(row);
                     ImGui::TextLinkOpenURL("\u2197" /*↗*/, PATH_C_STR(assetDir / uri.uri.fspath()));
+                    ImGui::PopID();
                 },
                 [](const auto&) {
                     ImGui::TextDisabled("-");
@@ -167,7 +167,7 @@ auto assetBuffers(std::span<fastgltf::Buffer> buffers, const std::filesystem::pa
         }, ImGuiTableColumnFlags_WidthFixed });
 }
 
-auto assetBufferViews(std::span<fastgltf::BufferView> bufferViews, std::span<fastgltf::Buffer> buffers) -> void {
+void vk_gltf_viewer::control::ImGuiTaskCollector::assetBufferViews(std::span<fastgltf::BufferView> bufferViews, std::span<fastgltf::Buffer> buffers) {
     ImGui::TableWithVirtualization(
         "gltf-buffer-views-table",
         ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
@@ -178,10 +178,13 @@ auto assetBufferViews(std::span<fastgltf::BufferView> bufferViews, std::span<fas
                 ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
             });
         }, ImGuiTableColumnFlags_WidthStretch },
-        ImGui::ColumnInfo { "Buffer", [&](const fastgltf::BufferView &bufferView) {
+        ImGui::ColumnInfo { "Buffer", [&](std::size_t i, const fastgltf::BufferView &bufferView) {
+            ImGui::PushID(i);
             if (ImGui::TextLink("\u2197" /*↗*/)) {
                 // TODO
             }
+            ImGui::PopID();
+
             if (ImGui::BeginItemTooltip()) {
                 ImGui::TextUnformatted(nonempty_or(
                     buffers[bufferView.bufferIndex].name,
@@ -214,7 +217,7 @@ auto assetBufferViews(std::span<fastgltf::BufferView> bufferViews, std::span<fas
         }, ImGuiTableColumnFlags_WidthFixed });
 }
 
-auto assetImages(std::span<fastgltf::Image> images, const std::filesystem::path &assetDir) -> void {
+void vk_gltf_viewer::control::ImGuiTaskCollector::assetImages(std::span<fastgltf::Image> images, const std::filesystem::path &assetDir) {
     ImGui::TableWithVirtualization(
         "gltf-images-table",
         ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
@@ -243,8 +246,10 @@ auto assetImages(std::span<fastgltf::Image> images, const std::filesystem::path 
                 [](const fastgltf::sources::BufferView &bufferView) {
                     ImGui::TextUnformatted(tempStringBuffer.write("BufferView ({})", bufferView.bufferViewIndex));
                 },
-                [&](const fastgltf::sources::URI &uri) {
+                [&](std::size_t i, const fastgltf::sources::URI &uri) {
+                    ImGui::PushID(i);
                     ImGui::TextLinkOpenURL("\u2197" /*↗*/, PATH_C_STR(assetDir / uri.uri.fspath()));
+                    ImGui::PopID();
                 },
                 [](const auto&) {
                     ImGui::TextDisabled("-");
@@ -253,7 +258,7 @@ auto assetImages(std::span<fastgltf::Image> images, const std::filesystem::path 
         }, ImGuiTableColumnFlags_WidthFixed });
 }
 
-auto assetSamplers(std::span<fastgltf::Sampler> samplers) -> void {
+void vk_gltf_viewer::control::ImGuiTaskCollector::assetSamplers(std::span<fastgltf::Sampler> samplers) {
     ImGui::Table(
         "gltf-samplers-table",
         ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
@@ -483,10 +488,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
     fastgltf::Asset &asset,
-    std::optional<std::size_t> &selectedMaterialIndex,
     std::span<const vk::DescriptorSet> assetTextureImGuiDescriptorSets
 ) {
     if (ImGui::Begin("Material Editor")) {
+        assert(!selectedMaterialIndex || *selectedMaterialIndex < asset.materials.size()
+            && "selectedMaterialIndex exceeds the number of materials. Did you forget to update it after glTF is reloaded?");
+
         const char* const previewText = [&]() {
             if (asset.materials.empty()) return "<empty>";
             else if (selectedMaterialIndex) return nonempty_or(
@@ -916,7 +923,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                                 ImGui::WithID(*primitive.materialIndex, [&]() {
                                     ImGui::WithLabel("Material"sv, [&]() {
                                         if (ImGui::TextLink(nonempty_or(asset.materials[*primitive.materialIndex].name, [&]() { return tempStringBuffer.write("<Unnamed material {}>", *primitive.materialIndex).view(); }).c_str())) {
-                                            // TODO.
+                                            selectedMaterialIndex = *primitive.materialIndex;
                                         }
                                     });
                                 });
@@ -936,6 +943,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                                 })));
                         }
                     }
+
+                    if (ImGui::InputInt("Bound fp precision", &boundFpPrecision)) {
+                        boundFpPrecision = std::clamp(boundFpPrecision, 0, 9);
+                    }
+
                     ImGui::EndTabItem();
                 }
                 if (node.cameraIndex && ImGui::BeginTabItem("Camera")) {
