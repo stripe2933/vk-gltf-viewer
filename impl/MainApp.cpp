@@ -268,7 +268,7 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths());
             if (auto &gltfAsset = appState.gltfAsset) {
                 imguiTaskCollector.assetInspector(gltfAsset->asset, gltf->directory);
-                imguiTaskCollector.materialEditor(gltfAsset->asset, gltfAsset->assetInspectorMaterialIndex, assetTextureDescriptorSets);
+                imguiTaskCollector.materialEditor(gltfAsset->asset, assetTextureDescriptorSets);
                 imguiTaskCollector.sceneHierarchy(gltfAsset->asset, gltfAsset->getSceneIndex(), gltfAsset->nodeVisibilities, gltfAsset->hoveringNodeIndex, gltfAsset->selectedNodeIndices);
                 imguiTaskCollector.nodeInspector(gltfAsset->asset, gltfAsset->selectedNodeIndices);
             }
@@ -840,6 +840,8 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     appState.camera.zMin = distance - radius;
     appState.camera.zMax = distance + radius;
     appState.camera.targetDistance = distance;
+
+    control::ImGuiTaskCollector::selectedMaterialIndex.reset();
 }
 
 void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) {
