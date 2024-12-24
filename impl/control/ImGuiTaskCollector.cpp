@@ -276,18 +276,80 @@ auto assetSamplers(std::span<fastgltf::Sampler> samplers) -> void {
         }, ImGuiTableColumnFlags_WidthFixed });
 }
 
+[[nodiscard]] ImGuiID makeDefaultDockState(ImGuiID dockSpaceOverViewport) {
+    // ------------------------------------
+    // |       |                  |       |
+    // |  LST  |                  |  RST  |
+    // |       | centralDockSpace |       |
+    // |-------|                  |--------
+    // |       |                  |       |
+    // |  LSB  |------------------|  RSB  |
+    // |       |  bottomSidebar   |       |
+    // ------------------------------------
+
+    const ImGuiID leftSidebar = ImGui::DockBuilderSplitNode(dockSpaceOverViewport, ImGuiDir_Left, 0.25f, nullptr, &dockSpaceOverViewport);
+    const ImGuiID rightSidebar = ImGui::DockBuilderSplitNode(dockSpaceOverViewport, ImGuiDir_Right, 0.33f, nullptr, &dockSpaceOverViewport);
+
+    ImGuiID leftSidebarBottom;
+    const ImGuiID leftSidebarTop = ImGui::DockBuilderSplitNode(leftSidebar, ImGuiDir_Up, 0.5f, nullptr, &leftSidebarBottom);
+
+    // leftSidebarTop
+    ImGui::DockBuilderDockWindow("Asset Info", leftSidebarTop);
+    ImGui::DockBuilderDockWindow("Buffers", leftSidebarTop);
+    ImGui::DockBuilderDockWindow("Buffer Views", leftSidebarTop);
+    ImGui::DockBuilderDockWindow("Images", leftSidebarTop);
+    ImGui::DockBuilderDockWindow("Samplers", leftSidebarTop);
+
+    // leftSidebarBottom
+    ImGui::DockBuilderDockWindow("Background", leftSidebarBottom);
+    ImGui::DockBuilderDockWindow("Scene Hierarchy", leftSidebarBottom);
+    ImGui::DockBuilderDockWindow("IBL", leftSidebarBottom);
+
+    ImGuiID rightSidebarBottom;
+    const ImGuiID rightSidebarTop = ImGui::DockBuilderSplitNode(rightSidebar, ImGuiDir_Up, 0.5f, nullptr, &rightSidebarBottom);
+
+    // rightSidebarTop
+    ImGui::DockBuilderDockWindow("Input control", rightSidebarTop);
+
+    // rightSidebarBottom
+    ImGui::DockBuilderDockWindow("Node Inspector", rightSidebarBottom);
+
+    const ImGuiID bottomSidebar = ImGui::DockBuilderSplitNode(dockSpaceOverViewport, ImGuiDir_Down, 0.3f, nullptr, &dockSpaceOverViewport);
+
+    // bottomSidebar
+    ImGui::DockBuilderDockWindow("Material Editor", bottomSidebar);
+
+    ImGui::DockBuilderFinish(dockSpaceOverViewport);
+
+    return dockSpaceOverViewport; // This will represent the central node.
+
+}
+
 vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
     std::vector<Task> &tasks,
     const ImVec2 &framebufferSize,
     const vk::Rect2D &oldPassthruRect
 ) : tasks { tasks } {
+    // If there is no imgui.ini file, make default dock state to avoid the initial window sprawling.
+    // This should be called before any ImGui::NewFrame() call, because that will create the imgui.ini file.
+    bool shouldMakeDefaultDockState = false;
+    if (static bool init = true; init) {
+        if (!std::filesystem::exists(ImGui::GetIO().IniFilename)) {
+            shouldMakeDefaultDockState = true;
+        }
+        init = false;
+    }
+
     ImGui::NewFrame();
 
     // Enable global docking.
-    const ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
+    ImGuiID dockSpace = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
+    if (shouldMakeDefaultDockState) {
+        dockSpace = makeDefaultDockState(dockSpace);
+    }
 
     // Get central node region.
-    centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpaceId)->Rect();
+    centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpace)->Rect();
 
     // Calculate framebuffer coordinate based passthru rect.
     const ImVec2 scaleFactor = framebufferSize / ImGui::GetIO().DisplaySize;
