@@ -6,6 +6,7 @@ export module imgui;
 
 export using ::ImDrawData;
 export using ::ImDrawList;
+export using ::ImFontConfig;
 export using ::ImFontGlyphRangesBuilder;
 export using ::ImGuiCol_Header;
 export using ::ImGuiCol_HeaderActive;
@@ -67,6 +68,7 @@ namespace ImGui {
     export using ImGui::BeginTabBar;
     export using ImGui::BeginTabItem;
     export using ImGui::BeginTable;
+    export using ImGui::Button;
     export using ImGui::CalcItemWidth;
     export using ImGui::Checkbox;
     export using ImGui::CollapsingHeader;

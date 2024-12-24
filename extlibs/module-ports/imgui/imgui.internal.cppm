@@ -8,6 +8,7 @@ export import imgui;
 
 export using ::ImGuiInputTextFlags_CallbackResize;
 export using ::ImGuiItemFlags_MixedValue;
+export using ::ImGuiTreeNodeFlags_DrawTreeLines;
 export using ::ImGuiWindow;
 export using ::ImRect;
 #ifdef IMGUI_HAS_DOCK

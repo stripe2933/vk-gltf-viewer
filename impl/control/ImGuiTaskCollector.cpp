@@ -3,6 +3,8 @@ module;
 #include <cassert>
 #include <version>
 
+#include <IconsFontAwesome4.h>
+
 module vk_gltf_viewer;
 import :imgui.TaskCollector;
 
@@ -33,6 +35,7 @@ import :helpers.TempStringBuffer;
 using namespace std::string_view_literals;
 
 std::optional<std::size_t> vk_gltf_viewer::control::ImGuiTaskCollector::selectedMaterialIndex = std::nullopt;
+bool mergeSingleChildNodes = true;
 int boundFpPrecision = 2;
 
 /**
@@ -684,7 +687,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
         ImGui::InputTextWithHint("Name", "<empty>", &asset.scenes[sceneIndex].name);
 
-        static bool mergeSingleChildNodes = true;
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
         ImGui::SameLine();
         ImGui::HelperMarker("If all nested nodes have only one child, they will be shown as a single node (with combined name).");
@@ -709,19 +711,26 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 }
             }
 
+            const fastgltf::Node &node = asset.nodes[nodeIndex];
+
             ImGui::TableNextRow();
 
             ImGui::TableSetColumnIndex(0);
             ImGui::AlignTextToFramePadding();
+
             ImGui::WithID(nodeIndex, [&]() {
-                const fastgltf::Node &node = asset.nodes[nodeIndex];
+                // --------------------
+                // TreeNode.
+                // --------------------
+
                 const bool isNodeSelected = selectedNodeIndices.contains(nodeIndex);
                 const bool isTreeNodeOpen = ImGui::WithStyleColor(ImGuiCol_Header, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive), [&]() {
-                    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAllColumns | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap;
+                    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap;
                     if (nodeIndex == hoveringNodeIndex) flags |= ImGuiTreeNodeFlags_Framed;
                     if (isNodeSelected) flags |= ImGuiTreeNodeFlags_Selected;
-                    if (node.children.empty()) flags |= ImGuiTreeNodeFlags_Leaf;
+                    if (node.children.empty()) flags |= ImGuiTreeNodeFlags_Bullet | ImGuiTreeNodeFlags_Leaf;
 
+                    ImGui::AlignTextToFramePadding();
                     return ImGui::TreeNodeEx("##treenode", flags);
                 }, nodeIndex == hoveringNodeIndex);
                 if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && !isNodeSelected) {
@@ -732,110 +741,84 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 }
 
                 // --------------------
-                // Node visibility checkbox.
+                // Hierarchy checkbox.
                 // --------------------
 
-                ImGui::SameLine();
-                const bool visibilityChanged = visit(multilambda {
-                    [&](std::span<const std::optional<bool>> visibilities) {
-                        std::optional visibility = visibilities[nodeIndex];
-                        return ImGui::CheckboxTristate("##visibility", visibility);
-                    },
-                    [&](const std::vector<bool> &visibilities) {
-                        bool visibility = visibilities[nodeIndex];
-                        return ImGui::Checkbox("##visibility", &visibility);
-                    },
-                }, visibilities);
-                if (visibilityChanged)  {
-                    tasks.emplace_back(std::in_place_type<task::ChangeNodeVisibility>, nodeIndex);
-                }
-
-                // --------------------
-                // Node name (and its ancestors' if mergeSingleChildNodes is true).
-                // --------------------
-
-                for (bool first = true; std::size_t passedNodeIndex : ranges::views::concat(ancestorNodeIndices, std::views::single(nodeIndex))) {
-                    if (first) first = false;
-                    else {
-                        ImGui::SameLine();
-                        ImGui::TextUnformatted("/"sv);
-                    }
+                if (auto pVisibilities = get_if<std::vector<std::optional<bool>>>(&visibilities)) {
+                    std::optional visibility = (*pVisibilities)[nodeIndex];
 
                     ImGui::SameLine();
-                    if (ImGui::TextLink(nonempty_or(asset.nodes[passedNodeIndex].name, [&]() {
-                        return tempStringBuffer.write("<Unnamed node {}>", passedNodeIndex).view();
-                    }).c_str())) {
-                        tasks.emplace_back(std::in_place_type<task::SelectNodeFromSceneHierarchy>, passedNodeIndex, ImGui::GetIO().KeyCtrl);
+                    if (ImGui::CheckboxTristate("##hierarchy-checkbox", visibility)) {
+                        tasks.emplace_back(std::in_place_type<task::ChangeNodeVisibility>, nodeIndex);
                     }
                 }
 
                 // --------------------
-                // Node transformation.
+                // Node name.
                 // --------------------
 
-                ImGui::TableSetColumnIndex(1);
-                visit(fastgltf::visitor {
-                    [](const fastgltf::TRS &trs) {
-                        tempStringBuffer.clear();
-                        if (trs.translation != fastgltf::math::fvec3{}) {
-                            tempStringBuffer.append("T[{:.2f}, {:.2f}, {:.2f}]", trs.translation.x(), trs.translation.y(), trs.translation.z());
-                        }
-                        if (trs.rotation != fastgltf::math::fquat{}) {
-                            if (!tempStringBuffer.empty()) tempStringBuffer.append(" * ");
-                            tempStringBuffer.append("R[{:.2f}, {:.2f}, {:.2f}, {:.2f}]", trs.rotation.x(), trs.rotation.y(), trs.rotation.z(), trs.rotation.w());
-                        }
-                        if (trs.scale != fastgltf::math::fvec3 { 1.f, 1.f, 1.f }) {
-                            if (!tempStringBuffer.empty()) tempStringBuffer.append(" * ");
-                            tempStringBuffer.append("S[{:.2f}, {:.2f}, {:.2f}]", trs.scale.x(), trs.scale.y(), trs.scale.z());
-                        }
+                tempStringBuffer.clear();
+                const auto appendNodeLabel = [&](std::size_t nodeIndex) {
+                    const fastgltf::Node &node = asset.nodes[nodeIndex];
 
-                        if (!tempStringBuffer.empty()) {
-                            ImGui::TextUnformatted(tempStringBuffer);
-                        }
-                    },
-                    [](const fastgltf::math::fmat4x4 &transformMatrix) {
-                        if (transformMatrix != fastgltf::math::fmat4x4 { 1.f }) {
-                            const std::span components { transformMatrix.data(), 16 };
-#if __cpp_lib_ranges_chunk >= 202202L
-                            ImGui::TextUnformatted(tempStringBuffer.write("{:::.2f}", components | std::views::chunk(4)));
-#else
-                            INDEX_SEQ(Is, 4, {
-                                ImGui::TextUnformatted(tempStringBuffer.write("[{::.2f}, {::.2f}, {::.2f}, {::.2f}]", components.subspan(4 * Is, 4)...));
-                            });
-#endif
-                        }
-                    },
-                }, node.transform);
+                    if (std::string_view name = node.name; name.empty()) {
+                        tempStringBuffer.append("<Unnamed node {}>", nodeIndex);
+                    }
+                    else {
+                        tempStringBuffer.append(name);
+                    }
+                };
+                for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
+                    appendNodeLabel(ancestorNodeIndex);
+                    tempStringBuffer.append(" / ");
+                }
+                appendNodeLabel(nodeIndex);
+
+                ImGui::SameLine();
+                ImGui::TextUnformatted(tempStringBuffer.view());
 
                 // --------------------
-                // Node mesh, light and camera.
+                // Node mesh.
                 // --------------------
 
-                if (const auto &meshIndex = node.meshIndex) {
+                if (node.meshIndex) {
+                    ImGui::TableSetColumnIndex(1);
+                    const bool visibilityChanged = visit(multilambda {
+                        [&](std::span<const std::optional<bool>> visibilities) {
+                            std::optional visibility = visibilities[nodeIndex];
+                            return ImGui::CheckboxTristate("##visibility", visibility);
+                        },
+                        [&](const std::vector<bool> &visibilities) {
+                            bool visibility = visibilities[nodeIndex];
+                            return ImGui::Checkbox("##visibility", &visibility);
+                        },
+                    }, visibilities);
+                    if (visibilityChanged)  {
+                        tasks.emplace_back(std::in_place_type<task::ChangeNodeVisibility>, nodeIndex);
+                    }
+                }
+
+                // --------------------
+                // Node light.
+                // --------------------
+
+                if (node.lightIndex) {
                     ImGui::TableSetColumnIndex(2);
-                    if (ImGui::TextLink(nonempty_or(asset.meshes[*meshIndex].name, [&]() {
-                        return tempStringBuffer.write("<Unnamed mesh {}>", *meshIndex).view();
-                    }).c_str())) {
-                        // TODO
-                    }
+                    ImGui::WithDisabled([&]() {
+                        bool checked = false;
+                        ImGui::Checkbox(ICON_FA_LIGHTBULB_O, &checked); // TODO
+                    });
                 }
 
-                if (const auto &lightIndex = node.lightIndex) {
+                // --------------------
+                // Node camera.
+                // --------------------
+
+                if (node.cameraIndex) {
                     ImGui::TableSetColumnIndex(3);
-                    if (ImGui::TextLink(nonempty_or(asset.lights[*lightIndex].name, [&]() {
-                        return tempStringBuffer.write("<Unnamed light {}>", *lightIndex).view();
-                    }).c_str())) {
-                        // TODO
-                    }
-                }
-
-                if (const auto &cameraIndex = node.cameraIndex) {
-                    ImGui::TableSetColumnIndex(4);
-                    if (ImGui::TextLink(nonempty_or(asset.cameras[*cameraIndex].name, [&]() {
-                        return tempStringBuffer.write("<Unnamed camera {}>", *cameraIndex).view();
-                    }).c_str())) {
-                        // TODO
-                    }
+                    ImGui::WithDisabled([&]() {
+                        ImGui::Button(ICON_FA_CAMERA); // TODO
+                    });
                 }
 
                 if (isTreeNodeOpen) {
@@ -847,18 +830,18 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
             });
         };
 
-        if (ImGui::BeginTable("scene-hierarchy-table", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY)) {
+        if (ImGui::BeginTable("scene-hierarchy-table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
             ImGui::TableSetupScrollFreeze(0, 1);
-            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide | ImGuiTableColumnFlags_NoReorder);
-            ImGui::TableSetupColumn("Transform", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn("Mesh", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn("Light", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn("Camera", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn(ICON_FA_CUBE, ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn(ICON_FA_LIGHTBULB_O, ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn(ICON_FA_CAMERA, ImGuiTableColumnFlags_WidthFixed);
             ImGui::TableHeadersRow();
 
             for (std::size_t nodeIndex : asset.scenes[sceneIndex].nodeIndices) {
                 addChildNode(asset, nodeIndex);
             }
+
             ImGui::EndTable();
         }
     }

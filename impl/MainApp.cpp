@@ -2,6 +2,7 @@ module;
 
 #include <cassert>
 
+#include <IconsFontAwesome4.h>
 #ifdef _WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32
 #define NOMINMAX // prevent min/max macro redeclaration from <windows.h>
@@ -27,6 +28,7 @@ module vk_gltf_viewer;
 import :MainApp;
 
 import std;
+import asset;
 import imgui.glfw;
 import imgui.vulkan;
 import :gltf.AssetExternalBuffers;
@@ -207,6 +209,14 @@ vk_gltf_viewer::MainApp::MainApp() {
 #error "Type your own font file in here!"
 #endif
         16.f * io.DisplayFramebufferScale.x, nullptr, ranges.Data);
+
+    ImFontConfig config;
+    config.MergeMode = true;
+    constexpr ImWchar fontAwesomeIconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+    io.Fonts->AddFontFromMemoryCompressedBase85TTF(
+        asset::font::fontawesome_webfont_ttf_compressed_data_base85,
+        16.f * io.DisplayFramebufferScale.x, &config, fontAwesomeIconRanges);
+
     io.Fonts->Build();
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
