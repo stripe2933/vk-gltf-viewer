@@ -47,6 +47,22 @@ template <concepts::signature_of<cpp_util::cstring_view> F>
     else return str;
 }
 
+void makeWindowVisible(const char* window_name) {
+    ImGuiWindow *const window = ImGui::FindWindowByName(window_name);
+    assert(window && "Unknown window name");
+
+    if (window->DockNode && window->DockNode->TabBar) {
+        // If window is docked and within the tab bar, make the tab bar's selected tab index to the current.
+        // https://github.com/ocornut/imgui/issues/2887#issuecomment-849779358
+        // TODO: if two docked window is in the same tab bar, it is not work.
+        window->DockNode->TabBar->NextSelectedTabId = window->TabId;
+    }
+    else {
+        // Otherwise, window is detached, therefore focusing it to make it top most.
+        ImGui::FocusWindow(window);
+    }
+}
+
 auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f}) -> void {
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
     ImGui::Image(vku::toUint64(texture), size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
@@ -107,7 +123,7 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
         ImGui::ColumnInfo { "Buffer View", decomposer([](auto, const fastgltf::Accessor &accessor) {
             if (accessor.bufferViewIndex) {
                 if (ImGui::TextLink(tempStringBuffer.write(*accessor.bufferViewIndex).view().c_str())) {
-                    // TODO.
+                    makeWindowVisible("Buffer Views");
                 }
             }
             else {
@@ -181,7 +197,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetBufferViews(std::span<fas
         ImGui::ColumnInfo { "Buffer", [&](std::size_t i, const fastgltf::BufferView &bufferView) {
             ImGui::PushID(i);
             if (ImGui::TextLink("\u2197" /*↗*/)) {
-                // TODO
+                makeWindowVisible("Buffers");
             }
             ImGui::PopID();
 
@@ -327,7 +343,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetSamplers(std::span<fastgl
     ImGui::DockBuilderFinish(dockSpaceOverViewport);
 
     return dockSpaceOverViewport; // This will represent the central node.
-
 }
 
 vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
@@ -923,6 +938,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                                 ImGui::WithID(*primitive.materialIndex, [&]() {
                                     ImGui::WithLabel("Material"sv, [&]() {
                                         if (ImGui::TextLink(nonempty_or(asset.materials[*primitive.materialIndex].name, [&]() { return tempStringBuffer.write("<Unnamed material {}>", *primitive.materialIndex).view(); }).c_str())) {
+                                            makeWindowVisible("Material Editor");
                                             selectedMaterialIndex = *primitive.materialIndex;
                                         }
                                     });
