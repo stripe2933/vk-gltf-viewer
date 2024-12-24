@@ -524,12 +524,23 @@ auto vk_gltf_viewer::vulkan::Frame::createFramebuffers() const -> std::vector<vk
         | std::ranges::to<std::vector>();
 }
 
+
+
+
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {
+
+    
+    auto poolSizes = 2 * getPoolSizes(
+        sharedData.jumpFloodComputer.descriptorSetLayout,
+        sharedData.outlineRenderer.descriptorSetLayout
+    ) + sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize();
+    
+  
+    auto poolCreateInfo = poolSizes.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
+
     return {
         gpu.device,
-        (2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout)
-            + sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize())
-            .getDescriptorPoolCreateInfo(),
+        poolCreateInfo
     };
 }
 

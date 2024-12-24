@@ -69,10 +69,15 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 vk_gltf_viewer::MainApp::MainApp() {
     const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
 
-    const vk::raii::DescriptorPool descriptorPool {
-        gpu.device,
-        brdfmapComputer.descriptorSetLayout.getPoolSize().getDescriptorPoolCreateInfo(),
-    };
+
+    vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo = brdfmapComputer.descriptorSetLayout.getPoolSize().getDescriptorPoolCreateInfo();
+descriptorPoolCreateInfo.flags |= vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
+
+const vk::raii::DescriptorPool descriptorPool {
+    gpu.device,
+    descriptorPoolCreateInfo,
+};
+
 
     const auto [brdfmapSet] = allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(brdfmapComputer.descriptorSetLayout));
     gpu.device.updateDescriptorSets(
@@ -202,7 +207,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 #elif __APPLE__
         "/Library/Fonts/Arial Unicode.ttf",
 #elif __linux__
-        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+        "/usr/share/fonts/noto/NotoSansMono-Medium.ttf",
 #else
 #error "Type your own font file in here!"
 #endif
@@ -679,7 +684,7 @@ vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR
             //   memory used by presentable images.
             //
             // Therefore, if maxImageCount is zero, it is set to the UINT_MAX and minImageCount + 1 will be used.
-            std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount == 0 ? ~0U : surfaceCapabilities.maxImageCount),
+                 std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount == 0 ? ~0U : surfaceCapabilities.maxImageCount), 
             vk::Format::eB8G8R8A8Srgb,
             vk::ColorSpaceKHR::eSrgbNonlinear,
             swapchainExtent,
