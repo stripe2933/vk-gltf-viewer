@@ -17,52 +17,65 @@ namespace ImGui {
         ImGuiTableColumnFlags flags;
     };
 
-    export template <typename... Fs>
-    auto Table(cpp_util::cstring_view str_id, ImGuiTableFlags flags, std::ranges::input_range auto &&items, const ColumnInfo<Fs> &...columnInfos) -> void {
-        if (BeginTable(str_id.c_str(), 1 /* row index */ + sizeof...(Fs), flags)) {
+    template <bool RowNumber, typename... Fs>
+    void TableBody(std::size_t rowStart, std::ranges::input_range auto &&items, const Fs &...fs) {
+        for (auto &&item : FWD(items)) {
+            TableNextRow();
+
+            if constexpr (RowNumber) {
+                TableSetColumnIndex(0);
+                Text("%zu", rowStart);
+            }
+
+            INDEX_SEQ(Is, sizeof...(Fs), {
+                ((TableSetColumnIndex(Is + RowNumber), [&]() {
+                    if constexpr (std::invocable<Fs, std::size_t /* row */, decltype(item)>) {
+                        fs(rowStart, FWD(item));
+                    }
+                    else {
+                        fs(FWD(item));
+                    }
+                }()), ...);
+            });
+            ++rowStart;
+        }
+    }
+
+    export template <bool RowNumber = true, typename... Fs>
+    void Table(cpp_util::cstring_view str_id, ImGuiTableFlags flags, std::ranges::input_range auto &&items, const ColumnInfo<Fs> &...columnInfos) {
+        if (BeginTable(str_id.c_str(), RowNumber + sizeof...(Fs), flags)) {
             TableSetupScrollFreeze(0, 1);
-            TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
+            if constexpr (RowNumber) {
+                TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
+            }
             (TableSetupColumn(columnInfos.label.c_str(), columnInfos.flags), ...);
             TableHeadersRow();
-            for (std::size_t rowIndex = 0; auto &&item : FWD(items)) {
-                TableNextRow();
-                TableSetColumnIndex(0);
-                Text("%zu", rowIndex);
-                INDEX_SEQ(Is, sizeof...(Fs), {
-                    ((TableSetColumnIndex(Is + 1), [&]() {
-                        if constexpr (std::invocable<Fs, std::size_t /* row */, decltype(item)>) {
-                            columnInfos.f(rowIndex, FWD(item));
-                        }
-                        else {
-                            columnInfos.f(FWD(item));
-                        }
-                    }()), ...);
-                });
-                ++rowIndex;
-            }
+
+            TableBody<RowNumber>(0, FWD(items), columnInfos.f...);
+
             EndTable();
         }
     }
 
-    export template <typename... Fs>
-    auto TableNoRowNumber(cpp_util::cstring_view str_id, ImGuiTableFlags flags, std::ranges::input_range auto &&items, const ColumnInfo<Fs> &...columnInfos) -> void {
-        if (BeginTable(str_id.c_str(), sizeof...(Fs), flags)) {
+    export template <bool RowNumber = true, typename... Fs>
+    void TableWithVirtualization(cpp_util::cstring_view str_id, ImGuiTableFlags flags, std::ranges::random_access_range auto &&items, const ColumnInfo<Fs> &...columnInfos) {
+        // If item count is less than 32, use the normal Table function.
+        if (items.size() < 32) {
+            Table(str_id, flags, FWD(items), columnInfos...);
+        }
+        else if (BeginTable(str_id.c_str(), RowNumber + sizeof...(Fs), flags)) {
             TableSetupScrollFreeze(0, 1);
+            if constexpr (RowNumber) {
+                TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed);
+            }
             (TableSetupColumn(columnInfos.label.c_str(), columnInfos.flags), ...);
             TableHeadersRow();
-            for (std::size_t rowIndex = 0; auto &&item : FWD(items)) {
-                TableNextRow();
-                INDEX_SEQ(Is, sizeof...(Fs), {
-                    ((TableSetColumnIndex(Is), [&]() {
-                        if constexpr (std::invocable<Fs, std::size_t /* row */, decltype(item)>) {
-                            columnInfos.f(rowIndex, FWD(item));
-                        }
-                        else {
-                            columnInfos.f(FWD(item));
-                        }
-                    }()), ...);
-                });
-                ++rowIndex;
+
+            ImGuiListClipper clipper;
+            clipper.Begin(items.size());
+            while (clipper.Step()) {
+                auto clippedItems = FWD(items) | std::views::drop(clipper.DisplayStart) | std::views::take(clipper.DisplayEnd - clipper.DisplayStart);
+                TableBody<RowNumber>(clipper.DisplayStart, clippedItems, columnInfos.f...);
             }
             EndTable();
         }

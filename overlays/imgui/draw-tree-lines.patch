@@ -1,0 +1,55 @@
+From 19c05acb81f60f2f9ac9e1c1454a38ba85921a40 Mon Sep 17 00:00:00 2001
+From: ocornut <omarcornut@gmail.com>
+Date: Wed, 3 Jul 2024 19:03:25 +0200
+Subject: [PATCH] WIP TreeNode: todying with experimental
+ ImGuiTreeNodeFlags_DrawTreeLines() (#2920)
+
+---
+ imgui_internal.h  |  1 +
+ imgui_widgets.cpp | 10 ++++++++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/imgui_internal.h b/imgui_internal.h
+index 5a0fc7c4b..cb78dee52 100644
+--- a/imgui_internal.h
++++ b/imgui_internal.h
+@@ -965,6 +965,7 @@ enum ImGuiSelectableFlagsPrivate_
+ // Extend ImGuiTreeNodeFlags_
+ enum ImGuiTreeNodeFlagsPrivate_
+ {
++    ImGuiTreeNodeFlags_DrawTreeLines            = 1 << 27,  // FIXME-EXPERIMENTAL: #2920
+     ImGuiTreeNodeFlags_ClipLabelForTrailingButton = 1 << 28,// FIXME-WIP: Hard-coded for CollapsingHeader()
+     ImGuiTreeNodeFlags_UpsideDownArrow            = 1 << 29,// FIXME-WIP: Turn Down arrow into an Up arrow, for reversed trees (#6517)
+     ImGuiTreeNodeFlags_OpenOnMask_                = ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_OpenOnArrow,
+ };
+diff --git a/imgui_widgets.cpp b/imgui_widgets.cpp
+index 05e470195..4cd90624d 100644
+--- a/imgui_widgets.cpp
++++ b/imgui_widgets.cpp
+@@ -6400,6 +6400,9 @@ bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* l
+         if ((flags & ImGuiTreeNodeFlags_NavLeftJumpsBackHere) && is_open && !g.NavIdIsAlive)
+             if (g.NavMoveDir == ImGuiDir_Left && g.NavWindow == window && NavMoveRequestButNoResultYet())
+                 store_tree_node_stack_data = true;
++        flags |= ImGuiTreeNodeFlags_DrawTreeLines;
++        if (flags & ImGuiTreeNodeFlags_DrawTreeLines)
++            store_tree_node_stack_data = true;
+     }
+ 
+     const bool is_leaf = (flags & ImGuiTreeNodeFlags_Leaf) != 0;
+@@ -6600,6 +6603,13 @@ void ImGui::TreePop()
+             if (g.NavIdIsAlive && g.NavMoveDir == ImGuiDir_Left && g.NavWindow == window && NavMoveRequestButNoResultYet())
+                 NavMoveRequestResolveWithPastTreeNode(&g.NavMoveResultLocal, data);
+         }
++        if (data->TreeFlags & ImGuiTreeNodeFlags_DrawTreeLines)
++        {
++            ImVec2 p1 = data->NavRect.GetBL();
++            p1.x += ImTrunc(GetTreeNodeToLabelSpacing() * 0.5f);
++            ImVec2 p2 = ImVec2(p1.x, window->DC.CursorPos.y);
++            window->DrawList->AddLine(p1, p2, GetColorU32(ImGuiCol_Border));
++        }
+         g.TreeNodeStack.pop_back();
+         window->DC.TreeHasStackDataDepthMask &= ~tree_depth_mask;
+     }
+-- 
+2.42.0.windows.2
+

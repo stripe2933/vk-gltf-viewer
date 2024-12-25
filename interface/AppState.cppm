@@ -43,7 +43,6 @@ namespace vk_gltf_viewer {
         public:
             fastgltf::Asset &asset;
             std::variant<std::vector<std::optional<bool>>, std::vector<bool>> nodeVisibilities { std::in_place_index<0>, asset.nodes.size(), true };
-            std::optional<std::size_t> assetInspectorMaterialIndex = value_if(!asset.materials.empty(), std::size_t { 0 });
 
             std::unordered_set<std::uint16_t> selectedNodeIndices;
             std::optional<std::uint16_t> hoveringNodeIndex;

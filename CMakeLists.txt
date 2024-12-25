@@ -55,6 +55,16 @@ add_library(glm::module ALIAS glm_module)
 # Project targets.
 # --------------------
 
+add_library(vk-gltf-viewer_asset)
+target_sources(vk-gltf-viewer_asset PUBLIC
+    FILE_SET CXX_MODULES
+    FILES
+    asset/font/fontawesome_webfont_ttf.cppm
+    asset/font/mod.cppm
+    asset/mod.cppm
+)
+add_library(vk-gltf-viewer::asset ALIAS vk-gltf-viewer_asset)
+
 add_executable(vk-gltf-viewer
     impl.cpp
     impl/control/AppWindow.cpp
@@ -72,6 +82,7 @@ add_executable(vk-gltf-viewer
     main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
+    extlibs/include
     ${Stb_INCLUDE_DIR}
 )
 target_sources(vk-gltf-viewer PRIVATE
@@ -104,6 +115,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/AssetSceneHierarchy.cppm
         interface/helpers/concepts.cppm
         interface/helpers/fastgltf.cppm
+        interface/helpers/formatter/ByteSize.cppm
         interface/helpers/full_optional.cppm
         interface/helpers/functional.cppm
         interface/helpers/imgui/mod.cppm
@@ -180,6 +192,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     nfd::nfd
     OpenEXR::OpenEXR
     vku::vku
+    vk-gltf-viewer::asset
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE
     GLFW_INCLUDE_NONE
@@ -190,6 +203,7 @@ if (UNIX AND NOT APPLE) # Linux?
         target_compile_definitions(vk-gltf-viewer PRIVATE WAYLAND_DISPLAY)
     endif()
 endif()
+
 
 # --------------------
 # Shader compilation.
