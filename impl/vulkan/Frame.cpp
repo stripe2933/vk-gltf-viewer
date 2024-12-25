@@ -132,25 +132,22 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     };
 
     const auto depthPrepassCriteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
-        CommandSeparationCriteria result {
-            .subpass = 0U,
+        CommandSeparationCriteriaNoShading result{
             .pipeline = *sharedData.depthRenderer,
-            .indexType = primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
+            .indexType = primitiveInfo.indexInfo.transform([](const auto& info) { return info.type; }),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
         if (primitiveInfo.materialIndex) {
-            const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
-            result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
+            const fastgltf::Material& material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
             result.pipeline = sharedData.getDepthPrepassRenderer(material.alphaMode);
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         return result;
-    };
+        };
 
-    const auto jumpFloodSeedCriteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
-        CommandSeparationCriteria result {
-            .subpass = 0U,
+    const auto jumpFloodSeedCriteriaGetter = [&](const gltf::AssetPrimitiveInfo& primitiveInfo) {
+        CommandSeparationCriteriaNoShading result {
             .pipeline = *sharedData.jumpFloodSeedRenderer,
             .indexType = primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
             .cullMode = vk::CullModeFlagBits::eBack,
@@ -158,7 +155,6 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         if (primitiveInfo.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
-            result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
             result.pipeline = sharedData.getJumpFloodSeedRenderer(material.alphaMode);
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
@@ -604,7 +600,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         bool pushConstantBound = false;
     } resourceBindingState{};
 
-    const auto drawPrimitives = [&](const CriteriaSeparatedIndirectDrawCommands &indirectDrawCommandBuffers) {
+    const auto drawPrimitives = [&](const auto &indirectDrawCommandBuffers) {
         for (const auto &[criteria, indirectDrawCommandBuffer] : indirectDrawCommandBuffers) {
             if (resourceBindingState.pipeline != criteria.pipeline) {
                 cb.bindPipeline(vk::PipelineBindPoint::eGraphics, resourceBindingState.pipeline = criteria.pipeline);
