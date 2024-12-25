@@ -175,9 +175,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetBuffers(std::span<fastglt
                     ImGui::TextUnformatted(tempStringBuffer.write("BufferView ({})", bufferView.bufferViewIndex));
                 },
                 [&](const fastgltf::sources::URI &uri) {
-                    ImGui::PushID(row);
-                    ImGui::TextLinkOpenURL("\u2197" /*↗*/, PATH_C_STR(assetDir / uri.uri.fspath()));
-                    ImGui::PopID();
+                    ImGui::WithID(row, [&]() {
+                        ImGui::TextLinkOpenURL(ICON_FA_EXTERNAL_LINK, PATH_C_STR(assetDir / uri.uri.fspath()));
+                    });
                 },
                 [](const auto&) {
                     ImGui::TextDisabled("-");
@@ -199,17 +199,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetBufferViews(std::span<fas
         }, ImGuiTableColumnFlags_WidthStretch },
         ImGui::ColumnInfo { "Buffer", [&](std::size_t i, const fastgltf::BufferView &bufferView) {
             ImGui::PushID(i);
-            if (ImGui::TextLink("\u2197" /*↗*/)) {
+            if (ImGui::TextLink(tempStringBuffer.write(bufferView.bufferIndex).view().c_str())) {
                 makeWindowVisible("Buffers");
             }
             ImGui::PopID();
-
-            if (ImGui::BeginItemTooltip()) {
-                ImGui::TextUnformatted(nonempty_or(
-                    buffers[bufferView.bufferIndex].name,
-                    [&]() { return tempStringBuffer.write("<Unnamed buffer {}>", bufferView.bufferIndex).view(); }));
-                ImGui::EndTooltip();
-            }
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "Range", [&](const fastgltf::BufferView &bufferView) {
             ImGui::TextUnformatted(tempStringBuffer.write(
@@ -257,7 +250,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetImages(std::span<fastgltf
                 },
             }, image.data);
         }, ImGuiTableColumnFlags_WidthFixed },
-        ImGui::ColumnInfo { "Location", [&](const fastgltf::Image &image) {
+        ImGui::ColumnInfo { "Location", [&](std::size_t i, const fastgltf::Image &image) {
             visit(fastgltf::visitor {
                 [](const fastgltf::sources::Array&) {
                     ImGui::TextUnformatted("Embedded (Array)"sv);
@@ -265,10 +258,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetImages(std::span<fastgltf
                 [](const fastgltf::sources::BufferView &bufferView) {
                     ImGui::TextUnformatted(tempStringBuffer.write("BufferView ({})", bufferView.bufferViewIndex));
                 },
-                [&](std::size_t i, const fastgltf::sources::URI &uri) {
-                    ImGui::PushID(i);
-                    ImGui::TextLinkOpenURL("\u2197" /*↗*/, PATH_C_STR(assetDir / uri.uri.fspath()));
-                    ImGui::PopID();
+                [&](const fastgltf::sources::URI &uri) {
+                    ImGui::WithID(i, [&]() {
+                        ImGui::TextLinkOpenURL(ICON_FA_EXTERNAL_LINK, PATH_C_STR(assetDir / uri.uri.fspath()));
+                    });
                 },
                 [](const auto&) {
                     ImGui::TextDisabled("-");
