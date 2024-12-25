@@ -193,29 +193,32 @@ vk_gltf_viewer::MainApp::MainApp() {
 #endif
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-    ImVector<ImWchar> ranges;
-    ImFontGlyphRangesBuilder builder;
-    builder.AddRanges(io.Fonts->GetGlyphRangesDefault());
-    builder.AddChar(0x2197 /*↗*/);
-    builder.BuildRanges(&ranges);
-    io.Fonts->AddFontFromFileTTF(
+    ImFontConfig fontConfig;
+    fontConfig.SizePixels = 16.f * io.DisplayFramebufferScale.x;
+
+    const char *defaultFontPath =
 #ifdef _WIN32
-        "C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf";
 #elif __APPLE__
-        "/Library/Fonts/Arial Unicode.ttf",
+        "/Library/Fonts/Arial Unicode.ttf";
 #elif __linux__
-        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf";
 #else
 #error "Type your own font file in here!"
 #endif
-        16.f * io.DisplayFramebufferScale.x, nullptr, ranges.Data);
+    if (std::filesystem::exists(defaultFontPath)) {
+        io.Fonts->AddFontFromFileTTF(defaultFontPath, 16.f * io.DisplayFramebufferScale.x);
+    }
+    else {
+        std::println(std::cerr, "Your system doesn't have expected system font at {}. Low-resolution font will be used instead.", defaultFontPath);
+        io.Fonts->AddFontDefault(&fontConfig);
+    }
 
-    ImFontConfig config;
-    config.MergeMode = true;
+    fontConfig.MergeMode = true;
     constexpr ImWchar fontAwesomeIconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
     io.Fonts->AddFontFromMemoryCompressedBase85TTF(
         asset::font::fontawesome_webfont_ttf_compressed_data_base85,
-        16.f * io.DisplayFramebufferScale.x, &config, fontAwesomeIconRanges);
+        fontConfig.SizePixels, &fontConfig, fontAwesomeIconRanges);
 
     io.Fonts->Build();
 
