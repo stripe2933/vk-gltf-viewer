@@ -336,10 +336,12 @@ void vk_gltf_viewer::MainApp::run() {
                     regenerateDrawCommands.fill(true);
                 },
                 [&](control::task::CloseGltf) {
-                    gltf.reset();
+                    gpu.device.waitIdle();
 
-                    // Update AppState.
+                    gltf.reset();
                     appState.gltfAsset.reset();
+
+                    window.setTitle("Vulkan glTF Viewer");
                 },
                 [&](control::task::ShowEqmapLoadFileDialog) {
                     constexpr std::array filterItems {
