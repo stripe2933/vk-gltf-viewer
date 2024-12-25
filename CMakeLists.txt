@@ -10,6 +10,7 @@ set(CMAKE_CXX_MODULE_STD 1)
 # --------------------
 
 find_package(boost_container CONFIG REQUIRED)
+find_path(BSHOSHANY_THREAD_POOL_INCLUDE_DIRS "BS_thread_pool.hpp")
 find_package(CGAL CONFIG REQUIRED)
 find_package(cstring_view CONFIG REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
@@ -26,6 +27,12 @@ find_package(vku CONFIG REQUIRED)
 # --------------------
 # Module configurations for the external dependencies.
 # --------------------
+
+add_library(BS_thread_pool_module)
+target_sources(BS_thread_pool_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/module-ports/BS.thread_pool.cppm)
+target_include_directories(BS_thread_pool_module PRIVATE ${BSHOSHANY_THREAD_POOL_INCLUDE_DIRS})
+target_compile_definitions(BS_thread_pool_module PRIVATE BS_THREAD_POOL_IMPORT_STD)
+add_library(BS_thread_pool::module ALIAS BS_thread_pool_module)
 
 add_library(cstring_view_module)
 target_sources(cstring_view_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/module-ports/cstring_view.cppm)
@@ -88,7 +95,6 @@ target_include_directories(vk-gltf-viewer PRIVATE
 target_sources(vk-gltf-viewer PRIVATE
     FILE_SET CXX_MODULES
     FILES
-        extlibs/thread_pool.cppm
         extlibs/module-ports/imgui/imgui.cppm
         extlibs/module-ports/imgui/imgui.math.cppm
         extlibs/module-ports/imgui/imgui.glfw.cppm
@@ -181,6 +187,7 @@ target_sources(vk-gltf-viewer PRIVATE
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
     Boost::container
+    BS_thread_pool::module
     CGAL::CGAL
     cpp_util::cstring_view::module
     fastgltf::module

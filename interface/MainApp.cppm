@@ -89,7 +89,7 @@ namespace vk_gltf_viewer {
                 fastgltf::Parser &parser,
                 const std::filesystem::path &path,
                 const vulkan::Gpu &gpu [[clang::lifetimebound]],
-                BS::thread_pool threadPool = {});
+                BS::thread_pool<> threadPool = {});
 
             void setScene(std::size_t sceneIndex);
         };

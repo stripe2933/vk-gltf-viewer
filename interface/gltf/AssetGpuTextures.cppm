@@ -9,9 +9,9 @@ module;
 export module vk_gltf_viewer:gltf.AssetGpuTextures;
 
 import std;
+export import BS.thread_pool;
 export import fastgltf;
 import glm;
-export import thread_pool;
 export import :gltf.AssetProcessError;
 import :helpers.fastgltf;
 import :helpers.ranges;
@@ -124,7 +124,7 @@ namespace vk_gltf_viewer::gltf {
             const fastgltf::Asset &asset,
             const std::filesystem::path &assetDir,
             const vulkan::Gpu &gpu,
-            BS::thread_pool &threadPool,
+            BS::thread_pool<> &threadPool,
             const BufferDataAdapter &adapter = {}
         ) : asset { asset },
             gpu { gpu } {

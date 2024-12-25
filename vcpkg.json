@@ -1,8 +1,8 @@
 {
   "dependencies": [
     "boost-container",
-    "cstring-view",
     "cgal",
+    "cstring-view",
     "fastgltf",
     "glfw3",
     "glm",
@@ -18,6 +18,7 @@
     "ktx",
     "mikktspace",
     "nativefiledialog-extended",
+    "openexr",
     "stb",
     {
       "name": "vku",
@@ -26,6 +27,6 @@
         "std-module"
       ]
     },
-    "openexr"
+    "bshoshany-thread-pool"
   ]
 }

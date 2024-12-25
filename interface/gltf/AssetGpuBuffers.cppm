@@ -6,8 +6,8 @@ module;
 export module vk_gltf_viewer:gltf.AssetGpuBuffers;
 
 import std;
+export import BS.thread_pool;
 export import glm;
-export import thread_pool;
 import :gltf.algorithm.MikktSpaceInterface;
 export import :gltf.AssetPrimitiveInfo;
 export import :gltf.AssetProcessError;
@@ -173,7 +173,7 @@ namespace vk_gltf_viewer::gltf {
         AssetGpuBuffers(
             const fastgltf::Asset &asset,
             const vulkan::Gpu &gpu,
-            BS::thread_pool &threadPool,
+            BS::thread_pool<> &threadPool,
             const BufferDataAdapter &adapter = {}
         ) : asset { asset },
             gpu { gpu },
@@ -444,7 +444,7 @@ namespace vk_gltf_viewer::gltf {
         void createPrimitiveIndexedAttributeMappingBuffers();
 
         template <typename BufferDataAdapter>
-        void createPrimitiveTangentBuffers(BS::thread_pool &threadPool, const BufferDataAdapter &adapter) {
+        void createPrimitiveTangentBuffers(BS::thread_pool<> &threadPool, const BufferDataAdapter &adapter) {
             // Collect primitives that are missing tangent attributes (and require it).
             std::vector missingTangentPrimitives
                 = primitiveInfos
