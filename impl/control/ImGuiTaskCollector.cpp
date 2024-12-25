@@ -611,7 +611,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                     ImGui::WithGroup([&]() {
                         ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat("Scale", &textureInfo->scale, 0.01f, 0.f, std::numeric_limits<float>::max())) {
+                            if (ImGui::DragFloat("Scale", &textureInfo->scale, 0.01f)) {
                                 // TODO
                             }
                         });
@@ -627,7 +627,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                     ImGui::WithGroup([&]() {
                         ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat("Strength", &textureInfo->strength, 0.01f, 0.f, std::numeric_limits<float>::max())) {
+                            if (ImGui::DragFloat("Strength", &textureInfo->strength, 0.01f)) {
                                 // TODO
                             }
                         });
@@ -1128,10 +1128,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
                 tasks.emplace_back(std::in_place_type<task::TightenNearFarPlane>);
             }
             ImGui::SameLine();
-            ImGui::HelperMarker("Near/Far plane will be automatically to fit the scene bounding box.");
+            ImGui::HelperMarker("Near/Far plane will be automatically tightened to fit the scene bounding box.");
 
             ImGui::WithDisabled([&]() {
-                ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1e-6f, 1e-4f, 1e6, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+                ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
             }, automaticNearFarPlaneAdjustment);
 
             ImGui::Checkbox("Use Frustum Culling", &useFrustumCulling);
@@ -1145,7 +1145,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
                 hoveringNodeOutline.set_active(showHoveringNodeOutline);
             }
             ImGui::WithDisabled([&]() {
-                ImGui::DragFloat("Thickness##hoveringNodeOutline", &hoveringNodeOutline->thickness, 1.f, 1.f, std::numeric_limits<float>::max());
+                ImGui::DragFloat("Thickness##hoveringNodeOutline", &hoveringNodeOutline->thickness, 1.f, 1.f, 1.f);
                 ImGui::ColorEdit4("Color##hoveringNodeOutline", value_ptr(hoveringNodeOutline->color));
             }, !showHoveringNodeOutline);
 
@@ -1154,7 +1154,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
                 selectedNodeOutline.set_active(showSelectedNodeOutline);
             }
             ImGui::WithDisabled([&]() {
-                ImGui::DragFloat("Thickness##selectedNodeOutline", &selectedNodeOutline->thickness, 1.f, 1.f, std::numeric_limits<float>::max());
+                ImGui::DragFloat("Thickness##selectedNodeOutline", &selectedNodeOutline->thickness, 1.f, 1.f, 1.f);
                 ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(selectedNodeOutline->color));
             }, !showSelectedNodeOutline);
         }
