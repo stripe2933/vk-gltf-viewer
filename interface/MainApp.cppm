@@ -9,6 +9,7 @@ import :gltf.AssetGpuTextures;
 import :gltf.AssetGpuFallbackTexture;
 import :gltf.AssetSceneGpuBuffers;
 import :gltf.AssetSceneHierarchy;
+import :gltf.MaterialVariantsMapping;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Scene;
@@ -45,6 +46,11 @@ namespace vk_gltf_viewer {
              * type is mutable reference is to allow the user to change some trivial properties.
              */
             fastgltf::Asset asset;
+
+            /**
+             * @brief Associative data structure for KHR_materials_variants.
+             */
+            gltf::MaterialVariantsMapping materialVariantsMapping { asset };
 
         private:
             const vulkan::Gpu &gpu;
@@ -127,7 +133,7 @@ namespace vk_gltf_viewer {
         // glTF resources.
         // --------------------
 
-        fastgltf::Parser parser { fastgltf::Extensions::KHR_materials_unlit | fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::EXT_mesh_gpu_instancing };
+        fastgltf::Parser parser { fastgltf::Extensions::KHR_materials_unlit | fastgltf::Extensions::KHR_materials_variants | fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::EXT_mesh_gpu_instancing };
         std::optional<Gltf> gltf;
 
         // --------------------

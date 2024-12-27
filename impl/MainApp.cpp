@@ -260,6 +260,12 @@ void vk_gltf_viewer::MainApp::run() {
     std::array<bool, FRAMES_IN_FLIGHT> shouldHandleSwapchainResize{};
     std::array<bool, FRAMES_IN_FLIGHT> shouldRegenerateDrawCommands{};
 
+    // TODO: we need more general mechanism to upload the GPU buffer data in shared data. This is just a stopgap solution
+    //  for current KHR_materials_variants implementation.
+    const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+    const auto [sharedDataUpdateCommandBuffer] = vku::allocateCommandBuffers<1>(*gpu.device, *graphicsCommandPool);
+    bool hasUpdateData = false;
+
     std::vector<control::Task> tasks;
     for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % FRAMES_IN_FLIGHT) {
         tasks.clear();
@@ -282,6 +288,9 @@ void vk_gltf_viewer::MainApp::run() {
             if (auto &gltfAsset = appState.gltfAsset) {
                 imguiTaskCollector.assetInspector(gltfAsset->asset, gltf->directory);
                 imguiTaskCollector.materialEditor(gltfAsset->asset, assetTextureDescriptorSets);
+                if (!gltfAsset->asset.materialVariants.empty()) {
+                    imguiTaskCollector.materialVariants(gltfAsset->asset);
+                }
                 imguiTaskCollector.sceneHierarchy(gltfAsset->asset, gltfAsset->getSceneIndex(), gltfAsset->nodeVisibilities, gltfAsset->hoveringNodeIndex, gltfAsset->selectedNodeIndices);
                 imguiTaskCollector.nodeInspector(gltfAsset->asset, gltfAsset->selectedNodeIndices);
             }
@@ -513,6 +522,26 @@ void vk_gltf_viewer::MainApp::run() {
                 [&](control::task::InvalidateDrawCommandSeparation) {
                     shouldRegenerateDrawCommands.fill(true);
                 },
+                [&](const control::task::SelectMaterialVariants &task) {
+                    assert(gltf && "Synchronization error: gltf is unset but material variants are selected.");
+
+                    gpu.device.waitIdle();
+
+                    graphicsCommandPool.reset();
+                    sharedDataUpdateCommandBuffer.begin(vk::CommandBufferBeginInfo { vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+
+                    for (const auto &[pPrimitive, materialIndex] : gltf->materialVariantsMapping.at(task.variantIndex)) {
+                        pPrimitive->materialIndex.emplace(materialIndex);
+                        hasUpdateData |= gltf->assetGpuBuffers.updatePrimitiveMaterial(*pPrimitive, materialIndex, sharedDataUpdateCommandBuffer);
+                    }
+
+                    sharedDataUpdateCommandBuffer.end();
+
+                    if (hasUpdateData) {
+                        gpu.queues.graphicsPresent.submit(vk::SubmitInfo { {}, {}, sharedDataUpdateCommandBuffer });
+                        gpu.device.waitIdle();
+                    }
+                }
             }, task);
         }
 
@@ -817,7 +846,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         };
     }));
     gpu.device.updateDescriptorSets({
-        sharedData.assetDescriptorSet.getWriteOne<0>({ gltf->assetGpuBuffers.primitiveBuffer, 0, vk::WholeSize }),
+        sharedData.assetDescriptorSet.getWriteOne<0>({ gltf->assetGpuBuffers.getPrimitiveBuffer(), 0, vk::WholeSize }),
         sharedData.assetDescriptorSet.getWriteOne<1>({ gltf->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
         sharedData.assetDescriptorSet.getWrite<2>(imageInfos),
         sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeBuffer, 0, vk::WholeSize }),

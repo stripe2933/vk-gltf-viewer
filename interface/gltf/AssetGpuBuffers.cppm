@@ -164,11 +164,13 @@ namespace vk_gltf_viewer::gltf {
          */
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
+    private:
         /**
          * @brief Buffer that contains <tt>GpuPrimitive</tt>s.
          */
-        vku::AllocatedBuffer primitiveBuffer = createPrimitiveBuffer();
+        std::variant<vku::AllocatedBuffer, vku::MappedBuffer> primitiveBuffer = createPrimitiveBuffer();
 
+    public:
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         AssetGpuBuffers(
             const fastgltf::Asset &asset,
@@ -198,12 +200,23 @@ namespace vk_gltf_viewer::gltf {
             }
         }
 
+        [[nodiscard]] vk::Buffer getPrimitiveBuffer() const noexcept { return visit_as<vk::Buffer>(primitiveBuffer); }
+
         /**
          * @brief Get the primitive by its order, which has the same manner of <tt>primitiveBuffer</tt>.
          * @param index The order of the primitive.
          * @return The primitive.
          */
         [[nodiscard]] const fastgltf::Primitive &getPrimitiveByOrder(std::uint16_t index) const { return *orderedPrimitives[index]; }
+
+        /**
+         * @brief Update \p primitive's material index inside the GPU buffer.
+         * @param primitive Primitive to update.
+         * @param materialIndex New material index.
+         * @param transferCommandBuffer If buffer is not host-visible memory and so is unable to be updated from the host, this command buffer will be used for recording the buffer update command. Then, its execution MUST be synchronized to be available to the <tt>primitiveBuffer</tt>'s usage. Otherwise, this parameter is not used.
+         * @return <tt>true</tt> if the buffer is not host-visible memory and the update command is recorded, <tt>false</tt> otherwise.
+         */
+        [[nodiscard]] bool updatePrimitiveMaterial(const fastgltf::Primitive &primitive, std::uint32_t materialIndex, vk::CommandBuffer transferCommandBuffer);
 
     private:
         [[nodiscard]] std::vector<const fastgltf::Primitive*> createOrderedPrimitives() const;
@@ -328,7 +341,7 @@ namespace vk_gltf_viewer::gltf {
                 | std::ranges::to<std::unordered_map>();
         }
 
-        [[nodiscard]] vku::AllocatedBuffer createPrimitiveBuffer();
+        [[nodiscard]] std::variant<vku::AllocatedBuffer, vku::MappedBuffer> createPrimitiveBuffer();
 
         template <typename DataBufferAdapter>
         void createPrimitiveAttributeBuffers(const DataBufferAdapter &adapter) {
@@ -539,5 +552,7 @@ namespace vk_gltf_viewer::gltf {
 
             internalBuffers.emplace_back(std::move(buffer));
         }
+
+        [[nodiscard]] static std::uint32_t padMaterialIndex(std::uint32_t materialIndex) noexcept { return materialIndex + 1; }
     };
 }
