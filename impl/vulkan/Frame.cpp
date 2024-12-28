@@ -106,19 +106,13 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     passthruRect = task.passthruRect;
     cursorPosFromPassthruRectTopLeft = task.cursorPosFromPassthruRectTopLeft;
 
-    // If there is a glTF scene to be rendered, related resources have to be updated.
-    if (task.gltf) {
-        indexBuffers
-            = task.gltf->assetGpuBuffers.indexBuffers
-            | ranges::views::value_transform([](vk::Buffer buffer) { return buffer; })
-            | std::ranges::to<std::unordered_map>();
-    }
-
     const auto criteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
         CommandSeparationCriteria result {
             .subpass = 0U,
             .pipeline = primitiveInfo.normalInfo.has_value() ? *sharedData.primitiveRenderer : *sharedData.facetedPrimitiveRenderer,
-            .indexType = primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
+            .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
+                return std::pair { task.gltf->assetGpuBuffers.indexBuffers.at(info.type).buffer, info.type };
+            }),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
@@ -134,7 +128,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     const auto depthPrepassCriteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
         CommandSeparationCriteriaNoShading result{
             .pipeline = *sharedData.depthRenderer,
-            .indexType = primitiveInfo.indexInfo.transform([](const auto& info) { return info.type; }),
+            .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
+                return std::pair { task.gltf->assetGpuBuffers.indexBuffers.at(info.type).buffer, info.type };
+            }),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
@@ -144,12 +140,14 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         return result;
-        };
+    };
 
     const auto jumpFloodSeedCriteriaGetter = [&](const gltf::AssetPrimitiveInfo& primitiveInfo) {
         CommandSeparationCriteriaNoShading result {
             .pipeline = *sharedData.jumpFloodSeedRenderer,
-            .indexType = primitiveInfo.indexInfo.transform([](const auto &info) { return info.type; }),
+            .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
+                return std::pair { task.gltf->assetGpuBuffers.indexBuffers.at(info.type).buffer, info.type };
+            }),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
@@ -592,7 +590,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
     struct {
         vk::Pipeline pipeline{};
         std::optional<vk::CullModeFlagBits> cullMode{};
-        std::optional<vk::IndexType> indexBuffer;
+        vk::Buffer indexBuffer;
 
         // (Mask){Depth|JumpFloodSeed}Renderer have compatible descriptor set layouts and push constant range,
         // therefore they only need to be bound once.
@@ -621,8 +619,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 cb.setCullMode(resourceBindingState.cullMode.emplace(criteria.cullMode));
             }
 
-            if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
-                cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, resourceBindingState.indexBuffer.emplace(*indexType));
+            if (criteria.indexBufferAndType) {
+                if (const auto &[indexBuffer, indexType] = *criteria.indexBufferAndType; resourceBindingState.indexBuffer != indexBuffer) {
+                    cb.bindIndexBuffer(resourceBindingState.indexBuffer = indexBuffer, 0, indexType);
+                }
             }
             visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
         }
@@ -736,7 +736,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
     struct {
         vk::Pipeline pipeline{};
         std::optional<vk::CullModeFlagBits> cullMode{};
-        std::optional<vk::IndexType> indexBuffer{};
+        vk::Buffer indexBuffer;
 
         // (Mask)(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
         // therefore they only need to be bound once.
@@ -763,8 +763,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
             cb.setCullMode(resourceBindingState.cullMode.emplace(criteria.cullMode));
         }
 
-        if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
-            cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, resourceBindingState.indexBuffer.emplace(*indexType));
+        if (criteria.indexBufferAndType) {
+            if (const auto &[indexBuffer, indexType] = *criteria.indexBufferAndType; resourceBindingState.indexBuffer != indexBuffer) {
+                cb.bindIndexBuffer(resourceBindingState.indexBuffer = indexBuffer, 0, indexType);
+            }
         }
         visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
     }
@@ -775,13 +777,13 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
 
     struct {
         vk::Pipeline pipeline{};
-        std::optional<vk::IndexType> indexBuffer{};
+        vk::Buffer indexBuffer;
 
         // Blend(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
         // therefore they only need to be bound once.
         bool descriptorBound = false;
         bool pushConstantBound = false;
-    } resourceBindingState;
+    } resourceBindingState{};
 
     // Render alphaMode=Blend meshes.
     bool hasBlendMesh = false;
@@ -800,8 +802,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
             resourceBindingState.pushConstantBound = true;
         }
 
-        if (const auto &indexType = criteria.indexType; indexType && resourceBindingState.indexBuffer != *indexType) {
-            cb.bindIndexBuffer(indexBuffers.at(*indexType), 0, resourceBindingState.indexBuffer.emplace(*indexType));
+        if (criteria.indexBufferAndType) {
+            if (const auto &[indexBuffer, indexType] = *criteria.indexBufferAndType; resourceBindingState.indexBuffer != indexBuffer) {
+                cb.bindIndexBuffer(resourceBindingState.indexBuffer = indexBuffer, 0, indexType);
+            }
         }
         visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
         hasBlendMesh = true;

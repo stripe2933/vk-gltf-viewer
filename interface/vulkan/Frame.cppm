@@ -26,7 +26,7 @@ import :vulkan.ag.SceneWeightedBlended;
 struct CommandSeparationCriteria {
     std::uint32_t subpass;
     vk::Pipeline pipeline;
-    std::optional<vk::IndexType> indexType;
+    std::optional<std::pair<vk::Buffer, vk::IndexType>> indexBufferAndType;
     vk::CullModeFlagBits cullMode;
 
     [[nodiscard]] std::strong_ordering operator<=>(const CommandSeparationCriteria&) const noexcept = default;
@@ -43,7 +43,7 @@ struct std::less<CommandSeparationCriteria> {
 
 struct CommandSeparationCriteriaNoShading {
     vk::Pipeline pipeline;
-    std::optional<vk::IndexType> indexType;
+    std::optional<std::pair<vk::Buffer, vk::IndexType>> indexBufferAndType;
     vk::CullModeFlagBits cullMode;
 
     [[nodiscard]] std::strong_ordering operator<=>(const CommandSeparationCriteriaNoShading&) const noexcept = default;
@@ -246,7 +246,6 @@ namespace vk_gltf_viewer::vulkan {
         glm::vec3 viewPosition;
         glm::mat4 translationlessProjectionViewMatrix;
         std::optional<vk::Offset2D> cursorPosFromPassthruRectTopLeft;
-        std::unordered_map<vk::IndexType, vk::Buffer> indexBuffers;
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
