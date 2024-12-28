@@ -8,10 +8,34 @@ import :gltf.AssetGpuBuffers;
 
 import std;
 import :helpers.fastgltf;
+import :helpers.functional;
 import :helpers.ranges;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
+
+bool vk_gltf_viewer::gltf::AssetGpuBuffers::updatePrimitiveMaterial(
+    const fastgltf::Primitive &primitive,
+    std::uint32_t materialIndex,
+    vk::CommandBuffer transferCommandBuffer
+) {
+    const std::uint16_t orderedPrimitiveIndex = primitiveInfos.at(&primitive).index;
+    const std::uint32_t paddedMaterialIndex = padMaterialIndex(materialIndex);
+    return std::visit(multilambda {
+        [&](vku::MappedBuffer &primitiveBuffer) {
+            primitiveBuffer.asRange<GpuPrimitive>()[orderedPrimitiveIndex].materialIndex = paddedMaterialIndex;
+            return false;
+        },
+        [&](vk::Buffer primitiveBuffer) {
+            transferCommandBuffer.updateBuffer(
+                primitiveBuffer,
+                sizeof(GpuPrimitive) * orderedPrimitiveIndex + offsetof(GpuPrimitive, materialIndex),
+                sizeof(GpuPrimitive::materialIndex),
+                &paddedMaterialIndex);
+            return true;
+        }
+    }, primitiveBuffer);
+}
 
 std::vector<const fastgltf::Primitive*> vk_gltf_viewer::gltf::AssetGpuBuffers::createOrderedPrimitives() const {
     return asset.meshes
@@ -24,7 +48,7 @@ std::vector<const fastgltf::Primitive*> vk_gltf_viewer::gltf::AssetGpuBuffers::c
 auto vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveInfos() const -> std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> {
     return orderedPrimitives
         | ranges::views::enumerate
-        | ranges::views::decompose_transform([](std::uint32_t primitiveIndex, const fastgltf::Primitive *pPrimitive) {
+        | ranges::views::decompose_transform([](std::uint16_t primitiveIndex, const fastgltf::Primitive *pPrimitive) {
             return std::pair {
                 pPrimitive,
                 AssetPrimitiveInfo {
@@ -94,8 +118,8 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createMaterialBuffer
     return dstBuffer;
 }
 
-vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveBuffer() {
-    vku::AllocatedBuffer stagingBuffer = vku::MappedBuffer {
+std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveBuffer() {
+    vku::MappedBuffer stagingBuffer {
         gpu.allocator,
         std::from_range, orderedPrimitives | std::views::transform([this](const fastgltf::Primitive *pPrimitive) {
             const AssetPrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
@@ -114,15 +138,11 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveBuffe
                 .positionByteStride = primitiveInfo.positionInfo.byteStride,
                 .normalByteStride = normalInfo.byteStride,
                 .tangentByteStride = tangentInfo.byteStride,
-                .materialIndex
-                    = primitiveInfo.materialIndex.transform([](std::size_t index) {
-                        return 1U /* index 0 is reserved for the fallback material */ + static_cast<std::uint32_t>(index);
-                    })
-                    .value_or(0U),
+                .materialIndex = primitiveInfo.materialIndex.transform(padMaterialIndex).value_or(0U),
             };
         }),
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
-    }.unmap();
+    };
 
     if (gpu.isUmaDevice || vku::contains(gpu.allocator.getAllocationMemoryProperties(stagingBuffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
         return stagingBuffer;
@@ -134,7 +154,7 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveBuffe
         vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
     } };
     stagingInfos.emplace_back(
-        std::move(stagingBuffer),
+        std::move(stagingBuffer).unmap(),
         dstBuffer,
         vk::BufferCopy{ 0, 0, dstBuffer.size });
     return dstBuffer;

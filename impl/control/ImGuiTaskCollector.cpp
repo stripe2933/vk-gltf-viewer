@@ -335,6 +335,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetSamplers(std::span<fastgl
 
     // bottomSidebar
     ImGui::DockBuilderDockWindow("Material Editor", bottomSidebar);
+    ImGui::DockBuilderDockWindow("Material Variants", bottomSidebar);
 
     ImGui::DockBuilderFinish(dockSpaceOverViewport);
 
@@ -655,6 +656,24 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
     ImGui::End();
 
     materialEditorCalled = true;
+}
+
+void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(const fastgltf::Asset &asset) {
+    assert(!asset.materialVariants.empty());
+
+    if (ImGui::Begin("Material Variants")) {
+        static int selectedMaterialVariantIndex = 0;
+        if (asset.materialVariants.size() <= selectedMaterialVariantIndex) {
+            selectedMaterialVariantIndex = 0;
+        }
+
+        for (const auto &[i, variantName] : asset.materialVariants | ranges::views::enumerate) {
+            if (ImGui::RadioButton(variantName.c_str(), &selectedMaterialVariantIndex, i)) {
+                tasks.emplace_back(std::in_place_type<task::SelectMaterialVariants>, i);
+            }
+        }
+    }
+    ImGui::End();
 }
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(

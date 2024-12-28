@@ -21,6 +21,7 @@ namespace vk_gltf_viewer::control {
         struct TightenNearFarPlane { };
         struct ChangeCameraView { };
         struct InvalidateDrawCommandSeparation { };
+        struct SelectMaterialVariants { std::size_t variantIndex; };
     }
 
     export using Task = std::variant<
@@ -39,5 +40,6 @@ namespace vk_gltf_viewer::control {
         task::ChangeSelectedNodeWorldTransform,
         task::TightenNearFarPlane,
         task::ChangeCameraView,
-        task::InvalidateDrawCommandSeparation>;
+        task::InvalidateDrawCommandSeparation,
+        task::SelectMaterialVariants>;
 }
