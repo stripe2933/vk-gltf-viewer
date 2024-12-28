@@ -159,6 +159,7 @@ This project depends on:
 - [Native File Dialog Extended](https://github.com/btzy/nativefiledialog-extended)
 - [OpenEXR](https://openexr.com/en/latest/)
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h)
+- [thread-pool](https://github.com/bshoshany/thread-pool)
 - My own Vulkan-Hpp helper library, [vku](https://github.com/stripe2933/vku/tree/module) (branch `module`), which has the following dependencies:
   - [Vulkan-Hpp](https://github.com/KhronosGroup/Vulkan-Hpp)
   - [VulkanMemoryAllocator-Hpp](https://github.com/YaaZ/VulkanMemoryAllocator-Hpp)
