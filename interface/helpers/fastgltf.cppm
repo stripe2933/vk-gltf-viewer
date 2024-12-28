@@ -129,6 +129,7 @@ namespace fastgltf {
             case AnimationPath::Scale: return "scale";
             case AnimationPath::Weights: return "weights";
         }
+        std::unreachable();
     }
 
     export
@@ -138,6 +139,7 @@ namespace fastgltf {
             case AnimationInterpolation::Step: return "STEP";
             case AnimationInterpolation::CubicSpline: return "CUBICSPLINE";
         }
+        std::unreachable();
     }
 
     /**

@@ -25,5 +25,6 @@ namespace vk_gltf_viewer::gltf {
             case AssetProcessError::UnsupportedSourceDataType:
                 return "The source data type is not supported.";
         }
+        std::unreachable();
     }
 }
