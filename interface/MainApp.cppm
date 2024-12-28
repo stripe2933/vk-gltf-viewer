@@ -151,7 +151,6 @@ namespace vk_gltf_viewer {
         // Descriptor sets.
         // --------------------
 
-        vk::raii::DescriptorPool imGuiDescriptorPool = createImGuiDescriptorPool();
         std::vector<vk::DescriptorSet> assetTextureDescriptorSets;
 
         // --------------------
@@ -167,7 +166,6 @@ namespace vk_gltf_viewer {
         [[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
         [[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;
         [[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
-        [[nodiscard]] auto createImGuiDescriptorPool() -> decltype(imGuiDescriptorPool);
 
         void loadGltf(const std::filesystem::path &path);
         void loadEqmap(const std::filesystem::path &eqmapPath);

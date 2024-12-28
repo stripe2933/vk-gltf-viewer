@@ -229,10 +229,10 @@ vk_gltf_viewer::MainApp::MainApp() {
         .PhysicalDevice = *gpu.physicalDevice,
         .Device = *gpu.device,
         .Queue = gpu.queues.graphicsPresent,
-        .DescriptorPool = *imGuiDescriptorPool,
         // ImGui requires ImGui_ImplVulkan_InitInfo::{MinImageCount,ImageCount} ≥ 2 (I don't know why...).
         .MinImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
         .ImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
+        .DescriptorPoolSize = 512,
         .UseDynamicRendering = true,
         .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
             {},
@@ -793,21 +793,6 @@ auto vk_gltf_viewer::MainApp::createBrdfmapImage() const -> decltype(brdfmapImag
     } };
 }
 
-auto vk_gltf_viewer::MainApp::createImGuiDescriptorPool() -> decltype(imGuiDescriptorPool) {
-    return { gpu.device, vk::DescriptorPoolCreateInfo {
-        vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-        1 /* Default ImGui rendering */
-            + 1 /* reducedEqmapImage texture */
-            + /*static_cast<std::uint32_t>(gltf->asset.textures.size())*/ 512 /* material textures */, // TODO: need proper texture count.
-        vku::unsafeProxy(vk::DescriptorPoolSize {
-            vk::DescriptorType::eCombinedImageSampler,
-            1 /* Default ImGui rendering */
-                + 1 /* reducedEqmapImage texture */
-                + /*static_cast<std::uint32_t>(gltf->asset.textures.size())*/ 512 /* material textures */ // TODO: need proper texture count.
-        }),
-    } };
-}
-
 void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
     //  so I'll just use it for now.
@@ -1289,7 +1274,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     if (skyboxResources){
         // Since a descriptor set allocated using ImGui_ImplVulkan_AddTexture cannot be updated, it has to be freed
         // and re-allocated (which done in below).
-        (*gpu.device).freeDescriptorSets(*imGuiDescriptorPool, skyboxResources->imGuiEqmapTextureDescriptorSet);
+        ImGui_ImplVulkan_RemoveTexture(skyboxResources->imGuiEqmapTextureDescriptorSet);
     }
 
     // Emplace the results into skyboxResources and imageBasedLightingResources.
