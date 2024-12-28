@@ -2,6 +2,7 @@ module;
 
 #include <cassert>
 #include <cerrno>
+
 #include <ktx.h>
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
@@ -172,7 +173,7 @@ namespace vk_gltf_viewer::gltf {
                 };
 
                 // Copy infos that have to be recorded.
-                std::vector<std::tuple<vk::Buffer, vk::Image, vk::BufferImageCopy>> copyInfos;
+                std::vector<std::tuple<vk::Buffer, vk::Image, std::vector<vk::BufferImageCopy>>> copyInfos;
                 copyInfos.reserve(images.size());
 
                 // Mutex for protecting the insertion racing to stagingBuffers, imageIndicesToGenerateMipmap and copyInfos.
@@ -229,10 +230,12 @@ namespace vk_gltf_viewer::gltf {
                         copyInfos.emplace_back(
                             stagingBuffers.emplace_front(std::move(stagingBuffer).unmap()),
                             image,
-                            vk::BufferImageCopy {
-                                0, 0, 0,
-                                vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-                                {}, image.extent,
+                            std::vector {
+                                vk::BufferImageCopy {
+                                    0, 0, 0,
+                                    vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+                                    {}, image.extent,
+                                }
                             });
 
                         return image;
@@ -272,27 +275,27 @@ namespace vk_gltf_viewer::gltf {
                             }
                         }
 
-                        // Process image data.
-                        std::forward_list<vku::AllocatedBuffer> partialStagingBuffers;
-                        std::vector<std::pair<vk::Buffer, vk::BufferImageCopy>> partialCopyInfos;
-                        for (std::uint32_t level = 0; level < texture->numLevels; ++level) {
-                            std::size_t offset;
-                            if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
-                                throw std::runtime_error { std::format("Failed to get the image subresource(mipLevel={}) offset: {}", level, ktxErrorString(result)) };
-                            }
+                        vku::MappedBuffer stagingBuffer {
+                            gpu.allocator,
+                            std::from_range, std::span { ktxTexture_GetData(ktxTexture(texture)), ktxTexture_GetDataSize(ktxTexture(texture)) },
+                            vk::BufferUsageFlagBits::eTransferSrc,
+                        };
 
-                            partialCopyInfos.emplace_back(
-                                partialStagingBuffers.emplace_front(vku::MappedBuffer {
-                                    gpu.allocator,
-                                    std::from_range, std::span { ktxTexture_GetData(ktxTexture(texture)) + offset, ktxTexture_GetImageSize(ktxTexture(texture), level) },
-                                    vk::BufferUsageFlagBits::eTransferSrc
-                                }.unmap()),
-                                vk::BufferImageCopy {
-                                    0, 0, 0,
+                        std::vector<vk::BufferImageCopy> copyRegions
+                            = ranges::views::upto(texture->numLevels)
+                            | std::views::transform([&](std::uint32_t level) {
+                                ktx_size_t offset;
+                                if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
+                                    throw std::runtime_error { std::format("Failed to get the image subresource(level={}) offset: {}", level, ktxErrorString(result)) };
+                                }
+
+                                return vk::BufferImageCopy {
+                                    offset, 0, 0,
                                     { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
                                     vk::Offset3D{}, vk::Extent3D { vku::Image::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
-                                });
-                        }
+                                };
+                            })
+                            | std::ranges::to<std::vector>();
 
                         vk::ImageCreateInfo createInfo {
                             {},
@@ -320,10 +323,10 @@ namespace vk_gltf_viewer::gltf {
                         if (generateMipmaps) {
                             imageIndicesToGenerateMipmap.emplace(imageIndex);
                         }
-                        stagingBuffers.splice_after(stagingBuffers.before_begin(), std::move(partialStagingBuffers));
-                        for (const auto &[buffer, copyRegion] : partialCopyInfos) {
-                            copyInfos.emplace_back(buffer, image, copyRegion);
-                        }
+                        copyInfos.emplace_back(
+                            stagingBuffers.emplace_front(std::move(stagingBuffer).unmap()),
+                            image,
+                            std::move(copyRegions));
 
                         return image;
                     };
