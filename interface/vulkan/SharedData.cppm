@@ -1,22 +1,18 @@
 module;
 
+#include <boost/container_hash/hash.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vk_gltf_viewer:vulkan.SharedData;
 
 import std;
+export import fastgltf;
 export import vku;
 export import :vulkan.ag.Swapchain;
 export import :vulkan.Gpu;
-export import :vulkan.pipeline.BlendPrimitiveRenderer;
-export import :vulkan.pipeline.BlendUnlitPrimitiveRenderer;
 export import :vulkan.pipeline.DepthRenderer;
 export import :vulkan.pipeline.JumpFloodComputer;
 export import :vulkan.pipeline.JumpFloodSeedRenderer;
-export import :vulkan.pipeline.MaskDepthRenderer;
-export import :vulkan.pipeline.MaskJumpFloodSeedRenderer;
-export import :vulkan.pipeline.MaskPrimitiveRenderer;
-export import :vulkan.pipeline.MaskUnlitPrimitiveRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
 export import :vulkan.pipeline.PrimitiveRenderer;
 export import :vulkan.pipeline.SkyboxRenderer;
@@ -25,11 +21,40 @@ export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
 export import :vulkan.rp.Scene;
 import :vulkan.sampler.SingleTexelSampler;
 
+/**
+ * @brief Hasher for aggregate struct.
+ *
+ * It combines the hash of each field using <tt>boost::hash_combine</tt>.
+ *
+ * @tparam T Aggregate struct type.
+ * @note Currently this is only for <tt>SharedData::PrimitivePipelineKey</tt> (whose members are 3), therefore number of the structured bindings is assumed as 3. Need fix.
+ */
+template <typename T> requires std::is_aggregate_v<T>
+struct AggregateHasher {
+    [[nodiscard]] constexpr std::size_t operator()(const T &v) const noexcept {
+        // TODO.CXX26: use structured binding packs.
+        const auto &[x1, x2, x3] = v;
+        std::size_t seed = 0;
+        boost::hash_combine(seed, x1);
+        boost::hash_combine(seed, x2);
+        boost::hash_combine(seed, x3);
+        return seed;
+    }
+};
+
 namespace vk_gltf_viewer::vulkan {
     export class SharedData {
         const Gpu &gpu;
 
     public:
+        struct PrimitivePipelineKey {
+            bool unlit;
+            bool fragmentShaderGeneratedTBN;
+            fastgltf::AlphaMode alphaMode;
+
+            [[nodiscard]] constexpr std::strong_ordering operator<=>(const PrimitivePipelineKey&) const noexcept = default;
+        };
+
         // --------------------
         // Non-owning swapchain resources.
         // --------------------
@@ -56,23 +81,14 @@ namespace vk_gltf_viewer::vulkan {
         pl::Primitive primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
         pl::PrimitiveNoShading primitiveNoShadingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
 
+        // --------------------
         // Pipelines.
-        BlendPrimitiveRenderer blendFacetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass, true };
-        BlendPrimitiveRenderer blendPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass, false };
-        BlendUnlitPrimitiveRenderer blendUnlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
-        DepthRenderer depthRenderer { gpu.device, primitiveNoShadingPipelineLayout };
-        PrimitiveRenderer facetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass, true };
+        // --------------------
+
+        // Primitive unrelated pipelines.
         JumpFloodComputer jumpFloodComputer { gpu.device };
-        JumpFloodSeedRenderer jumpFloodSeedRenderer { gpu.device, primitiveNoShadingPipelineLayout };
-        MaskDepthRenderer maskDepthRenderer { gpu.device, primitiveNoShadingPipelineLayout };
-        MaskPrimitiveRenderer maskFacetedPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass, true };
-        MaskJumpFloodSeedRenderer maskJumpFloodSeedRenderer { gpu.device, primitiveNoShadingPipelineLayout };
-        MaskPrimitiveRenderer maskPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass, false };
-        MaskUnlitPrimitiveRenderer maskUnlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
         OutlineRenderer outlineRenderer { gpu.device };
-        PrimitiveRenderer primitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass, false };
         SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices };
-        UnlitPrimitiveRenderer unlitPrimitiveRenderer { gpu.device, primitivePipelineLayout, sceneRenderPass };
         WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass };
 
         // --------------------
@@ -107,6 +123,48 @@ namespace vk_gltf_viewer::vulkan {
                     skyboxDescriptorSetLayout));
         }
 
+        /**
+         * @brief Get corresponding Vulkan pipeline for given key.
+         * @param key A key that represents the primitive's rendering policy (alpha mode, normal/tangent space generation, etc.).
+         * @return Vulkan pipeline for the given key.
+         */
+        [[nodiscard]] vk::Pipeline getPrimitiveRenderer(const PrimitivePipelineKey &key) const {
+            if (key.unlit) {
+                return primitivePipelines.try_emplace(key, createUnlitPrimitiveRenderer(
+                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.alphaMode)).first->second;
+            }
+            else {
+                return primitivePipelines.try_emplace(key, createPrimitiveRenderer(
+                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.fragmentShaderGeneratedTBN, key.alphaMode)).first->second;
+            }
+        }
+
+        /**
+         * @brief Get corresponding Vulkan pipeline for depth prepass rendering.
+         * @param mask Boolean whether the rendering primitive's material alpha mode is MASK or not.
+         * @return Vulkan pipeline for depth prepass rendering.
+         */
+        [[nodiscard]] vk::Pipeline getDepthPrepassRenderer(bool mask) const {
+            std::optional<vk::raii::Pipeline> &targetPipeline = mask ? maskDepthRenderer : depthRenderer;
+            if (!targetPipeline) {
+                targetPipeline = createDepthRenderer(gpu.device, primitiveNoShadingPipelineLayout, mask);
+            }
+            return *targetPipeline;
+        }
+
+        /**
+         * @brief Get corresponding Vulkan pipeline for jump flood seeding.
+         * @param mask Boolean whether the rendering primitive's material alpha mode is MASK or not.
+         * @return Vulkan pipeline for jump flood seeding.
+         */
+        [[nodiscard]] vk::Pipeline getJumpFloodSeedRenderer(bool mask) const {
+            std::optional<vk::raii::Pipeline> &targetPipeline = mask ? maskJumpFloodSeedRenderer : jumpFloodSeedRenderer;
+            if (!targetPipeline) {
+                targetPipeline = createJumpFloodSeedRenderer(gpu.device, primitiveNoShadingPipelineLayout, mask);
+            }
+            return *targetPipeline;
+        }
+
         // --------------------
         // The below public methods will modify the GPU resources, therefore they MUST be called before the command buffer
         // submission.
@@ -120,31 +178,39 @@ namespace vk_gltf_viewer::vulkan {
             imGuiSwapchainAttachmentGroup = getImGuiSwapchainAttachmentGroup();
         }
 
-        auto updateTextureCount(std::uint32_t textureCount) -> void {
+        void updateTextureCount(std::uint32_t textureCount) {
+            if (assetDescriptorSetLayout.descriptorCounts[2] == textureCount) {
+                // If texture count is same, descriptor set layouts, pipeline layouts and pipelines doesn't have to be recreated.
+                return;
+            }
+
+            // Following pipelines are dependent to the assetDescriptorSetLayout.
+            primitivePipelines.clear();
+            depthRenderer.reset();
+            jumpFloodSeedRenderer.reset();
+            maskDepthRenderer.reset();
+            maskJumpFloodSeedRenderer.reset();
+
             assetDescriptorSetLayout = { gpu.device, textureCount };
             primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
             primitiveNoShadingPipelineLayout = { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
-
-            // Following pipelines are dependent to the assetDescriptorSetLayout.
-            blendFacetedPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass, true };
-            blendPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass, false };
-            blendUnlitPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
-            depthRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
-            facetedPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass, true };
-            jumpFloodSeedRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
-            maskDepthRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
-            maskFacetedPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass, true };
-            maskJumpFloodSeedRenderer = { gpu.device, primitiveNoShadingPipelineLayout };
-            maskPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass, false };
-            maskUnlitPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
-            primitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass, false };
-            unlitPrimitiveRenderer = { gpu.device, primitivePipelineLayout, sceneRenderPass };
 
             textureDescriptorPool = createTextureDescriptorPool();
             std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(assetDescriptorSetLayout));
         }
 
     private:
+        // --------------------
+        // Pipelines.
+        // --------------------
+
+        // glTF primitive rendering pipelines.
+        mutable std::unordered_map<PrimitivePipelineKey, vk::raii::Pipeline, AggregateHasher<PrimitivePipelineKey>> primitivePipelines;
+        mutable std::optional<vk::raii::Pipeline> depthRenderer;
+        mutable std::optional<vk::raii::Pipeline> jumpFloodSeedRenderer;
+        mutable std::optional<vk::raii::Pipeline> maskDepthRenderer;
+        mutable std::optional<vk::raii::Pipeline> maskJumpFloodSeedRenderer;
+
         [[nodiscard]] std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> getImGuiSwapchainAttachmentGroup() {
             if (gpu.supportSwapchainMutableFormat) {
                 return decltype(imGuiSwapchainAttachmentGroup) { std::in_place_index<0>, gpu, swapchainExtent, swapchainImages, vk::Format::eB8G8R8A8Unorm };
