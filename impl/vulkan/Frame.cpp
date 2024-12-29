@@ -109,7 +109,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     const auto criteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
         CommandSeparationCriteria result {
             .subpass = 0U,
-            .pipeline = primitiveInfo.normalInfo.has_value() ? *sharedData.primitiveRenderer : *sharedData.facetedPrimitiveRenderer,
+            .pipeline = sharedData.getPrimitiveRenderer({
+                .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
+            }),
             .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
                 return std::pair { task.gltf->assetGpuBuffers.indexBuffers.at(info.type).buffer, info.type };
             }),
@@ -119,7 +121,11 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         if (primitiveInfo.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
-            result.pipeline = sharedData.getPrimitiveRenderer(material, !primitiveInfo.normalInfo.has_value());
+            result.pipeline = sharedData.getPrimitiveRenderer({
+                .unlit = material.unlit,
+                .fragmentShaderGeneratedTBN = !material.unlit && !primitiveInfo.normalInfo.has_value(),
+                .alphaMode = material.alphaMode,
+            });
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         return result;
@@ -127,7 +133,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     const auto depthPrepassCriteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
         CommandSeparationCriteriaNoShading result{
-            .pipeline = *sharedData.depthRenderer,
+            .pipeline = sharedData.getDepthPrepassRenderer(false),
             .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
                 return std::pair { task.gltf->assetGpuBuffers.indexBuffers.at(info.type).buffer, info.type };
             }),
@@ -136,7 +142,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         if (primitiveInfo.materialIndex) {
             const fastgltf::Material& material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
-            result.pipeline = sharedData.getDepthPrepassRenderer(material.alphaMode);
+            result.pipeline = sharedData.getDepthPrepassRenderer(material.alphaMode == fastgltf::AlphaMode::Mask);
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         return result;
@@ -144,7 +150,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     const auto jumpFloodSeedCriteriaGetter = [&](const gltf::AssetPrimitiveInfo& primitiveInfo) {
         CommandSeparationCriteriaNoShading result {
-            .pipeline = *sharedData.jumpFloodSeedRenderer,
+            .pipeline = sharedData.getJumpFloodSeedRenderer(false),
             .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
                 return std::pair { task.gltf->assetGpuBuffers.indexBuffers.at(info.type).buffer, info.type };
             }),
@@ -153,7 +159,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         if (primitiveInfo.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
-            result.pipeline = sharedData.getJumpFloodSeedRenderer(material.alphaMode);
+            result.pipeline = sharedData.getJumpFloodSeedRenderer(material.alphaMode == fastgltf::AlphaMode::Mask);
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         return result;
