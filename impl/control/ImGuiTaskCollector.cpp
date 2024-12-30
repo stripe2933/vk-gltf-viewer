@@ -903,9 +903,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                 [&](fastgltf::math::fmat4x4 &matrix) {
                     // | operator cannot be chained, because of the short circuit evaluation.
                     bool transformChanged = ImGui::DragFloat4("Column 0", matrix.col(0).data());
-                    transformChanged |= ImGui::DragFloat4("Column 1", matrix.col(4).data());
-                    transformChanged |= ImGui::DragFloat4("Column 2", matrix.col(8).data());
-                    transformChanged |= ImGui::DragFloat4("Column 3", matrix.col(12).data());
+                    transformChanged |= ImGui::DragFloat4("Column 1", matrix.col(1).data());
+                    transformChanged |= ImGui::DragFloat4("Column 2", matrix.col(2).data());
+                    transformChanged |= ImGui::DragFloat4("Column 3", matrix.col(3).data());
 
                     if (transformChanged) {
                         tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);
