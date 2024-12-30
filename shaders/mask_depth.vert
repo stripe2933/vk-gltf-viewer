@@ -22,7 +22,7 @@ layout (location = 2) flat out uint outMaterialIndex;
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
-layout (set = 0, binding = 1) readonly buffer MaterialBuffer {
+layout (set = 0, binding = 1, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 

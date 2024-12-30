@@ -18,7 +18,7 @@ layout (location = 0) out vec4 outAccumulation;
 layout (location = 1) out float outRevealage;
 #endif
 
-layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 1, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 layout (set = 1, binding = 2) uniform sampler2D textures[];
