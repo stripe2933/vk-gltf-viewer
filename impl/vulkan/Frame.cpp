@@ -110,6 +110,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         CommandSeparationCriteria result {
             .subpass = 0U,
             .pipeline = sharedData.getPrimitiveRenderer({
+                .texcoordCount = static_cast<std::uint8_t>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
                 .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
             }),
             .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
@@ -123,6 +124,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
             result.pipeline = sharedData.getPrimitiveRenderer({
                 .unlit = material.unlit,
+                .texcoordCount = static_cast<std::uint8_t>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
                 .fragmentShaderGeneratedTBN = !material.unlit && !primitiveInfo.normalInfo.has_value(),
                 .alphaMode = material.alphaMode,
             });

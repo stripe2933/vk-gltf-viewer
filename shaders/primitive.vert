@@ -16,21 +16,27 @@ layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer V
 layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
 
 layout (location = 0) out vec3 outPosition;
-#if FRAGMENT_SHADER_GENERATED_TBN
-layout (location = 1) out vec2 outBaseColorTexcoord;
-layout (location = 2) out vec2 outMetallicRoughnessTexcoord;
-layout (location = 3) out vec2 outNormalTexcoord;
-layout (location = 4) out vec2 outOcclusionTexcoord;
-layout (location = 5) out vec2 outEmissiveTexcoord;
-layout (location = 6) flat out uint outMaterialIndex;
-#else
-layout (location = 1) out mat3 outTBN;
-layout (location = 4) out vec2 outBaseColorTexcoord;
-layout (location = 5) out vec2 outMetallicRoughnessTexcoord;
-layout (location = 6) out vec2 outNormalTexcoord;
-layout (location = 7) out vec2 outOcclusionTexcoord;
-layout (location = 8) out vec2 outEmissiveTexcoord;
-layout (location = 9) flat out uint outMaterialIndex;
+#if TEXCOORD_COUNT >= 1
+layout (location = 1) out vec2 outTexcoord0;
+#endif
+#if TEXCOORD_COUNT >= 2
+layout (location = 2) out vec2 outTexcoord1;
+#endif
+#if TEXCOORD_COUNT >= 3
+layout (location = 3) out vec2 outTexcoord2;
+#endif
+#if TEXCOORD_COUNT >= 4
+layout (location = 4) out vec2 outTexcoord3;
+#endif
+#if TEXCOORD_COUNT >= 5
+layout (location = 5) out vec2 outTexcoord4;
+#endif
+#if TEXCOORD_COUNT >= 6
+#error "Maximum texcoord count exceeded."
+#endif
+layout (location = TEXCOORD_COUNT + 1) flat out uint outMaterialIndex;
+#if !FRAGMENT_SHADER_GENERATED_TBN
+layout (location = TEXCOORD_COUNT + 2) out mat3 outTBN;
 #endif
 
 layout (set = 1, binding = 0) readonly buffer PrimitiveBuffer {
@@ -65,43 +71,44 @@ vec4 getVec4(uint64_t address){
     return Vec4Ref(address).data;
 }
 
+#if TEXCOORD_COUNT >= 1
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
     return getVec2(mappingInfo.bytesPtr + uint(mappingInfo.stride) * gl_VertexIndex);
 }
+#endif
 
 void main(){
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
+    outPosition = (TRANSFORM * vec4(inPosition, 1.0)).xyz;
 
-    mat4 transform = TRANSFORM;
-    outPosition = (transform * vec4(inPosition, 1.0)).xyz;
+#if TEXCOORD_COUNT >= 1
+    outTexcoord0 = getTexcoord(0);
+#endif
+#if TEXCOORD_COUNT >= 2
+    outTexcoord1 = getTexcoord(1);
+#endif
+#if TEXCOORD_COUNT >= 3
+    outTexcoord2 = getTexcoord(2);
+#endif
+#if TEXCOORD_COUNT >= 4
+    outTexcoord3 = getTexcoord(3);
+#endif
+#if TEXCOORD_COUNT >= 5
+    outTexcoord4 = getTexcoord(4);
+#endif
 
 #if !FRAGMENT_SHADER_GENERATED_TBN
     vec3 inNormal = getVec3(PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * gl_VertexIndex);
-    outTBN[2] = normalize(mat3(transform) * inNormal); // N
-#endif
+    outTBN[2] = normalize(mat3(TRANSFORM) * inNormal); // N
 
-    if (int(MATERIAL.baseColorTextureIndex) != -1){
-        outBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
-    }
-    if (int(MATERIAL.metallicRoughnessTextureIndex) != -1){
-        outMetallicRoughnessTexcoord = getTexcoord(uint(MATERIAL.metallicRoughnessTexcoordIndex));
-    }
     if (int(MATERIAL.normalTextureIndex) != -1){
-#if !FRAGMENT_SHADER_GENERATED_TBN
         vec4 inTangent = getVec4(PRIMITIVE.pTangentBuffer + uint(PRIMITIVE.tangentByteStride) * gl_VertexIndex);
-        outTBN[0] = normalize(mat3(transform) * inTangent.xyz); // T
+        outTBN[0] = normalize(mat3(TRANSFORM) * inTangent.xyz); // T
         outTBN[1] = cross(outTBN[2], outTBN[0]) * -inTangent.w; // B
+    }
 #endif
 
-        outNormalTexcoord = getTexcoord(uint(MATERIAL.normalTexcoordIndex));
-    }
-    if (int(MATERIAL.occlusionTextureIndex) != -1){
-        outOcclusionTexcoord = getTexcoord(uint(MATERIAL.occlusionTexcoordIndex));
-    }
-    if (int(MATERIAL.emissiveTextureIndex) != -1){
-        outEmissiveTexcoord = getTexcoord(uint(MATERIAL.emissiveTexcoordIndex));
-    }
     outMaterialIndex = MATERIAL_INDEX;
 
     gl_Position = pc.projectionView * vec4(outPosition, 1.0);

@@ -27,17 +27,18 @@ import :vulkan.sampler.SingleTexelSampler;
  * It combines the hash of each field using <tt>boost::hash_combine</tt>.
  *
  * @tparam T Aggregate struct type.
- * @note Currently this is only for <tt>SharedData::PrimitivePipelineKey</tt> (whose members are 3), therefore number of the structured bindings is assumed as 3. Need fix.
+ * @note Currently this is only for <tt>SharedData::PrimitivePipelineKey</tt> (whose members are 4), therefore number of the structured bindings is assumed as 4. Need fix.
  */
 template <typename T> requires std::is_aggregate_v<T>
 struct AggregateHasher {
     [[nodiscard]] constexpr std::size_t operator()(const T &v) const noexcept {
         // TODO.CXX26: use structured binding packs.
-        const auto &[x1, x2, x3] = v;
+        const auto &[x1, x2, x3, x4] = v;
         std::size_t seed = 0;
         boost::hash_combine(seed, x1);
         boost::hash_combine(seed, x2);
         boost::hash_combine(seed, x3);
+        boost::hash_combine(seed, x4);
         return seed;
     }
 };
@@ -49,6 +50,7 @@ namespace vk_gltf_viewer::vulkan {
     public:
         struct PrimitivePipelineKey {
             bool unlit;
+            std::uint8_t texcoordCount;
             bool fragmentShaderGeneratedTBN;
             fastgltf::AlphaMode alphaMode;
 
@@ -138,7 +140,7 @@ namespace vk_gltf_viewer::vulkan {
             }
             else {
                 return primitivePipelines.try_emplace(it, key, createPrimitiveRenderer(
-                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.fragmentShaderGeneratedTBN, key.alphaMode))->second;
+                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.texcoordCount, key.fragmentShaderGeneratedTBN, key.alphaMode))->second;
             }
         }
 
