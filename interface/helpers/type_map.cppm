@@ -2,91 +2,60 @@ export module vk_gltf_viewer:helpers.type_map;
 
 import std;
 
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-
-export template <typename T, typename V>
-struct type_map_entry{
-    using type = T;
-    V value;
+template <typename V, typename K>
+struct type_map_entry {
+    K key;
+    using value_type = V;
 };
 
-export template <typename T, typename V>
-constexpr auto make_type_map_entry(V &&value) noexcept -> type_map_entry<T, V>{
-    return { FWD(value) };
+export template <typename V, typename K>
+[[nodiscard]] constexpr type_map_entry<V, K> make_type_map_entry(K key) noexcept {
+    return { key };
 }
 
-export template <typename MappingV, typename... MappingTs>
-class type_map{
-public:
-    std::tuple<type_map_entry<MappingTs, MappingV>...> entries;
-
-    constexpr type_map(type_map_entry<MappingTs, MappingV>... entries) noexcept
-        : entries { std::move(entries)... } { }
-
-    [[nodiscard]] constexpr auto get_monostate_variant(
-        std::convertible_to<MappingV> auto &&value
-    ) const noexcept -> std::variant<std::monostate, std::type_identity<MappingTs>...>{
-        return get_monostate_variant<type_map_entry<MappingTs, MappingV>...>(FWD(value), entries);
-    }
-
-    [[nodiscard]] constexpr auto get_variant(
-        std::convertible_to<MappingV> auto &&value
-    ) const -> std::variant<std::type_identity<MappingTs>...>{
-        return get_variant<type_map_entry<MappingTs, MappingV>...>(FWD(value), entries);
+/**
+ * @brief Make a template-based runtime value to compile time type mapping.
+ *
+ * @code
+ * int main(int argc, char **argv) {
+ *     constexpr type_map map {
+ *         make_type_map_entry<char>(0),
+ *         make_type_map_entry<int>(1),
+ *         make_type_map_entry<double>(2),
+ *     };
+ *
+ *     return visit([]<typename T>(std::type_identity<T>) {
+ *         return sizeof(T);
+ *     }, map.get_variant(std::stoi(argv[1])));
+ * }
+ *
+ * // ./main 0 -> return 1 (sizeof(char) = 1)
+ * // ./main 1 -> return 4 (sizeof(int) = 4)
+ * // ./main 2 -> return 8 (sizeof(double) = 8)
+ * // ./main 3 -> std::runtime_error { "No mapping found for the given key." }
+ * @endcode
+ *
+ * @tparam K Key type.
+ * @tparam Vs Value types.
+ */
+export template <typename K, typename... Vs>
+struct type_map : type_map_entry<Vs, K>...{
+    [[nodiscard]] constexpr std::variant<std::type_identity<Vs>...> get_variant(K key) const {
+        return get_variant<type_map_entry<Vs, K>...>(key);
     }
 
 private:
-    template <typename T, typename...>
-    struct first_type { using type = T; };
-    template <typename... Ts>
-    using first_type_t = typename first_type<Ts...>::type;
-
-    template <typename Ts1, typename... Ts>
-    [[nodiscard]] static constexpr auto skip_front(
-        std::tuple<Ts1, Ts...> tuple
-    ) noexcept {
-        return std::apply([](auto, auto ...tail) {
-            return std::tuple { tail... };
-        }, tuple);
-    }
-
-    template <typename ...Mappings>
-    [[nodiscard]] constexpr auto get_monostate_variant(
-        std::convertible_to<MappingV> auto &&value,
-        std::tuple<Mappings...> entries
-    ) const noexcept -> std::variant<std::monostate, std::type_identity<typename std::remove_cvref_t<Mappings>::type>...> {
-        if (value == std::get<0>(entries).value) {
-            return std::type_identity<typename first_type_t<std::remove_cvref_t<Mappings>...>::type>{};
+    template <typename Mapping, typename ...Mappings>
+    constexpr std::variant<std::type_identity<Vs>...> get_variant(K key) const {
+        if (key == Mapping::key) {
+            return std::type_identity<typename Mapping::value_type>{};
         }
 
-        if constexpr (sizeof...(Mappings) == 1){
-            return std::monostate{};
+        if constexpr (sizeof...(Mappings) == 0){
+            throw std::runtime_error { "No mapping found for the given key." };
         }
-        else return std::visit(
-            [](auto &&value) -> std::variant<std::monostate, std::type_identity<typename std::remove_cvref_t<Mappings>::type>...> {
-                return FWD(value);
-            },
-            get_monostate_variant(FWD(value), skip_front(entries))
-        );
-    }
-
-    template <typename ...Mappings>
-    [[nodiscard]] constexpr auto get_variant(
-        std::convertible_to<MappingV> auto &&value,
-        std::tuple<Mappings...> entries
-    ) const -> std::variant<std::type_identity<typename std::remove_cvref_t<Mappings>::type>...> {
-        if (value == std::get<0>(entries).value) {
-            return std::type_identity<typename first_type_t<std::remove_cvref_t<Mappings>...>::type>{};
+        else {
+            return get_variant<Mappings...>(key);
         }
-
-        if constexpr (sizeof...(Mappings) == 1){
-            throw std::runtime_error { "No mapping found for the given value." };
-        }
-        else return std::visit(
-            [](auto &&value) -> std::variant<std::type_identity<typename std::remove_cvref_t<Mappings>::type>...> {
-                return std::move(value);
-            },
-            get_variant(FWD(value), skip_front(entries))
-        );
     }
 };
