@@ -12,7 +12,6 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - PBR material rendering with runtime IBL resources (spherical harmonics + pre-filtered environment map) generation from input equirectangular map.
   - Runtime missing tangent attribute generation using MikkTSpace algorithm for indexed geometry.
   - Runtime missing per-face normal and tangent attribute generation for non-indexed geometry.
-  - Unlimited `TEXCOORD_<i>` attributes: **can render a primitive that has arbitrary number of texture coordinates.**
   - `OPAQUE`, `MASK` (using alpha testing and Alpha To Coverage) and `BLEND` (using Weighted Blended OIT) materials.
   - Multiple scenes.
   - Binary format (`.glb`).
@@ -52,11 +51,7 @@ I initially developed this application for leveraging Vulkan's performance and u
   - Descriptor sets are only updated at the model loading time.
   - Textures are accessed with runtime-descriptor indexing using [`VK_EXT_descriptor_indexing`](https://docs.vulkan.org/samples/latest/samples/extensions/descriptor_indexing/README.html) extension.
   - Use Vertex Pulling with [`VK_KHR_buffer_device_address`](https://docs.vulkan.org/samples/latest/samples/extensions/buffer_device_address/README.html). Only index buffers are bound to the command buffer.
-- Fully GPU driven rendering: uses both instancing and multi draw indirect with optimally sorted rendering order. **Regardless of the material count and scene's complexity, all scene nodes can be rendered with up to 24 draw calls** in the worst case[^2].
-  - Has 6 pipelines for 3 material types (`OPAQUE`, `MASK`, `BLEND`) and 2 primitive types (Indexed, Non-Indexed) combinations.
-  - Indexed geometry index type can be either `UNSIGNED_BYTE` (if GPU supports [`VK_EXT_index_type_uint8`](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_EXT_index_type_uint8.html)), `UNSIGNED_SHORT` or `UNSIGNED_INT`, and each type requires a single draw call.
-  - Each material can be either double-sided or not, and cull mode have to be set based on this.
-  - Therefore, if scene consists of the primitives of all combinations, it requires 24 draw calls. **Of course, it would be ~6 draw calls in most case.**
+- Fully GPU driven rendering: uses both instancing and multi draw indirect with optimally sorted rendering order. **Regardless of the material count and scene's complexity, all scene nodes can be rendered with fixed amount of draw calls**.
 - Significant less asset loading time: **glTF buffer memories are directly `memcpy`ed into the GPU memory with dedicated transfer queue. No pre-processing is required!**
   - Thanks to the vertex pulling, pipeline is vertex input state agnostic, therefore no pre-processing is required.
   - Also, it considers whether the GPU is UMA (unified memory architecture) or not, and use the optimal way to transfer the buffer data.
@@ -94,7 +89,7 @@ The extensions and feature used in this application are quite common in the mode
   - `VK_KHR_swapchain`
   - (optional) `VK_KHR_swapchain_mutable_format` (proper ImGui gamma correction, UI color will lose the color if the extension not presented)
   - (optional) `VK_EXT_index_type_uint8` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
-  - (optional) `VK_AMD_shader_image_load_store_lod` (can replace the descriptor indexing based cubemap mipmapping and prefilteredmap generation[^3])
+  - (optional) `VK_AMD_shader_image_load_store_lod` (can replace the descriptor indexing based cubemap mipmapping and prefilteredmap generation[^2])
 - Device Features
   - `VkPhysicalDeviceFeatures`
     - `samplerAnistropy`
@@ -327,5 +322,4 @@ All shaders are located in the [shaders](/shaders) folder and will be automatica
 This project is **licensed under the GPL-v3 License**. See the [LICENSE](LICENSE.txt) file for details.
 
 [^1]: I like this term because it's hilarious for several reasons, but it's no joke! It has the **significantly faster glTF model loading speed than the other the viewers** I've tested. See [Performance Comparison](https://github.com/stripe2933/vk-gltf-viewer/blob/master/docs/performance-comparison.md) page for details.
-[^2]: Applied for standard glTF 2.0 asset only. Asset with material related extensions may require additional draw calls for pipeline changing.
-[^3]: On Apple GPU platform prior to the MoltenVK 1.2.11 (which enables the Metal Argument Buffer by default), [`maxPerStageDescriptorUpdateAfterBindStorageImages` is 8](https://vulkan.gpuinfo.org/displaycoreproperty.php?platform=macos&name=maxPerStageDescriptorUpdateAfterBindStorageImages&core=1.2). It limited the cubemap resoluton and prefilteredmap roughnesslevels. Instead, it can use `VK_AMD_shader_image_load_store_lod` extension to replace the descriptor indexing based cubemap mipmapping and prefilteredmap generation.
+[^2]: On Apple GPU platform prior to the MoltenVK 1.2.11 (which enables the Metal Argument Buffer by default), [`maxPerStageDescriptorUpdateAfterBindStorageImages` is 8](https://vulkan.gpuinfo.org/displaycoreproperty.php?platform=macos&name=maxPerStageDescriptorUpdateAfterBindStorageImages&core=1.2). It limited the cubemap resoluton and prefilteredmap roughnesslevels. Instead, it can use `VK_AMD_shader_image_load_store_lod` extension to replace the descriptor indexing based cubemap mipmapping and prefilteredmap generation.
