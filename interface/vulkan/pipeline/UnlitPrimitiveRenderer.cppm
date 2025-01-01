@@ -4,16 +4,16 @@ import std;
 import vku;
 export import fastgltf;
 import :shader.unlit_primitive_vert;
-import :shader.unlit_primitive_frag;
+import :shader_selector.unlit_primitive_frag;
 export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-
     [[nodiscard]] vk::raii::Pipeline createUnlitPrimitiveRenderer(
         const vk::raii::Device &device,
         const pl::Primitive &layout,
         const rp::Scene &sceneRenderPass,
+        bool hasBaseColorTexture,
         fastgltf::AlphaMode alphaMode
     ) {
         switch (alphaMode) {
@@ -21,8 +21,16 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
                         device,
-                        vku::Shader { shader::unlit_primitive_vert, vk::ShaderStageFlagBits::eVertex },
-                        vku::Shader { shader::unlit_primitive_frag<0>, vk::ShaderStageFlagBits::eFragment }).get(),
+                        vku::Shader {
+                            hasBaseColorTexture
+                                ? std::span<const std::uint32_t> { shader::unlit_primitive_vert<1> }
+                                : std::span<const std::uint32_t> { shader::unlit_primitive_vert<0> },
+                            vk::ShaderStageFlagBits::eVertex,
+                        },
+                        vku::Shader {
+                            shader_selector::unlit_primitive_frag(hasBaseColorTexture, alphaMode),
+                            vk::ShaderStageFlagBits::eFragment,
+                        }).get(),
                     *layout, 1, true, vk::SampleCountFlagBits::e4)
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},
@@ -43,8 +51,16 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
                         device,
-                        vku::Shader { shader::unlit_primitive_vert, vk::ShaderStageFlagBits::eVertex },
-                        vku::Shader { shader::unlit_primitive_frag<1>, vk::ShaderStageFlagBits::eFragment }).get(),
+                        vku::Shader {
+                            hasBaseColorTexture
+                                ? std::span<const std::uint32_t> { shader::unlit_primitive_vert<1> }
+                                : std::span<const std::uint32_t> { shader::unlit_primitive_vert<0> },
+                            vk::ShaderStageFlagBits::eVertex,
+                        },
+                        vku::Shader {
+                            shader_selector::unlit_primitive_frag(hasBaseColorTexture, alphaMode),
+                            vk::ShaderStageFlagBits::eFragment,
+                        }).get(),
                     *layout, 1, true, vk::SampleCountFlagBits::e4)
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},
@@ -71,8 +87,16 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
                         device,
-                        vku::Shader { shader::unlit_primitive_vert, vk::ShaderStageFlagBits::eVertex },
-                        vku::Shader { shader::unlit_primitive_frag<2>, vk::ShaderStageFlagBits::eFragment }).get(),
+                        vku::Shader {
+                            hasBaseColorTexture
+                                ? std::span<const std::uint32_t> { shader::unlit_primitive_vert<1> }
+                                : std::span<const std::uint32_t> { shader::unlit_primitive_vert<0> },
+                            vk::ShaderStageFlagBits::eVertex,
+                        },
+                        vku::Shader {
+                            shader_selector::unlit_primitive_frag(hasBaseColorTexture, alphaMode),
+                            vk::ShaderStageFlagBits::eFragment,
+                        }).get(),
                     *layout, 1, true, vk::SampleCountFlagBits::e4)
                     .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                         {},

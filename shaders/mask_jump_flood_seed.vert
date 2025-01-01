@@ -15,8 +15,10 @@ layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer Ve
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Vec4Ref { vec4 data; };
 layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
 
-layout (location = 0) out vec2 outBaseColorTexcoord;
-layout (location = 1) flat out uint outMaterialIndex;
+layout (location = 0) flat out uint outMaterialIndex;
+#if HAS_BASE_COLOR_TEXTURE
+layout (location = 1) out vec2 outBaseColorTexcoord;
+#endif
 
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
@@ -37,24 +39,26 @@ layout (push_constant, std430) uniform PushConstant {
 // Functions.
 // --------------------
 
-vec2 getVec2(uint64_t address){
-    return Vec2Ref(address).data;
-}
-
 vec3 getVec3(uint64_t address){
     return Vec4Ref(address).data.xyz;
+}
+
+#if HAS_BASE_COLOR_TEXTURE
+vec2 getVec2(uint64_t address){
+    return Vec2Ref(address).data;
 }
 
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
     return getVec2(mappingInfo.bytesPtr + uint(mappingInfo.stride) * gl_VertexIndex);
 }
+#endif
 
 void main(){
-    if (int(MATERIAL.baseColorTextureIndex) != -1){
-        outBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
-    }
     outMaterialIndex = MATERIAL_INDEX;
+#if HAS_BASE_COLOR_TEXTURE
+    outBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
+#endif
 
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);

@@ -8,6 +8,7 @@ export import :helpers.ranges.concat;
 export import :helpers.ranges.contains;
 
 import std;
+import :helpers.concepts;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
@@ -56,6 +57,31 @@ namespace ranges {
     [[nodiscard]] constexpr auto value_or(AssociativeContainer &&c, const Key &key, T default_value) noexcept -> T {
         const auto it = c.find(key);
         return it == c.end() ? default_value : it->second;
+    }
+
+    /**
+     * @brief If a key equivalent to \p key already exists in the container, return an iterator to it. Otherwise, generate the value by invoking \p f, insert it into the container, and return the iterator to the new element.
+     * @tparam AssociativeContainer An associative container type.
+     * @tparam Key Key type. This have to be as same as \p AssociativeContainer::key_type, unless transparent hashing is enabled.
+     * @param c An associative container.
+     * @param key Key to find.
+     * @param f A function to generate the value if key is not exists. If key already exists, this function will not be called.
+     * @return A pair consisting of an iterator to the element and a bool denoting whether the element was inserted.
+     */
+    export template <
+        typename AssociativeContainer,
+        typename Key = AssociativeContainer::key_type>
+    [[nodiscard]] constexpr auto try_emplace_if_not_exists(
+        AssociativeContainer &c,
+        const Key &key,
+        concepts::signature_of<typename AssociativeContainer::mapped_type> auto const &f
+    ) -> std::pair<typename AssociativeContainer::iterator, bool> {
+        if (auto it = c.find(key); it != c.end()) {
+            return { it, false };
+        }
+        else {
+            return { c.try_emplace(it, key, f()), true };
+        }
     }
 
     /**

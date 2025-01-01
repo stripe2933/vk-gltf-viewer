@@ -109,10 +109,6 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     const auto criteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
         CommandSeparationCriteria result {
             .subpass = 0U,
-            .pipeline = sharedData.getPrimitiveRenderer({
-                .texcoordCount = static_cast<std::uint8_t>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
-                .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
-            }),
             .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
                 return std::pair { task.gltf->assetGpuBuffers.indexBuffers.at(info.type).buffer, info.type };
             }),
@@ -122,20 +118,32 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         if (primitiveInfo.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
-            result.pipeline = sharedData.getPrimitiveRenderer({
-                .unlit = material.unlit,
-                .texcoordCount = static_cast<std::uint8_t>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
-                .fragmentShaderGeneratedTBN = !material.unlit && !primitiveInfo.normalInfo.has_value(),
-                .alphaMode = material.alphaMode,
-            });
+            if (material.unlit) {
+                result.pipeline = sharedData.getUnlitPrimitiveRenderer({
+                    .hasBaseColorTexture = material.pbrData.baseColorTexture.has_value(),
+                    .alphaMode = material.alphaMode,
+                });
+            }
+            else {
+                result.pipeline = sharedData.getPrimitiveRenderer({
+                    .texcoordCount = static_cast<std::uint8_t>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
+                    .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
+                    .alphaMode = material.alphaMode,
+                });
+            }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
+        }
+        else {
+            result.pipeline = sharedData.getPrimitiveRenderer({
+                .texcoordCount = static_cast<std::uint8_t>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
+                .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
+            });
         }
         return result;
     };
 
     const auto depthPrepassCriteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
         CommandSeparationCriteriaNoShading result{
-            .pipeline = sharedData.getDepthPrepassRenderer(false),
             .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
                 return std::pair { task.gltf->assetGpuBuffers.indexBuffers.at(info.type).buffer, info.type };
             }),
@@ -144,15 +152,22 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         if (primitiveInfo.materialIndex) {
             const fastgltf::Material& material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
-            result.pipeline = sharedData.getDepthPrepassRenderer(material.alphaMode == fastgltf::AlphaMode::Mask);
+            if (material.alphaMode == fastgltf::AlphaMode::Mask) {
+                result.pipeline = sharedData.getMaskDepthRenderer(material.pbrData.baseColorTexture.has_value());
+            }
+            else {
+                result.pipeline = sharedData.getDepthRenderer();
+            }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
+        }
+        else {
+            result.pipeline = sharedData.getDepthRenderer();
         }
         return result;
     };
 
     const auto jumpFloodSeedCriteriaGetter = [&](const gltf::AssetPrimitiveInfo& primitiveInfo) {
         CommandSeparationCriteriaNoShading result {
-            .pipeline = sharedData.getJumpFloodSeedRenderer(false),
             .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
                 return std::pair { task.gltf->assetGpuBuffers.indexBuffers.at(info.type).buffer, info.type };
             }),
@@ -161,8 +176,16 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         if (primitiveInfo.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
-            result.pipeline = sharedData.getJumpFloodSeedRenderer(material.alphaMode == fastgltf::AlphaMode::Mask);
+            if (material.alphaMode == fastgltf::AlphaMode::Mask) {
+                result.pipeline = sharedData.getMaskJumpFloodSeedRenderer(material.pbrData.baseColorTexture.has_value());
+            }
+            else {
+                result.pipeline = sharedData.getJumpFloodSeedRenderer();
+            }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
+        }
+        else {
+            result.pipeline = sharedData.getJumpFloodSeedRenderer();
         }
         return result;
     };

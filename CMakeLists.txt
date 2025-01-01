@@ -142,6 +142,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/math/Plane.cppm
         interface/shader_selector/primitive_frag.cppm
         interface/shader_selector/primitive_vert.cppm
+        interface/shader_selector/unlit_primitive_frag.cppm
         interface/vulkan/attachment_group/DepthPrepass.cppm
         interface/vulkan/attachment_group/JumpFloodSeed.cppm
         interface/vulkan/attachment_group/SceneOpaque.cppm
@@ -225,10 +226,6 @@ target_link_shaders(vk-gltf-viewer
     shaders/jump_flood_seed.frag
     shaders/jump_flood_seed.vert
     shaders/jump_flood.comp
-    shaders/mask_depth.frag
-    shaders/mask_depth.vert
-    shaders/mask_jump_flood_seed.frag
-    shaders/mask_jump_flood_seed.vert
     shaders/multiply.comp
     shaders/outline.frag
     shaders/screen_quad.vert
@@ -236,9 +233,9 @@ target_link_shaders(vk-gltf-viewer
     shaders/skybox.vert
     shaders/spherical_harmonic_coefficients_sum.comp
     shaders/spherical_harmonics.comp
-    shaders/unlit_primitive.vert
     shaders/weighted_blended_composition.frag
 )
+
 target_link_shader_variants(vk-gltf-viewer
     shaders/prefilteredmap.comp
     "AMD_SHADER_IMAGE_LOAD_STORE_LOD" 0 1
@@ -249,6 +246,22 @@ target_link_shader_variants(vk-gltf-viewer
     "16 0" "16 1"
     "32 0" "32 1"
     "64 0" "64 1"
+)
+target_link_shader_variants(vk-gltf-viewer
+    shaders/mask_depth.vert
+    "HAS_BASE_COLOR_TEXTURE" 0 1
+)
+target_link_shader_variants(vk-gltf-viewer
+    shaders/mask_depth.frag
+    "HAS_BASE_COLOR_TEXTURE" 0 1
+)
+target_link_shader_variants(vk-gltf-viewer
+    shaders/mask_jump_flood_seed.vert
+    "HAS_BASE_COLOR_TEXTURE" 0 1
+)
+target_link_shader_variants(vk-gltf-viewer
+    shaders/mask_jump_flood_seed.frag
+    "HAS_BASE_COLOR_TEXTURE" 0 1
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/primitive.vert
@@ -271,6 +284,12 @@ target_link_shader_variants(vk-gltf-viewer
     "5 0 0" "5 0 1" "5 0 2" "5 1 0" "5 1 1" "5 1 2"
 )
 target_link_shader_variants(vk-gltf-viewer
+    shaders/unlit_primitive.vert
+    "HAS_BASE_COLOR_TEXTURE" 0 1
+)
+target_link_shader_variants(vk-gltf-viewer
     shaders/unlit_primitive.frag
-    "ALPHA_MODE" 0 1 2
+    "HAS_BASE_COLOR_TEXTURE;ALPHA_MODE"
+    "0 0" "0 1" "0 2"
+    "1 0" "1 1" "1 2"
 )
