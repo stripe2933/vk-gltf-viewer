@@ -30,7 +30,7 @@ struct IndexedAttributeMappingInfo {
     uint8_t stride;
 };
 
-layout (std430, buffer_reference, buffer_reference_align = 8) readonly buffer IndexedAttributeMappingInfos { IndexedAttributeMappingInfo data[]; };
+layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer IndexedAttributeMappingInfos { IndexedAttributeMappingInfo data[]; };
 
 struct Primitive {
     uint64_t pPositionBuffer;
