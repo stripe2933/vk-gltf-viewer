@@ -1,6 +1,5 @@
 module;
 
-#include <boost/container_hash/hash.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vk_gltf_viewer:vulkan.SharedData;
@@ -8,6 +7,7 @@ export module vk_gltf_viewer:vulkan.SharedData;
 import std;
 export import fastgltf;
 export import vku;
+import :helpers.AggregateHasher;
 export import :vulkan.ag.Swapchain;
 export import :vulkan.Gpu;
 export import :vulkan.pipeline.DepthRenderer;
@@ -20,28 +20,6 @@ export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
 export import :vulkan.rp.Scene;
 import :vulkan.sampler.SingleTexelSampler;
-
-/**
- * @brief Hasher for aggregate struct.
- *
- * It combines the hash of each field using <tt>boost::hash_combine</tt>.
- *
- * @tparam T Aggregate struct type.
- * @note Currently this is only for <tt>SharedData::PrimitivePipelineKey</tt> (whose members are 4), therefore number of the structured bindings is assumed as 4. Need fix.
- */
-template <typename T> requires std::is_aggregate_v<T>
-struct AggregateHasher {
-    [[nodiscard]] constexpr std::size_t operator()(const T &v) const noexcept {
-        // TODO.CXX26: use structured binding packs.
-        const auto &[x1, x2, x3, x4] = v;
-        std::size_t seed = 0;
-        boost::hash_combine(seed, x1);
-        boost::hash_combine(seed, x2);
-        boost::hash_combine(seed, x3);
-        boost::hash_combine(seed, x4);
-        return seed;
-    }
-};
 
 namespace vk_gltf_viewer::vulkan {
     export class SharedData {

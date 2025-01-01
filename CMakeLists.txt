@@ -120,6 +120,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/AssetSceneGpuBuffers.cppm
         interface/gltf/AssetSceneHierarchy.cppm
         interface/gltf/MaterialVariantsMapping.cppm
+        interface/helpers/AggregateHasher.cppm
         interface/helpers/concepts.cppm
         interface/helpers/fastgltf.cppm
         interface/helpers/formatter/ByteSize.cppm
