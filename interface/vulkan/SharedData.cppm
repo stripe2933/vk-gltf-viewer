@@ -129,13 +129,16 @@ namespace vk_gltf_viewer::vulkan {
          * @return Vulkan pipeline for the given key.
          */
         [[nodiscard]] vk::Pipeline getPrimitiveRenderer(const PrimitivePipelineKey &key) const {
-            if (key.unlit) {
-                return primitivePipelines.try_emplace(key, createUnlitPrimitiveRenderer(
-                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.alphaMode)).first->second;
+            if (auto it = primitivePipelines.find(key); it != primitivePipelines.end()) {
+                return it->second;
+            }
+            else if (key.unlit) {
+                return primitivePipelines.try_emplace(it, key, createUnlitPrimitiveRenderer(
+                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.alphaMode))->second;
             }
             else {
-                return primitivePipelines.try_emplace(key, createPrimitiveRenderer(
-                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.fragmentShaderGeneratedTBN, key.alphaMode)).first->second;
+                return primitivePipelines.try_emplace(it, key, createPrimitiveRenderer(
+                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.fragmentShaderGeneratedTBN, key.alphaMode))->second;
             }
         }
 
