@@ -1,5 +1,6 @@
 export module vk_gltf_viewer:vulkan.pipeline.DepthRenderer;
 
+import std;
 import vku;
 import :shader.depth_vert;
 import :shader.depth_frag;

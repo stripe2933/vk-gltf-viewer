@@ -1,5 +1,6 @@
 export module vk_gltf_viewer:vulkan.pipeline.JumpFloodSeedRenderer;
 
+import std;
 import vku;
 import :shader.jump_flood_seed_vert;
 import :shader.jump_flood_seed_frag;
