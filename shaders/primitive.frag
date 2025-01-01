@@ -14,33 +14,31 @@
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
 layout (location = 0) in vec3 inPosition;
+layout (location = 1) flat in uint inMaterialIndex;
 #if TEXCOORD_COUNT >= 1
-layout (location = 1) in vec2 inTexcoord0;
+layout (location = 2) in vec2 inTexcoord0;
 #endif
 #if TEXCOORD_COUNT >= 2
-layout (location = 2) in vec2 inTexcoord1;
+layout (location = 3) in vec2 inTexcoord1;
 #endif
 #if TEXCOORD_COUNT >= 3
-layout (location = 3) in vec2 inTexcoord2;
+layout (location = 4) in vec2 inTexcoord2;
 #endif
 #if TEXCOORD_COUNT >= 4
-layout (location = 4) in vec2 inTexcoord3;
+layout (location = 5) in vec2 inTexcoord3;
 #endif
 #if TEXCOORD_COUNT >= 5
-layout (location = 5) in vec2 inTexcoord4;
+layout (location = 6) in vec2 inTexcoord4;
 #endif
 #if TEXCOORD_COUNT >= 6
 #error "Maximum texcoord count exceeded."
 #endif
-layout (location = TEXCOORD_COUNT + 1) flat in uint inMaterialIndex;
 #if !FRAGMENT_SHADER_GENERATED_TBN
 layout (location = TEXCOORD_COUNT + 2) in mat3 inTBN;
 #endif
 
-#if ALPHA_MODE == 0 || ALPHA_MODE == 1
 layout (location = 0) out vec4 outColor;
-#elif ALPHA_MODE == 2
-layout (location = 0) out vec4 outAccumulation;
+#if ALPHA_MODE == 2
 layout (location = 1) out float outRevealage;
 #endif
 
@@ -120,7 +118,7 @@ void writeOutput(vec4 color) {
     float weight = clamp(
         pow(min(1.0, color.a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - gl_FragCoord.z * 0.9, 3.0),
         1e-2, 3e3);
-    outAccumulation = vec4(color.rgb * color.a, color.a) * weight;
+    outColor = vec4(color.rgb * color.a, color.a) * weight;
     outRevealage = color.a;
 #endif
 }

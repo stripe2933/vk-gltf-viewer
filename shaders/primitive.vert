@@ -16,25 +16,25 @@ layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer V
 layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
 
 layout (location = 0) out vec3 outPosition;
+layout (location = 1) flat out uint outMaterialIndex;
 #if TEXCOORD_COUNT >= 1
-layout (location = 1) out vec2 outTexcoord0;
+layout (location = 2) out vec2 outTexcoord0;
 #endif
 #if TEXCOORD_COUNT >= 2
-layout (location = 2) out vec2 outTexcoord1;
+layout (location = 3) out vec2 outTexcoord1;
 #endif
 #if TEXCOORD_COUNT >= 3
-layout (location = 3) out vec2 outTexcoord2;
+layout (location = 4) out vec2 outTexcoord2;
 #endif
 #if TEXCOORD_COUNT >= 4
-layout (location = 4) out vec2 outTexcoord3;
+layout (location = 5) out vec2 outTexcoord3;
 #endif
 #if TEXCOORD_COUNT >= 5
-layout (location = 5) out vec2 outTexcoord4;
+layout (location = 6) out vec2 outTexcoord4;
 #endif
 #if TEXCOORD_COUNT >= 6
 #error "Maximum texcoord count exceeded."
 #endif
-layout (location = TEXCOORD_COUNT + 1) flat out uint outMaterialIndex;
 #if !FRAGMENT_SHADER_GENERATED_TBN
 layout (location = TEXCOORD_COUNT + 2) out mat3 outTBN;
 #endif
@@ -59,19 +59,21 @@ layout (push_constant, std430) uniform PushConstant {
 // Functions.
 // --------------------
 
-vec2 getVec2(uint64_t address){
-    return Vec2Ref(address).data;
-}
-
 vec3 getVec3(uint64_t address){
     return Vec4Ref(address).data.xyz;
 }
 
+#if !FRAGMENT_SHADER_GENERATED_TBN
 vec4 getVec4(uint64_t address){
     return Vec4Ref(address).data;
 }
+#endif
 
 #if TEXCOORD_COUNT >= 1
+vec2 getVec2(uint64_t address){
+    return Vec2Ref(address).data;
+}
+
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
     return getVec2(mappingInfo.bytesPtr + uint(mappingInfo.stride) * gl_VertexIndex);
@@ -81,6 +83,8 @@ vec2 getTexcoord(uint texcoordIndex){
 void main(){
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     outPosition = (TRANSFORM * vec4(inPosition, 1.0)).xyz;
+
+    outMaterialIndex = MATERIAL_INDEX;
 
 #if TEXCOORD_COUNT >= 1
     outTexcoord0 = getTexcoord(0);
@@ -108,8 +112,6 @@ void main(){
         outTBN[1] = cross(outTBN[2], outTBN[0]) * -inTangent.w; // B
     }
 #endif
-
-    outMaterialIndex = MATERIAL_INDEX;
 
     gl_Position = pc.projectionView * vec4(outPosition, 1.0);
 }
