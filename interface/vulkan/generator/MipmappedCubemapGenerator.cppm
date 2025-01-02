@@ -57,29 +57,21 @@ namespace vk_gltf_viewer::vulkan::inline generator {
             // Allocate Vulkan resources that must not be destroyed until the command buffer execution is finished.
             // --------------------
 
-            if (gpu.supportShaderImageLoadStoreLod) {
-                intermediateResources = std::make_unique<IntermediateResources>(
-                    vk::raii::ImageView { gpu.device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
-                    vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
-                    vk::raii::DescriptorPool {
-                        gpu.device,
-                        getPoolSizes(pipelines.cubemapComputer.descriptorSetLayout, pipelines.subgroupMipmapComputer.descriptorSetLayout)
-                            .getDescriptorPoolCreateInfo(),
-                    });
-            }
-            else {
-                intermediateResources = std::make_unique<IntermediateResources>(
-                    vk::raii::ImageView { gpu.device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
+            intermediateResources = std::make_unique<IntermediateResources>(
+                vk::raii::ImageView { gpu.device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
+                vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
+                vk::raii::DescriptorPool {
+                    gpu.device,
+                    getPoolSizes(pipelines.cubemapComputer.descriptorSetLayout, pipelines.subgroupMipmapComputer.descriptorSetLayout)
+                        .getDescriptorPoolCreateInfo(),
+                });
+            if (!gpu.supportShaderImageLoadStoreLod) {
+                intermediateResources->cubemapImageViews.emplace<std::vector<vk::raii::ImageView>>(
+                    std::from_range,
                     cubemapImage.getMipViewCreateInfos(vk::ImageViewType::eCube)
                         | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
                             return vk::raii::ImageView { gpu.device, createInfo };
-                        })
-                        | std::ranges::to<std::vector>(),
-                    vk::raii::DescriptorPool {
-                        gpu.device,
-                        getPoolSizes(pipelines.cubemapComputer.descriptorSetLayout, pipelines.subgroupMipmapComputer.descriptorSetLayout)
-                            .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind),
-                    });
+                        }));
             }
 
             // --------------------

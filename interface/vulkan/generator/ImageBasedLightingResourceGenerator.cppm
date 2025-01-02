@@ -75,51 +75,32 @@ namespace vk_gltf_viewer::vulkan::inline generator {
             // Allocate Vulkan resources that must not be destroyed until the command buffer execution is finished.
             // --------------------
 
-            if (gpu.supportShaderImageLoadStoreLod) {
-                intermediateResources = std::make_unique<IntermediateResources>(
-                    vku::AllocatedBuffer { gpu.allocator, vk::BufferCreateInfo {
-                        {},
-                        27 * sizeof(float) * SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
-                            getWorkgroupTotal(SphericalHarmonicsComputer::getWorkgroupCount(cubemapImage.extent.width))),
-                        vk::BufferUsageFlagBits::eStorageBuffer,
-                    } },
-                    vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
-                    vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::e2DArray) },
-                    vk::raii::ImageView { gpu.device, prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
-                    vk::raii::DescriptorPool {
-                        gpu.device,
-                        getPoolSizes(
-                            pipelines.prefilteredmapComputer.descriptorSetLayout,
-                            pipelines.sphericalHarmonicsComputer.descriptorSetLayout,
-                            pipelines.sphericalHarmonicCoefficientsSumComputer.descriptorSetLayout,
-                            pipelines.multiplyComputer.descriptorSetLayout)
-                        .getDescriptorPoolCreateInfo(),
-                    });
-            }
-            else {
-                intermediateResources = std::make_unique<IntermediateResources>(
-                    vku::AllocatedBuffer { gpu.allocator, vk::BufferCreateInfo {
-                        {},
-                        27 * sizeof(float) * SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
-                            getWorkgroupTotal(SphericalHarmonicsComputer::getWorkgroupCount(cubemapImage.extent.width))),
-                        vk::BufferUsageFlagBits::eStorageBuffer,
-                    } },
-                    vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
-                    vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::e2DArray) },
+            intermediateResources = std::make_unique<IntermediateResources>(
+                vku::AllocatedBuffer { gpu.allocator, vk::BufferCreateInfo {
+                    {},
+                    27 * sizeof(float) * SphericalHarmonicCoefficientsSumComputer::getPingPongBufferElementCount(
+                        getWorkgroupTotal(SphericalHarmonicsComputer::getWorkgroupCount(cubemapImage.extent.width))),
+                    vk::BufferUsageFlagBits::eStorageBuffer,
+                } },
+                vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
+                vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::e2DArray) },
+                vk::raii::ImageView { gpu.device, prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
+                vk::raii::DescriptorPool {
+                    gpu.device,
+                    getPoolSizes(
+                        pipelines.prefilteredmapComputer.descriptorSetLayout,
+                        pipelines.sphericalHarmonicsComputer.descriptorSetLayout,
+                        pipelines.sphericalHarmonicCoefficientsSumComputer.descriptorSetLayout,
+                        pipelines.multiplyComputer.descriptorSetLayout)
+                    .getDescriptorPoolCreateInfo(),
+                });
+            if (!gpu.supportShaderImageLoadStoreLod) {
+                intermediateResources->prefilteredmapImageViews.emplace<std::vector<vk::raii::ImageView>>(
+                    std::from_range,
                     prefilteredmapImage.getMipViewCreateInfos(vk::ImageViewType::eCube)
                         | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
                             return vk::raii::ImageView { gpu.device, createInfo };
-                        })
-                        | std::ranges::to<std::vector>(),
-                    vk::raii::DescriptorPool {
-                        gpu.device,
-                        getPoolSizes(
-                            pipelines.prefilteredmapComputer.descriptorSetLayout,
-                            pipelines.sphericalHarmonicsComputer.descriptorSetLayout,
-                            pipelines.sphericalHarmonicCoefficientsSumComputer.descriptorSetLayout,
-                            pipelines.multiplyComputer.descriptorSetLayout)
-                        .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind),
-                    });
+                        }));
             }
 
             // --------------------

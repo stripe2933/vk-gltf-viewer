@@ -26,20 +26,13 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             ) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
                 gpu.device,
                 vk::DescriptorSetLayoutCreateInfo {
-                    gpu.supportShaderImageLoadStoreLod
-                        ? vk::DescriptorSetLayoutCreateFlags{}
-                        : vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
+                    {},
                     vku::unsafeProxy(vk::DescriptorSetLayoutBinding {
                         0,
                         vk::DescriptorType::eStorageImage,
                         gpu.supportShaderImageLoadStoreLod ? 1U : mipImageCount,
                         vk::ShaderStageFlagBits::eCompute,
                     }),
-                    gpu.supportShaderImageLoadStoreLod
-                        ? nullptr
-                        : vku::unsafeAddress(vk::DescriptorSetLayoutBindingFlagsCreateInfo {
-                            vku::unsafeProxy(vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind }),
-                        })
                 },
             } { }
         };

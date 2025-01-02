@@ -31,9 +31,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             ) : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> {
                 gpu.device,
                 vk::DescriptorSetLayoutCreateInfo {
-                    gpu.supportShaderImageLoadStoreLod
-                        ? vk::DescriptorSetLayoutCreateFlags{}
-                        : vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
+                    {},
                     vku::unsafeProxy({
                         vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eCompute, sampler },
                         vk::DescriptorSetLayoutBinding {
@@ -43,14 +41,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             vk::ShaderStageFlagBits::eCompute,
                         },
                     }),
-                    gpu.supportShaderImageLoadStoreLod
-                        ? nullptr
-                        : vku::unsafeAddress(vk::DescriptorSetLayoutBindingFlagsCreateInfo {
-                            vku::unsafeProxy({
-                                vk::DescriptorBindingFlags{},
-                                vk::Flags { vk::DescriptorBindingFlagBits::eUpdateAfterBind },
-                            }),
-                        })
                 },
             } { }
         };

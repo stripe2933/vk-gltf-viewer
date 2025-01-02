@@ -106,7 +106,6 @@ The extensions and feature used in this application are quite common in the mode
     - `bufferDeviceAddress`
     - `descriptorIndexing`
     - `descriptorBindingSampledImageUpdateAfterBind`
-    - `descriptorBindingStorageImageUpdateAfterBind` (if `VK_AMD_shader_image_load_store_lod` is not available)
     - `runtimeDescriptorArray`
     - `storageBuffer8BitAccess`
     - `uniformAndStorageBuffer8BitAccess`
@@ -122,7 +121,6 @@ The extensions and feature used in this application are quite common in the mode
   - Subgroup size must be at least 16 and 64 at maximum.
   - Sampler anisotropy must support 16x.
   - Loading asset texture count must be less than `maxDescriptorSetUpdateAfterBindSampledImages`
-  - Cubemap size must be less than `2^(maxDescriptorSetUpdateAfterBindStorageImages)` unless `VK_AMD_shader_image_load_store_lod` is available.
 
 </details>
 
