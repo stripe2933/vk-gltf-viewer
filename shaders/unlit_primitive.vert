@@ -51,12 +51,12 @@ vec2 getVec2(uint64_t address){
 
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
-    return getVec2(mappingInfo.bytesPtr + uint(mappingInfo.stride) * gl_VertexIndex);
+    return getVec2(mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex);
 }
 #endif
 
 void main(){
-    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
+    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex);
 
     outMaterialIndex = MATERIAL_INDEX;
 #if HAS_BASE_COLOR_TEXTURE

@@ -37,6 +37,6 @@ vec3 getVec3(uint64_t address){
 void main(){
     outNodeIndex = NODE_INDEX;
 
-    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
+    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }

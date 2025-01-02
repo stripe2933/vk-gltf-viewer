@@ -51,7 +51,7 @@ vec2 getVec2(uint64_t address){
 
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
-    return getVec2(mappingInfo.bytesPtr + uint(mappingInfo.stride) * gl_VertexIndex);
+    return getVec2(mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex);
 }
 #endif
 
@@ -62,6 +62,6 @@ void main(){
     outBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
 #endif
 
-    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
+    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }

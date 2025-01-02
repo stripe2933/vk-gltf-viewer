@@ -77,12 +77,12 @@ vec2 getVec2(uint64_t address){
 
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
-    return getVec2(mappingInfo.bytesPtr + uint(mappingInfo.stride) * gl_VertexIndex);
+    return getVec2(mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex);
 }
 #endif
 
 void main(){
-    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
+    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     outPosition = (TRANSFORM * vec4(inPosition, 1.0)).xyz;
 
     outMaterialIndex = MATERIAL_INDEX;
@@ -104,11 +104,11 @@ void main(){
 #endif
 
 #if !FRAGMENT_SHADER_GENERATED_TBN
-    vec3 inNormal = getVec3(PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * gl_VertexIndex);
+    vec3 inNormal = getVec3(PRIMITIVE.pNormalBuffer + int(PRIMITIVE.normalByteStride) * gl_VertexIndex);
     outTBN[2] = normalize(mat3(TRANSFORM) * inNormal); // N
 
     if (int(MATERIAL.normalTextureIndex) != -1){
-        vec4 inTangent = getVec4(PRIMITIVE.pTangentBuffer + uint(PRIMITIVE.tangentByteStride) * gl_VertexIndex);
+        vec4 inTangent = getVec4(PRIMITIVE.pTangentBuffer + int(PRIMITIVE.tangentByteStride) * gl_VertexIndex);
         outTBN[0] = normalize(mat3(TRANSFORM) * inTangent.xyz); // T
         outTBN[1] = cross(outTBN[2], outTBN[0]) * -inTangent.w; // B
     }
