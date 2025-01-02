@@ -14,7 +14,7 @@ vk_gltf_viewer::vulkan::pipeline::BrdfmapComputer::DescriptorSetLayout::Descript
         device,
         vk::DescriptorSetLayoutCreateInfo {
             {},
-            vku::unsafeProxy(vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute }),
+            vku::unsafeProxy(getBindings({ 1, vk::ShaderStageFlagBits::eCompute })),
         }
     } { }
 

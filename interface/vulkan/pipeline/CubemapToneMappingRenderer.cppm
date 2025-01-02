@@ -14,9 +14,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             explicit DescriptorSetLayout(const vk::raii::Device &device [[clang::lifetimebound]])
                 : vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage> { device, vk::DescriptorSetLayoutCreateInfo {
                     {},
-                    vku::unsafeProxy(vk::DescriptorSetLayoutBinding {
-                        0, vk::DescriptorType::eSampledImage, 1, vk::ShaderStageFlagBits::eFragment,
-                    }),
+                    vku::unsafeProxy(getBindings({ 1, vk::ShaderStageFlagBits::eFragment })),
                 } } { }
         };
 

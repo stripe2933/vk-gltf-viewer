@@ -32,15 +32,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 gpu.device,
                 vk::DescriptorSetLayoutCreateInfo {
                     {},
-                    vku::unsafeProxy({
-                        vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eCompute, sampler },
-                        vk::DescriptorSetLayoutBinding {
-                            1,
-                            vk::DescriptorType::eStorageImage,
-                            gpu.supportShaderImageLoadStoreLod ? 1U : roughnessLevels,
-                            vk::ShaderStageFlagBits::eCompute,
-                        },
-                    }),
+                    vku::unsafeProxy(getBindings(
+                        { 1, vk::ShaderStageFlagBits::eCompute, &sampler },
+                        { gpu.supportShaderImageLoadStoreLod ? 1U : roughnessLevels, vk::ShaderStageFlagBits::eCompute })),
                 },
             } { }
         };

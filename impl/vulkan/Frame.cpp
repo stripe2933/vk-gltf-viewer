@@ -39,8 +39,8 @@ vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedDat
     // Update descriptor set.
     gpu.device.updateDescriptorSets(
         weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
-            vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveView, vk::ImageLayout::eShaderReadOnlyOptimal },
-            vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveView, vk::ImageLayout::eShaderReadOnlyOptimal },
+            vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal },
+            vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view, vk::ImageLayout::eShaderReadOnlyOptimal },
         })),
         {});
 
@@ -65,8 +65,8 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         gpu.device.updateDescriptorSets(
             weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
-                vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveView, vk::ImageLayout::eShaderReadOnlyOptimal },
-                vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveView, vk::ImageLayout::eShaderReadOnlyOptimal },
+                vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal },
+                vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view, vk::ImageLayout::eShaderReadOnlyOptimal },
             })),
             {});
 
@@ -552,19 +552,19 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutT
 }
 
 auto vk_gltf_viewer::vulkan::Frame::createFramebuffers() const -> std::vector<vk::raii::Framebuffer> {
-    return sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).resolveViews
+    return sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).views
         | std::views::transform([this](vk::ImageView swapchainImageView) {
             return vk::raii::Framebuffer { gpu.device, vk::FramebufferCreateInfo {
                 {},
                 *sharedData.sceneRenderPass,
                 vku::unsafeProxy({
-                    *sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).view,
+                    *sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).multisampleView,
                     swapchainImageView,
                     *sceneOpaqueAttachmentGroup.depthStencilAttachment->view,
+                    *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).multisampleView,
                     *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view,
-                    *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveView,
+                    *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).multisampleView,
                     *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view,
-                    *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveView,
                 }),
                 sharedData.swapchainExtent.width,
                 sharedData.swapchainExtent.height,
@@ -967,7 +967,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSwapchainExtentDependentImageLayoutTra
                 {}, {},
                 {}, vk::ImageLayout::eColorAttachmentOptimal,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).image, vku::fullSubresourceRange(),
+                sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).multisampleImage, vku::fullSubresourceRange(),
             },
             vk::ImageMemoryBarrier {
                 {}, {},
@@ -979,25 +979,25 @@ auto vk_gltf_viewer::vulkan::Frame::recordSwapchainExtentDependentImageLayoutTra
                 {}, {},
                 {}, vk::ImageLayout::eColorAttachmentOptimal,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
+                sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).multisampleImage, vku::fullSubresourceRange(),
             },
             vk::ImageMemoryBarrier {
                 {}, {},
                 {}, vk::ImageLayout::eShaderReadOnlyOptimal,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).resolveImage, vku::fullSubresourceRange(),
+                sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
             },
             vk::ImageMemoryBarrier {
                 {}, {},
                 {}, vk::ImageLayout::eColorAttachmentOptimal,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).image, vku::fullSubresourceRange(),
+                sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).multisampleImage, vku::fullSubresourceRange(),
             },
             vk::ImageMemoryBarrier {
                 {}, {},
                 {}, vk::ImageLayout::eShaderReadOnlyOptimal,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).resolveImage, vku::fullSubresourceRange(),
+                sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).image, vku::fullSubresourceRange(),
             },
         });
 }
