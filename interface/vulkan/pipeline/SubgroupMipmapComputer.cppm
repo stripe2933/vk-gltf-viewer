@@ -27,12 +27,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 gpu.device,
                 vk::DescriptorSetLayoutCreateInfo {
                     {},
-                    vku::unsafeProxy(vk::DescriptorSetLayoutBinding {
-                        0,
-                        vk::DescriptorType::eStorageImage,
-                        gpu.supportShaderImageLoadStoreLod ? 1U : mipImageCount,
-                        vk::ShaderStageFlagBits::eCompute,
-                    }),
+                    vku::unsafeProxy(getBindings({ gpu.supportShaderImageLoadStoreLod ? 1U : mipImageCount, vk::ShaderStageFlagBits::eCompute })),
                 },
             } { }
         };

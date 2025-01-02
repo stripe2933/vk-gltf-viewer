@@ -17,12 +17,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 const vk::raii::Device &device [[clang::lifetimebound]]
             ) : vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage, vk::DescriptorType::eStorageBuffer> {
                 device,
-                vk::DescriptorSetLayoutCreateInfo {
+                    vk::DescriptorSetLayoutCreateInfo {
                         {},
-                        vku::unsafeProxy({
-                            vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eSampledImage, 1, vk::ShaderStageFlagBits::eCompute },
-                            vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute },
-                        }),
+                        vku::unsafeProxy(getBindings(
+                            { 1, vk::ShaderStageFlagBits::eCompute },
+                            { 1, vk::ShaderStageFlagBits::eCompute })),
                     },
                 } { }
         };

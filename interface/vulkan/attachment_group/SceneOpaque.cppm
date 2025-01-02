@@ -5,12 +5,12 @@ export import vku;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::ag {
-    export struct SceneOpaque final : vku::MsaaAttachmentGroup {
+    export struct SceneOpaque final : vku::MultisampleAttachmentGroup {
         SceneOpaque(
             const Gpu &gpu [[clang::lifetimebound]],
             const vk::Extent2D &extent,
             std::span<const vk::Image> swapchainImages
-        ) : MsaaAttachmentGroup { extent, vk::SampleCountFlagBits::e4 } {
+        ) : MultisampleAttachmentGroup { extent, vk::SampleCountFlagBits::e4 } {
             addSwapchainAttachment(
                 gpu.device,
                 storeImage(createColorImage(gpu.allocator, vk::Format::eB8G8R8A8Srgb)),

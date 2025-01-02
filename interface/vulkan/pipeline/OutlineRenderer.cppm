@@ -14,7 +14,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     device,
                     vk::DescriptorSetLayoutCreateInfo {
                         {},
-                        vku::unsafeProxy(vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eSampledImage, 1, vk::ShaderStageFlagBits::eFragment }),
+                        vku::unsafeProxy(getBindings({ 1, vk::ShaderStageFlagBits::eFragment })),
                     },
                 } { }
         };

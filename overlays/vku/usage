@@ -1,4 +1,0 @@
-vku provides CMake targets:
-
-    find_package(vku CONFIG REQUIRED)
-    target_link_libraries(main PRIVATE vku::vku)

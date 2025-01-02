@@ -13,11 +13,10 @@ namespace vk_gltf_viewer::vulkan::dsl {
             const BrdfLutSampler &brdfLutSampler [[clang::lifetimebound]]
         ) : DescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
                 {},
-                vku::unsafeProxy({
-                    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
-                    vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &*cubemapSampler },
-                    vk::DescriptorSetLayoutBinding { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &*brdfLutSampler },
-                }),
+                vku::unsafeProxy(getBindings(
+                    { 1, vk::ShaderStageFlagBits::eFragment },
+                    { 1, vk::ShaderStageFlagBits::eFragment, &*cubemapSampler },
+                    { 1, vk::ShaderStageFlagBits::eFragment, &*brdfLutSampler })),
             } } { }
     };
 }

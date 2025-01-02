@@ -9,9 +9,7 @@ namespace vk_gltf_viewer::vulkan::dsl {
         explicit Scene(const vk::raii::Device &device [[clang::lifetimebound]])
             : DescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
                 {},
-                vku::unsafeProxy({
-                    vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
-                }),
+                vku::unsafeProxy(getBindings({ 1, vk::ShaderStageFlagBits::eVertex })),
             } } { }
     };
 }

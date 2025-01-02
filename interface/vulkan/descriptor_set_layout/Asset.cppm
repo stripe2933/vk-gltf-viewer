@@ -10,11 +10,10 @@ namespace vk_gltf_viewer::vulkan::dsl {
             : DescriptorSetLayout { device, vk::StructureChain {
                 vk::DescriptorSetLayoutCreateInfo {
                     vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-                    vku::unsafeProxy({
-                        vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex },
-                        vk::DescriptorSetLayoutBinding { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment },
-                        vk::DescriptorSetLayoutBinding { 2, vk::DescriptorType::eCombinedImageSampler, textureCount, vk::ShaderStageFlagBits::eFragment },
-                    }),
+                    vku::unsafeProxy(getBindings(
+                        { 1, vk::ShaderStageFlagBits::eVertex },
+                        { 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment },
+                        { textureCount, vk::ShaderStageFlagBits::eFragment })),
                 },
                 vk::DescriptorSetLayoutBindingFlagsCreateInfo {
                     vku::unsafeProxy({

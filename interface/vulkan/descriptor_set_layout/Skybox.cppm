@@ -11,7 +11,7 @@ namespace vk_gltf_viewer::vulkan::dsl {
             const CubemapSampler &sampler [[clang::lifetimebound]]
         ) : DescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
                 {},
-                vku::unsafeProxy(vk::DescriptorSetLayoutBinding { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &*sampler }),
+                vku::unsafeProxy(getBindings({ 1, vk::ShaderStageFlagBits::eFragment, &*sampler })),
             } } { }
     };
 }
