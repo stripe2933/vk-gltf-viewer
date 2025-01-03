@@ -3,17 +3,17 @@ export module vk_gltf_viewer:vulkan.pipeline.PrimitiveRenderer;
 import std;
 export import fastgltf;
 import vku;
-import :shader.primitive_vert;
-import :shader.primitive_frag;
+import :shader_selector.primitive_vert;
+import :shader_selector.primitive_frag;
 export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export
     [[nodiscard]] vk::raii::Pipeline createPrimitiveRenderer(
         const vk::raii::Device &device,
         const pl::Primitive &pipelineLayout,
         const rp::Scene &sceneRenderPass,
+        std::uint32_t texcoordCount,
         bool fragmentShaderGeneratedTBN,
         fastgltf::AlphaMode alphaMode
     ) {
@@ -23,15 +23,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     createPipelineStages(
                         device,
                         vku::Shader {
-                            fragmentShaderGeneratedTBN
-                                ? std::span<const std::uint32_t> { shader::primitive_vert<1> }
-                                : std::span<const std::uint32_t> { shader::primitive_vert<0> },
+                            shader_selector::primitive_vert(texcoordCount, fragmentShaderGeneratedTBN),
                             vk::ShaderStageFlagBits::eVertex,
                         },
                         vku::Shader {
-                            fragmentShaderGeneratedTBN
-                                ? std::span<const std::uint32_t> { shader::primitive_frag<1, 0> }
-                                : std::span<const std::uint32_t> { shader::primitive_frag<0, 0> },
+                            shader_selector::primitive_frag(texcoordCount, fragmentShaderGeneratedTBN, fastgltf::AlphaMode::Opaque),
                             vk::ShaderStageFlagBits::eFragment,
                         }).get(),
                     *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
@@ -55,15 +51,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     createPipelineStages(
                         device,
                         vku::Shader {
-                            fragmentShaderGeneratedTBN
-                                ? std::span<const std::uint32_t> { shader::primitive_vert<1> }
-                                : std::span<const std::uint32_t> { shader::primitive_vert<0> },
+                            shader_selector::primitive_vert(texcoordCount, fragmentShaderGeneratedTBN),
                             vk::ShaderStageFlagBits::eVertex,
                         },
                         vku::Shader {
-                            fragmentShaderGeneratedTBN
-                                ? std::span<const std::uint32_t> { shader::primitive_frag<1, 1> }
-                                : std::span<const std::uint32_t> { shader::primitive_frag<0, 1> },
+                            shader_selector::primitive_frag(texcoordCount, fragmentShaderGeneratedTBN, fastgltf::AlphaMode::Mask),
                             vk::ShaderStageFlagBits::eFragment,
                         }).get(),
                     *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
@@ -93,15 +85,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     createPipelineStages(
                         device,
                         vku::Shader {
-                            fragmentShaderGeneratedTBN
-                                ? std::span<const std::uint32_t> { shader::primitive_vert<1> }
-                                : std::span<const std::uint32_t> { shader::primitive_vert<0> },
+                            shader_selector::primitive_vert(texcoordCount, fragmentShaderGeneratedTBN),
                             vk::ShaderStageFlagBits::eVertex,
                         },
                         vku::Shader {
-                            fragmentShaderGeneratedTBN
-                                ? std::span<const std::uint32_t> { shader::primitive_frag<1, 2> }
-                                : std::span<const std::uint32_t> { shader::primitive_frag<0, 2> },
+                            shader_selector::primitive_frag(texcoordCount, fragmentShaderGeneratedTBN, fastgltf::AlphaMode::Blend),
                             vk::ShaderStageFlagBits::eFragment,
                         }).get(),
                     *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)

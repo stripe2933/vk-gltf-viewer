@@ -1,6 +1,5 @@
 module;
 
-#include <boost/container_hash/hash.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vk_gltf_viewer:vulkan.SharedData;
@@ -8,6 +7,8 @@ export module vk_gltf_viewer:vulkan.SharedData;
 import std;
 export import fastgltf;
 export import vku;
+import :helpers.AggregateHasher;
+import :helpers.ranges;
 export import :vulkan.ag.Swapchain;
 export import :vulkan.Gpu;
 export import :vulkan.pipeline.DepthRenderer;
@@ -21,38 +22,24 @@ export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
 export import :vulkan.rp.Scene;
 import :vulkan.sampler.SingleTexelSampler;
 
-/**
- * @brief Hasher for aggregate struct.
- *
- * It combines the hash of each field using <tt>boost::hash_combine</tt>.
- *
- * @tparam T Aggregate struct type.
- * @note Currently this is only for <tt>SharedData::PrimitivePipelineKey</tt> (whose members are 3), therefore number of the structured bindings is assumed as 3. Need fix.
- */
-template <typename T> requires std::is_aggregate_v<T>
-struct AggregateHasher {
-    [[nodiscard]] constexpr std::size_t operator()(const T &v) const noexcept {
-        // TODO.CXX26: use structured binding packs.
-        const auto &[x1, x2, x3] = v;
-        std::size_t seed = 0;
-        boost::hash_combine(seed, x1);
-        boost::hash_combine(seed, x2);
-        boost::hash_combine(seed, x3);
-        return seed;
-    }
-};
-
 namespace vk_gltf_viewer::vulkan {
     export class SharedData {
         const Gpu &gpu;
 
     public:
         struct PrimitivePipelineKey {
-            bool unlit;
+            std::uint8_t texcoordCount;
             bool fragmentShaderGeneratedTBN;
             fastgltf::AlphaMode alphaMode;
 
-            [[nodiscard]] constexpr std::strong_ordering operator<=>(const PrimitivePipelineKey&) const noexcept = default;
+            [[nodiscard]] std::strong_ordering operator<=>(const PrimitivePipelineKey&) const noexcept = default;
+        };
+
+        struct UnlitPrimitivePipelineKey {
+            bool hasBaseColorTexture;
+            fastgltf::AlphaMode alphaMode;
+
+            [[nodiscard]] std::strong_ordering operator<=>(const UnlitPrimitivePipelineKey&) const noexcept = default;
         };
 
         // --------------------
@@ -123,49 +110,48 @@ namespace vk_gltf_viewer::vulkan {
                     skyboxDescriptorSetLayout));
         }
 
-        /**
-         * @brief Get corresponding Vulkan pipeline for given key.
-         * @param key A key that represents the primitive's rendering policy (alpha mode, normal/tangent space generation, etc.).
-         * @return Vulkan pipeline for the given key.
-         */
+        // --------------------
+        // Pipeline selectors.
+        // --------------------
+
+        [[nodiscard]] vk::Pipeline getDepthRenderer() const {
+            if (!depthRenderer) {
+                depthRenderer = createDepthRenderer(gpu.device, primitiveNoShadingPipelineLayout);
+            }
+            return *depthRenderer;
+        }
+
+        [[nodiscard]] vk::Pipeline getMaskDepthRenderer(bool hasBaseColorTexture) const {
+            return ranges::try_emplace_if_not_exists(maskDepthPipelines, hasBaseColorTexture, [&]() {
+                return createMaskDepthRenderer(gpu.device, primitiveNoShadingPipelineLayout, hasBaseColorTexture);
+            }).first->second;
+        }
+
+        [[nodiscard]] vk::Pipeline getJumpFloodSeedRenderer() const {
+            if (!jumpFloodSeedRenderer) {
+                jumpFloodSeedRenderer = createJumpFloodSeedRenderer(gpu.device, primitiveNoShadingPipelineLayout);
+            }
+            return *jumpFloodSeedRenderer;
+        }
+
+        [[nodiscard]] vk::Pipeline getMaskJumpFloodSeedRenderer(bool hasBaseColorTexture) const {
+            return ranges::try_emplace_if_not_exists(maskJumpFloodSeedPipelines, hasBaseColorTexture, [&]() {
+                return createMaskJumpFloodSeedRenderer(gpu.device, primitiveNoShadingPipelineLayout, hasBaseColorTexture);
+            }).first->second;
+        }
+
         [[nodiscard]] vk::Pipeline getPrimitiveRenderer(const PrimitivePipelineKey &key) const {
-            if (auto it = primitivePipelines.find(key); it != primitivePipelines.end()) {
-                return it->second;
-            }
-            else if (key.unlit) {
-                return primitivePipelines.try_emplace(it, key, createUnlitPrimitiveRenderer(
-                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.alphaMode))->second;
-            }
-            else {
-                return primitivePipelines.try_emplace(it, key, createPrimitiveRenderer(
-                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.fragmentShaderGeneratedTBN, key.alphaMode))->second;
-            }
+            return ranges::try_emplace_if_not_exists(primitivePipelines, key, [&]() {
+                return createPrimitiveRenderer(
+                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.texcoordCount, key.fragmentShaderGeneratedTBN, key.alphaMode);
+            }).first->second;
         }
 
-        /**
-         * @brief Get corresponding Vulkan pipeline for depth prepass rendering.
-         * @param mask Boolean whether the rendering primitive's material alpha mode is MASK or not.
-         * @return Vulkan pipeline for depth prepass rendering.
-         */
-        [[nodiscard]] vk::Pipeline getDepthPrepassRenderer(bool mask) const {
-            std::optional<vk::raii::Pipeline> &targetPipeline = mask ? maskDepthRenderer : depthRenderer;
-            if (!targetPipeline) {
-                targetPipeline = createDepthRenderer(gpu.device, primitiveNoShadingPipelineLayout, mask);
-            }
-            return *targetPipeline;
-        }
-
-        /**
-         * @brief Get corresponding Vulkan pipeline for jump flood seeding.
-         * @param mask Boolean whether the rendering primitive's material alpha mode is MASK or not.
-         * @return Vulkan pipeline for jump flood seeding.
-         */
-        [[nodiscard]] vk::Pipeline getJumpFloodSeedRenderer(bool mask) const {
-            std::optional<vk::raii::Pipeline> &targetPipeline = mask ? maskJumpFloodSeedRenderer : jumpFloodSeedRenderer;
-            if (!targetPipeline) {
-                targetPipeline = createJumpFloodSeedRenderer(gpu.device, primitiveNoShadingPipelineLayout, mask);
-            }
-            return *targetPipeline;
+        [[nodiscard]] vk::Pipeline getUnlitPrimitiveRenderer(const UnlitPrimitivePipelineKey &key) const {
+            return ranges::try_emplace_if_not_exists(unlitPrimitivePipelines, key, [&]() {
+                return createUnlitPrimitiveRenderer(
+                    gpu.device, primitivePipelineLayout, sceneRenderPass, key.hasBaseColorTexture, key.alphaMode);
+            }).first->second;
         }
 
         // --------------------
@@ -188,11 +174,12 @@ namespace vk_gltf_viewer::vulkan {
             }
 
             // Following pipelines are dependent to the assetDescriptorSetLayout.
-            primitivePipelines.clear();
             depthRenderer.reset();
+            maskDepthPipelines.clear();
             jumpFloodSeedRenderer.reset();
-            maskDepthRenderer.reset();
-            maskJumpFloodSeedRenderer.reset();
+            maskJumpFloodSeedPipelines.clear();
+            primitivePipelines.clear();
+            unlitPrimitivePipelines.clear();
 
             assetDescriptorSetLayout = { gpu.device, textureCount };
             primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
@@ -208,11 +195,12 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         // glTF primitive rendering pipelines.
-        mutable std::unordered_map<PrimitivePipelineKey, vk::raii::Pipeline, AggregateHasher<PrimitivePipelineKey>> primitivePipelines;
         mutable std::optional<vk::raii::Pipeline> depthRenderer;
+        mutable std::unordered_map<bool, vk::raii::Pipeline> maskDepthPipelines;
         mutable std::optional<vk::raii::Pipeline> jumpFloodSeedRenderer;
-        mutable std::optional<vk::raii::Pipeline> maskDepthRenderer;
-        mutable std::optional<vk::raii::Pipeline> maskJumpFloodSeedRenderer;
+        mutable std::unordered_map<bool, vk::raii::Pipeline> maskJumpFloodSeedPipelines;
+        mutable std::unordered_map<PrimitivePipelineKey, vk::raii::Pipeline, AggregateHasher<3>> primitivePipelines;
+        mutable std::unordered_map<UnlitPrimitivePipelineKey, vk::raii::Pipeline, AggregateHasher<2>> unlitPrimitivePipelines;
 
         [[nodiscard]] std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> getImGuiSwapchainAttachmentGroup() {
             if (gpu.supportSwapchainMutableFormat) {

@@ -3,6 +3,7 @@
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_8bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
 #extension GL_EXT_scalar_block_layout : require
 
 #define FRAGMENT_SHADER
@@ -13,27 +14,24 @@
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
 layout (location = 0) in vec3 inPosition;
-#if FRAGMENT_SHADER_GENERATED_TBN
-layout (location = 1) in vec2 inBaseColorTexcoord;
-layout (location = 2) in vec2 inMetallicRoughnessTexcoord;
-layout (location = 3) in vec2 inNormalTexcoord;
-layout (location = 4) in vec2 inOcclusionTexcoord;
-layout (location = 5) in vec2 inEmissiveTexcoord;
-layout (location = 6) flat in uint inMaterialIndex;
-#else
-layout (location = 1) in mat3 inTBN;
-layout (location = 4) in vec2 inBaseColorTexcoord;
-layout (location = 5) in vec2 inMetallicRoughnessTexcoord;
-layout (location = 6) in vec2 inNormalTexcoord;
-layout (location = 7) in vec2 inOcclusionTexcoord;
-layout (location = 8) in vec2 inEmissiveTexcoord;
-layout (location = 9) flat in uint inMaterialIndex;
+layout (location = 1) flat in uint inMaterialIndex;
+#if TEXCOORD_COUNT == 1
+layout (location = 2) in vec2 inTexcoord;
+#elif TEXCOORD_COUNT == 2
+layout (location = 2) in mat2 inTexcoords;
+#elif TEXCOORD_COUNT >= 3
+layout (location = 2) in mat3x2 inTexcoords;
+#elif TEXCOORD_COUNT >= 4
+layout (location = 2) in mat4x2 inTexcoords;
+#elif TEXCOORD_COUNT >= 5
+#error "Maximum texcoord count exceeded."
+#endif
+#if !FRAGMENT_SHADER_GENERATED_TBN
+layout (location = TEXCOORD_COUNT + 2) in mat3 inTBN;
 #endif
 
-#if ALPHA_MODE == 0 || ALPHA_MODE == 1
 layout (location = 0) out vec4 outColor;
-#elif ALPHA_MODE == 2
-layout (location = 0) out vec4 outAccumulation;
+#if ALPHA_MODE == 2
 layout (location = 1) out float outRevealage;
 #endif
 
@@ -43,7 +41,7 @@ layout (set = 0, binding = 0, scalar) uniform SphericalHarmonicsBuffer {
 layout (set = 0, binding = 1) uniform samplerCube prefilteredmap;
 layout (set = 0, binding = 2) uniform sampler2D brdfmap;
 
-layout (set = 1, binding = 1) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 1, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 layout (set = 1, binding = 2) uniform sampler2D textures[];
@@ -60,6 +58,16 @@ layout (early_fragment_tests) in;
 // --------------------
 // Functions.
 // --------------------
+
+#if TEXCOORD_COUNT == 1
+vec2 getTexcoord(uint texcoordIndex) {
+    return inTexcoord;
+}
+#elif TEXCOORD_COUNT >= 2
+vec2 getTexcoord(uint texcoordIndex) {
+    return inTexcoords[texcoordIndex];
+}
+#endif
 
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness){
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
@@ -78,56 +86,74 @@ void writeOutput(vec4 color) {
 #if ALPHA_MODE == 0
     outColor = vec4(color.rgb, 1.0);
 #elif ALPHA_MODE == 1
-    color.a *= 1.0 + geometricMean(textureQueryLod(textures[int(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord)) * 0.25;
+#if TEXCOORD_COUNT >= 1
+    color.a *= 1.0 + geometricMean(textureQueryLod(textures[int(MATERIAL.baseColorTextureIndex) + 1], getTexcoord(MATERIAL.baseColorTexcoordIndex))) * 0.25;
     // Apply sharpness to the alpha.
     // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
     color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
+#else
+    color.a = color.a >= MATERIAL.alphaCutoff ? 1 : 0;
+#endif
     outColor = color;
 #elif ALPHA_MODE == 2
     // Weighted Blended.
     float weight = clamp(
         pow(min(1.0, color.a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - gl_FragCoord.z * 0.9, 3.0),
         1e-2, 3e3);
-    outAccumulation = vec4(color.rgb * color.a, color.a) * weight;
+    outColor = vec4(color.rgb * color.a, color.a) * weight;
     outRevealage = color.a;
 #endif
 }
 
 void main(){
-    vec4 baseColor = MATERIAL.baseColorFactor * texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord);
+    vec4 baseColor = MATERIAL.baseColorFactor;
+#if TEXCOORD_COUNT >= 1
+    baseColor *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], getTexcoord(MATERIAL.baseColorTexcoordIndex));
+#endif
 
-    vec2 metallicRoughness = vec2(MATERIAL.metallicFactor, MATERIAL.roughnessFactor) * texture(textures[int(MATERIAL.metallicRoughnessTextureIndex) + 1], inMetallicRoughnessTexcoord).bg;
-    float metallic = metallicRoughness.x;
-    float roughness = metallicRoughness.y;
+    float metallic = MATERIAL.metallicFactor;
+    float roughness = MATERIAL.roughnessFactor;
+#if TEXCOORD_COUNT >= 1
+    vec2 metallicRoughness = texture(textures[int(MATERIAL.metallicRoughnessTextureIndex) + 1], getTexcoord(MATERIAL.metallicRoughnessTexcoordIndex)).bg;
+    metallic *= metallicRoughness.x;
+    roughness *= metallicRoughness.y;
+#endif
 
     vec3 N;
 #if FRAGMENT_SHADER_GENERATED_TBN
     vec3 tangent = dFdx(inPosition);
     vec3 bitangent = dFdy(inPosition);
-    vec3 normal = normalize(cross(tangent, bitangent));
+    N = normalize(cross(tangent, bitangent));
 
+#if TEXCOORD_COUNT >= 1
     if (int(MATERIAL.normalTextureIndex) != -1){
-        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], inNormalTexcoord).rgb;
+        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], getTexcoord(MATERIAL.normalTexcoordIndex)).rgb;
         vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
-        N = normalize(mat3(tangent, bitangent, normal) * scaledNormal);
+        N = normalize(mat3(tangent, bitangent, N) * scaledNormal);
     }
-    else {
-        N = normal;
-    }
-#else
+#endif
+#elif TEXCOORD_COUNT >= 1
     if (int(MATERIAL.normalTextureIndex) != -1){
-        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], inNormalTexcoord).rgb;
+        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], getTexcoord(MATERIAL.normalTexcoordIndex)).rgb;
         vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
         N = normalize(inTBN * scaledNormal);
     }
     else {
         N = normalize(inTBN[2]);
     }
+#else
+    N = normalize(inTBN[2]);
 #endif
 
-    float occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[int(MATERIAL.occlusionTextureIndex) + 1], inOcclusionTexcoord).r - 1.0);
+    float occlusion = MATERIAL.occlusionStrength;
+#if TEXCOORD_COUNT >= 1
+    occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[int(MATERIAL.occlusionTextureIndex) + 1], getTexcoord(MATERIAL.occlusionTexcoordIndex)).r - 1.0);
+#endif
 
-    vec3 emissive = MATERIAL.emissiveFactor * texture(textures[int(MATERIAL.emissiveTextureIndex) + 1], inEmissiveTexcoord).rgb;
+    vec3 emissive = MATERIAL.emissiveFactor;
+#if TEXCOORD_COUNT >= 1
+    emissive *= texture(textures[int(MATERIAL.emissiveTextureIndex) + 1], getTexcoord(MATERIAL.emissiveTexcoordIndex)).rgb;
+#endif
 
     vec3 V = normalize(pc.viewPosition - inPosition);
     float NdotV = dot(N, V);

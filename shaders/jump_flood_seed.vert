@@ -9,7 +9,7 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
-layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Vec4Ref { vec4 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec3Ref { vec3 data; };
 layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
 
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
@@ -29,10 +29,10 @@ layout (push_constant) uniform PushConstant {
 // --------------------
 
 vec3 getVec3(uint64_t address){
-    return Vec4Ref(address).data.xyz;
+    return Vec3Ref(address).data;
 }
 
 void main(){
-    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * gl_VertexIndex);
+    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }
