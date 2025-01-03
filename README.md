@@ -207,7 +207,6 @@ Add the following CMake user preset file in your project directory. I'll assume 
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++-18",
         "CMAKE_CXX_FLAGS": "-stdlib=libc++",
         "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++ -lc++abi",
-        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
         "VCPKG_TARGET_TRIPLET": "x64-linux-clang"
       }
     }
@@ -215,7 +214,7 @@ Add the following CMake user preset file in your project directory. I'll assume 
 }
 ```
 
-`VCPKG_OVERLAY_TRIPLETS` and `VCPKG_TARGET_TRIPLET` configuration parameters are mandatory for make vcpkg uses Clang compiler instead of the system default compiler. Add following vcpkg toolchain and triplet files.
+`VCPKG_TARGET_TRIPLET` configuration parameter is mandatory for make vcpkg uses Clang compiler instead of the system default compiler. Add following vcpkg toolchain and triplet files.
 
 `clang-toolchain.cmake`
 ```cmake
@@ -266,7 +265,6 @@ Add the following CMake user preset file in your project directory. I'll assume 
         "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++",
         "CMAKE_CXX_FLAGS": "-nostdinc++ -nostdlib++ -isystem /opt/homebrew/opt/llvm/include/c++/v1",
         "CMAKE_EXE_LINKER_FLAGS": "-L /opt/homebrew/opt/llvm/lib/c++ -Wl,-rpath,/opt/homebrew/opt/llvm/lib/c++ -lc++",
-        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
         "VCPKG_TARGET_TRIPLET": "arm64-macos-clang"
       }
     }
@@ -274,7 +272,7 @@ Add the following CMake user preset file in your project directory. I'll assume 
 }
 ```
 
-`VCPKG_OVERLAY_TRIPLETS` and `VCPKG_TARGET_TRIPLET` configuration parameters are mandatory for make vcpkg uses Clang compiler instead of the system default compiler. Add following vcpkg toolchain and triplet files.
+`VCPKG_TARGET_TRIPLET` configuration parameter is mandatory for make vcpkg uses Clang compiler instead of the system default compiler. Add following vcpkg toolchain and triplet files.
 
 `clang-toolchain.cmake`
 ```cmake

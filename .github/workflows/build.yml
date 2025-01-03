@@ -63,7 +63,7 @@ jobs:
       - name: Configure
         run: |
           mv .github/workflows/scripts/* .
-          cmake --preset=${{ matrix.os }}
+          cmake --preset=${{ runner.os }}
 
       - name: Build
         run: cmake --build build --config release
