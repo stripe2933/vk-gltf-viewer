@@ -15,22 +15,15 @@ const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
 layout (location = 0) in vec3 inPosition;
 layout (location = 1) flat in uint inMaterialIndex;
-#if TEXCOORD_COUNT >= 1
-layout (location = 2) in vec2 inTexcoord0;
-#endif
-#if TEXCOORD_COUNT >= 2
-layout (location = 3) in vec2 inTexcoord1;
-#endif
-#if TEXCOORD_COUNT >= 3
-layout (location = 4) in vec2 inTexcoord2;
-#endif
-#if TEXCOORD_COUNT >= 4
-layout (location = 5) in vec2 inTexcoord3;
-#endif
-#if TEXCOORD_COUNT >= 5
-layout (location = 6) in vec2 inTexcoord4;
-#endif
-#if TEXCOORD_COUNT >= 6
+#if TEXCOORD_COUNT == 1
+layout (location = 2) in vec2 inTexcoord;
+#elif TEXCOORD_COUNT == 2
+layout (location = 2) in mat2 inTexcoords;
+#elif TEXCOORD_COUNT >= 3
+layout (location = 2) in mat3x2 inTexcoords;
+#elif TEXCOORD_COUNT >= 4
+layout (location = 2) in mat4x2 inTexcoords;
+#elif TEXCOORD_COUNT >= 5
 #error "Maximum texcoord count exceeded."
 #endif
 #if !FRAGMENT_SHADER_GENERATED_TBN
@@ -66,24 +59,13 @@ layout (early_fragment_tests) in;
 // Functions.
 // --------------------
 
-#if TEXCOORD_COUNT >= 1
+#if TEXCOORD_COUNT == 1
 vec2 getTexcoord(uint texcoordIndex) {
-    switch (texcoordIndex) {
-        case 0: return inTexcoord0;
-#if TEXCOORD_COUNT >= 2
-        case 1: return inTexcoord1;
-#endif
-#if TEXCOORD_COUNT >= 3
-        case 2: return inTexcoord2;
-#endif
-#if TEXCOORD_COUNT >= 4
-        case 3: return inTexcoord3;
-#endif
-#if TEXCOORD_COUNT >= 5
-        case 4: return inTexcoord4;
-#endif
-    }
-    return vec2(0.0);
+    return inTexcoord;
+}
+#elif TEXCOORD_COUNT >= 2
+vec2 getTexcoord(uint texcoordIndex) {
+    return inTexcoords[texcoordIndex];
 }
 #endif
 

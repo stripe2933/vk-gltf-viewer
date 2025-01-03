@@ -12,7 +12,6 @@ namespace vk_gltf_viewer::shader_selector {
             make_type_map_entry<std::integral_constant<int, 2>, std::uint8_t>(2),
             make_type_map_entry<std::integral_constant<int, 3>, std::uint8_t>(3),
             make_type_map_entry<std::integral_constant<int, 4>, std::uint8_t>(4),
-            make_type_map_entry<std::integral_constant<int, 5>, std::uint8_t>(5),
         };
         constexpr type_map fragmentShaderGeneratedTBNMap {
             make_type_map_entry<std::integral_constant<int, 0>>(false),

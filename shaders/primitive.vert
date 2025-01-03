@@ -18,22 +18,15 @@ layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer N
 
 layout (location = 0) out vec3 outPosition;
 layout (location = 1) flat out uint outMaterialIndex;
-#if TEXCOORD_COUNT >= 1
-layout (location = 2) out vec2 outTexcoord0;
-#endif
-#if TEXCOORD_COUNT >= 2
-layout (location = 3) out vec2 outTexcoord1;
-#endif
-#if TEXCOORD_COUNT >= 3
-layout (location = 4) out vec2 outTexcoord2;
-#endif
-#if TEXCOORD_COUNT >= 4
-layout (location = 5) out vec2 outTexcoord3;
-#endif
-#if TEXCOORD_COUNT >= 5
-layout (location = 6) out vec2 outTexcoord4;
-#endif
-#if TEXCOORD_COUNT >= 6
+#if TEXCOORD_COUNT == 1
+layout (location = 2) out vec2 outTexcoord;
+#elif TEXCOORD_COUNT == 2
+layout (location = 2) out mat2 outTexcoords;
+#elif TEXCOORD_COUNT == 3
+layout (location = 2) out mat3x2 outTexcoords;
+#elif TEXCOORD_COUNT == 4
+layout (location = 2) out mat4x2 outTexcoords;
+#elif TEXCOORD_COUNT >= 5
 #error "Maximum texcoord count exceeded."
 #endif
 #if !FRAGMENT_SHADER_GENERATED_TBN
@@ -87,20 +80,12 @@ void main(){
 
     outMaterialIndex = MATERIAL_INDEX;
 
-#if TEXCOORD_COUNT >= 1
-    outTexcoord0 = getTexcoord(0);
-#endif
-#if TEXCOORD_COUNT >= 2
-    outTexcoord1 = getTexcoord(1);
-#endif
-#if TEXCOORD_COUNT >= 3
-    outTexcoord2 = getTexcoord(2);
-#endif
-#if TEXCOORD_COUNT >= 4
-    outTexcoord3 = getTexcoord(3);
-#endif
-#if TEXCOORD_COUNT >= 5
-    outTexcoord4 = getTexcoord(4);
+#if TEXCOORD_COUNT == 1
+    outTexcoord = getTexcoord(0);
+#elif TEXCOORD_COUNT >= 2
+    for (uint i = 0; i < TEXCOORD_COUNT; i++){
+        outTexcoords[i] = getTexcoord(i);
+    }
 #endif
 
 #if !FRAGMENT_SHADER_GENERATED_TBN
