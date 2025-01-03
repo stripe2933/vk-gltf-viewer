@@ -203,6 +203,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
             .setBufferDeviceAddress(true)
             .setDescriptorIndexing(true)
             .setDescriptorBindingSampledImageUpdateAfterBind(true)
+            .setDescriptorBindingVariableDescriptorCount(true)
             .setRuntimeDescriptorArray(true)
             .setStorageBuffer8BitAccess(true)
             .setUniformAndStorageBuffer8BitAccess(true)
