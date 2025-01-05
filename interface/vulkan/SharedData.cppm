@@ -30,21 +30,21 @@ namespace vk_gltf_viewer::vulkan {
     public:
         struct MaskDepthPipelineKey {
             std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
-            bool hasColorAlphaAttribute;
+            std::optional<fastgltf::ComponentType> colorAlphaComponentType;
 
             [[nodiscard]] bool operator==(const MaskDepthPipelineKey&) const noexcept = default;
         };
 
         struct MaskJumpFloodSeedPipelineKey {
             std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
-            bool hasColorAlphaAttribute;
+            std::optional<fastgltf::ComponentType> colorAlphaComponentType;
 
             [[nodiscard]] bool operator==(const MaskJumpFloodSeedPipelineKey&) const noexcept = default;
         };
 
         struct PrimitivePipelineKey {
             boost::container::static_vector<fastgltf::ComponentType, 4> texcoordComponentTypes;
-            std::optional<std::uint32_t> colorComponentCount;
+            std::optional<std::pair<std::uint32_t, fastgltf::ComponentType>> colorComponentCountAndType;
             bool fragmentShaderGeneratedTBN;
             fastgltf::AlphaMode alphaMode;
 
@@ -53,7 +53,7 @@ namespace vk_gltf_viewer::vulkan {
 
         struct UnlitPrimitivePipelineKey {
             std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
-            std::optional<std::uint32_t> colorComponentCount;
+            std::optional<std::pair<std::uint32_t, fastgltf::ComponentType>> colorComponentCountAndType;
             fastgltf::AlphaMode alphaMode;
 
             [[nodiscard]] bool operator==(const UnlitPrimitivePipelineKey&) const noexcept = default;
@@ -143,7 +143,7 @@ namespace vk_gltf_viewer::vulkan {
                 return createMaskDepthRenderer(
                     gpu.device, primitiveNoShadingPipelineLayout,
                     key.baseColorTexcoordComponentType,
-                    key.hasColorAlphaAttribute);
+                    key.colorAlphaComponentType);
             }).first->second;
         }
 
@@ -159,7 +159,7 @@ namespace vk_gltf_viewer::vulkan {
                 return createMaskJumpFloodSeedRenderer(
                     gpu.device, primitiveNoShadingPipelineLayout,
                     key.baseColorTexcoordComponentType,
-                    key.hasColorAlphaAttribute);
+                    key.colorAlphaComponentType);
             }).first->second;
         }
 
@@ -168,7 +168,7 @@ namespace vk_gltf_viewer::vulkan {
                 return createPrimitiveRenderer(
                     gpu.device, primitivePipelineLayout, sceneRenderPass,
                     key.texcoordComponentTypes,
-                    key.colorComponentCount,
+                    key.colorComponentCountAndType,
                     key.fragmentShaderGeneratedTBN,
                     key.alphaMode);
             }).first->second;
@@ -179,7 +179,7 @@ namespace vk_gltf_viewer::vulkan {
                 return createUnlitPrimitiveRenderer(
                     gpu.device, primitivePipelineLayout, sceneRenderPass,
                     key.baseColorTexcoordComponentType,
-                    key.colorComponentCount,
+                    key.colorComponentCountAndType,
                     key.alphaMode);
             }).first->second;
         }

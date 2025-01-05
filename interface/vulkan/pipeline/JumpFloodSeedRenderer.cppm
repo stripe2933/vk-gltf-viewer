@@ -50,14 +50,19 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         const vk::raii::Device &device,
         const pl::PrimitiveNoShading &pipelineLayout,
         const std::optional<fastgltf::ComponentType> &baseColorTexcoordComponentType,
-        bool hasColorAlphaAttribute
+        const std::optional<fastgltf::ComponentType> &colorAlphaComponentType
     ) {
         struct VertexShaderSpecializationData {
             std::uint32_t texcoordComponentType = 5126; // FLOAT
+            std::uint32_t colorComponentType = 5126; // FLOAT
         } vertexShaderSpecializationData{};
 
         if (baseColorTexcoordComponentType) {
             vertexShaderSpecializationData.texcoordComponentType = getGLComponentType(*baseColorTexcoordComponentType);
+        }
+
+        if (colorAlphaComponentType) {
+            vertexShaderSpecializationData.colorComponentType = getGLComponentType(*colorAlphaComponentType);
         }
 
         return { device, nullptr, vk::StructureChain {
@@ -65,15 +70,30 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 createPipelineStages(
                     device,
                     vku::Shader {
-                        shader_selector::mask_jump_flood_seed_vert(baseColorTexcoordComponentType.has_value(), hasColorAlphaAttribute),
+                        shader_selector::mask_jump_flood_seed_vert(
+                            baseColorTexcoordComponentType.has_value(),
+                            colorAlphaComponentType.has_value()),
                         vk::ShaderStageFlagBits::eVertex,
                         vku::unsafeAddress(vk::SpecializationInfo {
-                            vku::unsafeProxy(vk::SpecializationMapEntry { 0, offsetof(VertexShaderSpecializationData, texcoordComponentType), sizeof(VertexShaderSpecializationData::texcoordComponentType) }),
+                            vku::unsafeProxy({
+                                vk::SpecializationMapEntry {
+                                    0,
+                                    offsetof(VertexShaderSpecializationData, texcoordComponentType),
+                                    sizeof(VertexShaderSpecializationData::texcoordComponentType),
+                                },
+                                vk::SpecializationMapEntry {
+                                    0,
+                                    offsetof(VertexShaderSpecializationData, colorComponentType),
+                                    sizeof(VertexShaderSpecializationData::colorComponentType),
+                                },
+                            }),
                             vk::ArrayProxyNoTemporaries<const VertexShaderSpecializationData> { vertexShaderSpecializationData },
                         }),
                     },
                     vku::Shader {
-                        shader_selector::mask_jump_flood_seed_frag(baseColorTexcoordComponentType.has_value(), hasColorAlphaAttribute),
+                        shader_selector::mask_jump_flood_seed_frag(
+                            baseColorTexcoordComponentType.has_value(),
+                            colorAlphaComponentType.has_value()),
                         vk::ShaderStageFlagBits::eFragment,
                     }).get(),
                 *pipelineLayout, 1, true)

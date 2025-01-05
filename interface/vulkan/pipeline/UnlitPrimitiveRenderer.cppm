@@ -20,21 +20,24 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         const pl::Primitive &layout,
         const rp::Scene &sceneRenderPass,
         const std::optional<fastgltf::ComponentType> &baseColorTexcoordComponentType,
-        const std::optional<std::uint8_t> &colorComponentCount,
+        const std::optional<std::pair<std::uint8_t, fastgltf::ComponentType>> &colorComponentCountAndType,
         fastgltf::AlphaMode alphaMode
     ) {
         struct VertexShaderSpecializationData {
             std::uint32_t texcoordComponentType = 5126; // FLOAT
             std::uint8_t colorComponentCount = 0;
+            std::uint32_t colorComponentType = 5126; // FLOAT
         } vertexShaderSpecializationData{};
 
         if (baseColorTexcoordComponentType) {
             vertexShaderSpecializationData.texcoordComponentType = getGLComponentType(*baseColorTexcoordComponentType);
         }
 
-        if (colorComponentCount) {
-            assert(ranges::one_of(*colorComponentCount, 3, 4));
-            vertexShaderSpecializationData.colorComponentCount = *colorComponentCount;
+        if (colorComponentCountAndType) {
+            assert(ranges::one_of(colorComponentCountAndType->first, 3, 4));
+            assert(ranges::one_of(colorComponentCountAndType->second, fastgltf::ComponentType::UnsignedByte, fastgltf::ComponentType::UnsignedShort, fastgltf::ComponentType::Float));
+            vertexShaderSpecializationData.colorComponentCount = colorComponentCountAndType->first;
+            vertexShaderSpecializationData.colorComponentType = getGLComponentType(colorComponentCountAndType->second);
         }
 
         static constexpr std::array vertexShaderSpecializationMapEntries {
@@ -48,6 +51,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 offsetof(VertexShaderSpecializationData, colorComponentCount),
                 sizeof(VertexShaderSpecializationData::colorComponentCount),
             },
+            vk::SpecializationMapEntry {
+                2,
+                offsetof(VertexShaderSpecializationData, colorComponentType),
+                sizeof(VertexShaderSpecializationData::colorComponentType),
+            },
         };
 
         const vk::SpecializationInfo vertexShaderSpecializationInfo {
@@ -58,12 +66,17 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         const vku::RefHolder pipelineStages = createPipelineStages(
             device,
             vku::Shader {
-                shader_selector::unlit_primitive_vert(baseColorTexcoordComponentType.has_value(), colorComponentCount.has_value()),
+                shader_selector::unlit_primitive_vert(
+                    baseColorTexcoordComponentType.has_value(),
+                    colorComponentCountAndType.has_value()),
                 vk::ShaderStageFlagBits::eVertex,
                 &vertexShaderSpecializationInfo,
             },
             vku::Shader {
-                shader_selector::unlit_primitive_frag(baseColorTexcoordComponentType.has_value(), colorComponentCount.has_value(), alphaMode),
+                shader_selector::unlit_primitive_frag(
+                    baseColorTexcoordComponentType.has_value(),
+                    colorComponentCountAndType.has_value(),
+                    alphaMode),
                 vk::ShaderStageFlagBits::eFragment,
             });
 

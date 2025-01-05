@@ -123,7 +123,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
                     }),
-                    .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) { return info.numComponent; }),
+                    .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
+                        return std::pair { info.numComponent, info.componentType };
+                    }),
                     .alphaMode = material.alphaMode,
                 });
             }
@@ -132,7 +134,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos | std::views::transform([](const auto &info) {
                         return info.componentType;
                     }) | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
-                    .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) { return info.numComponent; }),
+                    .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
+                        return std::pair { info.numComponent, info.componentType };
+                    }),
                     .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
                     .alphaMode = material.alphaMode,
                 });
@@ -144,7 +148,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                 .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos | std::views::transform([](const auto &info) {
                     return info.componentType;
                 }) | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
-                .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) { return info.numComponent; }),
+                .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
+                    return std::pair { info.numComponent, info.componentType };
+                }),
                 .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
             });
         }
@@ -166,7 +172,10 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
                     }),
-                    .hasColorAlphaAttribute = primitiveInfo.colorInfo.transform([](const auto &info) { return info.numComponent == 4; }).value_or(false),
+                    .colorAlphaComponentType = primitiveInfo.colorInfo.and_then([](const auto &info) {
+                        // Alpha value exists only if COLOR_0 is Vec4 type.
+                        return value_if(info.numComponent == 4, info.componentType);
+                    }),
                 });
             }
             else {
@@ -195,7 +204,10 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
                     }),
-                    .hasColorAlphaAttribute = primitiveInfo.colorInfo.transform([](const auto &info) { return info.numComponent == 4; }).value_or(false),
+                    .colorAlphaComponentType = primitiveInfo.colorInfo.and_then([](const auto &info) {
+                        // Alpha value exists only if COLOR_0 is Vec4 type.
+                        return value_if(info.numComponent == 4, info.componentType);
+                    }),
                 });
             }
             else {
