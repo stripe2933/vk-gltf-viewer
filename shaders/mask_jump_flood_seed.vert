@@ -49,22 +49,20 @@ layout (push_constant, std430) uniform PushConstant {
 // Functions.
 // --------------------
 
-float getFloat(uint64_t address) {
-    return FloatRef(address).data;
-}
-
-vec3 getVec3(uint64_t address){
-    return Vec3Ref(address).data;
+vec3 getPosition() {
+    return Vec3Ref(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex).data;
 }
 
 #if HAS_BASE_COLOR_TEXTURE
-vec2 getVec2(uint64_t address){
-    return Vec2Ref(address).data;
-}
-
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
-    return getVec2(mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex);
+    return Vec2Ref(mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex).data;
+}
+#endif
+
+#if HAS_COLOR_ALPHA_ATTRIBUTE
+float getColorAlpha() {
+    return FloatRef(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex + 12).data;
 }
 #endif
 
@@ -74,9 +72,9 @@ void main(){
     variadic_out.baseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
 #endif
 #if HAS_COLOR_ALPHA_ATTRIBUTE
-    variadic_out.colorAlpha = getFloat(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex + 12);
+    variadic_out.colorAlpha = getColorAlpha();
 #endif
 
-    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex);
+    vec3 inPosition = getPosition();
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }

@@ -66,24 +66,24 @@ layout (push_constant, std430) uniform PushConstant {
 // Functions.
 // --------------------
 
-vec3 getVec3(uint64_t address){
-    return Vec3Ref(address).data;
+vec3 getPosition() {
+    return Vec3Ref(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex).data;
 }
 
 #if !FRAGMENT_SHADER_GENERATED_TBN
-vec4 getVec4(uint64_t address){
-    return Vec4Ref(address).data;
+vec3 getNormal() {
+    return Vec3Ref(PRIMITIVE.pNormalBuffer + int(PRIMITIVE.normalByteStride) * gl_VertexIndex).data;
+}
+
+vec4 getTangent() {
+    return Vec4Ref(PRIMITIVE.pTangentBuffer + int(PRIMITIVE.tangentByteStride) * gl_VertexIndex).data;
 }
 #endif
 
 #if TEXCOORD_COUNT >= 1
-vec2 getVec2(uint64_t address){
-    return Vec2Ref(address).data;
-}
-
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
-    return getVec2(mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex);
+    return Vec2Ref(mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex).data;
 }
 #endif
 
@@ -99,17 +99,17 @@ vec4 getColor() {
 #endif
 
 void main(){
-    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex);
+    vec3 inPosition = getPosition();
     outPosition = (TRANSFORM * vec4(inPosition, 1.0)).xyz;
 
     outMaterialIndex = MATERIAL_INDEX;
 
 #if !FRAGMENT_SHADER_GENERATED_TBN
-    vec3 inNormal = getVec3(PRIMITIVE.pNormalBuffer + int(PRIMITIVE.normalByteStride) * gl_VertexIndex);
+    vec3 inNormal = getNormal();
     variadic_out.tbn[2] = normalize(mat3(TRANSFORM) * inNormal); // N
 
     if (int(MATERIAL.normalTextureIndex) != -1){
-        vec4 inTangent = getVec4(PRIMITIVE.pTangentBuffer + int(PRIMITIVE.tangentByteStride) * gl_VertexIndex);
+        vec4 inTangent = getTangent();
         variadic_out.tbn[0] = normalize(mat3(TRANSFORM) * inTangent.xyz); // T
         variadic_out.tbn[1] = cross(variadic_out.tbn[2], variadic_out.tbn[0]) * -inTangent.w; // B
     }

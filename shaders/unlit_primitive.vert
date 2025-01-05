@@ -53,18 +53,14 @@ layout (push_constant, std430) uniform PushConstant {
 // Functions.
 // --------------------
 
-vec3 getVec3(uint64_t address){
-    return Vec3Ref(address).data;
+vec3 getPosition() {
+    return Vec3Ref(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex).data;
 }
 
 #if HAS_BASE_COLOR_TEXTURE
-vec2 getVec2(uint64_t address){
-    return Vec2Ref(address).data;
-}
-
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
-    return getVec2(mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex);
+    return Vec2Ref(mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex).data;
 }
 #endif
 
@@ -80,7 +76,7 @@ vec4 getColor() {
 #endif
 
 void main(){
-    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex);
+    vec3 inPosition = getPosition();
 
     outMaterialIndex = MATERIAL_INDEX;
 #if HAS_BASE_COLOR_TEXTURE
