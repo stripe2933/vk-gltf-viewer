@@ -348,22 +348,25 @@ namespace vk_gltf_viewer::gltf {
             const auto primitives = asset.meshes | std::views::transform(&fastgltf::Mesh::primitives) | std::views::join;
 
             // Get buffer view indices that are used in primitive attributes.
-            const std::unordered_set attributeBufferViewIndices
-                = primitives
-                | std::views::transform([](const fastgltf::Primitive &primitive) {
-                    return primitive.attributes | std::views::transform(&fastgltf::Attribute::accessorIndex);
-                })
-                | std::views::join
-                | std::views::transform([&](std::size_t accessorIndex) {
-                    const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
+            std::unordered_set<std::size_t> attributeBufferViewIndices;
+            for (const fastgltf::Primitive &primitive : primitives) {
+                for (const fastgltf::Attribute &attribute : primitive.attributes) {
+                    // Process only used attributes.
+                    using namespace std::string_view_literals;
+                    const bool isAttributeUsed
+                        = ranges::one_of(attribute.name, "POSITION"sv, "NORMAL"sv, "TANGENT"sv, "COLOR_0"sv)
+                        || attribute.name.starts_with("TEXCOORD_"sv);
+                    if (!isAttributeUsed) continue;
+
+                    const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
 
                     // Check accessor validity.
                     if (accessor.sparse) throw AssetProcessError::SparseAttributeBufferAccessor;
                     if (accessor.normalized) throw AssetProcessError::NormalizedAttributeBufferAccessor;
 
-                    return *accessor.bufferViewIndex;
-                })
-                | std::ranges::to<std::unordered_set>();
+                    attributeBufferViewIndices.emplace(accessor.bufferViewIndex.value());
+                }
+            }
 
             // Make an ordered sequence of (bufferViewIndex, bufferViewBytes) pairs.
             const std::vector attributeBufferViewBytes
