@@ -1,5 +1,6 @@
 module;
 
+#include <boost/container/static_vector.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vk_gltf_viewer:vulkan.SharedData;
@@ -28,34 +29,34 @@ namespace vk_gltf_viewer::vulkan {
 
     public:
         struct MaskDepthPipelineKey {
-            bool hasBaseColorTexture;
+            std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
             bool hasColorAlphaAttribute;
 
             [[nodiscard]] std::partial_ordering operator<=>(const MaskDepthPipelineKey&) const noexcept = default;
         };
 
         struct MaskJumpFloodSeedPipelineKey {
-            bool hasBaseColorTexture;
+            std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
             bool hasColorAlphaAttribute;
 
             [[nodiscard]] std::partial_ordering operator<=>(const MaskJumpFloodSeedPipelineKey&) const noexcept = default;
         };
 
         struct PrimitivePipelineKey {
-            std::uint8_t texcoordCount;
+            boost::container::static_vector<fastgltf::ComponentType, 4> texcoordComponentTypes;
             std::optional<std::uint32_t> colorComponentCount;
             bool fragmentShaderGeneratedTBN;
             fastgltf::AlphaMode alphaMode;
 
-            [[nodiscard]] std::partial_ordering operator<=>(const PrimitivePipelineKey&) const noexcept = default;
+            [[nodiscard]] bool operator==(const PrimitivePipelineKey&) const noexcept = default;
         };
 
         struct UnlitPrimitivePipelineKey {
-            bool hasBaseColorTexture;
+            std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
             std::optional<std::uint32_t> colorComponentCount;
             fastgltf::AlphaMode alphaMode;
 
-            [[nodiscard]] std::partial_ordering operator<=>(const UnlitPrimitivePipelineKey&) const noexcept = default;
+            [[nodiscard]] bool operator==(const UnlitPrimitivePipelineKey&) const noexcept = default;
         };
 
         // --------------------
@@ -139,7 +140,10 @@ namespace vk_gltf_viewer::vulkan {
 
         [[nodiscard]] vk::Pipeline getMaskDepthRenderer(const MaskDepthPipelineKey &key) const {
             return ranges::try_emplace_if_not_exists(maskDepthPipelines, key, [&]() {
-                return createMaskDepthRenderer(gpu.device, primitiveNoShadingPipelineLayout, key.hasBaseColorTexture, key.hasColorAlphaAttribute);
+                return createMaskDepthRenderer(
+                    gpu.device, primitiveNoShadingPipelineLayout,
+                    key.baseColorTexcoordComponentType,
+                    key.hasColorAlphaAttribute);
             }).first->second;
         }
 
@@ -152,7 +156,10 @@ namespace vk_gltf_viewer::vulkan {
 
         [[nodiscard]] vk::Pipeline getMaskJumpFloodSeedRenderer(const MaskJumpFloodSeedPipelineKey &key) const {
             return ranges::try_emplace_if_not_exists(maskJumpFloodSeedPipelines, key, [&]() {
-                return createMaskJumpFloodSeedRenderer(gpu.device, primitiveNoShadingPipelineLayout, key.hasBaseColorTexture, key.hasColorAlphaAttribute);
+                return createMaskJumpFloodSeedRenderer(
+                    gpu.device, primitiveNoShadingPipelineLayout,
+                    key.baseColorTexcoordComponentType,
+                    key.hasColorAlphaAttribute);
             }).first->second;
         }
 
@@ -160,7 +167,7 @@ namespace vk_gltf_viewer::vulkan {
             return ranges::try_emplace_if_not_exists(primitivePipelines, key, [&]() {
                 return createPrimitiveRenderer(
                     gpu.device, primitivePipelineLayout, sceneRenderPass,
-                    key.texcoordCount,
+                    key.texcoordComponentTypes,
                     key.colorComponentCount,
                     key.fragmentShaderGeneratedTBN,
                     key.alphaMode);
@@ -171,7 +178,7 @@ namespace vk_gltf_viewer::vulkan {
             return ranges::try_emplace_if_not_exists(unlitPrimitivePipelines, key, [&]() {
                 return createUnlitPrimitiveRenderer(
                     gpu.device, primitivePipelineLayout, sceneRenderPass,
-                    key.hasBaseColorTexture,
+                    key.baseColorTexcoordComponentType,
                     key.colorComponentCount,
                     key.alphaMode);
             }).first->second;

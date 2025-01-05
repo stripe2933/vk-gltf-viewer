@@ -362,7 +362,6 @@ namespace vk_gltf_viewer::gltf {
 
                     // Check accessor validity.
                     if (accessor.sparse) throw AssetProcessError::SparseAttributeBufferAccessor;
-                    if (accessor.normalized) throw AssetProcessError::NormalizedAttributeBufferAccessor;
 
                     attributeBufferViewIndices.emplace(accessor.bufferViewIndex.value());
                 }
@@ -417,6 +416,7 @@ namespace vk_gltf_viewer::gltf {
                         return {
                             .address = bufferDeviceAddressMappings.at(*accessor.bufferViewIndex) + accessor.byteOffset,
                             .byteStride = static_cast<std::uint8_t>(byteStride),
+                            .componentType = accessor.componentType,
                         };
                     };
 

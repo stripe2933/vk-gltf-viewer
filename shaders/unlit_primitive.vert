@@ -4,6 +4,7 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_shader_8bit_storage : require
 
@@ -13,8 +14,11 @@
 
 #define HAS_VARIADIC_OUT HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ATTRIBUTE
 
-layout (constant_id = 0) const uint COLOR_COMPONENT_COUNT = 0;
+layout (constant_id = 0) const uint TEXCOORD_COMPONENT_TYPE = 5126; // FLOAT
+layout (constant_id = 1) const uint8_t COLOR_COMPONENT_COUNT = uint8_t(0);
 
+layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec2Ref { u8vec2 data; };
+layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer U16Vec2Ref { u16vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec2Ref { vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec3Ref { vec3 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec4Ref { vec4 data; };
@@ -60,13 +64,23 @@ vec3 getPosition() {
 #if HAS_BASE_COLOR_TEXTURE
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
-    return Vec2Ref(mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex).data;
+    uint64_t fetchAddress = mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex;
+
+    switch (TEXCOORD_COMPONENT_TYPE) {
+    case 5121U: // UNSIGNED BYTE
+        return vec2(U8Vec2Ref(fetchAddress).data) / 255.0;
+    case 5123U: // UNSIGNED SHORT
+        return vec2(U16Vec2Ref(fetchAddress).data) / 65535.0;
+    case 5126U: // FLOAT
+        return Vec2Ref(fetchAddress).data;
+    }
+    return vec2(0.0);
 }
 #endif
 
 #if HAS_COLOR_ATTRIBUTE
 vec4 getColor() {
-    if (COLOR_COMPONENT_COUNT == 4) {
+    if (COLOR_COMPONENT_COUNT == uint8_t(4)) {
         return Vec4Ref(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex).data;
     }
     else {

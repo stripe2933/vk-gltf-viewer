@@ -120,14 +120,18 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
             if (material.unlit) {
                 result.pipeline = sharedData.getUnlitPrimitiveRenderer({
-                    .hasBaseColorTexture = material.pbrData.baseColorTexture.has_value(),
+                    .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
+                        return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
+                    }),
                     .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) { return info.numComponent; }),
                     .alphaMode = material.alphaMode,
                 });
             }
             else {
                 result.pipeline = sharedData.getPrimitiveRenderer({
-                    .texcoordCount = static_cast<std::uint8_t>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
+                    .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos | std::views::transform([](const auto &info) {
+                        return info.componentType;
+                    }) | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
                     .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) { return info.numComponent; }),
                     .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
                     .alphaMode = material.alphaMode,
@@ -137,7 +141,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         }
         else {
             result.pipeline = sharedData.getPrimitiveRenderer({
-                .texcoordCount = static_cast<std::uint8_t>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
+                .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos | std::views::transform([](const auto &info) {
+                    return info.componentType;
+                }) | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
                 .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) { return info.numComponent; }),
                 .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
             });
@@ -157,7 +163,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             const fastgltf::Material& material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskDepthRenderer({
-                    .hasBaseColorTexture = material.pbrData.baseColorTexture.has_value(),
+                    .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
+                        return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
+                    }),
                     .hasColorAlphaAttribute = primitiveInfo.colorInfo.transform([](const auto &info) { return info.numComponent == 4; }).value_or(false),
                 });
             }
@@ -184,7 +192,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskJumpFloodSeedRenderer({
-                    .hasBaseColorTexture = material.pbrData.baseColorTexture.has_value(),
+                    .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
+                        return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
+                    }),
                     .hasColorAlphaAttribute = primitiveInfo.colorInfo.transform([](const auto &info) { return info.numComponent == 4; }).value_or(false),
                 });
             }
