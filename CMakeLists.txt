@@ -140,9 +140,14 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
         interface/math/Plane.cppm
+        interface/shader_selector/mask_depth_frag.cppm
+        interface/shader_selector/mask_depth_vert.cppm
+        interface/shader_selector/mask_jump_flood_seed_frag.cppm
+        interface/shader_selector/mask_jump_flood_seed_vert.cppm
         interface/shader_selector/primitive_frag.cppm
         interface/shader_selector/primitive_vert.cppm
         interface/shader_selector/unlit_primitive_frag.cppm
+        interface/shader_selector/unlit_primitive_vert.cppm
         interface/vulkan/attachment_group/DepthPrepass.cppm
         interface/vulkan/attachment_group/JumpFloodSeed.cppm
         interface/vulkan/attachment_group/SceneOpaque.cppm
@@ -249,45 +254,60 @@ target_link_shader_variants(vk-gltf-viewer
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/mask_depth.vert
-    "HAS_BASE_COLOR_TEXTURE" 0 1
+    "HAS_BASE_COLOR_TEXTURE;HAS_COLOR_ALPHA_ATTRIBUTE"
+    "0 0" "0 1"
+    "1 0" "1 1"
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/mask_depth.frag
-    "HAS_BASE_COLOR_TEXTURE" 0 1
+    "HAS_BASE_COLOR_TEXTURE;HAS_COLOR_ALPHA_ATTRIBUTE"
+    "0 0" "0 1"
+    "1 0" "1 1"
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/mask_jump_flood_seed.vert
-    "HAS_BASE_COLOR_TEXTURE" 0 1
+    "HAS_BASE_COLOR_TEXTURE;HAS_COLOR_ALPHA_ATTRIBUTE"
+    "0 0" "0 1"
+    "1 0" "1 1"
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/mask_jump_flood_seed.frag
-    "HAS_BASE_COLOR_TEXTURE" 0 1
+    "HAS_BASE_COLOR_TEXTURE;HAS_COLOR_ALPHA_ATTRIBUTE"
+    "0 0" "0 1"
+    "1 0" "1 1"
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/primitive.vert
-    "TEXCOORD_COUNT;FRAGMENT_SHADER_GENERATED_TBN"
-    "0 0" "0 1"
-    "1 0" "1 1"
-    "2 0" "2 1"
-    "3 0" "3 1"
-    "4 0" "4 1"
+    "TEXCOORD_COUNT;HAS_COLOR_ATTRIBUTE;FRAGMENT_SHADER_GENERATED_TBN"
+    "0 0 0" "0 0 1" "0 1 0" "0 1 1"
+    "1 0 0" "1 0 1" "1 1 0" "1 1 1"
+    "2 0 0" "2 0 1" "2 1 0" "2 1 1"
+    "3 0 0" "3 0 1" "3 1 0" "3 1 1"
+    "4 0 0" "4 0 1" "4 1 0" "4 1 1"
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/primitive.frag
-    "TEXCOORD_COUNT;FRAGMENT_SHADER_GENERATED_TBN;ALPHA_MODE"
-    "0 0 0" "0 0 1" "0 0 2" "0 1 0" "0 1 1" "0 1 2"
-    "1 0 0" "1 0 1" "1 0 2" "1 1 0" "1 1 1" "1 1 2"
-    "2 0 0" "2 0 1" "2 0 2" "2 1 0" "2 1 1" "2 1 2"
-    "3 0 0" "3 0 1" "3 0 2" "3 1 0" "3 1 1" "3 1 2"
-    "4 0 0" "4 0 1" "4 0 2" "4 1 0" "4 1 1" "4 1 2"
+    "TEXCOORD_COUNT;HAS_COLOR_ATTRIBUTE;FRAGMENT_SHADER_GENERATED_TBN;ALPHA_MODE"
+    "0 0 0 0" "0 0 0 1" "0 0 0 2" "0 0 1 0" "0 0 1 1" "0 0 1 2"
+    "0 1 0 0" "0 1 0 1" "0 1 0 2" "0 1 1 0" "0 1 1 1" "0 1 1 2"
+    "1 0 0 0" "1 0 0 1" "1 0 0 2" "1 0 1 0" "1 0 1 1" "1 0 1 2"
+    "1 1 0 0" "1 1 0 1" "1 1 0 2" "1 1 1 0" "1 1 1 1" "1 1 1 2"
+    "2 0 0 0" "2 0 0 1" "2 0 0 2" "2 0 1 0" "2 0 1 1" "2 0 1 2"
+    "2 1 0 0" "2 1 0 1" "2 1 0 2" "2 1 1 0" "2 1 1 1" "2 1 1 2"
+    "3 0 0 0" "3 0 0 1" "3 0 0 2" "3 0 1 0" "3 0 1 1" "3 0 1 2"
+    "3 1 0 0" "3 1 0 1" "3 1 0 2" "3 1 1 0" "3 1 1 1" "3 1 1 2"
+    "4 0 0 0" "4 0 0 1" "4 0 0 2" "4 0 1 0" "4 0 1 1" "4 0 1 2"
+    "4 1 0 0" "4 1 0 1" "4 1 0 2" "4 1 1 0" "4 1 1 1" "4 1 1 2"
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/unlit_primitive.vert
-    "HAS_BASE_COLOR_TEXTURE" 0 1
+    "HAS_BASE_COLOR_TEXTURE;HAS_COLOR_ATTRIBUTE"
+    "0 0" "0 1"
+    "1 0" "1 1"
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/unlit_primitive.frag
-    "HAS_BASE_COLOR_TEXTURE;ALPHA_MODE"
-    "0 0" "0 1" "0 2"
-    "1 0" "1 1" "1 2"
+    "HAS_BASE_COLOR_TEXTURE;HAS_COLOR_ATTRIBUTE;ALPHA_MODE"
+    "0 0 0" "0 0 1" "0 0 2" "0 1 0" "0 1 1" "0 1 2"
+    "1 0 0" "1 0 1" "1 0 2" "1 1 0" "1 1 1" "1 1 2"
 )

@@ -8,9 +8,19 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
+#define HAS_VARIADIC_IN HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ATTRIBUTE
+
 layout (location = 0) flat in uint inMaterialIndex;
+#if HAS_VARIADIC_IN
+layout (location = 1) in FS_VARIADIC_IN {
 #if HAS_BASE_COLOR_TEXTURE
-layout (location = 1) in vec2 inBaseColorTexcoord;
+    vec2 baseColorTexcoord;
+#endif
+
+#if HAS_COLOR_ATTRIBUTE
+    vec4 color;
+#endif
+} variadic_in;
 #endif
 
 layout (location = 0) out vec4 outColor;
@@ -36,7 +46,7 @@ void writeOutput(vec4 color) {
     outColor = vec4(color.rgb, 1.0);
 #elif ALPHA_MODE == 1
 #if HAS_BASE_COLOR_TEXTURE
-    color.a *= 1.0 + geometricMean(textureQueryLod(textures[int(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord)) * 0.25;
+    color.a *= 1.0 + geometricMean(textureQueryLod(textures[int(MATERIAL.baseColorTextureIndex) + 1], variadic_in.baseColorTexcoord)) * 0.25;
     // Apply sharpness to the alpha.
     // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
     color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
@@ -57,7 +67,10 @@ void writeOutput(vec4 color) {
 void main(){
     vec4 baseColor = MATERIAL.baseColorFactor;
 #if HAS_BASE_COLOR_TEXTURE
-    baseColor *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord);
+    baseColor *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], variadic_in.baseColorTexcoord);
+#endif
+#if HAS_COLOR_ATTRIBUTE
+    baseColor *= variadic_in.color;
 #endif
 
     writeOutput(baseColor);

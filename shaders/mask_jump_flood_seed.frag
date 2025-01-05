@@ -8,9 +8,18 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
+#define HAS_VARIADIC_IN HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ALPHA_ATTRIBUTE
+
 layout (location = 0) flat in uint inMaterialIndex;
+#if HAS_VARIADIC_IN
+layout (location = 1) in FRAG_VARIDIC_IN {
 #if HAS_BASE_COLOR_TEXTURE
-layout (location = 1) in vec2 inBaseColorTexcoord;
+    vec2 baseColorTexcoord;
+#endif
+#if HAS_COLOR_ALPHA_ATTRIBUTE
+    float colorAlpha;
+#endif
+} variadic_in;
 #endif
 
 layout (location = 0) out uvec2 outCoordinate;
@@ -23,7 +32,10 @@ layout (set = 0, binding = 2) uniform sampler2D textures[];
 void main(){
     float baseColorAlpha = MATERIAL.baseColorFactor.a;
 #if HAS_BASE_COLOR_TEXTURE
-    baseColorAlpha *= texture(textures[uint(MATERIAL.baseColorTextureIndex) + 1], inBaseColorTexcoord).a;
+    baseColorAlpha *= texture(textures[uint(MATERIAL.baseColorTextureIndex) + 1], variadic_in.baseColorTexcoord).a;
+#endif
+#if HAS_COLOR_ALPHA_ATTRIBUTE
+    baseColorAlpha *= variadic_in.colorAlpha;
 #endif
     if (baseColorAlpha < MATERIAL.alphaCutoff) discard;
 

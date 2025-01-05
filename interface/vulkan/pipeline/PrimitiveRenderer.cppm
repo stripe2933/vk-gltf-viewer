@@ -1,8 +1,13 @@
+module;
+
+#include <cassert>
+
 export module vk_gltf_viewer:vulkan.pipeline.PrimitiveRenderer;
 
 import std;
 export import fastgltf;
 import vku;
+import :helpers.ranges;
 import :shader_selector.primitive_vert;
 import :shader_selector.primitive_frag;
 export import :vulkan.pl.Primitive;
@@ -14,23 +19,41 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         const pl::Primitive &pipelineLayout,
         const rp::Scene &sceneRenderPass,
         std::uint32_t texcoordCount,
+        const std::optional<std::uint8_t> &colorComponentCount,
         bool fragmentShaderGeneratedTBN,
         fastgltf::AlphaMode alphaMode
     ) {
+        static constexpr std::array vertexShaderSpecializationMapEntries {
+            vk::SpecializationMapEntry { 0, 0, sizeof(std::uint32_t) },
+        };
+
+        std::array vertexShaderSpecializationData { 0U };
+        if (colorComponentCount) {
+            assert(ranges::one_of(*colorComponentCount, 3, 4));
+            get<0>(vertexShaderSpecializationData) = *colorComponentCount;
+        }
+
+        const vk::SpecializationInfo vertexShaderSpecializationInfo {
+            vertexShaderSpecializationMapEntries,
+            vk::ArrayProxyNoTemporaries<const std::uint32_t> { vertexShaderSpecializationData },
+        };
+
+        const vku::RefHolder pipelineStages = createPipelineStages(
+            device,
+            vku::Shader {
+                shader_selector::primitive_vert(texcoordCount, colorComponentCount.has_value(), fragmentShaderGeneratedTBN),
+                vk::ShaderStageFlagBits::eVertex,
+                &vertexShaderSpecializationInfo,
+            },
+            vku::Shader {
+                shader_selector::primitive_frag(texcoordCount, colorComponentCount.has_value(), fragmentShaderGeneratedTBN, alphaMode),
+                vk::ShaderStageFlagBits::eFragment,
+            });
+
         switch (alphaMode) {
             case fastgltf::AlphaMode::Opaque:
                 return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                    createPipelineStages(
-                        device,
-                        vku::Shader {
-                            shader_selector::primitive_vert(texcoordCount, fragmentShaderGeneratedTBN),
-                            vk::ShaderStageFlagBits::eVertex,
-                        },
-                        vku::Shader {
-                            shader_selector::primitive_frag(texcoordCount, fragmentShaderGeneratedTBN, fastgltf::AlphaMode::Opaque),
-                            vk::ShaderStageFlagBits::eFragment,
-                        }).get(),
-                    *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
+                    pipelineStages.get(), *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},
                         true, true, vk::CompareOp::eGreater, // Use reverse Z.
@@ -48,17 +71,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 };
             case fastgltf::AlphaMode::Mask:
                 return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                    createPipelineStages(
-                        device,
-                        vku::Shader {
-                            shader_selector::primitive_vert(texcoordCount, fragmentShaderGeneratedTBN),
-                            vk::ShaderStageFlagBits::eVertex,
-                        },
-                        vku::Shader {
-                            shader_selector::primitive_frag(texcoordCount, fragmentShaderGeneratedTBN, fastgltf::AlphaMode::Mask),
-                            vk::ShaderStageFlagBits::eFragment,
-                        }).get(),
-                    *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
+                    pipelineStages.get(), *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},
                         true, true, vk::CompareOp::eGreater, // Use reverse Z.
@@ -82,17 +95,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 };
             case fastgltf::AlphaMode::Blend:
                 return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                    createPipelineStages(
-                        device,
-                        vku::Shader {
-                            shader_selector::primitive_vert(texcoordCount, fragmentShaderGeneratedTBN),
-                            vk::ShaderStageFlagBits::eVertex,
-                        },
-                        vku::Shader {
-                            shader_selector::primitive_frag(texcoordCount, fragmentShaderGeneratedTBN, fastgltf::AlphaMode::Blend),
-                            vk::ShaderStageFlagBits::eFragment,
-                        }).get(),
-                    *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
+                    pipelineStages.get(), *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
                     .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                         {},
                         false, false,

@@ -11,23 +11,34 @@
 #include "spherical_harmonics.glsl"
 #include "types.glsl"
 
+#define HAS_VARIADIC_IN !FRAGMENT_SHADER_GENERATED_TBN || TEXCOORD_COUNT >= 1 || HAS_COLOR_ATTRIBUTE
+
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
 layout (location = 0) in vec3 inPosition;
 layout (location = 1) flat in uint inMaterialIndex;
+#if HAS_VARIADIC_IN
+layout (location = 2) in FS_VARIADIC_IN {
+#if !FRAGMENT_SHADER_GENERATED_TBN
+    mat3 tbn;
+#endif
+
 #if TEXCOORD_COUNT == 1
-layout (location = 2) in vec2 inTexcoord;
+    vec2 texcoord;
 #elif TEXCOORD_COUNT == 2
-layout (location = 2) in mat2 inTexcoords;
-#elif TEXCOORD_COUNT >= 3
-layout (location = 2) in mat3x2 inTexcoords;
-#elif TEXCOORD_COUNT >= 4
-layout (location = 2) in mat4x2 inTexcoords;
+    mat2 texcoords;
+#elif TEXCOORD_COUNT == 3
+    mat3x2 texcoords;
+#elif TEXCOORD_COUNT == 4
+    mat4x2 texcoords;
 #elif TEXCOORD_COUNT >= 5
 #error "Maximum texcoord count exceeded."
 #endif
-#if !FRAGMENT_SHADER_GENERATED_TBN
-layout (location = TEXCOORD_COUNT + 2) in mat3 inTBN;
+
+#if HAS_COLOR_ATTRIBUTE
+    vec4 color;
+#endif
+} variadic_in;
 #endif
 
 layout (location = 0) out vec4 outColor;
@@ -61,11 +72,11 @@ layout (early_fragment_tests) in;
 
 #if TEXCOORD_COUNT == 1
 vec2 getTexcoord(uint texcoordIndex) {
-    return inTexcoord;
+    return variadic_in.texcoord;
 }
 #elif TEXCOORD_COUNT >= 2
 vec2 getTexcoord(uint texcoordIndex) {
-    return inTexcoords[texcoordIndex];
+    return variadic_in.texcoords[texcoordIndex];
 }
 #endif
 
@@ -110,6 +121,9 @@ void main(){
 #if TEXCOORD_COUNT >= 1
     baseColor *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], getTexcoord(MATERIAL.baseColorTexcoordIndex));
 #endif
+#if HAS_COLOR_ATTRIBUTE
+    baseColor *= variadic_in.color;
+#endif
 
     float metallic = MATERIAL.metallicFactor;
     float roughness = MATERIAL.roughnessFactor;
@@ -136,13 +150,13 @@ void main(){
     if (int(MATERIAL.normalTextureIndex) != -1){
         vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], getTexcoord(MATERIAL.normalTexcoordIndex)).rgb;
         vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
-        N = normalize(inTBN * scaledNormal);
+        N = normalize(variadic_in.tbn * scaledNormal);
     }
     else {
-        N = normalize(inTBN[2]);
+        N = normalize(variadic_in.tbn[2]);
     }
 #else
-    N = normalize(inTBN[2]);
+    N = normalize(variadic_in.tbn[2]);
 #endif
 
     float occlusion = MATERIAL.occlusionStrength;

@@ -129,15 +129,19 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::gltf::Asse
             const auto normalInfo = primitiveInfo.normalInfo.value_or(AssetPrimitiveInfo::AttributeBufferInfo{});
             const auto tangentInfo = primitiveInfo.tangentInfo.value_or(AssetPrimitiveInfo::AttributeBufferInfo{});
 
+            // If color is not presented, it is not used in the shader. Therefore, it is okay to pass nullptr into shaders.
+            const auto colorInfo = primitiveInfo.colorInfo.value_or(AssetPrimitiveInfo::ColorAttributeBufferInfo{});
+
             return GpuPrimitive {
                 .pPositionBuffer = primitiveInfo.positionInfo.address,
                 .pNormalBuffer = normalInfo.address,
                 .pTangentBuffer = tangentInfo.address,
                 .pTexcoordAttributeMappingInfoBuffer = primitiveInfo.texcoordsInfo.pMappingBuffer,
-                .pColorAttributeMappingInfoBuffer = 0ULL, // TODO: implement color attribute mapping.
+                .pColorBuffer = colorInfo.address,
                 .positionByteStride = primitiveInfo.positionInfo.byteStride,
                 .normalByteStride = normalInfo.byteStride,
                 .tangentByteStride = tangentInfo.byteStride,
+                .colorByteStride = colorInfo.byteStride,
                 .materialIndex = primitiveInfo.materialIndex.transform(padMaterialIndex).value_or(0U),
             };
         }),

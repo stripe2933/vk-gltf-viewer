@@ -37,11 +37,11 @@ struct Primitive {
     uint64_t pNormalBuffer;
     uint64_t pTangentBuffer;
     IndexedAttributeMappingInfos texcoordAttributeMappingInfos;
-    IndexedAttributeMappingInfos colorAttributeMappingInfos;
+    uint64_t pColorBuffer;
     uint8_t positionByteStride;
     uint8_t normalByteStride;
     uint8_t tangentByteStride;
-    uint8_t padding;
+    uint8_t colorByteStride;
     uint materialIndex;
 };
 

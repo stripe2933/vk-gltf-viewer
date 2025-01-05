@@ -4,8 +4,8 @@ import std;
 import vku;
 import :shader.depth_vert;
 import :shader.depth_frag;
-import :shader.mask_depth_vert;
-import :shader.mask_depth_frag;
+import :shader_selector.mask_depth_vert;
+import :shader_selector.mask_depth_frag;
 export import :vulkan.pl.PrimitiveNoShading;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -43,22 +43,19 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     [[nodiscard]] vk::raii::Pipeline createMaskDepthRenderer(
         const vk::raii::Device &device,
         const pl::PrimitiveNoShading &pipelineLayout,
-        bool hasBaseColorTexture
+        bool hasBaseColorTexture,
+        bool hasColorAlphaAttribute
     ) {
         return { device, nullptr, vk::StructureChain {
             vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(
                     device,
                     vku::Shader {
-                        hasBaseColorTexture
-                            ? std::span<const std::uint32_t> { shader::mask_depth_vert<1> }
-                            : std::span<const std::uint32_t> { shader::mask_depth_vert<0> },
+                        shader_selector::mask_depth_vert(hasBaseColorTexture, hasColorAlphaAttribute),
                         vk::ShaderStageFlagBits::eVertex,
                     },
                     vku::Shader {
-                        hasBaseColorTexture
-                            ? std::span<const std::uint32_t> { shader::mask_depth_frag<1> }
-                            : std::span<const std::uint32_t> { shader::mask_depth_frag<0> },
+                        shader_selector::mask_depth_frag(hasBaseColorTexture, hasColorAlphaAttribute),
                         vk::ShaderStageFlagBits::eFragment,
                     }).get(),
                 *pipelineLayout, 1, true)
