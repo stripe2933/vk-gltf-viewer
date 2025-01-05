@@ -32,14 +32,14 @@ namespace vk_gltf_viewer::vulkan {
             std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
             bool hasColorAlphaAttribute;
 
-            [[nodiscard]] std::partial_ordering operator<=>(const MaskDepthPipelineKey&) const noexcept = default;
+            [[nodiscard]] bool operator==(const MaskDepthPipelineKey&) const noexcept = default;
         };
 
         struct MaskJumpFloodSeedPipelineKey {
             std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
             bool hasColorAlphaAttribute;
 
-            [[nodiscard]] std::partial_ordering operator<=>(const MaskJumpFloodSeedPipelineKey&) const noexcept = default;
+            [[nodiscard]] bool operator==(const MaskJumpFloodSeedPipelineKey&) const noexcept = default;
         };
 
         struct PrimitivePipelineKey {
