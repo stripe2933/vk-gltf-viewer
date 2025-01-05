@@ -4,8 +4,8 @@ import std;
 import vku;
 import :shader.jump_flood_seed_vert;
 import :shader.jump_flood_seed_frag;
-import :shader.mask_jump_flood_seed_vert;
-import :shader.mask_jump_flood_seed_frag;
+import :shader_selector.mask_jump_flood_seed_vert;
+import :shader_selector.mask_jump_flood_seed_frag;
 export import :vulkan.pl.PrimitiveNoShading;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -43,22 +43,19 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     [[nodiscard]] vk::raii::Pipeline createMaskJumpFloodSeedRenderer(
         const vk::raii::Device &device,
         const pl::PrimitiveNoShading &pipelineLayout,
-        bool hasBaseColorTexture
+        bool hasBaseColorTexture,
+        bool hasColorAlphaAttribute
     ) {
         return { device, nullptr, vk::StructureChain {
             vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(
                     device,
                     vku::Shader {
-                        hasBaseColorTexture
-                            ? std::span<const std::uint32_t> { shader::mask_jump_flood_seed_vert<1> }
-                            : std::span<const std::uint32_t> { shader::mask_jump_flood_seed_vert<0> },
+                        shader_selector::mask_jump_flood_seed_vert(hasBaseColorTexture, hasColorAlphaAttribute),
                         vk::ShaderStageFlagBits::eVertex,
                     },
                     vku::Shader {
-                        hasBaseColorTexture
-                            ? std::span<const std::uint32_t> { shader::mask_jump_flood_seed_frag<1> }
-                            : std::span<const std::uint32_t> { shader::mask_jump_flood_seed_frag<0> },
+                        shader_selector::mask_jump_flood_seed_frag(hasBaseColorTexture, hasColorAlphaAttribute),
                         vk::ShaderStageFlagBits::eFragment,
                     }).get(),
                 *pipelineLayout, 1, true)

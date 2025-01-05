@@ -11,13 +11,23 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
+#define HAS_VARIADIC_OUT HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ALPHA_ATTRIBUTE
+
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer FloatRef { float data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec2Ref { vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec3Ref { vec3 data; };
 layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
 
 layout (location = 0) flat out uint outMaterialIndex;
+#if HAS_VARIADIC_OUT
+layout (location = 1) out VS_VARIADIC_OUT {
 #if HAS_BASE_COLOR_TEXTURE
-layout (location = 1) out vec2 outBaseColorTexcoord;
+    vec2 baseColorTexcoord;
+#endif
+#if HAS_COLOR_ALPHA_ATTRIBUTE
+    float colorAlpha;
+#endif
+} variadic_out;
 #endif
 
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
@@ -39,6 +49,10 @@ layout (push_constant, std430) uniform PushConstant {
 // Functions.
 // --------------------
 
+float getFloat(uint64_t address) {
+    return FloatRef(address).data;
+}
+
 vec3 getVec3(uint64_t address){
     return Vec3Ref(address).data;
 }
@@ -57,7 +71,10 @@ vec2 getTexcoord(uint texcoordIndex){
 void main(){
     outMaterialIndex = MATERIAL_INDEX;
 #if HAS_BASE_COLOR_TEXTURE
-    outBaseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
+    variadic_out.baseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
+#endif
+#if HAS_COLOR_ALPHA_ATTRIBUTE
+    variadic_out.colorAlpha = getFloat(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex + 12);
 #endif
 
     vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex);

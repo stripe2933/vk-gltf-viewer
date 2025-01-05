@@ -1,10 +1,15 @@
+module;
+
+#include <cassert>
+
 export module vk_gltf_viewer:vulkan.pipeline.UnlitPrimitiveRenderer;
 
 import std;
-import vku;
 export import fastgltf;
-import :shader.unlit_primitive_vert;
+import vku;
+import :helpers.ranges;
 import :shader_selector.unlit_primitive_frag;
+import :shader_selector.unlit_primitive_vert;
 export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
 
@@ -14,24 +19,40 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         const pl::Primitive &layout,
         const rp::Scene &sceneRenderPass,
         bool hasBaseColorTexture,
+        const std::optional<std::uint8_t> &colorComponentCount,
         fastgltf::AlphaMode alphaMode
     ) {
+        static constexpr std::array vertexShaderSpecializationMapEntries {
+            vk::SpecializationMapEntry { 0, 0, sizeof(std::uint32_t) },
+        };
+
+        std::array vertexShaderSpecializationData { 0U };
+        if (colorComponentCount) {
+            assert(ranges::one_of(*colorComponentCount, 3, 4));
+            get<0>(vertexShaderSpecializationData) = *colorComponentCount;
+        }
+
+        const vk::SpecializationInfo vertexShaderSpecializationInfo {
+            vertexShaderSpecializationMapEntries,
+            vk::ArrayProxyNoTemporaries<const std::uint32_t> { vertexShaderSpecializationData },
+        };
+
+        const vku::RefHolder pipelineStages = createPipelineStages(
+            device,
+            vku::Shader {
+                shader_selector::unlit_primitive_vert(hasBaseColorTexture, colorComponentCount.has_value()),
+                vk::ShaderStageFlagBits::eVertex,
+                &vertexShaderSpecializationInfo,
+            },
+            vku::Shader {
+                shader_selector::unlit_primitive_frag(hasBaseColorTexture, colorComponentCount.has_value(), alphaMode),
+                vk::ShaderStageFlagBits::eFragment,
+            });
+
         switch (alphaMode) {
             case fastgltf::AlphaMode::Opaque:
                 return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                    createPipelineStages(
-                        device,
-                        vku::Shader {
-                            hasBaseColorTexture
-                                ? std::span<const std::uint32_t> { shader::unlit_primitive_vert<1> }
-                                : std::span<const std::uint32_t> { shader::unlit_primitive_vert<0> },
-                            vk::ShaderStageFlagBits::eVertex,
-                        },
-                        vku::Shader {
-                            shader_selector::unlit_primitive_frag(hasBaseColorTexture, alphaMode),
-                            vk::ShaderStageFlagBits::eFragment,
-                        }).get(),
-                    *layout, 1, true, vk::SampleCountFlagBits::e4)
+                    pipelineStages.get(), *layout, 1, true, vk::SampleCountFlagBits::e4)
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},
                         true, true, vk::CompareOp::eGreater, // Use reverse Z.
@@ -49,19 +70,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 };
             case fastgltf::AlphaMode::Mask:
                 return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                    createPipelineStages(
-                        device,
-                        vku::Shader {
-                            hasBaseColorTexture
-                                ? std::span<const std::uint32_t> { shader::unlit_primitive_vert<1> }
-                                : std::span<const std::uint32_t> { shader::unlit_primitive_vert<0> },
-                            vk::ShaderStageFlagBits::eVertex,
-                        },
-                        vku::Shader {
-                            shader_selector::unlit_primitive_frag(hasBaseColorTexture, alphaMode),
-                            vk::ShaderStageFlagBits::eFragment,
-                        }).get(),
-                    *layout, 1, true, vk::SampleCountFlagBits::e4)
+                    pipelineStages.get(), *layout, 1, true, vk::SampleCountFlagBits::e4)
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},
                         true, true, vk::CompareOp::eGreater, // Use reverse Z.
@@ -85,19 +94,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 };
             case fastgltf::AlphaMode::Blend:
                 return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                    createPipelineStages(
-                        device,
-                        vku::Shader {
-                            hasBaseColorTexture
-                                ? std::span<const std::uint32_t> { shader::unlit_primitive_vert<1> }
-                                : std::span<const std::uint32_t> { shader::unlit_primitive_vert<0> },
-                            vk::ShaderStageFlagBits::eVertex,
-                        },
-                        vku::Shader {
-                            shader_selector::unlit_primitive_frag(hasBaseColorTexture, alphaMode),
-                            vk::ShaderStageFlagBits::eFragment,
-                        }).get(),
-                    *layout, 1, true, vk::SampleCountFlagBits::e4)
+                    pipelineStages.get(), *layout, 1, true, vk::SampleCountFlagBits::e4)
                     .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                         {},
                         false, false,

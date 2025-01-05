@@ -140,11 +140,11 @@ namespace vk_gltf_viewer::gltf {
             vk::DeviceAddress pNormalBuffer;
             vk::DeviceAddress pTangentBuffer;
             vk::DeviceAddress pTexcoordAttributeMappingInfoBuffer;
-            vk::DeviceAddress pColorAttributeMappingInfoBuffer;
+            vk::DeviceAddress pColorBuffer;
             std::uint8_t positionByteStride;
             std::uint8_t normalByteStride;
             std::uint8_t tangentByteStride;
-            char padding[1];
+            std::uint8_t colorByteStride;
             std::uint32_t materialIndex;
         };
 
@@ -447,7 +447,9 @@ namespace vk_gltf_viewer::gltf {
                         }
                         primitiveInfo.texcoordsInfo.attributeInfos[index] = getAttributeBufferInfo();
                     }
-                    // TODO: COLOR_<i> attribute processing.
+                    else if (attributeName == "COLOR_0"sv) {
+                        primitiveInfo.colorInfo.emplace(getAttributeBufferInfo(), getNumComponents(accessor.type));
+                    }
                 }
             }
 
