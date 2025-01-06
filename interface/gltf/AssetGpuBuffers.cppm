@@ -469,35 +469,34 @@ namespace vk_gltf_viewer::gltf {
                 | std::views::filter(decomposer([&](const fastgltf::Primitive *pPrimitive, AssetPrimitiveInfo &primitiveInfo) {
                     // Skip if primitive already has a tangent attribute.
                     if (primitiveInfo.tangentInfo) return false;
+
+                    const auto &materialIndex = pPrimitive->materialIndex;
                     // Skip if primitive doesn't have a material.
-                    if (const auto &materialIndex = pPrimitive->materialIndex; !materialIndex) return false;
-                    // Skip if primitive doesn't have a normal texture.
-                    else if (!asset.materials[*materialIndex].normalTexture) return false;
+                    if (!materialIndex) return false;
+                    // Skip if primitive material doesn't have a normal texture.
+                    if (!asset.materials[*materialIndex].normalTexture) return false;
+
                     // Skip if primitive is non-indexed geometry (screen-space normal and tangent will be generated in the shader).
-                    return pPrimitive->indicesAccessor.has_value();
+                    if (!pPrimitive->indicesAccessor) return false;
+
+                    // Skip if primitive doesn't have normal attribute (screen-space normal and tangent will be generated in the shader).
+                    if (!primitiveInfo.normalInfo.has_value()) return false;
+
+                    return true;
                 }))
                 | std::views::transform(decomposer([&](const fastgltf::Primitive *pPrimitive, AssetPrimitiveInfo &primitiveInfo) {
-                    // Validate the constraints for MikktSpaceInterface.
-                    if (auto normalIt = pPrimitive->findAttribute("NORMAL"); normalIt == pPrimitive->attributes.end()) {
-                        throw std::runtime_error { "Missing NORMAL attribute" };
-                    }
-                    else if (auto texcoordIt = pPrimitive->findAttribute(std::format("TEXCOORD_{}", asset.materials[*pPrimitive->materialIndex].normalTexture->texCoordIndex));
-                        texcoordIt == pPrimitive->attributes.end()) {
-                        throw std::runtime_error { "Missing TEXCOORD attribute" };
-                    }
-                    else {
-                        return std::pair<AssetPrimitiveInfo*, algorithm::MikktSpaceMesh<BufferDataAdapter>> {
-                            std::piecewise_construct,
-                            std::tuple { &primitiveInfo },
-                            std::tie(
-                                asset,
-                                asset.accessors[*pPrimitive->indicesAccessor],
-                                asset.accessors[pPrimitive->findAttribute("POSITION")->accessorIndex],
-                                asset.accessors[normalIt->accessorIndex],
-                                asset.accessors[texcoordIt->accessorIndex],
-                                adapter),
-                        };
-                    }
+                    const std::size_t texcoordIndex = asset.materials[*pPrimitive->materialIndex].normalTexture->texCoordIndex;
+                    return std::pair<AssetPrimitiveInfo*, algorithm::MikktSpaceMesh<BufferDataAdapter>> {
+                        std::piecewise_construct,
+                        std::tuple { &primitiveInfo },
+                        std::tie(
+                            asset,
+                            asset.accessors[*pPrimitive->indicesAccessor],
+                            asset.accessors[pPrimitive->findAttribute("POSITION")->accessorIndex],
+                            asset.accessors[pPrimitive->findAttribute("NORMAL")->accessorIndex],
+                            asset.accessors[pPrimitive->findAttribute(std::format("TEXCOORD_{}", texcoordIndex))->accessorIndex],
+                            adapter),
+                    };
                 }))
                 | std::ranges::to<std::vector>();
 
