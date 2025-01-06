@@ -11,8 +11,15 @@ import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
 
-#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
+[[nodiscard]] std::pair<glm::mat2, glm::vec2> getTextureTransformMatrixPair(const fastgltf::TextureTransform &transform) noexcept {
+    const float c = std::cos(transform.rotation), s = std::sin(transform.rotation);
+    return {
+        { // Note: column major. A row in code actually means a column in the matrix.
+            transform.uvScale[0] * c, transform.uvScale[0] * -s,
+            transform.uvScale[1] * s, transform.uvScale[1] * c },
+        { transform.uvOffset[0], transform.uvOffset[1] },
+    };
+}
 
 bool vk_gltf_viewer::gltf::AssetGpuBuffers::updatePrimitiveMaterial(
     const fastgltf::Primitive &primitive,
@@ -77,24 +84,64 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createMaterialBuffer
                 if (const auto& baseColorTexture = material.pbrData.baseColorTexture) {
                     gpuMaterial.baseColorTexcoordIndex = baseColorTexture->texCoordIndex;
                     gpuMaterial.baseColorTextureIndex = static_cast<std::int16_t>(baseColorTexture->textureIndex);
+
+                    if (const auto &transform = baseColorTexture->transform) {
+                        std::tie(gpuMaterial.baseColorTextureTransformUpperLeft2x2, gpuMaterial.baseColorTextureTransformOffset)
+                            = getTextureTransformMatrixPair(*transform);
+                        if (transform->texCoordIndex) {
+                            gpuMaterial.baseColorTexcoordIndex = *transform->texCoordIndex;
+                        }
+                    }
                 }
                 if (const auto& metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture) {
                     gpuMaterial.metallicRoughnessTexcoordIndex = metallicRoughnessTexture->texCoordIndex;
                     gpuMaterial.metallicRoughnessTextureIndex = static_cast<std::int16_t>(metallicRoughnessTexture->textureIndex);
+
+                    if (const auto &transform = metallicRoughnessTexture->transform) {
+                        std::tie(gpuMaterial.metallicRoughnessTextureTransformUpperLeft2x2, gpuMaterial.metallicRoughnessTextureTransformOffset)
+                            = getTextureTransformMatrixPair(*transform);
+                        if (transform->texCoordIndex) {
+                            gpuMaterial.metallicRoughnessTexcoordIndex = *transform->texCoordIndex;
+                        }
+                    }
                 }
                 if (const auto& normalTexture = material.normalTexture) {
                     gpuMaterial.normalTexcoordIndex = normalTexture->texCoordIndex;
                     gpuMaterial.normalTextureIndex = static_cast<std::int16_t>(normalTexture->textureIndex);
                     gpuMaterial.normalScale = normalTexture->scale;
+
+                    if (const auto &transform = normalTexture->transform) {
+                        std::tie(gpuMaterial.normalTextureTransformUpperLeft2x2, gpuMaterial.normalTextureTransformOffset)
+                            = getTextureTransformMatrixPair(*transform);
+                        if (transform->texCoordIndex) {
+                            gpuMaterial.normalTexcoordIndex = *transform->texCoordIndex;
+                        }
+                    }
                 }
                 if (const auto& occlusionTexture = material.occlusionTexture) {
                     gpuMaterial.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
                     gpuMaterial.occlusionTextureIndex = static_cast<std::int16_t>(occlusionTexture->textureIndex);
                     gpuMaterial.occlusionStrength = occlusionTexture->strength;
+
+                    if (const auto &transform = occlusionTexture->transform) {
+                        std::tie(gpuMaterial.occlusionTextureTransformUpperLeft2x2, gpuMaterial.occlusionTextureTransformOffset)
+                            = getTextureTransformMatrixPair(*transform);
+                        if (transform->texCoordIndex) {
+                            gpuMaterial.occlusionTexcoordIndex = *transform->texCoordIndex;
+                        }
+                    }
                 }
                 if (const auto& emissiveTexture = material.emissiveTexture) {
                     gpuMaterial.emissiveTexcoordIndex = emissiveTexture->texCoordIndex;
                     gpuMaterial.emissiveTextureIndex = static_cast<std::int16_t>(emissiveTexture->textureIndex);
+
+                    if (const auto &transform = emissiveTexture->transform) {
+                        std::tie(gpuMaterial.emissiveTextureTransformUpperLeft2x2, gpuMaterial.emissiveTextureTransformOffset)
+                            = getTextureTransformMatrixPair(*transform);
+                        if (transform->texCoordIndex) {
+                            gpuMaterial.emissiveTexcoordIndex = *transform->texCoordIndex;
+                        }
+                    }
                 }
 
                 return gpuMaterial;

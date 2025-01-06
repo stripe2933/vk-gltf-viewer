@@ -133,7 +133,19 @@ namespace vk_gltf_viewer::gltf {
             float occlusionStrength = 1.f;
             glm::vec3 emissiveFactor = { 0.f, 0.f, 0.f };
             float alphaCutOff;
+            glm::mat2 baseColorTextureTransformUpperLeft2x2;
+            glm::vec2 baseColorTextureTransformOffset;
+            glm::mat2 metallicRoughnessTextureTransformUpperLeft2x2;
+            glm::vec2 metallicRoughnessTextureTransformOffset;
+            glm::mat2 normalTextureTransformUpperLeft2x2;
+            glm::vec2 normalTextureTransformOffset;
+            glm::mat2 occlusionTextureTransformUpperLeft2x2;
+            glm::vec2 occlusionTextureTransformOffset;
+            glm::mat2 emissiveTextureTransformUpperLeft2x2;
+            glm::vec2 emissiveTextureTransformOffset;
+            char padding1[8];
         };
+        static_assert(sizeof(GpuMaterial) == 192);
 
         struct GpuPrimitive {
             vk::DeviceAddress pPositionBuffer;

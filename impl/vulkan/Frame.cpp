@@ -130,6 +130,15 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                 });
             }
             else {
+                constexpr auto fetchTextureTransform = [](const fastgltf::TextureInfo &textureInfo) {
+                    if (textureInfo.transform) {
+                        return textureInfo.transform->rotation != 0.f ? TextureTransform::Type::All : TextureTransform::Type::ScaleAndOffset;
+                    }
+                    else {
+                        return TextureTransform::Type::None;
+                    }
+                };
+
                 result.pipeline = sharedData.getPrimitiveRenderer({
                     .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos | std::views::transform([](const auto &info) {
                         return info.componentType;
@@ -138,6 +147,23 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         return std::pair { info.numComponent, info.componentType };
                     }),
                     .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
+                    .textureTransform = {
+                        .baseColor = material.pbrData.baseColorTexture
+                            .transform(fetchTextureTransform)
+                            .value_or(TextureTransform::Type::None),
+                        .metallicRoughness = material.pbrData.metallicRoughnessTexture
+                            .transform(fetchTextureTransform)
+                            .value_or(TextureTransform::Type::None),
+                        .normal = material.normalTexture
+                            .transform(fetchTextureTransform)
+                            .value_or(TextureTransform::Type::None),
+                        .occlusion = material.occlusionTexture
+                            .transform(fetchTextureTransform)
+                            .value_or(TextureTransform::Type::None),
+                        .emissive = material.emissiveTexture
+                            .transform(fetchTextureTransform)
+                            .value_or(TextureTransform::Type::None),
+                    },
                     .alphaMode = material.alphaMode,
                 });
             }

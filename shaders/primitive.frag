@@ -15,6 +15,8 @@
 
 const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
 
+layout (constant_id = 0) const uint PACKED_TEXTURE_TRANSFORM_TYPES = 0x00000; // [NONE, NONE, NONE, NONE, NONE]
+
 layout (location = 0) in vec3 inPosition;
 layout (location = 1) flat in uint inMaterialIndex;
 #if HAS_VARIADIC_IN
@@ -80,6 +82,16 @@ vec2 getTexcoord(uint texcoordIndex) {
 }
 #endif
 
+vec2 transformTexcoord(vec2 texcoord, mat2x2 transformUpperLeft2x2, vec2 transformOffset, uint TRANSFORM_TYPE) {
+    switch (TRANSFORM_TYPE & 0xFU) {
+    case 1U: // scale + offset
+        return vec2(transformUpperLeft2x2[0][0], transformUpperLeft2x2[1][1]) * texcoord + transformOffset;
+    case 2U: // scale + offset + rotation
+        return transformUpperLeft2x2 * texcoord + transformOffset;
+    }
+    return texcoord;
+}
+
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness){
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
@@ -119,7 +131,12 @@ void writeOutput(vec4 color) {
 void main(){
     vec4 baseColor = MATERIAL.baseColorFactor;
 #if TEXCOORD_COUNT >= 1
-    baseColor *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], getTexcoord(MATERIAL.baseColorTexcoordIndex));
+    vec2 baseColorTexcoord = getTexcoord(MATERIAL.baseColorTexcoordIndex);
+    baseColorTexcoord = transformTexcoord(
+        baseColorTexcoord,
+        MATERIAL.baseColorTextureTransformUpperLeft2x2, MATERIAL.baseColorTextureTransformOffset,
+        PACKED_TEXTURE_TRANSFORM_TYPES);
+    baseColor *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], baseColorTexcoord);
 #endif
 #if HAS_COLOR_ATTRIBUTE
     baseColor *= variadic_in.color;
@@ -128,7 +145,12 @@ void main(){
     float metallic = MATERIAL.metallicFactor;
     float roughness = MATERIAL.roughnessFactor;
 #if TEXCOORD_COUNT >= 1
-    vec2 metallicRoughness = texture(textures[int(MATERIAL.metallicRoughnessTextureIndex) + 1], getTexcoord(MATERIAL.metallicRoughnessTexcoordIndex)).bg;
+    vec2 metallicRoughnessTexcoord = getTexcoord(MATERIAL.metallicRoughnessTexcoordIndex);
+    metallicRoughnessTexcoord = transformTexcoord(
+        metallicRoughnessTexcoord,
+        MATERIAL.metallicRoughnessTextureTransformUpperLeft2x2, MATERIAL.metallicRoughnessTextureTransformOffset,
+        PACKED_TEXTURE_TRANSFORM_TYPES >> 4U);
+    vec2 metallicRoughness = texture(textures[int(MATERIAL.metallicRoughnessTextureIndex) + 1], metallicRoughnessTexcoord).bg;
     metallic *= metallicRoughness.x;
     roughness *= metallicRoughness.y;
 #endif
@@ -141,14 +163,24 @@ void main(){
 
 #if TEXCOORD_COUNT >= 1
     if (int(MATERIAL.normalTextureIndex) != -1){
-        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], getTexcoord(MATERIAL.normalTexcoordIndex)).rgb;
+        vec2 normalTexcoord = getTexcoord(MATERIAL.normalTexcoordIndex);
+        normalTexcoord = transformTexcoord(
+            normalTexcoord,
+            MATERIAL.normalTextureTransformUpperLeft2x2, MATERIAL.normalTextureTransformOffset,
+            PACKED_TEXTURE_TRANSFORM_TYPES >> 8U);
+        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], normalTexcoord).rgb;
         vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
         N = normalize(mat3(tangent, bitangent, N) * scaledNormal);
     }
 #endif
 #elif TEXCOORD_COUNT >= 1
     if (int(MATERIAL.normalTextureIndex) != -1){
-        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], getTexcoord(MATERIAL.normalTexcoordIndex)).rgb;
+        vec2 normalTexcoord = getTexcoord(MATERIAL.normalTexcoordIndex);
+        normalTexcoord = transformTexcoord(
+            normalTexcoord,
+            MATERIAL.normalTextureTransformUpperLeft2x2, MATERIAL.normalTextureTransformOffset,
+            PACKED_TEXTURE_TRANSFORM_TYPES >> 8U);
+        vec3 tangentNormal = texture(textures[int(MATERIAL.normalTextureIndex) + 1], normalTexcoord).rgb;
         vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
         N = normalize(variadic_in.tbn * scaledNormal);
     }
@@ -161,12 +193,22 @@ void main(){
 
     float occlusion = MATERIAL.occlusionStrength;
 #if TEXCOORD_COUNT >= 1
-    occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[int(MATERIAL.occlusionTextureIndex) + 1], getTexcoord(MATERIAL.occlusionTexcoordIndex)).r - 1.0);
+    vec2 occlusionTexcoord = getTexcoord(MATERIAL.occlusionTexcoordIndex);
+    occlusionTexcoord = transformTexcoord(
+        occlusionTexcoord,
+        MATERIAL.occlusionTextureTransformUpperLeft2x2, MATERIAL.occlusionTextureTransformOffset,
+        PACKED_TEXTURE_TRANSFORM_TYPES >> 12U);
+    occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[int(MATERIAL.occlusionTextureIndex) + 1], occlusionTexcoord).r - 1.0);
 #endif
 
     vec3 emissive = MATERIAL.emissiveFactor;
 #if TEXCOORD_COUNT >= 1
-    emissive *= texture(textures[int(MATERIAL.emissiveTextureIndex) + 1], getTexcoord(MATERIAL.emissiveTexcoordIndex)).rgb;
+    vec2 emissiveTexcoord = getTexcoord(MATERIAL.emissiveTexcoordIndex);
+    emissiveTexcoord = transformTexcoord(
+        emissiveTexcoord,
+        MATERIAL.emissiveTextureTransformUpperLeft2x2, MATERIAL.emissiveTextureTransformOffset,
+        PACKED_TEXTURE_TRANSFORM_TYPES >> 16U);
+    emissive *= texture(textures[int(MATERIAL.emissiveTextureIndex) + 1], emissiveTexcoord).rgb;
 #endif
 
     vec3 V = normalize(pc.viewPosition - inPosition);

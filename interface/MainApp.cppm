@@ -25,6 +25,12 @@ namespace vk_gltf_viewer {
         void run();
 
     private:
+        static constexpr fastgltf::Extensions SUPPORTED_EXTENSIONS
+            = fastgltf::Extensions::KHR_materials_unlit
+            | fastgltf::Extensions::KHR_materials_variants
+            | fastgltf::Extensions::KHR_texture_basisu
+            | fastgltf::Extensions::KHR_texture_transform
+            | fastgltf::Extensions::EXT_mesh_gpu_instancing;
         static constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
 
         /**
@@ -133,7 +139,7 @@ namespace vk_gltf_viewer {
         // glTF resources.
         // --------------------
 
-        fastgltf::Parser parser { fastgltf::Extensions::KHR_materials_unlit | fastgltf::Extensions::KHR_materials_variants | fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::EXT_mesh_gpu_instancing };
+        fastgltf::Parser parser { SUPPORTED_EXTENSIONS };
         std::optional<Gltf> gltf;
 
         // --------------------

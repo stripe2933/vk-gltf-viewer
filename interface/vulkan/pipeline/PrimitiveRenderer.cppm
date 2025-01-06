@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 
 #include <boost/container/static_vector.hpp>
+#include <boost/container_hash/hash.hpp>
 
 export module vk_gltf_viewer:vulkan.pipeline.PrimitiveRenderer;
 
@@ -17,6 +18,33 @@ export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
+    export struct TextureTransform {
+        enum class Type : std::uint8_t {
+            None = 0,
+            ScaleAndOffset = 1,
+            All = 2,
+        };
+
+        Type baseColor = Type::None;
+        Type metallicRoughness = Type::None;
+        Type normal = Type::None;
+        Type occlusion = Type::None;
+        Type emissive = Type::None;
+
+        [[nodiscard]] bool operator==(const TextureTransform&) const noexcept = default;
+
+        // For boost::hash_combine.
+        [[nodiscard]] friend std::size_t hash_value(const TextureTransform &v) {
+            std::size_t seed = 0;
+            boost::hash_combine(seed, std::to_underlying(v.baseColor));
+            boost::hash_combine(seed, std::to_underlying(v.metallicRoughness));
+            boost::hash_combine(seed, std::to_underlying(v.normal));
+            boost::hash_combine(seed, std::to_underlying(v.occlusion));
+            boost::hash_combine(seed, std::to_underlying(v.emissive));
+            return seed;
+        }
+    };
+
     [[nodiscard]] vk::raii::Pipeline createPrimitiveRenderer(
         const vk::raii::Device &device,
         const pl::Primitive &pipelineLayout,
@@ -24,8 +52,13 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         const boost::container::static_vector<fastgltf::ComponentType, 4> &texcoordComponentTypes,
         const std::optional<std::pair<std::uint8_t, fastgltf::ComponentType>> &colorComponentCountAndType,
         bool fragmentShaderGeneratedTBN,
+        const TextureTransform &textureTransform,
         fastgltf::AlphaMode alphaMode
     ) {
+        // --------------------
+        // Vertex shader specialization constants.
+        // --------------------
+
         struct VertexShaderSpecializationData {
             std::uint32_t packedTexcoordComponentTypes = 0x06060606; // [FLOAT, FLOAT, FLOAT, FLOAT]
             std::uint8_t colorComponentCount = 0;
@@ -86,6 +119,48 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             vk::ArrayProxyNoTemporaries<const VertexShaderSpecializationData> { vertexShaderSpecializationData },
         };
 
+        // --------------------
+        // Fragment shader specialization constants.
+        // --------------------
+
+        struct FragmentShaderSpecializationData {
+            std::uint32_t packedTextureTransformTypes = 0x00000; // [NONE, NONE, NONE, NONE, NONE]
+        } fragmentShaderSpecializationData{};
+
+        if (textureTransform.baseColor != TextureTransform::Type::None) {
+            fragmentShaderSpecializationData.packedTextureTransformTypes &= ~0xFU;
+            fragmentShaderSpecializationData.packedTextureTransformTypes |= static_cast<std::uint32_t>(textureTransform.baseColor);
+        }
+        if (textureTransform.metallicRoughness != TextureTransform::Type::None) {
+            fragmentShaderSpecializationData.packedTextureTransformTypes &= ~0xF0U;
+            fragmentShaderSpecializationData.packedTextureTransformTypes |= static_cast<std::uint32_t>(textureTransform.metallicRoughness) << 4;
+        }
+        if (textureTransform.normal != TextureTransform::Type::None) {
+            fragmentShaderSpecializationData.packedTextureTransformTypes &= ~0xF00U;
+            fragmentShaderSpecializationData.packedTextureTransformTypes |= static_cast<std::uint32_t>(textureTransform.normal) << 8;
+        }
+        if (textureTransform.occlusion != TextureTransform::Type::None) {
+            fragmentShaderSpecializationData.packedTextureTransformTypes &= ~0xF000U;
+            fragmentShaderSpecializationData.packedTextureTransformTypes |= static_cast<std::uint32_t>(textureTransform.occlusion) << 12;
+        }
+        if (textureTransform.emissive != TextureTransform::Type::None) {
+            fragmentShaderSpecializationData.packedTextureTransformTypes &= ~0xF0000U;
+            fragmentShaderSpecializationData.packedTextureTransformTypes |= static_cast<std::uint32_t>(textureTransform.emissive) << 16;
+        }
+
+        static constexpr std::array fragmentShaderSpecializationMapEntries {
+            vk::SpecializationMapEntry {
+                0,
+                offsetof(FragmentShaderSpecializationData, packedTextureTransformTypes),
+                sizeof(FragmentShaderSpecializationData::packedTextureTransformTypes),
+            },
+        };
+
+        const vk::SpecializationInfo fragmentShaderSpecializationInfo {
+            fragmentShaderSpecializationMapEntries,
+            vk::ArrayProxyNoTemporaries<const FragmentShaderSpecializationData> { fragmentShaderSpecializationData },
+        };
+
         const vku::RefHolder pipelineStages = createPipelineStages(
             device,
             vku::Shader {
@@ -103,6 +178,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     fragmentShaderGeneratedTBN,
                     alphaMode),
                 vk::ShaderStageFlagBits::eFragment,
+                &fragmentShaderSpecializationInfo,
             });
 
         switch (alphaMode) {

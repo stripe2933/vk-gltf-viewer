@@ -46,6 +46,7 @@ namespace vk_gltf_viewer::vulkan {
             boost::container::static_vector<fastgltf::ComponentType, 4> texcoordComponentTypes;
             std::optional<std::pair<std::uint32_t, fastgltf::ComponentType>> colorComponentCountAndType;
             bool fragmentShaderGeneratedTBN;
+            TextureTransform textureTransform;
             fastgltf::AlphaMode alphaMode;
 
             [[nodiscard]] bool operator==(const PrimitivePipelineKey&) const noexcept = default;
@@ -170,6 +171,7 @@ namespace vk_gltf_viewer::vulkan {
                     key.texcoordComponentTypes,
                     key.colorComponentCountAndType,
                     key.fragmentShaderGeneratedTBN,
+                    key.textureTransform,
                     key.alphaMode);
             }).first->second;
         }
@@ -229,7 +231,7 @@ namespace vk_gltf_viewer::vulkan {
         mutable std::unordered_map<MaskDepthPipelineKey, vk::raii::Pipeline, AggregateHasher<2>> maskDepthPipelines;
         mutable std::optional<vk::raii::Pipeline> jumpFloodSeedRenderer;
         mutable std::unordered_map<MaskJumpFloodSeedPipelineKey, vk::raii::Pipeline, AggregateHasher<2>> maskJumpFloodSeedPipelines;
-        mutable std::unordered_map<PrimitivePipelineKey, vk::raii::Pipeline, AggregateHasher<4>> primitivePipelines;
+        mutable std::unordered_map<PrimitivePipelineKey, vk::raii::Pipeline, AggregateHasher<5>> primitivePipelines;
         mutable std::unordered_map<UnlitPrimitivePipelineKey, vk::raii::Pipeline, AggregateHasher<3>> unlitPrimitivePipelines;
 
         [[nodiscard]] std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> getImGuiSwapchainAttachmentGroup() {
