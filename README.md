@@ -33,7 +33,6 @@ Followings are not supported:
 - Primitive Type except for `TRIANGLES`.
 - Animation.
 - Sparse accessors (indices accessor is supported).
-- Normalized accessors.
 
 ## Performance
 
@@ -93,6 +92,7 @@ The extensions and feature used in this application are quite common in the mode
 - Device Features
   - `VkPhysicalDeviceFeatures`
     - `samplerAnistropy`
+    - `shaderInt16`
     - `shaderInt64`
     - `multiDrawIndirect`
     - `shaderStorageImageWriteWithoutFormat`

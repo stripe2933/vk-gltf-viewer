@@ -348,22 +348,24 @@ namespace vk_gltf_viewer::gltf {
             const auto primitives = asset.meshes | std::views::transform(&fastgltf::Mesh::primitives) | std::views::join;
 
             // Get buffer view indices that are used in primitive attributes.
-            const std::unordered_set attributeBufferViewIndices
-                = primitives
-                | std::views::transform([](const fastgltf::Primitive &primitive) {
-                    return primitive.attributes | std::views::transform(&fastgltf::Attribute::accessorIndex);
-                })
-                | std::views::join
-                | std::views::transform([&](std::size_t accessorIndex) {
-                    const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
+            std::unordered_set<std::size_t> attributeBufferViewIndices;
+            for (const fastgltf::Primitive &primitive : primitives) {
+                for (const fastgltf::Attribute &attribute : primitive.attributes) {
+                    // Process only used attributes.
+                    using namespace std::string_view_literals;
+                    const bool isAttributeUsed
+                        = ranges::one_of(attribute.name, "POSITION"sv, "NORMAL"sv, "TANGENT"sv, "COLOR_0"sv)
+                        || attribute.name.starts_with("TEXCOORD_"sv);
+                    if (!isAttributeUsed) continue;
+
+                    const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
 
                     // Check accessor validity.
                     if (accessor.sparse) throw AssetProcessError::SparseAttributeBufferAccessor;
-                    if (accessor.normalized) throw AssetProcessError::NormalizedAttributeBufferAccessor;
 
-                    return *accessor.bufferViewIndex;
-                })
-                | std::ranges::to<std::unordered_set>();
+                    attributeBufferViewIndices.emplace(accessor.bufferViewIndex.value());
+                }
+            }
 
             // Make an ordered sequence of (bufferViewIndex, bufferViewBytes) pairs.
             const std::vector attributeBufferViewBytes
@@ -414,6 +416,7 @@ namespace vk_gltf_viewer::gltf {
                         return {
                             .address = bufferDeviceAddressMappings.at(*accessor.bufferViewIndex) + accessor.byteOffset,
                             .byteStride = static_cast<std::uint8_t>(byteStride),
+                            .componentType = accessor.componentType,
                         };
                     };
 
@@ -466,35 +469,34 @@ namespace vk_gltf_viewer::gltf {
                 | std::views::filter(decomposer([&](const fastgltf::Primitive *pPrimitive, AssetPrimitiveInfo &primitiveInfo) {
                     // Skip if primitive already has a tangent attribute.
                     if (primitiveInfo.tangentInfo) return false;
+
+                    const auto &materialIndex = pPrimitive->materialIndex;
                     // Skip if primitive doesn't have a material.
-                    if (const auto &materialIndex = pPrimitive->materialIndex; !materialIndex) return false;
-                    // Skip if primitive doesn't have a normal texture.
-                    else if (!asset.materials[*materialIndex].normalTexture) return false;
+                    if (!materialIndex) return false;
+                    // Skip if primitive material doesn't have a normal texture.
+                    if (!asset.materials[*materialIndex].normalTexture) return false;
+
                     // Skip if primitive is non-indexed geometry (screen-space normal and tangent will be generated in the shader).
-                    return pPrimitive->indicesAccessor.has_value();
+                    if (!pPrimitive->indicesAccessor) return false;
+
+                    // Skip if primitive doesn't have normal attribute (screen-space normal and tangent will be generated in the shader).
+                    if (!primitiveInfo.normalInfo.has_value()) return false;
+
+                    return true;
                 }))
                 | std::views::transform(decomposer([&](const fastgltf::Primitive *pPrimitive, AssetPrimitiveInfo &primitiveInfo) {
-                    // Validate the constraints for MikktSpaceInterface.
-                    if (auto normalIt = pPrimitive->findAttribute("NORMAL"); normalIt == pPrimitive->attributes.end()) {
-                        throw std::runtime_error { "Missing NORMAL attribute" };
-                    }
-                    else if (auto texcoordIt = pPrimitive->findAttribute(std::format("TEXCOORD_{}", asset.materials[*pPrimitive->materialIndex].normalTexture->texCoordIndex));
-                        texcoordIt == pPrimitive->attributes.end()) {
-                        throw std::runtime_error { "Missing TEXCOORD attribute" };
-                    }
-                    else {
-                        return std::pair<AssetPrimitiveInfo*, algorithm::MikktSpaceMesh<BufferDataAdapter>> {
-                            std::piecewise_construct,
-                            std::tuple { &primitiveInfo },
-                            std::tie(
-                                asset,
-                                asset.accessors[*pPrimitive->indicesAccessor],
-                                asset.accessors[pPrimitive->findAttribute("POSITION")->accessorIndex],
-                                asset.accessors[normalIt->accessorIndex],
-                                asset.accessors[texcoordIt->accessorIndex],
-                                adapter),
-                        };
-                    }
+                    const std::size_t texcoordIndex = asset.materials[*pPrimitive->materialIndex].normalTexture->texCoordIndex;
+                    return std::pair<AssetPrimitiveInfo*, algorithm::MikktSpaceMesh<BufferDataAdapter>> {
+                        std::piecewise_construct,
+                        std::tuple { &primitiveInfo },
+                        std::tie(
+                            asset,
+                            asset.accessors[*pPrimitive->indicesAccessor],
+                            asset.accessors[pPrimitive->findAttribute("POSITION")->accessorIndex],
+                            asset.accessors[pPrimitive->findAttribute("NORMAL")->accessorIndex],
+                            asset.accessors[pPrimitive->findAttribute(std::format("TEXCOORD_{}", texcoordIndex))->accessorIndex],
+                            adapter),
+                    };
                 }))
                 | std::ranges::to<std::vector>();
 

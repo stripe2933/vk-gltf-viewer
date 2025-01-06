@@ -1,13 +1,14 @@
 export module vk_gltf_viewer:gltf.AssetPrimitiveInfo;
 
 import std;
-export import vulkan_hpp;
+export import fastgltf;
 export import glm;
+export import vulkan_hpp;
 
 namespace vk_gltf_viewer::gltf {
     struct AssetPrimitiveInfo {
         struct IndexBufferInfo { vk::DeviceSize offset; vk::IndexType type; };
-        struct AttributeBufferInfo { vk::DeviceAddress address; std::uint8_t byteStride; };
+        struct AttributeBufferInfo { vk::DeviceAddress address; std::uint8_t byteStride; fastgltf::ComponentType componentType; };
         struct ColorAttributeBufferInfo final : AttributeBufferInfo { std::uint8_t numComponent; };
         struct IndexedAttributeBufferInfos { vk::DeviceAddress pMappingBuffer; std::vector<AttributeBufferInfo> attributeInfos; };
 

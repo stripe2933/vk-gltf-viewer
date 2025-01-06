@@ -1,6 +1,7 @@
 module;
 
 #include <cassert>
+#include <cstddef>
 
 export module vk_gltf_viewer:vulkan.pipeline.UnlitPrimitiveRenderer;
 
@@ -18,34 +19,64 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         const vk::raii::Device &device,
         const pl::Primitive &layout,
         const rp::Scene &sceneRenderPass,
-        bool hasBaseColorTexture,
-        const std::optional<std::uint8_t> &colorComponentCount,
+        const std::optional<fastgltf::ComponentType> &baseColorTexcoordComponentType,
+        const std::optional<std::pair<std::uint8_t, fastgltf::ComponentType>> &colorComponentCountAndType,
         fastgltf::AlphaMode alphaMode
     ) {
-        static constexpr std::array vertexShaderSpecializationMapEntries {
-            vk::SpecializationMapEntry { 0, 0, sizeof(std::uint32_t) },
-        };
+        struct VertexShaderSpecializationData {
+            std::uint32_t texcoordComponentType = 5126; // FLOAT
+            std::uint8_t colorComponentCount = 0;
+            std::uint32_t colorComponentType = 5126; // FLOAT
+        } vertexShaderSpecializationData{};
 
-        std::array vertexShaderSpecializationData { 0U };
-        if (colorComponentCount) {
-            assert(ranges::one_of(*colorComponentCount, 3, 4));
-            get<0>(vertexShaderSpecializationData) = *colorComponentCount;
+        if (baseColorTexcoordComponentType) {
+            vertexShaderSpecializationData.texcoordComponentType = getGLComponentType(*baseColorTexcoordComponentType);
         }
+
+        if (colorComponentCountAndType) {
+            assert(ranges::one_of(colorComponentCountAndType->first, 3, 4));
+            assert(ranges::one_of(colorComponentCountAndType->second, fastgltf::ComponentType::UnsignedByte, fastgltf::ComponentType::UnsignedShort, fastgltf::ComponentType::Float));
+            vertexShaderSpecializationData.colorComponentCount = colorComponentCountAndType->first;
+            vertexShaderSpecializationData.colorComponentType = getGLComponentType(colorComponentCountAndType->second);
+        }
+
+        static constexpr std::array vertexShaderSpecializationMapEntries {
+            vk::SpecializationMapEntry {
+                0,
+                offsetof(VertexShaderSpecializationData, texcoordComponentType),
+                sizeof(VertexShaderSpecializationData::texcoordComponentType),
+             },
+            vk::SpecializationMapEntry {
+                1,
+                offsetof(VertexShaderSpecializationData, colorComponentCount),
+                sizeof(VertexShaderSpecializationData::colorComponentCount),
+            },
+            vk::SpecializationMapEntry {
+                2,
+                offsetof(VertexShaderSpecializationData, colorComponentType),
+                sizeof(VertexShaderSpecializationData::colorComponentType),
+            },
+        };
 
         const vk::SpecializationInfo vertexShaderSpecializationInfo {
             vertexShaderSpecializationMapEntries,
-            vk::ArrayProxyNoTemporaries<const std::uint32_t> { vertexShaderSpecializationData },
+            vk::ArrayProxyNoTemporaries<const VertexShaderSpecializationData> { vertexShaderSpecializationData },
         };
 
         const vku::RefHolder pipelineStages = createPipelineStages(
             device,
             vku::Shader {
-                shader_selector::unlit_primitive_vert(hasBaseColorTexture, colorComponentCount.has_value()),
+                shader_selector::unlit_primitive_vert(
+                    baseColorTexcoordComponentType.has_value(),
+                    colorComponentCountAndType.has_value()),
                 vk::ShaderStageFlagBits::eVertex,
                 &vertexShaderSpecializationInfo,
             },
             vku::Shader {
-                shader_selector::unlit_primitive_frag(hasBaseColorTexture, colorComponentCount.has_value(), alphaMode),
+                shader_selector::unlit_primitive_frag(
+                    baseColorTexcoordComponentType.has_value(),
+                    colorComponentCountAndType.has_value(),
+                    alphaMode),
                 vk::ShaderStageFlagBits::eFragment,
             });
 

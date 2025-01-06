@@ -28,11 +28,11 @@ layout (push_constant) uniform PushConstant {
 // Functions.
 // --------------------
 
-vec3 getVec3(uint64_t address){
-    return Vec3Ref(address).data;
+vec3 getPosition() {
+    return Vec3Ref(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex).data;
 }
 
 void main(){
-    vec3 inPosition = getVec3(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex);
+    vec3 inPosition = getPosition();
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }

@@ -26,6 +26,7 @@ constexpr std::array optionalExtensions {
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
     .setSamplerAnisotropy(true)
+    .setShaderInt16(true)
     .setShaderInt64(true)
     .setMultiDrawIndirect(true)
     .setShaderStorageImageWriteWithoutFormat(true)
@@ -97,6 +98,7 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance 
         const vk::PhysicalDeviceVulkan11Features &vulkan11Features = availableFeatures.get<vk::PhysicalDeviceVulkan11Features>();
         const vk::PhysicalDeviceVulkan12Features &vulkan12Features = availableFeatures.get<vk::PhysicalDeviceVulkan12Features>();
         if (!features.samplerAnisotropy ||
+            !features.shaderInt16 ||
             !features.shaderInt64 ||
             !features.multiDrawIndirect ||
             !features.shaderStorageImageWriteWithoutFormat ||
@@ -186,14 +188,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
             {},
             extensions,
         },
-        vk::PhysicalDeviceFeatures2 {
-            vk::PhysicalDeviceFeatures{}
-                .setSamplerAnisotropy(true)
-                .setShaderInt64(true)
-                .setMultiDrawIndirect(true)
-                .setShaderStorageImageWriteWithoutFormat(true)
-                .setIndependentBlend(true),
-        },
+        vk::PhysicalDeviceFeatures2 { requiredFeatures },
         vk::PhysicalDeviceVulkan11Features{}
             .setShaderDrawParameters(true)
             .setStorageBuffer16BitAccess(true)
