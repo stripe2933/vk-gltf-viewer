@@ -253,6 +253,23 @@ namespace fastgltf {
         throw expected.error();
     }
 
+    /**
+     * @brief Get texture coordinate index from \p textureInfo, respecting KHR_texture_transform extension.
+     *
+     * Fetching texture coordinate index should not rely on \p textureInfo.texCoordIndex directly, because
+     * KHR_texture_transform extension overrides the index. Using this function is encouraged.
+     *
+     * @param textureInfo Texture info to get the texture coordinate index.
+     * @return Texture coordinate index.
+     */
+    export
+    [[nodiscard]] std::size_t getTexcoordIndex(const TextureInfo &textureInfo) noexcept {
+        if (textureInfo.transform && textureInfo.transform->texCoordIndex) {
+            return *textureInfo.transform->texCoordIndex;
+        }
+        return textureInfo.texCoordIndex;
+    }
+
 namespace math {
     /**
      * @brief Convert matrix of type \tp U to matrix of type \tp T.

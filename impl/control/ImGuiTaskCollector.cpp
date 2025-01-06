@@ -568,7 +568,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                         });
                         if (baseColorTextureInfo) {
                             ImGui::LabelText("Texture Index", "%zu", baseColorTextureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", baseColorTextureInfo->texCoordIndex);
+                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*baseColorTextureInfo));
                         }
                     }, baseColorTextureInfo.has_value());
                 });
@@ -593,7 +593,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                         });
                         if (metallicRoughnessTextureInfo) {
                             ImGui::LabelText("Texture Index", "%zu", metallicRoughnessTextureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", metallicRoughnessTextureInfo->texCoordIndex);
+                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*metallicRoughnessTextureInfo));
                         }
                     });
                 });
@@ -610,7 +610,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                             }
                         });
                         ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                        ImGui::LabelText("Texture Coordinate", "%zu", textureInfo->texCoordIndex);
+                        ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
                     });
                 });
             }
@@ -626,7 +626,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                             }
                         });
                         ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                        ImGui::LabelText("Texture Coordinate", "%zu", textureInfo->texCoordIndex);
+                        ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
                     });
                 });
             }
@@ -646,7 +646,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                         });
                         if (textureInfo) {
                             ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", textureInfo->texCoordIndex);
+                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
                         }
                     }, textureInfo.has_value());
                 });

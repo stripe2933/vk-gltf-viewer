@@ -11,6 +11,7 @@ export import glm;
 import :gltf.algorithm.MikktSpaceInterface;
 export import :gltf.AssetPrimitiveInfo;
 export import :gltf.AssetProcessError;
+import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
 import :helpers.type_map;
@@ -497,7 +498,7 @@ namespace vk_gltf_viewer::gltf {
                     return true;
                 }))
                 | std::views::transform(decomposer([&](const fastgltf::Primitive *pPrimitive, AssetPrimitiveInfo &primitiveInfo) {
-                    const std::size_t texcoordIndex = asset.materials[*pPrimitive->materialIndex].normalTexture->texCoordIndex;
+                    const std::size_t texcoordIndex = getTexcoordIndex(*asset.materials[*pPrimitive->materialIndex].normalTexture);
                     return std::pair<AssetPrimitiveInfo*, algorithm::MikktSpaceMesh<BufferDataAdapter>> {
                         std::piecewise_construct,
                         std::tuple { &primitiveInfo },
