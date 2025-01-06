@@ -79,8 +79,8 @@ namespace ImGui {
         Text(str.data(), str.data() + str.size());
     }
 
-    export void HelperMarker(std::string_view description) {
-        TextDisabled("(?)");
+    export void HelperMarker(cpp_util::cstring_view label, std::string_view description) {
+        TextDisabled("%s", label.c_str());
         if (BeginItemTooltip()) {
             TextUnformatted(description);
             EndTooltip();

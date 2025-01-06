@@ -552,6 +552,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 }
             });
 
+            constexpr auto texcoordOverriddenMarker = []() {
+                ImGui::SameLine();
+                ImGui::HelperMarker("(overridden)", "This value is overridden by KHR_texture_transform extension.");
+            };
+
             if (ImGui::CollapsingHeader("Physically Based Rendering")) {
                 ImGui::SeparatorText("Base Color");
                 const auto &baseColorTextureInfo = material.pbrData.baseColorTexture;
@@ -569,6 +574,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                         if (baseColorTextureInfo) {
                             ImGui::LabelText("Texture Index", "%zu", baseColorTextureInfo->textureIndex);
                             ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*baseColorTextureInfo));
+
+                            if (const auto &transform = baseColorTextureInfo->transform) {
+                                texcoordOverriddenMarker();
+
+                                ImGui::SeparatorText("KHR_texture_transform");
+                                ImGui::WithDisabled([&]() { // TODO
+                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                                });
+                            }
                         }
                     }, baseColorTextureInfo.has_value());
                 });
@@ -594,6 +610,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                         if (metallicRoughnessTextureInfo) {
                             ImGui::LabelText("Texture Index", "%zu", metallicRoughnessTextureInfo->textureIndex);
                             ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*metallicRoughnessTextureInfo));
+
+                            if (const auto &transform = metallicRoughnessTextureInfo->transform) {
+                                texcoordOverriddenMarker();
+
+                                ImGui::SeparatorText("KHR_texture_transform");
+                                ImGui::WithDisabled([&]() { // TODO
+                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                                });
+                            }
                         }
                     });
                 });
@@ -611,6 +638,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                         });
                         ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
                         ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
+
+                        if (const auto &transform = textureInfo->transform) {
+                            texcoordOverriddenMarker();
+
+                            ImGui::SeparatorText("KHR_texture_transform");
+                            ImGui::WithDisabled([&]() { // TODO
+                                ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                            });
+                        }
                     });
                 });
             }
@@ -627,6 +665,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                         });
                         ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
                         ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
+
+                        if (const auto &transform = textureInfo->transform) {
+                            texcoordOverriddenMarker();
+
+                            ImGui::SeparatorText("KHR_texture_transform");
+                            ImGui::WithDisabled([&]() { // TODO
+                                ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                            });
+                        }
                     });
                 });
             }
@@ -647,6 +696,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                         if (textureInfo) {
                             ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
                             ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
+
+                            if (const auto &transform = textureInfo->transform) {
+                                texcoordOverriddenMarker();
+
+                                ImGui::SeparatorText("KHR_texture_transform");
+                                ImGui::WithDisabled([&]() { // TODO
+                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                                });
+                            }
                         }
                     }, textureInfo.has_value());
                 });
@@ -701,7 +761,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
         ImGui::SameLine();
-        ImGui::HelperMarker("If all nested nodes have only one child, they will be shown as a single node (with combined name).");
+        ImGui::HelperMarker("(?)", "If all nested nodes have only one child, they will be shown as a single node (with combined name).");
 
         if (bool tristateVisibility = holds_alternative<std::vector<std::optional<bool>>>(visibilities);
             ImGui::Checkbox("Use tristate visibility", &tristateVisibility)) {
@@ -709,6 +769,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
         }
         ImGui::SameLine();
         ImGui::HelperMarker(
+            "(?)",
             "If all children of a node are visible, the node will be checked. "
             "If all children are hidden, the node will be unchecked. "
             "If some children are visible and some are hidden, the node will be in an indeterminate state.");
@@ -974,7 +1035,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
                     constexpr auto noAffectHelperMarker = []() {
                         ImGui::SameLine();
-                        ImGui::HelperMarker("This property will not affect to the actual rendering, as it is calculated from the actual viewport size.");
+                        ImGui::HelperMarker("(?)", "This property will not affect to the actual rendering, as it is calculated from the actual viewport size.");
                     };
 
                     visit(fastgltf::visitor {
@@ -1140,7 +1201,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
                 tasks.emplace_back(std::in_place_type<task::TightenNearFarPlane>);
             }
             ImGui::SameLine();
-            ImGui::HelperMarker("Near/Far plane will be automatically tightened to fit the scene bounding box.");
+            ImGui::HelperMarker("(?)", "Near/Far plane will be automatically tightened to fit the scene bounding box.");
 
             ImGui::WithDisabled([&]() {
                 ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
@@ -1148,7 +1209,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
 
             ImGui::Checkbox("Use Frustum Culling", &useFrustumCulling);
             ImGui::SameLine();
-            ImGui::HelperMarker("The primitives outside the camera frustum will be culled.");
+            ImGui::HelperMarker("(?)", "The primitives outside the camera frustum will be culled.");
         }
 
         if (ImGui::CollapsingHeader("Node selection")) {
