@@ -228,11 +228,11 @@ namespace vk_gltf_viewer::vulkan {
 
         // glTF primitive rendering pipelines.
         mutable std::optional<vk::raii::Pipeline> depthRenderer;
-        mutable std::unordered_map<MaskDepthPipelineKey, vk::raii::Pipeline, AggregateHasher<2>> maskDepthPipelines;
+        mutable std::unordered_map<MaskDepthPipelineKey, vk::raii::Pipeline, AggregateHasher> maskDepthPipelines;
         mutable std::optional<vk::raii::Pipeline> jumpFloodSeedRenderer;
-        mutable std::unordered_map<MaskJumpFloodSeedPipelineKey, vk::raii::Pipeline, AggregateHasher<2>> maskJumpFloodSeedPipelines;
-        mutable std::unordered_map<PrimitivePipelineKey, vk::raii::Pipeline, AggregateHasher<5>> primitivePipelines;
-        mutable std::unordered_map<UnlitPrimitivePipelineKey, vk::raii::Pipeline, AggregateHasher<3>> unlitPrimitivePipelines;
+        mutable std::unordered_map<MaskJumpFloodSeedPipelineKey, vk::raii::Pipeline, AggregateHasher> maskJumpFloodSeedPipelines;
+        mutable std::unordered_map<PrimitivePipelineKey, vk::raii::Pipeline, AggregateHasher> primitivePipelines;
+        mutable std::unordered_map<UnlitPrimitivePipelineKey, vk::raii::Pipeline, AggregateHasher> unlitPrimitivePipelines;
 
         [[nodiscard]] std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> getImGuiSwapchainAttachmentGroup() {
             if (gpu.supportSwapchainMutableFormat) {
