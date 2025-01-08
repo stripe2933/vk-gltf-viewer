@@ -34,25 +34,28 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             const rp::Scene &sceneRenderPass
         ) const {
             const auto vertexShaderSpecializationData = getVertexShaderSpecializationData();
+            const vk::SpecializationInfo vertexShaderSpecializationInfo {
+                SpecializationMap<VertexShaderSpecializationData>::value,
+                vk::ArrayProxyNoTemporaries<const VertexShaderSpecializationData> { vertexShaderSpecializationData },
+            };
+
             const auto fragmentShaderSpecializationData = getFragmentShaderSpecializationData();
+            const vk::SpecializationInfo fragmentShaderSpecializationInfo {
+                SpecializationMap<FragmentShaderSpecializationData>::value,
+                vk::ArrayProxyNoTemporaries<const FragmentShaderSpecializationData> { fragmentShaderSpecializationData },
+            };
 
             const vku::RefHolder pipelineStages = createPipelineStages(
                 device,
                 vku::Shader {
                     std::apply(LIFT(shader_selector::unlit_primitive_vert), getVertexShaderVariants()),
                     vk::ShaderStageFlagBits::eVertex,
-                    vku::unsafeAddress(vk::SpecializationInfo {
-                        SpecializationMap<VertexShaderSpecializationData>::value,
-                        vk::ArrayProxyNoTemporaries<const VertexShaderSpecializationData> { vertexShaderSpecializationData },
-                    }),
+                    &vertexShaderSpecializationInfo
                 },
                 vku::Shader {
                     std::apply(LIFT(shader_selector::unlit_primitive_frag), getFragmentShaderVariants()),
                     vk::ShaderStageFlagBits::eFragment,
-                    vku::unsafeAddress(vk::SpecializationInfo {
-                        SpecializationMap<FragmentShaderSpecializationData>::value,
-                        vk::ArrayProxyNoTemporaries<const FragmentShaderSpecializationData> { fragmentShaderSpecializationData },
-                    }),
+                    &fragmentShaderSpecializationInfo,
                 });
 
             switch (alphaMode) {
