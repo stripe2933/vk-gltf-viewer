@@ -132,10 +132,12 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             else {
                 constexpr auto fetchTextureTransform = [](const fastgltf::TextureInfo &textureInfo) {
                     if (textureInfo.transform) {
-                        return textureInfo.transform->rotation != 0.f ? TextureTransform::Type::All : TextureTransform::Type::ScaleAndOffset;
+                        return textureInfo.transform->rotation != 0.f
+                            ? PrimitiveRendererSpecialization::TextureTransform::All
+                            : PrimitiveRendererSpecialization::TextureTransform::ScaleAndOffset;
                     }
                     else {
-                        return TextureTransform::Type::None;
+                        return PrimitiveRendererSpecialization::TextureTransform::None;
                     }
                 };
 
@@ -147,23 +149,21 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         return std::pair { info.numComponent, info.componentType };
                     }),
                     .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
-                    .textureTransform = {
-                        .baseColor = material.pbrData.baseColorTexture
-                            .transform(fetchTextureTransform)
-                            .value_or(TextureTransform::Type::None),
-                        .metallicRoughness = material.pbrData.metallicRoughnessTexture
-                            .transform(fetchTextureTransform)
-                            .value_or(TextureTransform::Type::None),
-                        .normal = material.normalTexture
-                            .transform(fetchTextureTransform)
-                            .value_or(TextureTransform::Type::None),
-                        .occlusion = material.occlusionTexture
-                            .transform(fetchTextureTransform)
-                            .value_or(TextureTransform::Type::None),
-                        .emissive = material.emissiveTexture
-                            .transform(fetchTextureTransform)
-                            .value_or(TextureTransform::Type::None),
-                    },
+                    .baseColorTextureTransform = material.pbrData.baseColorTexture
+                        .transform(fetchTextureTransform)
+                        .value_or(PrimitiveRendererSpecialization::TextureTransform::None),
+                    .metallicRoughnessTextureTransform = material.pbrData.metallicRoughnessTexture
+                        .transform(fetchTextureTransform)
+                        .value_or(PrimitiveRendererSpecialization::TextureTransform::None),
+                    .normalTextureTransform = material.normalTexture
+                        .transform(fetchTextureTransform)
+                        .value_or(PrimitiveRendererSpecialization::TextureTransform::None),
+                    .occlusionTextureTransform = material.occlusionTexture
+                        .transform(fetchTextureTransform)
+                        .value_or(PrimitiveRendererSpecialization::TextureTransform::None),
+                    .emissiveTextureTransform = material.emissiveTexture
+                        .transform(fetchTextureTransform)
+                        .value_or(PrimitiveRendererSpecialization::TextureTransform::None),
                     .alphaMode = material.alphaMode,
                 });
             }

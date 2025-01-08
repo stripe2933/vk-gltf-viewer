@@ -1,7 +1,5 @@
 module;
 
-#include <cstddef>
-
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vk_gltf_viewer:vulkan.pipeline.PrefilteredmapComputer;
@@ -10,6 +8,7 @@ import std;
 import :math.extended_arithmetic;
 import :shader.prefilteredmap_comp;
 export import :vulkan.Gpu;
+import :vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class PrefilteredmapComputer {
@@ -77,10 +76,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             : std::span<const std::uint32_t> { shader::prefilteredmap_comp<0> },
                         vk::ShaderStageFlagBits::eCompute,
                         vku::unsafeAddress(vk::SpecializationInfo {
-                            vku::unsafeProxy({
-                                vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, roughnessLevels), sizeof(SpecializationConstants::roughnessLevels) },
-                                vk::SpecializationMapEntry { 1, offsetof(SpecializationConstants, samples), sizeof(SpecializationConstants::samples) },
-                            }),
+                            SpecializationMap<SpecializationConstants>::value,
                             vk::ArrayProxyNoTemporaries<const SpecializationConstants>(specializationConstants),
                         }),
                     }).get()[0],

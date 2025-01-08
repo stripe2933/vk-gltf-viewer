@@ -7,17 +7,14 @@ import :helpers.type_map;
 
 namespace vk_gltf_viewer::shader_selector {
     export
-    [[nodiscard]] std::span<const unsigned int> unlit_primitive_vert(bool hasBaseColorTexture, bool hasColorAttribute) {
-        constexpr type_map hasBaseColorTextureMap {
-            make_type_map_entry<std::integral_constant<int, 0>>(false),
-            make_type_map_entry<std::integral_constant<int, 1>>(true),
-        };
-        constexpr type_map hasColorAttributeMap {
-            make_type_map_entry<std::integral_constant<int, 0>>(false),
-            make_type_map_entry<std::integral_constant<int, 1>>(true),
-        };
-        return std::visit([]<int... Is>(std::type_identity<std::integral_constant<int, Is>>...) -> std::span<const unsigned int> {
-            return shader::unlit_primitive_vert<Is...>;
-        }, hasBaseColorTextureMap.get_variant(hasBaseColorTexture), hasColorAttributeMap.get_variant(hasColorAttribute));
+    [[nodiscard]] std::span<const unsigned int> unlit_primitive_vert(int HAS_BASE_COLOR_TEXTURE, int HAS_COLOR_ATTRIBUTE) {
+        constexpr iota_map<2> hasBaseColorTextureMap;
+        constexpr iota_map<2> hasColorAttributeMap;
+        return std::visit(
+            [](auto... Is) -> std::span<const unsigned int> {
+                return shader::unlit_primitive_vert<Is...>;
+            },
+            hasBaseColorTextureMap.get_variant(HAS_BASE_COLOR_TEXTURE),
+            hasColorAttributeMap.get_variant(HAS_COLOR_ATTRIBUTE));
     }
 }

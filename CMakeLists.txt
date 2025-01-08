@@ -189,6 +189,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/sampler/CubemapSampler.cppm
         interface/vulkan/sampler/SingleTexelSampler.cppm
         interface/vulkan/SharedData.cppm
+        interface/vulkan/specialization_constants/SpecializationMap.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
     Boost::container
