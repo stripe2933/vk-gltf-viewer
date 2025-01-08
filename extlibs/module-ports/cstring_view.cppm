@@ -62,5 +62,17 @@ namespace ranges {
 
 #if defined(__cpp_lib_format)
     using std::formatter;
+#elif _LIBCPP_VERSION >= 17 // libc++ support text formatting since version 17, but the feature test macro has not been defined until 19.
+    template <typename CharT, typename Traits>
+    struct formatter<cpp_util::basic_cstring_view<CharT, Traits>> : formatter<basic_string_view<CharT, Traits>> {
+        auto format(cpp_util::basic_cstring_view<CharT, Traits> csv, auto& ctx) const {
+            return formatter<basic_string_view<CharT, Traits>>::format(static_cast<basic_string_view<CharT, Traits>>(csv), ctx);
+        }
+    };
 #endif
+
+// #if __cpp_lib_format_ranges >= 202207L
+//     template <typename CharT, typename Traits>
+//     constexpr range_format format_kind<cpp_util::basic_cstring_view<CharT, Traits>> = range_format::disabled;
+// #endif
 } // namespace std
