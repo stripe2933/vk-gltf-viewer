@@ -15,7 +15,7 @@
 #define HAS_VARIADIC_OUT !FRAGMENT_SHADER_GENERATED_TBN || TEXCOORD_COUNT >= 1 || HAS_COLOR_ATTRIBUTE
 
 layout (constant_id = 0) const uint PACKED_TEXCOORD_COMPONENT_TYPES = 0x06060606; // [FLOAT, FLOAT, FLOAT, FLOAT]
-layout (constant_id = 1) const uint8_t COLOR_COMPONENT_COUNT = uint8_t(0);
+layout (constant_id = 1) const uint COLOR_COMPONENT_COUNT = 0;
 layout (constant_id = 2) const uint COLOR_COMPONENT_TYPE = 5126; // FLOAT
 
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec2Ref { u8vec2 data; };

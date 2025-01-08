@@ -155,7 +155,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     private:
         struct VertexShaderSpecializationData {
             std::uint32_t packedTexcoordComponentTypes = 0x06060606; // [FLOAT, FLOAT, FLOAT, FLOAT]
-            std::uint8_t colorComponentCount = 0;
+            std::uint32_t colorComponentCount = 0;
             std::uint32_t colorComponentType = 5126; // FLOAT
         };
 
