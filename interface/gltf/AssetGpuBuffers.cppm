@@ -11,6 +11,7 @@ export import glm;
 import :gltf.algorithm.MikktSpaceInterface;
 export import :gltf.AssetPrimitiveInfo;
 export import :gltf.AssetProcessError;
+import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
 import :helpers.type_map;
@@ -133,7 +134,19 @@ namespace vk_gltf_viewer::gltf {
             float occlusionStrength = 1.f;
             glm::vec3 emissiveFactor = { 0.f, 0.f, 0.f };
             float alphaCutOff;
+            glm::mat2 baseColorTextureTransformUpperLeft2x2;
+            glm::vec2 baseColorTextureTransformOffset;
+            glm::mat2 metallicRoughnessTextureTransformUpperLeft2x2;
+            glm::vec2 metallicRoughnessTextureTransformOffset;
+            glm::mat2 normalTextureTransformUpperLeft2x2;
+            glm::vec2 normalTextureTransformOffset;
+            glm::mat2 occlusionTextureTransformUpperLeft2x2;
+            glm::vec2 occlusionTextureTransformOffset;
+            glm::mat2 emissiveTextureTransformUpperLeft2x2;
+            glm::vec2 emissiveTextureTransformOffset;
+            char padding1[8];
         };
+        static_assert(sizeof(GpuMaterial) == 192);
 
         struct GpuPrimitive {
             vk::DeviceAddress pPositionBuffer;
@@ -485,7 +498,7 @@ namespace vk_gltf_viewer::gltf {
                     return true;
                 }))
                 | std::views::transform(decomposer([&](const fastgltf::Primitive *pPrimitive, AssetPrimitiveInfo &primitiveInfo) {
-                    const std::size_t texcoordIndex = asset.materials[*pPrimitive->materialIndex].normalTexture->texCoordIndex;
+                    const std::size_t texcoordIndex = getTexcoordIndex(*asset.materials[*pPrimitive->materialIndex].normalTexture);
                     return std::pair<AssetPrimitiveInfo*, algorithm::MikktSpaceMesh<BufferDataAdapter>> {
                         std::piecewise_construct,
                         std::tuple { &primitiveInfo },

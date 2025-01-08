@@ -7,22 +7,16 @@ import :helpers.type_map;
 
 namespace vk_gltf_viewer::shader_selector {
     export
-    [[nodiscard]] std::span<const unsigned int> unlit_primitive_frag(bool hasBaseColorTexture, bool hasColorAttribute, fastgltf::AlphaMode alphaMode) {
-        constexpr type_map hasBaseColorTextureMap {
-            make_type_map_entry<std::integral_constant<int, 0>>(false),
-            make_type_map_entry<std::integral_constant<int, 1>>(true),
-        };
-        constexpr type_map hasColorAttributeMap {
-            make_type_map_entry<std::integral_constant<int, 0>>(false),
-            make_type_map_entry<std::integral_constant<int, 1>>(true),
-        };
-        constexpr type_map alphaModeMap {
-            make_type_map_entry<std::integral_constant<int, 0>>(fastgltf::AlphaMode::Opaque),
-            make_type_map_entry<std::integral_constant<int, 1>>(fastgltf::AlphaMode::Mask),
-            make_type_map_entry<std::integral_constant<int, 2>>(fastgltf::AlphaMode::Blend),
-        };
-        return std::visit([]<int... Is>(std::type_identity<std::integral_constant<int, Is>>...) -> std::span<const unsigned int> {
-            return shader::unlit_primitive_frag<Is...>;
-        }, hasBaseColorTextureMap.get_variant(hasBaseColorTexture), hasColorAttributeMap.get_variant(hasColorAttribute), alphaModeMap.get_variant(alphaMode));
+    [[nodiscard]] std::span<const unsigned int> unlit_primitive_frag(int HAS_BASE_COLOR_TEXTURE, int HAS_COLOR_ATTRIBUTE, int ALPHA_MODE) {
+        constexpr iota_map<2> hasBaseColorTextureMap;
+        constexpr iota_map<2> hasColorAttributeMap;
+        constexpr iota_map<3> alphaModeMap;
+        return std::visit(
+            [](auto... Is) -> std::span<const unsigned int> {
+                return shader::unlit_primitive_frag<Is...>;
+            },
+            hasBaseColorTextureMap.get_variant(HAS_BASE_COLOR_TEXTURE),
+            hasColorAttributeMap.get_variant(HAS_COLOR_ATTRIBUTE),
+            alphaModeMap.get_variant(ALPHA_MODE));
     }
 }

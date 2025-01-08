@@ -17,7 +17,18 @@ struct Material {
     float occlusionStrength;
     vec3 emissiveFactor;
     float alphaCutoff;
-};
+    mat2 baseColorTextureTransformUpperLeft2x2;
+    vec2 baseColorTextureTransformOffset;
+    mat2 metallicRoughnessTextureTransformUpperLeft2x2;
+    vec2 metallicRoughnessTextureTransformOffset;
+    mat2 normalTextureTransformUpperLeft2x2;
+    vec2 normalTextureTransformOffset;
+    mat2 occlusionTextureTransformUpperLeft2x2;
+    vec2 occlusionTextureTransformOffset;
+    mat2 emissiveTextureTransformUpperLeft2x2;
+    vec2 emissiveTextureTransformOffset;
+    vec2 padding1;
+}; // 192 bytes.
 
 // --------------------
 // Vertex shader only types

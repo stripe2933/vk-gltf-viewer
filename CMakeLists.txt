@@ -101,6 +101,7 @@ target_sources(vk-gltf-viewer PRIVATE
         extlibs/module-ports/imgui/imgui.internal.cppm
         extlibs/module-ports/imgui/imgui.vulkan.cppm
         extlibs/module-ports/ImGuizmo.cppm
+        extlibs/reflect.cppm
         interface/mod.cppm
         interface/AppState.cppm
         interface/control/AppWindow.cppm
@@ -187,7 +188,9 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/sampler/BrdfLutSampler.cppm
         interface/vulkan/sampler/CubemapSampler.cppm
         interface/vulkan/sampler/SingleTexelSampler.cppm
+        interface/vulkan/shader_type/TextureTransform.cppm
         interface/vulkan/SharedData.cppm
+        interface/vulkan/specialization_constants/SpecializationMap.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
     Boost::container

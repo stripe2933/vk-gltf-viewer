@@ -10,6 +10,8 @@
 
 #define HAS_VARIADIC_IN HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ALPHA_ATTRIBUTE
 
+layout (constant_id = 0) const uint TEXTURE_TRANSFORM_TYPE = 0; // NONE
+
 layout (location = 0) flat in uint inMaterialIndex;
 #if HAS_VARIADIC_IN
 layout (location = 1) in FRAG_VARIDIC_IN {
@@ -32,7 +34,14 @@ layout (set = 0, binding = 2) uniform sampler2D textures[];
 void main(){
     float baseColorAlpha = MATERIAL.baseColorFactor.a;
 #if HAS_BASE_COLOR_TEXTURE
-    baseColorAlpha *= texture(textures[uint(MATERIAL.baseColorTextureIndex) + 1], variadic_in.baseColorTexcoord).a;
+    vec2 baseColorTexcoord = variadic_in.baseColorTexcoord;
+    if (TEXTURE_TRANSFORM_TYPE == 1) {
+        baseColorTexcoord = vec2(MATERIAL.baseColorTextureTransformUpperLeft2x2[0][0], MATERIAL.baseColorTextureTransformUpperLeft2x2[0][1]) * baseColorTexcoord + MATERIAL.baseColorTextureTransformOffset;
+    }
+    else if (TEXTURE_TRANSFORM_TYPE == 2) {
+        baseColorTexcoord = MATERIAL.baseColorTextureTransformUpperLeft2x2 * baseColorTexcoord + MATERIAL.baseColorTextureTransformOffset;
+    }
+    baseColorAlpha *= texture(textures[uint(MATERIAL.baseColorTextureIndex) + 1], baseColorTexcoord).a;
 #endif
 #if HAS_COLOR_ALPHA_ATTRIBUTE
     baseColorAlpha *= variadic_in.colorAlpha;
