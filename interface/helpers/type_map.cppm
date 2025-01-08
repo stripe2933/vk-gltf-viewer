@@ -45,7 +45,7 @@ struct type_map : type_map_entry<Vs, K>...{
     [[nodiscard]] constexpr std::variant<std::type_identity<Vs>...> get_variant(K key) const {
         std::variant<std::type_identity<Vs>...> result;
         [&, this]<std::size_t... Is>(std::index_sequence<Is...>){
-            std::ignore = ((key == type_map_entry<Vs, K>::key ? (result.template emplace<Is>(), true) : false) || ...);
+            std::ignore = ((key == static_cast<const type_map_entry<Vs, K>*>(this)->key ? (result.template emplace<Is>(), true) : false) || ...);
         }(std::make_index_sequence<sizeof...(Vs)>{});
         return result;
     }
