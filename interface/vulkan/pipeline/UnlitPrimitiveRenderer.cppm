@@ -12,6 +12,7 @@ import :shader_selector.unlit_primitive_frag;
 import :shader_selector.unlit_primitive_vert;
 export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
+export import :vulkan.shader_type.TextureTransform;
 import :vulkan.specialization_constants.SpecializationMap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
@@ -22,6 +23,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     public:
         std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
         std::optional<std::pair<std::uint8_t, fastgltf::ComponentType>> colorComponentCountAndType;
+        shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
         fastgltf::AlphaMode alphaMode;
 
         [[nodiscard]] bool operator==(const UnlitPrimitiveRendererSpecialization&) const noexcept = default;
@@ -32,6 +34,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             const rp::Scene &sceneRenderPass
         ) const {
             const auto vertexShaderSpecializationData = getVertexShaderSpecializationData();
+            const auto fragmentShaderSpecializationData = getFragmentShaderSpecializationData();
 
             const vku::RefHolder pipelineStages = createPipelineStages(
                 device,
@@ -46,6 +49,10 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 vku::Shader {
                     std::apply(LIFT(shader_selector::unlit_primitive_frag), getFragmentShaderVariants()),
                     vk::ShaderStageFlagBits::eFragment,
+                    vku::unsafeAddress(vk::SpecializationInfo {
+                        SpecializationMap<FragmentShaderSpecializationData>::value,
+                        vk::ArrayProxyNoTemporaries<const FragmentShaderSpecializationData> { fragmentShaderSpecializationData },
+                    }),
                 });
 
             switch (alphaMode) {
@@ -141,6 +148,10 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             std::uint32_t colorComponentType = 5126; // FLOAT
         };
 
+        struct FragmentShaderSpecializationData {
+            std::uint32_t textureTransformType = 0x00000; // NONE
+        };
+
         [[nodiscard]] std::array<int, 2> getVertexShaderVariants() const noexcept {
             return {
                 baseColorTexcoordComponentType.has_value(),
@@ -171,6 +182,14 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 colorComponentCountAndType.has_value(),
                 static_cast<int>(alphaMode),
             };
+        }
+
+        [[nodiscard]] FragmentShaderSpecializationData getFragmentShaderSpecializationData() const {
+            FragmentShaderSpecializationData result{};
+            if (baseColorTextureTransform != shader_type::TextureTransform::None) {
+                result.textureTransformType = static_cast<std::uint32_t>(baseColorTextureTransform);
+            }
+            return result;
         }
     };
 }

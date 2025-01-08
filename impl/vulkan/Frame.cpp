@@ -118,6 +118,18 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         if (primitiveInfo.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
+
+            constexpr auto fetchTextureTransform = [](const fastgltf::TextureInfo &textureInfo) {
+                if (textureInfo.transform) {
+                    return textureInfo.transform->rotation != 0.f
+                        ? shader_type::TextureTransform::All
+                        : shader_type::TextureTransform::ScaleAndOffset;
+                }
+                else {
+                    return shader_type::TextureTransform::None;
+                }
+            };
+
             if (material.unlit) {
                 result.pipeline = sharedData.getUnlitPrimitiveRenderer({
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
@@ -126,21 +138,13 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
                         return std::pair { info.numComponent, info.componentType };
                     }),
+                    .baseColorTextureTransform = material.pbrData.baseColorTexture
+                        .transform(fetchTextureTransform)
+                        .value_or(shader_type::TextureTransform::None),
                     .alphaMode = material.alphaMode,
                 });
             }
             else {
-                constexpr auto fetchTextureTransform = [](const fastgltf::TextureInfo &textureInfo) {
-                    if (textureInfo.transform) {
-                        return textureInfo.transform->rotation != 0.f
-                            ? PrimitiveRendererSpecialization::TextureTransform::All
-                            : PrimitiveRendererSpecialization::TextureTransform::ScaleAndOffset;
-                    }
-                    else {
-                        return PrimitiveRendererSpecialization::TextureTransform::None;
-                    }
-                };
-
                 result.pipeline = sharedData.getPrimitiveRenderer({
                     .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos | std::views::transform([](const auto &info) {
                         return info.componentType;
@@ -151,19 +155,19 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
-                        .value_or(PrimitiveRendererSpecialization::TextureTransform::None),
+                        .value_or(shader_type::TextureTransform::None),
                     .metallicRoughnessTextureTransform = material.pbrData.metallicRoughnessTexture
                         .transform(fetchTextureTransform)
-                        .value_or(PrimitiveRendererSpecialization::TextureTransform::None),
+                        .value_or(shader_type::TextureTransform::None),
                     .normalTextureTransform = material.normalTexture
                         .transform(fetchTextureTransform)
-                        .value_or(PrimitiveRendererSpecialization::TextureTransform::None),
+                        .value_or(shader_type::TextureTransform::None),
                     .occlusionTextureTransform = material.occlusionTexture
                         .transform(fetchTextureTransform)
-                        .value_or(PrimitiveRendererSpecialization::TextureTransform::None),
+                        .value_or(shader_type::TextureTransform::None),
                     .emissiveTextureTransform = material.emissiveTexture
                         .transform(fetchTextureTransform)
-                        .value_or(PrimitiveRendererSpecialization::TextureTransform::None),
+                        .value_or(shader_type::TextureTransform::None),
                     .alphaMode = material.alphaMode,
                 });
             }

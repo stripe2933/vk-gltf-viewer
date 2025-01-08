@@ -10,6 +10,8 @@
 
 #define HAS_VARIADIC_IN HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ATTRIBUTE
 
+layout (constant_id = 0) const uint TEXTURE_TRANSFORM_TYPE = 0; // NONE
+
 layout (location = 0) flat in uint inMaterialIndex;
 #if HAS_VARIADIC_IN
 layout (location = 1) in FS_VARIADIC_IN {
@@ -67,7 +69,14 @@ void writeOutput(vec4 color) {
 void main(){
     vec4 baseColor = MATERIAL.baseColorFactor;
 #if HAS_BASE_COLOR_TEXTURE
-    baseColor *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], variadic_in.baseColorTexcoord);
+    vec2 baseColorTexcoord = variadic_in.baseColorTexcoord;
+    if (TEXTURE_TRANSFORM_TYPE == 1) {
+        baseColorTexcoord = vec2(MATERIAL.baseColorTextureTransformUpperLeft2x2[0][0], MATERIAL.baseColorTextureTransformUpperLeft2x2[0][1]) * baseColorTexcoord + MATERIAL.baseColorTextureTransformOffset;
+    }
+    else if (TEXTURE_TRANSFORM_TYPE == 2) {
+        baseColorTexcoord = MATERIAL.baseColorTextureTransformUpperLeft2x2 * baseColorTexcoord + MATERIAL.baseColorTextureTransformOffset;
+    }
+    baseColor *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], baseColorTexcoord);
 #endif
 #if HAS_COLOR_ATTRIBUTE
     baseColor *= variadic_in.color;

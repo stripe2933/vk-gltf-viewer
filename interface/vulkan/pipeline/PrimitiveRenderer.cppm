@@ -15,6 +15,7 @@ import :shader_selector.primitive_vert;
 import :shader_selector.primitive_frag;
 export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
+export import :vulkan.shader_type.TextureTransform;
 import :vulkan.specialization_constants.SpecializationMap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
@@ -23,37 +24,14 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class PrimitiveRendererSpecialization {
     public:
-        enum class TextureTransform : std::uint8_t {
-            /**
-             * @brief No texture transform is performed.
-             *
-             * When the primitive's material textures don't have any KHR_texture_transform extensions, use this value to
-             * avoid the unnecessary matrix-vector multiplication in the fragment shader.
-             */
-            None = 0,
-            /**
-             * @brief Texture transform has scale and offset component.
-             *
-             * This is more efficient than <tt>All</tt> because this transform can be done by multiply-and-add (MAD) operation
-             * in fragment shader.
-             */
-            ScaleAndOffset = 1,
-            /**
-             * @brief Texture transform has rotation component.
-             *
-             * Avoid it if possible, because it takes more instructions than <tt>ScaleAndOffset</tt>.
-             */
-            All = 2,
-        };
-
         boost::container::static_vector<fastgltf::ComponentType, 4> texcoordComponentTypes;
         std::optional<std::pair<std::uint8_t, fastgltf::ComponentType>> colorComponentCountAndType;
         bool fragmentShaderGeneratedTBN;
-        TextureTransform baseColorTextureTransform = TextureTransform::None;
-        TextureTransform metallicRoughnessTextureTransform = TextureTransform::None;
-        TextureTransform normalTextureTransform = TextureTransform::None;
-        TextureTransform occlusionTextureTransform = TextureTransform::None;
-        TextureTransform emissiveTextureTransform = TextureTransform::None;
+        shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
+        shader_type::TextureTransform metallicRoughnessTextureTransform = shader_type::TextureTransform::None;
+        shader_type::TextureTransform normalTextureTransform = shader_type::TextureTransform::None;
+        shader_type::TextureTransform occlusionTextureTransform = shader_type::TextureTransform::None;
+        shader_type::TextureTransform emissiveTextureTransform = shader_type::TextureTransform::None;
         fastgltf::AlphaMode alphaMode;
 
         [[nodiscard]] bool operator==(const PrimitiveRendererSpecialization&) const noexcept = default;
@@ -238,23 +216,23 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         [[nodiscard]] FragmentShaderSpecializationData getFragmentShaderSpecializationData() const {
             FragmentShaderSpecializationData result{};
 
-            if (baseColorTextureTransform != TextureTransform::None) {
+            if (baseColorTextureTransform != shader_type::TextureTransform::None) {
                 result.packedTextureTransformTypes &= ~0xFU;
                 result.packedTextureTransformTypes |= static_cast<std::uint32_t>(baseColorTextureTransform);
             }
-            if (metallicRoughnessTextureTransform != TextureTransform::None) {
+            if (metallicRoughnessTextureTransform != shader_type::TextureTransform::None) {
                 result.packedTextureTransformTypes &= ~0xF0U;
                 result.packedTextureTransformTypes |= static_cast<std::uint32_t>(metallicRoughnessTextureTransform) << 4;
             }
-            if (normalTextureTransform != TextureTransform::None) {
+            if (normalTextureTransform != shader_type::TextureTransform::None) {
                 result.packedTextureTransformTypes &= ~0xF00U;
                 result.packedTextureTransformTypes |= static_cast<std::uint32_t>(normalTextureTransform) << 8;
             }
-            if (occlusionTextureTransform != TextureTransform::None) {
+            if (occlusionTextureTransform != shader_type::TextureTransform::None) {
                 result.packedTextureTransformTypes &= ~0xF000U;
                 result.packedTextureTransformTypes |= static_cast<std::uint32_t>(occlusionTextureTransform) << 12;
             }
-            if (emissiveTextureTransform != TextureTransform::None) {
+            if (emissiveTextureTransform != shader_type::TextureTransform::None) {
                 result.packedTextureTransformTypes &= ~0xF0000U;
                 result.packedTextureTransformTypes |= static_cast<std::uint32_t>(emissiveTextureTransform) << 16;
             }
