@@ -33,6 +33,10 @@ import :helpers.TempStringBuffer;
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
 
+#define IMGUI_SCOPED_IF(Name, Arguments, ...) if (ImGui::Begin##Name Arguments) { __VA_ARGS__ ImGui::End##Name(); }
+#define IMGUI_SCOPED_STATE(Name, Arguments, ...) ImGui::Begin##Name Arguments; __VA_ARGS__ ImGui::End##Name()
+#define IMGUI_SCOPED_PUSH(Name, Arguments, ...) ImGui::Push##Name Arguments; __VA_ARGS__ ImGui::Pop##Name()
+
 using namespace std::string_view_literals;
 
 std::optional<std::size_t> vk_gltf_viewer::control::ImGuiTaskCollector::selectedMaterialIndex = std::nullopt;
@@ -71,7 +75,7 @@ auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
     ImGui::Image(vku::toUint64(texture), size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
 
-    if (ImGui::BeginItemTooltip()) {
+    IMGUI_SCOPED_IF(ItemTooltip, (), {
         const ImGuiIO &io = ImGui::GetIO();
 
         const ImVec2 zoomedPortionSize = size / 4.f;
@@ -82,9 +86,7 @@ auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 
         constexpr float zoomScale = 4.0f;
         ImGui::Image(vku::toUint64(texture), zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size, tint);
         ImGui::TextUnformatted(tempStringBuffer.write("Showing: [{:.0f}, {:.0f}]x[{:.0f}, {:.0f}]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y));
-
-        ImGui::EndTooltip();
-    }
+    });
 }
 
 void attributeTable(std::ranges::viewable_range auto const &attributes) {
@@ -148,10 +150,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetBuffers(std::span<fastglt
         ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
         buffers,
         ImGui::ColumnInfo { "Name", [](std::size_t row, fastgltf::Buffer &buffer) {
-            ImGui::WithID(row, [&]() {
+            IMGUI_SCOPED_PUSH(ID, (row), {
                 ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
                 ImGui::InputTextWithHint("##name", "<empty>", &buffer.name);
-
             });
         }, ImGuiTableColumnFlags_WidthStretch },
         ImGui::ColumnInfo { "Size", [](const fastgltf::Buffer &buffer) {
@@ -176,7 +177,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetBuffers(std::span<fastglt
                     ImGui::TextUnformatted(tempStringBuffer.write("BufferView ({})", bufferView.bufferViewIndex));
                 },
                 [&](const fastgltf::sources::URI &uri) {
-                    ImGui::WithID(row, [&]() {
+                    IMGUI_SCOPED_PUSH(ID, (row), {
                         ImGui::TextLinkOpenURL(ICON_FA_EXTERNAL_LINK, PATH_C_STR(assetDir / uri.uri.fspath()));
                     });
                 },
@@ -193,17 +194,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetBufferViews(std::span<fas
         ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
         bufferViews,
         ImGui::ColumnInfo { "Name", [&](std::size_t rowIndex, fastgltf::BufferView &bufferView) {
-            ImGui::WithID(rowIndex, [&]() {
+            IMGUI_SCOPED_PUSH(ID, (rowIndex), {
                 ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
                 ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
             });
         }, ImGuiTableColumnFlags_WidthStretch },
         ImGui::ColumnInfo { "Buffer", [&](std::size_t i, const fastgltf::BufferView &bufferView) {
-            ImGui::PushID(i);
-            if (ImGui::TextLink(tempStringBuffer.write(bufferView.bufferIndex).view().c_str())) {
-                makeWindowVisible("Buffers");
-            }
-            ImGui::PopID();
+            IMGUI_SCOPED_PUSH(ID, (i), {
+                if (ImGui::TextLink(tempStringBuffer.write(bufferView.bufferIndex).view().c_str())) {
+                    makeWindowVisible("Buffers");
+                }
+            });
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "Range", [&](const fastgltf::BufferView &bufferView) {
             ImGui::TextUnformatted(tempStringBuffer.write(
@@ -236,7 +237,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetImages(std::span<fastgltf
         ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
         images,
         ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Image &image) {
-            ImGui::WithID(rowIndex, [&]() {
+            IMGUI_SCOPED_PUSH(ID, (rowIndex), {
                 ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
                 ImGui::InputTextWithHint("##name", "<empty>", &image.name);
             });
@@ -260,7 +261,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetImages(std::span<fastgltf
                     ImGui::TextUnformatted(tempStringBuffer.write("BufferView ({})", bufferView.bufferViewIndex));
                 },
                 [&](const fastgltf::sources::URI &uri) {
-                    ImGui::WithID(i, [&]() {
+                    IMGUI_SCOPED_PUSH(ID, (i), {
                         ImGui::TextLinkOpenURL(ICON_FA_EXTERNAL_LINK, PATH_C_STR(assetDir / uri.uri.fspath()));
                     });
                 },
@@ -277,7 +278,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetSamplers(std::span<fastgl
         ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
         samplers,
         ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Sampler &sampler) {
-            ImGui::WithID(rowIndex, [&]() {
+            IMGUI_SCOPED_PUSH(ID, (rowIndex), {
                 ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
                 ImGui::InputTextWithHint("##name", "<empty>", &sampler.name);
             });
@@ -421,12 +422,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
     const std::list<std::filesystem::path> &recentGltfs,
     const std::list<std::filesystem::path> &recentSkyboxes
 ) {
-    if (ImGui::BeginMainMenuBar()) {
-        if (ImGui::BeginMenu("File")) {
+    IMGUI_SCOPED_IF(MainMenuBar, (), {
+        IMGUI_SCOPED_IF(Menu, ("File"), {
             if (ImGui::MenuItem("Open glTF File", "Ctrl+O")) {
                 tasks.emplace_back(std::in_place_type<task::ShowGltfLoadFileDialog>);
             }
-            if (ImGui::BeginMenu("Recent glTF Files")) {
+            IMGUI_SCOPED_IF(Menu, ("Recent glTF Files"), {
                 if (recentGltfs.empty()) {
                     ImGui::MenuItem("<empty>", nullptr, false, false);
                 }
@@ -437,18 +438,16 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                         }
                     }
                 }
-                ImGui::EndMenu();
-            }
+            });
             if (ImGui::MenuItem("Close glTF File", "Ctrl+W")) {
                 tasks.emplace_back(std::in_place_type<task::CloseGltf>);
             }
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Skybox")) {
+        });
+        IMGUI_SCOPED_IF(Menu, ("Skybox"), {
             if (ImGui::MenuItem("Open Skybox")) {
                 tasks.emplace_back(std::in_place_type<task::ShowEqmapLoadFileDialog>);
             }
-            if (ImGui::BeginMenu("Recent Skyboxes")) {
+            IMGUI_SCOPED_IF(Menu, ("Recent Skyboxes"), {
                 if (recentSkyboxes.empty()) {
                     ImGui::MenuItem("<empty>", nullptr, false, false);
                 }
@@ -459,12 +458,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                         }
                     }
                 }
-                ImGui::EndMenu();
-            }
-            ImGui::EndMenu();
-        }
-        ImGui::EndMainMenuBar();
-    }
+            });
+        });
+    });
 }
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(
@@ -514,10 +510,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 [&]() { return tempStringBuffer.write("<Unnamed material {}>", *selectedMaterialIndex).view(); }).c_str();
             else return "<select...>";
         }();
-        if (ImGui::BeginCombo("Material", previewText)) {
+        IMGUI_SCOPED_IF(Combo, ("Material", previewText), {
             for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
                 const bool isSelected = i == selectedMaterialIndex;
-                ImGui::WithID(i, [&]() {
+                IMGUI_SCOPED_PUSH(ID, (i), {
                     if (ImGui::Selectable(nonempty_or(material.name, [&]() { return tempStringBuffer.write("<Unnamed material {}>", i).view(); }).c_str(), isSelected)) {
                         selectedMaterialIndex.emplace(i);
                     }
@@ -526,9 +522,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     ImGui::SetItemDefaultFocus();
                 }
             }
-
-            ImGui::EndCombo();
-        }
+        });
 
         if (selectedMaterialIndex) {
             fastgltf::Material &material = asset.materials[*selectedMaterialIndex];
@@ -549,9 +543,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 tasks.emplace_back(std::in_place_type<task::InvalidateDrawCommandSeparation>);
             }
 
-            ImGui::WithDisabled([&]() {
-                if (material.alphaMode == fastgltf::AlphaMode::Mask && ImGui::DragFloat("Alpha cutoff", &material.alphaCutoff, 0.01f, 0.f, 1.f)) {
-                    // TODO
+            IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                if (material.alphaMode == fastgltf::AlphaMode::Mask) {
+                    ImGui::DragFloat("Alpha cutoff", &material.alphaCutoff, 0.01f, 0.f, 1.f);
                 }
             });
 
@@ -567,30 +561,28 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     hoverableImage(assetTextureImGuiDescriptorSets[baseColorTextureInfo->textureIndex], { 128.f, 128.f });
                     ImGui::SameLine();
                 }
-                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat4("Factor##basecolor", material.pbrData.baseColorFactor.data(), 0.01f, 0.f, 1.f)) {
-                                // TODO
-                            }
-                        });
-                        if (baseColorTextureInfo) {
-                            ImGui::LabelText("Texture Index", "%zu", baseColorTextureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*baseColorTextureInfo));
+                IMGUI_SCOPED_PUSH(ItemWidth, (ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x),
+                IMGUI_SCOPED_STATE(Group, (), {
+                    IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                        ImGui::DragFloat4("Factor##basecolor", material.pbrData.baseColorFactor.data(), 0.01f, 0.f, 1.f);
+                    });
+                    if (baseColorTextureInfo) {
+                        ImGui::LabelText("Texture Index", "%zu", baseColorTextureInfo->textureIndex);
+                        ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*baseColorTextureInfo));
 
-                            if (const auto &transform = baseColorTextureInfo->transform) {
-                                texcoordOverriddenMarker();
+                        if (const auto &transform = baseColorTextureInfo->transform) {
+                            texcoordOverriddenMarker();
 
-                                ImGui::SeparatorText("KHR_texture_transform");
-                                ImGui::WithDisabled([&]() { // TODO
-                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                });
-                            }
+                            ImGui::SeparatorText("KHR_texture_transform");
+                            IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                                ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                            });
                         }
-                    }, baseColorTextureInfo.has_value());
+                    }
                 });
+                );
 
                 ImGui::SeparatorText("Metallic/Roughness");
                 const auto &metallicRoughnessTextureInfo = material.pbrData.metallicRoughnessTexture;
@@ -600,87 +592,79 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     hoverableImage(assetTextureImGuiDescriptorSets[metallicRoughnessTextureInfo->textureIndex], { 128.f, 128.f }, { 0.f, 1.f, 0.f, 1.f });
                     ImGui::SameLine();
                 }
-                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat("Metallic Factor", &material.pbrData.metallicFactor, 0.01f, 0.f, 1.f)) {
-                                // TODO
-                            }
-                            if (ImGui::DragFloat("Roughness Factor", &material.pbrData.roughnessFactor, 0.01f, 0.f, 1.f)) {
-                                // TODO
-                            }
-                        });
-                        if (metallicRoughnessTextureInfo) {
-                            ImGui::LabelText("Texture Index", "%zu", metallicRoughnessTextureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*metallicRoughnessTextureInfo));
-
-                            if (const auto &transform = metallicRoughnessTextureInfo->transform) {
-                                texcoordOverriddenMarker();
-
-                                ImGui::SeparatorText("KHR_texture_transform");
-                                ImGui::WithDisabled([&]() { // TODO
-                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                });
-                            }
-                        }
+                IMGUI_SCOPED_PUSH(ItemWidth, (ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x),
+                IMGUI_SCOPED_STATE(Group, (), {
+                    IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                        ImGui::DragFloat("Metallic Factor", &material.pbrData.metallicFactor, 0.01f, 0.f, 1.f);
+                        ImGui::DragFloat("Roughness Factor", &material.pbrData.roughnessFactor, 0.01f, 0.f, 1.f);
                     });
+                    if (metallicRoughnessTextureInfo) {
+                        ImGui::LabelText("Texture Index", "%zu", metallicRoughnessTextureInfo->textureIndex);
+                        ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*metallicRoughnessTextureInfo));
+
+                        if (const auto &transform = metallicRoughnessTextureInfo->transform) {
+                            texcoordOverriddenMarker();
+
+                            ImGui::SeparatorText("KHR_texture_transform");
+                            IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                                ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                            });
+                        }
+                    }
                 });
+                );
             }
 
             if (auto &textureInfo = material.normalTexture; textureInfo && ImGui::CollapsingHeader("Normal Mapping")) {
                 hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f });
                 ImGui::SameLine();
-                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat("Scale", &textureInfo->scale, 0.01f)) {
-                                // TODO
-                            }
-                        });
-                        ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                        ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
-
-                        if (const auto &transform = textureInfo->transform) {
-                            texcoordOverriddenMarker();
-
-                            ImGui::SeparatorText("KHR_texture_transform");
-                            ImGui::WithDisabled([&]() { // TODO
-                                ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                            });
-                        }
+                IMGUI_SCOPED_PUSH(ItemWidth, (ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x),
+                IMGUI_SCOPED_STATE(Group, (), {
+                    IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                        ImGui::DragFloat("Scale", &textureInfo->scale, 0.01f);
                     });
+                    ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
+                    ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
+
+                    if (const auto &transform = textureInfo->transform) {
+                        texcoordOverriddenMarker();
+
+                        ImGui::SeparatorText("KHR_texture_transform");
+                        IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                            ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                            ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                            ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                        });
+                    }
                 });
+                );
             }
 
             if (auto &textureInfo = material.occlusionTexture; textureInfo && ImGui::CollapsingHeader("Occlusion Mapping")) {
                 hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f }, { 1.f, 0.f, 0.f, 1.f });
                 ImGui::SameLine();
-                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat("Strength", &textureInfo->strength, 0.01f)) {
-                                // TODO
-                            }
-                        });
-                        ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                        ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
-
-                        if (const auto &transform = textureInfo->transform) {
-                            texcoordOverriddenMarker();
-
-                            ImGui::SeparatorText("KHR_texture_transform");
-                            ImGui::WithDisabled([&]() { // TODO
-                                ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                            });
-                        }
+                IMGUI_SCOPED_PUSH(ItemWidth, (ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x),
+                IMGUI_SCOPED_STATE(Group, (), {
+                    IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                        ImGui::DragFloat("Strength", &textureInfo->strength, 0.01f);
                     });
+                    ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
+                    ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
+
+                    if (const auto &transform = textureInfo->transform) {
+                        texcoordOverriddenMarker();
+
+                        ImGui::SeparatorText("KHR_texture_transform");
+                        IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                            ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                            ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                            ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                        });
+                    }
                 });
+                );
             }
 
             if (ImGui::CollapsingHeader("Emissive")) {
@@ -689,30 +673,28 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f });
                     ImGui::SameLine();
                 }
-                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat3("Factor##emissive", material.emissiveFactor.data(), 0.01f, 0.f, 1.f)) {
-                                // TODO
-                            }
-                        });
-                        if (textureInfo) {
-                            ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
+                IMGUI_SCOPED_PUSH(ItemWidth, (ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x),
+                IMGUI_SCOPED_STATE(Group, (), {
+                    IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                        ImGui::DragFloat3("Factor##emissive", material.emissiveFactor.data(), 0.01f, 0.f, 1.f);
+                    });
+                    if (textureInfo) {
+                        ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
+                        ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
 
-                            if (const auto &transform = textureInfo->transform) {
-                                texcoordOverriddenMarker();
+                        if (const auto &transform = textureInfo->transform) {
+                            texcoordOverriddenMarker();
 
-                                ImGui::SeparatorText("KHR_texture_transform");
-                                ImGui::WithDisabled([&]() { // TODO
-                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                });
-                            }
+                            ImGui::SeparatorText("KHR_texture_transform");
+                            IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                                ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                            });
                         }
-                    }, textureInfo.has_value());
+                    }
                 });
+                );
             }
         }
     }
@@ -747,7 +729,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
     const std::unordered_set<std::uint16_t> &selectedNodeIndices
 ) {
     if (ImGui::Begin("Scene Hierarchy")) {
-        if (ImGui::BeginCombo("Scene", nonempty_or(asset.scenes[sceneIndex].name, [&]() { return tempStringBuffer.write("<Unnamed scene {}>", sceneIndex).view(); }).c_str())) {
+        IMGUI_SCOPED_IF(Combo, ("Scene", nonempty_or(asset.scenes[sceneIndex].name, [&]() { return tempStringBuffer.write("<Unnamed scene {}>", sceneIndex).view(); }).c_str()), {
             for (const auto &[i, scene] : asset.scenes | ranges::views::enumerate) {
                 const bool isSelected = i == sceneIndex;
                 if (ImGui::Selectable(nonempty_or(scene.name, [&]() { return tempStringBuffer.write("<Unnamed scene {}>", i).view(); }).c_str(), isSelected)) {
@@ -757,8 +739,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                     ImGui::SetItemDefaultFocus();
                 }
             }
-            ImGui::EndCombo();
-        }
+        });
 
         ImGui::InputTextWithHint("Name", "<empty>", &asset.scenes[sceneIndex].name);
 
@@ -794,7 +775,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
             ImGui::TableSetColumnIndex(0);
             ImGui::AlignTextToFramePadding();
 
-            ImGui::WithID(nodeIndex, [&]() {
+            IMGUI_SCOPED_PUSH(ID, (nodeIndex), {
                 // --------------------
                 // TreeNode.
                 // --------------------
@@ -886,7 +867,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
                 if (node.lightIndex) {
                     ImGui::TableSetColumnIndex(2);
-                    ImGui::WithDisabled([&]() {
+                    IMGUI_SCOPED_STATE(Disabled, (), {
                         bool checked = false;
                         ImGui::Checkbox(ICON_FA_LIGHTBULB_O, &checked); // TODO
                     });
@@ -898,7 +879,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
                 if (node.cameraIndex) {
                     ImGui::TableSetColumnIndex(3);
-                    ImGui::WithDisabled([&]() {
+                    IMGUI_SCOPED_STATE(Disabled, (), {
                         ImGui::Button(ICON_FA_CAMERA); // TODO
                     });
                 }
@@ -912,7 +893,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
             });
         };
 
-        if (ImGui::BeginTable("scene-hierarchy-table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
+        IMGUI_SCOPED_IF(Table, ("scene-hierarchy-table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY), {
             ImGui::TableSetupScrollFreeze(0, 1);
             ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn(ICON_FA_CUBE, ImGuiTableColumnFlags_WidthFixed);
@@ -923,9 +904,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
             for (std::size_t nodeIndex : asset.scenes[sceneIndex].nodeIndices) {
                 addChildNode(asset, nodeIndex);
             }
-
-            ImGui::EndTable();
-        }
+        });
     }
     ImGui::End();
 
@@ -947,7 +926,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
             ImGui::SeparatorText("Transform");
 
-            if (bool isTrs = holds_alternative<fastgltf::TRS>(node.transform); ImGui::BeginCombo("Local transform", isTrs ? "TRS" : "Transform Matrix")) {
+            bool isTrs = holds_alternative<fastgltf::TRS>(node.transform);
+            IMGUI_SCOPED_IF(Combo, ("Local transform", isTrs ? "TRS" : "Transform Matrix"), {
                 if (ImGui::Selectable("TRS", isTrs) && !isTrs) {
                     fastgltf::TRS trs;
                     decomposeTransformMatrix(get<fastgltf::math::fmat4x4>(node.transform), trs.scale, trs.rotation, trs.translation);
@@ -957,8 +937,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                     const auto &trs = get<fastgltf::TRS>(node.transform);
                     node.transform.emplace<fastgltf::math::fmat4x4>(toMatrix(trs));
                 }
-                ImGui::EndCombo();
-            }
+            });
             std::visit(fastgltf::visitor {
                 [&](fastgltf::TRS &trs) {
                     // | operator cannot be chained, because of the short circuit evaluation.
@@ -984,123 +963,115 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
             }, node.transform);
 
             if (!node.instancingAttributes.empty() && ImGui::TreeNodeEx("EXT_mesh_gpu_instancing", ImGuiTreeNodeFlags_NoTreePushOnOpen)) {
-                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+                IMGUI_SCOPED_PUSH(ItemWidth, (ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x), {
                     attributeTable(node.instancingAttributes | std::views::transform([&](const fastgltf::Attribute &attribute) {
                         return std::pair<std::string_view, const fastgltf::Accessor&> { attribute.name, asset.accessors[attribute.accessorIndex] };
                     }));
                 });
             }
 
-            if (ImGui::BeginTabBar("node-tab-bar")) {
-                if (node.meshIndex && ImGui::BeginTabItem("Mesh")) {
-                    fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-                    ImGui::InputTextWithHint("Name", "<empty>", &mesh.name);
+            IMGUI_SCOPED_IF(TabBar, ("node-tab-bar"), {
+                if (node.meshIndex) {
+                    IMGUI_SCOPED_IF(TabItem, ("Mesh"), {
+                        fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+                        ImGui::InputTextWithHint("Name", "<empty>", &mesh.name);
 
-                    for (auto &&[primitiveIndex, primitive]: mesh.primitives | ranges::views::enumerate) {
-                        if (ImGui::CollapsingHeader(tempStringBuffer.write("Primitive {}", primitiveIndex).view().c_str())) {
-                            ImGui::LabelText("Type", "%s", to_string(primitive.type).c_str());
-                            if (primitive.materialIndex) {
-                                ImGui::WithID(*primitive.materialIndex, [&]() {
-                                    ImGui::WithLabel("Material"sv, [&]() {
-                                        if (ImGui::TextLink(nonempty_or(asset.materials[*primitive.materialIndex].name, [&]() { return tempStringBuffer.write("<Unnamed material {}>", *primitive.materialIndex).view(); }).c_str())) {
-                                            makeWindowVisible("Material Editor");
-                                            selectedMaterialIndex = *primitive.materialIndex;
-                                        }
+                        for (auto &&[primitiveIndex, primitive]: mesh.primitives | ranges::views::enumerate) {
+                            if (ImGui::CollapsingHeader(tempStringBuffer.write("Primitive {}", primitiveIndex).view().c_str())) {
+                                ImGui::LabelText("Type", "%s", to_string(primitive.type).c_str());
+                                if (primitive.materialIndex) {
+                                    IMGUI_SCOPED_PUSH(ID, (*primitive.materialIndex), {
+                                        ImGui::WithLabel("Material"sv, [&]() {
+                                            if (ImGui::TextLink(nonempty_or(asset.materials[*primitive.materialIndex].name, [&]() { return tempStringBuffer.write("<Unnamed material {}>", *primitive.materialIndex).view(); }).c_str())) {
+                                                makeWindowVisible("Material Editor");
+                                                selectedMaterialIndex = *primitive.materialIndex;
+                                            }
+                                        });
+                                    });
+                                }
+                                else {
+                                    IMGUI_SCOPED_STATE(Disabled, (), {
+                                        ImGui::LabelText("Material", "-");
+                                    });
+                                }
+
+                                attributeTable(ranges::views::concat(
+                                    to_range(to_optional(primitive.indicesAccessor).transform([&](std::size_t accessorIndex) {
+                                        return std::pair<std::string_view, const fastgltf::Accessor&> { "Index"sv, asset.accessors[accessorIndex] };
+                                    })),
+                                    primitive.attributes | std::views::transform([&](const fastgltf::Attribute &attribute) {
+                                        return std::pair<std::string_view, const fastgltf::Accessor&> { attribute.name, asset.accessors[attribute.accessorIndex] };
+                                    })));
+                            }
+                        }
+
+                        if (ImGui::InputInt("Bound fp precision", &boundFpPrecision)) {
+                            boundFpPrecision = std::clamp(boundFpPrecision, 0, 9);
+                        }
+                    });
+                }
+                if (node.cameraIndex) {
+                    IMGUI_SCOPED_IF(TabItem, ("Camera"), {
+                        auto &[camera, name] = asset.cameras[*node.cameraIndex];
+                        ImGui::InputTextWithHint("Name", "<empty>", &name);
+
+                        IMGUI_SCOPED_STATE(Disabled, (), { // TODO
+                            int type = camera.index();
+                            ImGui::Combo("Type", &type, "Perspective\0Orthographic\0");
+                        });
+
+                        constexpr auto noAffectHelperMarker = []() {
+                            ImGui::SameLine();
+                            ImGui::HelperMarker("(?)", "This property will not affect to the actual rendering, as it is calculated from the actual viewport size.");
+                        };
+
+                        visit(fastgltf::visitor {
+                            [&](fastgltf::Camera::Perspective &camera) {
+                                if (camera.aspectRatio) {
+                                    ImGui::DragFloat("Aspect Ratio", &*camera.aspectRatio, 0.01f, 1e-2f, 1e-2f);
+                                }
+                                else {
+                                    IMGUI_SCOPED_STATE(Disabled, (), {
+                                        float aspectRatio = centerNodeRect.GetWidth() / centerNodeRect.GetHeight();
+                                        ImGui::DragFloat("Aspect Ratio", &aspectRatio);
+                                    });
+                                }
+                                noAffectHelperMarker();
+
+                                if (float fovInDegree = glm::degrees(camera.yfov); ImGui::DragFloat("FOV", &fovInDegree, 1.f, 15.f, 120.f, "%.2f deg")) {
+                                    camera.yfov = glm::radians(fovInDegree);
+                                }
+
+                                IMGUI_SCOPED_PUSH(MultiItemsWidths, (2, ImGui::CalcItemWidth()), {
+                                    ImGui::DragFloat("##near", &camera.znear, 1.f, 1e-6f, 1e-6f, "%.2e", ImGuiSliderFlags_Logarithmic);
+                                    ImGui::SameLine(0, ImGui::GetStyle().ItemInnerSpacing.x);
+                                    IMGUI_SCOPED_STATE(Disabled, (!camera.zfar), {
+                                        float zFar = std::numeric_limits<float>::infinity();
+                                        ImGui::DragFloat("##far", &zFar);
                                     });
                                 });
-                            }
-                            else {
-                                ImGui::WithDisabled([]() {
-                                    ImGui::LabelText("Material", "-");
-                                });
-                            }
-
-                            attributeTable(ranges::views::concat(
-                                to_range(to_optional(primitive.indicesAccessor).transform([&](std::size_t accessorIndex) {
-                                    return std::pair<std::string_view, const fastgltf::Accessor&> { "Index"sv, asset.accessors[accessorIndex] };
-                                })),
-                                primitive.attributes | std::views::transform([&](const fastgltf::Attribute &attribute) {
-                                    return std::pair<std::string_view, const fastgltf::Accessor&> { attribute.name, asset.accessors[attribute.accessorIndex] };
-                                })));
-                        }
-                    }
-
-                    if (ImGui::InputInt("Bound fp precision", &boundFpPrecision)) {
-                        boundFpPrecision = std::clamp(boundFpPrecision, 0, 9);
-                    }
-
-                    ImGui::EndTabItem();
-                }
-                if (node.cameraIndex && ImGui::BeginTabItem("Camera")) {
-                    auto &[camera, name] = asset.cameras[*node.cameraIndex];
-                    ImGui::InputTextWithHint("Name", "<empty>", &name);
-
-                    ImGui::WithDisabled([&]() {
-                        if (int type = camera.index(); ImGui::Combo("Type", &type, "Perspective\0Orthographic\0")) {
-                            // TODO
-                        }
-
-                    });
-
-                    constexpr auto noAffectHelperMarker = []() {
-                        ImGui::SameLine();
-                        ImGui::HelperMarker("(?)", "This property will not affect to the actual rendering, as it is calculated from the actual viewport size.");
-                    };
-
-                    visit(fastgltf::visitor {
-                        [&](fastgltf::Camera::Perspective &camera) {
-                            if (camera.aspectRatio) {
-                                ImGui::DragFloat("Aspect Ratio", &*camera.aspectRatio, 0.01f, 1e-2f, 1e-2f);
-                            }
-                            else {
-                                ImGui::WithDisabled([this]() {
-                                    float aspectRatio = centerNodeRect.GetWidth() / centerNodeRect.GetHeight();
-                                    ImGui::DragFloat("Aspect Ratio", &aspectRatio);
-                                });
-                            }
-                            noAffectHelperMarker();
-
-                            if (float fovInDegree = glm::degrees(camera.yfov); ImGui::DragFloat("FOV", &fovInDegree, 1.f, 15.f, 120.f, "%.2f deg")) {
-                                camera.yfov = glm::radians(fovInDegree);
-                            }
-
-                            if (camera.zfar) {
-                                ImGui::DragFloatRange2("Near/Far", &camera.znear, &*camera.zfar, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
-                            }
-                            else {
-                                ImGui::PushMultiItemsWidths(2, ImGui::CalcItemWidth());
-                                ImGui::DragFloat("##near", &camera.znear, 1.f, 1e-6f, 1e-6f, "%.2e", ImGuiSliderFlags_Logarithmic);
-                                ImGui::SameLine(0, ImGui::GetStyle().ItemInnerSpacing.x);
-                                ImGui::WithDisabled([]() {
-                                    float zFar = std::numeric_limits<float>::infinity();
-                                    ImGui::DragFloat("##far", &zFar);
-                                });
-                                ImGui::PopItemWidth();
                                 ImGui::SameLine(0, ImGui::GetStyle().ItemInnerSpacing.x);
                                 ImGui::TextUnformatted("Near/Far");
-                            }
-                        },
-                        [&](fastgltf::Camera::Orthographic &camera) {
-                            ImGui::DragFloat("Half Width", &camera.xmag);
-                            noAffectHelperMarker();
+                            },
+                            [&](fastgltf::Camera::Orthographic &camera) {
+                                ImGui::DragFloat("Half Width", &camera.xmag);
+                                noAffectHelperMarker();
 
-                            ImGui::DragFloat("Half Height", &camera.ymag);
-                            noAffectHelperMarker();
+                                ImGui::DragFloat("Half Height", &camera.ymag);
+                                noAffectHelperMarker();
 
-                            ImGui::DragFloatRange2("Near/Far", &camera.znear, &camera.zfar, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
-                        },
-                    }, camera);
-
-                    ImGui::EndTabItem();
+                                ImGui::DragFloatRange2("Near/Far", &camera.znear, &camera.zfar, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+                            },
+                        }, camera);
+                    });
                 }
-                if (node.lightIndex && ImGui::BeginTabItem("Light")) {
-                    fastgltf::Light &light = asset.lights[*node.lightIndex];
-                    ImGui::InputTextWithHint("Name", "<empty>", &light.name);
-                    ImGui::EndTabItem();
+                if (node.lightIndex) {
+                    IMGUI_SCOPED_IF(TabItem, ("Light"), {
+                        fastgltf::Light &light = asset.lights[*node.lightIndex];
+                        ImGui::InputTextWithHint("Name", "<empty>", &light.name);
+                    });
                 }
-
-                ImGui::EndTabBar();
-            }
+            });
         }
         else {
             ImGui::TextUnformatted("Multiple nodes are selected."sv);
@@ -1118,18 +1089,18 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::background(
     if (ImGui::Begin("Background")) {
         const bool useSolidBackground = solidBackground.has_value();
         // If canSelectSkyboxBackground is false, the user cannot select the skybox background.
-        ImGui::WithDisabled([&]() {
+        IMGUI_SCOPED_STATE(Disabled, (!canSelectSkyboxBackground), {
             if (ImGui::RadioButton("Use cubemap image from equirectangular map", !useSolidBackground)) {
                 solidBackground.set_active(false);
             }
-        }, !canSelectSkyboxBackground);
+        });
 
         if (ImGui::RadioButton("Use solid color", useSolidBackground)) {
             solidBackground.set_active(true);
         }
-        ImGui::WithDisabled([&]() {
+        IMGUI_SCOPED_STATE(Disabled, (!useSolidBackground), {
             ImGui::ColorPicker3("Color", value_ptr(*solidBackground));
-        }, !useSolidBackground);
+        });
     }
     ImGui::End();
 }
@@ -1212,9 +1183,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             ImGui::SameLine();
             ImGui::HelperMarker("(?)", "Near/Far plane will be automatically tightened to fit the scene bounding box.");
 
-            ImGui::WithDisabled([&]() {
+            IMGUI_SCOPED_STATE(Disabled, (!automaticNearFarPlaneAdjustment), {
                 ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
-            }, automaticNearFarPlaneAdjustment);
+            });
 
             ImGui::Checkbox("Use Frustum Culling", &useFrustumCulling);
             ImGui::SameLine();
@@ -1226,19 +1197,19 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             if (ImGui::Checkbox("Hovering node outline", &showHoveringNodeOutline)) {
                 hoveringNodeOutline.set_active(showHoveringNodeOutline);
             }
-            ImGui::WithDisabled([&]() {
+            IMGUI_SCOPED_STATE(Disabled, (!showHoveringNodeOutline), {
                 ImGui::DragFloat("Thickness##hoveringNodeOutline", &hoveringNodeOutline->thickness, 1.f, 1.f, 1.f);
                 ImGui::ColorEdit4("Color##hoveringNodeOutline", value_ptr(hoveringNodeOutline->color));
-            }, !showHoveringNodeOutline);
+            });
 
             bool showSelectedNodeOutline = selectedNodeOutline.has_value();
             if (ImGui::Checkbox("Selected node outline", &showSelectedNodeOutline)) {
                 selectedNodeOutline.set_active(showSelectedNodeOutline);
             }
-            ImGui::WithDisabled([&]() {
+            IMGUI_SCOPED_STATE(Disabled, (!showSelectedNodeOutline), {
                 ImGui::DragFloat("Thickness##selectedNodeOutline", &selectedNodeOutline->thickness, 1.f, 1.f, 1.f);
                 ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(selectedNodeOutline->color));
-            }, !showSelectedNodeOutline);
+            });
         }
     }
     ImGui::End();
