@@ -111,6 +111,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/algorithm/bounding_box.cppm
         interface/gltf/algorithm/MikktSpaceInterface.cppm
         interface/gltf/algorithm/miniball.cppm
+        interface/gltf/algorithm/misc.cppm
         interface/gltf/algorithm/traversal.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetGpuBuffers.cppm
