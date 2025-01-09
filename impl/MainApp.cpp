@@ -31,6 +31,7 @@ import std;
 import asset;
 import imgui.glfw;
 import imgui.vulkan;
+import :gltf.algorithm.misc;
 import :gltf.AssetExternalBuffers;
 import :helpers.fastgltf;
 import :helpers.functional;
@@ -414,6 +415,11 @@ void vk_gltf_viewer::MainApp::run() {
                         appState.gltfAsset->selectedNodeIndices.clear();
                     }
                     appState.gltfAsset->selectedNodeIndices.emplace(task.nodeIndex);
+
+                    // If selected nodes have a single material, show it in the Material Editor window.
+                    if (auto materialIndex = gltf::algorithm::getUniqueMaterialIndex(gltf->asset, appState.gltfAsset->selectedNodeIndices)) {
+                        control::ImGuiTaskCollector::selectedMaterialIndex = *materialIndex;;
+                    }
                 },
                 [this](const control::task::HoverNodeFromSceneHierarchy &task) {
                     appState.gltfAsset->hoveringNodeIndex.emplace(task.nodeIndex);
