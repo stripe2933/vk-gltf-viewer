@@ -22,6 +22,7 @@ namespace ImGui {
     export using ImGui::FindWindowByName;
     export using ImGui::FocusWindow;
     export using ImGui::PushMultiItemsWidths;
+    export using ImGui::ScrollToItem;
 
 #ifdef IMGUI_HAS_DOCK
     export using ImGui::DockBuilderDockWindow;
