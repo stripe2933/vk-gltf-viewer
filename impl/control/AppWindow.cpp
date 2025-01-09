@@ -9,6 +9,8 @@ import :control.AppWindow;
 import std;
 import glm;
 import ImGuizmo;
+import :global;
+import :helpers.ranges;
 import :math.extended_arithmetic;
 
 vk_gltf_viewer::control::AppWindow::AppWindow(
@@ -135,20 +137,12 @@ void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(int button, int a
         }
         else if (action == GLFW_RELEASE) {
             if (lastMouseDownPosition) {
-                if (mods == GLFW_MOD_CONTROL) {
-                    if (appState.gltfAsset && appState.gltfAsset->hoveringNodeIndex) {
-                        appState.gltfAsset->selectedNodeIndices.emplace(*appState.gltfAsset->hoveringNodeIndex);
-                    }
+                if (appState.gltfAsset && appState.gltfAsset->hoveringNodeIndex) {
+                    pTasks->emplace_back(std::in_place_type<task::SelectNode>, *appState.gltfAsset->hoveringNodeIndex, mods == GLFW_MOD_CONTROL);
+                    global::shouldNodeInSceneHierarchyScrolledToBeVisible = true;
                 }
-                else{
-                    if (appState.gltfAsset) {
-                        if (appState.gltfAsset->hoveringNodeIndex) {
-                            appState.gltfAsset->selectedNodeIndices = { *appState.gltfAsset->hoveringNodeIndex };
-                        }
-                        else {
-                            appState.gltfAsset->selectedNodeIndices.clear();
-                        }
-                    }
+                else {
+                    appState.gltfAsset->selectedNodeIndices.clear();
                 }
                 lastMouseDownPosition = std::nullopt;
             }
@@ -175,27 +169,22 @@ void vk_gltf_viewer::control::AppWindow::onKeyCallback(int key, int scancode, in
 }
 
 void vk_gltf_viewer::control::AppWindow::onDropCallback(std::span<const char * const> paths) {
-    for (std::filesystem::path path : paths) {
-        if (std::filesystem::is_directory(path)) {
-            // If directory contains glTF file, load it.
-            for (const std::filesystem::directory_entry &entry : std::filesystem::directory_iterator { path }) {
-                if (entry.is_directory()) {
-                    continue;
-                }
+    if (paths.empty()) return;
 
-                std::filesystem::path path = entry.path();
-                const std::filesystem::path extension = path.extension();
-                if (extension == ".gltf" || extension == ".glb") {
-                    pTasks->emplace_back(std::in_place_type<task::LoadGltf>, std::move(path));
-                    return;
-                }
+    const std::filesystem::path path = paths[0];
+    if (std::filesystem::is_directory(path)) {
+        // If directory contains glTF file, load it.
+        for (const std::filesystem::path &childPath : std::filesystem::directory_iterator { path }) {
+            if (ranges::one_of(childPath.extension(), ".gltf", ".glb")) {
+                pTasks->emplace_back(std::in_place_type<task::LoadGltf>, childPath);
+                return;
             }
         }
-        else if (const std::filesystem::path extension = path.extension(); extension == ".gltf" || extension == ".glb") {
-            pTasks->emplace_back(std::in_place_type<task::LoadGltf>, std::move(path));
-        }
-        else if (extension == ".hdr" || extension == ".exr") {
-            pTasks->emplace_back(std::in_place_type<task::LoadEqmap>, std::move(path));
-        }
+    }
+    else if (const std::filesystem::path extension = path.extension(); ranges::one_of(extension, ".gltf", ".glb")) {
+        pTasks->emplace_back(std::in_place_type<task::LoadGltf>, path);
+    }
+    else if (ranges::one_of(extension, ".hdr", ".exr")) {
+        pTasks->emplace_back(std::in_place_type<task::LoadEqmap>, path);
     }
 }

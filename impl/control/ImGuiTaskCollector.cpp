@@ -14,6 +14,7 @@ import imgui.internal;
 import imgui.math;
 import ImGuizmo;
 import vku;
+import :global;
 import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.formatter.ByteSize;
@@ -811,10 +812,16 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                     return ImGui::TreeNodeEx("##treenode", flags);
                 }, nodeIndex == hoveringNodeIndex);
                 if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && !isNodeSelected) {
-                    tasks.emplace_back(std::in_place_type<task::SelectNodeFromSceneHierarchy>, nodeIndex, ImGui::GetIO().KeyCtrl);
+                    tasks.emplace_back(std::in_place_type<task::SelectNode>, nodeIndex, ImGui::GetIO().KeyCtrl);
                 }
                 if (ImGui::IsItemHovered() && nodeIndex != hoveringNodeIndex) {
                     tasks.emplace_back(std::in_place_type<task::HoverNodeFromSceneHierarchy>, nodeIndex);
+                }
+
+                if (global::shouldNodeInSceneHierarchyScrolledToBeVisible &&
+                    selectedNodeIndices.size() == 1 && nodeIndex == *selectedNodeIndices.begin()) {
+                    ImGui::ScrollToItem();
+                    global::shouldNodeInSceneHierarchyScrolledToBeVisible = false;
                 }
 
                 // --------------------

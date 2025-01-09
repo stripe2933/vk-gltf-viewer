@@ -409,7 +409,7 @@ void vk_gltf_viewer::MainApp::run() {
                         },
                     }, appState.gltfAsset->nodeVisibilities);
                 },
-                [this](const control::task::SelectNodeFromSceneHierarchy &task) {
+                [this](const control::task::SelectNode &task) {
                     if (!task.combine) {
                         appState.gltfAsset->selectedNodeIndices.clear();
                     }
