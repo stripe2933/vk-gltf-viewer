@@ -87,6 +87,40 @@ namespace ImGui {
         }
     }
 
+    export bool ImageButtonWithText(std::string_view str_id, ImTextureID user_texture_id, std::string_view text, const ImVec2 &image_size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& bg_col = ImVec4(0, 0, 0, 0), const ImVec4& tint_col = ImVec4(1, 1, 1, 1), ImGuiButtonFlags flags = 0) {
+        ImGuiStyle &style = GetStyle();
+        ImGuiWindow* window = GetCurrentWindow();
+        if (window->SkipItems)
+            return false;
+
+        const ImGuiID id = window->GetID(str_id.data(), str_id.data() + str_id.size());
+
+        const ImVec2 padding = style.FramePadding;
+        const ImRect bb(window->DC.CursorPos, { window->DC.CursorPos.x + image_size.x + padding.x * 2.0f, window->DC.CursorPos.y + image_size.y + padding.y * 2.0f + GetTextLineHeight() });
+        ItemSize(bb);
+        if (!ItemAdd(bb, id))
+            return false;
+
+        bool hovered, held;
+        bool pressed = ButtonBehavior(bb, id, &hovered, &held, flags);
+
+        // Render
+        const ImU32 col = GetColorU32((held && hovered) ? ImGuiCol_ButtonActive : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
+        RenderNavCursor(bb, id);
+        RenderFrame(bb.Min, bb.Max, col, true, std::clamp(std::min(padding.x, padding.y), 0.0f, style.FrameRounding));
+
+        const ImVec2 p_min { bb.Min.x + padding.x, bb.Min.y + padding.y };
+        const ImVec2 p_max { bb.Max.x - padding.x, bb.Max.y - padding.y - GetTextLineHeight() };
+        if (bg_col.w > 0.0f)
+            window->DrawList->AddRectFilled(p_min, p_max, GetColorU32(bg_col));
+        window->DrawList->AddImage(user_texture_id, p_min, p_max, uv0, uv1, GetColorU32(tint_col));
+        window->DrawList->PushClipRect({ p_min.x, p_max.y }, { p_max.x, p_max.y + GetTextLineHeight() }, true);
+        window->DrawList->AddText({ p_min.x, p_max.y }, GetColorU32(ImGuiCol_Text), text.data(), text.data() + text.size());
+        window->DrawList->PopClipRect();
+
+        return pressed;
+    }
+
     export template <std::invocable F>
     auto WithLabel(std::string_view label, F &&imGuiFunc) -> void
         requires std::is_void_v<std::invoke_result_t<F>>

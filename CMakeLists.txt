@@ -116,8 +116,11 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/MaterialVariantsMapping.cppm
         interface/gltf/NodeWorldTransforms.cppm
         interface/gltf/OrderedPrimitives.cppm
+        interface/gltf/TextureUsage.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/concepts.cppm
+        interface/helpers/enums/FlagTraits.cppm
+        interface/helpers/enums/Flags.cppm
         interface/helpers/fastgltf.cppm
         interface/helpers/formatter/ByteSize.cppm
         interface/helpers/full_optional.cppm

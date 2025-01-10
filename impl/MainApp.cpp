@@ -281,6 +281,7 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths());
             if (auto &gltfAsset = appState.gltfAsset) {
                 imguiTaskCollector.assetInspector(gltfAsset->asset, gltf->directory);
+                imguiTaskCollector.assetTextures(gltfAsset->asset, assetTextureDescriptorSets, gltf->textureUsage);
                 imguiTaskCollector.materialEditor(gltfAsset->asset, assetTextureDescriptorSets);
                 if (!gltfAsset->asset.materialVariants.empty()) {
                     imguiTaskCollector.materialVariants(gltfAsset->asset);
