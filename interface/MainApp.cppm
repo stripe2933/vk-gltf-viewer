@@ -10,6 +10,7 @@ import :gltf.AssetGpuFallbackTexture;
 import :gltf.AssetSceneGpuBuffers;
 import :gltf.AssetSceneHierarchy;
 import :gltf.MaterialVariantsMapping;
+import :gltf.TextureUsage;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Scene;
@@ -57,6 +58,8 @@ namespace vk_gltf_viewer {
              * @brief Associative data structure for KHR_materials_variants.
              */
             gltf::MaterialVariantsMapping materialVariantsMapping { asset };
+
+            gltf::TextureUsage textureUsage { asset, fastgltf::getPreferredImageIndex };
 
         private:
             const vulkan::Gpu &gpu;

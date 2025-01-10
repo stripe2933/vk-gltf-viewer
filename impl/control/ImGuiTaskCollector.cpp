@@ -13,6 +13,7 @@ import glm;
 import imgui.internal;
 import imgui.math;
 import ImGuizmo;
+import reflect;
 import vku;
 import :global;
 import :helpers.concepts;
@@ -71,7 +72,7 @@ void makeWindowVisible(const char* window_name) {
     }
 }
 
-auto hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f}) -> void {
+void hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f}) {
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
     ImGui::Image(vku::toUint64(texture), size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
 
@@ -295,6 +296,79 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetSamplers(std::span<fastgl
         }, ImGuiTableColumnFlags_WidthFixed });
 }
 
+void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
+    fastgltf::Asset &asset,
+    std::span<const vk::DescriptorSet> assetTextureImGuiDescriptorSets,
+    const gltf::TextureUsage &textureUsage
+) {
+    if (ImGui::Begin("Textures")) {
+        static std::optional<std::size_t> textureIndex = std::nullopt;
+
+        const float windowVisibleX2 = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
+        for (std::size_t i = 0; i < asset.textures.size(); ++i) {
+            bool buttonClicked;
+            const std::string_view label = nonempty_or(asset.textures[i].name, [&] { return tempStringBuffer.write("Unnamed texture {}", i).view(); });
+            IMGUI_SCOPED_PUSH(ID, (i), {
+                buttonClicked = ImGui::ImageButtonWithText("", vku::toUint64(assetTextureImGuiDescriptorSets[i]), label, { 64, 64 });
+            });
+            IMGUI_SCOPED_IF(ItemTooltip, (), {
+                ImGui::TextUnformatted(label);
+            });
+
+            if (buttonClicked) {
+                textureIndex = i;
+                ImGui::OpenPopup("Texture Viewer");
+            }
+
+            const float lastButtonX2 = ImGui::GetItemRectMax().x;
+            const float nextButtonX2 = lastButtonX2 + ImGui::GetStyle().ItemSpacing.x + 64;
+            if (i + 1 < asset.textures.size() && nextButtonX2 < windowVisibleX2) {
+                ImGui::SameLine();
+            }
+        }
+
+        IMGUI_SCOPED_IF(Popup, ("Texture Viewer"), {
+            assert(textureIndex && "Texture index is not set.");
+            if (*textureIndex >= asset.textures.size()) {
+                textureIndex.reset();
+                return;
+            }
+
+            hoverableImage(assetTextureImGuiDescriptorSets[*textureIndex], { 256, 256 });
+
+            ImGui::SameLine();
+
+            IMGUI_SCOPED_STATE(Group, (), {
+                fastgltf::Texture &texture = asset.textures[*textureIndex];
+                ImGui::InputTextWithHint("Name", "<empty>", &texture.name);
+                ImGui::LabelText("Image Index", "%zu",
+                    // TODO: same code in gltf::AssetGpuTextures.
+                    to_optional(texture.basisuImageIndex).or_else([&]() { return to_optional(texture.imageIndex); }).value());
+                ImGui::LabelText("Sampler Index", "%zu", texture.samplerIndex.value_or(-1));
+
+                ImGui::SeparatorText("Texture used by:");
+
+                ImGui::TableWithVirtualization<false>(
+                    "",
+                    ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable,
+                    textureUsage.getUsages(*textureIndex),
+                    ImGui::ColumnInfo { "Material", decomposer([&](std::size_t materialIndex, auto) {
+                        IMGUI_SCOPED_PUSH(ID, (materialIndex), {
+                            if (ImGui::TextLink(nonempty_or(asset.materials[materialIndex].name, [&] { return tempStringBuffer.write("Unnamed material {}", materialIndex).view(); }).c_str())) {
+                                makeWindowVisible("Material Editor");
+                                selectedMaterialIndex = materialIndex;
+                            }
+                        });
+                    }), ImGuiTableColumnFlags_WidthFixed },
+                    ImGui::ColumnInfo { "Type", decomposer([](auto, Flags<gltf::TextureUsage::Type> type) {
+                        ImGui::TextUnformatted(tempStringBuffer.write("{::s}", type).view());
+                    }), ImGuiTableColumnFlags_WidthStretch });
+            });
+        });
+    }
+    ImGui::End();
+}
+
 [[nodiscard]] ImGuiID makeDefaultDockState(ImGuiID dockSpaceOverViewport) {
     // ------------------------------------
     // |       |                  |       |
@@ -318,6 +392,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetSamplers(std::span<fastgl
     ImGui::DockBuilderDockWindow("Buffer Views", leftSidebarTop);
     ImGui::DockBuilderDockWindow("Images", leftSidebarTop);
     ImGui::DockBuilderDockWindow("Samplers", leftSidebarTop);
+    ImGui::DockBuilderDockWindow("Textures", leftSidebarTop);
 
     // leftSidebarBottom
     ImGui::DockBuilderDockWindow("Background", leftSidebarBottom);
@@ -383,7 +458,7 @@ vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
 
 vk_gltf_viewer::control::ImGuiTaskCollector::~ImGuiTaskCollector() {
     if (!assetInspectorCalled) {
-        for (auto name : { "Asset Info", "Buffers", "Buffer Views", "Images", "Samplers" }) {
+        for (auto name : { "Asset Info", "Buffers", "Buffer Views", "Images", "Samplers", "Textures" }) {
             if (ImGui::Begin(name)) {
                 ImGui::TextUnformatted("Asset not loaded."sv);
             }
