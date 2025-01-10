@@ -61,7 +61,7 @@ namespace ImGui {
     void TableWithVirtualization(cpp_util::cstring_view str_id, ImGuiTableFlags flags, std::ranges::random_access_range auto &&items, const ColumnInfo<Fs> &...columnInfos) {
         // If item count is less than 32, use the normal Table function.
         if (items.size() < 32) {
-            Table(str_id, flags, FWD(items), columnInfos...);
+            Table<RowNumber>(str_id, flags, FWD(items), columnInfos...);
         }
         else if (BeginTable(str_id.c_str(), RowNumber + sizeof...(Fs), flags)) {
             TableSetupScrollFreeze(0, 1);
