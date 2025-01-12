@@ -130,7 +130,7 @@ namespace vk_gltf_viewer::gltf {
         ) : asset { asset },
             gpu { gpu } {
             // Get images that are used by asset textures.
-            std::vector usedImageIndices { std::from_range, asset.textures | std::views::transform(getPreferredImageIndex) };
+            std::vector usedImageIndices { std::from_range, asset.textures | std::views::transform(fastgltf::getPreferredImageIndex) };
             std::ranges::sort(usedImageIndices);
             const auto [begin, end] = std::ranges::unique(usedImageIndices);
             usedImageIndices.erase(begin, end);
@@ -532,20 +532,6 @@ namespace vk_gltf_viewer::gltf {
             std::ignore = gpu.device.waitForFences(*graphicsFence, true, ~0ULL); // TODO: failure handling
 
             imageViews = createImageViews(gpu.device);
-        }
-
-        /**
-         * Get image index from \p texture with preference of GPU compressed texture.
-         *
-         * You should use this function to get the image index from a texture, rather than directly access such like
-         * <tt>texture.imageIndex</tt> or <tt>texture.basisuImageIndex</tt>.
-         *
-         * @param texture Texture to get the index.
-         * @return Image index.
-         */
-        [[nodiscard]] static auto getPreferredImageIndex(const fastgltf::Texture &texture) noexcept -> std::size_t {
-            return texture.basisuImageIndex // Prefer BasisU compressed image if exists.
-                .value_or(*texture.imageIndex); // Otherwise, use regular image.
         }
 
     private:
