@@ -157,13 +157,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetBuffers(std::span<fastglt
             ImGui::TextUnformatted(tempStringBuffer.write(ByteSize { buffer.byteLength }));
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "MIME", [](const fastgltf::Buffer &buffer) {
-            visit(fastgltf::visitor {
-                [](const auto &source) requires requires { source.mimeType -> fastgltf::MimeType; } {
+            visit([](const auto &source) {
+                if constexpr (requires { { source.mimeType } -> std::convertible_to<fastgltf::MimeType>; }) {
                     ImGui::TextUnformatted(to_string(source.mimeType));
-                },
-                [](const auto&) {
+                }
+                else {
                     ImGui::TextDisabled("-");
-                },
+                }
             }, buffer.data);
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "Location", [&](std::size_t row, const fastgltf::Buffer &buffer) {
@@ -241,13 +241,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetImages(std::span<fastgltf
             });
         }, ImGuiTableColumnFlags_WidthStretch },
         ImGui::ColumnInfo { "MIME", [](const fastgltf::Image &image) {
-            visit(fastgltf::visitor {
-                [](const auto &source) requires requires { source.mimeType -> fastgltf::MimeType; } {
+            visit([](const auto &source) {
+                if constexpr (requires { { source.mimeType } -> std::convertible_to<fastgltf::MimeType>; }) {
                     ImGui::TextUnformatted(to_string(source.mimeType));
-                },
-                [](const auto&) {
+                }
+                else {
                     ImGui::TextDisabled("-");
-                },
+                }
             }, image.data);
         }, ImGuiTableColumnFlags_WidthFixed },
         ImGui::ColumnInfo { "Location", [&](std::size_t i, const fastgltf::Image &image) {
