@@ -1174,7 +1174,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::background(
             solidBackground.set_active(true);
         }
         IMGUI_SCOPED_STATE(Disabled, (!useSolidBackground), {
-            ImGui::ColorPicker3("Color", value_ptr(*solidBackground));
+            ImGui::ColorPicker3("Color", value_ptr(*solidBackground), ImGuiColorEditFlags_PickerHueWheel);
         });
     }
     ImGui::End();
@@ -1274,7 +1274,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             }
             IMGUI_SCOPED_STATE(Disabled, (!showHoveringNodeOutline), {
                 ImGui::DragFloat("Thickness##hoveringNodeOutline", &hoveringNodeOutline->thickness, 1.f, 1.f, 1.f);
-                ImGui::ColorEdit4("Color##hoveringNodeOutline", value_ptr(hoveringNodeOutline->color));
+                ImGui::ColorEdit4("Color##hoveringNodeOutline", value_ptr(hoveringNodeOutline->color), ImGuiColorEditFlags_PickerHueWheel);
             });
 
             bool showSelectedNodeOutline = selectedNodeOutline.has_value();
@@ -1283,7 +1283,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             }
             IMGUI_SCOPED_STATE(Disabled, (!showSelectedNodeOutline), {
                 ImGui::DragFloat("Thickness##selectedNodeOutline", &selectedNodeOutline->thickness, 1.f, 1.f, 1.f);
-                ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(selectedNodeOutline->color));
+                ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(selectedNodeOutline->color), ImGuiColorEditFlags_PickerHueWheel);
             });
         }
     }

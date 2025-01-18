@@ -499,38 +499,9 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
     }
 
     // Post-composition pass.
-    {
-        compositionCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
-
-        if (selectedNodes || hoveringNode) {
-            recordNodeOutlineCompositionCommands(compositionCommandBuffer, hoveringNodeJumpFloodForward, selectedNodeJumpFloodForward, swapchainImageIndex);
-
-            // Make sure the outline composition is done before rendering ImGui.
-            compositionCommandBuffer.pipelineBarrier(
-                vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                {},
-                vk::MemoryBarrier {
-                    vk::AccessFlagBits::eColorAttachmentWrite,
-                    vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
-                },
-                {}, {});
-        }
-
-        recordImGuiCompositionCommands(compositionCommandBuffer, swapchainImageIndex);
-
-        // Change swapchain image layout from ColorAttachmentOptimal to PresentSrcKHR.
-        compositionCommandBuffer.pipelineBarrier(
-            vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
-            {}, {}, {},
-            vk::ImageMemoryBarrier {
-                vk::AccessFlagBits::eColorAttachmentWrite, {},
-                vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
-            });
-
-        compositionCommandBuffer.end();
-    }
+    compositionCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+    recordCompositionCommands(compositionCommandBuffer, hoveringNodeJumpFloodForward, selectedNodeJumpFloodForward, swapchainImageIndex);
+    compositionCommandBuffer.end();
 
     gpu.queues.graphicsPresent.submit({
         vk::SubmitInfo {
@@ -911,51 +882,55 @@ auto vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer c
     sharedData.skyboxRenderer.draw(cb, get<vku::DescriptorSet<dsl::Skybox>>(background), { translationlessProjectionViewMatrix });
 }
 
-auto vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
+void vk_gltf_viewer::vulkan::Frame::recordCompositionCommands(
     vk::CommandBuffer cb,
     std::optional<bool> hoveringNodeJumpFloodForward,
     std::optional<bool> selectedNodeJumpFloodForward,
     std::uint32_t swapchainImageIndex
-) const -> void {
-    boost::container::static_vector<vk::ImageMemoryBarrier, 2> memoryBarriers;
-    // Change jump flood image layouts to ShaderReadOnlyOptimal.
-    if (hoveringNodeJumpFloodForward) {
-        memoryBarriers.push_back({
-            {}, vk::AccessFlagBits::eShaderRead,
-            vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
-            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-            passthruResources->hoveringNodeOutlineJumpFloodResources.image,
-            { vk::ImageAspectFlagBits::eColor, 0, 1, *hoveringNodeJumpFloodForward, 1 },
-        });
-    }
-    if (selectedNodeJumpFloodForward) {
-        memoryBarriers.push_back({
-            {}, vk::AccessFlagBits::eShaderRead,
-            vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
-            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-            passthruResources->selectedNodeOutlineJumpFloodResources.image,
-            { vk::ImageAspectFlagBits::eColor, 0, 1, *selectedNodeJumpFloodForward, 1 },
-        });
-    }
-    if (!memoryBarriers.empty()) {
-        cb.pipelineBarrier(
-            vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eFragmentShader,
-            {}, {}, {}, memoryBarriers);
+) const {
+    if (selectedNodes || hoveringNode) {
+        boost::container::static_vector<vk::ImageMemoryBarrier, 2> memoryBarriers;
+        // Change jump flood image layouts to ShaderReadOnlyOptimal.
+        if (hoveringNodeJumpFloodForward) {
+            memoryBarriers.push_back({
+                {}, vk::AccessFlagBits::eShaderRead,
+                vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                passthruResources->hoveringNodeOutlineJumpFloodResources.image,
+                { vk::ImageAspectFlagBits::eColor, 0, 1, *hoveringNodeJumpFloodForward, 1 },
+            });
+        }
+        if (selectedNodeJumpFloodForward) {
+            memoryBarriers.push_back({
+                {}, vk::AccessFlagBits::eShaderRead,
+                vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                passthruResources->selectedNodeOutlineJumpFloodResources.image,
+                { vk::ImageAspectFlagBits::eColor, 0, 1, *selectedNodeJumpFloodForward, 1 },
+            });
+        }
+        if (!memoryBarriers.empty()) {
+            cb.pipelineBarrier(
+                vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eFragmentShader,
+                {}, {}, {}, memoryBarriers);
+        }
     }
 
+    cb.beginRenderPass(vk::RenderPassBeginInfo {
+        *sharedData.compositionRenderPass,
+        *sharedData.compositionFramebuffers[swapchainImageIndex],
+        vk::Rect2D { { 0, 0 }, sharedData.swapchainExtent },
+        vku::unsafeProxy<vk::ClearValue>(vk::ClearColorValue{}),
+    }, vk::SubpassContents::eInline);
+
     // Set viewport and scissor.
-    const vk::Viewport passthruViewport {
+    cb.setViewport(0, vku::unsafeProxy(vk::Viewport {
         // Use negative viewport.
         static_cast<float>(passthruRect.offset.x), static_cast<float>(passthruRect.offset.y + passthruRect.extent.height),
         static_cast<float>(passthruRect.extent.width), -static_cast<float>(passthruRect.extent.height),
         0.f, 1.f,
-    };
-    cb.setViewport(0, passthruViewport);
+    }));
     cb.setScissor(0, passthruRect);
-
-    cb.beginRenderingKHR(sharedData.swapchainAttachmentGroup.getRenderingInfo(
-        vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
-        swapchainImageIndex));
 
     // Draw hovering/selected node outline if exists.
     bool pipelineBound = false;
@@ -977,7 +952,14 @@ auto vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
     }
     if (hoveringNode) {
         if (selectedNodes) {
-            // TODO: pipeline barrier required.
+            cb.pipelineBarrier(
+                vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                vk::DependencyFlagBits::eByRegion,
+                vk::MemoryBarrier {
+                    vk::AccessFlagBits::eColorAttachmentWrite,
+                    vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
+                },
+                {}, {});
         }
 
         if (!pipelineBound) {
@@ -997,24 +979,24 @@ auto vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
         cb.draw(3, 1, 0, 0);
     }
 
-    cb.endRenderingKHR();
-}
-
-auto vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
-    vk::CommandBuffer cb,
-    std::uint32_t swapchainImageIndex
-) const -> void {
-    // Start dynamic rendering with B8G8R8A8_UNORM format.
-    cb.beginRenderingKHR(visit_as<const ag::Swapchain&>(sharedData.imGuiSwapchainAttachmentGroup).getRenderingInfo(
-        vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
-        swapchainImageIndex));
+    if (selectedNodes || hoveringNode) {
+        // Make sure the outline composition is done before rendering ImGui.
+        cb.pipelineBarrier(
+            vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+            vk::DependencyFlagBits::eByRegion,
+            vk::MemoryBarrier {
+                vk::AccessFlagBits::eColorAttachmentWrite,
+                vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
+            },
+            {}, {});
+    }
 
     // Draw ImGui.
     if (ImDrawData *drawData = ImGui::GetDrawData()) {
         ImGui_ImplVulkan_RenderDrawData(drawData, cb);
     }
 
-    cb.endRenderingKHR();
+    cb.endRenderPass();
 }
 
 auto vk_gltf_viewer::vulkan::Frame::recordSwapchainExtentDependentImageLayoutTransitionCommands(

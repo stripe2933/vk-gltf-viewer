@@ -13,6 +13,8 @@ export using ::ImGuiCol_ButtonActive;
 export using ::ImGuiCol_ButtonHovered;
 export using ::ImGuiCol_Header;
 export using ::ImGuiCol_HeaderActive;
+export using ::ImGuiColorEditFlags_PickerHueWheel;
+export using ::ImGuiConfigFlags_IsSRGB;
 export using ::ImGuiContext;
 export using ::ImGuiInputTextCallback;
 export using ::ImGuiInputTextCallbackData;
@@ -138,6 +140,7 @@ namespace ImGui {
     export using ImGui::SetCursorPosX;
     export using ImGui::SetItemDefaultFocus;
     export using ImGui::SetNextItemWidth;
+    export using ImGui::StyleColorsDarkSRGB;
     export using ImGui::TableHeadersRow;
     export using ImGui::TableNextRow;
     export using ImGui::TableSetColumnIndex;

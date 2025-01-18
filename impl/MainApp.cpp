@@ -186,7 +186,8 @@ vk_gltf_viewer::MainApp::MainApp() {
 #if __APPLE__
     io.FontGlobalScale = 1.f / io.DisplayFramebufferScale.x;
 #endif
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_IsSRGB | ImGuiConfigFlags_DockingEnable;
+    ImGui::StyleColorsDarkSRGB();
 
     ImFontConfig fontConfig;
     fontConfig.SizePixels = 16.f * io.DisplayFramebufferScale.x;
@@ -218,21 +219,17 @@ vk_gltf_viewer::MainApp::MainApp() {
     io.Fonts->Build();
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
-    const vk::Format colorAttachmentFormat = gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb;
     ImGui_ImplVulkan_InitInfo initInfo {
         .Instance = *instance,
         .PhysicalDevice = *gpu.physicalDevice,
         .Device = *gpu.device,
         .Queue = gpu.queues.graphicsPresent,
+        .RenderPass = *sharedData.compositionRenderPass,
         // ImGui requires ImGui_ImplVulkan_InitInfo::{MinImageCount,ImageCount} ≥ 2 (I don't know why...).
         .MinImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
         .ImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
+        .Subpass = 0,
         .DescriptorPoolSize = 512,
-        .UseDynamicRendering = true,
-        .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
-            {},
-            colorAttachmentFormat,
-        },
     };
     ImGui_ImplVulkan_Init(&initInfo);
 }
@@ -710,42 +707,30 @@ vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {
 vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR oldSwapchain) const {
     const vk::SurfaceKHR surface = window.getSurface();
     const vk::SurfaceCapabilitiesKHR surfaceCapabilities = gpu.physicalDevice.getSurfaceCapabilitiesKHR(surface);
-    const auto viewFormats = { vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm };
-
-    vk::StructureChain createInfo {
-        vk::SwapchainCreateInfoKHR{
-            gpu.supportSwapchainMutableFormat ? vk::SwapchainCreateFlagBitsKHR::eMutableFormat : vk::SwapchainCreateFlagsKHR{},
-            surface,
-            // The spec says:
-            //
-            //   maxImageCount is the maximum number of images the specified device supports for a swapchain created for
-            //   the surface, and will be either 0, or greater than or equal to minImageCount. A value of 0 means that
-            //   there is no limit on the number of images, though there may be limits related to the total amount of
-            //   memory used by presentable images.
-            //
-            // Therefore, if maxImageCount is zero, it is set to the UINT_MAX and minImageCount + 1 will be used.
-            std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount == 0 ? ~0U : surfaceCapabilities.maxImageCount),
-            vk::Format::eB8G8R8A8Srgb,
-            vk::ColorSpaceKHR::eSrgbNonlinear,
-            swapchainExtent,
-            1,
-            vk::ImageUsageFlagBits::eColorAttachment,
-            {}, {},
-            surfaceCapabilities.currentTransform,
-            vk::CompositeAlphaFlagBitsKHR::eOpaque,
-            vk::PresentModeKHR::eFifo,
-            true,
-            oldSwapchain,
-        },
-        vk::ImageFormatListCreateInfo {
-            viewFormats,
-        }
-    };
-    if (!gpu.supportSwapchainMutableFormat) {
-        createInfo.unlink<vk::ImageFormatListCreateInfo>();
-    }
-
-    return { gpu.device, createInfo.get() };
+    return { gpu.device, vk::SwapchainCreateInfoKHR{
+        {},
+        surface,
+        // The spec says:
+        //
+        //   maxImageCount is the maximum number of images the specified device supports for a swapchain created for
+        //   the surface, and will be either 0, or greater than or equal to minImageCount. A value of 0 means that
+        //   there is no limit on the number of images, though there may be limits related to the total amount of
+        //   memory used by presentable images.
+        //
+        // Therefore, if maxImageCount is zero, it is set to the UINT_MAX and minImageCount + 1 will be used.
+        std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount == 0 ? ~0U : surfaceCapabilities.maxImageCount),
+        vk::Format::eB8G8R8A8Srgb,
+        vk::ColorSpaceKHR::eSrgbNonlinear,
+        swapchainExtent,
+        1,
+        vk::ImageUsageFlagBits::eColorAttachment,
+        {}, {},
+        surfaceCapabilities.currentTransform,
+        vk::CompositeAlphaFlagBitsKHR::eOpaque,
+        vk::PresentModeKHR::eFifo,
+        true,
+        oldSwapchain,
+    } };
 }
 
 auto vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources {
@@ -840,7 +825,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeBuffer, 0, vk::WholeSize }),
     }, {});
 
-    // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
+    // TODO: since non-SRGB textures are regarded as in linear color space, they are rendered lighter than it have to be.
     assetTextureDescriptorSets
         = gltf->asset.textures
         | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {

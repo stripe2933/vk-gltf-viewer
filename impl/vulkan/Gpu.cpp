@@ -20,7 +20,6 @@ constexpr std::array requiredExtensions {
 };
 
 constexpr std::array optionalExtensions {
-    vk::KHRSwapchainMutableFormatExtensionName,
     vk::EXTIndexTypeUint8ExtensionName,
     vk::AMDShaderImageLoadStoreLodExtensionName,
 };
@@ -168,7 +167,6 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
         }
     }
 
-    supportSwapchainMutableFormat = availableExtensionNames.contains(vk::KHRSwapchainMutableFormatExtensionName);
     supportShaderImageLoadStoreLod = availableExtensionNames.contains(vk::AMDShaderImageLoadStoreLodExtensionName);
 
     // Set optional features if available.

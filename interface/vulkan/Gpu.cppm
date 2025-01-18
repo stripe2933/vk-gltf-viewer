@@ -65,7 +65,6 @@ namespace vk_gltf_viewer::vulkan {
         vma::Allocator allocator;
 
         bool isUmaDevice;
-        bool supportSwapchainMutableFormat;
         bool supportDrawIndirectCount;
         bool supportUint8Index;
         std::uint32_t subgroupSize;

@@ -188,6 +188,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderer.cppm
         interface/vulkan/pipeline_layout/Primitive.cppm
         interface/vulkan/pipeline_layout/PrimitiveNoShading.cppm
+        interface/vulkan/render_pass/Composition.cppm
         interface/vulkan/render_pass/CubemapToneMapping.cppm
         interface/vulkan/render_pass/Scene.cppm
         interface/vulkan/sampler/BrdfLutSampler.cppm

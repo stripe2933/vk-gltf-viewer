@@ -20,6 +20,7 @@ export import :vulkan.pipeline.PrimitiveRenderer;
 export import :vulkan.pipeline.SkyboxRenderer;
 export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
+export import :vulkan.rp.Composition;
 export import :vulkan.rp.Scene;
 import :vulkan.sampler.SingleTexelSampler;
 
@@ -49,6 +50,7 @@ namespace vk_gltf_viewer::vulkan {
 
         // Render passes.
         rp::Scene sceneRenderPass { gpu.device };
+        rp::Composition compositionRenderPass { gpu.device };
 
         // Pipeline layouts.
         pl::Primitive primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
@@ -60,7 +62,7 @@ namespace vk_gltf_viewer::vulkan {
 
         // Primitive unrelated pipelines.
         JumpFloodComputer jumpFloodComputer { gpu.device };
-        OutlineRenderer outlineRenderer { gpu.device };
+        OutlineRenderer outlineRenderer { gpu.device, compositionRenderPass };
         SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices };
         WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass };
 
@@ -68,9 +70,13 @@ namespace vk_gltf_viewer::vulkan {
         // Attachment groups.
         // --------------------
 
-        ag::Swapchain swapchainAttachmentGroup { gpu, swapchainExtent, swapchainImages };
-        // If GPU does not support mutable swapchain format, it will be the reference of swapchainAttachmentGroup.
-        std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> imGuiSwapchainAttachmentGroup = getImGuiSwapchainAttachmentGroup();
+        ag::Swapchain swapchainAttachmentGroup { gpu.device, swapchainExtent, swapchainImages };
+
+        // --------------------
+        // Framebuffers.
+        // --------------------
+
+        std::vector<vk::raii::Framebuffer> compositionFramebuffers = createCompositionFramebuffers();
 
         // Descriptor pools.
         vk::raii::DescriptorPool textureDescriptorPool = createTextureDescriptorPool();
@@ -147,8 +153,8 @@ namespace vk_gltf_viewer::vulkan {
             swapchainExtent = newSwapchainExtent;
             swapchainImages = newSwapchainImages;
 
-            swapchainAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
-            imGuiSwapchainAttachmentGroup = getImGuiSwapchainAttachmentGroup();
+            swapchainAttachmentGroup = { gpu.device, swapchainExtent, swapchainImages };
+            compositionFramebuffers = createCompositionFramebuffers();
         }
 
         void updateTextureCount(std::uint32_t textureCount) {
@@ -186,13 +192,19 @@ namespace vk_gltf_viewer::vulkan {
         mutable std::unordered_map<PrimitiveRendererSpecialization, vk::raii::Pipeline, AggregateHasher> primitivePipelines;
         mutable std::unordered_map<UnlitPrimitiveRendererSpecialization, vk::raii::Pipeline, AggregateHasher> unlitPrimitivePipelines;
 
-        [[nodiscard]] std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> getImGuiSwapchainAttachmentGroup() {
-            if (gpu.supportSwapchainMutableFormat) {
-                return decltype(imGuiSwapchainAttachmentGroup) { std::in_place_index<0>, gpu, swapchainExtent, swapchainImages, vk::Format::eB8G8R8A8Unorm };
-            }
-            else {
-                return decltype(imGuiSwapchainAttachmentGroup) { std::in_place_index<1>, swapchainAttachmentGroup };
-            }
+        [[nodiscard]] std::vector<vk::raii::Framebuffer> createCompositionFramebuffers() const {
+            return swapchainAttachmentGroup.getSwapchainAttachment(0).views
+                | std::views::transform([this](vk::ImageView swapchainImageView) {
+                    return vk::raii::Framebuffer { gpu.device, vk::FramebufferCreateInfo {
+                        {},
+                        *compositionRenderPass,
+                        swapchainImageView,
+                        swapchainAttachmentGroup.extent.width,
+                        swapchainAttachmentGroup.extent.height,
+                        1,
+                    } };
+                })
+                | std::ranges::to<std::vector>();
         }
 
         [[nodiscard]] auto createTextureDescriptorPool() const -> vk::raii::DescriptorPool {
