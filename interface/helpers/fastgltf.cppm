@@ -270,6 +270,22 @@ namespace fastgltf {
         return textureInfo.texCoordIndex;
     }
 
+    /**
+     * Get image index from \p texture with preference of GPU compressed texture.
+     *
+     * You should use this function to get the image index from a texture, rather than directly access such like
+     * <tt>texture.imageIndex</tt> or <tt>texture.basisuImageIndex</tt>.
+     *
+     * @param texture Texture to get the index.
+     * @return Image index.
+     */
+    export
+    [[nodiscard]] std::size_t getPreferredImageIndex(const Texture &texture) {
+        return to_optional(texture.basisuImageIndex) // Prefer BasisU compressed image if exists.
+            .or_else([&]() { return to_optional(texture.imageIndex); }) // Otherwise, use regular image.
+            .value();
+    }
+
 namespace math {
     /**
      * @brief Convert matrix of type \tp U to matrix of type \tp T.

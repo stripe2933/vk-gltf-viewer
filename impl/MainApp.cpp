@@ -828,7 +828,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
             to_optional(texture.samplerIndex)
                 .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
                 .value_or(*gpuFallbackTexture.sampler),
-            *gltf->assetGpuTextures.imageViews.at(gltf::AssetGpuTextures::getPreferredImageIndex(texture)),
+            *gltf->assetGpuTextures.imageViews.at(getPreferredImageIndex(texture)),
             vk::ImageLayout::eShaderReadOnlyOptimal,
         };
     }));
@@ -849,7 +849,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
                     .value_or(*gpuFallbackTexture.sampler),
                 ranges::value_or(
                     gltf->assetGpuTextures.imageViews,
-                    gltf::AssetGpuTextures::getPreferredImageIndex(texture),
+                    getPreferredImageIndex(texture),
                     *gpuFallbackTexture.imageView),
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         })
