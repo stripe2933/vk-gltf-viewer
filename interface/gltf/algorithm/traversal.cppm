@@ -15,22 +15,17 @@ namespace vk_gltf_viewer::gltf::algorithm {
     export template <std::invocable<std::size_t> F>
     void traverseNode(const fastgltf::Asset &asset, std::size_t nodeIndex, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t>) {
         [&](this const auto &self, std::size_t nodeIndex) -> void {
+            // If F's return type is bool type, traversal continuation is determined by the return value of f.
             if constexpr (std::convertible_to<std::invoke_result_t<F, std::size_t>, bool>) {
-                // If F's return type is bool type, traverse continuation have to be determined by the return value of f.
-                if (f(nodeIndex)) {
-                    // Continue traversal only if f returns true.
-                    const fastgltf::Node &node = asset.nodes[nodeIndex];
-                    for (std::size_t childNodeIndex : node.children) {
-                        self(childNodeIndex);
-                    }
-                }
+                // Stop traversal if f returns false.
+                if (!f(nodeIndex)) return;
             }
             else {
                 f(nodeIndex);
-                const fastgltf::Node &node = asset.nodes[nodeIndex];
-                for (std::size_t childNodeIndex : node.children) {
-                    self(childNodeIndex);
-                }
+            }
+            
+            for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
+                self(childNodeIndex);
             }
         }(nodeIndex);
     }
@@ -46,29 +41,21 @@ namespace vk_gltf_viewer::gltf::algorithm {
     export template <std::invocable<std::size_t, const fastgltf::math::fmat4x4&> F>
     void traverseNode(const fastgltf::Asset &asset, std::size_t nodeIndex, const F &f, const fastgltf::math::fmat4x4 &initialNodeWorldTransform) noexcept(std::is_nothrow_invocable_v<F, std::size_t, const fastgltf::math::fmat4x4&>) {
         [&](this const auto &self, std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) -> void {
-            const fastgltf::Node &node = asset.nodes[nodeIndex];
+            // If F's return type is bool type, traversal continuation is determined by the return value of f.
             if constexpr (std::convertible_to<std::invoke_result_t<F, std::size_t, const fastgltf::math::fmat4x4&>, bool>) {
-                // If F's return type is bool type, traverse continuation have to be determined by the return value of f.
-                if (f(nodeIndex, worldTransform)) {
-                    // Continue traversal only if f returns true.
-                    for (std::size_t childNodeIndex : node.children) {
-                        const fastgltf::math::fmat4x4 childNodeWorldTransform = visit(fastgltf::visitor {
-                            [&](const fastgltf::TRS &trs) { return toMatrix(trs, worldTransform); },
-                            [&](const fastgltf::math::fmat4x4 &matrix) { return worldTransform * matrix; },
-                        }, asset.nodes[childNodeIndex].transform);
-                        self(childNodeIndex, childNodeWorldTransform);
-                    }
-                }
+                // Stop traversal if f returns false.
+                if (!f(nodeIndex, worldTransform)) return;
             }
             else {
                 f(nodeIndex, worldTransform);
-                for (std::size_t childNodeIndex : node.children) {
-                    const fastgltf::math::fmat4x4 childNodeWorldTransform = visit(fastgltf::visitor {
-                        [&](const fastgltf::TRS &trs) { return toMatrix(trs, worldTransform); },
-                        [&](const fastgltf::math::fmat4x4 &matrix) { return worldTransform * matrix; },
-                    }, asset.nodes[childNodeIndex].transform);
-                    self(childNodeIndex, childNodeWorldTransform);
-                }
+            }
+            
+            for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
+                const fastgltf::math::fmat4x4 childNodeWorldTransform = visit(fastgltf::visitor {
+                    [&](const fastgltf::TRS &trs) { return toMatrix(trs, worldTransform); },
+                    [&](const fastgltf::math::fmat4x4 &matrix) { return worldTransform * matrix; },
+                }, asset.nodes[childNodeIndex].transform);
+                self(childNodeIndex, childNodeWorldTransform);
             }
         }(nodeIndex, initialNodeWorldTransform);
     }
