@@ -516,9 +516,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
         if (ImGui::BeginCombo("Material", previewText)) {
             for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
                 const bool isSelected = i == selectedMaterialIndex;
-                if (ImGui::Selectable(nonempty_or(material.name, [&]() { return tempStringBuffer.write("<Unnamed material {}>", i).view(); }).c_str(), isSelected)) {
-                    selectedMaterialIndex.emplace(i);
-                }
+                ImGui::WithID(i, [&]() {
+                    if (ImGui::Selectable(nonempty_or(material.name, [&]() { return tempStringBuffer.write("<Unnamed material {}>", i).view(); }).c_str(), isSelected)) {
+                        selectedMaterialIndex.emplace(i);
+                    }
+                });
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();
                 }
