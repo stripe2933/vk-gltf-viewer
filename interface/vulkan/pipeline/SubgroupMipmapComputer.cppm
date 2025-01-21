@@ -53,18 +53,16 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 createPipelineStages(
                     gpu.device,
                     vku::Shader {
-                        gpu.subgroupSize == 16U
-                            ? gpu.supportShaderImageLoadStoreLod
-                                ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<16, 1> }
-                                : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<16, 0> }
-                            : gpu.subgroupSize == 32U
-                                ? gpu.supportShaderImageLoadStoreLod
-                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<32, 1> }
-                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<32, 0> }
-                                : gpu.supportShaderImageLoadStoreLod
-                                    ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<64, 1> }
-                                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<64, 0> },
+                        gpu.supportShaderImageLoadStoreLod
+                            ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<1> }
+                            : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<0> },
                         vk::ShaderStageFlagBits::eCompute,
+                        vku::unsafeAddress(vk::SpecializationInfo {
+                            vku::unsafeProxy(vk::SpecializationMapEntry {
+                                0, 0, sizeof(std::uint32_t),
+                            }),
+                            vk::ArrayProxyNoTemporaries<const std::uint32_t> { gpu.subgroupSize },
+                        }),
                     }).get()[0],
                 *pipelineLayout,
             } } { }

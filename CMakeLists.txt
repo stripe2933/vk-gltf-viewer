@@ -249,10 +249,7 @@ target_link_shader_variants(vk-gltf-viewer
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/subgroup_mipmap.comp
-    "SUBGROUP_SIZE;AMD_SHADER_IMAGE_LOAD_STORE_LOD"
-    "16 0" "16 1"
-    "32 0" "32 1"
-    "64 0" "64 1"
+    "AMD_SHADER_IMAGE_LOAD_STORE_LOD" 0 1
 )
 target_link_shader_variants(vk-gltf-viewer
     shaders/mask_depth.vert
