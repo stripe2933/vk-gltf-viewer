@@ -69,7 +69,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             vk::BlendFactor::eOne, vk::BlendFactor::eZero, vk::BlendOp::eAdd,
                             vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
                         }),
-                    })),
+                    { 1.f, 1.f, 1.f, 1.f },
+                })),
                 vk::PipelineRenderingCreateInfo {
                     {},
                     vku::unsafeProxy(vk::Format::eB8G8R8A8Srgb),
