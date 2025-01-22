@@ -40,7 +40,7 @@ function(target_link_shaders TARGET)
         elseif (${Vulkan_glslangValidator_FOUND})
             add_custom_command(
                 OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm
-                COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} -V $<$<CONFIG:Debug>:-Od> --target-env vulkan1.2 -x ${absolute_source} -o "shader/${filename}.h"
+                COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} -V $<$<CONFIG:Release>:-Os> --target-env vulkan1.2 -x ${absolute_source} -o "shader/${filename}.h"
                 COMMAND ${CMAKE_COMMAND} -E echo "export module ${target_identifier}:shader.${shader_identifier}\;" > shader/${filename}.cppm
                     && ${CMAKE_COMMAND} -E echo "namespace ${target_identifier}::shader { export constexpr unsigned int ${shader_identifier}[] = {" >> shader/${filename}.cppm
                     && ${CMAKE_COMMAND} -E cat shader/${filename}.h >> shader/${filename}.cppm
@@ -130,7 +130,7 @@ function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
             add_custom_command(
                 OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cpp
                 # Compile GLSL to SPIR-V.
-                COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} -V $<$<CONFIG:Debug>:-Od> --target-env vulkan1.2 -x ${macro_cli_defs} ${absolute_source} -o shader/${filename}_${variant_filename}_body.h
+                COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} -V $<$<CONFIG:Release>:-Os> --target-env vulkan1.2 -x ${macro_cli_defs} ${absolute_source} -o shader/${filename}_${variant_filename}_body.h
                 # Interface file generation.
                 COMMAND ${CMAKE_COMMAND} -E echo "template <> struct ${shader_identifier}_t<${value_params}> { static constexpr unsigned int value[] = {" >> shader/${filename}.cppm
                     && ${CMAKE_COMMAND} -E cat shader/${filename}_${variant_filename}_body.h >> shader/${filename}.cppm
