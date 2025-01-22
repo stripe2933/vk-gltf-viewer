@@ -18,7 +18,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             ) : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> {
                     device,
                     vk::DescriptorSetLayoutCreateInfo {
-                        {},
+                        vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
                         vku::unsafeProxy(getBindings(
                             { 1, vk::ShaderStageFlagBits::eCompute, &sampler },
                             { 1, vk::ShaderStageFlagBits::eCompute })),
@@ -55,13 +55,13 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 *pipelineLayout,
             } } { }
 
-        auto compute(
+        void compute(
             vk::CommandBuffer commandBuffer,
-            vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
+            vk::ArrayProxy<vk::WriteDescriptorSet> descriptorWrites,
             std::uint32_t cubemapSize
-        ) const -> void {
+        ) const {
             commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
-            commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
+            commandBuffer.pushDescriptorSetKHR(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorWrites);
             commandBuffer.dispatch(cubemapSize / 16, cubemapSize / 16, 6);
         }
     };

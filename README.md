@@ -89,6 +89,7 @@ The extensions and feature used in this application are quite common in the mode
   - `VK_KHR_dynamic_rendering`
   - `VK_KHR_synchronization2`
   - `VK_EXT_extended_dynamic_state` (dynamic state cull mode)
+  - `VK_KHR_push_descriptor`
   - `VK_KHR_swapchain`
   - (optional) `VK_KHR_swapchain_mutable_format` (proper ImGui gamma correction, UI color will lose the color if the extension not presented)
   - (optional) `VK_EXT_index_type_uint8` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)

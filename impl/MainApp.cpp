@@ -71,16 +71,6 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 vk_gltf_viewer::MainApp::MainApp() {
     const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
 
-    const vk::raii::DescriptorPool descriptorPool {
-        gpu.device,
-        brdfmapComputer.descriptorSetLayout.getPoolSize().getDescriptorPoolCreateInfo(),
-    };
-
-    const auto [brdfmapSet] = allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(brdfmapComputer.descriptorSetLayout));
-    gpu.device.updateDescriptorSets(
-        brdfmapSet.getWriteOne<0>({ {}, *brdfmapImageView, vk::ImageLayout::eGeneral }),
-        {});
-
     const vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
     std::variant<vk::CommandPool, vk::raii::CommandPool> graphicsCommandPool = *computeCommandPool;
     if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
@@ -134,7 +124,11 @@ vk_gltf_viewer::MainApp::MainApp() {
                     });
 
                 // Compute BRDF.
-                brdfmapComputer.compute(cb, brdfmapSet, vku::toExtent2D(brdfmapImage.extent));
+                vku::DescriptorSet<vulkan::BrdfmapComputer::DescriptorSetLayout> brdfmapSet;
+                brdfmapComputer.compute(
+                    cb,
+                    brdfmapSet.getWriteOne<0>({ {}, *brdfmapImageView, vk::ImageLayout::eGeneral }),
+                    vku::toExtent2D(brdfmapImage.extent));
 
                 // brdfmapImage will be used as sampled image.
                 cb.pipelineBarrier(
@@ -993,12 +987,6 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     };
     const vk::raii::ImageView toneMappedCubemapImageArrayView { gpu.device, toneMappedCubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray) };
 
-    const vk::raii::DescriptorPool cubemapToneMappingDescriptorPool { gpu.device, getPoolSizes(cubemapToneMappingRenderer.descriptorSetLayout).getDescriptorPoolCreateInfo() };
-    const auto [cubemapToneMappingDescriptorSet] = allocateDescriptorSets(*gpu.device, *cubemapToneMappingDescriptorPool, std::tie(cubemapToneMappingRenderer.descriptorSetLayout));
-    gpu.device.updateDescriptorSets(
-        cubemapToneMappingDescriptorSet.getWriteOne<0>({ {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-        {});
-
     const vk::raii::Framebuffer cubemapToneMappingFramebuffer { gpu.device, vk::FramebufferCreateInfo {
         {},
         cubemapToneMappingRenderPass,
@@ -1238,7 +1226,11 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 }, vk::SubpassContents::eInline);
 
                 cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapToneMappingRenderer.pipeline);
-                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *cubemapToneMappingRenderer.pipelineLayout, 0, cubemapToneMappingDescriptorSet, {});
+                vku::DescriptorSet<vulkan::CubemapToneMappingRenderer::DescriptorSetLayout> cubemapToneMappingDescriptorSet;
+                cb.pushDescriptorSetKHR(
+                    vk::PipelineBindPoint::eGraphics,
+                    *cubemapToneMappingRenderer.pipelineLayout,
+                    0, cubemapToneMappingDescriptorSet.getWriteOne<0>({ {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal }));
                 cb.setViewport(0, vku::unsafeProxy(vku::toViewport(vku::toExtent2D(toneMappedCubemapImage.extent))));
                 cb.setScissor(0, vku::unsafeProxy(vk::Rect2D { { 0, 0 }, vku::toExtent2D(toneMappedCubemapImage.extent) }));
                 cb.draw(3, 1, 0, 0);
