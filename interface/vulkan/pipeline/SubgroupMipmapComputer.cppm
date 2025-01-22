@@ -26,7 +26,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             ) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
                 gpu.device,
                 vk::DescriptorSetLayoutCreateInfo {
-                    {},
+                    vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
                     vku::unsafeProxy(getBindings({ gpu.supportShaderImageLoadStoreLod ? 1U : mipImageCount, vk::ShaderStageFlagBits::eCompute })),
                 },
             } { }
@@ -69,12 +69,12 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 *pipelineLayout,
             } } { }
 
-        auto compute(
+        void compute(
             vk::CommandBuffer commandBuffer,
-            vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
+            vk::ArrayProxy<vk::WriteDescriptorSet> descriptorWrites,
             const vk::Extent2D &baseImageExtent,
             std::uint32_t mipLevels
-        ) const -> void {
+        ) const {
             // Base image size must be greater than or equal to 32. Therefore, the first execution may process less than 5 mip levels.
             // For example, if base extent is 4096x4096 (mipLevels=13),
             // Step 0 (4096 -> 1024)
@@ -100,7 +100,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 #endif
 
             commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
-            commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
+            commandBuffer.pushDescriptorSetKHR(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorWrites);
             for (const auto &[idx, mipIndices] : indexChunks | ranges::views::enumerate) {
                 if (idx != 0) {
                     commandBuffer.pipelineBarrier(

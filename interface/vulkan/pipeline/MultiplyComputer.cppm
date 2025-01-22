@@ -19,7 +19,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             ) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer> {
                     device,
                     vk::DescriptorSetLayoutCreateInfo {
-                        {},
+                        vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
                         vku::unsafeProxy(getBindings(
                             { 1, vk::ShaderStageFlagBits::eCompute },
                             { 1, vk::ShaderStageFlagBits::eCompute })),
@@ -57,11 +57,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         auto compute(
             vk::CommandBuffer commandBuffer,
-            vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
+            vk::ArrayProxy<vk::WriteDescriptorSet> descriptorWrites,
             const PushConstant &pushConstant
         ) const -> void {
             commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
-            commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
+            commandBuffer.pushDescriptorSetKHR(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorWrites);
             commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant);
             commandBuffer.dispatch(math::divCeil(pushConstant.numCount, 256U), 1, 1);
         }

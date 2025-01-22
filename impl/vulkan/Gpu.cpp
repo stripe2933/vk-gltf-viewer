@@ -15,6 +15,7 @@ constexpr std::array requiredExtensions {
     vk::KHRDynamicRenderingExtensionName,
     vk::KHRSynchronization2ExtensionName,
     vk::EXTExtendedDynamicStateExtensionName,
+    vk::KHRPushDescriptorExtensionName,
     vk::KHRSwapchainExtensionName,
 };
 

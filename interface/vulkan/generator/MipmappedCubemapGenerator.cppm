@@ -13,9 +13,7 @@ namespace vk_gltf_viewer::vulkan::inline generator {
     export class MipmappedCubemapGenerator {
         struct IntermediateResources {
             vk::raii::ImageView eqmapImageView;
-            std::variant<vk::raii::ImageView, std::vector<vk::raii::ImageView>> cubemapImageViews;
-
-            vk::raii::DescriptorPool descriptorPool;
+            std::vector<vk::raii::ImageView> cubemapMipImageViews; // 0th image view has the full image resource, i-th (i=1..) image view has i-th mipmap.
         };
 
         const Gpu &gpu;
@@ -58,52 +56,20 @@ namespace vk_gltf_viewer::vulkan::inline generator {
             // --------------------
 
             intermediateResources = std::make_unique<IntermediateResources>(
-                vk::raii::ImageView { gpu.device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
-                vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
-                vk::raii::DescriptorPool {
+                vk::raii::ImageView { gpu.device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) });
+            if (gpu.supportShaderImageLoadStoreLod) {
+                intermediateResources->cubemapMipImageViews.emplace_back(
                     gpu.device,
-                    getPoolSizes(pipelines.cubemapComputer.descriptorSetLayout, pipelines.subgroupMipmapComputer.descriptorSetLayout)
-                        .getDescriptorPoolCreateInfo(),
-                });
-            if (!gpu.supportShaderImageLoadStoreLod) {
-                intermediateResources->cubemapImageViews.emplace<std::vector<vk::raii::ImageView>>(
-                    std::from_range,
-                    cubemapImage.getMipViewCreateInfos(vk::ImageViewType::eCube)
-                        | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
-                            return vk::raii::ImageView { gpu.device, createInfo };
-                        }));
+                    cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube));
             }
-
-            // --------------------
-            // Allocate descriptor sets and update them.
-            // --------------------
-
-            const auto [cubemapComputerSet, subgroupMipmapComputerSet]
-                = allocateDescriptorSets(*gpu.device, *intermediateResources->descriptorPool, std::tie(
-                    pipelines.cubemapComputer.descriptorSetLayout,
-                    pipelines.subgroupMipmapComputer.descriptorSetLayout));
-
-            visit(multilambda {
-                [&](vk::ImageView cubemapImageView) {
-                    gpu.device.updateDescriptorSets({
-                        cubemapComputerSet.getWriteOne<0>({ {}, *intermediateResources->eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                        cubemapComputerSet.getWriteOne<1>({ {}, cubemapImageView, vk::ImageLayout::eGeneral }),
-                        subgroupMipmapComputerSet.getWriteOne<0>({ {}, cubemapImageView, vk::ImageLayout::eGeneral }),
-                    }, {});
-                },
-                [&](std::span<const vk::raii::ImageView> cubemapMipImageViews) {
-                    gpu.device.updateDescriptorSets({
-                        cubemapComputerSet.getWriteOne<0>({ {}, *intermediateResources->eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                        cubemapComputerSet.getWriteOne<1>({ {}, *cubemapMipImageViews[0], vk::ImageLayout::eGeneral }),
-                        subgroupMipmapComputerSet.getWrite<0>(vku::unsafeProxy(
-                            cubemapMipImageViews
-                                | std::views::transform([](vk::ImageView view) {
-                                    return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
-                                })
-                                | std::ranges::to<std::vector>())),
-                    }, {});
-                },
-            }, intermediateResources->cubemapImageViews);
+            else {
+                intermediateResources->cubemapMipImageViews
+                    = cubemapImage.getMipViewCreateInfos(vk::ImageViewType::eCube)
+                    | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
+                        return vk::raii::ImageView { gpu.device, createInfo };
+                    })
+                    | std::ranges::to<std::vector>();
+            }
 
             // --------------------
             // Record commands to the command buffer.
@@ -120,7 +86,14 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 });
 
             // Generate cubemap from eqmapImage.
-            pipelines.cubemapComputer.compute(computeCommandBuffer, cubemapComputerSet, cubemapImage.extent.width);
+            vku::DescriptorSet<CubemapComputer::DescriptorSetLayout> cubemapComputerSet;
+            pipelines.cubemapComputer.compute(
+                computeCommandBuffer,
+                {
+                    cubemapComputerSet.getWriteOne<0>({ {}, *intermediateResources->eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                    cubemapComputerSet.getWriteOne<1>({ {}, *intermediateResources->cubemapMipImageViews[0], vk::ImageLayout::eGeneral}),
+                },
+                cubemapImage.extent.width);
 
             computeCommandBuffer.pipelineBarrier(
                 vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
@@ -130,7 +103,17 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 {}, {});
 
             // Generate cubemapImage mipmaps.
-            pipelines.subgroupMipmapComputer.compute(computeCommandBuffer, subgroupMipmapComputerSet, vku::toExtent2D(cubemapImage.extent), cubemapImage.mipLevels);
+            vku::DescriptorSet<SubgroupMipmapComputer::DescriptorSetLayout> subgroupMipmapComputerSet;
+            pipelines.subgroupMipmapComputer.compute(
+                computeCommandBuffer,
+                subgroupMipmapComputerSet.getWrite<0>(vku::unsafeProxy(
+                    intermediateResources->cubemapMipImageViews
+                        | std::views::transform([](vk::ImageView view) {
+                            return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
+                        })
+                        | std::ranges::to<std::vector>())),
+                vku::toExtent2D(cubemapImage.extent),
+                cubemapImage.mipLevels);
         }
 
     private:

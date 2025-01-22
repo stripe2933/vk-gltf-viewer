@@ -18,9 +18,7 @@ namespace vk_gltf_viewer::vulkan::inline generator {
 
             vk::raii::ImageView cubemapImageView;
             vk::raii::ImageView cubemapArrayImageView;
-            std::variant<vk::raii::ImageView, std::vector<vk::raii::ImageView>> prefilteredmapImageViews;
-
-            vk::raii::DescriptorPool descriptorPool;
+            std::vector<vk::raii::ImageView> prefilteredmapMipImageViews; // 0th image view has the full image resource, i-th (i=1..) image view has i-th mipmap.
         };
 
         const Gpu &gpu;
@@ -83,63 +81,20 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                     vk::BufferUsageFlagBits::eStorageBuffer,
                 } },
                 vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
-                vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::e2DArray) },
-                vk::raii::ImageView { gpu.device, prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
-                vk::raii::DescriptorPool {
+                vk::raii::ImageView { gpu.device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::e2DArray) });
+            if (gpu.supportShaderImageLoadStoreLod) {
+                intermediateResources->prefilteredmapMipImageViews.emplace_back(
                     gpu.device,
-                    getPoolSizes(
-                        pipelines.prefilteredmapComputer.descriptorSetLayout,
-                        pipelines.sphericalHarmonicsComputer.descriptorSetLayout,
-                        pipelines.sphericalHarmonicCoefficientsSumComputer.descriptorSetLayout,
-                        pipelines.multiplyComputer.descriptorSetLayout)
-                    .getDescriptorPoolCreateInfo(),
-                });
-            if (!gpu.supportShaderImageLoadStoreLod) {
-                intermediateResources->prefilteredmapImageViews.emplace<std::vector<vk::raii::ImageView>>(
-                    std::from_range,
-                    prefilteredmapImage.getMipViewCreateInfos(vk::ImageViewType::eCube)
-                        | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
-                            return vk::raii::ImageView { gpu.device, createInfo };
-                        }));
+                    prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube));
             }
-
-            // --------------------
-            // Allocate descriptor sets and update them.
-            // --------------------
-            
-            const auto [prefilteredmapComputerSet, sphericalHarmonicsComputerSet, sphericalHarmonicCoefficientsSumComputerSet, multiplyComputerSet]
-                = allocateDescriptorSets(*gpu.device, *intermediateResources->descriptorPool, std::tie(
-                    pipelines.prefilteredmapComputer.descriptorSetLayout,
-                    pipelines.sphericalHarmonicsComputer.descriptorSetLayout,
-                    pipelines.sphericalHarmonicCoefficientsSumComputer.descriptorSetLayout,
-                    pipelines.multiplyComputer.descriptorSetLayout));
-
-
-            visit(multilambda {
-                [&](vk::ImageView prefilteredmapImageView) {
-                    gpu.device.updateDescriptorSets({
-                        prefilteredmapComputerSet.getWriteOne<0>({ {}, *intermediateResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                        prefilteredmapComputerSet.getWriteOne<1>({ {}, prefilteredmapImageView, vk::ImageLayout::eGeneral }),
-                        sphericalHarmonicsComputerSet.getWriteOne<0>({ {}, *intermediateResources->cubemapArrayImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                        sphericalHarmonicsComputerSet.getWriteOne<1>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
-                        sphericalHarmonicCoefficientsSumComputerSet.getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
-                    }, {});
-                },
-                [&](std::span<const vk::raii::ImageView> prefilteredmapMipImageViews) {
-                    gpu.device.updateDescriptorSets({
-                        prefilteredmapComputerSet.getWriteOne<0>({ {}, *intermediateResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                        prefilteredmapComputerSet.getWrite<1>(vku::unsafeProxy(
-                            prefilteredmapMipImageViews
-                                | std::views::transform([](vk::ImageView view) {
-                                    return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
-                                })
-                                | std::ranges::to<std::vector>())),
-                        sphericalHarmonicsComputerSet.getWriteOne<0>({ {}, *intermediateResources->cubemapArrayImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                        sphericalHarmonicsComputerSet.getWriteOne<1>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
-                        sphericalHarmonicCoefficientsSumComputerSet.getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
-                    }, {});
-                },
-            }, intermediateResources->prefilteredmapImageViews);
+            else {
+                intermediateResources->prefilteredmapMipImageViews
+                    = prefilteredmapImage.getMipViewCreateInfos(vk::ImageViewType::eCube)
+                    | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
+                        return vk::raii::ImageView { gpu.device, createInfo };
+                    })
+                    | std::ranges::to<std::vector>();
+            }
 
             // --------------------
             // Record commands to the command buffer.
@@ -156,10 +111,29 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 });
 
             // Generate prefiltered map.
-            pipelines.prefilteredmapComputer.compute(computeCommandBuffer, prefilteredmapComputerSet, prefilteredmapImage.extent.width);
+            vku::DescriptorSet<PrefilteredmapComputer::DescriptorSetLayout> prefilteredmapComputerSet;
+            pipelines.prefilteredmapComputer.compute(
+                computeCommandBuffer,
+                {
+                    prefilteredmapComputerSet.getWriteOne<0>({ {}, *intermediateResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                    prefilteredmapComputerSet.getWrite<1>(vku::unsafeProxy(
+                        intermediateResources->prefilteredmapMipImageViews
+                            | std::views::transform([](vk::ImageView view) {
+                                return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
+                            })
+                            | std::ranges::to<std::vector>()))
+                },
+                prefilteredmapImage.extent.width);
 
             // Initial spherical harmonic coefficients reduction.
-            pipelines.sphericalHarmonicsComputer.compute(computeCommandBuffer, sphericalHarmonicsComputerSet, cubemapImage.extent.width);
+            vku::DescriptorSet<SphericalHarmonicsComputer::DescriptorSetLayout> sphericalHarmonicsComputerSet;
+            pipelines.sphericalHarmonicsComputer.compute(
+                computeCommandBuffer,
+                {
+                    sphericalHarmonicsComputerSet.getWriteOne<0>({ {}, *intermediateResources->cubemapArrayImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                    sphericalHarmonicsComputerSet.getWriteOne<1>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
+                },
+                cubemapImage.extent.width);
 
             // Ensure initial reduction finish for the future compute shader read.
             computeCommandBuffer.pipelineBarrier(
@@ -169,12 +143,16 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 {}, {});
 
             // Calculate sum of total spherical harmonic coefficients using ping-pong buffer dispatches.
+            vku::DescriptorSet<SphericalHarmonicCoefficientsSumComputer::DescriptorSetLayout> sphericalHarmonicCoefficientsSumComputerSet;
             const std::uint32_t workgroupTotal = getWorkgroupTotal(SphericalHarmonicsComputer::getWorkgroupCount(cubemapImage.extent.width));
-            const std::uint32_t dstOffset = pipelines.sphericalHarmonicCoefficientsSumComputer.compute(computeCommandBuffer, sphericalHarmonicCoefficientsSumComputerSet, {
-                .srcOffset = 0,
-                .count = workgroupTotal,
-                .dstOffset = workgroupTotal,
-            });
+            const std::uint32_t dstOffset = pipelines.sphericalHarmonicCoefficientsSumComputer.compute(
+                computeCommandBuffer,
+                sphericalHarmonicCoefficientsSumComputerSet.getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
+                {
+                    .srcOffset = 0,
+                    .count = workgroupTotal,
+                    .dstOffset = workgroupTotal,
+                });
 
             // Ensure reduction finish.
             computeCommandBuffer.pipelineBarrier(
@@ -184,18 +162,20 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 {},
                 {});
 
-            // sphericalHarmonicsReductionBuffer[dstOffset:dstOffset + 9 * sizeof(glm::vec3)] represents the total sum.
-            // It has to be divided by the total cubemap texel count for the average calculation.
-            gpu.device.updateDescriptorSets({
-                multiplyComputerSet.getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, sizeof(float) * 27 * dstOffset, sizeof(float) * 27 }),
-                multiplyComputerSet.getWriteOne<1>({ sphericalHarmonicsBuffer, 0, vk::WholeSize }),
-            }, {});
-
             // Copy from sphericalHarmonicsReductionBuffer to sphericalHarmonicsBuffer with normalization multiplier.
-            pipelines.multiplyComputer.compute(computeCommandBuffer, multiplyComputerSet, {
-                .numCount = 27,
-                .multiplier = 4.f * std::numbers::pi_v<float> / (6U * cubemapImage.extent.width * cubemapImage.extent.width),
-            });
+            vku::DescriptorSet<MultiplyComputer::DescriptorSetLayout> multiplyComputerSet;
+            pipelines.multiplyComputer.compute(
+                computeCommandBuffer,
+                {
+                    // sphericalHarmonicsReductionBuffer[dstOffset:dstOffset + 9 * sizeof(glm::vec3)] represents the total sum.
+                    // It has to be divided by the total cubemap texel count for the average calculation.
+                    multiplyComputerSet.getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, sizeof(float) * 27 * dstOffset, sizeof(float) * 27 }),
+                    multiplyComputerSet.getWriteOne<1>({ sphericalHarmonicsBuffer, 0, vk::WholeSize }),
+                },
+                {
+                    .numCount = 27,
+                    .multiplier = 4.f * std::numbers::pi_v<float> / (6U * cubemapImage.extent.width * cubemapImage.extent.width),
+                });
 
             // sphericalHarmonicsBuffer have to be available to the host.
             computeCommandBuffer.pipelineBarrier(
