@@ -282,19 +282,7 @@ namespace vk_gltf_viewer::gltf {
                         gpu.allocator,
                         primitiveAndIndexBytesPairs | std::views::values,
                         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eIndexBuffer : vk::BufferUsageFlagBits::eTransferSrc);
-
-                    if (!gpu.isUmaDevice && !vku::contains(gpu.allocator.getAllocationMemoryProperties(buffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
-                        vku::AllocatedBuffer dstBuffer { gpu.allocator, vk::BufferCreateInfo {
-                            {},
-                            buffer.size,
-                            vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
-                        } };
-                        stagingInfos.emplace_back(
-                            std::move(buffer),
-                            dstBuffer,
-                            vk::BufferCopy { 0, 0, dstBuffer.size });
-                        buffer = std::move(dstBuffer);
-                    }
+                    stageIfNeeded(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer);
 
                     for (auto [pPrimitive, offset] : std::views::zip(primitiveAndIndexBytesPairs | std::views::keys, copyOffsets)) {
                         AssetPrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
@@ -347,19 +335,7 @@ namespace vk_gltf_viewer::gltf {
                 gpu.isUmaDevice
                     ? vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress
                     : vk::BufferUsageFlagBits::eTransferSrc);
-
-            if (!gpu.isUmaDevice && !vku::contains(gpu.allocator.getAllocationMemoryProperties(buffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
-                vku::AllocatedBuffer dstBuffer { gpu.allocator, vk::BufferCreateInfo {
-                    {},
-                    buffer.size,
-                    vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-                } };
-                stagingInfos.emplace_back(
-                    std::move(buffer),
-                    dstBuffer,
-                    vk::BufferCopy { 0, 0, dstBuffer.size });
-                buffer = std::move(dstBuffer);
-            }
+            stageIfNeeded(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
             // Hashmap that can get buffer device address by corresponding buffer view index.
             const std::unordered_map bufferDeviceAddressMappings
@@ -501,19 +477,7 @@ namespace vk_gltf_viewer::gltf {
                 gpu.isUmaDevice
                     ? vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress
                     : vk::BufferUsageFlagBits::eTransferSrc);
-
-            if (!gpu.isUmaDevice && !vku::contains(gpu.allocator.getAllocationMemoryProperties(buffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
-                vku::AllocatedBuffer dstBuffer { gpu.allocator, vk::BufferCreateInfo {
-                    {},
-                    buffer.size,
-                    vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-                } };
-                stagingInfos.emplace_back(
-                    std::move(buffer),
-                    dstBuffer,
-                    vk::BufferCopy { 0, 0, dstBuffer.size });
-                buffer = std::move(dstBuffer);
-            }
+            stageIfNeeded(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
             for (vk::DeviceAddress baseAddress = gpu.device.getBufferAddress({ buffer });
                 auto [pPrimitive, copyOffset] : std::views::zip(missingTangentPrimitives | std::views::keys, copyOffsets)) {
@@ -524,5 +488,9 @@ namespace vk_gltf_viewer::gltf {
         }
 
         [[nodiscard]] static std::uint32_t padMaterialIndex(std::uint32_t materialIndex) noexcept { return materialIndex + 1; }
+
+        [[nodiscard]] bool needStaging(const vku::AllocatedBuffer &buffer) const noexcept;
+        void stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage = vk::BufferUsageFlagBits::eTransferDst);
+        void stageIfNeeded(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage = vk::BufferUsageFlagBits::eTransferDst);
     };
 }
