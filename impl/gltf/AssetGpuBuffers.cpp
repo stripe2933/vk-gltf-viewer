@@ -68,7 +68,7 @@ auto vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveInfos() const -> std:
 }
 
 vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createMaterialBuffer() {
-    vku::AllocatedBuffer stagingBuffer = vku::MappedBuffer {
+    vku::AllocatedBuffer buffer = vku::MappedBuffer {
         gpu.allocator,
         std::from_range, ranges::views::concat(
             std::views::single(GpuMaterial{}), // Fallback material.
@@ -148,25 +148,13 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetGpuBuffers::createMaterialBuffer
             })),
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
     }.unmap();
+    stageIfNeeded(buffer, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst);
 
-    if (gpu.isUmaDevice || vku::contains(gpu.allocator.getAllocationMemoryProperties(stagingBuffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
-        return stagingBuffer;
-    }
-
-    vku::AllocatedBuffer dstBuffer{ gpu.allocator, vk::BufferCreateInfo {
-        {},
-        stagingBuffer.size,
-        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-    } };
-    stagingInfos.emplace_back(
-        std::move(stagingBuffer),
-        dstBuffer,
-        vk::BufferCopy{ 0, 0, dstBuffer.size });
-    return dstBuffer;
+    return buffer;
 }
 
 std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveBuffer() {
-    vku::MappedBuffer stagingBuffer {
+    vku::AllocatedBuffer buffer = vku::MappedBuffer {
         gpu.allocator,
         std::from_range, orderedPrimitives | std::views::transform([this](const fastgltf::Primitive *pPrimitive) {
             const AssetPrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
@@ -193,22 +181,9 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::gltf::Asse
             };
         }),
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
-    };
-
-    if (gpu.isUmaDevice || vku::contains(gpu.allocator.getAllocationMemoryProperties(stagingBuffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
-        return stagingBuffer;
-    }
-
-    vku::AllocatedBuffer dstBuffer{ gpu.allocator, vk::BufferCreateInfo {
-        {},
-        stagingBuffer.size,
-        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-    } };
-    stagingInfos.emplace_back(
-        std::move(stagingBuffer).unmap(),
-        dstBuffer,
-        vk::BufferCopy{ 0, 0, dstBuffer.size });
-    return dstBuffer;
+    }.unmap();
+    stageIfNeeded(buffer, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst);
+    return buffer;
 }
 
 void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexedAttributeMappingBuffers() {
@@ -230,19 +205,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexedAttributeMappi
         gpu.isUmaDevice
             ? vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress
             : vk::BufferUsageFlagBits::eTransferSrc);
-
-    if (!gpu.isUmaDevice && !vku::contains(gpu.allocator.getAllocationMemoryProperties(buffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
-        vku::AllocatedBuffer dstBuffer { gpu.allocator, vk::BufferCreateInfo {
-            {},
-            buffer.size,
-            vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        } };
-        stagingInfos.emplace_back(
-            std::move(buffer),
-            dstBuffer,
-            vk::BufferCopy { 0, 0, dstBuffer.size });
-        buffer = std::move(dstBuffer);
-    }
+    stageIfNeeded(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
     const vk::DeviceAddress pIndexAttributeMappingBuffer = gpu.device.getBufferAddress({ buffer });
     for (auto &&[primitiveInfo, copyOffset] : std::views::zip(primitiveWithTexcoordAttributeInfos | std::views::keys, copyOffsets)) {
