@@ -17,6 +17,9 @@ import :helpers.ranges;
 import :helpers.type_map;
 export import :vulkan.Gpu;
 
+#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
+#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+
 /**
  * @brief Parse a number from given \p str.
  * @tparam T Type of the number.
@@ -45,35 +48,32 @@ template <std::integral T>
  * @param usage Usage flags of the result buffer.
  * @return Pair of staging buffer and each segments' start offsets vector.
  */
-template <std::ranges::random_access_range R>
+template <std::ranges::forward_range R>
     requires std::ranges::contiguous_range<std::ranges::range_value_t<R>>
 [[nodiscard]] std::pair<vku::AllocatedBuffer, std::vector<vk::DeviceSize>> createCombinedStagingBuffer(
     vma::Allocator allocator,
-    R &&segments,
+    const R &segments,
     vk::BufferUsageFlags usage
 ) {
     if constexpr (std::convertible_to<std::ranges::range_value_t<R>, std::span<const std::byte>>) {
         assert(!segments.empty() && "Empty segments not allowed (Vulkan requires non-zero buffer size)");
 
         // Calculate each segments' copy destination offsets.
-        std::vector copyOffsets
-            = segments
-            | std::views::transform([](std::span<const std::byte> segment) -> vk::DeviceSize {
-                return segment.size_bytes();
-            })
-            | std::ranges::to<std::vector>();
+        std::vector<vk::DeviceSize> copyOffsets { std::from_range, segments | std::views::transform(LIFT(std::size)) };
         vk::DeviceSize sizeTotal = copyOffsets.back();
         std::exclusive_scan(copyOffsets.begin(), copyOffsets.end(), copyOffsets.begin(), vk::DeviceSize { 0 });
         sizeTotal += copyOffsets.back();
 
-        // Create staging buffer and copy segments into it.
-        vku::MappedBuffer stagingBuffer { allocator, vk::BufferCreateInfo { {}, sizeTotal, usage } };
-        for (std::byte *mapped = static_cast<std::byte*>(stagingBuffer.data);
-            const auto &[segment, copyOffset] : std::views::zip(segments, copyOffsets)){
-            std::ranges::copy(segment, mapped + copyOffset);
+        // Create buffer.
+        vku::MappedBuffer buffer { allocator, vk::BufferCreateInfo { {}, sizeTotal, usage } };
+
+        // Copy segments to the buffer.
+        std::byte *mapped = static_cast<std::byte*>(buffer.data);
+        for (std::span<const std::byte> segment : segments) {
+            mapped = std::ranges::copy(segment, mapped).out;
         }
 
-        return { std::move(stagingBuffer).unmap(), std::move(copyOffsets) };
+        return { std::move(buffer).unmap(), std::move(copyOffsets) };
     }
     else {
         // Retry with converting each segments into the std::span<const std::byte>.
