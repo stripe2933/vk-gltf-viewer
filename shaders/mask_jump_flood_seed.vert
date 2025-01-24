@@ -79,11 +79,11 @@ vec2 getTexcoord(uint texcoordIndex){
 float getColorAlpha() {
     switch (uint(PRIMITIVE.colorComponentType)) {
     case 1: // 5121: UNSIGNED BYTE
-        return float(Uint8Ref(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex) + 3).data) / 255.0;
+        return float(Uint8Ref(PRIMITIVE.pColorBuffer + (uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex) + 3)).data) / 255.0;
     case 3: // 5123: UNSIGNED SHORT
-        return float(Uint16Ref(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex) + 6).data) / 65535.0;
+        return float(Uint16Ref(PRIMITIVE.pColorBuffer + (uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex) + 6)).data) / 65535.0;
     case 6: // 5126: FLOAT
-        return FloatRef(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex) + 12).data;
+        return FloatRef(PRIMITIVE.pColorBuffer + (uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex) + 12)).data;
     }
     return 1.0;
 }
