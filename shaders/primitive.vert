@@ -108,7 +108,7 @@ vec2 getTexcoord(uint texcoordIndex){
 
 #if HAS_COLOR_ATTRIBUTE
 vec4 getColor() {
-    if (COLOR_COMPONENT_COUNT == uint8_t(4)) {
+    if (COLOR_COMPONENT_COUNT == 4U) {
         switch (COLOR_COMPONENT_TYPE) {
         case 5121U: // UNSIGNED BYTE
             return vec4(U8Vec4Ref(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex).data) / 255.0;
