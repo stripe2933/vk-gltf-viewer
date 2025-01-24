@@ -158,29 +158,29 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::gltf::Asse
         gpu.allocator,
         std::from_range, orderedPrimitives | std::views::transform([this](const fastgltf::Primitive *pPrimitive) {
             const AssetPrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
-
-            // If normal and tangent not presented (nullopt), it will use a faceted mesh renderer, and they will does not
-            // dereference those buffers. Therefore, it is okay to pass nullptr into shaders
-            const auto normalInfo = primitiveInfo.normalInfo.value_or(AssetPrimitiveInfo::AttributeBufferInfo{});
-            const auto tangentInfo = primitiveInfo.tangentInfo.value_or(AssetPrimitiveInfo::AttributeBufferInfo{});
-
-            // If color is not presented, it is not used in the shader. Therefore, it is okay to pass nullptr into shaders.
-            const auto colorInfo = primitiveInfo.colorInfo.value_or(AssetPrimitiveInfo::ColorAttributeBufferInfo{});
-
-            return GpuPrimitive {
+            GpuPrimitive gpuPrimitive {
                 .pPositionBuffer = primitiveInfo.positionInfo.address,
-                .pNormalBuffer = normalInfo.address,
-                .pTangentBuffer = tangentInfo.address,
                 .pTexcoordAttributeMappingInfoBuffer = primitiveInfo.texcoordsInfo.pMappingBuffer,
-                .pColorBuffer = colorInfo.address,
                 .positionByteStride = primitiveInfo.positionInfo.byteStride,
-                .normalByteStride = normalInfo.byteStride,
-                .tangentByteStride = tangentInfo.byteStride,
-                .colorByteStride = colorInfo.byteStride,
-                .colorComponentType = colorInfo.componentType,
-                .colorComponentCount = colorInfo.componentCount,
                 .materialIndex = primitiveInfo.materialIndex.transform(padMaterialIndex).value_or(0U),
             };
+
+            if (primitiveInfo.normalInfo) {
+                gpuPrimitive.pNormalBuffer = primitiveInfo.normalInfo->address;
+                gpuPrimitive.normalByteStride = primitiveInfo.normalInfo->byteStride;
+            }
+            if (primitiveInfo.tangentInfo) {
+                gpuPrimitive.pTangentBuffer = primitiveInfo.tangentInfo->address;
+                gpuPrimitive.tangentByteStride = primitiveInfo.tangentInfo->byteStride;
+            }
+            if (primitiveInfo.colorInfo) {
+                gpuPrimitive.pColorBuffer = primitiveInfo.colorInfo->address;
+                gpuPrimitive.colorByteStride = primitiveInfo.colorInfo->byteStride;
+                gpuPrimitive.colorComponentType = primitiveInfo.colorInfo->componentType;
+                gpuPrimitive.colorComponentCount = primitiveInfo.colorInfo->componentCount;
+            }
+
+            return gpuPrimitive;
         }),
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
     }.unmap();
