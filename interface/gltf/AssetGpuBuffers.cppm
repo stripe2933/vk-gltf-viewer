@@ -348,6 +348,16 @@ namespace vk_gltf_viewer::gltf {
 
             // Iterate over the primitives and set their attribute infos.
             for (auto &[pPrimitive, primitiveInfo] : primitiveInfos) {
+                // Get number of TEXCOORD_<i> attributes.
+                const auto attributeNames
+                    = pPrimitive->attributes
+                    | std::views::transform([](const auto &attribute) -> std::string_view { return attribute.name; });
+                const std::size_t texcoordCount = std::ranges::count_if(
+                    attributeNames,
+                    [](std::string_view name) { return name.starts_with("TEXCOORD_"); });
+                primitiveInfo.texcoordsInfo.attributeInfos.resize(texcoordCount);
+
+                // Process the attributes by identifying their names.
                 for (const auto &[attributeName, accessorIndex] : pPrimitive->attributes) {
                     const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
                     const auto getAttributeBufferInfo = [&]() -> AssetPrimitiveInfo::AttributeBufferInfo {
@@ -387,9 +397,6 @@ namespace vk_gltf_viewer::gltf {
                             throw fastgltf::Error::InvalidOrMissingAssetField;
                         }
 
-                        if (primitiveInfo.texcoordsInfo.attributeInfos.size() <= index) {
-                            primitiveInfo.texcoordsInfo.attributeInfos.resize(index + 1);
-                        }
                         primitiveInfo.texcoordsInfo.attributeInfos[index] = getAttributeBufferInfo();
                     }
                     else if (attributeName == "COLOR_0"sv) {
