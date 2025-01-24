@@ -8,6 +8,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_shader_8bit_storage : require
 
+#include "branch.glsl"
 #define VERTEX_SHADER
 #include "indexing.glsl"
 #include "types.glsl"
@@ -69,10 +70,9 @@ vec2 getTexcoord(uint texcoordIndex){
     if (mappingInfo.componentType == uint8_t(3)) { // 5123: UNSIGNED SHORT
         return vec2(U16Vec2Ref(fetchAddress).data) / 65535.0;
     }
-    if (mappingInfo.componentType == uint8_t(1)) { // 5121: UNSIGNED BYTE
+    if last_branch(mappingInfo.componentType == uint8_t(1)) { // 5121: UNSIGNED BYTE
         return vec2(U8Vec2Ref(fetchAddress).data) / 255.0;
     }
-    return vec2(0.0);
 }
 #endif
 
@@ -85,10 +85,9 @@ float getColorAlpha() {
     if (PRIMITIVE.colorComponentType == uint8_t(3)) { // 5123: UNSIGNED SHORT
         return float(Uint16Ref(PRIMITIVE.pColorBuffer + (fetchByteOffset + 6)).data) / 65535.0;
     }
-    if (PRIMITIVE.colorComponentType == uint8_t(1)) { // 5121: UNSIGNED BYTE
+    if last_branch(PRIMITIVE.colorComponentType == uint8_t(1)) { // 5121: UNSIGNED BYTE
         return float(Uint8Ref(PRIMITIVE.pColorBuffer + (fetchByteOffset + 3)).data) / 255.0;
     }
-    return 1.0;
 }
 #endif
 

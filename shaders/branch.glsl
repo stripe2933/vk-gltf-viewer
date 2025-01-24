@@ -1,0 +1,1 @@
+#define last_branch(expression) (true)
