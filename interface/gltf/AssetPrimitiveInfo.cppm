@@ -27,7 +27,7 @@ namespace vk_gltf_viewer::gltf {
         static_assert(offsetof(AttributeBufferInfo, componentType) == 9);
 
         struct ColorAttributeBufferInfo final : AttributeBufferInfo {
-            std::uint8_t numComponent;
+            std::uint8_t componentCount;
         };
 
         struct IndexedAttributeBufferInfos {

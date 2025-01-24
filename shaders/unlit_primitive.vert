@@ -14,8 +14,6 @@
 
 #define HAS_VARIADIC_OUT HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ATTRIBUTE
 
-layout (constant_id = 0) const uint COLOR_COMPONENT_COUNT = 0;
-
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec2Ref { u8vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec3Ref { u8vec3 data; };
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec4Ref { u8vec4 data; };
@@ -83,7 +81,7 @@ vec2 getTexcoord(uint texcoordIndex){
 
 #if HAS_COLOR_ATTRIBUTE
 vec4 getColor() {
-    if (COLOR_COMPONENT_COUNT == 4U) {
+    if (PRIMITIVE.colorComponentCount == uint8_t(4)) {
         switch (uint(PRIMITIVE.colorComponentType)) {
         case 1: // 5121: UNSIGNED BYTE
             return vec4(U8Vec4Ref(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex)).data) / 255.0;

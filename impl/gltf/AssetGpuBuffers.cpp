@@ -178,6 +178,7 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::gltf::Asse
                 .tangentByteStride = tangentInfo.byteStride,
                 .colorByteStride = colorInfo.byteStride,
                 .colorComponentType = colorInfo.componentType,
+                .colorComponentCount = colorInfo.componentCount,
                 .materialIndex = primitiveInfo.materialIndex.transform(padMaterialIndex).value_or(0U),
             };
         }),

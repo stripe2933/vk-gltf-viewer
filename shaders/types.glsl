@@ -55,7 +55,8 @@ struct Primitive {
     uint8_t tangentByteStride;
     uint8_t colorByteStride;
     uint8_t colorComponentType;
-    uint8_t _padding0_[3];
+    uint8_t colorComponentCount;
+    uint8_t _padding0_[2];
     uint materialIndex;
     float _padding1_[3];
 };

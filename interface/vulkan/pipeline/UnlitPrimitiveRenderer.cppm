@@ -22,7 +22,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class UnlitPrimitiveRendererSpecialization {
     public:
         bool hasBaseColorTexture;
-        std::optional<std::uint8_t> colorComponentCount;
+        bool hasColorAttribute;
         shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
         fastgltf::AlphaMode alphaMode;
 
@@ -33,12 +33,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             const pl::Primitive &layout,
             const rp::Scene &sceneRenderPass
         ) const {
-            const auto vertexShaderSpecializationData = getVertexShaderSpecializationData();
-            const vk::SpecializationInfo vertexShaderSpecializationInfo {
-                SpecializationMap<VertexShaderSpecializationData>::value,
-                vk::ArrayProxyNoTemporaries<const VertexShaderSpecializationData> { vertexShaderSpecializationData },
-            };
-
             const auto fragmentShaderSpecializationData = getFragmentShaderSpecializationData();
             const vk::SpecializationInfo fragmentShaderSpecializationInfo {
                 SpecializationMap<FragmentShaderSpecializationData>::value,
@@ -50,7 +44,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 vku::Shader {
                     std::apply(LIFT(shader_selector::unlit_primitive_vert), getVertexShaderVariants()),
                     vk::ShaderStageFlagBits::eVertex,
-                    &vertexShaderSpecializationInfo
                 },
                 vku::Shader {
                     std::apply(LIFT(shader_selector::unlit_primitive_frag), getFragmentShaderVariants()),
@@ -145,10 +138,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         }
 
     private:
-        struct VertexShaderSpecializationData {
-            std::uint32_t colorComponentCount = 0;
-        };
-
         struct FragmentShaderSpecializationData {
             std::uint32_t textureTransformType = 0x00000; // NONE
         };
@@ -156,25 +145,14 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         [[nodiscard]] std::array<int, 2> getVertexShaderVariants() const noexcept {
             return {
                 hasBaseColorTexture,
-                colorComponentCount.has_value(),
+                hasColorAttribute,
             };
-        }
-
-        [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
-            VertexShaderSpecializationData result{};
-
-            if (colorComponentCount) {
-                assert(ranges::one_of(*colorComponentCount, 3, 4));
-                result.colorComponentCount = *colorComponentCount;
-            }
-
-            return result;
         }
 
         [[nodiscard]] std::array<int, 3> getFragmentShaderVariants() const noexcept {
             return {
                 hasBaseColorTexture,
-                colorComponentCount.has_value(),
+                hasColorAttribute,
                 static_cast<int>(alphaMode),
             };
         }

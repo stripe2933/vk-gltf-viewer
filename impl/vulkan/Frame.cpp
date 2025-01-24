@@ -133,9 +133,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (material.unlit) {
                 result.pipeline = sharedData.getUnlitPrimitiveRenderer({
                     .hasBaseColorTexture = material.pbrData.baseColorTexture.has_value(),
-                    .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) {
-                        return info.numComponent;
-                    }),
+                    .hasColorAttribute = primitiveInfo.colorInfo.has_value(),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
                         .value_or(shader_type::TextureTransform::None),
@@ -145,9 +143,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             else {
                 result.pipeline = sharedData.getPrimitiveRenderer({
                     .texcoordCount = static_cast<int>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
-                    .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) {
-                        return info.numComponent;
-                    }),
+                    .hasColorAttribute = primitiveInfo.colorInfo.has_value(),
                     .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
@@ -172,9 +168,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         else {
             result.pipeline = sharedData.getPrimitiveRenderer({
                 .texcoordCount = static_cast<int>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
-                .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) {
-                    return info.numComponent;
-                }),
+                .hasColorAttribute = primitiveInfo.colorInfo.has_value(),
                 .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
             });
         }
@@ -196,7 +190,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .hasBaseColorTexture = material.pbrData.baseColorTexture.has_value(),
                     .hasColorAlphaComponent = primitiveInfo.colorInfo.transform([](const auto &info) {
                         // Alpha value exists only if COLOR_0 is Vec4 type.
-                        return info.numComponent == 4;
+                        return info.componentCount == 4;
                     }).value_or(false),
                 });
             }
@@ -226,7 +220,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .hasBaseColorTexture = material.pbrData.baseColorTexture.has_value(),
                     .hasColorAlphaComponent = primitiveInfo.colorInfo.transform([](const auto &info) {
                         // Alpha value exists only if COLOR_0 is Vec4 type.
-                        return info.numComponent == 4;
+                        return info.componentCount == 4;
                     }).value_or(false),
                 });
             }

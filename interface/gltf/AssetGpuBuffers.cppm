@@ -160,7 +160,8 @@ namespace vk_gltf_viewer::gltf {
             std::uint8_t tangentByteStride;
             std::uint8_t colorByteStride;
             std::uint8_t colorComponentType;
-            char _padding0_[3];
+            std::uint8_t colorComponentCount;
+            char _padding0_[2];
             std::uint32_t materialIndex;
             char _padding_[12];
         };
@@ -170,6 +171,7 @@ namespace vk_gltf_viewer::gltf {
         static_assert(offsetof(GpuPrimitive, tangentByteStride) == 42);
         static_assert(offsetof(GpuPrimitive, colorByteStride) == 43);
         static_assert(offsetof(GpuPrimitive, colorComponentType) == 44);
+        static_assert(offsetof(GpuPrimitive, colorComponentCount) == 45);
         static_assert(offsetof(GpuPrimitive, materialIndex) == 48);
 
         std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> primitiveInfos = createPrimitiveInfos();
