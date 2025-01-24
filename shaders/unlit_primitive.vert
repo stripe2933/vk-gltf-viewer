@@ -14,9 +14,7 @@
 
 #define HAS_VARIADIC_OUT HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ATTRIBUTE
 
-layout (constant_id = 0) const uint TEXCOORD_COMPONENT_TYPE = 5126; // FLOAT
-layout (constant_id = 1) const uint COLOR_COMPONENT_COUNT = 0;
-layout (constant_id = 2) const uint COLOR_COMPONENT_TYPE = 5126; // FLOAT
+layout (constant_id = 0) const uint COLOR_COMPONENT_COUNT = 0;
 
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec2Ref { u8vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec3Ref { u8vec3 data; };
@@ -63,20 +61,20 @@ layout (push_constant, std430) uniform PushConstant {
 // --------------------
 
 vec3 getPosition() {
-    return Vec3Ref(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex).data;
+    return Vec3Ref(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * uint(gl_VertexIndex)).data;
 }
 
 #if HAS_BASE_COLOR_TEXTURE
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
-    uint64_t fetchAddress = mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex;
+    uint64_t fetchAddress = mappingInfo.bytesPtr + mappingInfo.stride * uint(gl_VertexIndex);
 
-    switch (TEXCOORD_COMPONENT_TYPE) {
-    case 5121U: // UNSIGNED BYTE
+    switch (uint(mappingInfo.componentType)) {
+    case 1: // 5121: UNSIGNED BYTE
         return vec2(U8Vec2Ref(fetchAddress).data) / 255.0;
-    case 5123U: // UNSIGNED SHORT
+    case 3: // 5123: UNSIGNED SHORT
         return vec2(U16Vec2Ref(fetchAddress).data) / 65535.0;
-    case 5126U: // FLOAT
+    case 6: // 5126: FLOAT
         return Vec2Ref(fetchAddress).data;
     }
     return vec2(0.0);
@@ -86,23 +84,23 @@ vec2 getTexcoord(uint texcoordIndex){
 #if HAS_COLOR_ATTRIBUTE
 vec4 getColor() {
     if (COLOR_COMPONENT_COUNT == 4U) {
-        switch (COLOR_COMPONENT_TYPE) {
-        case 5121U: // UNSIGNED BYTE
-            return vec4(U8Vec4Ref(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex).data) / 255.0;
-        case 5123U: // UNSIGNED SHORT
-            return vec4(U16Vec4Ref(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex).data) / 65535.0;
-        case 5126U: // FLOAT
-            return Vec4Ref(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex).data;
+        switch (uint(PRIMITIVE.colorComponentType)) {
+        case 1: // 5121: UNSIGNED BYTE
+            return vec4(U8Vec4Ref(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex)).data) / 255.0;
+        case 3: // 5123: UNSIGNED SHORT
+            return vec4(U16Vec4Ref(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex)).data) / 65535.0;
+        case 6: // 5126: FLOAT
+            return Vec4Ref(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex)).data;
         }
     }
     else {
-        switch (COLOR_COMPONENT_TYPE) {
-        case 5121U: // UNSIGNED BYTE
-            return vec4(vec3(U8Vec3Ref(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex).data) / 255.0, 1.0);
-        case 5123U: // UNSIGNED SHORT
-            return vec4(vec3(U16Vec3Ref(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex).data) / 65535.0, 1.0);
-        case 5126U: // FLOAT
-            return vec4(Vec3Ref(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex).data, 1.0);
+        switch (uint(PRIMITIVE.colorComponentType)) {
+        case 1: // 5121: UNSIGNED BYTE
+            return vec4(vec3(U8Vec3Ref(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex)).data) / 255.0, 1.0);
+        case 3: // 5123: UNSIGNED SHORT
+            return vec4(vec3(U16Vec3Ref(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex)).data) / 65535.0, 1.0);
+        case 6: // 5126: FLOAT
+            return vec4(Vec3Ref(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex)).data, 1.0);
         }
     }
     return vec4(1.0);

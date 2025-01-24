@@ -16,8 +16,8 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     class MaskJumpFloodSeedRendererSpecialization {
     public:
-        std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
-        std::optional<fastgltf::ComponentType> colorAlphaComponentType;
+        bool hasBaseColorTexture;
+        bool hasColorAlphaComponent;
         shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
 
         [[nodiscard]] bool operator==(const MaskJumpFloodSeedRendererSpecialization&) const = default;
@@ -33,10 +33,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         vku::Shader {
                             std::apply(LIFT(shader_selector::mask_jump_flood_seed_vert), getVertexShaderVariants()),
                             vk::ShaderStageFlagBits::eVertex,
-                            vku::unsafeAddress(vk::SpecializationInfo {
-                                SpecializationMap<VertexShaderSpecializationData>::value,
-                                vku::unsafeProxy(getVertexShaderSpecializationData()),
-                            }),
                         },
                         vku::Shader {
                             std::apply(LIFT(shader_selector::mask_jump_flood_seed_frag), getFragmentShaderVariants()),
@@ -68,39 +64,21 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         }
 
     private:
-        struct VertexShaderSpecializationData {
-            std::uint32_t texcoordComponentType = 5126; // FLOAT
-            std::uint32_t colorComponentType = 5126; // FLOAT
-        };
-
         struct FragmentShaderSpecializationData {
             std::uint32_t textureTransformType = 0x00000; // NONE
         };
 
         [[nodiscard]] std::array<int, 2> getVertexShaderVariants() const noexcept {
             return {
-                baseColorTexcoordComponentType.has_value(),
-                colorAlphaComponentType.has_value(),
+                hasBaseColorTexture,
+                hasColorAlphaComponent,
             };
-        }
-
-        [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
-            VertexShaderSpecializationData result{};
-
-            if (baseColorTexcoordComponentType) {
-                result.texcoordComponentType = getGLComponentType(*baseColorTexcoordComponentType);
-            }
-            if (colorAlphaComponentType) {
-                result.colorComponentType = getGLComponentType(*colorAlphaComponentType);
-            }
-
-            return result;
         }
 
         [[nodiscard]] std::array<int, 2> getFragmentShaderVariants() const noexcept {
             return {
-                baseColorTexcoordComponentType.has_value(),
-                colorAlphaComponentType.has_value(),
+                hasBaseColorTexture,
+                hasColorAlphaComponent,
             };
         }
 

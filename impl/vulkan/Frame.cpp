@@ -132,11 +132,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
             if (material.unlit) {
                 result.pipeline = sharedData.getUnlitPrimitiveRenderer({
-                    .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
-                        return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
-                    }),
-                    .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
-                        return std::pair { info.numComponent, info.componentType };
+                    .hasBaseColorTexture = material.pbrData.baseColorTexture.has_value(),
+                    .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) {
+                        return info.numComponent;
                     }),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
@@ -146,11 +144,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
             else {
                 result.pipeline = sharedData.getPrimitiveRenderer({
-                    .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos | std::views::transform([](const auto &info) {
-                        return info.componentType;
-                    }) | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
-                    .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
-                        return std::pair { info.numComponent, info.componentType };
+                    .texcoordCount = static_cast<int>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
+                    .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) {
+                        return info.numComponent;
                     }),
                     .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
@@ -175,11 +171,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         }
         else {
             result.pipeline = sharedData.getPrimitiveRenderer({
-                .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos | std::views::transform([](const auto &info) {
-                    return info.componentType;
-                }) | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
-                .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
-                    return std::pair { info.numComponent, info.componentType };
+                .texcoordCount = static_cast<int>(primitiveInfo.texcoordsInfo.attributeInfos.size()),
+                .colorComponentCount = primitiveInfo.colorInfo.transform([](const auto &info) {
+                    return info.numComponent;
                 }),
                 .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
             });
@@ -199,13 +193,11 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             const fastgltf::Material& material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskDepthRenderer({
-                    .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
-                        return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
-                    }),
-                    .colorAlphaComponentType = primitiveInfo.colorInfo.and_then([](const auto &info) {
+                    .hasBaseColorTexture = material.pbrData.baseColorTexture.has_value(),
+                    .hasColorAlphaComponent = primitiveInfo.colorInfo.transform([](const auto &info) {
                         // Alpha value exists only if COLOR_0 is Vec4 type.
-                        return value_if(info.numComponent == 4, info.componentType);
-                    }),
+                        return info.numComponent == 4;
+                    }).value_or(false),
                 });
             }
             else {
@@ -231,13 +223,11 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskJumpFloodSeedRenderer({
-                    .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
-                        return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
-                    }),
-                    .colorAlphaComponentType = primitiveInfo.colorInfo.and_then([](const auto &info) {
+                    .hasBaseColorTexture = material.pbrData.baseColorTexture.has_value(),
+                    .hasColorAlphaComponent = primitiveInfo.colorInfo.transform([](const auto &info) {
                         // Alpha value exists only if COLOR_0 is Vec4 type.
-                        return value_if(info.numComponent == 4, info.componentType);
-                    }),
+                        return info.numComponent == 4;
+                    }).value_or(false),
                 });
             }
             else {

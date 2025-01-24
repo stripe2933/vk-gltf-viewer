@@ -14,9 +14,6 @@
 
 #define HAS_VARIADIC_OUT HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ALPHA_ATTRIBUTE
 
-layout (constant_id = 0) const uint TEXCOORD_COMPONENT_TYPE = 5126; // FLOAT
-layout (constant_id = 1) const uint COLOR_COMPONENT_TYPE = 5126; // FLOAT
-
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer Uint8Ref { uint8_t data; };
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec2Ref { u8vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer Uint16Ref { uint16_t data; };
@@ -58,20 +55,20 @@ layout (push_constant, std430) uniform PushConstant {
 // --------------------
 
 vec3 getPosition() {
-    return Vec3Ref(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex).data;
+    return Vec3Ref(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * uint(gl_VertexIndex)).data;
 }
 
 #if HAS_BASE_COLOR_TEXTURE
 vec2 getTexcoord(uint texcoordIndex){
     IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
-    uint64_t fetchAddress = mappingInfo.bytesPtr + int(mappingInfo.stride) * gl_VertexIndex;
+    uint64_t fetchAddress = mappingInfo.bytesPtr + mappingInfo.stride * uint(gl_VertexIndex);
 
-    switch (TEXCOORD_COMPONENT_TYPE) {
-    case 5121U: // UNSIGNED BYTE
+    switch (uint(mappingInfo.componentType)) {
+        case 1: // 5121: UNSIGNED BYTE
         return vec2(U8Vec2Ref(fetchAddress).data) / 255.0;
-    case 5123U: // UNSIGNED SHORT
+        case 3: // 5123: UNSIGNED SHORT
         return vec2(U16Vec2Ref(fetchAddress).data) / 65535.0;
-    case 5126U: // FLOAT
+        case 6: // 5126: FLOAT
         return Vec2Ref(fetchAddress).data;
     }
     return vec2(0.0);
@@ -80,13 +77,13 @@ vec2 getTexcoord(uint texcoordIndex){
 
 #if HAS_COLOR_ALPHA_ATTRIBUTE
 float getColorAlpha() {
-    switch (COLOR_COMPONENT_TYPE) {
-    case 5121U: // UNSIGNED BYTE
-        return float(Uint8Ref(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex + 3).data) / 255.0;
-    case 5123U: // UNSIGNED SHORT
-        return float(Uint16Ref(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex + 6).data) / 65535.0;
-    case 5126U: // FLOAT
-        return FloatRef(PRIMITIVE.pColorBuffer + int(PRIMITIVE.colorByteStride) * gl_VertexIndex + 12).data;
+    switch (uint(PRIMITIVE.colorComponentType)) {
+    case 1: // 5121: UNSIGNED BYTE
+        return float(Uint8Ref(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex) + 3).data) / 255.0;
+    case 3: // 5123: UNSIGNED SHORT
+        return float(Uint16Ref(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex) + 6).data) / 65535.0;
+    case 6: // 5126: FLOAT
+        return FloatRef(PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex) + 12).data;
     }
     return 1.0;
 }

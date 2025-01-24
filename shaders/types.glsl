@@ -39,6 +39,7 @@ struct Material {
 struct IndexedAttributeMappingInfo {
     uint64_t bytesPtr;
     uint8_t stride;
+    uint8_t componentType;
 };
 
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer IndexedAttributeMappingInfos { IndexedAttributeMappingInfo data[]; };
@@ -53,7 +54,10 @@ struct Primitive {
     uint8_t normalByteStride;
     uint8_t tangentByteStride;
     uint8_t colorByteStride;
+    uint8_t colorComponentType;
+    uint8_t _padding0_[3];
     uint materialIndex;
+    float _padding1_[3];
 };
 
 #endif

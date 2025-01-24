@@ -31,7 +31,7 @@ layout (push_constant) uniform PushConstant {
 // --------------------
 
 vec3 getPosition() {
-    return Vec3Ref(PRIMITIVE.pPositionBuffer + int(PRIMITIVE.positionByteStride) * gl_VertexIndex).data;
+    return Vec3Ref(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * uint(gl_VertexIndex)).data;
 }
 
 void main(){

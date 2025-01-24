@@ -1,6 +1,7 @@
 module;
 
 #include <cassert>
+#include <cstddef>
 #include <mikktspace.h>
 
 export module vk_gltf_viewer:gltf.AssetGpuBuffers;
@@ -158,8 +159,18 @@ namespace vk_gltf_viewer::gltf {
             std::uint8_t normalByteStride;
             std::uint8_t tangentByteStride;
             std::uint8_t colorByteStride;
+            std::uint8_t colorComponentType;
+            char _padding0_[3];
             std::uint32_t materialIndex;
+            char _padding_[12];
         };
+        static_assert(sizeof(GpuPrimitive) == 64);
+        static_assert(offsetof(GpuPrimitive, positionByteStride) == 40);
+        static_assert(offsetof(GpuPrimitive, normalByteStride) == 41);
+        static_assert(offsetof(GpuPrimitive, tangentByteStride) == 42);
+        static_assert(offsetof(GpuPrimitive, colorByteStride) == 43);
+        static_assert(offsetof(GpuPrimitive, colorComponentType) == 44);
+        static_assert(offsetof(GpuPrimitive, materialIndex) == 48);
 
         std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> primitiveInfos = createPrimitiveInfos();
 
@@ -405,7 +416,7 @@ namespace vk_gltf_viewer::gltf {
                         return {
                             .address = bufferDeviceAddressMappings.at(*accessor.bufferViewIndex) + accessor.byteOffset,
                             .byteStride = static_cast<std::uint8_t>(byteStride),
-                            .componentType = accessor.componentType,
+                            .componentType = static_cast<std::uint8_t>(getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte)),
                         };
                     };
 

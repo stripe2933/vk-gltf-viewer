@@ -21,8 +21,8 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class UnlitPrimitiveRendererSpecialization {
     public:
-        std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
-        std::optional<std::pair<std::uint8_t, fastgltf::ComponentType>> colorComponentCountAndType;
+        bool hasBaseColorTexture;
+        std::optional<std::uint8_t> colorComponentCount;
         shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
         fastgltf::AlphaMode alphaMode;
 
@@ -146,9 +146,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
     private:
         struct VertexShaderSpecializationData {
-            std::uint32_t texcoordComponentType = 5126; // FLOAT
             std::uint32_t colorComponentCount = 0;
-            std::uint32_t colorComponentType = 5126; // FLOAT
         };
 
         struct FragmentShaderSpecializationData {
@@ -157,23 +155,17 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] std::array<int, 2> getVertexShaderVariants() const noexcept {
             return {
-                baseColorTexcoordComponentType.has_value(),
-                colorComponentCountAndType.has_value(),
+                hasBaseColorTexture,
+                colorComponentCount.has_value(),
             };
         }
 
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
             VertexShaderSpecializationData result{};
 
-            if (baseColorTexcoordComponentType) {
-                result.texcoordComponentType = getGLComponentType(*baseColorTexcoordComponentType);
-            }
-
-            if (colorComponentCountAndType) {
-                assert(ranges::one_of(colorComponentCountAndType->first, 3, 4));
-                assert(ranges::one_of(colorComponentCountAndType->second, fastgltf::ComponentType::UnsignedByte, fastgltf::ComponentType::UnsignedShort, fastgltf::ComponentType::Float));
-                result.colorComponentCount = colorComponentCountAndType->first;
-                result.colorComponentType = getGLComponentType(colorComponentCountAndType->second);
+            if (colorComponentCount) {
+                assert(ranges::one_of(*colorComponentCount, 3, 4));
+                result.colorComponentCount = *colorComponentCount;
             }
 
             return result;
@@ -181,8 +173,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] std::array<int, 3> getFragmentShaderVariants() const noexcept {
             return {
-                baseColorTexcoordComponentType.has_value(),
-                colorComponentCountAndType.has_value(),
+                hasBaseColorTexture,
+                colorComponentCount.has_value(),
                 static_cast<int>(alphaMode),
             };
         }
