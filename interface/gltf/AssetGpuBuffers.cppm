@@ -17,9 +17,7 @@ import :helpers.functional;
 import :helpers.ranges;
 import :helpers.type_map;
 export import :vulkan.Gpu;
-
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+import :vulkan.buffer;
 
 /**
  * @brief Parse a number from given \p str.
@@ -35,51 +33,6 @@ template <std::integral T>
     }
     else {
         return std::unexpected { ec };
-    }
-}
-
-/**
- * @brief Create a combined staging buffer from given segments (a range of byte data) and return each segments' start offsets.
- *
- * Example: Two segments { 0xAA, 0xBB, 0xCC } and { 0xDD, 0xEE } will be combined to { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE }, and their start offsets are { 0, 3 }.
- *
- * @tparam R Range type of data segments.
- * @param allocator VMA allocator to allocate the staging buffer.
- * @param segments Range of data segments. Each segment will be converted to <tt>std::span<const std::byte></tt>, therefore segment's elements must be trivially copyable.
- * @param usage Usage flags of the result buffer.
- * @return Pair of staging buffer and each segments' start offsets vector.
- */
-template <std::ranges::forward_range R>
-    requires std::ranges::contiguous_range<std::ranges::range_value_t<R>>
-[[nodiscard]] std::pair<vku::AllocatedBuffer, std::vector<vk::DeviceSize>> createCombinedStagingBuffer(
-    vma::Allocator allocator,
-    const R &segments,
-    vk::BufferUsageFlags usage
-) {
-    if constexpr (std::convertible_to<std::ranges::range_value_t<R>, std::span<const std::byte>>) {
-        assert(!segments.empty() && "Empty segments not allowed (Vulkan requires non-zero buffer size)");
-
-        // Calculate each segments' copy destination offsets.
-        std::vector<vk::DeviceSize> copyOffsets { std::from_range, segments | std::views::transform(LIFT(std::size)) };
-        vk::DeviceSize sizeTotal = copyOffsets.back();
-        std::exclusive_scan(copyOffsets.begin(), copyOffsets.end(), copyOffsets.begin(), vk::DeviceSize { 0 });
-        sizeTotal += copyOffsets.back();
-
-        // Create buffer.
-        vku::MappedBuffer buffer { allocator, vk::BufferCreateInfo { {}, sizeTotal, usage } };
-
-        // Copy segments to the buffer.
-        std::byte *mapped = static_cast<std::byte*>(buffer.data);
-        for (std::span<const std::byte> segment : segments) {
-            mapped = std::ranges::copy(segment, mapped).out;
-        }
-
-        return { std::move(buffer).unmap(), std::move(copyOffsets) };
-    }
-    else {
-        // Retry with converting each segments into the std::span<const std::byte>.
-        const auto byteSegments = segments | std::views::transform([](const auto &segment) { return as_bytes(std::span { segment }); });
-        return createCombinedStagingBuffer(allocator, byteSegments, usage);
     }
 }
 
@@ -341,7 +294,7 @@ namespace vk_gltf_viewer::gltf {
 
             return indexBufferBytesByType
                 | ranges::views::decompose_transform([&](vk::IndexType indexType, const auto &primitiveAndIndexBytesPairs) {
-                    auto [buffer, copyOffsets] = createCombinedStagingBuffer(
+                    auto [buffer, copyOffsets] = vulkan::buffer::createCombinedBuffer<true>(
                         gpu.allocator,
                         primitiveAndIndexBytesPairs | std::views::values,
                         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eIndexBuffer : vk::BufferUsageFlagBits::eTransferSrc);
@@ -410,7 +363,7 @@ namespace vk_gltf_viewer::gltf {
                 })
                 | std::ranges::to<std::vector>();
 
-            auto [buffer, copyOffsets] = createCombinedStagingBuffer(
+            auto [buffer, copyOffsets] = vulkan::buffer::createCombinedBuffer<true>(
                 gpu.allocator,
                 attributeBufferViewBytes | std::views::values,
                 gpu.isUmaDevice
@@ -575,7 +528,7 @@ namespace vk_gltf_viewer::gltf {
                 }
             }).get();
 
-            auto [buffer, copyOffsets] = createCombinedStagingBuffer(
+            auto [buffer, copyOffsets] = vulkan::buffer::createCombinedBuffer<true>(
                 gpu.allocator,
                 missingTangentPrimitives | std::views::transform([](const auto &pair) {
                     return as_bytes(std::span { pair.second.tangents });

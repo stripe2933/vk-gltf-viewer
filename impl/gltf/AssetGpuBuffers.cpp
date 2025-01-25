@@ -11,6 +11,7 @@ import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
+import :vulkan.buffer;
 
 [[nodiscard]] std::pair<glm::mat2, glm::vec2> getTextureTransformMatrixPair(const fastgltf::TextureTransform &transform) noexcept {
     const float c = std::cos(transform.rotation), s = std::sin(transform.rotation);
@@ -208,7 +209,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexedAttributeMappi
         return;
     }
 
-    auto [buffer, copyOffsets] = createCombinedStagingBuffer(
+    auto [buffer, copyOffsets] = vulkan::buffer::createCombinedBuffer<true>(
         gpu.allocator,
         primitiveWithTexcoords | std::views::transform([](const AssetPrimitiveInfo *pPrimitiveInfo) {
             return std::span { pPrimitiveInfo->texcoordsInfo.attributeInfos };
@@ -231,7 +232,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveMorphTargetIndexedAtt
         std::span<AssetPrimitiveInfo* const> morphTargetPrimitives,
         concepts::signature_of<AssetPrimitiveInfo::IndexedAttributeBufferInfos&, AssetPrimitiveInfo&> auto const &indexedAttributeBufferInfoGetter
     ) -> vku::AllocatedBuffer {
-        auto [buffer, copyOffsets] = createCombinedStagingBuffer(
+        auto [buffer, copyOffsets] = vulkan::buffer::createCombinedBuffer<true>(
             gpu.allocator,
             morphTargetPrimitives | std::views::transform([&](AssetPrimitiveInfo *pPrimitiveInfo) {
                 return std::span { indexedAttributeBufferInfoGetter(*pPrimitiveInfo).attributeInfos };
