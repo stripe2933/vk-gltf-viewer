@@ -1,3 +1,6 @@
+#ifndef TYPES_GLSL
+#define TYPES_GLSL
+
 struct Material {
     uint8_t baseColorTexcoordIndex;
     uint8_t metallicRoughnessTexcoordIndex;
@@ -46,8 +49,11 @@ layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer I
 
 struct Primitive {
     uint64_t pPositionBuffer;
+    IndexedAttributeMappingInfos positionMorphTargetAttributeMappingInfos;
     uint64_t pNormalBuffer;
+    IndexedAttributeMappingInfos normalMorphTargetAttributeMappingInfos;
     uint64_t pTangentBuffer;
+    IndexedAttributeMappingInfos tangentMorphTargetAttributeMappingInfos;
     IndexedAttributeMappingInfos texcoordAttributeMappingInfos;
     uint64_t pColorBuffer;
     uint8_t positionByteStride;
@@ -57,8 +63,10 @@ struct Primitive {
     uint8_t colorComponentType;
     uint8_t colorComponentCount;
     uint8_t _padding0_[2];
+    uint morphTargetCount;
     uint materialIndex;
-    float _padding1_[3];
 };
+
+#endif
 
 #endif

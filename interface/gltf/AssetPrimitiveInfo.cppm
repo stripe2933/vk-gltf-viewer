@@ -40,8 +40,11 @@ namespace vk_gltf_viewer::gltf {
         std::uint32_t drawCount;
         std::optional<IndexBufferInfo> indexInfo{};
         AttributeBufferInfo positionInfo;
+        IndexedAttributeBufferInfos positionMorphTargetInfos;
         std::optional<AttributeBufferInfo> normalInfo;
+        IndexedAttributeBufferInfos normalMorphTargetInfos;
         std::optional<AttributeBufferInfo> tangentInfo;
+        IndexedAttributeBufferInfos tangentMorphTargetInfos;
         IndexedAttributeBufferInfos texcoordsInfo;
         std::optional<ColorAttributeBufferInfo> colorInfo;
         glm::dvec3 min;

@@ -160,18 +160,41 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::gltf::Asse
             const AssetPrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
             GpuPrimitive gpuPrimitive {
                 .pPositionBuffer = primitiveInfo.positionInfo.address,
+                .pPositionMorphTargetAttributeMappingInfoBuffer = primitiveInfo.positionMorphTargetInfos.pMappingBuffer,
                 .pTexcoordAttributeMappingInfoBuffer = primitiveInfo.texcoordsInfo.pMappingBuffer,
                 .positionByteStride = primitiveInfo.positionInfo.byteStride,
+                .morphTargetCount = std::numeric_limits<std::uint32_t>::max(),
                 .materialIndex = primitiveInfo.materialIndex.transform(padMaterialIndex).value_or(0U),
             };
 
+            if (primitiveInfo.positionMorphTargetInfos.pMappingBuffer) {
+                gpuPrimitive.pPositionMorphTargetAttributeMappingInfoBuffer
+                    = primitiveInfo.positionMorphTargetInfos.pMappingBuffer;
+                gpuPrimitive.morphTargetCount = std::min<std::uint32_t>(
+                    gpuPrimitive.morphTargetCount,
+                    primitiveInfo.positionMorphTargetInfos.attributeInfos.size());
+            }
             if (primitiveInfo.normalInfo) {
                 gpuPrimitive.pNormalBuffer = primitiveInfo.normalInfo->address;
                 gpuPrimitive.normalByteStride = primitiveInfo.normalInfo->byteStride;
+                if (primitiveInfo.normalMorphTargetInfos.pMappingBuffer) {
+                    gpuPrimitive.pPositionMorphTargetAttributeMappingInfoBuffer
+                        = primitiveInfo.positionMorphTargetInfos.pMappingBuffer;
+                    gpuPrimitive.morphTargetCount = std::min<std::uint32_t>(
+                        gpuPrimitive.morphTargetCount,
+                        primitiveInfo.normalMorphTargetInfos.attributeInfos.size());
+                }
             }
             if (primitiveInfo.tangentInfo) {
                 gpuPrimitive.pTangentBuffer = primitiveInfo.tangentInfo->address;
                 gpuPrimitive.tangentByteStride = primitiveInfo.tangentInfo->byteStride;
+                if (primitiveInfo.tangentMorphTargetInfos.pMappingBuffer) {
+                    gpuPrimitive.pPositionMorphTargetAttributeMappingInfoBuffer
+                        = primitiveInfo.positionMorphTargetInfos.pMappingBuffer;
+                    gpuPrimitive.morphTargetCount = std::min<std::uint32_t>(
+                        gpuPrimitive.morphTargetCount,
+                        primitiveInfo.tangentMorphTargetInfos.attributeInfos.size());
+                }
             }
             if (primitiveInfo.colorInfo) {
                 gpuPrimitive.pColorBuffer = primitiveInfo.colorInfo->address;
@@ -190,29 +213,110 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::gltf::Asse
 
 void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexedAttributeMappingBuffers() {
     // Collect primitives that have any TEXCOORD attributes.
-    const std::vector primitiveWithTexcoordAttributeInfos
+    const std::vector primitiveWithTexcoords
         = primitiveInfos
         | std::views::values
-        | std::views::filter([](const AssetPrimitiveInfo &primitiveInfo) { return !primitiveInfo.texcoordsInfo.attributeInfos.empty(); })
-        | std::views::transform([](AssetPrimitiveInfo &primitiveInfo) { return std::tie(primitiveInfo, primitiveInfo.texcoordsInfo.attributeInfos); })
+        | std::views::filter([](const AssetPrimitiveInfo &primitiveInfo) {
+            return !primitiveInfo.texcoordsInfo.attributeInfos.empty();
+        })
+        | ranges::views::addressof
         | std::ranges::to<std::vector>();
-
-    if (primitiveWithTexcoordAttributeInfos.empty()) {
+    if (primitiveWithTexcoords.empty()) {
         return;
     }
 
     auto [buffer, copyOffsets] = createCombinedStagingBuffer(
         gpu.allocator,
-        primitiveWithTexcoordAttributeInfos | std::views::values,
+        primitiveWithTexcoords | std::views::transform([](const AssetPrimitiveInfo *pPrimitiveInfo) {
+            return std::span { pPrimitiveInfo->texcoordsInfo.attributeInfos };
+        }),
         gpu.isUmaDevice
             ? vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress
             : vk::BufferUsageFlagBits::eTransferSrc);
     stageIfNeeded(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
     const vk::DeviceAddress pIndexAttributeMappingBuffer = gpu.device.getBufferAddress({ buffer });
-    for (auto &&[primitiveInfo, copyOffset] : std::views::zip(primitiveWithTexcoordAttributeInfos | std::views::keys, copyOffsets)) {
-        primitiveInfo.texcoordsInfo.pMappingBuffer = pIndexAttributeMappingBuffer + copyOffset;
+    for (auto [pPrimitiveInfo, copyOffset] : std::views::zip(primitiveWithTexcoords, copyOffsets)) {
+        pPrimitiveInfo->texcoordsInfo.pMappingBuffer = pIndexAttributeMappingBuffer + copyOffset;
     }
 
     internalBuffers.emplace_back(std::move(buffer));
+}
+
+void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveMorphTargetIndexedAttributeMappingBuffers() {
+    const auto processMorphTargetPrimitives = [this](
+        std::span<AssetPrimitiveInfo* const> morphTargetPrimitives,
+        concepts::signature_of<AssetPrimitiveInfo::IndexedAttributeBufferInfos&, AssetPrimitiveInfo&> auto const &indexedAttributeBufferInfoGetter
+    ) -> vku::AllocatedBuffer {
+        auto [buffer, copyOffsets] = createCombinedStagingBuffer(
+            gpu.allocator,
+            morphTargetPrimitives | std::views::transform([&](AssetPrimitiveInfo *pPrimitiveInfo) {
+                return std::span { indexedAttributeBufferInfoGetter(*pPrimitiveInfo).attributeInfos };
+            }),
+            gpu.isUmaDevice
+                ? vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress
+                : vk::BufferUsageFlagBits::eTransferSrc);
+        stageIfNeeded(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+
+        const vk::DeviceAddress pIndexAttributeMappingBuffer = gpu.device.getBufferAddress({ buffer });
+        for (auto [pPrimitiveInfo, copyOffset] : std::views::zip(morphTargetPrimitives, copyOffsets)) {
+            indexedAttributeBufferInfoGetter(*pPrimitiveInfo).pMappingBuffer = pIndexAttributeMappingBuffer + copyOffset;
+        }
+
+        return std::move(buffer);
+    };
+
+    // Position morph targets.
+    std::vector morphTargetPrimitives
+        = primitiveInfos
+        | std::views::values
+        | std::views::filter([](const AssetPrimitiveInfo &primitiveInfo) {
+            return !primitiveInfo.positionMorphTargetInfos.attributeInfos.empty();
+        })
+        | ranges::views::addressof
+        | std::ranges::to<std::vector>();
+    if (!morphTargetPrimitives.empty()) {
+        internalBuffers.emplace_back(
+            processMorphTargetPrimitives(
+                morphTargetPrimitives,
+                [](AssetPrimitiveInfo &x) -> AssetPrimitiveInfo::IndexedAttributeBufferInfos& {
+                    return x.positionMorphTargetInfos;
+                }));
+    }
+
+    // Normal morph targets.
+    morphTargetPrimitives.clear();
+    morphTargetPrimitives.append_range(
+        primitiveInfos
+            | std::views::values
+            | std::views::filter([](const AssetPrimitiveInfo &primitiveInfo) {
+                return !primitiveInfo.normalMorphTargetInfos.attributeInfos.empty();
+            })
+            | ranges::views::addressof);
+    if (!morphTargetPrimitives.empty()) {
+        internalBuffers.emplace_back(
+            processMorphTargetPrimitives(
+                morphTargetPrimitives,
+                [](AssetPrimitiveInfo &x) -> AssetPrimitiveInfo::IndexedAttributeBufferInfos& {
+                    return x.normalMorphTargetInfos;
+                }));
+    }
+
+    // Tangent morph targets.
+    morphTargetPrimitives.clear();
+    morphTargetPrimitives.append_range(
+        primitiveInfos
+            | std::views::values
+            | std::views::filter([](const AssetPrimitiveInfo &primitiveInfo) {
+                return !primitiveInfo.tangentMorphTargetInfos.attributeInfos.empty();
+            })
+            | ranges::views::addressof);
+    if (!morphTargetPrimitives.empty()) {
+        internalBuffers.emplace_back(
+            processMorphTargetPrimitives(
+                morphTargetPrimitives,
+                [](AssetPrimitiveInfo &x) -> AssetPrimitiveInfo::IndexedAttributeBufferInfos& {
+                    return x.tangentMorphTargetInfos;
+                }));
+    }
 }

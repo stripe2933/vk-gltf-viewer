@@ -161,7 +161,7 @@ namespace views {
         return *FWD(x);
     });
 
-    export CLANG_INLINE constexpr auto addressof = std::views::transform([](const auto &x) {
+    export CLANG_INLINE constexpr auto addressof = std::views::transform([](auto &x) {
         return &x;
     });
 

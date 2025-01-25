@@ -151,8 +151,11 @@ namespace vk_gltf_viewer::gltf {
 
         struct GpuPrimitive {
             vk::DeviceAddress pPositionBuffer;
+            vk::DeviceAddress pPositionMorphTargetAttributeMappingInfoBuffer;
             vk::DeviceAddress pNormalBuffer;
+            vk::DeviceAddress pNormalMorphTargetAttributeMappingInfoBuffer;
             vk::DeviceAddress pTangentBuffer;
+            vk::DeviceAddress pTangentMorphTargetAttributeMappingInfoBuffer;
             vk::DeviceAddress pTexcoordAttributeMappingInfoBuffer;
             vk::DeviceAddress pColorBuffer;
             std::uint8_t positionByteStride;
@@ -162,17 +165,18 @@ namespace vk_gltf_viewer::gltf {
             std::uint8_t colorComponentType;
             std::uint8_t colorComponentCount;
             char _padding0_[2];
+            std::uint32_t morphTargetCount;
             std::uint32_t materialIndex;
-            char _padding_[12];
         };
-        static_assert(sizeof(GpuPrimitive) == 64);
-        static_assert(offsetof(GpuPrimitive, positionByteStride) == 40);
-        static_assert(offsetof(GpuPrimitive, normalByteStride) == 41);
-        static_assert(offsetof(GpuPrimitive, tangentByteStride) == 42);
-        static_assert(offsetof(GpuPrimitive, colorByteStride) == 43);
-        static_assert(offsetof(GpuPrimitive, colorComponentType) == 44);
-        static_assert(offsetof(GpuPrimitive, colorComponentCount) == 45);
-        static_assert(offsetof(GpuPrimitive, materialIndex) == 48);
+        static_assert(sizeof(GpuPrimitive) == 80);
+        static_assert(offsetof(GpuPrimitive, positionByteStride) == 64);
+        static_assert(offsetof(GpuPrimitive, normalByteStride) == 65);
+        static_assert(offsetof(GpuPrimitive, tangentByteStride) == 66);
+        static_assert(offsetof(GpuPrimitive, colorByteStride) == 67);
+        static_assert(offsetof(GpuPrimitive, colorComponentType) == 68);
+        static_assert(offsetof(GpuPrimitive, colorComponentCount) == 69);
+        static_assert(offsetof(GpuPrimitive, morphTargetCount) == 72);
+        static_assert(offsetof(GpuPrimitive, materialIndex) == 76);
 
         std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> primitiveInfos = createPrimitiveInfos();
 
@@ -211,7 +215,7 @@ namespace vk_gltf_viewer::gltf {
             indexBuffers { (createPrimitiveAttributeBuffers(adapter), createPrimitiveIndexBuffers(adapter)) },
             // Remaining buffers MUST be created before the primitive buffer creation (because they fill the
             // AssetPrimitiveInfo and createPrimitiveBuffer() will stage it).
-            primitiveBuffer { (createPrimitiveIndexedAttributeMappingBuffers(), createPrimitiveTangentBuffers(threadPool, adapter), createPrimitiveBuffer()) } {
+            primitiveBuffer { (createPrimitiveIndexedAttributeMappingBuffers(), createPrimitiveMorphTargetIndexedAttributeMappingBuffers(), createPrimitiveTangentBuffers(threadPool, adapter), createPrimitiveBuffer()) } {
             if (!stagingInfos.empty()) {
                 // Transfer the asset resources into the GPU using transfer queue.
                 const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
@@ -364,9 +368,10 @@ namespace vk_gltf_viewer::gltf {
             // Get buffer view indices that are used in primitive attributes.
             std::unordered_set<std::size_t> attributeBufferViewIndices;
             for (const fastgltf::Primitive &primitive : primitives) {
+                using namespace std::string_view_literals;
+
                 for (const fastgltf::Attribute &attribute : primitive.attributes) {
                     // Process only used attributes.
-                    using namespace std::string_view_literals;
                     const bool isAttributeUsed
                         = ranges::one_of(attribute.name, "POSITION"sv, "NORMAL"sv, "TANGENT"sv, "COLOR_0"sv)
                         || attribute.name.starts_with("TEXCOORD_"sv);
@@ -378,6 +383,23 @@ namespace vk_gltf_viewer::gltf {
                     if (accessor.sparse) throw AssetProcessError::SparseAttributeBufferAccessor;
 
                     attributeBufferViewIndices.emplace(accessor.bufferViewIndex.value());
+                }
+
+                // Morph targets processing.
+                for (std::span<const fastgltf::Attribute> attributes : primitive.targets) {
+                    for (const auto &[attributeName, accessorIndex] : attributes) {
+                        // Process only used attributes.
+                        // TODO: add TEXCOORD_<i> and COLOR_0.
+                        const bool isAttributeUsed = ranges::one_of(attributeName, "POSITION"sv, "NORMAL"sv, "TANGENT"sv);
+                        if (!isAttributeUsed) continue;
+
+                        const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
+
+                        // Check accessor validity.
+                        if (accessor.sparse) throw AssetProcessError::SparseAttributeBufferAccessor;
+
+                        attributeBufferViewIndices.emplace(accessor.bufferViewIndex.value());
+                    }
                 }
             }
 
@@ -406,6 +428,18 @@ namespace vk_gltf_viewer::gltf {
                     }))
                 | std::ranges::to<std::unordered_map>();
 
+            const auto getAttributeBufferInfo = [&](const fastgltf::Accessor &accessor) -> AssetPrimitiveInfo::AttributeBufferInfo {
+                const std::size_t byteStride
+                    = asset.bufferViews[accessor.bufferViewIndex.value()].byteStride
+                    .value_or(getElementByteSize(accessor.type, accessor.componentType));
+                if (!std::in_range<std::uint8_t>(byteStride)) throw AssetProcessError::TooLargeAccessorByteStride;
+                return {
+                    .address = bufferDeviceAddressMappings.at(accessor.bufferViewIndex.value()) + accessor.byteOffset,
+                    .byteStride = static_cast<std::uint8_t>(byteStride),
+                    .componentType = static_cast<std::uint8_t>(getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte)),
+                };
+            };
+
             // Iterate over the primitives and set their attribute infos.
             for (auto &[pPrimitive, primitiveInfo] : primitiveInfos) {
                 // Get number of TEXCOORD_<i> attributes.
@@ -417,33 +451,21 @@ namespace vk_gltf_viewer::gltf {
                     [](std::string_view name) { return name.starts_with("TEXCOORD_"); });
                 primitiveInfo.texcoordsInfo.attributeInfos.resize(texcoordCount);
 
+                using namespace std::string_view_literals;
+
                 for (const auto &[attributeName, accessorIndex] : pPrimitive->attributes) {
                     const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
-                    const auto getAttributeBufferInfo = [&]() -> AssetPrimitiveInfo::AttributeBufferInfo {
-                        const std::size_t byteStride
-                            = asset.bufferViews[*accessor.bufferViewIndex].byteStride
-                            .value_or(getElementByteSize(accessor.type, accessor.componentType));
-                        if (!std::in_range<std::uint8_t>(byteStride)) throw AssetProcessError::TooLargeAccessorByteStride;
-                        return {
-                            .address = bufferDeviceAddressMappings.at(*accessor.bufferViewIndex) + accessor.byteOffset,
-                            .byteStride = static_cast<std::uint8_t>(byteStride),
-                            .componentType = static_cast<std::uint8_t>(getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte)),
-                        };
-                    };
-
-                    using namespace std::string_view_literals;
-
                     if (attributeName == "POSITION"sv) {
-                        primitiveInfo.positionInfo = getAttributeBufferInfo();
+                        primitiveInfo.positionInfo = getAttributeBufferInfo(accessor);
                         primitiveInfo.drawCount = accessor.count;
                         primitiveInfo.min = glm::make_vec3(get_if<std::pmr::vector<double>>(&accessor.min)->data());
                         primitiveInfo.max = glm::make_vec3(get_if<std::pmr::vector<double>>(&accessor.max)->data());
                     }
                     else if (attributeName == "NORMAL"sv) {
-                        primitiveInfo.normalInfo.emplace(getAttributeBufferInfo());
+                        primitiveInfo.normalInfo.emplace(getAttributeBufferInfo(accessor));
                     }
                     else if (attributeName == "TANGENT"sv) {
-                        primitiveInfo.tangentInfo.emplace(getAttributeBufferInfo());
+                        primitiveInfo.tangentInfo.emplace(getAttributeBufferInfo(accessor));
                     }
                     else if (constexpr auto prefix = "TEXCOORD_"sv; attributeName.starts_with(prefix)) {
                         std::size_t index;
@@ -456,10 +478,28 @@ namespace vk_gltf_viewer::gltf {
                             throw fastgltf::Error::InvalidOrMissingAssetField;
                         }
 
-                        primitiveInfo.texcoordsInfo.attributeInfos[index] = getAttributeBufferInfo();
+                        primitiveInfo.texcoordsInfo.attributeInfos[index] = getAttributeBufferInfo(accessor);
                     }
                     else if (attributeName == "COLOR_0"sv) {
-                        primitiveInfo.colorInfo.emplace(getAttributeBufferInfo(), getNumComponents(accessor.type));
+                        primitiveInfo.colorInfo.emplace(getAttributeBufferInfo(accessor), getNumComponents(accessor.type));
+                    }
+                }
+
+                // Morph targets processing.
+                for (std::span<const fastgltf::Attribute> attributes : pPrimitive->targets) {
+                    for (const auto &[attributeName, accessorIndex] : attributes) {
+                        const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
+
+                        if (attributeName == "POSITION"sv) {
+                            primitiveInfo.positionMorphTargetInfos.attributeInfos.emplace_back(getAttributeBufferInfo(accessor));
+                            // TODO: adjust primitiveInfo.{min,max}?
+                        }
+                        else if (attributeName == "NORMAL"sv) {
+                            primitiveInfo.normalMorphTargetInfos.attributeInfos.emplace_back(getAttributeBufferInfo(accessor));
+                        }
+                        else if (attributeName == "TANGENT"sv) {
+                            primitiveInfo.tangentMorphTargetInfos.attributeInfos.emplace_back(getAttributeBufferInfo(accessor));
+                        }
                     }
                 }
             }
@@ -468,6 +508,7 @@ namespace vk_gltf_viewer::gltf {
         }
 
         void createPrimitiveIndexedAttributeMappingBuffers();
+        void createPrimitiveMorphTargetIndexedAttributeMappingBuffers();
 
         template <typename BufferDataAdapter>
         void createPrimitiveTangentBuffers(BS::thread_pool<> &threadPool, const BufferDataAdapter &adapter) {

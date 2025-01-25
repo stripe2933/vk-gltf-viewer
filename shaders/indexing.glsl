@@ -1,3 +1,6 @@
+#ifndef INDEXING_GLSL
+#define INDEXING_GLSL
+
 #if defined(VERTEX_SHADER)
 
 // --------------------
@@ -19,5 +22,7 @@
 
 #define MATERIAL_INDEX inMaterialIndex
 #define MATERIAL materials[inMaterialIndex]
+
+#endif
 
 #endif
