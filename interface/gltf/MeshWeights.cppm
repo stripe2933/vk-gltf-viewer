@@ -3,23 +3,11 @@ export module vk_gltf_viewer:gltf.MeshWeights;
 import std;
 export import fastgltf;
 import :helpers.ranges;
+import :helpers.writeonly;
 export import :vulkan.Gpu;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
-
-template <typename T>
-class writeonly {
-    T volatile *addr;
-
-public:
-    explicit writeonly(std::uintptr_t addr)
-        : addr { reinterpret_cast<T*>(addr) } { }
-
-    void operator=(const T &t) volatile { *addr = t; }
-
-    [[nodiscard]] std::uintptr_t address() const noexcept { return addr; }
-};
 
 /**
  * @brief Create a combined buffer from given segments (a range of byte data) and return each segments' start offsets.
@@ -98,7 +86,7 @@ namespace vk_gltf_viewer::gltf {
                 segments.emplace_back(
                     bufferAddress + copyOffset,
                     writeonly<std::uint32_t> { segmentStart },
-                    std::span { reinterpret_cast<writeonly<float>*>(segmentStart + sizeof(float)), mesh.weights.size() });
+                    std::span { reinterpret_cast<writeonly<float>*>(segmentStart + sizeof(std::uint32_t)), mesh.weights.size() });
             }
 
             return std::move(buffer);

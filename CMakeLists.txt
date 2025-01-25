@@ -137,6 +137,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/tristate.cppm
         interface/helpers/type_map.cppm
         interface/helpers/type_variant.cppm
+        interface/helpers/writeonly.cppm
         interface/MainApp.cppm
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
