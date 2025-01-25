@@ -24,9 +24,10 @@ vec3 getPosition() {
     vec3 position = Vec3Ref(PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * uint(gl_VertexIndex)).data;
     // Morph target computation.
     if (uint64_t(PRIMITIVE.positionMorphTargetAttributeMappingInfos) != 0) {
-        for (uint i = 0U; i < PRIMITIVE.morphTargetCount; ++i) {
+        MeshWeights meshWeights = nodes[NODE_INDEX].meshWeights;
+        for (uint i = 0U; i < meshWeights.count; ++i) {
             IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.positionMorphTargetAttributeMappingInfos.data[i];
-            position += /* TODO: weight */ Vec3Ref(mappingInfo.bytesPtr + mappingInfo.stride * uint(gl_VertexIndex)).data;
+            position += meshWeights.weights[i] * Vec3Ref(mappingInfo.bytesPtr + mappingInfo.stride * uint(gl_VertexIndex)).data;
         }
     }
     return position;
@@ -36,9 +37,10 @@ vec3 getNormal() {
     vec3 normal = Vec3Ref(PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * uint(gl_VertexIndex)).data;
     // Morph target computation.
     if (uint64_t(PRIMITIVE.normalMorphTargetAttributeMappingInfos) != 0) {
-        for (uint i = 0U; i < PRIMITIVE.morphTargetCount; ++i) {
+        MeshWeights meshWeights = nodes[NODE_INDEX].meshWeights;
+        for (uint i = 0U; i < meshWeights.count; ++i) {
             IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.normalMorphTargetAttributeMappingInfos.data[i];
-            normal += /* TODO: weight */ Vec3Ref(mappingInfo.bytesPtr + mappingInfo.stride * uint(gl_VertexIndex)).data;
+            normal += meshWeights.weights[i] * Vec3Ref(mappingInfo.bytesPtr + mappingInfo.stride * uint(gl_VertexIndex)).data;
         }
     }
     return normal;
@@ -48,9 +50,10 @@ vec4 getTangent() {
     vec4 tangent = Vec4Ref(PRIMITIVE.pTangentBuffer + uint(PRIMITIVE.tangentByteStride) * uint(gl_VertexIndex)).data;
     // Morph target computation.
     if (uint64_t(PRIMITIVE.tangentMorphTargetAttributeMappingInfos) != 0) {
-        for (uint i = 0U; i < PRIMITIVE.morphTargetCount; ++i) {
+        MeshWeights meshWeights = nodes[NODE_INDEX].meshWeights;
+        for (uint i = 0U; i < meshWeights.count; ++i) {
             IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.tangentMorphTargetAttributeMappingInfos.data[i];
-            tangent.xyz += /* TODO: weight */ Vec3Ref(mappingInfo.bytesPtr + mappingInfo.stride * uint(gl_VertexIndex)).data;
+            tangent.xyz += meshWeights.weights[i] * Vec3Ref(mappingInfo.bytesPtr + mappingInfo.stride * uint(gl_VertexIndex)).data;
         }
     }
     return tangent;

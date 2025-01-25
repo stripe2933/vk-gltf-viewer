@@ -5,6 +5,7 @@ export import fastgltf;
 import :gltf.algorithm.traversal;
 export import :gltf.AssetPrimitiveInfo;
 export import :gltf.AssetSceneHierarchy;
+export import :gltf.MeshWeights;
 import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
@@ -49,12 +50,13 @@ namespace vk_gltf_viewer::gltf {
             const fastgltf::Asset &asset [[clang::lifetimebound]],
             const fastgltf::Scene &scene [[clang::lifetimebound]],
             const AssetSceneHierarchy &sceneHierarchy,
+            const MeshWeights &meshWeights,
             const vulkan::Gpu &gpu [[clang::lifetimebound]],
             const BufferDataAdapter &adapter = {}
         ) : pAsset { &asset },
             instanceCounts { createInstanceCounts(scene) },
             meshNodeWorldTransformBuffer { createMeshNodeWorldTransformBuffer(scene, sceneHierarchy, gpu.allocator, adapter) },
-            nodeBuffer { createNodeBuffer(gpu) } { }
+            nodeBuffer { createNodeBuffer(asset, meshWeights, gpu) } { }
 
         /**
          * @brief Get world transform matrix of \p nodeIndex-th mesh node's \p instanceIndex-th instance in the scene.
@@ -215,6 +217,10 @@ namespace vk_gltf_viewer::gltf {
             };
         }
 
-        [[nodiscard]] vku::AllocatedBuffer createNodeBuffer(const vulkan::Gpu &gpu) const;
+        [[nodiscard]] vku::AllocatedBuffer createNodeBuffer(
+            const fastgltf::Asset &asset,
+            const MeshWeights &meshWeights,
+            const vulkan::Gpu &gpu
+        ) const;
     };
 }

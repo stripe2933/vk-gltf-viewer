@@ -12,7 +12,13 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
-layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
+layout (buffer_reference, buffer_reference_align = 4) readonly buffer MeshWeights { uint count; float[] weights; };
+layout (buffer_reference, buffer_reference_align = 64) readonly buffer InstanceTransforms { mat4 data[]; };
+
+struct Node {
+    MeshWeights meshWeights;
+    InstanceTransforms instanceTransforms;
+};
 
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];

@@ -10,6 +10,7 @@ import :gltf.AssetGpuFallbackTexture;
 import :gltf.AssetSceneGpuBuffers;
 import :gltf.AssetSceneHierarchy;
 import :gltf.MaterialVariantsMapping;
+import :gltf.MeshWeights;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Scene;
@@ -71,6 +72,8 @@ namespace vk_gltf_viewer {
 
             gltf::AssetGpuBuffers assetGpuBuffers;
             gltf::AssetGpuTextures assetGpuTextures;
+
+            gltf::MeshWeights meshWeights { asset, gpu };
 
             /**
              * @brief The glTF scene that is currently used by.

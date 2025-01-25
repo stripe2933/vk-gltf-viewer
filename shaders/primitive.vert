@@ -14,7 +14,13 @@
 
 #define HAS_VARIADIC_OUT !FRAGMENT_SHADER_GENERATED_TBN || TEXCOORD_COUNT >= 1 || HAS_COLOR_ATTRIBUTE
 
-layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
+layout (buffer_reference, buffer_reference_align = 4) readonly buffer MeshWeights { uint count; float[] weights; };
+layout (buffer_reference, buffer_reference_align = 64) readonly buffer InstanceTransforms { mat4 data[]; };
+
+struct Node {
+    MeshWeights meshWeights;
+    InstanceTransforms instanceTransforms;
+};
 
 layout (location = 0) out vec3 outPosition;
 layout (location = 1) flat out uint outMaterialIndex;

@@ -7,6 +7,7 @@ module vk_gltf_viewer;
 import :gltf.AssetGpuBuffers;
 
 import std;
+import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
@@ -163,38 +164,20 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::gltf::Asse
                 .pPositionMorphTargetAttributeMappingInfoBuffer = primitiveInfo.positionMorphTargetInfos.pMappingBuffer,
                 .pTexcoordAttributeMappingInfoBuffer = primitiveInfo.texcoordsInfo.pMappingBuffer,
                 .positionByteStride = primitiveInfo.positionInfo.byteStride,
-                .morphTargetCount = std::numeric_limits<std::uint32_t>::max(),
                 .materialIndex = primitiveInfo.materialIndex.transform(padMaterialIndex).value_or(0U),
             };
 
-            if (primitiveInfo.positionMorphTargetInfos.pMappingBuffer) {
-                gpuPrimitive.pPositionMorphTargetAttributeMappingInfoBuffer
-                    = primitiveInfo.positionMorphTargetInfos.pMappingBuffer;
-                gpuPrimitive.morphTargetCount = std::min<std::uint32_t>(
-                    gpuPrimitive.morphTargetCount,
-                    primitiveInfo.positionMorphTargetInfos.attributeInfos.size());
-            }
             if (primitiveInfo.normalInfo) {
                 gpuPrimitive.pNormalBuffer = primitiveInfo.normalInfo->address;
                 gpuPrimitive.normalByteStride = primitiveInfo.normalInfo->byteStride;
-                if (primitiveInfo.normalMorphTargetInfos.pMappingBuffer) {
-                    gpuPrimitive.pPositionMorphTargetAttributeMappingInfoBuffer
-                        = primitiveInfo.positionMorphTargetInfos.pMappingBuffer;
-                    gpuPrimitive.morphTargetCount = std::min<std::uint32_t>(
-                        gpuPrimitive.morphTargetCount,
-                        primitiveInfo.normalMorphTargetInfos.attributeInfos.size());
-                }
+                gpuPrimitive.pNormalMorphTargetAttributeMappingInfoBuffer
+                    = primitiveInfo.normalMorphTargetInfos.pMappingBuffer;
             }
             if (primitiveInfo.tangentInfo) {
                 gpuPrimitive.pTangentBuffer = primitiveInfo.tangentInfo->address;
                 gpuPrimitive.tangentByteStride = primitiveInfo.tangentInfo->byteStride;
-                if (primitiveInfo.tangentMorphTargetInfos.pMappingBuffer) {
-                    gpuPrimitive.pPositionMorphTargetAttributeMappingInfoBuffer
-                        = primitiveInfo.positionMorphTargetInfos.pMappingBuffer;
-                    gpuPrimitive.morphTargetCount = std::min<std::uint32_t>(
-                        gpuPrimitive.morphTargetCount,
-                        primitiveInfo.tangentMorphTargetInfos.attributeInfos.size());
-                }
+                gpuPrimitive.pTangentMorphTargetAttributeMappingInfoBuffer
+                    = primitiveInfo.tangentMorphTargetInfos.pMappingBuffer;
             }
             if (primitiveInfo.colorInfo) {
                 gpuPrimitive.pColorBuffer = primitiveInfo.colorInfo->address;

@@ -14,7 +14,13 @@
 
 #define HAS_VARIADIC_OUT HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ALPHA_ATTRIBUTE
 
-layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
+layout (buffer_reference, buffer_reference_align = 4) readonly buffer MeshWeights { uint count; float[] weights; };
+layout (buffer_reference, buffer_reference_align = 64) readonly buffer InstanceTransforms { mat4 data[]; };
+
+struct Node {
+    MeshWeights meshWeights;
+    InstanceTransforms instanceTransforms;
+};
 
 layout (location = 0) flat out uint outMaterialIndex;
 #if HAS_VARIADIC_OUT

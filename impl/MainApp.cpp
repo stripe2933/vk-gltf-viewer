@@ -657,7 +657,7 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     gpu { gpu },
     assetGpuBuffers { asset, gpu, threadPool, assetExternalBuffers },
     assetGpuTextures { asset, directory, gpu, threadPool, assetExternalBuffers },
-    sceneGpuBuffers { asset, scene, sceneHierarchy, gpu, assetExternalBuffers },
+    sceneGpuBuffers { asset, scene, sceneHierarchy, meshWeights, gpu, assetExternalBuffers },
     sceneMiniball { gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
         return cast<double>(sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
     }) } { }
@@ -665,7 +665,7 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
     sceneHierarchy = { asset, scene };
-    sceneGpuBuffers = { asset, scene, sceneHierarchy, gpu, assetExternalBuffers };
+    sceneGpuBuffers = { asset, scene, sceneHierarchy, meshWeights, gpu, assetExternalBuffers };
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
         return cast<double>(sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
     });

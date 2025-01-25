@@ -63,8 +63,8 @@ struct Primitive {
     uint8_t colorComponentType;
     uint8_t colorComponentCount;
     uint8_t _padding0_[2];
-    uint morphTargetCount;
     uint materialIndex;
+    float _padding1_;
 };
 
 #endif

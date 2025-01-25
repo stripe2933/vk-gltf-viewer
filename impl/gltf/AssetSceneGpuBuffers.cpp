@@ -44,13 +44,24 @@ std::vector<std::uint32_t> vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createIns
     return result;
 }
 
-vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeBuffer(const vulkan::Gpu &gpu) const {
+vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeBuffer(
+    const fastgltf::Asset &asset,
+    const MeshWeights &meshWeights,
+    const vulkan::Gpu &gpu
+) const {
     const vk::DeviceAddress nodeTransformBufferStartAddress = gpu.device.getBufferAddress({ meshNodeWorldTransformBuffer });
 
     vku::AllocatedBuffer stagingBuffer = vku::MappedBuffer {
         gpu.allocator,
-        std::from_range, instanceOffsets | std::views::transform([=](std::uint32_t offset) {
-            return nodeTransformBufferStartAddress + sizeof(fastgltf::math::fmat4x4) * offset;
+        std::from_range, ranges::views::upto(asset.nodes.size()) | std::views::transform([&](std::size_t nodeIndex) {
+            return std::array {
+                to_optional(asset.nodes[nodeIndex].meshIndex)
+                    .transform([&](std::size_t meshIndex) {
+                        return meshWeights.segments[meshIndex].startAddress;
+                    })
+                    .value_or(vk::DeviceAddress { 0 }),
+                nodeTransformBufferStartAddress + sizeof(fastgltf::math::fmat4x4) * instanceOffsets[nodeIndex],
+            };
         }),
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
     }.unmap();
