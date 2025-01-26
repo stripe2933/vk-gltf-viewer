@@ -1,3 +1,6 @@
+#ifndef TYPES_GLSL
+#define TYPES_GLSL
+
 struct Material {
     uint8_t baseColorTexcoordIndex;
     uint8_t metallicRoughnessTexcoordIndex;
@@ -57,3 +60,5 @@ struct Primitive {
 };
 
 #endif
+
+#endif // TYPES_GLSL

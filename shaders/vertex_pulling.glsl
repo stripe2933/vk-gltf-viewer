@@ -1,0 +1,117 @@
+#ifndef VERTEX_PULLING_GLSL
+#define VERTEX_PULLING_GLSL
+
+#include "dequantize.glsl"
+#include "indexing.glsl"
+#include "types.glsl"
+
+layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer Uint8Ref { uint8_t data; };
+layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec2Ref { u8vec2 data; };
+layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec3Ref { u8vec3 data; };
+layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec4Ref { u8vec4 data; };
+layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer Uint16Ref { uint16_t data; };
+layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer U16Vec2Ref { u16vec2 data; };
+layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer U16Vec3Ref { u16vec3 data; };
+layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer U16Vec4Ref { u16vec4 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer FloatRef { float data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec2Ref { vec2 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec3Ref { vec3 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec4Ref { vec4 data; };
+
+vec3 getPosition() {
+    uint64_t fetchAddress = PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * uint(gl_VertexIndex);
+    return Vec3Ref(fetchAddress).data;
+}
+
+vec3 getNormal() {
+    uint64_t fetchAddress = PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * uint(gl_VertexIndex);
+    return Vec3Ref(fetchAddress).data;
+}
+
+vec4 getTangent() {
+    uint64_t fetchAddress = PRIMITIVE.pTangentBuffer + uint(PRIMITIVE.tangentByteStride) * uint(gl_VertexIndex);
+    return Vec4Ref(fetchAddress).data;
+}
+
+#if TEXCOORD_COUNT >= 1
+vec2 getTexcoord(uint texcoordIndex){
+    IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
+    uint64_t fetchAddress = mappingInfo.bytesPtr + uint(mappingInfo.stride) * uint(gl_VertexIndex);
+
+    switch ((PACKED_TEXCOORD_COMPONENT_TYPES >> (8U * texcoordIndex)) & 0xFFU) {
+    case 1U: // UNSIGNED BYTE
+        return dequantize(U8Vec2Ref(fetchAddress).data);
+    case 3U: // UNSIGNED SHORT
+        return dequantize(U16Vec2Ref(fetchAddress).data);
+    case 6U: // FLOAT
+        return Vec2Ref(fetchAddress).data;
+    }
+    return vec2(0.0); // unreachable.
+}
+#endif
+
+#if HAS_BASE_COLOR_TEXTURE
+vec2 getTexcoord(uint texcoordIndex){
+    IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
+    uint64_t fetchAddress = mappingInfo.bytesPtr + uint(mappingInfo.stride) * uint(gl_VertexIndex);
+
+    switch (TEXCOORD_COMPONENT_TYPE) {
+    case 5121U: // UNSIGNED BYTE
+        return dequantize(U8Vec2Ref(fetchAddress).data);
+    case 5123U: // UNSIGNED SHORT
+        return dequantize(U16Vec2Ref(fetchAddress).data);
+    case 5126U: // FLOAT
+        return Vec2Ref(fetchAddress).data;
+    }
+    return vec2(0.0); // unreachable.
+}
+#endif
+
+#if HAS_COLOR_ATTRIBUTE
+vec4 getColor() {
+    uint64_t fetchAddress = PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex);
+    if (COLOR_COMPONENT_COUNT == 3U) {
+        switch (COLOR_COMPONENT_TYPE) {
+        case 5121U: // UNSIGNED BYTE
+            return vec4(dequantize(U8Vec3Ref(fetchAddress).data), 1.0);
+        case 5123U: // UNSIGNED SHORT
+            return vec4(dequantize(U16Vec3Ref(fetchAddress).data), 1.0);
+        case 5126U: // FLOAT
+            return vec4(Vec3Ref(fetchAddress).data, 1.0);
+        }
+    }
+    else if (COLOR_COMPONENT_COUNT == 4U) {
+        switch (COLOR_COMPONENT_TYPE) {
+        case 5121U: // UNSIGNED BYTE
+            return dequantize(U8Vec4Ref(fetchAddress).data);
+        case 5123U: // UNSIGNED SHORT
+            return dequantize(U16Vec4Ref(fetchAddress).data);
+        case 5126U: // FLOAT
+            return Vec4Ref(fetchAddress).data;
+        }
+    }
+    return vec4(1.0); // unreachable.
+}
+#endif
+
+#if HAS_COLOR_ALPHA_ATTRIBUTE
+float getColorAlpha() {
+    // Here uint64_t address should not be used because adding the size of RGB components to it will make 64-bit
+    // integer arithmetic instruction.
+    uint fetchIndex = uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex);
+    switch (COLOR_COMPONENT_TYPE) {
+    case 5121U: // UNSIGNED BYTE
+        fetchIndex += 3U; // sizeof(u8vec3)
+        return dequantize(Uint8Ref(PRIMITIVE.pColorBuffer + fetchIndex).data);
+    case 5123U: // UNSIGNED SHORT
+        fetchIndex += 6U; // sizeof(u16vec3)
+        return dequantize(Uint16Ref(PRIMITIVE.pColorBuffer + fetchIndex).data);
+    case 5126U: // FLOAT
+        fetchIndex += 12; // sizeof(vec3)
+        return FloatRef(PRIMITIVE.pColorBuffer + fetchIndex).data;
+    }
+    return 1.0; // unreachable.
+}
+#endif
+
+#endif // VERTEX_PULLING_GLSL
