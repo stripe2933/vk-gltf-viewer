@@ -365,7 +365,7 @@ void vk_gltf_viewer::MainApp::run() {
                     gltf->setScene(task.newSceneIndex);
 
                     gpu.device.updateDescriptorSets(
-                        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeBuffer, 0, vk::WholeSize }),
+                        sharedData.sceneDescriptorSet.getWrite<0>(gltf->nodeBuffer.descriptorInfo),
                         {});
 
                     // Update AppState.
@@ -425,11 +425,9 @@ void vk_gltf_viewer::MainApp::run() {
                         nodeWorldTransform = gltf->sceneNodeWorldTransforms.worldTransforms[*parentNodeIndex] * nodeWorldTransform;
                     }
 
-                    // Update the current and its descendant nodes' world transforms.
+                    // Update the current and its descendant nodes' world transforms for both host and GPU side data.
                     gltf->sceneNodeWorldTransforms.updateFrom(task.nodeIndex, nodeWorldTransform);
-
-                    // Passing sceneNodeWorldTransforms into sceneGpuBuffers to update GPU mesh node transform buffer.
-                    gltf->sceneGpuBuffers.updateMeshNodeTransformsFrom(task.nodeIndex, gltf->sceneNodeWorldTransforms, gltf->assetExternalBuffers);
+                    gltf->sceneInstancedNodeWorldTransformBuffer.update(task.nodeIndex, gltf->sceneNodeWorldTransforms, gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -437,7 +435,7 @@ void vk_gltf_viewer::MainApp::run() {
                             = gltf->sceneMiniball
                             = gltf::algorithm::getMiniball(
                                 gltf->asset, gltf->scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-                                    return cast<double>(gltf->sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
+                                    return cast<double>(gltf->sceneInstancedNodeWorldTransformBuffer.getTransform(nodeIndex, instanceIndex));
                                 });
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
@@ -487,11 +485,9 @@ void vk_gltf_viewer::MainApp::run() {
                         },
                     }, gltf->asset.nodes[selectedNodeIndex].transform);
 
-                    // Update the current and its descendant nodes' world transforms.
+                    // Update the current and its descendant nodes' world transforms for both host and GPU side data.
                     gltf->sceneNodeWorldTransforms.updateFrom(selectedNodeIndex, selectedNodeWorldTransform);
-
-                    // Passing sceneNodeWorldTransforms into sceneGpuBuffers to update GPU mesh node transform buffer.
-                    gltf->sceneGpuBuffers.updateMeshNodeTransformsFrom(selectedNodeIndex, gltf->sceneNodeWorldTransforms, gltf->assetExternalBuffers);
+                    gltf->sceneInstancedNodeWorldTransformBuffer.update(selectedNodeIndex, gltf->sceneNodeWorldTransforms, gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -499,7 +495,7 @@ void vk_gltf_viewer::MainApp::run() {
                             = gltf->sceneMiniball
                             = gltf::algorithm::getMiniball(
                                 gltf->asset, gltf->scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-                                    return cast<double>(gltf->sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
+                                    return cast<double>(gltf->sceneInstancedNodeWorldTransformBuffer.getTransform(nodeIndex, instanceIndex));
                                 });
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
@@ -572,7 +568,7 @@ void vk_gltf_viewer::MainApp::run() {
                     .asset = gltf.asset,
                     .assetGpuBuffers = gltf.assetGpuBuffers,
                     .sceneNodeWorldTransforms = gltf.sceneNodeWorldTransforms,
-                    .sceneGpuBuffers = gltf.sceneGpuBuffers,
+                    .nodeBuffer = gltf.nodeBuffer,
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
                     .renderingNodes = {
                         .indices = appState.gltfAsset->getVisibleNodeIndices(),
@@ -661,18 +657,20 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     assetGpuTextures { asset, directory, gpu, threadPool, assetExternalBuffers },
     sceneInverseHierarchy { asset, scene },
     sceneNodeWorldTransforms { asset, scene },
-    sceneGpuBuffers { asset, scene, sceneNodeWorldTransforms, gpu, assetExternalBuffers },
+    sceneInstancedNodeWorldTransformBuffer { asset, scene, sceneNodeWorldTransforms, gpu, assetExternalBuffers },
+    nodeBuffer { asset, sceneInstancedNodeWorldTransformBuffer, gpu },
     sceneMiniball { gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-        return cast<double>(sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
+        return cast<double>(sceneInstancedNodeWorldTransformBuffer.getTransform(nodeIndex, instanceIndex));
     }) } { }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
     sceneInverseHierarchy = { asset, scene };
     sceneNodeWorldTransforms = { asset, scene };
-    sceneGpuBuffers = { asset, scene, sceneNodeWorldTransforms, gpu, assetExternalBuffers };
+    sceneInstancedNodeWorldTransformBuffer = { asset, scene, sceneNodeWorldTransforms, gpu, assetExternalBuffers };
+    nodeBuffer = { asset, sceneInstancedNodeWorldTransformBuffer, gpu };
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-        return cast<double>(sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
+        return cast<double>(sceneInstancedNodeWorldTransformBuffer.getTransform(nodeIndex, instanceIndex));
     });
 }
 
@@ -835,7 +833,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         sharedData.assetDescriptorSet.getWriteOne<0>({ gltf->assetGpuBuffers.getPrimitiveBuffer(), 0, vk::WholeSize }),
         sharedData.assetDescriptorSet.getWriteOne<1>({ gltf->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
         sharedData.assetDescriptorSet.getWrite<2>(imageInfos),
-        sharedData.sceneDescriptorSet.getWriteOne<0>({ gltf->sceneGpuBuffers.nodeBuffer, 0, vk::WholeSize }),
+        sharedData.sceneDescriptorSet.getWrite<0>(gltf->nodeBuffer.descriptorInfo),
     }, {});
 
     // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.

@@ -78,7 +78,6 @@ add_executable(vk-gltf-viewer
     impl/control/ImGuiTaskCollector.cpp
     impl/AppState.cpp
     impl/gltf/AssetGpuBuffers.cpp
-    impl/gltf/AssetSceneGpuBuffers.cpp
     impl/MainApp.cpp
     impl/mod.cpp
     impl/vulkan/buffer/IndirectDrawCommands.cpp
@@ -117,7 +116,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/AssetGpuTextures.cppm
         interface/gltf/AssetPrimitiveInfo.cppm
         interface/gltf/AssetProcessError.cppm
-        interface/gltf/AssetSceneGpuBuffers.cppm
         interface/gltf/SceneInverseHierarchy.cppm
         interface/gltf/MaterialVariantsMapping.cppm
         interface/gltf/SceneNodeWorldTransforms.cppm
@@ -157,6 +155,8 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/buffer/mod.cppm
         interface/vulkan/buffer/CubeIndices.cppm
         interface/vulkan/buffer/IndirectDrawCommands.cppm
+        interface/vulkan/buffer/Nodes.cppm
+        interface/vulkan/buffer/SceneInstancedNodeWorldTransforms.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
         interface/vulkan/descriptor_set_layout/Scene.cppm

@@ -1,7 +1,13 @@
 export module vk_gltf_viewer:vulkan.buffer.IndirectDrawCommands;
 
 import std;
-export import vku;
+export import fastgltf;
+export import :gltf.AssetPrimitiveInfo;
+import :helpers.concepts;
+import :helpers.fastgltf;
+import :helpers.functional;
+import :helpers.ranges;
+export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     /**
@@ -88,4 +94,87 @@ namespace vk_gltf_viewer::vulkan::buffer {
             }
         }
     };
+
+    export template <
+        std::invocable<const gltf::AssetPrimitiveInfo&> CriteriaGetter,
+        typename Criteria = std::invoke_result_t<CriteriaGetter, const gltf::AssetPrimitiveInfo&>,
+        typename Compare = std::less<Criteria>>
+    [[nodiscard]] std::map<Criteria, std::variant<IndirectDrawCommands<false>, IndirectDrawCommands<true>>, Compare> createIndirectDrawCommandBuffers(
+        const fastgltf::Asset &asset,
+        vma::Allocator allocator,
+        const CriteriaGetter &criteriaGetter,
+        const std::unordered_set<std::uint16_t> &nodeIndices,
+        concepts::compatible_signature_of<const gltf::AssetPrimitiveInfo&, const fastgltf::Primitive&> auto const &primitiveInfoGetter
+    ) {
+        std::map<Criteria, std::variant<std::vector<vk::DrawIndirectCommand>, std::vector<vk::DrawIndexedIndirectCommand>>> commandGroups;
+
+        for (std::uint16_t nodeIndex : nodeIndices) {
+            const fastgltf::Node &node = asset.nodes[nodeIndex];
+            if (!node.meshIndex) {
+                continue;
+            }
+
+            // EXT_mesh_gpu_instancing support.
+            std::uint32_t instanceCount = 1;
+            if (!node.instancingAttributes.empty()) {
+                instanceCount = asset.accessors[node.instancingAttributes[0].accessorIndex].count;
+            }
+
+            const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+            for (const fastgltf::Primitive &primitive : mesh.primitives) {
+                const gltf::AssetPrimitiveInfo &primitiveInfo = primitiveInfoGetter(primitive);
+                const Criteria criteria = criteriaGetter(primitiveInfo);
+                if (const auto &indexInfo = primitiveInfo.indexInfo) {
+                    const std::size_t indexByteSize = [=]() {
+                        switch (indexInfo->type) {
+                            case vk::IndexType::eUint8KHR: return sizeof(std::uint8_t);
+                            case vk::IndexType::eUint16: return sizeof(std::uint16_t);
+                            case vk::IndexType::eUint32: return sizeof(std::uint32_t);
+                            default: std::unreachable();
+                        }
+                    }();
+
+                    auto &commandGroup = commandGroups
+                        .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndexedIndirectCommand>>)
+                        .first->second;
+                    const std::uint32_t firstIndex = static_cast<std::uint32_t>(primitiveInfo.indexInfo->offset / indexByteSize);
+                    get_if<std::vector<vk::DrawIndexedIndirectCommand>>(&commandGroup)
+                        ->emplace_back(
+                            primitiveInfo.drawCount, instanceCount, firstIndex, 0,
+                            (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index));
+                }
+                else {
+                    auto &commandGroup = commandGroups
+                        .try_emplace(criteria, std::in_place_type<std::vector<vk::DrawIndirectCommand>>)
+                        .first->second;
+                    get_if<std::vector<vk::DrawIndirectCommand>>(&commandGroup)
+                        ->emplace_back(
+                            primitiveInfo.drawCount, instanceCount, 0,
+                            (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index));
+                }
+            }
+        }
+
+        using result_type = std::variant<IndirectDrawCommands<false>, IndirectDrawCommands<true>>;
+        return commandGroups
+            | ranges::views::value_transform([allocator](const auto &variant) {
+                return visit(multilambda {
+                    [allocator](std::span<const vk::DrawIndirectCommand> commands) {
+                        return result_type {
+                            std::in_place_type<IndirectDrawCommands<false>>,
+                            allocator,
+                            commands,
+                        };
+                    },
+                    [allocator](std::span<const vk::DrawIndexedIndirectCommand> commands) {
+                        return result_type {
+                            std::in_place_type<IndirectDrawCommands<true>>,
+                            allocator,
+                            commands,
+                        };
+                    },
+                }, variant);
+            })
+            | std::ranges::to<std::map<Criteria, result_type, Compare>>();
+    }
 }

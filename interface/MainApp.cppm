@@ -7,10 +7,10 @@ import :gltf.AssetExternalBuffers;
 import :gltf.AssetGpuBuffers;
 import :gltf.AssetGpuTextures;
 import :gltf.AssetGpuFallbackTexture;
-import :gltf.AssetSceneGpuBuffers;
 import :gltf.MaterialVariantsMapping;
 import :gltf.SceneInverseHierarchy;
 import :gltf.SceneNodeWorldTransforms;
+import :vulkan.buffer.Nodes;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Scene;
@@ -83,11 +83,8 @@ namespace vk_gltf_viewer {
 
             gltf::SceneInverseHierarchy sceneInverseHierarchy;
             gltf::SceneNodeWorldTransforms sceneNodeWorldTransforms;
-
-			/**
-			 * @brief GPU buffers that are used for rendering the current scene.
-			 */
-            gltf::AssetSceneGpuBuffers sceneGpuBuffers;
+            vulkan::buffer::SceneInstancedNodeWorldTransforms sceneInstancedNodeWorldTransformBuffer;
+            vulkan::buffer::Nodes nodeBuffer;
 
 			/**
 			 * @brief Smallest enclosing sphere of all meshes (a.k.a. miniball) in the scene.

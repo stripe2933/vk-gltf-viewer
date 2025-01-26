@@ -6,13 +6,14 @@ export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
 export import :gltf.AssetGpuBuffers;
-export import :gltf.AssetSceneGpuBuffers;
 export import :math.Frustum;
 export import :vulkan.SharedData;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.SceneOpaque;
 import :vulkan.ag.SceneWeightedBlended;
+import :vulkan.buffer.Nodes;
+import :vulkan.buffer.IndirectDrawCommands;
 
 /**
  * @brief A type that represents the state for a single multi-draw-indirect call.
@@ -73,7 +74,7 @@ namespace vk_gltf_viewer::vulkan {
                 const fastgltf::Asset &asset;
                 const gltf::AssetGpuBuffers &assetGpuBuffers;
                 const gltf::SceneNodeWorldTransforms &sceneNodeWorldTransforms;
-                const gltf::AssetSceneGpuBuffers &sceneGpuBuffers;
+                const buffer::Nodes &nodeBuffer;
 
                 bool regenerateDrawCommands;
                 RenderingNodes renderingNodes;
