@@ -191,48 +191,48 @@ namespace fastgltf {
         // According to the EXT_mesh_gpu_instancing specification, all attribute accessors in a given node must
         // have the same count. Therefore, we can use the count of the first attribute accessor.
         const std::uint32_t instanceCount = asset.accessors[node.instancingAttributes[0].accessorIndex].count;
+        std::vector<math::fmat4x4> result(instanceCount);
 
-        std::vector<math::fvec3> translations(instanceCount);
         if (auto it = node.findInstancingAttribute("TRANSLATION"); it != node.instancingAttributes.end()) {
             const Accessor &accessor = asset.accessors[it->accessorIndex];
-            copyFromAccessor<math::fvec3>(asset, accessor, translations.data(), adapter);
+            iterateAccessorWithIndex<math::fvec3>(asset, accessor, [&](const math::fvec3 &translation, std::size_t i) {
+                result[i] = translate(result[i], translation);
+            }, adapter);
         }
 
-        std::vector<math::fquat> rotations(instanceCount);
         if (auto it = node.findInstancingAttribute("ROTATION"); it != node.instancingAttributes.end()) {
             const Accessor &accessor = asset.accessors[it->accessorIndex];
-            copyFromAccessor<math::fquat>(asset, accessor, rotations.data(), adapter);
 
-            // TODO: why fastgltf::copyFromAccessor does not respect the normalized accessor? Need investigation.
+            float multiplier = 1.f;
             if (accessor.normalized) {
-                float multiplier = 1.f / [&]() {
-                    switch (accessor.componentType) {
-                    case ComponentType::Byte: return 256.f;
-                    case ComponentType::Short: return 65536.f;
-                    default:
-                        // EXT_mesh_gpu_instancing restricts the component type of ROTATION attribute to BYTE
-                        // normalized and SHORT normalized only.
-                        std::unreachable();
-                    }
-                }();
-
-                for (math::fquat &rotation : rotations) {
-                    rotation *= multiplier;
+                switch (accessor.componentType) {
+                case ComponentType::Byte:
+                    multiplier = 1.f / 256.f;
+                    break;
+                case ComponentType::Short:
+                    multiplier = 1.f / 65536.f;
+                    break;
+                default:
+                    // EXT_mesh_gpu_instancing restricts the component type of ROTATION attribute to BYTE
+                    // normalized and SHORT normalized only.
+                    std::unreachable();
                 }
             }
+
+            // TODO: why fastgltf::iterateAccessorWithIndex does not de-normalize the normalized accessor?
+            iterateAccessorWithIndex<math::fquat>(asset, accessor, [&](math::fquat rotation, std::size_t i) {
+                if (accessor.normalized) {
+                    rotation *= multiplier;
+                }
+                result[i] = rotate(result[i], rotation);
+            }, adapter);
         }
 
-        std::vector<math::fvec3> scale(instanceCount);
         if (auto it = node.findInstancingAttribute("SCALE"); it != node.instancingAttributes.end()) {
             const Accessor &accessor = asset.accessors[it->accessorIndex];
-            fastgltf::copyFromAccessor<math::fvec3>(asset, accessor, scale.data(), adapter);
-        }
-
-        std::vector<math::fmat4x4> result;
-        result.reserve(instanceCount);
-        for (std::uint32_t i = 0; i < instanceCount; ++i) {
-            constexpr math::fmat4x4 identity { 1.f };
-            result.push_back(translate(identity, translations[i]) * rotate(identity, rotations[i]) * math::scale(identity, scale[i]));
+            iterateAccessorWithIndex<math::fvec3>(asset, accessor, [&](const math::fvec3 &scale, std::size_t i) {
+                result[i] = math::scale(result[i], scale);
+            }, adapter);
         }
 
         return result;
