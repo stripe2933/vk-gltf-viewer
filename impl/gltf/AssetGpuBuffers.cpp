@@ -10,6 +10,7 @@ import std;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
+import :vulkan.buffer;
 
 [[nodiscard]] std::pair<glm::mat2, glm::vec2> getTextureTransformMatrixPair(const fastgltf::TextureTransform &transform) noexcept {
     const float c = std::cos(transform.rotation), s = std::sin(transform.rotation);
@@ -224,7 +225,7 @@ void vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveIndexedAttributeMappi
         return;
     }
 
-    auto [buffer, copyOffsets] = createCombinedStagingBuffer(
+    auto [buffer, copyOffsets] = vulkan::buffer::createCombinedBuffer<true>(
         gpu.allocator,
         primitiveWithTexcoordAttributeInfos | std::views::values,
         gpu.isUmaDevice
