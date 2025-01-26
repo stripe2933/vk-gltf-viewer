@@ -426,8 +426,8 @@ void vk_gltf_viewer::MainApp::run() {
                     // Update the current and its descendant nodes' world transforms in sceneHierarchy.
                     gltf->sceneHierarchy.updateDescendantNodeTransformsFrom(task.nodeIndex, nodeWorldTransform);
 
-                    // Passing sceneHierarchy into sceneGpuBuffers to update GPU mesh node transform buffer.
-                    gltf->sceneGpuBuffers.updateMeshNodeTransformsFrom(task.nodeIndex, gltf->sceneHierarchy, gltf->assetExternalBuffers);
+                    // Passing sceneHierarchy into meshNodeWorldTransforms to update GPU mesh node transform buffer.
+                    gltf->meshNodeWorldTransforms.updateTransform(task.nodeIndex, gltf->sceneHierarchy, gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -435,7 +435,7 @@ void vk_gltf_viewer::MainApp::run() {
                             = gltf->sceneMiniball
                             = gltf::algorithm::getMiniball(
                                 gltf->asset, gltf->scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-                                    return cast<double>(gltf->sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
+                                    return cast<double>(gltf->meshNodeWorldTransforms.getTransform(nodeIndex, instanceIndex));
                                 });
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
@@ -489,7 +489,7 @@ void vk_gltf_viewer::MainApp::run() {
                     gltf->sceneHierarchy.updateDescendantNodeTransformsFrom(selectedNodeIndex, selectedNodeWorldTransform);
 
                     // Passing sceneHierarchy into sceneGpuBuffers to update GPU mesh node transform buffer.
-                    gltf->sceneGpuBuffers.updateMeshNodeTransformsFrom(selectedNodeIndex, gltf->sceneHierarchy, gltf->assetExternalBuffers);
+                    gltf->meshNodeWorldTransforms.updateTransform(selectedNodeIndex, gltf->sceneHierarchy, gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -497,7 +497,7 @@ void vk_gltf_viewer::MainApp::run() {
                             = gltf->sceneMiniball
                             = gltf::algorithm::getMiniball(
                                 gltf->asset, gltf->scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-                                    return cast<double>(gltf->sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
+                                    return cast<double>(gltf->meshNodeWorldTransforms.getTransform(nodeIndex, instanceIndex));
                                 });
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
@@ -657,17 +657,20 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     gpu { gpu },
     assetGpuBuffers { asset, gpu, threadPool, assetExternalBuffers },
     assetGpuTextures { asset, directory, gpu, threadPool, assetExternalBuffers },
-    sceneGpuBuffers { asset, scene, sceneHierarchy, meshWeights, gpu, assetExternalBuffers },
-    sceneMiniball { gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-        return cast<double>(sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
-    }) } { }
+    sceneGpuBuffers { asset, meshNodeWorldTransforms, meshWeights, gpu },
+    // TODO: meshNodeWorldTransforms.updateTransform is inserted before sceneMiniball construction since it requires
+    //  meshNodeWorldTransforms.getTransform returns the proper data. This is a stopgap solution and refactoring needed.
+    sceneMiniball { (meshNodeWorldTransforms.updateTransform(scene, sceneHierarchy, assetExternalBuffers), gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
+        return cast<double>(meshNodeWorldTransforms.getTransform(nodeIndex, instanceIndex));
+    })) } { }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
     sceneHierarchy = { asset, scene };
-    sceneGpuBuffers = { asset, scene, sceneHierarchy, meshWeights, gpu, assetExternalBuffers };
+    meshNodeWorldTransforms.updateTransform(asset.scenes[sceneIndex], sceneHierarchy, assetExternalBuffers);
+    sceneGpuBuffers = { asset, meshNodeWorldTransforms, meshWeights, gpu };
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-        return cast<double>(sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
+        return cast<double>(meshNodeWorldTransforms.getTransform(nodeIndex, instanceIndex));
     });
 }
 

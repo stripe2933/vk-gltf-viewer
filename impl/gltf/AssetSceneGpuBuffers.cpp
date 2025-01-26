@@ -6,51 +6,15 @@ module vk_gltf_viewer;
 import :gltf.AssetSceneGpuBuffers;
 
 import std;
-import :gltf.algorithm.traversal;
 import :helpers.fastgltf;
 import :helpers.ranges;
 
-#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return (__VA_ARGS__)(FWD(xs)...); }
-
-const fastgltf::math::fmat4x4 &vk_gltf_viewer::gltf::AssetSceneGpuBuffers::getMeshNodeWorldTransform(std::uint16_t nodeIndex, std::uint32_t instanceIndex) const noexcept {
-    return meshNodeWorldTransformBuffer.asRange<const fastgltf::math::fmat4x4>()[instanceOffsets[nodeIndex] + instanceIndex];
-}
-
-std::vector<std::uint32_t> vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createInstanceCounts(const fastgltf::Scene &scene) const {
-    std::vector<std::uint32_t> result(pAsset->nodes.size(), 0U);
-    algorithm::traverseScene(*pAsset, scene, [&](std::size_t nodeIndex) {
-        result[nodeIndex] = [&]() -> std::uint32_t {
-            const fastgltf::Node &node = pAsset->nodes[nodeIndex];
-            if (!node.meshIndex) {
-                return 0;
-            }
-            if (node.instancingAttributes.empty()) {
-                return 1;
-            }
-            else {
-                // According to the EXT_mesh_gpu_instancing specification, all attribute accessors in a given node
-                // must have the same count. Therefore, we can use the count of the first attribute accessor.
-                return pAsset->accessors[node.instancingAttributes[0].accessorIndex].count;
-            }
-        }();
-    });
-    return result;
-}
-
-std::vector<std::uint32_t> vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createInstanceOffsets() const {
-    std::vector<std::uint32_t> result(instanceCounts.size());
-    std::exclusive_scan(instanceCounts.cbegin(), instanceCounts.cend(), result.begin(), 0U);
-    return result;
-}
-
 vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeBuffer(
     const fastgltf::Asset &asset,
+    const vulkan::buffer::MeshNodeWorldTransforms &meshNodeWorldTransforms,
     const vulkan::buffer::MeshWeights &meshWeights,
     const vulkan::Gpu &gpu
 ) const {
-    const vk::DeviceAddress nodeTransformBufferStartAddress = gpu.device.getBufferAddress({ meshNodeWorldTransformBuffer });
-
     vku::AllocatedBuffer stagingBuffer = vku::MappedBuffer {
         gpu.allocator,
         std::from_range, ranges::views::upto(asset.nodes.size()) | std::views::transform([&](std::size_t nodeIndex) {
@@ -60,7 +24,7 @@ vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeBuffe
                         return meshWeights.segments[meshIndex].startAddress;
                     })
                     .value_or(vk::DeviceAddress { 0 }),
-                nodeTransformBufferStartAddress + sizeof(fastgltf::math::fmat4x4) * instanceOffsets[nodeIndex],
+                meshNodeWorldTransforms.getTransformStartAddress(nodeIndex),
             };
         }),
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,

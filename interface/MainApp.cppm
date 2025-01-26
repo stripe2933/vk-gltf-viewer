@@ -87,6 +87,8 @@ namespace vk_gltf_viewer {
              */
             gltf::AssetSceneHierarchy sceneHierarchy { asset, scene };
 
+            vulkan::buffer::MeshNodeWorldTransforms meshNodeWorldTransforms { asset, gpu, assetExternalBuffers };
+
 			/**
 			 * @brief GPU buffers that are used for rendering the current scene.
 			 */
