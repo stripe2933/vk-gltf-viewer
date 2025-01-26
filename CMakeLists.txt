@@ -120,7 +120,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/AssetSceneGpuBuffers.cppm
         interface/gltf/AssetSceneHierarchy.cppm
         interface/gltf/MaterialVariantsMapping.cppm
-        interface/gltf/MeshWeights.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/concepts.cppm
         interface/helpers/fastgltf.cppm
@@ -158,6 +157,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/buffer/mod.cppm
         interface/vulkan/buffer/CubeIndices.cppm
         interface/vulkan/buffer/IndirectDrawCommands.cppm
+        interface/vulkan/buffer/MeshWeights.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
         interface/vulkan/descriptor_set_layout/Scene.cppm

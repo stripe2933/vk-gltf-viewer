@@ -5,13 +5,13 @@ export import fastgltf;
 import :gltf.algorithm.traversal;
 export import :gltf.AssetPrimitiveInfo;
 export import :gltf.AssetSceneHierarchy;
-export import :gltf.MeshWeights;
 import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
 export import :vulkan.Gpu;
 export import :vulkan.buffer.IndirectDrawCommands;
+export import :vulkan.buffer.MeshWeights;
 
 namespace vk_gltf_viewer::gltf {
     /**
@@ -50,7 +50,7 @@ namespace vk_gltf_viewer::gltf {
             const fastgltf::Asset &asset [[clang::lifetimebound]],
             const fastgltf::Scene &scene [[clang::lifetimebound]],
             const AssetSceneHierarchy &sceneHierarchy,
-            const MeshWeights &meshWeights,
+            const vulkan::buffer::MeshWeights &meshWeights,
             const vulkan::Gpu &gpu [[clang::lifetimebound]],
             const BufferDataAdapter &adapter = {}
         ) : pAsset { &asset },
@@ -219,7 +219,7 @@ namespace vk_gltf_viewer::gltf {
 
         [[nodiscard]] vku::AllocatedBuffer createNodeBuffer(
             const fastgltf::Asset &asset,
-            const MeshWeights &meshWeights,
+            const vulkan::buffer::MeshWeights &meshWeights,
             const vulkan::Gpu &gpu
         ) const;
     };

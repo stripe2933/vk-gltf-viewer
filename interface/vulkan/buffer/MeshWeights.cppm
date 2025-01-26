@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:gltf.MeshWeights;
+export module vk_gltf_viewer:vulkan.buffer.MeshWeights;
 
 import std;
 export import fastgltf;
@@ -7,8 +7,8 @@ import :helpers.writeonly;
 import :vulkan.buffer;
 export import :vulkan.Gpu;
 
-namespace vk_gltf_viewer::gltf {
-    class MeshWeights {
+namespace vk_gltf_viewer::vulkan::buffer {
+    export class MeshWeights {
     public:
         struct Segment {
             vk::DeviceAddress startAddress;
@@ -18,14 +18,14 @@ namespace vk_gltf_viewer::gltf {
 
         std::vector<Segment> segments;
 
-        MeshWeights(const fastgltf::Asset &asset, const vulkan::Gpu &gpu [[clang::lifetimebound]])
+        MeshWeights(const fastgltf::Asset &asset, const Gpu &gpu [[clang::lifetimebound]])
             : buffer { createBuffer(asset, gpu) } { }
 
     private:
         vku::MappedBuffer buffer;
 
-        [[nodiscard]] vku::MappedBuffer createBuffer(const fastgltf::Asset &asset, const vulkan::Gpu &gpu) {
-            auto [buffer, copyOffsets] = vulkan::buffer::createCombinedBuffer(
+        [[nodiscard]] vku::MappedBuffer createBuffer(const fastgltf::Asset &asset, const Gpu &gpu) {
+            auto [buffer, copyOffsets] = createCombinedBuffer(
                 gpu.allocator,
                 asset.meshes | std::views::transform([](const fastgltf::Mesh &mesh) {
                     // [count, weight0, weight1, ..., weight(count-1)]

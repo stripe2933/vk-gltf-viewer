@@ -46,7 +46,7 @@ std::vector<std::uint32_t> vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createIns
 
 vku::AllocatedBuffer vk_gltf_viewer::gltf::AssetSceneGpuBuffers::createNodeBuffer(
     const fastgltf::Asset &asset,
-    const MeshWeights &meshWeights,
+    const vulkan::buffer::MeshWeights &meshWeights,
     const vulkan::Gpu &gpu
 ) const {
     const vk::DeviceAddress nodeTransformBufferStartAddress = gpu.device.getBufferAddress({ meshNodeWorldTransformBuffer });
