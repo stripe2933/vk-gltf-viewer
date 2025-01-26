@@ -8,8 +8,9 @@ import :gltf.AssetGpuBuffers;
 import :gltf.AssetGpuTextures;
 import :gltf.AssetGpuFallbackTexture;
 import :gltf.AssetSceneGpuBuffers;
-import :gltf.AssetSceneHierarchy;
 import :gltf.MaterialVariantsMapping;
+import :gltf.SceneInverseHierarchy;
+import :gltf.SceneNodeWorldTransforms;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Scene;
@@ -80,10 +81,8 @@ namespace vk_gltf_viewer {
              */
             std::reference_wrapper<fastgltf::Scene> scene { asset.scenes[asset.defaultScene.value_or(0)] };
 
-            /**
-             * @brief Hierarchy information of current scene.
-             */
-            gltf::AssetSceneHierarchy sceneHierarchy { asset, scene };
+            gltf::SceneInverseHierarchy sceneInverseHierarchy;
+            gltf::SceneNodeWorldTransforms sceneNodeWorldTransforms;
 
 			/**
 			 * @brief GPU buffers that are used for rendering the current scene.

@@ -4,7 +4,7 @@ import std;
 export import fastgltf;
 import :gltf.algorithm.traversal;
 export import :gltf.AssetPrimitiveInfo;
-export import :gltf.AssetSceneHierarchy;
+export import :gltf.SceneNodeWorldTransforms;
 import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
@@ -48,12 +48,12 @@ namespace vk_gltf_viewer::gltf {
         AssetSceneGpuBuffers(
             const fastgltf::Asset &asset [[clang::lifetimebound]],
             const fastgltf::Scene &scene [[clang::lifetimebound]],
-            const AssetSceneHierarchy &sceneHierarchy,
+            const SceneNodeWorldTransforms &sceneNodeWorldTransforms,
             const vulkan::Gpu &gpu [[clang::lifetimebound]],
             const BufferDataAdapter &adapter = {}
         ) : pAsset { &asset },
             instanceCounts { createInstanceCounts(scene) },
-            meshNodeWorldTransformBuffer { createMeshNodeWorldTransformBuffer(scene, sceneHierarchy, gpu.allocator, adapter) },
+            meshNodeWorldTransformBuffer { createMeshNodeWorldTransformBuffer(scene, sceneNodeWorldTransforms, gpu.allocator, adapter) },
             nodeBuffer { createNodeBuffer(gpu) } { }
 
         /**
@@ -73,11 +73,11 @@ namespace vk_gltf_viewer::gltf {
          * @brief Update the mesh node world transforms from given \p nodeIndex, to its descendants.
          * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view. If you provided <tt>fastgltf::Options::LoadExternalBuffers</tt> to the <tt>fastgltf::Parser</tt> while loading the glTF, the parameter can be omitted.
          * @param nodeIndex Node index to be started. The target node MUST have a mesh.
-         * @param sceneHierarchy Scene hierarchy that contains the world transform matrices of the nodes.
+         * @param sceneNodeWorldTransforms Pre-calculated world transforms of the scene nodes.
          * @param adapter Buffer data adapter.
          */
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
-        void updateMeshNodeTransformsFrom(std::uint16_t nodeIndex, const AssetSceneHierarchy &sceneHierarchy, const BufferDataAdapter &adapter = {}) {
+        void updateMeshNodeTransformsFrom(std::uint16_t nodeIndex, const SceneNodeWorldTransforms &sceneNodeWorldTransforms, const BufferDataAdapter &adapter = {}) {
             const std::span<fastgltf::math::fmat4x4> meshNodeWorldTransforms = meshNodeWorldTransformBuffer.asRange<fastgltf::math::fmat4x4>();
             algorithm::traverseNode(*pAsset, nodeIndex, [&](std::size_t nodeIndex) {
                 const fastgltf::Node &node = pAsset->nodes[nodeIndex];
@@ -86,12 +86,12 @@ namespace vk_gltf_viewer::gltf {
                 }
 
                 if (std::vector instanceTransforms = getInstanceTransforms(*pAsset, node, adapter); instanceTransforms.empty()) {
-                    meshNodeWorldTransforms[instanceOffsets[nodeIndex]] = sceneHierarchy.nodeWorldTransforms[nodeIndex];
+                    meshNodeWorldTransforms[instanceOffsets[nodeIndex]] = sceneNodeWorldTransforms.worldTransforms[nodeIndex];
                 }
                 else {
                     for (std::uint32_t instanceIndex : ranges::views::upto(instanceCounts[nodeIndex])) {
                         meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex]
-                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * instanceTransforms[instanceIndex];
+                            = sceneNodeWorldTransforms.worldTransforms[nodeIndex] * instanceTransforms[instanceIndex];
                     }
                 }
             });
@@ -186,7 +186,7 @@ namespace vk_gltf_viewer::gltf {
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         [[nodiscard]] vku::MappedBuffer createMeshNodeWorldTransformBuffer(
             const fastgltf::Scene &scene,
-            const AssetSceneHierarchy &sceneHierarchy,
+            const SceneNodeWorldTransforms &sceneNodeWorldTransforms,
             vma::Allocator allocator,
             const BufferDataAdapter &adapter
         ) const {
@@ -198,12 +198,12 @@ namespace vk_gltf_viewer::gltf {
                 }
 
                 if (std::vector instanceTransforms = getInstanceTransforms(*pAsset, node, adapter); instanceTransforms.empty()) {
-                    meshNodeWorldTransforms[instanceOffsets[nodeIndex]] = sceneHierarchy.nodeWorldTransforms[nodeIndex];
+                    meshNodeWorldTransforms[instanceOffsets[nodeIndex]] = sceneNodeWorldTransforms.worldTransforms[nodeIndex];
                 }
                 else {
                     for (std::uint32_t instanceIndex : ranges::views::upto(instanceCounts[nodeIndex])) {
                         meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex]
-                            = sceneHierarchy.nodeWorldTransforms[nodeIndex] * instanceTransforms[instanceIndex];
+                            = sceneNodeWorldTransforms.worldTransforms[nodeIndex] * instanceTransforms[instanceIndex];
                     }
                 }
             });

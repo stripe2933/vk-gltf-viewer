@@ -118,8 +118,9 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/AssetPrimitiveInfo.cppm
         interface/gltf/AssetProcessError.cppm
         interface/gltf/AssetSceneGpuBuffers.cppm
-        interface/gltf/AssetSceneHierarchy.cppm
+        interface/gltf/SceneInverseHierarchy.cppm
         interface/gltf/MaterialVariantsMapping.cppm
+        interface/gltf/SceneNodeWorldTransforms.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/concepts.cppm
         interface/helpers/fastgltf.cppm

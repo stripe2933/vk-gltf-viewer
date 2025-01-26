@@ -281,7 +281,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
                     const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
 
-                    const glm::mat4 nodeWorldTransform = glm::make_mat4(task.gltf->sceneHierarchy.nodeWorldTransforms[nodeIndex].data());
+                    const glm::mat4 nodeWorldTransform = glm::make_mat4(task.gltf->sceneNodeWorldTransforms.worldTransforms[nodeIndex].data());
                     const glm::vec3 transformedMin { nodeWorldTransform * glm::vec4 { primitiveInfo.min, 1.f } };
                     const glm::vec3 transformedMax { nodeWorldTransform * glm::vec4 { primitiveInfo.max, 1.f } };
 

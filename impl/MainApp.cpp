@@ -295,7 +295,7 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline);
             if (appState.gltfAsset && appState.gltfAsset->selectedNodeIndices.size() == 1) {
                 const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
-                imguiTaskCollector.imguizmo(appState.camera, gltf->sceneHierarchy.nodeWorldTransforms[selectedNodeIndex], appState.imGuizmoOperation);
+                imguiTaskCollector.imguizmo(appState.camera, gltf->sceneNodeWorldTransforms.worldTransforms[selectedNodeIndex], appState.imGuizmoOperation);
             }
             else {
                 imguiTaskCollector.imguizmo(appState.camera);
@@ -398,7 +398,7 @@ void vk_gltf_viewer::MainApp::run() {
                                 [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
                                 task.nodeIndex, visibilities);
                             tristate::propagateBottomUp(
-                                [&](auto i) { return gltf->sceneHierarchy.getParentNodeIndex(i).value_or(i); },
+                                [&](auto i) { return gltf->sceneInverseHierarchy.getParentNodeIndex(i).value_or(i); },
                                 [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
                                 task.nodeIndex, visibilities);
                         },
@@ -421,15 +421,15 @@ void vk_gltf_viewer::MainApp::run() {
                         [](const fastgltf::TRS &trs) { return toMatrix(trs); },
                         [](fastgltf::math::fmat4x4 matrix) { return matrix; }
                     }, gltf->asset.nodes[task.nodeIndex].transform);
-                    if (auto parentNodeIndex = gltf->sceneHierarchy.getParentNodeIndex(task.nodeIndex)) {
-                        nodeWorldTransform = gltf->sceneHierarchy.nodeWorldTransforms[*parentNodeIndex] * nodeWorldTransform;
+                    if (auto parentNodeIndex = gltf->sceneInverseHierarchy.getParentNodeIndex(task.nodeIndex)) {
+                        nodeWorldTransform = gltf->sceneNodeWorldTransforms.worldTransforms[*parentNodeIndex] * nodeWorldTransform;
                     }
 
-                    // Update the current and its descendant nodes' world transforms in sceneHierarchy.
-                    gltf->sceneHierarchy.updateDescendantNodeTransformsFrom(task.nodeIndex, nodeWorldTransform);
+                    // Update the current and its descendant nodes' world transforms.
+                    gltf->sceneNodeWorldTransforms.updateFrom(task.nodeIndex, nodeWorldTransform);
 
-                    // Passing sceneHierarchy into sceneGpuBuffers to update GPU mesh node transform buffer.
-                    gltf->sceneGpuBuffers.updateMeshNodeTransformsFrom(task.nodeIndex, gltf->sceneHierarchy, gltf->assetExternalBuffers);
+                    // Passing sceneNodeWorldTransforms into sceneGpuBuffers to update GPU mesh node transform buffer.
+                    gltf->sceneGpuBuffers.updateMeshNodeTransformsFrom(task.nodeIndex, gltf->sceneNodeWorldTransforms, gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -444,7 +444,7 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [this](control::task::ChangeSelectedNodeWorldTransform) {
                     const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
-                    const fastgltf::math::fmat4x4 &selectedNodeWorldTransform = gltf->sceneHierarchy.nodeWorldTransforms[selectedNodeIndex];
+                    const fastgltf::math::fmat4x4 &selectedNodeWorldTransform = gltf->sceneNodeWorldTransforms.worldTransforms[selectedNodeIndex];
 
                     // Re-calculate the node local transform.
                     //
@@ -469,16 +469,16 @@ void vk_gltf_viewer::MainApp::run() {
 
                     visit(fastgltf::visitor {
                         [&](fastgltf::math::fmat4x4 &transformMatrix) {
-                            if (auto parentNodeIndex = gltf->sceneHierarchy.getParentNodeIndex(selectedNodeIndex)) {
-                                transformMatrix = affineInverse(gltf->sceneHierarchy.nodeWorldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
+                            if (auto parentNodeIndex = gltf->sceneInverseHierarchy.getParentNodeIndex(selectedNodeIndex)) {
+                                transformMatrix = affineInverse(gltf->sceneNodeWorldTransforms.worldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
                             }
                             else {
                                 transformMatrix = selectedNodeWorldTransform;
                             }
                         },
                         [&](fastgltf::TRS &trs) {
-                            if (auto parentNodeIndex = gltf->sceneHierarchy.getParentNodeIndex(selectedNodeIndex)) {
-                                const fastgltf::math::fmat4x4 transformMatrix = affineInverse(gltf->sceneHierarchy.nodeWorldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
+                            if (auto parentNodeIndex = gltf->sceneInverseHierarchy.getParentNodeIndex(selectedNodeIndex)) {
+                                const fastgltf::math::fmat4x4 transformMatrix = affineInverse(gltf->sceneNodeWorldTransforms.worldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
                                 decomposeTransformMatrix(transformMatrix, trs.scale, trs.rotation, trs.translation);
                             }
                             else {
@@ -487,11 +487,11 @@ void vk_gltf_viewer::MainApp::run() {
                         },
                     }, gltf->asset.nodes[selectedNodeIndex].transform);
 
-                    // Update the current and its descendant nodes' world transforms in sceneHierarchy.
-                    gltf->sceneHierarchy.updateDescendantNodeTransformsFrom(selectedNodeIndex, selectedNodeWorldTransform);
+                    // Update the current and its descendant nodes' world transforms.
+                    gltf->sceneNodeWorldTransforms.updateFrom(selectedNodeIndex, selectedNodeWorldTransform);
 
-                    // Passing sceneHierarchy into sceneGpuBuffers to update GPU mesh node transform buffer.
-                    gltf->sceneGpuBuffers.updateMeshNodeTransformsFrom(selectedNodeIndex, gltf->sceneHierarchy, gltf->assetExternalBuffers);
+                    // Passing sceneNodeWorldTransforms into sceneGpuBuffers to update GPU mesh node transform buffer.
+                    gltf->sceneGpuBuffers.updateMeshNodeTransformsFrom(selectedNodeIndex, gltf->sceneNodeWorldTransforms, gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -571,7 +571,7 @@ void vk_gltf_viewer::MainApp::run() {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .asset = gltf.asset,
                     .assetGpuBuffers = gltf.assetGpuBuffers,
-                    .sceneHierarchy = gltf.sceneHierarchy,
+                    .sceneNodeWorldTransforms = gltf.sceneNodeWorldTransforms,
                     .sceneGpuBuffers = gltf.sceneGpuBuffers,
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
                     .renderingNodes = {
@@ -659,15 +659,18 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     gpu { gpu },
     assetGpuBuffers { asset, gpu, threadPool, assetExternalBuffers },
     assetGpuTextures { asset, directory, gpu, threadPool, assetExternalBuffers },
-    sceneGpuBuffers { asset, scene, sceneHierarchy, gpu, assetExternalBuffers },
+    sceneInverseHierarchy { asset, scene },
+    sceneNodeWorldTransforms { asset, scene },
+    sceneGpuBuffers { asset, scene, sceneNodeWorldTransforms, gpu, assetExternalBuffers },
     sceneMiniball { gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
         return cast<double>(sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
     }) } { }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
-    sceneHierarchy = { asset, scene };
-    sceneGpuBuffers = { asset, scene, sceneHierarchy, gpu, assetExternalBuffers };
+    sceneInverseHierarchy = { asset, scene };
+    sceneNodeWorldTransforms = { asset, scene };
+    sceneGpuBuffers = { asset, scene, sceneNodeWorldTransforms, gpu, assetExternalBuffers };
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
         return cast<double>(sceneGpuBuffers.getMeshNodeWorldTransform(nodeIndex, instanceIndex));
     });

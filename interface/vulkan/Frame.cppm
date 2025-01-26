@@ -72,7 +72,7 @@ namespace vk_gltf_viewer::vulkan {
 
                 const fastgltf::Asset &asset;
                 const gltf::AssetGpuBuffers &assetGpuBuffers;
-                const gltf::AssetSceneHierarchy &sceneHierarchy;
+                const gltf::SceneNodeWorldTransforms &sceneNodeWorldTransforms;
                 const gltf::AssetSceneGpuBuffers &sceneGpuBuffers;
 
                 bool regenerateDrawCommands;
