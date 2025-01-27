@@ -12,9 +12,6 @@ import :helpers.ranges;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 
-template <typename T, typename... Ts>
-concept one_of = (std::same_as<T, Ts> || ...);
-
 namespace vk_gltf_viewer::vulkan::buffer {
     /**
      * @brief Vulkan buffer that represents indirect draw commands.
@@ -28,7 +25,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
     export struct IndirectDrawCommands : vku::MappedBuffer {
         bool indexed;
 
-        template <one_of<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand> Command>
+        template <concepts::one_of<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand> Command>
         IndirectDrawCommands(vma::Allocator allocator, std::span<const Command> commands)
             : MappedBuffer { allocator, vk::BufferCreateInfo {
                 {},

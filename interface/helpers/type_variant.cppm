@@ -1,9 +1,7 @@
 export module vk_gltf_viewer:helpers.type_variant;
 
 import std;
-
-template <typename T, typename... Ts>
-concept one_of = (std::same_as<T, Ts> || ...);
+import :helpers.concepts;
 
 export template <typename... Ts>
 class type_variant {
@@ -21,7 +19,7 @@ public:
      * Initialize the variant with given type.
      * @tparam T Type to initialize. Must be one of the alternative types.
      */
-    template <one_of<Ts...> T>
+    template <concepts::one_of<Ts...> T>
     constexpr type_variant() noexcept { emplace<T>(); }
 
     // Copy constructor.
@@ -38,7 +36,7 @@ public:
      * Set the variant with given type \p T.
      * @tparam T Type to set. Must be one of the alternative types.
      */
-    template <one_of<Ts...> T>
+    template <concepts::one_of<Ts...> T>
     auto emplace() noexcept -> void {
         v.template emplace<std::type_identity<T>>();
     }
@@ -48,7 +46,7 @@ public:
      * @tparam T Type to check. Must be one of the alternative types.
      * @return <tt>true</tt> if the variant holds the given type, <tt>false</tt> otherwise.
      */
-    template <one_of<Ts...> T>
+    template <concepts::one_of<Ts...> T>
     auto holds_alternative() const noexcept -> bool {
         return std::holds_alternative<std::type_identity<T>>(v);
     }
