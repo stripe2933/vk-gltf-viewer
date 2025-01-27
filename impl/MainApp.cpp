@@ -435,7 +435,13 @@ void vk_gltf_viewer::MainApp::run() {
                             = gltf->sceneMiniball
                             = gltf::algorithm::getMiniball(
                                 gltf->asset, gltf->scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-                                    return cast<double>(gltf->sceneInstancedNodeWorldTransformBuffer.getTransform(nodeIndex, instanceIndex));
+                                    const fastgltf::math::fmat4x4 &nodeWorldTransform = gltf->sceneNodeWorldTransforms.worldTransforms[nodeIndex];
+                                    if (gltf->asset.nodes[nodeIndex].instancingAttributes.empty()) {
+                                        return cast<double>(nodeWorldTransform);
+                                    }
+                                    else {
+                                        return cast<double>(nodeWorldTransform * getInstanceTransform(gltf->asset, nodeIndex, instanceIndex, gltf->assetExternalBuffers));
+                                    }
                                 });
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
@@ -495,7 +501,13 @@ void vk_gltf_viewer::MainApp::run() {
                             = gltf->sceneMiniball
                             = gltf::algorithm::getMiniball(
                                 gltf->asset, gltf->scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-                                    return cast<double>(gltf->sceneInstancedNodeWorldTransformBuffer.getTransform(nodeIndex, instanceIndex));
+                                    const fastgltf::math::fmat4x4 &nodeWorldTransform = gltf->sceneNodeWorldTransforms.worldTransforms[nodeIndex];
+                                    if (gltf->asset.nodes[nodeIndex].instancingAttributes.empty()) {
+                                        return cast<double>(nodeWorldTransform);
+                                    }
+                                    else {
+                                        return cast<double>(nodeWorldTransform * getInstanceTransform(gltf->asset, nodeIndex, instanceIndex, gltf->assetExternalBuffers));
+                                    }
                                 });
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
@@ -660,7 +672,13 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     sceneInstancedNodeWorldTransformBuffer { asset, scene, sceneNodeWorldTransforms, gpu, assetExternalBuffers },
     nodeBuffer { asset, sceneInstancedNodeWorldTransformBuffer, gpu },
     sceneMiniball { gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-        return cast<double>(sceneInstancedNodeWorldTransformBuffer.getTransform(nodeIndex, instanceIndex));
+        const fastgltf::math::fmat4x4 &nodeWorldTransform = sceneNodeWorldTransforms.worldTransforms[nodeIndex];
+        if (asset.nodes[nodeIndex].instancingAttributes.empty()) {
+            return cast<double>(nodeWorldTransform);
+        }
+        else {
+            return cast<double>(nodeWorldTransform * getInstanceTransform(asset, nodeIndex, instanceIndex, assetExternalBuffers));
+        }
     }) } { }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
@@ -670,7 +688,13 @@ void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     sceneInstancedNodeWorldTransformBuffer = { asset, scene, sceneNodeWorldTransforms, gpu, assetExternalBuffers };
     nodeBuffer = { asset, sceneInstancedNodeWorldTransformBuffer, gpu };
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-        return cast<double>(sceneInstancedNodeWorldTransformBuffer.getTransform(nodeIndex, instanceIndex));
+        const fastgltf::math::fmat4x4 &nodeWorldTransform = sceneNodeWorldTransforms.worldTransforms[nodeIndex];
+        if (asset.nodes[nodeIndex].instancingAttributes.empty()) {
+            return cast<double>(nodeWorldTransform);
+        }
+        else {
+            return cast<double>(nodeWorldTransform * getInstanceTransform(asset, nodeIndex, instanceIndex, assetExternalBuffers));
+        }
     });
 }
 

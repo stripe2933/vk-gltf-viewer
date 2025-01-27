@@ -55,30 +55,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
         /**
-         * @brief Get world transform matrix of \p nodeIndex-th mesh node's \p instanceIndex-th instance in the scene.
-         *
-         * The term "mesh node" means a node that has a mesh, and this function only cares about mesh nodes (you MUST NOT pass a node index that doesn't have a mesh).
-         *
-         * @param nodeIndex Index of the mesh node.
-         * @param instanceIndex Index of the instance in the node. If EXT_mesh_gpu_instancing extension is not used, this value must be 0 (omitted).
-         * @return World transformation matrix of the mesh node's instance, calculated by post-multiply accumulated transformation matrices from scene root.
-         * @warning \p nodeIndex-th node MUST have a mesh. No exception thrown for constraint violation.
-         * @warning \p instanceIndex-th instance MUST be less than the instance count of the node. No exception thrown for constraint violation.
-         */
-        const fastgltf::math::fmat4x4 &getTransform(std::size_t nodeIndex, std::uint32_t instanceIndex = 0) const noexcept {
-            const std::span meshNodeWorldTransforms = buffer.asRange<const fastgltf::math::fmat4x4>();
-            return meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex];
-        }
-
-        /**
-         * @copydoc SceneInstancedNodeWorldTransforms::getTransform(std::size_t,std::uint32_t)
-         */
-        fastgltf::math::fmat4x4 &getTransform(std::size_t nodeIndex, std::uint32_t instanceIndex = 0) noexcept {
-            const std::span meshNodeWorldTransforms = buffer.asRange<fastgltf::math::fmat4x4>();
-            return meshNodeWorldTransforms[instanceOffsets[nodeIndex] + instanceIndex];
-        }
-
-        /**
          * @brief Update the mesh node world transforms from given \p nodeIndex, to its descendants.
          * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view.
          * @param nodeIndex Node index to be started.
@@ -99,15 +75,16 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     return;
                 }
 
-                if (std::vector instanceTransforms = getInstanceTransforms(asset, node, adapter); !instanceTransforms.empty()) {
+                if (node.instancingAttributes.empty()) {
+                    bufferData[instanceOffsets[nodeIndex]] = sceneNodeWorldTransforms.worldTransforms[nodeIndex];
+                }
+                else {
                     std::ranges::transform(
-                        instanceTransforms, &bufferData[instanceOffsets[nodeIndex]],
+                        getInstanceTransforms(asset, nodeIndex, adapter),
+                        &bufferData[instanceOffsets[nodeIndex]],
                         [&](const fastgltf::math::fmat4x4 &instanceTransform) {
                             return sceneNodeWorldTransforms.worldTransforms[nodeIndex] * instanceTransform;
                         });
-                }
-                else {
-                    bufferData[instanceOffsets[nodeIndex]] = sceneNodeWorldTransforms.worldTransforms[nodeIndex];
                 }
             });
         }
@@ -185,7 +162,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 {},
                 sizeof(fastgltf::math::fmat4x4) * instanceOffsets.back(),
                 vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-            }, vku::allocation::hostRead };
+            } };
 
             const std::span data = result.asRange<fastgltf::math::fmat4x4>();
             for (std::size_t nodeIndex : ranges::views::upto(asset.get().nodes.size())) {
@@ -195,15 +172,15 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     [](fastgltf::math::fmat4x4 matrix) { return matrix; },
                 }, node.transform);
 
-                if (std::vector instanceTransforms = getInstanceTransforms(asset, node, adapter); !instanceTransforms.empty()) {
+                if (node.instancingAttributes.empty()) {
+                    data[instanceOffsets[nodeIndex]] = nodeTransform;
+                }
+                else {
                     std::ranges::transform(
-                        instanceTransforms, &data[instanceOffsets[nodeIndex]],
+                        getInstanceTransforms(asset, nodeIndex, adapter), &data[instanceOffsets[nodeIndex]],
                         [&](const fastgltf::math::fmat4x4 &instanceTransform) {
                             return nodeTransform * instanceTransform;
                         });
-                }
-                else {
-                    data[instanceOffsets[nodeIndex]] = nodeTransform;
                 }
             }
 
