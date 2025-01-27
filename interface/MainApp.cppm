@@ -10,6 +10,7 @@ import :gltf.AssetGpuFallbackTexture;
 import :gltf.MaterialVariantsMapping;
 import :gltf.NodeWorldTransforms;
 import :gltf.SceneInverseHierarchy;
+import :vulkan.buffer.Materials;
 import :vulkan.buffer.Nodes;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
@@ -69,11 +70,12 @@ namespace vk_gltf_viewer {
              */
             gltf::AssetExternalBuffers assetExternalBuffers{ asset, directory };
 
-            gltf::AssetGpuBuffers assetGpuBuffers;
             gltf::AssetGpuTextures assetGpuTextures;
             gltf::NodeWorldTransforms nodeWorldTransforms;
             vulkan::buffer::InstancedNodeWorldTransforms instancedNodeWorldTransformBuffer;
             vulkan::buffer::Nodes nodeBuffer;
+            vulkan::buffer::Materials materialBuffer;
+            gltf::AssetGpuBuffers assetGpuBuffers;
 
             /**
              * @brief The glTF scene that is currently used by.

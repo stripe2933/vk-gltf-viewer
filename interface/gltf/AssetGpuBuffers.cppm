@@ -16,6 +16,7 @@ import :helpers.functional;
 import :helpers.ranges;
 import :helpers.type_map;
 import :vulkan.buffer;
+export import :vulkan.buffer.Materials;
 export import :vulkan.Gpu;
 
 /**
@@ -68,39 +69,6 @@ namespace vk_gltf_viewer::gltf {
         std::vector<std::tuple<vku::AllocatedBuffer, vk::Buffer, vk::BufferCopy>> stagingInfos;
 
     public:
-        struct GpuMaterial {
-            std::uint8_t baseColorTexcoordIndex;
-            std::uint8_t metallicRoughnessTexcoordIndex;
-            std::uint8_t normalTexcoordIndex;
-            std::uint8_t occlusionTexcoordIndex;
-            std::uint8_t emissiveTexcoordIndex;
-            char padding0[1];
-            std::int16_t baseColorTextureIndex = -1;
-            std::int16_t metallicRoughnessTextureIndex = -1;
-            std::int16_t normalTextureIndex = -1;
-            std::int16_t occlusionTextureIndex = -1;
-            std::int16_t emissiveTextureIndex = -1;
-            glm::vec4 baseColorFactor = { 1.f, 1.f, 1.f, 1.f };
-            float metallicFactor = 1.f;
-            float roughnessFactor = 1.f;
-            float normalScale = 1.f;
-            float occlusionStrength = 1.f;
-            glm::vec3 emissiveFactor = { 0.f, 0.f, 0.f };
-            float alphaCutOff;
-            glm::mat2 baseColorTextureTransformUpperLeft2x2;
-            glm::vec2 baseColorTextureTransformOffset;
-            glm::mat2 metallicRoughnessTextureTransformUpperLeft2x2;
-            glm::vec2 metallicRoughnessTextureTransformOffset;
-            glm::mat2 normalTextureTransformUpperLeft2x2;
-            glm::vec2 normalTextureTransformOffset;
-            glm::mat2 occlusionTextureTransformUpperLeft2x2;
-            glm::vec2 occlusionTextureTransformOffset;
-            glm::mat2 emissiveTextureTransformUpperLeft2x2;
-            glm::vec2 emissiveTextureTransformOffset;
-            char padding1[8];
-        };
-        static_assert(sizeof(GpuMaterial) == 192);
-
         struct GpuPrimitive {
             vk::DeviceAddress pPositionBuffer;
             vk::DeviceAddress pNormalBuffer;
@@ -117,11 +85,6 @@ namespace vk_gltf_viewer::gltf {
         std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> primitiveInfos = createPrimitiveInfos();
 
         /**
-         * @brief Buffer that contains <tt>GpuMaterial</tt>s, with fallback material at the index 0 (total <tt>asset.materials.size() + 1</tt>).
-         */
-        vku::AllocatedBuffer materialBuffer = createMaterialBuffer();
-
-        /**
          * @brief All indices that are combined as a single buffer by their index types.
          *
          * Use <tt>AssetPrimitiveInfo::indexInfo</tt> to get the offset of data that is used by the primitive.
@@ -131,15 +94,17 @@ namespace vk_gltf_viewer::gltf {
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
 
     private:
+        std::reference_wrapper<const vulkan::buffer::Materials> materialBuffer;
         /**
          * @brief Buffer that contains <tt>GpuPrimitive</tt>s.
          */
-        std::variant<vku::AllocatedBuffer, vku::MappedBuffer> primitiveBuffer = createPrimitiveBuffer();
+        std::variant<vku::AllocatedBuffer, vku::MappedBuffer> primitiveBuffer;
 
     public:
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         AssetGpuBuffers(
             const fastgltf::Asset &asset,
+            const vulkan::buffer::Materials &materialBuffer [[clang::lifetimebound]],
             const vulkan::Gpu &gpu,
             BS::thread_pool<> &threadPool,
             const BufferDataAdapter &adapter = {}
@@ -149,6 +114,7 @@ namespace vk_gltf_viewer::gltf {
             // Primitive attribute buffers MUST be created before index buffer creation (because fill the AssetPrimitiveInfo
             // and determine the drawCount if primitive is non-indexed, and createIndexBuffers() will use it).
             indexBuffers { (createPrimitiveAttributeBuffers(adapter), createPrimitiveIndexBuffers(adapter)) },
+            materialBuffer { materialBuffer },
             // Remaining buffers MUST be created before the primitive buffer creation (because they fill the
             // AssetPrimitiveInfo and createPrimitiveBuffer() will stage it).
             primitiveBuffer { (createPrimitiveIndexedAttributeMappingBuffers(), createPrimitiveTangentBuffers(threadPool, adapter), createPrimitiveBuffer()) } {
@@ -187,7 +153,6 @@ namespace vk_gltf_viewer::gltf {
     private:
         [[nodiscard]] std::vector<const fastgltf::Primitive*> createOrderedPrimitives() const;
         [[nodiscard]] std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> createPrimitiveInfos() const;
-        [[nodiscard]] vku::AllocatedBuffer createMaterialBuffer();
 
         template <typename BufferDataAdapter>
         [[nodiscard]] std::unordered_map<vk::IndexType, vku::AllocatedBuffer> createPrimitiveIndexBuffers(const BufferDataAdapter &adapter) {
@@ -493,8 +458,6 @@ namespace vk_gltf_viewer::gltf {
 
             internalBuffers.emplace_back(std::move(buffer));
         }
-
-        [[nodiscard]] static std::uint32_t padMaterialIndex(std::uint32_t materialIndex) noexcept { return materialIndex + 1; }
 
         [[nodiscard]] bool needStaging(const vku::AllocatedBuffer &buffer) const noexcept;
         void stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage = vk::BufferUsageFlagBits::eTransferDst);

@@ -661,11 +661,12 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     directory { path.parent_path() },
     asset { get_checked(parser.loadGltf(dataBuffer, directory)) },
     gpu { gpu },
-    assetGpuBuffers { asset, gpu, threadPool, assetExternalBuffers },
     assetGpuTextures { asset, directory, gpu, threadPool, assetExternalBuffers },
     nodeWorldTransforms { asset },
     instancedNodeWorldTransformBuffer { asset, nodeWorldTransforms, gpu, assetExternalBuffers },
     nodeBuffer { asset, instancedNodeWorldTransformBuffer, gpu },
+    materialBuffer { asset, gpu },
+    assetGpuBuffers { asset, materialBuffer, gpu, threadPool, assetExternalBuffers },
     sceneInverseHierarchy { asset, scene } {
     nodeWorldTransforms.update(scene);
     instancedNodeWorldTransformBuffer.update(scene, nodeWorldTransforms, assetExternalBuffers);
@@ -855,7 +856,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         sharedData.assetDescriptorSet.getWriteOne<0>({ gltf->assetGpuBuffers.getPrimitiveBuffer(), 0, vk::WholeSize }),
         sharedData.assetDescriptorSet.getWrite<1>(gltf->nodeBuffer.getDescriptorInfo()),
         sharedData.assetDescriptorSet.getWrite<2>(gltf->instancedNodeWorldTransformBuffer.getDescriptorInfo()),
-        sharedData.assetDescriptorSet.getWriteOne<3>({ gltf->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
+        sharedData.assetDescriptorSet.getWrite<3>(gltf->materialBuffer.getDescriptorInfo()),
         sharedData.assetDescriptorSet.getWrite<4>(imageInfos),
     }, {});
 

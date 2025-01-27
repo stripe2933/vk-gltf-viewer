@@ -156,6 +156,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/buffer/CubeIndices.cppm
         interface/vulkan/buffer/IndirectDrawCommands.cppm
         interface/vulkan/buffer/InstancedNodeWorldTransforms.cppm
+        interface/vulkan/buffer/Materials.cppm
         interface/vulkan/buffer/Nodes.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
