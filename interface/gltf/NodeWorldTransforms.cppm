@@ -3,6 +3,7 @@ export module vk_gltf_viewer:gltf.NodeWorldTransforms;
 import std;
 export import fastgltf;
 import :gltf.algorithm.traversal;
+import :helpers.fastgltf;
 
 namespace vk_gltf_viewer::gltf {
     export class NodeWorldTransforms : public std::vector<fastgltf::math::fmat4x4> {

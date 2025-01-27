@@ -3,6 +3,7 @@ export module vk_gltf_viewer:vulkan.buffer.InstancedNodeWorldTransforms;
 import std;
 import :gltf.algorithm.traversal;
 export import :gltf.NodeWorldTransforms;
+import :helpers.fastgltf;
 import :helpers.ranges;
 export import :vulkan.Gpu;
 
