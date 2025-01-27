@@ -378,6 +378,8 @@ void vk_gltf_viewer::MainApp::run() {
                     appState.camera.zMin = distance - radius;
                     appState.camera.zMax = distance + radius;
                     appState.camera.targetDistance = distance;
+
+                    regenerateDrawCommands.fill(true);
                 },
                 [this](control::task::ChangeNodeVisibilityType) {
                     appState.gltfAsset->switchNodeVisibilityType();

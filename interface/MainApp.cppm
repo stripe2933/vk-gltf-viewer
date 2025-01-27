@@ -78,7 +78,7 @@ namespace vk_gltf_viewer {
              * This could be changed, but direct assignment is forbidden (because changing this field requires the additional
              * modification of <tt>sceneGpuBuffers</tt> and <tt>sceneMiniball</tt>). Use <tt>setScene</tt> for the purpose.
              */
-            fastgltf::Scene &scene { asset.scenes[asset.defaultScene.value_or(0)] };
+            std::reference_wrapper<fastgltf::Scene> scene { asset.scenes[asset.defaultScene.value_or(0)] };
 
             /**
              * @brief Hierarchy information of current scene.

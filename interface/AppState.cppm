@@ -5,6 +5,7 @@ export import fastgltf;
 export import glm;
 export import ImGuizmo;
 export import :control.Camera;
+import :gltf.algorithm.traversal;
 export import :helpers.full_optional;
 import :helpers.functional;
 import :helpers.optional;
@@ -54,8 +55,11 @@ namespace vk_gltf_viewer {
             [[nodiscard]] auto getScene() const noexcept -> fastgltf::Scene& { return asset.scenes[sceneIndex]; }
             auto setScene(std::size_t _sceneIndex) noexcept -> void {
                 sceneIndex = _sceneIndex;
-                visit([](auto &visibilities) {
-                    std::ranges::fill(visibilities, true);
+                visit([this](auto &visibilities) {
+                    std::ranges::fill(visibilities, false);
+                    gltf::algorithm::traverseScene(asset, asset.scenes[sceneIndex], [&](std::size_t nodeIndex) {
+                       visibilities[nodeIndex] = true;
+                    });
                 }, nodeVisibilities);
                 selectedNodeIndices.clear();
                 hoveringNodeIndex.reset();
