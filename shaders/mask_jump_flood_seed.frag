@@ -26,10 +26,10 @@ layout (location = 1) in FRAG_VARIDIC_IN {
 
 layout (location = 0) out uvec2 outCoordinate;
 
-layout (set = 0, binding = 2, std430) readonly buffer MaterialBuffer {
+layout (set = 0, binding = 3, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout (set = 0, binding = 3) uniform sampler2D textures[];
+layout (set = 0, binding = 4) uniform sampler2D textures[];
 
 void main(){
     float baseColorAlpha = MATERIAL.baseColorFactor.a;

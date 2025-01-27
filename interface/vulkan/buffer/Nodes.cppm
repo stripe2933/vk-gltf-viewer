@@ -11,14 +11,7 @@ export import :vulkan.buffer.InstancedNodeWorldTransforms;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     export class Nodes {
-        /**
-         * @brief Buffer with the start address of the instanced node world transform buffer.
-         */
-        vku::AllocatedBuffer buffer;
-
     public:
-        vk::DescriptorBufferInfo descriptorInfo;
-
         Nodes(
             const fastgltf::Asset &asset,
             const InstancedNodeWorldTransforms &instancedNodeWorldTransformBuffer,
@@ -26,7 +19,17 @@ namespace vk_gltf_viewer::vulkan::buffer {
         ) : buffer { createBuffer(asset, instancedNodeWorldTransformBuffer, gpu) },
             descriptorInfo { buffer, 0, vk::WholeSize } { }
 
+        [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept {
+            return descriptorInfo;
+        }
+
     private:
+        /**
+         * @brief Buffer with the start index of the instanced node world transform buffer.
+         */
+        vku::AllocatedBuffer buffer;
+        vk::DescriptorBufferInfo descriptorInfo;
+
         [[nodiscard]] vku::AllocatedBuffer createBuffer(
             const fastgltf::Asset &asset,
             const InstancedNodeWorldTransforms &instancedNodeWorldTransformBuffer,
@@ -35,7 +38,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
             vku::AllocatedBuffer buffer = vku::MappedBuffer {
                 gpu.allocator,
                 std::from_range, ranges::views::upto(asset.nodes.size()) | std::views::transform([&](std::size_t nodeIndex) {
-                    return instancedNodeWorldTransformBuffer.getTransformStartAddress(nodeIndex);
+                    return instancedNodeWorldTransformBuffer.getStartIndex(nodeIndex);
                 }),
                 gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
             }.unmap();

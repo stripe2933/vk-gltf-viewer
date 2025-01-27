@@ -149,7 +149,7 @@ namespace vk_gltf_viewer::vulkan {
         }
 
         void updateTextureCount(std::uint32_t textureCount) {
-            if (assetDescriptorSetLayout.descriptorCounts[3] == textureCount) {
+            if (assetDescriptorSetLayout.descriptorCounts[4] == textureCount) {
                 // If texture count is same, descriptor set layouts, pipeline layouts and pipelines doesn't have to be recreated.
                 return;
             }

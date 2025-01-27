@@ -12,15 +12,16 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
-layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
-
 layout (location = 0) flat out uint outNodeIndex;
 
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
 layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {
-    Node nodes[];
+    uint instancedTransformStartIndices[];
+};
+layout (set = 0, binding = 2) readonly buffer InstancedTransformBuffer {
+    mat4 instancedTransforms[];
 };
 
 layout (push_constant) uniform PushConstant {

@@ -18,8 +18,6 @@ layout (constant_id = 0) const uint TEXCOORD_COMPONENT_TYPE = 5126; // FLOAT
 layout (constant_id = 1) const uint COLOR_COMPONENT_COUNT = 0;
 layout (constant_id = 2) const uint COLOR_COMPONENT_TYPE = 5126; // FLOAT
 
-layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer Node { mat4 transforms[]; };
-
 layout (location = 0) flat out uint outMaterialIndex;
 #if HAS_VARIADIC_OUT
 layout (location = 1) out VS_VARIADIC_OUT {
@@ -37,9 +35,12 @@ layout (set = 1, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
 layout (set = 1, binding = 1, std430) readonly buffer NodeBuffer {
-    Node nodes[];
+    uint instancedTransformStartIndices[];
 };
-layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 2) readonly buffer InstancedTransformBuffer {
+    mat4 instancedTransforms[];
+};
+layout (set = 1, binding = 3, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
