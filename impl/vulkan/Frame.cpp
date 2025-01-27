@@ -106,7 +106,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     passthruRect = task.passthruRect;
     cursorPosFromPassthruRectTopLeft = task.cursorPosFromPassthruRectTopLeft;
 
-    const auto criteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
+    const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
+        const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
+
         CommandSeparationCriteria result {
             .subpass = 0U,
             .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
@@ -193,7 +195,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         return result;
     };
 
-    const auto depthPrepassCriteriaGetter = [&](const gltf::AssetPrimitiveInfo &primitiveInfo) {
+    const auto depthPrepassCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
+        const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
+
         CommandSeparationCriteriaNoShading result{
             .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
                 return std::pair { task.gltf->assetGpuBuffers.indexBuffers.at(info.type).buffer, info.type };
@@ -225,7 +229,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         return result;
     };
 
-    const auto jumpFloodSeedCriteriaGetter = [&](const gltf::AssetPrimitiveInfo& primitiveInfo) {
+    const auto jumpFloodSeedCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
+        const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
+
         CommandSeparationCriteriaNoShading result {
             .indexBufferAndType = primitiveInfo.indexInfo.transform([&](const auto &info) {
                 return std::pair { task.gltf->assetGpuBuffers.indexBuffers.at(info.type).buffer, info.type };
@@ -257,19 +263,58 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         return result;
     };
 
+    const auto drawCommandGetter = [&](
+        std::uint16_t nodeIndex,
+        const fastgltf::Primitive &primitive
+    ) -> std::variant<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand> {
+        // EXT_mesh_gpu_instancing support.
+        std::uint32_t instanceCount = 1;
+        if (const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex]; !node.instancingAttributes.empty()) {
+            instanceCount = task.gltf->asset.accessors[node.instancingAttributes[0].accessorIndex].count;
+        }
+
+        const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
+        if (const auto &indexInfo = primitiveInfo.indexInfo) {
+            const std::size_t indexByteSize = [=]() {
+                switch (indexInfo->type) {
+                    case vk::IndexType::eUint8KHR: return sizeof(std::uint8_t);
+                    case vk::IndexType::eUint16: return sizeof(std::uint16_t);
+                    case vk::IndexType::eUint32: return sizeof(std::uint32_t);
+                    default: std::unreachable();
+                }
+            }();
+
+            return vk::DrawIndexedIndirectCommand {
+                primitiveInfo.drawCount,
+                instanceCount,
+                static_cast<std::uint32_t>(primitiveInfo.indexInfo->offset / indexByteSize),
+                0,
+                (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index),
+            };
+        }
+        else {
+            return vk::DrawIndirectCommand {
+                primitiveInfo.drawCount,
+                instanceCount,
+                0,
+                (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index),
+            };
+        }
+    };
+
     if (task.gltf && !task.gltf->renderingNodes.indices.empty()) {
         if (!renderingNodes ||
             task.gltf->regenerateDrawCommands ||
             renderingNodes->indices != task.gltf->renderingNodes.indices) {
             renderingNodes.emplace(
                 task.gltf->renderingNodes.indices,
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, criteriaGetter, task.gltf->renderingNodes.indices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, depthPrepassCriteriaGetter, task.gltf->renderingNodes.indices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }));
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, criteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter),
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, depthPrepassCriteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter));
         }
 
         if (task.frustum) {
-            const auto commandBufferCullingFunc = [&]<bool Indexed>(buffer::IndirectDrawCommands<Indexed> &indirectDrawCommands) -> void {
-                indirectDrawCommands.partition([&](const buffer::IndirectDrawCommands<Indexed>::command_t &command) {
+            const auto commandBufferCullingFunc = [&](buffer::IndirectDrawCommands &indirectDrawCommands) -> void {
+                indirectDrawCommands.partition([&](const auto &command) {
                     if (command.instanceCount > 1) {
                         // Do not perform frustum culling for instanced mesh.
                         return true;
@@ -294,22 +339,18 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             };
 
             for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
-                visit(commandBufferCullingFunc, buffer);
+                commandBufferCullingFunc(buffer);
             }
             for (auto &buffer : renderingNodes->depthPrepassIndirectDrawCommandBuffers | std::views::values) {
-                visit(commandBufferCullingFunc, buffer);
+                commandBufferCullingFunc(buffer);
             }
         }
         else {
             for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
-                visit([&]<bool Indexed>(buffer::IndirectDrawCommands<Indexed> &indirectDrawCommands) {
-                    indirectDrawCommands.resetDrawCount();
-                }, buffer);
+                buffer.resetDrawCount();
             }
             for (auto &buffer : renderingNodes->depthPrepassIndirectDrawCommandBuffers | std::views::values) {
-                visit([&]<bool Indexed>(buffer::IndirectDrawCommands<Indexed> &indirectDrawCommands) {
-                    indirectDrawCommands.resetDrawCount();
-                }, buffer);
+                buffer.resetDrawCount();
             }
         }
     }
@@ -322,7 +363,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (task.gltf->regenerateDrawCommands ||
                 selectedNodes->indices != task.gltf->selectedNodes->indices) {
                 selectedNodes->indices = task.gltf->selectedNodes->indices;
-                selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
+                selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter);
             }
             selectedNodes->outlineColor = task.gltf->selectedNodes->outlineColor;
             selectedNodes->outlineThickness = task.gltf->selectedNodes->outlineThickness;
@@ -330,7 +371,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         else {
             selectedNodes.emplace(
                 task.gltf->selectedNodes->indices,
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter),
                 task.gltf->selectedNodes->outlineColor,
                 task.gltf->selectedNodes->outlineThickness);
         }
@@ -346,7 +387,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (task.gltf->regenerateDrawCommands ||
                 hoveringNode->index != task.gltf->hoveringNode->index) {
                 hoveringNode->index = task.gltf->hoveringNode->index;
-                hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, { task.gltf->hoveringNode->index }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); });
+                hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, { task.gltf->hoveringNode->index }, drawCommandGetter);
             }
             hoveringNode->outlineColor = task.gltf->hoveringNode->outlineColor;
             hoveringNode->outlineThickness = task.gltf->hoveringNode->outlineThickness;
@@ -354,7 +395,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         else {
             hoveringNode.emplace(
                 task.gltf->hoveringNode->index,
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, { task.gltf->hoveringNode->index }, [&](const fastgltf::Primitive &primitive) -> decltype(auto) { return task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive); }),
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, { task.gltf->hoveringNode->index }, drawCommandGetter),
                 task.gltf->hoveringNode->outlineColor,
                 task.gltf->hoveringNode->outlineThickness);
         }
@@ -722,7 +763,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                     cb.bindIndexBuffer(resourceBindingState.indexBuffer = indexBuffer, 0, indexType);
                 }
             }
-            visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
+            indirectDrawCommandBuffer.recordDrawCommand(cb, gpu.supportDrawIndirectCount);;
         }
     };
 
@@ -866,7 +907,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
                 cb.bindIndexBuffer(resourceBindingState.indexBuffer = indexBuffer, 0, indexType);
             }
         }
-        visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
+        indirectDrawCommandBuffer.recordDrawCommand(cb, gpu.supportDrawIndirectCount);;
     }
 }
 
@@ -905,7 +946,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
                 cb.bindIndexBuffer(resourceBindingState.indexBuffer = indexBuffer, 0, indexType);
             }
         }
-        visit([&](const auto &x) { x.recordDrawCommand(cb, gpu.supportDrawIndirectCount); }, indirectDrawCommandBuffer);
+        indirectDrawCommandBuffer.recordDrawCommand(cb, gpu.supportDrawIndirectCount);;
         hasBlendMesh = true;
     }
 

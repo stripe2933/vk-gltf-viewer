@@ -153,7 +153,7 @@ namespace vk_gltf_viewer::vulkan {
 
     private:
         template <typename Criteria>
-        using CriteriaSeparatedIndirectDrawCommands = std::map<Criteria, std::variant<buffer::IndirectDrawCommands<false>, buffer::IndirectDrawCommands<true>>>;
+        using CriteriaSeparatedIndirectDrawCommands = std::map<Criteria, buffer::IndirectDrawCommands>;
 
         class PassthruResources {
         public:

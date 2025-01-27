@@ -80,7 +80,6 @@ add_executable(vk-gltf-viewer
     impl/gltf/AssetGpuBuffers.cpp
     impl/MainApp.cpp
     impl/mod.cpp
-    impl/vulkan/buffer/IndirectDrawCommands.cpp
     impl/vulkan/Frame.cpp
     impl/vulkan/Gpu.cpp
     impl/vulkan/pipeline/JumpFloodComputer.cpp
