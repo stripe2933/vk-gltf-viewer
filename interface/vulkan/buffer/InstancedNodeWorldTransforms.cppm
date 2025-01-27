@@ -1,8 +1,8 @@
-export module vk_gltf_viewer:vulkan.buffer.SceneInstancedNodeWorldTransforms;
+export module vk_gltf_viewer:vulkan.buffer.InstancedNodeWorldTransforms;
 
 import std;
 import :gltf.algorithm.traversal;
-export import :gltf.SceneNodeWorldTransforms;
+export import :gltf.NodeWorldTransforms;
 import :helpers.ranges;
 export import :vulkan.Gpu;
 
@@ -24,48 +24,46 @@ template <typename T, typename U>
 }
 
 namespace vk_gltf_viewer::vulkan::buffer {
-    export class SceneInstancedNodeWorldTransforms {
+    export class InstancedNodeWorldTransforms {
     public:
         /**
          * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view.
          * @param asset glTF asset.
-         * @param scene Scene to be used for world transform calculation
-         * @param sceneNodeWorldTransforms pre-calculated scene node world transforms.
+         * @param nodeWorldTransforms pre-calculated node world transforms.
          * @param gpu Vulkan GPU.
          * @param adapter Buffer data adapter.
-         * @note This will fill the buffer data with each node's local transform (and post-multiplied instance transforms if presented), as the scene structure is not provided. If the root nodes have to be specified, use the overloaded constructor.
-         * @note You have to call <tt>update</tt> to update the world transforms.
+         * @note This will fill the buffer data with each node's local transform (and post-multiplied instance transforms if presented), as the scene structure is not provided. You have to call <tt>update</tt> to update the world transforms.
          */
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
-        SceneInstancedNodeWorldTransforms(
+        InstancedNodeWorldTransforms(
             const fastgltf::Asset &asset [[clang::lifetimebound]],
-            const fastgltf::Scene &scene,
-            const gltf::SceneNodeWorldTransforms &sceneNodeWorldTransforms,
+            const gltf::NodeWorldTransforms &nodeWorldTransforms,
             const Gpu &gpu [[clang::lifetimebound]],
             const BufferDataAdapter &adapter = {}
         ) : asset { asset },
             instanceOffsets { createInstanceOffsets() },
-            buffer { createBuffer(gpu.allocator, adapter) },
-            bufferAddress { gpu.device.getBufferAddress({ buffer }) } {
-            update(scene, sceneNodeWorldTransforms, adapter);
+            buffer { createBuffer(gpu.allocator, nodeWorldTransforms, adapter) },
+            descriptorInfo { buffer, 0, vk::WholeSize } { }
+
+        [[nodiscard]] std::uint32_t getStartIndex(std::size_t nodeIndex) const noexcept {
+            return instanceOffsets[nodeIndex];
         }
 
-        [[nodiscard]] vk::DeviceAddress getTransformStartAddress(std::size_t nodeIndex) const noexcept {
-            return bufferAddress + sizeof(fastgltf::math::fmat4x4) * instanceOffsets[nodeIndex];
+        [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept {
+            return descriptorInfo;
         }
 
         /**
          * @brief Update the mesh node world transforms from given \p nodeIndex, to its descendants.
          * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view.
          * @param nodeIndex Node index to be started.
-         * @param sceneNodeWorldTransforms pre-calculated scene node world transforms.
+         * @param nodeWorldTransforms pre-calculated node world transforms.
          * @param adapter Buffer data adapter.
-         * @pre Node with given \p nodeIndex must be in the scene of \p sceneNodeWorldTransforms.
          */
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         void update(
             std::size_t nodeIndex,
-            const gltf::SceneNodeWorldTransforms &sceneNodeWorldTransforms,
+            const gltf::NodeWorldTransforms &nodeWorldTransforms,
             const BufferDataAdapter &adapter = {}
         ) {
             const std::span bufferData = buffer.asRange<fastgltf::math::fmat4x4>();
@@ -76,14 +74,14 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 }
 
                 if (node.instancingAttributes.empty()) {
-                    bufferData[instanceOffsets[nodeIndex]] = sceneNodeWorldTransforms.worldTransforms[nodeIndex];
+                    bufferData[instanceOffsets[nodeIndex]] = nodeWorldTransforms[nodeIndex];
                 }
                 else {
                     std::ranges::transform(
                         getInstanceTransforms(asset, nodeIndex, adapter),
                         &bufferData[instanceOffsets[nodeIndex]],
                         [&](const fastgltf::math::fmat4x4 &instanceTransform) {
-                            return sceneNodeWorldTransforms.worldTransforms[nodeIndex] * instanceTransform;
+                            return nodeWorldTransforms[nodeIndex] * instanceTransform;
                         });
                 }
             });
@@ -93,18 +91,17 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @brief Update the mesh node world transforms for all nodes in a scene.
          * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view.
          * @param scene Scene to be updated.
-         * @param sceneNodeWorldTransforms pre-calculated scene node world transforms.
+         * @param nodeWorldTransforms pre-calculated node world transforms.
          * @param adapter Buffer data adapter.
-         * @pre Given \p scene must be same scene of \p sceneNodeWorldTransforms construction.
          */
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         void update(
             const fastgltf::Scene &scene,
-            const gltf::SceneNodeWorldTransforms &sceneNodeWorldTransforms,
+            const gltf::NodeWorldTransforms &nodeWorldTransforms,
             const BufferDataAdapter &adapter = {}
         ) {
             for (std::size_t nodeIndex : scene.nodeIndices) {
-                update(nodeIndex, sceneNodeWorldTransforms, adapter);
+                update(nodeIndex, nodeWorldTransforms, adapter);
             }
         }
 
@@ -128,7 +125,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * Be careful that there is no transform matrix related about node C, because it is meshless.
          */
         vku::MappedBuffer buffer;
-        vk::DeviceAddress bufferAddress;
+        vk::DescriptorBufferInfo descriptorInfo;
 
         [[nodiscard]] std::vector<std::uint32_t> createInstanceOffsets() const {
             std::vector<std::uint32_t> result;
@@ -157,29 +154,27 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
         template <typename BufferDataAdapter>
-        [[nodiscard]] vku::MappedBuffer createBuffer(vma::Allocator allocator, const BufferDataAdapter &adapter) const {
+        [[nodiscard]] vku::MappedBuffer createBuffer(
+            vma::Allocator allocator,
+            const gltf::NodeWorldTransforms &nodeWorldTransforms,
+            const BufferDataAdapter &adapter
+        ) const {
             vku::MappedBuffer result { allocator, vk::BufferCreateInfo {
                 {},
                 sizeof(fastgltf::math::fmat4x4) * instanceOffsets.back(),
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                vk::BufferUsageFlagBits::eStorageBuffer,
             } };
 
             const std::span data = result.asRange<fastgltf::math::fmat4x4>();
-            for (std::size_t nodeIndex : ranges::views::upto(asset.get().nodes.size())) {
-                const fastgltf::Node &node = asset.get().nodes[nodeIndex];
-                const fastgltf::math::fmat4x4 nodeTransform = visit(fastgltf::visitor {
-                    [](const fastgltf::TRS &trs) { return toMatrix(trs); },
-                    [](fastgltf::math::fmat4x4 matrix) { return matrix; },
-                }, node.transform);
-
+            for (const auto &[nodeIndex, node] : asset.get().nodes | ranges::views::enumerate) {
                 if (node.instancingAttributes.empty()) {
-                    data[instanceOffsets[nodeIndex]] = nodeTransform;
+                    data[instanceOffsets[nodeIndex]] = nodeWorldTransforms[nodeIndex];
                 }
                 else {
                     std::ranges::transform(
                         getInstanceTransforms(asset, nodeIndex, adapter), &data[instanceOffsets[nodeIndex]],
                         [&](const fastgltf::math::fmat4x4 &instanceTransform) {
-                            return nodeTransform * instanceTransform;
+                            return nodeWorldTransforms[nodeIndex] * instanceTransform;
                         });
                 }
             }

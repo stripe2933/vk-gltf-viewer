@@ -295,7 +295,7 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline);
             if (appState.gltfAsset && appState.gltfAsset->selectedNodeIndices.size() == 1) {
                 const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
-                imguiTaskCollector.imguizmo(appState.camera, gltf->sceneNodeWorldTransforms.worldTransforms[selectedNodeIndex], appState.imGuizmoOperation);
+                imguiTaskCollector.imguizmo(appState.camera, gltf->nodeWorldTransforms[selectedNodeIndex], appState.imGuizmoOperation);
             }
             else {
                 imguiTaskCollector.imguizmo(appState.camera);
@@ -364,10 +364,6 @@ void vk_gltf_viewer::MainApp::run() {
 
                     gltf->setScene(task.newSceneIndex);
 
-                    gpu.device.updateDescriptorSets(
-                        sharedData.sceneDescriptorSet.getWrite<0>(gltf->nodeBuffer.descriptorInfo),
-                        {});
-
                     // Update AppState.
                     appState.gltfAsset->setScene(task.newSceneIndex);
 
@@ -422,12 +418,12 @@ void vk_gltf_viewer::MainApp::run() {
                         [](fastgltf::math::fmat4x4 matrix) { return matrix; }
                     }, gltf->asset.nodes[task.nodeIndex].transform);
                     if (auto parentNodeIndex = gltf->sceneInverseHierarchy.getParentNodeIndex(task.nodeIndex)) {
-                        nodeWorldTransform = gltf->sceneNodeWorldTransforms.worldTransforms[*parentNodeIndex] * nodeWorldTransform;
+                        nodeWorldTransform = gltf->nodeWorldTransforms[*parentNodeIndex] * nodeWorldTransform;
                     }
 
                     // Update the current and its descendant nodes' world transforms for both host and GPU side data.
-                    gltf->sceneNodeWorldTransforms.updateFrom(task.nodeIndex, nodeWorldTransform);
-                    gltf->sceneInstancedNodeWorldTransformBuffer.update(task.nodeIndex, gltf->sceneNodeWorldTransforms, gltf->assetExternalBuffers);
+                    gltf->nodeWorldTransforms.update(task.nodeIndex, nodeWorldTransform);
+                    gltf->instancedNodeWorldTransformBuffer.update(task.nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -435,7 +431,7 @@ void vk_gltf_viewer::MainApp::run() {
                             = gltf->sceneMiniball
                             = gltf::algorithm::getMiniball(
                                 gltf->asset, gltf->scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-                                    const fastgltf::math::fmat4x4 &nodeWorldTransform = gltf->sceneNodeWorldTransforms.worldTransforms[nodeIndex];
+                                    const fastgltf::math::fmat4x4 &nodeWorldTransform = gltf->nodeWorldTransforms[nodeIndex];
                                     if (gltf->asset.nodes[nodeIndex].instancingAttributes.empty()) {
                                         return cast<double>(nodeWorldTransform);
                                     }
@@ -448,7 +444,7 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [this](control::task::ChangeSelectedNodeWorldTransform) {
                     const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
-                    const fastgltf::math::fmat4x4 &selectedNodeWorldTransform = gltf->sceneNodeWorldTransforms.worldTransforms[selectedNodeIndex];
+                    const fastgltf::math::fmat4x4 &selectedNodeWorldTransform = gltf->nodeWorldTransforms[selectedNodeIndex];
 
                     // Re-calculate the node local transform.
                     //
@@ -474,7 +470,7 @@ void vk_gltf_viewer::MainApp::run() {
                     visit(fastgltf::visitor {
                         [&](fastgltf::math::fmat4x4 &transformMatrix) {
                             if (auto parentNodeIndex = gltf->sceneInverseHierarchy.getParentNodeIndex(selectedNodeIndex)) {
-                                transformMatrix = affineInverse(gltf->sceneNodeWorldTransforms.worldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
+                                transformMatrix = affineInverse(gltf->nodeWorldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
                             }
                             else {
                                 transformMatrix = selectedNodeWorldTransform;
@@ -482,7 +478,7 @@ void vk_gltf_viewer::MainApp::run() {
                         },
                         [&](fastgltf::TRS &trs) {
                             if (auto parentNodeIndex = gltf->sceneInverseHierarchy.getParentNodeIndex(selectedNodeIndex)) {
-                                const fastgltf::math::fmat4x4 transformMatrix = affineInverse(gltf->sceneNodeWorldTransforms.worldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
+                                const fastgltf::math::fmat4x4 transformMatrix = affineInverse(gltf->nodeWorldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
                                 decomposeTransformMatrix(transformMatrix, trs.scale, trs.rotation, trs.translation);
                             }
                             else {
@@ -492,8 +488,8 @@ void vk_gltf_viewer::MainApp::run() {
                     }, gltf->asset.nodes[selectedNodeIndex].transform);
 
                     // Update the current and its descendant nodes' world transforms for both host and GPU side data.
-                    gltf->sceneNodeWorldTransforms.updateFrom(selectedNodeIndex, selectedNodeWorldTransform);
-                    gltf->sceneInstancedNodeWorldTransformBuffer.update(selectedNodeIndex, gltf->sceneNodeWorldTransforms, gltf->assetExternalBuffers);
+                    gltf->nodeWorldTransforms.update(selectedNodeIndex, selectedNodeWorldTransform);
+                    gltf->instancedNodeWorldTransformBuffer.update(selectedNodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -501,7 +497,7 @@ void vk_gltf_viewer::MainApp::run() {
                             = gltf->sceneMiniball
                             = gltf::algorithm::getMiniball(
                                 gltf->asset, gltf->scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-                                    const fastgltf::math::fmat4x4 &nodeWorldTransform = gltf->sceneNodeWorldTransforms.worldTransforms[nodeIndex];
+                                    const fastgltf::math::fmat4x4 &nodeWorldTransform = gltf->nodeWorldTransforms[nodeIndex];
                                     if (gltf->asset.nodes[nodeIndex].instancingAttributes.empty()) {
                                         return cast<double>(nodeWorldTransform);
                                     }
@@ -579,7 +575,7 @@ void vk_gltf_viewer::MainApp::run() {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .asset = gltf.asset,
                     .assetGpuBuffers = gltf.assetGpuBuffers,
-                    .sceneNodeWorldTransforms = gltf.sceneNodeWorldTransforms,
+                    .nodeWorldTransforms = gltf.nodeWorldTransforms,
                     .nodeBuffer = gltf.nodeBuffer,
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
                     .renderingNodes = {
@@ -667,28 +663,30 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     gpu { gpu },
     assetGpuBuffers { asset, gpu, threadPool, assetExternalBuffers },
     assetGpuTextures { asset, directory, gpu, threadPool, assetExternalBuffers },
-    sceneInverseHierarchy { asset, scene },
-    sceneNodeWorldTransforms { asset, scene },
-    sceneInstancedNodeWorldTransformBuffer { asset, scene, sceneNodeWorldTransforms, gpu, assetExternalBuffers },
-    nodeBuffer { asset, sceneInstancedNodeWorldTransformBuffer, gpu },
-    sceneMiniball { gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-        const fastgltf::math::fmat4x4 &nodeWorldTransform = sceneNodeWorldTransforms.worldTransforms[nodeIndex];
+    nodeWorldTransforms { asset },
+    instancedNodeWorldTransformBuffer { asset, nodeWorldTransforms, gpu, assetExternalBuffers },
+    nodeBuffer { asset, instancedNodeWorldTransformBuffer, gpu },
+    sceneInverseHierarchy { asset, scene } {
+    nodeWorldTransforms.update(scene);
+    instancedNodeWorldTransformBuffer.update(scene, nodeWorldTransforms, assetExternalBuffers);
+    sceneMiniball = gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
+        const fastgltf::math::fmat4x4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
         if (asset.nodes[nodeIndex].instancingAttributes.empty()) {
             return cast<double>(nodeWorldTransform);
         }
         else {
             return cast<double>(nodeWorldTransform * getInstanceTransform(asset, nodeIndex, instanceIndex, assetExternalBuffers));
         }
-    }) } { }
+    });
+}
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
+    nodeWorldTransforms.update(scene);
+    instancedNodeWorldTransformBuffer.update(scene, nodeWorldTransforms, assetExternalBuffers);
     sceneInverseHierarchy = { asset, scene };
-    sceneNodeWorldTransforms = { asset, scene };
-    sceneInstancedNodeWorldTransformBuffer = { asset, scene, sceneNodeWorldTransforms, gpu, assetExternalBuffers };
-    nodeBuffer = { asset, sceneInstancedNodeWorldTransformBuffer, gpu };
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-        const fastgltf::math::fmat4x4 &nodeWorldTransform = sceneNodeWorldTransforms.worldTransforms[nodeIndex];
+        const fastgltf::math::fmat4x4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
         if (asset.nodes[nodeIndex].instancingAttributes.empty()) {
             return cast<double>(nodeWorldTransform);
         }

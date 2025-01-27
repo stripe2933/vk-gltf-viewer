@@ -7,7 +7,7 @@ export module vk_gltf_viewer:vulkan.buffer.Nodes;
 import std;
 export import fastgltf;
 import :helpers.ranges;
-export import :vulkan.buffer.SceneInstancedNodeWorldTransforms;
+export import :vulkan.buffer.InstancedNodeWorldTransforms;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     export class Nodes {
@@ -21,21 +21,21 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
         Nodes(
             const fastgltf::Asset &asset,
-            const SceneInstancedNodeWorldTransforms &sceneInstancedNodeWorldTransforms,
+            const InstancedNodeWorldTransforms &instancedNodeWorldTransformBuffer,
             const Gpu &gpu [[clang::lifetimebound]]
-        ) : buffer { createBuffer(asset, sceneInstancedNodeWorldTransforms, gpu) },
+        ) : buffer { createBuffer(asset, instancedNodeWorldTransformBuffer, gpu) },
             descriptorInfo { buffer, 0, vk::WholeSize } { }
 
     private:
         [[nodiscard]] vku::AllocatedBuffer createBuffer(
             const fastgltf::Asset &asset,
-            const SceneInstancedNodeWorldTransforms &sceneInstancedNodeWorldTransforms,
+            const InstancedNodeWorldTransforms &instancedNodeWorldTransformBuffer,
             const Gpu &gpu
         ) const {
             vku::AllocatedBuffer buffer = vku::MappedBuffer {
                 gpu.allocator,
                 std::from_range, ranges::views::upto(asset.nodes.size()) | std::views::transform([&](std::size_t nodeIndex) {
-                    return sceneInstancedNodeWorldTransforms.getTransformStartAddress(nodeIndex);
+                    return instancedNodeWorldTransformBuffer.getTransformStartAddress(nodeIndex);
                 }),
                 gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
             }.unmap();
