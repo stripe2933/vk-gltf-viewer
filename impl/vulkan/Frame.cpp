@@ -146,9 +146,12 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
             else {
                 result.pipeline = sharedData.getPrimitiveRenderer({
-                    .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos | std::views::transform([](const auto &info) {
-                        return info.componentType;
-                    }) | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
+                    .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos
+                        | std::views::transform([](const auto &info) {
+                            return info.componentType;
+                        })
+                        | std::views::take(4) // Avoid bad_alloc for static_vector.
+                        | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
                     .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
                         return std::pair { info.numComponent, info.componentType };
                     }),
@@ -175,9 +178,12 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         }
         else {
             result.pipeline = sharedData.getPrimitiveRenderer({
-                .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos | std::views::transform([](const auto &info) {
-                    return info.componentType;
-                }) | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
+                .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos
+                    | std::views::transform([](const auto &info) {
+                        return info.componentType;
+                    })
+                    | std::views::take(4) // Avoid bad_alloc for static_vector.
+                    | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
                 .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
                     return std::pair { info.numComponent, info.componentType };
                 }),
