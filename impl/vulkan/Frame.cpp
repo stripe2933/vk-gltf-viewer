@@ -704,7 +704,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 
             if (!resourceBindingState.descriptorSetBound) {
                 cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveNoShadingPipelineLayout,
-                    0, { sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
+                    0, sharedData.assetDescriptorSet, {});
                 resourceBindingState.descriptorSetBound = true;
             }
 
@@ -849,7 +849,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         }
         if (!resourceBindingState.descriptorBound) {
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout, 0,
-                { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
+                { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet }, {});
             resourceBindingState.descriptorBound = true;
         }
         if (!resourceBindingState.pushConstantBound) {
@@ -892,7 +892,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
         }
         if (!resourceBindingState.descriptorBound) {
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout, 0,
-                { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet, sharedData.sceneDescriptorSet }, {});
+                { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet }, {});
             resourceBindingState.descriptorBound = true;
         }
         if (!resourceBindingState.pushConstantBound) {

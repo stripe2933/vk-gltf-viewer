@@ -17,8 +17,7 @@ layout (std430, buffer_reference, buffer_reference_align = 64) readonly buffer N
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
-
-layout (set = 1, binding = 0, std430) readonly buffer NodeBuffer {
+layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {
     Node nodes[];
 };
 

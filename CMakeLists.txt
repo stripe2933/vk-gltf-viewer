@@ -159,7 +159,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/buffer/Nodes.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
-        interface/vulkan/descriptor_set_layout/Scene.cppm
         interface/vulkan/descriptor_set_layout/Skybox.cppm
         interface/vulkan/Frame.cppm
         interface/vulkan/generator/ImageBasedLightingResourceGenerator.cppm

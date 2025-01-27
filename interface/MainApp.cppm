@@ -13,7 +13,6 @@ import :gltf.SceneInverseHierarchy;
 import :vulkan.buffer.Nodes;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
-import :vulkan.dsl.Scene;
 import :vulkan.dsl.Skybox;
 import :vulkan.Frame;
 

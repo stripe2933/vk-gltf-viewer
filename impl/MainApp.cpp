@@ -853,9 +853,9 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     }));
     gpu.device.updateDescriptorSets({
         sharedData.assetDescriptorSet.getWriteOne<0>({ gltf->assetGpuBuffers.getPrimitiveBuffer(), 0, vk::WholeSize }),
-        sharedData.assetDescriptorSet.getWriteOne<1>({ gltf->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
-        sharedData.assetDescriptorSet.getWrite<2>(imageInfos),
-        sharedData.sceneDescriptorSet.getWrite<0>(gltf->nodeBuffer.descriptorInfo),
+        sharedData.assetDescriptorSet.getWrite<1>(gltf->nodeBuffer.descriptorInfo),
+        sharedData.assetDescriptorSet.getWriteOne<2>({ gltf->assetGpuBuffers.materialBuffer, 0, vk::WholeSize }),
+        sharedData.assetDescriptorSet.getWrite<3>(imageInfos),
     }, {});
 
     // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.

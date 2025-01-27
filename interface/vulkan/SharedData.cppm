@@ -44,15 +44,14 @@ namespace vk_gltf_viewer::vulkan {
         // Descriptor set layouts.
         dsl::Asset assetDescriptorSetLayout { gpu.device, 1 }; // TODO: set proper initial texture count.
         dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler };
-        dsl::Scene sceneDescriptorSetLayout { gpu.device };
         dsl::Skybox skyboxDescriptorSetLayout { gpu.device, cubemapSampler };
 
         // Render passes.
         rp::Scene sceneRenderPass { gpu.device };
 
         // Pipeline layouts.
-        pl::Primitive primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
-        pl::PrimitiveNoShading primitiveNoShadingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+        pl::Primitive primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
+        pl::PrimitiveNoShading primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout };
 
         // --------------------
         // Pipelines.
@@ -78,7 +77,6 @@ namespace vk_gltf_viewer::vulkan {
 
         // Descriptor sets.
         vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
-        vku::DescriptorSet<dsl::Scene> sceneDescriptorSet;
         vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
         vku::DescriptorSet<dsl::Skybox> skyboxDescriptorSet;
 
@@ -89,9 +87,8 @@ namespace vk_gltf_viewer::vulkan {
             std::tie(assetDescriptorSet)
                 = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(
                     assetDescriptorSetLayout));
-            std::tie(sceneDescriptorSet, imageBasedLightingDescriptorSet, skyboxDescriptorSet)
+            std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet)
                 = vku::allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
-                    sceneDescriptorSetLayout,
                     imageBasedLightingDescriptorSetLayout,
                     skyboxDescriptorSetLayout));
         }
@@ -152,7 +149,7 @@ namespace vk_gltf_viewer::vulkan {
         }
 
         void updateTextureCount(std::uint32_t textureCount) {
-            if (assetDescriptorSetLayout.descriptorCounts[2] == textureCount) {
+            if (assetDescriptorSetLayout.descriptorCounts[3] == textureCount) {
                 // If texture count is same, descriptor set layouts, pipeline layouts and pipelines doesn't have to be recreated.
                 return;
             }
@@ -166,8 +163,8 @@ namespace vk_gltf_viewer::vulkan {
             unlitPrimitivePipelines.clear();
 
             assetDescriptorSetLayout = { gpu.device, textureCount };
-            primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout, sceneDescriptorSetLayout) };
-            primitiveNoShadingPipelineLayout = { gpu.device, std::tie(assetDescriptorSetLayout, sceneDescriptorSetLayout) };
+            primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
+            primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
 
             textureDescriptorPool = createTextureDescriptorPool();
             std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(assetDescriptorSetLayout));
@@ -200,7 +197,7 @@ namespace vk_gltf_viewer::vulkan {
         }
 
         [[nodiscard]] auto createDescriptorPool() const -> vk::raii::DescriptorPool {
-            return { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, sceneDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() };
+            return { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() };
         }
     };
 }

@@ -54,10 +54,10 @@ layout (set = 0, binding = 0, scalar) uniform SphericalHarmonicsBuffer {
 layout (set = 0, binding = 1) uniform samplerCube prefilteredmap;
 layout (set = 0, binding = 2) uniform sampler2D brdfmap;
 
-layout (set = 1, binding = 1, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout (set = 1, binding = 2) uniform sampler2D textures[];
+layout (set = 1, binding = 3) uniform sampler2D textures[];
 
 layout (push_constant, std430) uniform PushConstant {
     mat4 projectionView;

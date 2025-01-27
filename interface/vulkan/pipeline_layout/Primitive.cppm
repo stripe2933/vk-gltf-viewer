@@ -10,7 +10,6 @@ export import vulkan_hpp;
 import vku;
 export import :vulkan.dsl.Asset;
 export import :vulkan.dsl.ImageBasedLighting;
-export import :vulkan.dsl.Scene;
 
 namespace vk_gltf_viewer::vulkan::pl {
     export struct Primitive : vk::raii::PipelineLayout {
@@ -21,10 +20,10 @@ namespace vk_gltf_viewer::vulkan::pl {
 
         Primitive(
             const vk::raii::Device &device [[clang::lifetimebound]],
-            std::tuple<const dsl::ImageBasedLighting&, const dsl::Asset&, const dsl::Scene&> descriptorSetLayouts [[clang::lifetimebound]]
+            std::pair<const dsl::ImageBasedLighting&, const dsl::Asset&> descriptorSetLayouts [[clang::lifetimebound]]
         ) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},
-                vku::unsafeProxy(std::apply([](const auto &...x) { return std::array { *x... }; }, descriptorSetLayouts)),
+                vku::unsafeProxy({ *descriptorSetLayouts.first, *descriptorSetLayouts.second }),
                 vku::unsafeProxy(vk::PushConstantRange {
                     vk::ShaderStageFlagBits::eAllGraphics,
                     0, sizeof(PushConstant),

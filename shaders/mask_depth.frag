@@ -27,10 +27,10 @@ layout (location = 2) in FRAG_VARIADIC_IN {
 
 layout (location = 0) out uint outNodeIndex;
 
-layout (set = 0, binding = 1, std430) readonly buffer MaterialBuffer {
+layout (set = 0, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout (set = 0, binding = 2) uniform sampler2D textures[];
+layout (set = 0, binding = 3) uniform sampler2D textures[];
 
 void main(){
     float baseColorAlpha = MATERIAL.baseColorFactor.a;
