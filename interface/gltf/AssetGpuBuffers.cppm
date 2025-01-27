@@ -111,13 +111,11 @@ namespace vk_gltf_viewer::gltf {
         ) : asset { asset },
             gpu { gpu },
             // Ensure the order of function execution:
-            // Primitive attribute buffers MUST be created before index buffer creation (because fill the AssetPrimitiveInfo
-            // and determine the drawCount if primitive is non-indexed, and createIndexBuffers() will use it).
-            indexBuffers { (createPrimitiveAttributeBuffers(adapter), createPrimitiveIndexBuffers(adapter)) },
+            indexBuffers { createPrimitiveIndexBuffers(adapter) },
             materialBuffer { materialBuffer },
             // Remaining buffers MUST be created before the primitive buffer creation (because they fill the
             // AssetPrimitiveInfo and createPrimitiveBuffer() will stage it).
-            primitiveBuffer { (createPrimitiveIndexedAttributeMappingBuffers(), createPrimitiveTangentBuffers(threadPool, adapter), createPrimitiveBuffer()) } {
+            primitiveBuffer { (createPrimitiveAttributeBuffers(adapter), createPrimitiveIndexedAttributeMappingBuffers(), createPrimitiveTangentBuffers(threadPool, adapter), createPrimitiveBuffer()) } {
             if (!stagingInfos.empty()) {
                 // Transfer the asset resources into the GPU using transfer queue.
                 const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
@@ -252,7 +250,6 @@ namespace vk_gltf_viewer::gltf {
                     for (auto [pPrimitive, offset] : std::views::zip(primitiveAndIndexBytesPairs | std::views::keys, copyOffsets)) {
                         AssetPrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
                         primitiveInfo.indexInfo.emplace(offset, indexType);
-                        primitiveInfo.drawCount = asset.accessors[*pPrimitive->indicesAccessor].count;
                     }
 
                     return std::pair { indexType, std::move(buffer) };
@@ -341,9 +338,6 @@ namespace vk_gltf_viewer::gltf {
 
                     if (attributeName == "POSITION"sv) {
                         primitiveInfo.positionInfo = getAttributeBufferInfo();
-                        primitiveInfo.drawCount = accessor.count;
-                        primitiveInfo.min = glm::make_vec3(get_if<std::pmr::vector<double>>(&accessor.min)->data());
-                        primitiveInfo.max = glm::make_vec3(get_if<std::pmr::vector<double>>(&accessor.max)->data());
                     }
                     else if (attributeName == "NORMAL"sv) {
                         primitiveInfo.normalInfo.emplace(getAttributeBufferInfo());

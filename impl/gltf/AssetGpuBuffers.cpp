@@ -54,7 +54,6 @@ auto vk_gltf_viewer::gltf::AssetGpuBuffers::createPrimitiveInfos() const -> std:
                 pPrimitive,
                 AssetPrimitiveInfo {
                     .index = primitiveIndex,
-                    .materialIndex = to_optional(pPrimitive->materialIndex),
                 },
             };
         })
@@ -85,7 +84,7 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::gltf::Asse
                 .normalByteStride = normalInfo.byteStride,
                 .tangentByteStride = tangentInfo.byteStride,
                 .colorByteStride = colorInfo.byteStride,
-                .materialIndex = primitiveInfo.materialIndex.transform(LIFT(materialBuffer.get().padMaterialIndex)).value_or(0U),
+                .materialIndex = to_optional(pPrimitive->materialIndex).transform(LIFT(materialBuffer.get().padMaterialIndex)).value_or(0U),
             };
         }),
         gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,

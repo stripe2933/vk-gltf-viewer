@@ -117,8 +117,8 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
-        if (primitiveInfo.materialIndex) {
-            const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
+        if (primitive.materialIndex) {
+            const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
 
             constexpr auto fetchTextureTransform = [](const fastgltf::TextureInfo &textureInfo) {
@@ -205,8 +205,8 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
-        if (primitiveInfo.materialIndex) {
-            const fastgltf::Material& material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
+        if (primitive.materialIndex) {
+            const fastgltf::Material& material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskDepthRenderer({
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
@@ -239,8 +239,8 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
-        if (primitiveInfo.materialIndex) {
-            const fastgltf::Material &material = task.gltf->asset.materials[*primitiveInfo.materialIndex];
+        if (primitive.materialIndex) {
+            const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskJumpFloodSeedRenderer({
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
@@ -267,6 +267,13 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         std::uint16_t nodeIndex,
         const fastgltf::Primitive &primitive
     ) -> std::variant<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand> {
+        // Get the accessor which determine the draw count.
+        // - If the primitive has indices accessor, it will determine the draw count.
+        // - Otherwise, the POSITION accessor will determine the draw count.
+        const std::size_t drawCountDeterminingAccessorIndex
+            = primitive.indicesAccessor.value_or(primitive.findAttribute("POSITION")->accessorIndex);
+        const std::uint32_t drawCount = task.gltf->asset.accessors[drawCountDeterminingAccessorIndex].count;
+
         // EXT_mesh_gpu_instancing support.
         std::uint32_t instanceCount = 1;
         if (const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex]; !node.instancingAttributes.empty()) {
@@ -274,6 +281,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         }
 
         const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
+        const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index);
         if (const auto &indexInfo = primitiveInfo.indexInfo) {
             const std::size_t indexByteSize = [=]() {
                 switch (indexInfo->type) {
@@ -285,19 +293,19 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }();
 
             return vk::DrawIndexedIndirectCommand {
-                primitiveInfo.drawCount,
+                drawCount,
                 instanceCount,
                 static_cast<std::uint32_t>(primitiveInfo.indexInfo->offset / indexByteSize),
                 0,
-                (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index),
+                firstInstance,
             };
         }
         else {
             return vk::DrawIndirectCommand {
-                primitiveInfo.drawCount,
+                drawCount,
                 instanceCount,
                 0,
-                (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index),
+                firstInstance,
             };
         }
     };
@@ -324,11 +332,13 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     const std::uint16_t primitiveIndex = command.firstInstance & 0xFFFFU;
                     const fastgltf::Primitive &primitive = task.gltf->assetGpuBuffers.getPrimitiveByOrder(primitiveIndex);
 
-                    const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
+                    const fastgltf::Accessor &positionAccessor = task.gltf->asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];
+                    const double *positionMinData = get_if<std::pmr::vector<double>>(&positionAccessor.min)->data();
+                    const double *positionMaxData = get_if<std::pmr::vector<double>>(&positionAccessor.max)->data();
 
                     const glm::mat4 nodeWorldTransform = glm::make_mat4(task.gltf->nodeWorldTransforms[nodeIndex].data());
-                    const glm::vec3 transformedMin { nodeWorldTransform * glm::vec4 { primitiveInfo.min, 1.f } };
-                    const glm::vec3 transformedMax { nodeWorldTransform * glm::vec4 { primitiveInfo.max, 1.f } };
+                    const glm::vec3 transformedMin { nodeWorldTransform * glm::vec4 { glm::make_vec3(positionMinData), 1.f } };
+                    const glm::vec3 transformedMax { nodeWorldTransform * glm::vec4 { glm::make_vec3(positionMinData), 1.f } };
 
                     const glm::vec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
                     const glm::vec3 center = transformedMin + halfDisplacement;
