@@ -138,7 +138,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
                     }),
                     .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
-                        return std::pair { info.numComponent, info.componentType };
+                        return std::pair { info.componentCount, info.componentType };
                     }),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
@@ -153,9 +153,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                             return info.componentType;
                         })
                         | std::views::take(4) // Avoid bad_alloc for static_vector.
-                        | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
+                        | std::ranges::to<boost::container::static_vector<std::uint8_t, 4>>(),
                     .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
-                        return std::pair { info.numComponent, info.componentType };
+                        return std::pair { info.componentCount, info.componentType };
                     }),
                     .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
@@ -185,9 +185,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         return info.componentType;
                     })
                     | std::views::take(4) // Avoid bad_alloc for static_vector.
-                    | std::ranges::to<boost::container::static_vector<fastgltf::ComponentType, 4>>(),
+                    | std::ranges::to<boost::container::static_vector<std::uint8_t, 4>>(),
                 .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
-                    return std::pair { info.numComponent, info.componentType };
+                    return std::pair { info.componentCount, info.componentType };
                 }),
                 .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
             });
@@ -214,7 +214,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     }),
                     .colorAlphaComponentType = primitiveInfo.colorInfo.and_then([](const auto &info) {
                         // Alpha value exists only if COLOR_0 is Vec4 type.
-                        return value_if(info.numComponent == 4, info.componentType);
+                        return value_if(info.componentCount == 4, info.componentType);
                     }),
                 });
             }
@@ -248,7 +248,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     }),
                     .colorAlphaComponentType = primitiveInfo.colorInfo.and_then([](const auto &info) {
                         // Alpha value exists only if COLOR_0 is Vec4 type.
-                        return value_if(info.numComponent == 4, info.componentType);
+                        return value_if(info.componentCount == 4, info.componentType);
                     }),
                 });
             }

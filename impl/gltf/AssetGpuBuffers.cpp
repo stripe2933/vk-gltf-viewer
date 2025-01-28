@@ -28,11 +28,10 @@ bool vk_gltf_viewer::gltf::AssetGpuBuffers::updatePrimitiveMaterial(
             return false;
         },
         [&](vk::Buffer primitiveBuffer) {
-            transferCommandBuffer.updateBuffer(
+            transferCommandBuffer.updateBuffer<std::uint32_t>(
                 primitiveBuffer,
                 sizeof(GpuPrimitive) * orderedPrimitiveIndex + offsetof(GpuPrimitive, materialIndex),
-                sizeof(GpuPrimitive::materialIndex),
-                &paddedMaterialIndex);
+                paddedMaterialIndex);
             return true;
         }
     }, primitiveBuffer);
@@ -72,7 +71,7 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::gltf::Asse
             const auto tangentInfo = primitiveInfo.tangentInfo.value_or(AssetPrimitiveInfo::AttributeBufferInfo{});
 
             // If color is not presented, it is not used in the shader. Therefore, it is okay to pass nullptr into shaders.
-            const auto colorInfo = primitiveInfo.colorInfo.value_or(AssetPrimitiveInfo::ColorAttributeBufferInfo{});
+            const auto colorInfo = primitiveInfo.colorInfo.value_or(AssetPrimitiveInfo::AttributeBufferInfo{});
 
             return GpuPrimitive {
                 .pPositionBuffer = primitiveInfo.positionInfo.address,

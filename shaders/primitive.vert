@@ -16,7 +16,7 @@
 
 layout (constant_id = 0) const uint PACKED_TEXCOORD_COMPONENT_TYPES = 0x06060606; // [FLOAT, FLOAT, FLOAT, FLOAT]
 layout (constant_id = 1) const uint COLOR_COMPONENT_COUNT = 0;
-layout (constant_id = 2) const uint COLOR_COMPONENT_TYPE = 5126; // FLOAT
+layout (constant_id = 2) const uint COLOR_COMPONENT_TYPE = 6; // FLOAT
 
 layout (location = 0) out vec3 outPosition;
 layout (location = 1) flat out uint outMaterialIndex;

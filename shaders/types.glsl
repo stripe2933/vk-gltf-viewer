@@ -36,7 +36,10 @@ struct Material {
 
 struct IndexedAttributeMappingInfo {
     uint64_t bytesPtr;
+    uint8_t componentType;
+    uint8_t componentCount;
     uint8_t stride;
+    uint8_t _padding_[5];
 };
 
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer IndexedAttributeMappingInfos { IndexedAttributeMappingInfo data[]; };

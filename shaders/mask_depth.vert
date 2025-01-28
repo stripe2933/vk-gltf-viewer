@@ -14,8 +14,8 @@
 
 #define HAS_VARIADIC_OUT HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ALPHA_ATTRIBUTE
 
-layout (constant_id = 0) const uint TEXCOORD_COMPONENT_TYPE = 5126; // FLOAT
-layout (constant_id = 1) const uint COLOR_COMPONENT_TYPE = 5126; // FLOAT
+layout (constant_id = 0) const uint TEXCOORD_COMPONENT_TYPE = 6; // FLOAT
+layout (constant_id = 1) const uint COLOR_COMPONENT_TYPE = 6; // FLOAT
 
 layout (location = 0) flat out uint outNodeIndex;
 layout (location = 1) flat out uint outMaterialIndex;

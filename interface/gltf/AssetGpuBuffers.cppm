@@ -329,8 +329,9 @@ namespace vk_gltf_viewer::gltf {
                         if (!std::in_range<std::uint8_t>(byteStride)) throw AssetProcessError::TooLargeAccessorByteStride;
                         return {
                             .address = bufferDeviceAddressMappings.at(*accessor.bufferViewIndex) + accessor.byteOffset,
+                            .componentType = static_cast<std::uint8_t>(getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte)),
+                            .componentCount = static_cast<std::uint8_t>(getNumComponents(accessor.type)),
                             .byteStride = static_cast<std::uint8_t>(byteStride),
-                            .componentType = accessor.componentType,
                         };
                     };
 
@@ -359,7 +360,7 @@ namespace vk_gltf_viewer::gltf {
                         primitiveInfo.texcoordsInfo.attributeInfos[index] = getAttributeBufferInfo();
                     }
                     else if (attributeName == "COLOR_0"sv) {
-                        primitiveInfo.colorInfo.emplace(getAttributeBufferInfo(), getNumComponents(accessor.type));
+                        primitiveInfo.colorInfo.emplace(getAttributeBufferInfo());
                     }
                 }
             }

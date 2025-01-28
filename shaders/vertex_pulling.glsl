@@ -56,11 +56,11 @@ vec2 getTexcoord(uint texcoordIndex){
     uint64_t fetchAddress = mappingInfo.bytesPtr + uint(mappingInfo.stride) * uint(gl_VertexIndex);
 
     switch (TEXCOORD_COMPONENT_TYPE) {
-    case 5121U: // UNSIGNED BYTE
+    case 1U: // UNSIGNED BYTE
         return dequantize(U8Vec2Ref(fetchAddress).data);
-    case 5123U: // UNSIGNED SHORT
+    case 3U: // UNSIGNED SHORT
         return dequantize(U16Vec2Ref(fetchAddress).data);
-    case 5126U: // FLOAT
+    case 6U: // FLOAT
         return Vec2Ref(fetchAddress).data;
     }
     return vec2(0.0); // unreachable.
@@ -72,21 +72,21 @@ vec4 getColor() {
     uint64_t fetchAddress = PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex);
     if (COLOR_COMPONENT_COUNT == 3U) {
         switch (COLOR_COMPONENT_TYPE) {
-        case 5121U: // UNSIGNED BYTE
+        case 1U: // UNSIGNED BYTE
             return vec4(dequantize(U8Vec3Ref(fetchAddress).data), 1.0);
-        case 5123U: // UNSIGNED SHORT
+        case 3U: // UNSIGNED SHORT
             return vec4(dequantize(U16Vec3Ref(fetchAddress).data), 1.0);
-        case 5126U: // FLOAT
+        case 6U: // FLOAT
             return vec4(Vec3Ref(fetchAddress).data, 1.0);
         }
     }
     else if (COLOR_COMPONENT_COUNT == 4U) {
         switch (COLOR_COMPONENT_TYPE) {
-        case 5121U: // UNSIGNED BYTE
+        case 1U: // UNSIGNED BYTE
             return dequantize(U8Vec4Ref(fetchAddress).data);
-        case 5123U: // UNSIGNED SHORT
+        case 3U: // UNSIGNED SHORT
             return dequantize(U16Vec4Ref(fetchAddress).data);
-        case 5126U: // FLOAT
+        case 6U: // FLOAT
             return Vec4Ref(fetchAddress).data;
         }
     }
@@ -100,13 +100,13 @@ float getColorAlpha() {
     // integer arithmetic instruction.
     uint fetchIndex = uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex);
     switch (COLOR_COMPONENT_TYPE) {
-    case 5121U: // UNSIGNED BYTE
+    case 1U: // UNSIGNED BYTE
         fetchIndex += 3U; // sizeof(u8vec3)
         return dequantize(Uint8Ref(PRIMITIVE.pColorBuffer + fetchIndex).data);
-    case 5123U: // UNSIGNED SHORT
+    case 3U: // UNSIGNED SHORT
         fetchIndex += 6U; // sizeof(u16vec3)
         return dequantize(Uint16Ref(PRIMITIVE.pColorBuffer + fetchIndex).data);
-    case 5126U: // FLOAT
+    case 6U: // FLOAT
         fetchIndex += 12; // sizeof(vec3)
         return FloatRef(PRIMITIVE.pColorBuffer + fetchIndex).data;
     }
