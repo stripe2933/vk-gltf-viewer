@@ -13,6 +13,7 @@ import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
 import :vulkan.ag.DepthPrepass;
+import :vulkan.buffer.IndirectDrawCommands;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
 
