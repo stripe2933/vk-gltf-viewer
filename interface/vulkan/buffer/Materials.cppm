@@ -11,13 +11,12 @@ import :helpers.optional;
 import :helpers.ranges;
 export import :vulkan.Gpu;
 
-[[nodiscard]] std::pair<glm::mat2, glm::vec2> getTextureTransformMatrixPair(const fastgltf::TextureTransform &transform) noexcept {
+[[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept {
     const float c = std::cos(transform.rotation), s = std::sin(transform.rotation);
-    return {
-        { // Note: column major. A row in code actually means a column in the matrix.
-            transform.uvScale[0] * c, transform.uvScale[0] * -s,
-            transform.uvScale[1] * s, transform.uvScale[1] * c },
-        { transform.uvOffset[0], transform.uvOffset[1] },
+    return { // Note: column major. A row in code actually means a column in the matrix.
+        transform.uvScale[0] * c, transform.uvScale[0] * -s,
+        transform.uvScale[1] * s, transform.uvScale[1] * c,
+        transform.uvOffset[0], transform.uvOffset[1],
     };
 }
 
@@ -43,16 +42,11 @@ namespace vk_gltf_viewer::vulkan::buffer {
             float occlusionStrength = 1.f;
             glm::vec3 emissiveFactor = { 0.f, 0.f, 0.f };
             float alphaCutOff;
-            glm::mat2 baseColorTextureTransformUpperLeft2x2;
-            glm::vec2 baseColorTextureTransformOffset;
-            glm::mat2 metallicRoughnessTextureTransformUpperLeft2x2;
-            glm::vec2 metallicRoughnessTextureTransformOffset;
-            glm::mat2 normalTextureTransformUpperLeft2x2;
-            glm::vec2 normalTextureTransformOffset;
-            glm::mat2 occlusionTextureTransformUpperLeft2x2;
-            glm::vec2 occlusionTextureTransformOffset;
-            glm::mat2 emissiveTextureTransformUpperLeft2x2;
-            glm::vec2 emissiveTextureTransformOffset;
+            glm::mat3x2 baseColorTextureTransform;
+            glm::mat3x2 metallicRoughnessTextureTransform;
+            glm::mat3x2 normalTextureTransform;
+            glm::mat3x2 occlusionTextureTransform;
+            glm::mat3x2 emissiveTextureTransform;
             char padding1[8];
         };
         static_assert(sizeof(GpuMaterial) == 192);
@@ -110,8 +104,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                             gpuMaterial.baseColorTextureIndex = static_cast<std::int16_t>(baseColorTexture->textureIndex);
 
                             if (const auto &transform = baseColorTexture->transform) {
-                                std::tie(gpuMaterial.baseColorTextureTransformUpperLeft2x2, gpuMaterial.baseColorTextureTransformOffset)
-                                    = getTextureTransformMatrixPair(*transform);
+                                gpuMaterial.baseColorTextureTransform = getTextureTransform(*transform);
                                 if (transform->texCoordIndex) {
                                     gpuMaterial.baseColorTexcoordIndex = *transform->texCoordIndex;
                                 }
@@ -122,8 +115,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                             gpuMaterial.metallicRoughnessTextureIndex = static_cast<std::int16_t>(metallicRoughnessTexture->textureIndex);
 
                             if (const auto &transform = metallicRoughnessTexture->transform) {
-                                std::tie(gpuMaterial.metallicRoughnessTextureTransformUpperLeft2x2, gpuMaterial.metallicRoughnessTextureTransformOffset)
-                                    = getTextureTransformMatrixPair(*transform);
+                                gpuMaterial.metallicRoughnessTextureTransform = getTextureTransform(*transform);
                                 if (transform->texCoordIndex) {
                                     gpuMaterial.metallicRoughnessTexcoordIndex = *transform->texCoordIndex;
                                 }
@@ -135,8 +127,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                             gpuMaterial.normalScale = normalTexture->scale;
 
                             if (const auto &transform = normalTexture->transform) {
-                                std::tie(gpuMaterial.normalTextureTransformUpperLeft2x2, gpuMaterial.normalTextureTransformOffset)
-                                    = getTextureTransformMatrixPair(*transform);
+                                gpuMaterial.normalTextureTransform = getTextureTransform(*transform);
                                 if (transform->texCoordIndex) {
                                     gpuMaterial.normalTexcoordIndex = *transform->texCoordIndex;
                                 }
@@ -148,8 +139,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                             gpuMaterial.occlusionStrength = occlusionTexture->strength;
 
                             if (const auto &transform = occlusionTexture->transform) {
-                                std::tie(gpuMaterial.occlusionTextureTransformUpperLeft2x2, gpuMaterial.occlusionTextureTransformOffset)
-                                    = getTextureTransformMatrixPair(*transform);
+                                gpuMaterial.occlusionTextureTransform = getTextureTransform(*transform);
                                 if (transform->texCoordIndex) {
                                     gpuMaterial.occlusionTexcoordIndex = *transform->texCoordIndex;
                                 }
@@ -160,8 +150,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                             gpuMaterial.emissiveTextureIndex = static_cast<std::int16_t>(emissiveTexture->textureIndex);
 
                             if (const auto &transform = emissiveTexture->transform) {
-                                std::tie(gpuMaterial.emissiveTextureTransformUpperLeft2x2, gpuMaterial.emissiveTextureTransformOffset)
-                                    = getTextureTransformMatrixPair(*transform);
+                                gpuMaterial.emissiveTextureTransform = getTextureTransform(*transform);
                                 if (transform->texCoordIndex) {
                                     gpuMaterial.emissiveTexcoordIndex = *transform->texCoordIndex;
                                 }
