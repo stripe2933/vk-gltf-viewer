@@ -1,11 +1,13 @@
 export module vk_gltf_viewer:vulkan.buffer.InstancedNodeWorldTransforms;
 
 import std;
+import vku;
+export import vk_mem_alloc_hpp;
+export import vulkan_hpp;
 import :gltf.algorithm.traversal;
 export import :gltf.NodeWorldTransforms;
 import :helpers.fastgltf;
 import :helpers.ranges;
-export import :vulkan.Gpu;
 
 /**
  * Convert the span of \p U to the span of \p T. The result span byte size must be same as the \p span's.
@@ -39,11 +41,11 @@ namespace vk_gltf_viewer::vulkan::buffer {
         InstancedNodeWorldTransforms(
             const fastgltf::Asset &asset [[clang::lifetimebound]],
             const gltf::NodeWorldTransforms &nodeWorldTransforms,
-            const Gpu &gpu [[clang::lifetimebound]],
+            vma::Allocator allocator,
             const BufferDataAdapter &adapter = {}
         ) : asset { asset },
             instanceOffsets { createInstanceOffsets() },
-            buffer { createBuffer(gpu.allocator, nodeWorldTransforms, adapter) },
+            buffer { createBuffer(allocator, nodeWorldTransforms, adapter) },
             descriptorInfo { buffer, 0, vk::WholeSize } { }
 
         [[nodiscard]] std::uint32_t getStartIndex(std::size_t nodeIndex) const noexcept {

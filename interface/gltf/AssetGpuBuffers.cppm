@@ -14,10 +14,11 @@ export import :gltf.AssetProcessError;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
-import :helpers.type_map;
 import :vulkan.buffer;
 export import :vulkan.buffer.Materials;
+export import :vulkan.buffer.StagingBufferStorage;
 export import :vulkan.Gpu;
+import :vulkan.trait.PostTransferObject;
 
 /**
  * @brief Parse a number from given \p str.
@@ -42,7 +43,7 @@ namespace vk_gltf_viewer::gltf {
      *
      * These buffers could be used for all asset. If you're finding the scene specific buffers (like node transformation matrices, ordered node primitives, etc.), see AssetSceneGpuBuffers for that purpose.
      */
-    export class AssetGpuBuffers {
+    export class AssetGpuBuffers : vulkan::trait::PostTransferObject {
         const fastgltf::Asset &asset;
         const vulkan::Gpu &gpu;
 
@@ -60,14 +61,6 @@ namespace vk_gltf_viewer::gltf {
          */
         std::vector<vku::AllocatedBuffer> internalBuffers;
 
-        /**
-         * @brief Staging buffers and their copy infos.
-         *
-         * Consisted of <tt>AllocatedBuffer</tt> that contains the data, <tt>Buffer</tt> that will be copied into, and <tt>BufferCopy</tt> that describes the copy region.
-         * This should be cleared after the staging operation ends.
-         */
-        std::vector<std::tuple<vku::AllocatedBuffer, vk::Buffer, vk::BufferCopy>> stagingInfos;
-
     public:
         struct GpuPrimitive {
             vk::DeviceAddress pPositionBuffer;
@@ -84,15 +77,6 @@ namespace vk_gltf_viewer::gltf {
 
         std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> primitiveInfos = createPrimitiveInfos();
 
-        /**
-         * @brief All indices that are combined as a single buffer by their index types.
-         *
-         * Use <tt>AssetPrimitiveInfo::indexInfo</tt> to get the offset of data that is used by the primitive.
-         *
-         * @note If you passed <tt>vulkan::Gpu</tt> whose <tt>supportUint8Index</tt> is <tt>false</tt>, primitive with unsigned byte (<tt>uint8_t</tt>) indices will be converted to unsigned short (<tt>uint16_t</tt>) indices.
-         */
-        std::unordered_map<vk::IndexType, vku::AllocatedBuffer> indexBuffers;
-
     private:
         std::reference_wrapper<const vulkan::buffer::Materials> materialBuffer;
         /**
@@ -106,29 +90,16 @@ namespace vk_gltf_viewer::gltf {
             const fastgltf::Asset &asset,
             const vulkan::buffer::Materials &materialBuffer [[clang::lifetimebound]],
             const vulkan::Gpu &gpu,
+            vulkan::buffer::StagingBufferStorage &stagingBufferStorage,
             BS::thread_pool<> &threadPool,
             const BufferDataAdapter &adapter = {}
-        ) : asset { asset },
+        ) : PostTransferObject { stagingBufferStorage },
+            asset { asset },
             gpu { gpu },
-            // Ensure the order of function execution:
-            indexBuffers { createPrimitiveIndexBuffers(adapter) },
             materialBuffer { materialBuffer },
             // Remaining buffers MUST be created before the primitive buffer creation (because they fill the
             // AssetPrimitiveInfo and createPrimitiveBuffer() will stage it).
-            primitiveBuffer { (createPrimitiveAttributeBuffers(adapter), createPrimitiveIndexedAttributeMappingBuffers(), createPrimitiveTangentBuffers(threadPool, adapter), createPrimitiveBuffer()) } {
-            if (!stagingInfos.empty()) {
-                // Transfer the asset resources into the GPU using transfer queue.
-                const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-                const vk::raii::Fence transferFence { gpu.device, vk::FenceCreateInfo{} };
-                vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
-                    for (const auto &[srcBuffer, dstBuffer, copyRegion] : stagingInfos) {
-                        cb.copyBuffer(srcBuffer, dstBuffer, copyRegion);
-                    }
-                }, *transferFence);
-                std::ignore = gpu.device.waitForFences(*transferFence, true, ~0ULL); // TODO: failure handling
-                stagingInfos.clear();
-            }
-        }
+            primitiveBuffer { (createPrimitiveAttributeBuffers(adapter), createPrimitiveIndexedAttributeMappingBuffers(), createPrimitiveTangentBuffers(threadPool, adapter), createPrimitiveBuffer()) } { }
 
         [[nodiscard]] vk::Buffer getPrimitiveBuffer() const noexcept { return visit_as<vk::Buffer>(primitiveBuffer); }
 
@@ -151,111 +122,6 @@ namespace vk_gltf_viewer::gltf {
     private:
         [[nodiscard]] std::vector<const fastgltf::Primitive*> createOrderedPrimitives() const;
         [[nodiscard]] std::unordered_map<const fastgltf::Primitive*, AssetPrimitiveInfo> createPrimitiveInfos() const;
-
-        template <typename BufferDataAdapter>
-        [[nodiscard]] std::unordered_map<vk::IndexType, vku::AllocatedBuffer> createPrimitiveIndexBuffers(const BufferDataAdapter &adapter) {
-            // Primitive that are contains an indices accessor.
-            auto indexedPrimitives = asset.meshes
-                | std::views::transform(&fastgltf::Mesh::primitives)
-                | std::views::join
-                | std::views::filter([](const fastgltf::Primitive &primitive) { return primitive.indicesAccessor.has_value(); });
-
-            // Index data is either
-            // - span of the buffer view region, or
-            // - generated indices if accessor data layout couldn't be represented in Vulkan buffer.
-            std::vector<std::vector<std::byte>> generatedIndexBytes;
-            std::unordered_map<vk::IndexType, std::vector<std::pair<const fastgltf::Primitive*, std::span<const std::byte>>>> indexBufferBytesByType;
-
-            // Get buffer view bytes from indexedPrimitives and group them by index type.
-            for (const fastgltf::Primitive &primitive : indexedPrimitives) {
-                const fastgltf::Accessor &accessor = asset.accessors[*primitive.indicesAccessor];
-
-                bool shouldGenerateIndices = false;
-
-                // Sparse accessor have to be handled.
-                shouldGenerateIndices |= accessor.sparse.has_value();
-
-                // Vulkan does not support interleaved index buffer.
-                if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride) {
-                    const bool isAccessorStrided = *byteStride != getElementByteSize(accessor.type, accessor.componentType);
-                    shouldGenerateIndices |= isAccessorStrided;
-                }
-
-                // Unsigned byte indices have to be converted to uint16 if the device does not support it.
-                shouldGenerateIndices |= accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index;
-
-                if (shouldGenerateIndices) {
-                    constexpr type_map indexGenerationTypeMap {
-                        make_type_map_entry<std::pair<std::uint8_t, std::uint8_t>>(0),
-                        make_type_map_entry<std::pair<std::uint16_t, std::uint16_t>>(1),
-                        make_type_map_entry<std::pair<std::uint32_t, std::uint32_t>>(2),
-                        make_type_map_entry<std::pair<std::uint8_t, std::uint16_t>>(3),
-                    };
-
-                    const int key = [&]() {
-                        switch (accessor.componentType) {
-                            case fastgltf::ComponentType::UnsignedByte:
-                                return gpu.supportUint8Index ? 0 : 3;
-                            case fastgltf::ComponentType::UnsignedShort:
-                                return 1;
-                            case fastgltf::ComponentType::UnsignedInt:
-                                return 2;
-                            default:
-                                // glTF Specification:
-                                // The indices accessor MUST have SCALAR type and an unsigned integer component type.
-                                std::unreachable();
-                        }
-                    }();
-                    visit([&]<typename SrcT, typename DstT>(std::type_identity<std::pair<SrcT, DstT>>) {
-                        std::vector<std::byte> indexBytes(sizeof(DstT) * accessor.count);
-                        if constexpr (std::same_as<SrcT, DstT>) {
-                            copyFromAccessor<DstT>(asset, accessor, indexBytes.data(), adapter);
-                        }
-                        else {
-                            iterateAccessorWithIndex<SrcT>(asset, accessor, [&](SrcT index, std::size_t i) {
-                                *reinterpret_cast<DstT*>(indexBytes.data() + sizeof(DstT) * i) = index; // Index converted from uint8 to uint16.
-                            }, adapter);
-                        }
-
-                        indexBufferBytesByType[vk::IndexTypeValue<DstT>::value].emplace_back(
-                            &primitive,
-                            generatedIndexBytes.emplace_back(std::move(indexBytes)));
-                    }, indexGenerationTypeMap.get_variant(key));
-                }
-                else {
-                    const vk::IndexType indexType = [&]() -> vk::IndexType {
-                        switch (accessor.componentType) {
-                            case fastgltf::ComponentType::UnsignedByte: return vk::IndexType::eUint8EXT;
-                            case fastgltf::ComponentType::UnsignedShort: return vk::IndexType::eUint16;
-                            case fastgltf::ComponentType::UnsignedInt: return vk::IndexType::eUint32;
-                            default:
-                                // glTF Specification:
-                                // The indices accessor MUST have SCALAR type and an unsigned integer component type.
-                                std::unreachable();
-                        }
-                    }();
-
-                    indexBufferBytesByType[indexType].emplace_back(&primitive, getByteRegion(asset, accessor, adapter));
-                }
-            }
-
-            return indexBufferBytesByType
-                | ranges::views::decompose_transform([&](vk::IndexType indexType, const auto &primitiveAndIndexBytesPairs) {
-                    auto [buffer, copyOffsets] = vulkan::buffer::createCombinedBuffer<true>(
-                        gpu.allocator,
-                        primitiveAndIndexBytesPairs | std::views::values,
-                        gpu.isUmaDevice ? vk::BufferUsageFlagBits::eIndexBuffer : vk::BufferUsageFlagBits::eTransferSrc);
-                    stageIfNeeded(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer);
-
-                    for (auto [pPrimitive, offset] : std::views::zip(primitiveAndIndexBytesPairs | std::views::keys, copyOffsets)) {
-                        AssetPrimitiveInfo &primitiveInfo = primitiveInfos[pPrimitive];
-                        primitiveInfo.indexInfo.emplace(offset, indexType);
-                    }
-
-                    return std::pair { indexType, std::move(buffer) };
-                })
-                | std::ranges::to<std::unordered_map>();
-        }
 
         [[nodiscard]] std::variant<vku::AllocatedBuffer, vku::MappedBuffer> createPrimitiveBuffer();
 
@@ -294,10 +160,10 @@ namespace vk_gltf_viewer::gltf {
             auto [buffer, copyOffsets] = vulkan::buffer::createCombinedBuffer<true>(
                 gpu.allocator,
                 attributeBufferViewBytes | std::views::values,
-                gpu.isUmaDevice
-                    ? vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress
-                    : vk::BufferUsageFlagBits::eTransferSrc);
-            stageIfNeeded(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
+            if (vulkan::buffer::StagingBufferStorage::needStaging(buffer)) {
+                stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+            }
 
             // Hashmap that can get buffer device address by corresponding buffer view index.
             const std::unordered_map bufferDeviceAddressMappings
@@ -441,10 +307,10 @@ namespace vk_gltf_viewer::gltf {
                 missingTangentPrimitives | std::views::transform([](const auto &pair) {
                     return as_bytes(std::span { pair.second.tangents });
                 }),
-                gpu.isUmaDevice
-                    ? vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress
-                    : vk::BufferUsageFlagBits::eTransferSrc);
-            stageIfNeeded(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
+            if (vulkan::buffer::StagingBufferStorage::needStaging(buffer)) {
+                stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+            }
 
             for (vk::DeviceAddress baseAddress = gpu.device.getBufferAddress({ buffer });
                 auto [pPrimitive, copyOffset] : std::views::zip(missingTangentPrimitives | std::views::keys, copyOffsets)) {
@@ -453,9 +319,5 @@ namespace vk_gltf_viewer::gltf {
 
             internalBuffers.emplace_back(std::move(buffer));
         }
-
-        [[nodiscard]] bool needStaging(const vku::AllocatedBuffer &buffer) const noexcept;
-        void stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage = vk::BufferUsageFlagBits::eTransferDst);
-        void stageIfNeeded(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage = vk::BufferUsageFlagBits::eTransferDst);
     };
 }

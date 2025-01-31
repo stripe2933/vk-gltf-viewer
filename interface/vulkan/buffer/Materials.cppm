@@ -7,9 +7,13 @@ export module vk_gltf_viewer:vulkan.buffer.Materials;
 import std;
 export import fastgltf;
 export import glm;
+import vku;
+export import vk_mem_alloc_hpp;
+export import vulkan_hpp;
 import :helpers.optional;
 import :helpers.ranges;
-export import :vulkan.Gpu;
+export import :vulkan.buffer.StagingBufferStorage;
+import :vulkan.trait.PostTransferObject;
 
 [[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept {
     const float c = std::cos(transform.rotation), s = std::sin(transform.rotation);
@@ -21,7 +25,7 @@ export import :vulkan.Gpu;
 }
 
 namespace vk_gltf_viewer::vulkan::buffer {
-    export class Materials {
+    export class Materials : trait::PostTransferObject {
     public:
         struct GpuMaterial {
             std::uint8_t baseColorTexcoordIndex;
@@ -53,9 +57,11 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
         Materials(
             const fastgltf::Asset &asset,
-            const Gpu &gpu [[clang::lifetimebound]]
-        ) : useFallbackMaterialAtZero { determineUseFallbackMaterialAtZero(asset) },
-            buffer { createBuffer(asset, gpu) },
+            vma::Allocator allocator,
+            StagingBufferStorage &stagingBufferStorage
+        ) : PostTransferObject { stagingBufferStorage },
+            useFallbackMaterialAtZero { determineUseFallbackMaterialAtZero(asset) },
+            buffer { createBuffer(asset, allocator) },
             descriptorInfo { buffer, 0, vk::WholeSize } { }
 
         [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept {
@@ -82,10 +88,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
             return false;
         }
 
-        [[nodiscard]] vku::AllocatedBuffer createBuffer(
-            const fastgltf::Asset &asset,
-            const Gpu &gpu
-        ) const {
+        [[nodiscard]] vku::AllocatedBuffer createBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const {
             // This is workaround for Clang 18's bug that ranges::views::concat cannot be used with std::optional<GpuMaterial>.
             // TODO: change it to use ranges::views::concat when available.
             std::vector<GpuMaterial> bufferData;
@@ -164,30 +167,15 @@ namespace vk_gltf_viewer::vulkan::buffer {
             }));
             
             vku::AllocatedBuffer buffer = vku::MappedBuffer {
-                gpu.allocator,
+                allocator,
                 std::from_range, bufferData,
-                gpu.isUmaDevice ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eTransferSrc,
+                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
             }.unmap();
-
-            if (gpu.isUmaDevice || vku::contains(gpu.allocator.getAllocationMemoryProperties(buffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
-                return buffer;
+            if (StagingBufferStorage::needStaging(buffer)) {
+                stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer);
             }
 
-            vku::AllocatedBuffer dstBuffer{ gpu.allocator, vk::BufferCreateInfo {
-                {},
-                buffer.size,
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-            } };
-
-            const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-            const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-            vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
-                cb.copyBuffer(buffer, dstBuffer, vk::BufferCopy { 0, 0, dstBuffer.size });
-            }, *fence);
-
-            std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
-
-            return dstBuffer;
+            return buffer;
         }
     };
 }

@@ -10,8 +10,10 @@ import :gltf.AssetGpuFallbackTexture;
 import :gltf.MaterialVariantsMapping;
 import :gltf.NodeWorldTransforms;
 import :gltf.SceneInverseHierarchy;
+import :vulkan.buffer.CombinedIndices;
 import :vulkan.buffer.Materials;
 import :vulkan.buffer.Nodes;
+import :vulkan.buffer.StagingBufferStorage;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Skybox;
@@ -75,6 +77,7 @@ namespace vk_gltf_viewer {
             vulkan::buffer::InstancedNodeWorldTransforms instancedNodeWorldTransformBuffer;
             vulkan::buffer::Nodes nodeBuffer;
             vulkan::buffer::Materials materialBuffer;
+            vulkan::buffer::CombinedIndices combinedIndexBuffers;
             gltf::AssetGpuBuffers assetGpuBuffers;
 
             /**
@@ -98,6 +101,7 @@ namespace vk_gltf_viewer {
                 fastgltf::Parser &parser,
                 const std::filesystem::path &path,
                 const vulkan::Gpu &gpu [[clang::lifetimebound]],
+                vulkan::buffer::StagingBufferStorage stagingBufferStorage = {},
                 BS::thread_pool<> threadPool = {});
 
             void setScene(std::size_t sceneIndex);

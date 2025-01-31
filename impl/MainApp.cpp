@@ -577,6 +577,7 @@ void vk_gltf_viewer::MainApp::run() {
                     .assetGpuBuffers = gltf.assetGpuBuffers,
                     .nodeWorldTransforms = gltf.nodeWorldTransforms,
                     .nodeBuffer = gltf.nodeBuffer,
+                    .combinedIndexBuffers = gltf.combinedIndexBuffers,
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
                     .renderingNodes = {
                         .indices = appState.gltfAsset->getVisibleNodeIndices(),
@@ -656,6 +657,7 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     fastgltf::Parser &parser,
     const std::filesystem::path &path,
     const vulkan::Gpu &gpu [[clang::lifetimebound]],
+    vulkan::buffer::StagingBufferStorage stagingBufferStorage,
     BS::thread_pool<> threadPool
 ) : dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) },
     directory { path.parent_path() },
@@ -663,10 +665,11 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     gpu { gpu },
     assetGpuTextures { asset, directory, gpu, threadPool, assetExternalBuffers },
     nodeWorldTransforms { asset },
-    instancedNodeWorldTransformBuffer { asset, nodeWorldTransforms, gpu, assetExternalBuffers },
-    nodeBuffer { asset, instancedNodeWorldTransformBuffer, gpu },
-    materialBuffer { asset, gpu },
-    assetGpuBuffers { asset, materialBuffer, gpu, threadPool, assetExternalBuffers },
+    instancedNodeWorldTransformBuffer { asset, nodeWorldTransforms, gpu.allocator, assetExternalBuffers },
+    nodeBuffer { asset, instancedNodeWorldTransformBuffer, gpu.allocator, stagingBufferStorage },
+    materialBuffer { asset, gpu.allocator, stagingBufferStorage },
+    combinedIndexBuffers { asset, gpu, stagingBufferStorage, assetExternalBuffers },
+    assetGpuBuffers { asset, materialBuffer, gpu, stagingBufferStorage, threadPool, assetExternalBuffers },
     sceneInverseHierarchy { asset, scene } {
     nodeWorldTransforms.update(scene);
     instancedNodeWorldTransformBuffer.update(scene, nodeWorldTransforms, assetExternalBuffers);
@@ -679,6 +682,15 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
             return cast<double>(nodeWorldTransform * getInstanceTransform(asset, nodeIndex, instanceIndex, assetExternalBuffers));
         }
     });
+
+    if (stagingBufferStorage.hasStagingCommands()) {
+        const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
+        const vk::raii::Fence transferFence { gpu.device, vk::FenceCreateInfo{} };
+        vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
+            stagingBufferStorage.recordStagingCommands(cb);
+        }, *transferFence);
+        std::ignore = gpu.device.waitForFences(*transferFence, true, ~0ULL); // TODO: failure handling
+    }
 }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {

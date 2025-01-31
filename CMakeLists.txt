@@ -152,11 +152,13 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/attachment_group/SceneWeightedBlended.cppm
         interface/vulkan/attachment_group/Swapchain.cppm
         interface/vulkan/buffer/mod.cppm
+        interface/vulkan/buffer/CombinedIndices.cppm
         interface/vulkan/buffer/CubeIndices.cppm
         interface/vulkan/buffer/IndirectDrawCommands.cppm
         interface/vulkan/buffer/InstancedNodeWorldTransforms.cppm
         interface/vulkan/buffer/Materials.cppm
         interface/vulkan/buffer/Nodes.cppm
+        interface/vulkan/buffer/StagingBufferStorage.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
         interface/vulkan/descriptor_set_layout/Skybox.cppm
@@ -191,6 +193,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/shader_type/TextureTransform.cppm
         interface/vulkan/SharedData.cppm
         interface/vulkan/specialization_constants/SpecializationMap.cppm
+        interface/vulkan/trait/PostTransferObject.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
     Boost::container

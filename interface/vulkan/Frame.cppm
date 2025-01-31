@@ -7,13 +7,14 @@ export module vk_gltf_viewer:vulkan.Frame;
 import std;
 export import :gltf.AssetGpuBuffers;
 export import :math.Frustum;
-export import :vulkan.SharedData;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.SceneOpaque;
 import :vulkan.ag.SceneWeightedBlended;
-import :vulkan.buffer.Nodes;
-import :vulkan.buffer.IndirectDrawCommands;
+export import :vulkan.buffer.CombinedIndices;
+export import :vulkan.buffer.IndirectDrawCommands;
+export import :vulkan.buffer.Nodes;
+export import :vulkan.SharedData;
 
 /**
  * @brief A type that represents the state for a single multi-draw-indirect call.
@@ -27,7 +28,7 @@ import :vulkan.buffer.IndirectDrawCommands;
 struct CommandSeparationCriteria {
     std::uint32_t subpass;
     vk::Pipeline pipeline;
-    std::optional<std::pair<vk::Buffer, vk::IndexType>> indexBufferAndType;
+    std::optional<vk::IndexType> indexType;
     vk::CullModeFlagBits cullMode;
 
     [[nodiscard]] std::strong_ordering operator<=>(const CommandSeparationCriteria&) const noexcept = default;
@@ -44,7 +45,7 @@ struct std::less<CommandSeparationCriteria> {
 
 struct CommandSeparationCriteriaNoShading {
     vk::Pipeline pipeline;
-    std::optional<std::pair<vk::Buffer, vk::IndexType>> indexBufferAndType;
+    std::optional<vk::IndexType> indexType;
     vk::CullModeFlagBits cullMode;
 
     [[nodiscard]] std::strong_ordering operator<=>(const CommandSeparationCriteriaNoShading&) const noexcept = default;
@@ -75,6 +76,7 @@ namespace vk_gltf_viewer::vulkan {
                 const gltf::AssetGpuBuffers &assetGpuBuffers;
                 const gltf::NodeWorldTransforms &nodeWorldTransforms;
                 const buffer::Nodes &nodeBuffer;
+                const buffer::CombinedIndices &combinedIndexBuffers;
 
                 bool regenerateDrawCommands;
                 RenderingNodes renderingNodes;
@@ -247,6 +249,7 @@ namespace vk_gltf_viewer::vulkan {
         glm::vec3 viewPosition;
         glm::mat4 translationlessProjectionViewMatrix;
         std::optional<vk::Offset2D> cursorPosFromPassthruRectTopLeft;
+        const buffer::CombinedIndices *combinedIndexBuffers;
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
