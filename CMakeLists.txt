@@ -109,8 +109,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/algorithm/miniball.cppm
         interface/gltf/algorithm/traversal.cppm
         interface/gltf/AssetExternalBuffers.cppm
-        interface/gltf/AssetGpuFallbackTexture.cppm
-        interface/gltf/AssetGpuTextures.cppm
         interface/gltf/AssetProcessError.cppm
         interface/gltf/SceneInverseHierarchy.cppm
         interface/gltf/MaterialVariantsMapping.cppm
@@ -195,6 +193,8 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/shader_type/TextureTransform.cppm
         interface/vulkan/SharedData.cppm
         interface/vulkan/specialization_constants/SpecializationMap.cppm
+        interface/vulkan/texture/Fallback.cppm
+        interface/vulkan/texture/Textures.cppm
         interface/vulkan/trait/PostTransferObject.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE

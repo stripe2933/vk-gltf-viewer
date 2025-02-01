@@ -32,7 +32,6 @@ import asset;
 import imgui.glfw;
 import imgui.vulkan;
 import :gltf.AssetExternalBuffers;
-import :gltf.AssetGpuTextures;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.optional;
@@ -45,6 +44,7 @@ import :vulkan.generator.MipmappedCubemapGenerator;
 import :vulkan.mipmap;
 import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
+import :vulkan.texture.Textures;
 
 #ifdef _MSC_VER
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
@@ -664,7 +664,7 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     directory { path.parent_path() },
     asset { get_checked(parser.loadGltf(dataBuffer, directory)) },
     gpu { gpu },
-    assetGpuTextures { asset, directory, gpu, threadPool, assetExternalBuffers },
+    textures { asset, directory, gpu, threadPool, assetExternalBuffers },
     nodeWorldTransforms { asset },
     instancedNodeWorldTransformBuffer { asset, nodeWorldTransforms, gpu.allocator, assetExternalBuffers },
     nodeBuffer { asset, instancedNodeWorldTransformBuffer, gpu.allocator, stagingBufferStorage },
@@ -857,13 +857,13 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 
     std::vector<vk::DescriptorImageInfo> imageInfos;
     imageInfos.reserve(1 + gltf->asset.textures.size());
-    imageInfos.emplace_back(*sharedData.singleTexelSampler, *gpuFallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+    imageInfos.emplace_back(*sharedData.singleTexelSampler, *fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
     imageInfos.append_range(gltf->asset.textures | std::views::transform([this](const fastgltf::Texture &texture) {
         return vk::DescriptorImageInfo {
             to_optional(texture.samplerIndex)
-                .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
-                .value_or(*gpuFallbackTexture.sampler),
-            *gltf->assetGpuTextures.imageViews.at(getPreferredImageIndex(texture)),
+                .transform([this](std::size_t samplerIndex) { return *gltf->textures.samplers[samplerIndex]; })
+                .value_or(*fallbackTexture.sampler),
+            *gltf->textures.imageViews.at(getPreferredImageIndex(texture)),
             vk::ImageLayout::eShaderReadOnlyOptimal,
         };
     }));
@@ -881,12 +881,12 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
             return ImGui_ImplVulkan_AddTexture(
                 to_optional(texture.samplerIndex)
-                    .transform([this](std::size_t samplerIndex) { return *gltf->assetGpuTextures.samplers[samplerIndex]; })
-                    .value_or(*gpuFallbackTexture.sampler),
+                    .transform([this](std::size_t samplerIndex) { return *gltf->textures.samplers[samplerIndex]; })
+                    .value_or(*fallbackTexture.sampler),
                 ranges::value_or(
-                    gltf->assetGpuTextures.imageViews,
+                    gltf->textures.imageViews,
                     getPreferredImageIndex(texture),
-                    *gpuFallbackTexture.imageView),
+                    *fallbackTexture.imageView),
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         })
         | std::ranges::to<std::vector>();

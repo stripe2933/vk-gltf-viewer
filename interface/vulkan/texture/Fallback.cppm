@@ -2,19 +2,22 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:gltf.AssetGpuFallbackTexture;
+export module vk_gltf_viewer:vulkan.texture.Fallback;
 
 import std;
 import :vulkan.Gpu;
 
-namespace vk_gltf_viewer::gltf {
-    struct AssetGpuFallbackTexture {
+namespace vk_gltf_viewer::vulkan::texture {
+    /**
+     * @brief Fallback image that would be used for texture-less material.
+     *
+     * If material is texture-less, only their factor is used. To match the shader code consistency, pipeline could
+     * sample the white value and multiply it by factor to get the final color in the same ways as the texture is
+     * presented.
+     */
+    export struct Fallback {
         /**
-         * @brief Fallback image that would be used for texture-less material.
-         *
-         * If material is texture-less, only their factor is used. To match the shader code consistency, pipeline could
-         * sample the white value and multiply it by factor to get the final color in the same ways as the texture is
-         * presented. For this purpose, the fallback image is 1x1 white (1.0, 1.0, 1.0, 1.0).
+         * @brief 1x1 white image.
          */
         vku::AllocatedImage image;
 
@@ -24,14 +27,11 @@ namespace vk_gltf_viewer::gltf {
         vk::raii::ImageView imageView;
 
         /**
-         * @brief Fallback sampler to be used if sampler is not presented in a texture.
-         *
-         * As glTF specification, asset texture may not have sampler, in that case, the fallback(default) sampler SHOULD
-         * be used.
+         * @brief Sampler for fallback texture.
          */
         vk::raii::Sampler sampler;
 
-        explicit AssetGpuFallbackTexture(const vulkan::Gpu &gpu [[clang::lifetimebound]])
+        explicit Fallback(const vulkan::Gpu &gpu [[clang::lifetimebound]])
             : image { gpu.allocator, vk::ImageCreateInfo {
                 {},
                 vk::ImageType::e2D,

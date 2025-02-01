@@ -7,7 +7,7 @@ module;
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:gltf.AssetGpuTextures;
+export module vk_gltf_viewer:vulkan.texture.Textures;
 
 import std;
 export import BS.thread_pool;
@@ -74,7 +74,7 @@ constexpr auto convertSamplerAddressMode(fastgltf::Wrap wrap) noexcept -> vk::Sa
     std::unreachable();
 }
 
-namespace vk_gltf_viewer::gltf {
+namespace vk_gltf_viewer::vulkan::texture {
     /**
      * @brief GPU textures (images, image views and samplers) for <tt>fastgltf::Asset</tt>.
      *
@@ -87,9 +87,9 @@ namespace vk_gltf_viewer::gltf {
      * <tt>std::unordered_map<std::size_t, vku::AllocatedImage></tt> instead of <tt>std::vector<vku::AllocatedImage></tt>
      * (also for <tt>imageViews</tt>). This does not hold for samplers (all the samplers are created).
      */
-    export class AssetGpuTextures {
+    export class Textures {
         const fastgltf::Asset &asset;
-        const vulkan::Gpu &gpu;
+        const Gpu &gpu;
 
         /**
          * Staging buffers for temporary data transfer. This have to be cleared after the transfer command execution
@@ -121,10 +121,10 @@ namespace vk_gltf_viewer::gltf {
         std::vector<vk::raii::Sampler> samplers = createSamplers();
 
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
-        AssetGpuTextures(
+        Textures(
             const fastgltf::Asset &asset,
             const std::filesystem::path &assetDir,
-            const vulkan::Gpu &gpu,
+            const Gpu &gpu,
             BS::thread_pool<> &threadPool,
             const BufferDataAdapter &adapter = {}
         ) : asset { asset },
@@ -357,7 +357,7 @@ namespace vk_gltf_viewer::gltf {
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(std::span { array.bytes }));
                                 default:
-                                    throw AssetProcessError::IndeterminateImageMimeType;
+                                    throw gltf::AssetProcessError::IndeterminateImageMimeType;
                             }
                         },
                         [&](const fastgltf::sources::ByteView& byteView) {
@@ -367,11 +367,11 @@ namespace vk_gltf_viewer::gltf {
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(static_cast<std::span<const std::byte>>(byteView.bytes)));
                                 default:
-                                    throw AssetProcessError::IndeterminateImageMimeType;
+                                    throw gltf::AssetProcessError::IndeterminateImageMimeType;
                             }
                         },
                         [&](const fastgltf::sources::URI& uri) {
-                            if (!uri.uri.isLocalPath()) throw AssetProcessError::UnsupportedSourceDataType;
+                            if (!uri.uri.isLocalPath()) throw gltf::AssetProcessError::UnsupportedSourceDataType;
 
                             // As the glTF specification, uri source may doesn't have MIME type. Therefore, we have to determine
                             // the MIME type from the file extension if it isn't provided.
@@ -399,7 +399,7 @@ namespace vk_gltf_viewer::gltf {
                                 }
                             }
                             else {
-                                throw AssetProcessError::IndeterminateImageMimeType;
+                                throw gltf::AssetProcessError::IndeterminateImageMimeType;
                             }
                         },
                         [&](const fastgltf::sources::BufferView& bufferView) {
@@ -409,12 +409,12 @@ namespace vk_gltf_viewer::gltf {
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(adapter(asset, bufferView.bufferViewIndex)));
                                 default:
-                                    throw AssetProcessError::IndeterminateImageMimeType;
+                                    throw gltf::AssetProcessError::IndeterminateImageMimeType;
                             }
                         },
                         // Note: fastgltf::source::Vector should not be handled since it is not used for fastgltf::Image::data.
                         [](const auto&) -> vku::AllocatedImage {
-                            throw AssetProcessError::UnsupportedSourceDataType;
+                            throw gltf::AssetProcessError::UnsupportedSourceDataType;
                         },
                     }, asset.images[imageIndex].data);
 
@@ -511,7 +511,7 @@ namespace vk_gltf_viewer::gltf {
 
                 if (imageIndicesToGenerateMipmap.empty()) return;
 
-                vulkan::recordBatchedMipmapGenerationCommand(cb, imageIndicesToGenerateMipmap | std::views::transform([this](std::size_t imageIndex) -> decltype(auto) {
+                recordBatchedMipmapGenerationCommand(cb, imageIndicesToGenerateMipmap | std::views::transform([this](std::size_t imageIndex) -> decltype(auto) {
                     return images.at(imageIndex);
                 }));
 

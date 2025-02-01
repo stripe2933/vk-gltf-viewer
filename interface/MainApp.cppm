@@ -4,8 +4,6 @@ import std;
 import :control.AppWindow;
 import :gltf.algorithm.miniball;
 import :gltf.AssetExternalBuffers;
-import :gltf.AssetGpuTextures;
-import :gltf.AssetGpuFallbackTexture;
 import :gltf.MaterialVariantsMapping;
 import :gltf.NodeWorldTransforms;
 import :gltf.SceneInverseHierarchy;
@@ -19,6 +17,8 @@ import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Skybox;
 import :vulkan.Frame;
+import :vulkan.texture.Fallback;
+import :vulkan.texture.Textures;
 
 namespace vk_gltf_viewer {
     export class MainApp {
@@ -73,7 +73,7 @@ namespace vk_gltf_viewer {
              */
             gltf::AssetExternalBuffers assetExternalBuffers{ asset, directory };
 
-            gltf::AssetGpuTextures assetGpuTextures;
+            vulkan::texture::Textures textures;
             gltf::NodeWorldTransforms nodeWorldTransforms;
             vulkan::buffer::InstancedNodeWorldTransforms instancedNodeWorldTransformBuffer;
             vulkan::buffer::Nodes nodeBuffer;
@@ -155,7 +155,7 @@ namespace vk_gltf_viewer {
         vku::AllocatedImage brdfmapImage = createBrdfmapImage();
         vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
         vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
-        gltf::AssetGpuFallbackTexture gpuFallbackTexture { gpu };
+        vulkan::texture::Fallback fallbackTexture { gpu };
 
         // --------------------
         // Descriptor sets.
