@@ -311,7 +311,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
                     const glm::mat4 nodeWorldTransform = glm::make_mat4(task.gltf->nodeWorldTransforms[nodeIndex].data());
                     const glm::vec3 transformedMin { nodeWorldTransform * glm::vec4 { glm::make_vec3(positionMinData), 1.f } };
-                    const glm::vec3 transformedMax { nodeWorldTransform * glm::vec4 { glm::make_vec3(positionMinData), 1.f } };
+                    const glm::vec3 transformedMax { nodeWorldTransform * glm::vec4 { glm::make_vec3(positionMaxData), 1.f } };
 
                     const glm::vec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
                     const glm::vec3 center = transformedMin + halfDisplacement;
