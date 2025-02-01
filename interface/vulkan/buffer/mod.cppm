@@ -62,7 +62,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
         else {
             // Retry with converting each segments into the std::span<const std::byte>.
-            const auto byteSegments = segments | std::views::transform([](const auto &segment) { return as_bytes(std::span { segment }); });
+            auto byteSegments = segments | std::views::transform([](const auto &segment) { return as_bytes(std::span { segment }); });
             return createCombinedBuffer<Unmap>(allocator, byteSegments, usage);
         }
     }

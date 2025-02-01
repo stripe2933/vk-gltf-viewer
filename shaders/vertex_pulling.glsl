@@ -35,8 +35,8 @@ vec4 getTangent() {
 
 #if TEXCOORD_COUNT >= 1
 vec2 getTexcoord(uint texcoordIndex){
-    IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
-    uint64_t fetchAddress = mappingInfo.bytesPtr + uint(mappingInfo.stride) * uint(gl_VertexIndex);
+    Accessor texcoordAccessor = PRIMITIVE.texcoordAccessors.data[texcoordIndex];
+    uint64_t fetchAddress = texcoordAccessor.bufferAddress + uint(texcoordAccessor.stride) * uint(gl_VertexIndex);
 
     switch ((PACKED_TEXCOORD_COMPONENT_TYPES >> (8U * texcoordIndex)) & 0xFFU) {
     case 1U: // UNSIGNED BYTE
@@ -52,8 +52,8 @@ vec2 getTexcoord(uint texcoordIndex){
 
 #if HAS_BASE_COLOR_TEXTURE
 vec2 getTexcoord(uint texcoordIndex){
-    IndexedAttributeMappingInfo mappingInfo = PRIMITIVE.texcoordAttributeMappingInfos.data[texcoordIndex];
-    uint64_t fetchAddress = mappingInfo.bytesPtr + uint(mappingInfo.stride) * uint(gl_VertexIndex);
+    Accessor texcoordAccessor = PRIMITIVE.texcoordAccessors.data[texcoordIndex];
+    uint64_t fetchAddress = texcoordAccessor.bufferAddress + uint(texcoordAccessor.stride) * uint(gl_VertexIndex);
 
     switch (TEXCOORD_COMPONENT_TYPE) {
     case 1U: // UNSIGNED BYTE

@@ -77,7 +77,6 @@ add_executable(vk-gltf-viewer
     impl/control/AppWindow.cpp
     impl/control/ImGuiTaskCollector.cpp
     impl/AppState.cpp
-    impl/gltf/AssetGpuBuffers.cpp
     impl/MainApp.cpp
     impl/mod.cpp
     impl/vulkan/Frame.cpp
@@ -110,14 +109,13 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/algorithm/miniball.cppm
         interface/gltf/algorithm/traversal.cppm
         interface/gltf/AssetExternalBuffers.cppm
-        interface/gltf/AssetGpuBuffers.cppm
         interface/gltf/AssetGpuFallbackTexture.cppm
         interface/gltf/AssetGpuTextures.cppm
-        interface/gltf/AssetPrimitiveInfo.cppm
         interface/gltf/AssetProcessError.cppm
         interface/gltf/SceneInverseHierarchy.cppm
         interface/gltf/MaterialVariantsMapping.cppm
         interface/gltf/NodeWorldTransforms.cppm
+        interface/gltf/OrderedPrimitives.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/concepts.cppm
         interface/helpers/fastgltf.cppm
@@ -158,6 +156,8 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/buffer/InstancedNodeWorldTransforms.cppm
         interface/vulkan/buffer/Materials.cppm
         interface/vulkan/buffer/Nodes.cppm
+        interface/vulkan/buffer/PrimitiveAttributes.cppm
+        interface/vulkan/buffer/Primitives.cppm
         interface/vulkan/buffer/StagingBufferStorage.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
@@ -190,6 +190,8 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/sampler/BrdfLutSampler.cppm
         interface/vulkan/sampler/CubemapSampler.cppm
         interface/vulkan/sampler/SingleTexelSampler.cppm
+        interface/vulkan/shader_type/Accessor.cppm
+        interface/vulkan/shader_type/Primitive.cppm
         interface/vulkan/shader_type/TextureTransform.cppm
         interface/vulkan/SharedData.cppm
         interface/vulkan/specialization_constants/SpecializationMap.cppm

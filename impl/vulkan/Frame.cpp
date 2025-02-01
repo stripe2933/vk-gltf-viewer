@@ -109,14 +109,13 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     combinedIndexBuffers = &task.gltf->combinedIndexBuffers;
 
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
-        const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
-
         CommandSeparationCriteria result {
             .subpass = 0U,
             .indexType = task.gltf->combinedIndexBuffers.getIndexInfo(primitive).first,
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
+        const auto &accessors = task.gltf->primitiveAttributes.getAccessors(primitive);
         if (primitive.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
@@ -135,9 +134,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (material.unlit) {
                 result.pipeline = sharedData.getUnlitPrimitiveRenderer({
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
-                        return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
+                        return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
                     }),
-                    .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
+                    .colorComponentCountAndType = accessors.colorAccessor.transform([](const auto &info) {
                         return std::pair { info.componentCount, info.componentType };
                     }),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
@@ -148,16 +147,16 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
             else {
                 result.pipeline = sharedData.getPrimitiveRenderer({
-                    .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos
+                    .texcoordComponentTypes = accessors.texcoordAccessors
                         | std::views::transform([](const auto &info) {
                             return info.componentType;
                         })
                         | std::views::take(4) // Avoid bad_alloc for static_vector.
                         | std::ranges::to<boost::container::static_vector<std::uint8_t, 4>>(),
-                    .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
+                    .colorComponentCountAndType = accessors.colorAccessor.transform([](const auto &info) {
                         return std::pair { info.componentCount, info.componentType };
                     }),
-                    .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
+                    .fragmentShaderGeneratedTBN = !accessors.normalAccessor.has_value(),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
                         .value_or(shader_type::TextureTransform::None),
@@ -180,37 +179,36 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         }
         else {
             result.pipeline = sharedData.getPrimitiveRenderer({
-                .texcoordComponentTypes = primitiveInfo.texcoordsInfo.attributeInfos
+                .texcoordComponentTypes = accessors.texcoordAccessors
                     | std::views::transform([](const auto &info) {
                         return info.componentType;
                     })
                     | std::views::take(4) // Avoid bad_alloc for static_vector.
                     | std::ranges::to<boost::container::static_vector<std::uint8_t, 4>>(),
-                .colorComponentCountAndType = primitiveInfo.colorInfo.transform([](const auto &info) {
+                .colorComponentCountAndType = accessors.colorAccessor.transform([](const auto &info) {
                     return std::pair { info.componentCount, info.componentType };
                 }),
-                .fragmentShaderGeneratedTBN = !primitiveInfo.normalInfo.has_value(),
+                .fragmentShaderGeneratedTBN = !accessors.normalAccessor.has_value(),
             });
         }
         return result;
     };
 
     const auto depthPrepassCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
-        const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
-
         CommandSeparationCriteriaNoShading result{
             .indexType = task.gltf->combinedIndexBuffers.getIndexInfo(primitive).first,
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
+        const auto &accessors = task.gltf->primitiveAttributes.getAccessors(primitive);
         if (primitive.materialIndex) {
             const fastgltf::Material& material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskDepthRenderer({
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
-                        return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
+                        return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
                     }),
-                    .colorAlphaComponentType = primitiveInfo.colorInfo.and_then([](const auto &info) {
+                    .colorAlphaComponentType = accessors.colorAccessor.and_then([](const auto &info) {
                         // Alpha value exists only if COLOR_0 is Vec4 type.
                         return value_if(info.componentCount == 4, info.componentType);
                     }),
@@ -228,21 +226,20 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     };
 
     const auto jumpFloodSeedCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
-        const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
-
         CommandSeparationCriteriaNoShading result {
             .indexType = task.gltf->combinedIndexBuffers.getIndexInfo(primitive).first,
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
+        const auto &accessors = task.gltf->primitiveAttributes.getAccessors(primitive);
         if (primitive.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskJumpFloodSeedRenderer({
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
-                        return primitiveInfo.texcoordsInfo.attributeInfos.at(textureInfo.texCoordIndex).componentType;
+                        return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
                     }),
-                    .colorAlphaComponentType = primitiveInfo.colorInfo.and_then([](const auto &info) {
+                    .colorAlphaComponentType = accessors.colorAccessor.and_then([](const auto &info) {
                         // Alpha value exists only if COLOR_0 is Vec4 type.
                         return value_if(info.componentCount == 4, info.componentType);
                     }),
@@ -276,8 +273,8 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             instanceCount = task.gltf->asset.accessors[node.instancingAttributes[0].accessorIndex].count;
         }
 
-        const gltf::AssetPrimitiveInfo &primitiveInfo = task.gltf->assetGpuBuffers.primitiveInfos.at(&primitive);
-        const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveInfo.index);
+        const std::size_t primitiveIndex = task.gltf->orderedPrimitives.getIndex(primitive);
+        const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveIndex);
         if (primitive.indicesAccessor) {
             const auto [_, firstIndex] = task.gltf->combinedIndexBuffers.getIndexInfo(primitive);
             return vk::DrawIndexedIndirectCommand { drawCount, instanceCount, firstIndex, 0, firstInstance };
@@ -307,7 +304,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
                     const std::uint16_t nodeIndex = command.firstInstance >> 16U;
                     const std::uint16_t primitiveIndex = command.firstInstance & 0xFFFFU;
-                    const fastgltf::Primitive &primitive = task.gltf->assetGpuBuffers.getPrimitiveByOrder(primitiveIndex);
+                    const fastgltf::Primitive &primitive = *task.gltf->orderedPrimitives[primitiveIndex];
 
                     const fastgltf::Accessor &positionAccessor = task.gltf->asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];
                     const double *positionMinData = get_if<std::pmr::vector<double>>(&positionAccessor.min)->data();

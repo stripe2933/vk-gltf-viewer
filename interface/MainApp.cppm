@@ -4,7 +4,6 @@ import std;
 import :control.AppWindow;
 import :gltf.algorithm.miniball;
 import :gltf.AssetExternalBuffers;
-import :gltf.AssetGpuBuffers;
 import :gltf.AssetGpuTextures;
 import :gltf.AssetGpuFallbackTexture;
 import :gltf.MaterialVariantsMapping;
@@ -13,6 +12,8 @@ import :gltf.SceneInverseHierarchy;
 import :vulkan.buffer.CombinedIndices;
 import :vulkan.buffer.Materials;
 import :vulkan.buffer.Nodes;
+import :vulkan.buffer.PrimitiveAttributes;
+import :vulkan.buffer.Primitives;
 import :vulkan.buffer.StagingBufferStorage;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
@@ -78,7 +79,9 @@ namespace vk_gltf_viewer {
             vulkan::buffer::Nodes nodeBuffer;
             vulkan::buffer::Materials materialBuffer;
             vulkan::buffer::CombinedIndices combinedIndexBuffers;
-            gltf::AssetGpuBuffers assetGpuBuffers;
+            gltf::OrderedPrimitives orderedPrimitives;
+            vulkan::buffer::PrimitiveAttributes primitiveAttributes;
+            vulkan::buffer::Primitives primitiveBuffer;
 
             /**
              * @brief The glTF scene that is currently used by.

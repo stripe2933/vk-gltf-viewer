@@ -34,21 +34,21 @@ struct Material {
 
 #ifdef VERTEX_SHADER
 
-struct IndexedAttributeMappingInfo {
-    uint64_t bytesPtr;
+struct Accessor {
+    uint64_t bufferAddress;
     uint8_t componentType;
     uint8_t componentCount;
     uint8_t stride;
     uint8_t _padding_[5];
 };
 
-layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer IndexedAttributeMappingInfos { IndexedAttributeMappingInfo data[]; };
+layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Accessors { Accessor data[]; };
 
 struct Primitive {
     uint64_t pPositionBuffer;
     uint64_t pNormalBuffer;
     uint64_t pTangentBuffer;
-    IndexedAttributeMappingInfos texcoordAttributeMappingInfos;
+    Accessors texcoordAccessors;
     uint64_t pColorBuffer;
     uint8_t positionByteStride;
     uint8_t normalByteStride;

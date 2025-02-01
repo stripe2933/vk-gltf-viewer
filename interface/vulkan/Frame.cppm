@@ -5,7 +5,7 @@ module;
 export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
-export import :gltf.AssetGpuBuffers;
+export import :gltf.OrderedPrimitives;
 export import :math.Frustum;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
@@ -14,6 +14,7 @@ import :vulkan.ag.SceneWeightedBlended;
 export import :vulkan.buffer.CombinedIndices;
 export import :vulkan.buffer.IndirectDrawCommands;
 export import :vulkan.buffer.Nodes;
+export import :vulkan.buffer.PrimitiveAttributes;
 export import :vulkan.SharedData;
 
 /**
@@ -73,10 +74,11 @@ namespace vk_gltf_viewer::vulkan {
                 };
 
                 const fastgltf::Asset &asset;
-                const gltf::AssetGpuBuffers &assetGpuBuffers;
+                const gltf::OrderedPrimitives &orderedPrimitives;
                 const gltf::NodeWorldTransforms &nodeWorldTransforms;
                 const buffer::Nodes &nodeBuffer;
                 const buffer::CombinedIndices &combinedIndexBuffers;
+                const buffer::PrimitiveAttributes &primitiveAttributes;
 
                 bool regenerateDrawCommands;
                 RenderingNodes renderingNodes;

@@ -534,7 +534,7 @@ void vk_gltf_viewer::MainApp::run() {
 
                     for (const auto &[pPrimitive, materialIndex] : gltf->materialVariantsMapping.at(task.variantIndex)) {
                         pPrimitive->materialIndex.emplace(materialIndex);
-                        hasUpdateData |= gltf->assetGpuBuffers.updatePrimitiveMaterial(*pPrimitive, materialIndex, sharedDataUpdateCommandBuffer);
+                        hasUpdateData |= gltf->primitiveBuffer.updateMaterial(gltf->orderedPrimitives.getIndex(*pPrimitive), materialIndex, sharedDataUpdateCommandBuffer);
                     }
 
                     sharedDataUpdateCommandBuffer.end();
@@ -574,10 +574,11 @@ void vk_gltf_viewer::MainApp::run() {
                 assert(appState.gltfAsset && "Synchronization error: gltfAsset is not set in AppState.");
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .asset = gltf.asset,
-                    .assetGpuBuffers = gltf.assetGpuBuffers,
+                    .orderedPrimitives = gltf.orderedPrimitives,
                     .nodeWorldTransforms = gltf.nodeWorldTransforms,
                     .nodeBuffer = gltf.nodeBuffer,
                     .combinedIndexBuffers = gltf.combinedIndexBuffers,
+                    .primitiveAttributes = gltf.primitiveAttributes,
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
                     .renderingNodes = {
                         .indices = appState.gltfAsset->getVisibleNodeIndices(),
@@ -669,7 +670,9 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
     nodeBuffer { asset, instancedNodeWorldTransformBuffer, gpu.allocator, stagingBufferStorage },
     materialBuffer { asset, gpu.allocator, stagingBufferStorage },
     combinedIndexBuffers { asset, gpu, stagingBufferStorage, assetExternalBuffers },
-    assetGpuBuffers { asset, materialBuffer, gpu, stagingBufferStorage, threadPool, assetExternalBuffers },
+    orderedPrimitives { asset },
+    primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, assetExternalBuffers },
+    primitiveBuffer { materialBuffer, orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
     sceneInverseHierarchy { asset, scene } {
     nodeWorldTransforms.update(scene);
     instancedNodeWorldTransformBuffer.update(scene, nodeWorldTransforms, assetExternalBuffers);
@@ -865,7 +868,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         };
     }));
     gpu.device.updateDescriptorSets({
-        sharedData.assetDescriptorSet.getWriteOne<0>({ gltf->assetGpuBuffers.getPrimitiveBuffer(), 0, vk::WholeSize }),
+        sharedData.assetDescriptorSet.getWrite<0>(gltf->primitiveBuffer.getDescriptorInfo()),
         sharedData.assetDescriptorSet.getWrite<1>(gltf->nodeBuffer.getDescriptorInfo()),
         sharedData.assetDescriptorSet.getWrite<2>(gltf->instancedNodeWorldTransformBuffer.getDescriptorInfo()),
         sharedData.assetDescriptorSet.getWrite<3>(gltf->materialBuffer.getDescriptorInfo()),
