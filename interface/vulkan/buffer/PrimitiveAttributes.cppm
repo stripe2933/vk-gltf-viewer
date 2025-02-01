@@ -1,7 +1,9 @@
 module;
 
 #include <cassert>
+
 #include <mikktspace.h>
+#include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vk_gltf_viewer:vulkan.buffer.PrimitiveAttributes;
 
@@ -116,7 +118,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
             // Hashmap that can get buffer device address by corresponding buffer view index.
             const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
-            const std::unordered_map bufferDeviceAddressMappings { std::from_range, std::views::zip(
+            const std::unordered_map<std::size_t, vk::DeviceAddress> bufferDeviceAddressMappings { std::from_range, std::views::zip(
                 attributeBufferViewIndices,
                 copyOffsets | std::views::transform([&](vk::DeviceSize offset) {
                     return bufferAddress + offset;

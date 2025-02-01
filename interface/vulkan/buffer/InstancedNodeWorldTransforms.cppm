@@ -1,3 +1,7 @@
+module;
+
+#include <vulkan/vulkan_hpp_macros.hpp>
+
 export module vk_gltf_viewer:vulkan.buffer.InstancedNodeWorldTransforms;
 
 import std;
@@ -33,7 +37,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view.
          * @param asset glTF asset.
          * @param nodeWorldTransforms pre-calculated node world transforms.
-         * @param gpu Vulkan GPU.
+         * @param allocator VMA allocator.
          * @param adapter Buffer data adapter.
          * @note This will fill the buffer data with each node's local transform (and post-multiplied instance transforms if presented), as the scene structure is not provided. You have to call <tt>update</tt> to update the world transforms.
          */
