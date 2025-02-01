@@ -7,18 +7,10 @@ import :gltf.AssetExternalBuffers;
 import :gltf.MaterialVariantsMapping;
 import :gltf.NodeWorldTransforms;
 import :gltf.SceneInverseHierarchy;
-import :vulkan.buffer.CombinedIndices;
-import :vulkan.buffer.Materials;
-import :vulkan.buffer.Nodes;
-import :vulkan.buffer.PrimitiveAttributes;
-import :vulkan.buffer.Primitives;
-import :vulkan.buffer.StagingBufferStorage;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Skybox;
 import :vulkan.Frame;
-import :vulkan.texture.Fallback;
-import :vulkan.texture.Textures;
 
 namespace vk_gltf_viewer {
     export class MainApp {
@@ -62,10 +54,6 @@ namespace vk_gltf_viewer {
              */
             gltf::MaterialVariantsMapping materialVariantsMapping { asset };
 
-        private:
-            const vulkan::Gpu &gpu;
-
-        public:
             /**
 			 * @brief External buffers that are not embedded in the glTF file, such like .bin files.
              * 
@@ -73,15 +61,8 @@ namespace vk_gltf_viewer {
              */
             gltf::AssetExternalBuffers assetExternalBuffers{ asset, directory };
 
-            vulkan::texture::Textures textures;
             gltf::NodeWorldTransforms nodeWorldTransforms;
-            vulkan::buffer::InstancedNodeWorldTransforms instancedNodeWorldTransformBuffer;
-            vulkan::buffer::Nodes nodeBuffer;
-            vulkan::buffer::Materials materialBuffer;
-            vulkan::buffer::CombinedIndices combinedIndexBuffers;
             gltf::OrderedPrimitives orderedPrimitives;
-            vulkan::buffer::PrimitiveAttributes primitiveAttributes;
-            vulkan::buffer::Primitives primitiveBuffer;
 
             /**
              * @brief The glTF scene that is currently used by.
@@ -100,12 +81,7 @@ namespace vk_gltf_viewer {
 			 */
             std::pair<fastgltf::math::dvec3, double> sceneMiniball;
 
-            Gltf(
-                fastgltf::Parser &parser,
-                const std::filesystem::path &path,
-                const vulkan::Gpu &gpu [[clang::lifetimebound]],
-                vulkan::buffer::StagingBufferStorage stagingBufferStorage = {},
-                BS::thread_pool<> threadPool = {});
+            Gltf(fastgltf::Parser &parser, const std::filesystem::path &path);
 
             void setScene(std::size_t sceneIndex);
         };
@@ -155,7 +131,6 @@ namespace vk_gltf_viewer {
         vku::AllocatedImage brdfmapImage = createBrdfmapImage();
         vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
         vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
-        vulkan::texture::Fallback fallbackTexture { gpu };
 
         // --------------------
         // Descriptor sets.

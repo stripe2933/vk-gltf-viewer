@@ -106,16 +106,15 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     translationlessProjectionViewMatrix = task.camera.projection * glm::mat4 { glm::mat3 { task.camera.view } };
     passthruRect = task.passthruRect;
     cursorPosFromPassthruRectTopLeft = task.cursorPosFromPassthruRectTopLeft;
-    combinedIndexBuffers = &task.gltf->combinedIndexBuffers;
 
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteria result {
             .subpass = 0U,
-            .indexType = task.gltf->combinedIndexBuffers.getIndexInfo(primitive).first,
+            .indexType = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first,
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
-        const auto &accessors = task.gltf->primitiveAttributes.getAccessors(primitive);
+        const auto &accessors = sharedData.gltfAsset->primitiveAttributes.getAccessors(primitive);
         if (primitive.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
@@ -196,11 +195,11 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     const auto depthPrepassCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
-            .indexType = task.gltf->combinedIndexBuffers.getIndexInfo(primitive).first,
+            .indexType = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first,
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
-        const auto &accessors = task.gltf->primitiveAttributes.getAccessors(primitive);
+        const auto &accessors = sharedData.gltfAsset->primitiveAttributes.getAccessors(primitive);
         if (primitive.materialIndex) {
             const fastgltf::Material& material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
@@ -227,11 +226,11 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     const auto jumpFloodSeedCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result {
-            .indexType = task.gltf->combinedIndexBuffers.getIndexInfo(primitive).first,
+            .indexType = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first,
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
-        const auto &accessors = task.gltf->primitiveAttributes.getAccessors(primitive);
+        const auto &accessors = sharedData.gltfAsset->primitiveAttributes.getAccessors(primitive);
         if (primitive.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
@@ -276,7 +275,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         const std::size_t primitiveIndex = task.gltf->orderedPrimitives.getIndex(primitive);
         const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveIndex);
         if (primitive.indicesAccessor) {
-            const auto [_, firstIndex] = task.gltf->combinedIndexBuffers.getIndexInfo(primitive);
+            const auto [_, firstIndex] = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive);
             return vk::DrawIndexedIndirectCommand { drawCount, instanceCount, firstIndex, 0, firstInstance };
         }
         else {
@@ -744,7 +743,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 
             if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
                 resourceBindingState.indexType = *criteria.indexType;
-                cb.bindIndexBuffer(combinedIndexBuffers->getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
+                cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
             }
             indirectDrawCommandBuffer.recordDrawCommand(cb, gpu.supportDrawIndirectCount);;
         }
@@ -887,7 +886,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
 
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
             resourceBindingState.indexType = *criteria.indexType;
-            cb.bindIndexBuffer(combinedIndexBuffers->getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
+            cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
         }
         indirectDrawCommandBuffer.recordDrawCommand(cb, gpu.supportDrawIndirectCount);;
     }
@@ -925,7 +924,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
 
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
             resourceBindingState.indexType = *criteria.indexType;
-            cb.bindIndexBuffer(combinedIndexBuffers->getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
+            cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
         }
         indirectDrawCommandBuffer.recordDrawCommand(cb, gpu.supportDrawIndirectCount);;
         hasBlendMesh = true;

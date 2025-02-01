@@ -44,7 +44,6 @@ import :vulkan.generator.MipmappedCubemapGenerator;
 import :vulkan.mipmap;
 import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
-import :vulkan.texture.Textures;
 
 #ifdef _MSC_VER
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
@@ -330,9 +329,9 @@ void vk_gltf_viewer::MainApp::run() {
                     regenerateDrawCommands.fill(true);
                 },
                 [&](control::task::CloseGltf) {
-                    gpu.device.waitIdle();
-
                     gltf.reset();
+
+                    gpu.device.waitIdle();
                     appState.gltfAsset.reset();
 
                     window.setTitle("Vulkan glTF Viewer");
@@ -358,11 +357,13 @@ void vk_gltf_viewer::MainApp::run() {
                     loadEqmap(task.path);
                 },
                 [&](control::task::ChangeScene task) {
+                    gltf->setScene(task.newSceneIndex);
+
                     // TODO: I'm aware that there are more good solutions than waitIdle, but I don't have much time for it
                     //  so I'll just use it for now.
                     gpu.device.waitIdle();
-
-                    gltf->setScene(task.newSceneIndex);
+                    sharedData.gltfAsset->instancedNodeWorldTransformBuffer.update(
+                        gltf->asset.scenes[task.newSceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
 
                     // Update AppState.
                     appState.gltfAsset->setScene(task.newSceneIndex);
@@ -423,7 +424,9 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Update the current and its descendant nodes' world transforms for both host and GPU side data.
                     gltf->nodeWorldTransforms.update(task.nodeIndex, nodeWorldTransform);
-                    gltf->instancedNodeWorldTransformBuffer.update(task.nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    gpu.device.waitIdle();
+                    sharedData.gltfAsset->instancedNodeWorldTransformBuffer.update(
+                        task.nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -489,7 +492,9 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Update the current and its descendant nodes' world transforms for both host and GPU side data.
                     gltf->nodeWorldTransforms.update(selectedNodeIndex, selectedNodeWorldTransform);
-                    gltf->instancedNodeWorldTransformBuffer.update(selectedNodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    gpu.device.waitIdle();
+                    sharedData.gltfAsset->instancedNodeWorldTransformBuffer.update(
+                        selectedNodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -534,7 +539,8 @@ void vk_gltf_viewer::MainApp::run() {
 
                     for (const auto &[pPrimitive, materialIndex] : gltf->materialVariantsMapping.at(task.variantIndex)) {
                         pPrimitive->materialIndex.emplace(materialIndex);
-                        hasUpdateData |= gltf->primitiveBuffer.updateMaterial(gltf->orderedPrimitives.getIndex(*pPrimitive), materialIndex, sharedDataUpdateCommandBuffer);
+                        hasUpdateData |= sharedData.gltfAsset->primitiveBuffer.updateMaterial(
+                            gltf->orderedPrimitives.getIndex(*pPrimitive), materialIndex, sharedDataUpdateCommandBuffer);
                     }
 
                     sharedDataUpdateCommandBuffer.end();
@@ -576,9 +582,6 @@ void vk_gltf_viewer::MainApp::run() {
                     .asset = gltf.asset,
                     .orderedPrimitives = gltf.orderedPrimitives,
                     .nodeWorldTransforms = gltf.nodeWorldTransforms,
-                    .nodeBuffer = gltf.nodeBuffer,
-                    .combinedIndexBuffers = gltf.combinedIndexBuffers,
-                    .primitiveAttributes = gltf.primitiveAttributes,
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
                     .renderingNodes = {
                         .indices = appState.gltfAsset->getVisibleNodeIndices(),
@@ -654,28 +657,14 @@ void vk_gltf_viewer::MainApp::run() {
     gpu.device.waitIdle();
 }
 
-vk_gltf_viewer::MainApp::Gltf::Gltf(
-    fastgltf::Parser &parser,
-    const std::filesystem::path &path,
-    const vulkan::Gpu &gpu [[clang::lifetimebound]],
-    vulkan::buffer::StagingBufferStorage stagingBufferStorage,
-    BS::thread_pool<> threadPool
-) : dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) },
-    directory { path.parent_path() },
-    asset { get_checked(parser.loadGltf(dataBuffer, directory)) },
-    gpu { gpu },
-    textures { asset, directory, gpu, threadPool, assetExternalBuffers },
-    nodeWorldTransforms { asset },
-    instancedNodeWorldTransformBuffer { asset, nodeWorldTransforms, gpu.allocator, assetExternalBuffers },
-    nodeBuffer { asset, instancedNodeWorldTransformBuffer, gpu.allocator, stagingBufferStorage },
-    materialBuffer { asset, gpu.allocator, stagingBufferStorage },
-    combinedIndexBuffers { asset, gpu, stagingBufferStorage, assetExternalBuffers },
-    orderedPrimitives { asset },
-    primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, assetExternalBuffers },
-    primitiveBuffer { materialBuffer, orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
-    sceneInverseHierarchy { asset, scene } {
+vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesystem::path &path)
+    : dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) }
+    , directory { path.parent_path() }
+    , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
+    , nodeWorldTransforms { asset }
+    , orderedPrimitives { asset }
+    , sceneInverseHierarchy { asset, scene } {
     nodeWorldTransforms.update(scene);
-    instancedNodeWorldTransformBuffer.update(scene, nodeWorldTransforms, assetExternalBuffers);
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
         const fastgltf::math::fmat4x4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
         if (asset.nodes[nodeIndex].instancingAttributes.empty()) {
@@ -685,21 +674,11 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(
             return cast<double>(nodeWorldTransform * getInstanceTransform(asset, nodeIndex, instanceIndex, assetExternalBuffers));
         }
     });
-
-    if (stagingBufferStorage.hasStagingCommands()) {
-        const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-        const vk::raii::Fence transferFence { gpu.device, vk::FenceCreateInfo{} };
-        vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
-            stagingBufferStorage.recordStagingCommands(cb);
-        }, *transferFence);
-        std::ignore = gpu.device.waitForFences(*transferFence, true, ~0ULL); // TODO: failure handling
-    }
 }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
     nodeWorldTransforms.update(scene);
-    instancedNodeWorldTransformBuffer.update(scene, nodeWorldTransforms, assetExternalBuffers);
     sceneInverseHierarchy = { asset, scene };
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
         const fastgltf::math::fmat4x4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
@@ -831,12 +810,13 @@ auto vk_gltf_viewer::MainApp::createBrdfmapImage() const -> decltype(brdfmapImag
 }
 
 void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
-    // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
-    //  so I'll just use it for now.
-    gpu.device.waitIdle();
-
     try {
-        gltf.emplace(parser, path, gpu);
+        const Gltf &inner = gltf.emplace(parser, path);
+
+        // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
+        //  so I'll just use it for now.
+        gpu.device.waitIdle();
+        sharedData.changeAsset(inner.asset, path.parent_path(), inner.nodeWorldTransforms, inner.orderedPrimitives, inner.assetExternalBuffers);
     }
     catch (gltf::AssetProcessError error) {
         std::println(std::cerr, "The glTF file cannot be processed because of an error: {}", to_string(error));
@@ -853,40 +833,18 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         std::rethrow_exception(std::current_exception());
     }
 
-    sharedData.updateTextureCount(1 + gltf->asset.textures.size());
-
-    std::vector<vk::DescriptorImageInfo> imageInfos;
-    imageInfos.reserve(1 + gltf->asset.textures.size());
-    imageInfos.emplace_back(*sharedData.singleTexelSampler, *fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-    imageInfos.append_range(gltf->asset.textures | std::views::transform([this](const fastgltf::Texture &texture) {
-        return vk::DescriptorImageInfo {
-            to_optional(texture.samplerIndex)
-                .transform([this](std::size_t samplerIndex) { return *gltf->textures.samplers[samplerIndex]; })
-                .value_or(*fallbackTexture.sampler),
-            *gltf->textures.imageViews.at(getPreferredImageIndex(texture)),
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-        };
-    }));
-    gpu.device.updateDescriptorSets({
-        sharedData.assetDescriptorSet.getWrite<0>(gltf->primitiveBuffer.getDescriptorInfo()),
-        sharedData.assetDescriptorSet.getWrite<1>(gltf->nodeBuffer.getDescriptorInfo()),
-        sharedData.assetDescriptorSet.getWrite<2>(gltf->instancedNodeWorldTransformBuffer.getDescriptorInfo()),
-        sharedData.assetDescriptorSet.getWrite<3>(gltf->materialBuffer.getDescriptorInfo()),
-        sharedData.assetDescriptorSet.getWrite<4>(imageInfos),
-    }, {});
-
     // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
     assetTextureDescriptorSets
         = gltf->asset.textures
         | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
             return ImGui_ImplVulkan_AddTexture(
                 to_optional(texture.samplerIndex)
-                    .transform([this](std::size_t samplerIndex) { return *gltf->textures.samplers[samplerIndex]; })
-                    .value_or(*fallbackTexture.sampler),
+                    .transform([this](std::size_t samplerIndex) { return *sharedData.gltfAsset->textures.samplers[samplerIndex]; })
+                    .value_or(*sharedData.fallbackTexture.sampler),
                 ranges::value_or(
-                    gltf->textures.imageViews,
+                    sharedData.gltfAsset->textures.imageViews,
                     getPreferredImageIndex(texture),
-                    *fallbackTexture.imageView),
+                    *sharedData.fallbackTexture.imageView),
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         })
         | std::ranges::to<std::vector>();

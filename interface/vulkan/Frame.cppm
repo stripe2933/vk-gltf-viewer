@@ -5,16 +5,14 @@ module;
 export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
+export import :gltf.NodeWorldTransforms;
 export import :gltf.OrderedPrimitives;
 export import :math.Frustum;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.SceneOpaque;
 import :vulkan.ag.SceneWeightedBlended;
-export import :vulkan.buffer.CombinedIndices;
-export import :vulkan.buffer.IndirectDrawCommands;
-export import :vulkan.buffer.Nodes;
-export import :vulkan.buffer.PrimitiveAttributes;
+import :vulkan.buffer.IndirectDrawCommands;
 export import :vulkan.SharedData;
 
 /**
@@ -76,9 +74,6 @@ namespace vk_gltf_viewer::vulkan {
                 const fastgltf::Asset &asset;
                 const gltf::OrderedPrimitives &orderedPrimitives;
                 const gltf::NodeWorldTransforms &nodeWorldTransforms;
-                const buffer::Nodes &nodeBuffer;
-                const buffer::CombinedIndices &combinedIndexBuffers;
-                const buffer::PrimitiveAttributes &primitiveAttributes;
 
                 bool regenerateDrawCommands;
                 RenderingNodes renderingNodes;
@@ -156,9 +151,6 @@ namespace vk_gltf_viewer::vulkan {
         [[nodiscard]] vk::Semaphore getSwapchainImageReadySemaphore() const noexcept { return *compositionFinishSema; }
 
     private:
-        template <typename Criteria>
-        using CriteriaSeparatedIndirectDrawCommands = std::map<Criteria, buffer::IndirectDrawCommands>;
-
         class PassthruResources {
         public:
             struct JumpFloodResources {
@@ -188,20 +180,20 @@ namespace vk_gltf_viewer::vulkan {
 
         struct RenderingNodes {
             std::unordered_set<std::uint16_t> indices;
-            CriteriaSeparatedIndirectDrawCommands<CommandSeparationCriteria> indirectDrawCommandBuffers;
-            CriteriaSeparatedIndirectDrawCommands<CommandSeparationCriteriaNoShading> depthPrepassIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteria, buffer::IndirectDrawCommands> indirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> depthPrepassIndirectDrawCommandBuffers;
         };
 
         struct SelectedNodes {
             std::unordered_set<std::uint16_t> indices;
-            CriteriaSeparatedIndirectDrawCommands<CommandSeparationCriteriaNoShading> jumpFloodSeedIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
 
         struct HoveringNode {
             std::uint16_t index;
-            CriteriaSeparatedIndirectDrawCommands<CommandSeparationCriteriaNoShading> jumpFloodSeedIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
@@ -251,7 +243,6 @@ namespace vk_gltf_viewer::vulkan {
         glm::vec3 viewPosition;
         glm::mat4 translationlessProjectionViewMatrix;
         std::optional<vk::Offset2D> cursorPosFromPassthruRectTopLeft;
-        const buffer::CombinedIndices *combinedIndexBuffers;
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
