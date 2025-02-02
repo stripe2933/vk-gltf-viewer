@@ -34,8 +34,6 @@ export import :vulkan.texture.Textures;
 
 namespace vk_gltf_viewer::vulkan {
     export class SharedData {
-        const Gpu &gpu;
-
     public:
         struct GltfAsset {
             // --------------------
@@ -86,6 +84,8 @@ namespace vk_gltf_viewer::vulkan {
             }
         };
 
+        const Gpu &gpu;
+
         // --------------------
         // Non-owning swapchain resources.
         // --------------------
@@ -94,43 +94,43 @@ namespace vk_gltf_viewer::vulkan {
         std::span<const vk::Image> swapchainImages;
 
         // Buffer, image and image views and samplers.
-        buffer::CubeIndices cubeIndices { gpu.allocator };
-        CubemapSampler cubemapSampler { gpu.device };
-        BrdfLutSampler brdfLutSampler { gpu.device };
+        buffer::CubeIndices cubeIndices;
+        CubemapSampler cubemapSampler;
+        BrdfLutSampler brdfLutSampler;
 
         // Descriptor set layouts.
-        dsl::Asset assetDescriptorSetLayout { gpu.device, 1 }; // TODO: set proper initial texture count.
-        dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler };
-        dsl::Skybox skyboxDescriptorSetLayout { gpu.device, cubemapSampler };
+        dsl::Asset assetDescriptorSetLayout;
+        dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout;
+        dsl::Skybox skyboxDescriptorSetLayout;
 
         // Render passes.
-        rp::Scene sceneRenderPass { gpu.device };
+        rp::Scene sceneRenderPass;
 
         // Pipeline layouts.
-        pl::Primitive primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
-        pl::PrimitiveNoShading primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout };
+        pl::Primitive primitivePipelineLayout;
+        pl::PrimitiveNoShading primitiveNoShadingPipelineLayout;
 
         // --------------------
         // Pipelines.
         // --------------------
 
         // Primitive unrelated pipelines.
-        JumpFloodComputer jumpFloodComputer { gpu.device };
-        OutlineRenderer outlineRenderer { gpu.device };
-        SkyboxRenderer skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices };
-        WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass };
+        JumpFloodComputer jumpFloodComputer;
+        OutlineRenderer outlineRenderer;
+        SkyboxRenderer skyboxRenderer;
+        WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
 
         // --------------------
         // Attachment groups.
         // --------------------
 
-        ag::Swapchain swapchainAttachmentGroup { gpu, swapchainExtent, swapchainImages };
+        ag::Swapchain swapchainAttachmentGroup;
         // If GPU does not support mutable swapchain format, it will be the reference of swapchainAttachmentGroup.
-        std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> imGuiSwapchainAttachmentGroup = getImGuiSwapchainAttachmentGroup();
+        std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> imGuiSwapchainAttachmentGroup;
 
         // Descriptor pools.
-        vk::raii::DescriptorPool textureDescriptorPool = createTextureDescriptorPool();
-        vk::raii::DescriptorPool descriptorPool = createDescriptorPool();
+        vk::raii::DescriptorPool textureDescriptorPool;
+        vk::raii::DescriptorPool descriptorPool;
 
         // Descriptor sets.
         vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
@@ -148,6 +148,23 @@ namespace vk_gltf_viewer::vulkan {
             : gpu { gpu }
             , swapchainExtent { swapchainExtent }
             , swapchainImages { swapchainImages }
+            , cubeIndices { gpu.allocator }
+            , cubemapSampler { gpu.device }
+            , brdfLutSampler { gpu.device }
+            , assetDescriptorSetLayout { gpu.device, 1 } // TODO: set proper initial texture count.
+            , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
+            , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
+            , sceneRenderPass { gpu.device }
+            , primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
+            , primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout }
+            , jumpFloodComputer { gpu.device }
+            , outlineRenderer { gpu.device }
+            , skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices }
+            , weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass }
+            , swapchainAttachmentGroup { gpu, swapchainExtent, swapchainImages }
+            , imGuiSwapchainAttachmentGroup { getImGuiSwapchainAttachmentGroup() }
+            , textureDescriptorPool { createTextureDescriptorPool() }
+            , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
             , fallbackTexture { gpu }{
             std::tie(assetDescriptorSet)
                 = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(
@@ -286,10 +303,6 @@ namespace vk_gltf_viewer::vulkan {
 
         [[nodiscard]] auto createTextureDescriptorPool() const -> vk::raii::DescriptorPool {
             return { gpu.device, getPoolSizes(assetDescriptorSetLayout).getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind) };
-        }
-
-        [[nodiscard]] auto createDescriptorPool() const -> vk::raii::DescriptorPool {
-            return { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() };
         }
     };
 }

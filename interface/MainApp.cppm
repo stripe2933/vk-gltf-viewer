@@ -143,7 +143,7 @@ namespace vk_gltf_viewer {
         // --------------------
 
         vulkan::SharedData sharedData { gpu, swapchainExtent, swapchainImages };
-        std::array<vulkan::Frame, FRAMES_IN_FLIGHT> frames{ vulkan::Frame { gpu, sharedData }, vulkan::Frame { gpu, sharedData } };
+        std::array<vulkan::Frame, FRAMES_IN_FLIGHT> frames{ vulkan::Frame { sharedData }, vulkan::Frame { sharedData } };
         
         [[nodiscard]] vk::raii::Instance createInstance() const;
         [[nodiscard]] vk::raii::SwapchainKHR createSwapchain(vk::SwapchainKHR oldSwapchain = {}) const;

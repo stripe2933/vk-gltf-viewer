@@ -121,7 +121,7 @@ namespace vk_gltf_viewer::vulkan {
             std::optional<std::uint16_t> hoveringNodeIndex;
         };
 
-        Frame(const Gpu &gpu [[clang::lifetimebound]], const SharedData &sharedData [[clang::lifetimebound]]);
+        explicit Frame(const SharedData &sharedData [[clang::lifetimebound]]);
 
         /**
          * @brief Wait for the previous frame execution to finish.
@@ -130,8 +130,8 @@ namespace vk_gltf_viewer::vulkan {
          * You should call this function before mutating the frame GPU resources for avoiding synchronization error.
          */
         void waitForPreviousExecution() const {
-            std::ignore = gpu.device.waitForFences(*inFlightFence, true, ~0ULL); // TODO: failure handling
-            gpu.device.resetFences(*inFlightFence);
+            std::ignore = sharedData.gpu.device.waitForFences(*inFlightFence, true, ~0ULL); // TODO: failure handling
+            sharedData.gpu.device.resetFences(*inFlightFence);
         }
 
         UpdateResult update(const ExecutionTask &task);
@@ -198,24 +198,23 @@ namespace vk_gltf_viewer::vulkan {
             float outlineThickness;
         };
 
-        const Gpu &gpu;
         const SharedData &sharedData;
 
         // Buffer, image and image views.
         vku::MappedBuffer hoveringNodeIndexBuffer;
-        std::optional<PassthruResources> passthruResources = std::nullopt;
+        std::optional<PassthruResources> passthruResources;
 
         // Attachment groups.
-        ag::SceneOpaque sceneOpaqueAttachmentGroup { gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
-        ag::SceneWeightedBlended sceneWeightedBlendedAttachmentGroup { gpu, sharedData.swapchainExtent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image };
+        ag::SceneOpaque sceneOpaqueAttachmentGroup;
+        ag::SceneWeightedBlended sceneWeightedBlendedAttachmentGroup;
 
         // Framebuffers.
-        std::vector<vk::raii::Framebuffer> framebuffers = createFramebuffers();
+        std::vector<vk::raii::Framebuffer> framebuffers;
 
         // Descriptor/command pools.
-        vk::raii::DescriptorPool descriptorPool = createDescriptorPool();
-        vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
-        vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+        vk::raii::DescriptorPool descriptorPool;
+        vk::raii::CommandPool computeCommandPool;
+        vk::raii::CommandPool graphicsCommandPool;
 
         // Descriptor sets.
         vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> hoveringNodeJumpFloodSet;
@@ -231,12 +230,12 @@ namespace vk_gltf_viewer::vulkan {
         vk::CommandBuffer jumpFloodCommandBuffer;
 
         // Synchronization stuffs.
-        vk::raii::Semaphore scenePrepassFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
-        vk::raii::Semaphore swapchainImageAcquireSema { gpu.device, vk::SemaphoreCreateInfo{} };
-        vk::raii::Semaphore sceneRenderingFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
-        vk::raii::Semaphore compositionFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
-        vk::raii::Semaphore jumpFloodFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
-        vk::raii::Fence inFlightFence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } };
+        vk::raii::Semaphore scenePrepassFinishSema;
+        vk::raii::Semaphore swapchainImageAcquireSema;
+        vk::raii::Semaphore sceneRenderingFinishSema;
+        vk::raii::Semaphore compositionFinishSema;
+        vk::raii::Semaphore jumpFloodFinishSema;
+        vk::raii::Fence inFlightFence;
 
         vk::Rect2D passthruRect;
         glm::mat4 projectionViewMatrix;

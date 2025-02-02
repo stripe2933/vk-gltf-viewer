@@ -17,20 +17,31 @@ import :vulkan.buffer.IndirectDrawCommands;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
 
-vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedData)
-    : gpu { gpu }
-    , hoveringNodeIndexBuffer { gpu.allocator, NO_INDEX, vk::BufferUsageFlagBits::eTransferDst, vku::allocation::hostRead }
-    , sharedData { sharedData } {
+vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
+    : sharedData { sharedData }
+    , hoveringNodeIndexBuffer { sharedData.gpu.allocator, NO_INDEX, vk::BufferUsageFlagBits::eTransferDst, vku::allocation::hostRead }
+    , sceneOpaqueAttachmentGroup { sharedData.gpu, sharedData.swapchainExtent, sharedData.swapchainImages }
+    , sceneWeightedBlendedAttachmentGroup { sharedData.gpu, sharedData.swapchainExtent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image }
+    , framebuffers { createFramebuffers() }
+    , descriptorPool { createDescriptorPool() }
+    , computeCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.compute } }
+    , graphicsCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.graphicsPresent } }
+    , scenePrepassFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
+    , swapchainImageAcquireSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
+    , sceneRenderingFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
+    , compositionFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
+    , jumpFloodFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
+    , inFlightFence { sharedData.gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } } {
     // Change initial attachment layouts.
-    const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-    vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+    const vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
+    vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
         recordSwapchainExtentDependentImageLayoutTransitionCommands(cb);
     }, *fence);
-    std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
+    std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
     // Allocate descriptor sets.
     std::tie(hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet)
-        = allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
+        = allocateDescriptorSets(*sharedData.gpu.device, *descriptorPool, std::tie(
             sharedData.jumpFloodComputer.descriptorSetLayout,
             sharedData.jumpFloodComputer.descriptorSetLayout,
             sharedData.outlineRenderer.descriptorSetLayout,
@@ -38,7 +49,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedDat
             sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout));
 
     // Update descriptor set.
-    gpu.device.updateDescriptorSets(
+    sharedData.gpu.device.updateDescriptorSets(
         weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
             vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal },
             vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view, vk::ImageLayout::eShaderReadOnlyOptimal },
@@ -46,9 +57,9 @@ vk_gltf_viewer::vulkan::Frame::Frame(const Gpu &gpu, const SharedData &sharedDat
         {});
 
     // Allocate per-frame command buffers.
-    std::tie(jumpFloodCommandBuffer) = vku::allocateCommandBuffers<1>(*gpu.device, *computeCommandPool);
+    std::tie(jumpFloodCommandBuffer) = vku::allocateCommandBuffers<1>(*sharedData.gpu.device, *computeCommandPool);
     std::tie(scenePrepassCommandBuffer, sceneRenderingCommandBuffer, compositionCommandBuffer)
-        = vku::allocateCommandBuffers<3>(*gpu.device, *graphicsCommandPool);
+        = vku::allocateCommandBuffers<3>(*sharedData.gpu.device, *graphicsCommandPool);
 }
 
 auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateResult {
@@ -60,11 +71,11 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     if (task.handleSwapchainResize) {
         // Attachment images that have to be matched to the swapchain extent must be recreated.
-        sceneOpaqueAttachmentGroup = { gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
-        sceneWeightedBlendedAttachmentGroup = { gpu, sharedData.swapchainExtent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image };
+        sceneOpaqueAttachmentGroup = { sharedData.gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
+        sceneWeightedBlendedAttachmentGroup = { sharedData.gpu, sharedData.swapchainExtent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image };
         framebuffers = createFramebuffers();
 
-        gpu.device.updateDescriptorSets(
+        sharedData.gpu.device.updateDescriptorSets(
             weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
                 vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal },
                 vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view, vk::ImageLayout::eShaderReadOnlyOptimal },
@@ -73,11 +84,11 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         // Change initial attachment layouts.
         // TODO: can this operation be non-blocking?
-        const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-        vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+        const vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
+        vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
             recordSwapchainExtentDependentImageLayoutTransitionCommands(cb);
         }, *fence);
-        std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
+        std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
     }
 
     // Get node index under the cursor from hoveringNodeIndexBuffer.
@@ -89,13 +100,13 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     // If passthru extent is different from the current's, dependent images have to be recreated.
     if (!passthruResources || passthruResources->extent != task.passthruRect.extent) {
         // TODO: can this operation be non-blocking?
-        const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-        vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-            passthruResources.emplace(gpu, task.passthruRect.extent, cb);
+        const vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
+        vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+            passthruResources.emplace(sharedData.gpu, task.passthruRect.extent, cb);
         }, *fence);
-        std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
+        std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
-        gpu.device.updateDescriptorSets({
+        sharedData.gpu.device.updateDescriptorSets({
             hoveringNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
             selectedNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->selectedNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
         }, {});
@@ -289,8 +300,8 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             renderingNodes->indices != task.gltf->renderingNodes.indices) {
             renderingNodes.emplace(
                 task.gltf->renderingNodes.indices,
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, criteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter),
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, depthPrepassCriteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter));
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, criteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter),
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, depthPrepassCriteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter));
         }
 
         if (task.frustum) {
@@ -346,7 +357,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (task.gltf->regenerateDrawCommands ||
                 selectedNodes->indices != task.gltf->selectedNodes->indices) {
                 selectedNodes->indices = task.gltf->selectedNodes->indices;
-                selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter);
+                selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter);
             }
             selectedNodes->outlineColor = task.gltf->selectedNodes->outlineColor;
             selectedNodes->outlineThickness = task.gltf->selectedNodes->outlineThickness;
@@ -354,7 +365,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         else {
             selectedNodes.emplace(
                 task.gltf->selectedNodes->indices,
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter),
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter),
                 task.gltf->selectedNodes->outlineColor,
                 task.gltf->selectedNodes->outlineThickness);
         }
@@ -370,7 +381,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             if (task.gltf->regenerateDrawCommands ||
                 hoveringNode->index != task.gltf->hoveringNode->index) {
                 hoveringNode->index = task.gltf->hoveringNode->index;
-                hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, { task.gltf->hoveringNode->index }, drawCommandGetter);
+                hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, { task.gltf->hoveringNode->index }, drawCommandGetter);
             }
             hoveringNode->outlineColor = task.gltf->hoveringNode->outlineColor;
             hoveringNode->outlineThickness = task.gltf->hoveringNode->outlineThickness;
@@ -378,7 +389,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         else {
             hoveringNode.emplace(
                 task.gltf->hoveringNode->index,
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, gpu.allocator, jumpFloodSeedCriteriaGetter, { task.gltf->hoveringNode->index }, drawCommandGetter),
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, { task.gltf->hoveringNode->index }, drawCommandGetter),
                 task.gltf->hoveringNode->outlineColor,
                 task.gltf->hoveringNode->outlineThickness);
         }
@@ -408,7 +419,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
         recordScenePrepassCommands(scenePrepassCommandBuffer);
         scenePrepassCommandBuffer.end();
 
-        gpu.queues.graphicsPresent.submit(vk::SubmitInfo {
+        sharedData.gpu.queues.graphicsPresent.submit(vk::SubmitInfo {
             {},
             {},
             scenePrepassCommandBuffer,
@@ -427,7 +438,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
                 passthruResources->hoveringNodeOutlineJumpFloodResources.image,
                 hoveringNodeJumpFloodSet,
                 std::bit_ceil(static_cast<std::uint32_t>(hoveringNode->outlineThickness)));
-            gpu.device.updateDescriptorSets(
+            sharedData.gpu.device.updateDescriptorSets(
                 hoveringNodeOutlineSet.getWriteOne<0>({
                     {},
                     *hoveringNodeJumpFloodForward
@@ -443,7 +454,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
                 passthruResources->selectedNodeOutlineJumpFloodResources.image,
                 selectedNodeJumpFloodSet,
                 std::bit_ceil(static_cast<std::uint32_t>(selectedNodes->outlineThickness)));
-            gpu.device.updateDescriptorSets(
+            sharedData.gpu.device.updateDescriptorSets(
                 selectedNodeOutlineSet.getWriteOne<0>({
                     {},
                     *selectedNodeJumpFloodForward
@@ -455,7 +466,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
         }
         jumpFloodCommandBuffer.end();
 
-        gpu.queues.compute.submit(vk::SubmitInfo {
+        sharedData.gpu.queues.compute.submit(vk::SubmitInfo {
             *scenePrepassFinishSema,
             vku::unsafeProxy(vk::Flags { vk::PipelineStageFlagBits::eComputeShader }),
             jumpFloodCommandBuffer,
@@ -562,7 +573,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
         compositionCommandBuffer.end();
     }
 
-    gpu.queues.graphicsPresent.submit({
+    sharedData.gpu.queues.graphicsPresent.submit({
         vk::SubmitInfo {
             *swapchainImageAcquireSema,
             vku::unsafeProxy(vk::Flags { vk::PipelineStageFlagBits::eColorAttachmentOutput }),
@@ -645,7 +656,7 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutT
 auto vk_gltf_viewer::vulkan::Frame::createFramebuffers() const -> std::vector<vk::raii::Framebuffer> {
     return sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).views
         | std::views::transform([this](vk::ImageView swapchainImageView) {
-            return vk::raii::Framebuffer { gpu.device, vk::FramebufferCreateInfo {
+            return vk::raii::Framebuffer { sharedData.gpu.device, vk::FramebufferCreateInfo {
                 {},
                 *sharedData.sceneRenderPass,
                 vku::unsafeProxy({
@@ -667,7 +678,7 @@ auto vk_gltf_viewer::vulkan::Frame::createFramebuffers() const -> std::vector<vk
 
 auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {
     return {
-        gpu.device,
+        sharedData.gpu.device,
         (2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout)
             + sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize())
             .getDescriptorPoolCreateInfo(),
@@ -745,7 +756,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 resourceBindingState.indexType = *criteria.indexType;
                 cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
             }
-            indirectDrawCommandBuffer.recordDrawCommand(cb, gpu.supportDrawIndirectCount);;
+            indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);;
         }
     };
 
@@ -888,7 +899,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
             resourceBindingState.indexType = *criteria.indexType;
             cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
         }
-        indirectDrawCommandBuffer.recordDrawCommand(cb, gpu.supportDrawIndirectCount);;
+        indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);;
     }
 }
 
@@ -926,7 +937,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
             resourceBindingState.indexType = *criteria.indexType;
             cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
         }
-        indirectDrawCommandBuffer.recordDrawCommand(cb, gpu.supportDrawIndirectCount);;
+        indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);;
         hasBlendMesh = true;
     }
 
