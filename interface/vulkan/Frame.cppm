@@ -5,14 +5,15 @@ module;
 export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
-export import :gltf.AssetGpuBuffers;
-export import :gltf.AssetSceneGpuBuffers;
+export import :gltf.NodeWorldTransforms;
+export import :gltf.OrderedPrimitives;
 export import :math.Frustum;
-export import :vulkan.SharedData;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.SceneOpaque;
 import :vulkan.ag.SceneWeightedBlended;
+import :vulkan.buffer.IndirectDrawCommands;
+export import :vulkan.SharedData;
 
 /**
  * @brief A type that represents the state for a single multi-draw-indirect call.
@@ -26,7 +27,7 @@ import :vulkan.ag.SceneWeightedBlended;
 struct CommandSeparationCriteria {
     std::uint32_t subpass;
     vk::Pipeline pipeline;
-    std::optional<std::pair<vk::Buffer, vk::IndexType>> indexBufferAndType;
+    std::optional<vk::IndexType> indexType;
     vk::CullModeFlagBits cullMode;
 
     [[nodiscard]] std::strong_ordering operator<=>(const CommandSeparationCriteria&) const noexcept = default;
@@ -43,7 +44,7 @@ struct std::less<CommandSeparationCriteria> {
 
 struct CommandSeparationCriteriaNoShading {
     vk::Pipeline pipeline;
-    std::optional<std::pair<vk::Buffer, vk::IndexType>> indexBufferAndType;
+    std::optional<vk::IndexType> indexType;
     vk::CullModeFlagBits cullMode;
 
     [[nodiscard]] std::strong_ordering operator<=>(const CommandSeparationCriteriaNoShading&) const noexcept = default;
@@ -71,9 +72,8 @@ namespace vk_gltf_viewer::vulkan {
                 };
 
                 const fastgltf::Asset &asset;
-                const gltf::AssetGpuBuffers &assetGpuBuffers;
-                const gltf::AssetSceneHierarchy &sceneHierarchy;
-                const gltf::AssetSceneGpuBuffers &sceneGpuBuffers;
+                const gltf::OrderedPrimitives &orderedPrimitives;
+                const gltf::NodeWorldTransforms &nodeWorldTransforms;
 
                 bool regenerateDrawCommands;
                 RenderingNodes renderingNodes;
@@ -121,7 +121,7 @@ namespace vk_gltf_viewer::vulkan {
             std::optional<std::uint16_t> hoveringNodeIndex;
         };
 
-        Frame(const Gpu &gpu [[clang::lifetimebound]], const SharedData &sharedData [[clang::lifetimebound]]);
+        explicit Frame(const SharedData &sharedData [[clang::lifetimebound]]);
 
         /**
          * @brief Wait for the previous frame execution to finish.
@@ -130,8 +130,8 @@ namespace vk_gltf_viewer::vulkan {
          * You should call this function before mutating the frame GPU resources for avoiding synchronization error.
          */
         void waitForPreviousExecution() const {
-            std::ignore = gpu.device.waitForFences(*inFlightFence, true, ~0ULL); // TODO: failure handling
-            gpu.device.resetFences(*inFlightFence);
+            std::ignore = sharedData.gpu.device.waitForFences(*inFlightFence, true, ~0ULL); // TODO: failure handling
+            sharedData.gpu.device.resetFences(*inFlightFence);
         }
 
         UpdateResult update(const ExecutionTask &task);
@@ -151,9 +151,6 @@ namespace vk_gltf_viewer::vulkan {
         [[nodiscard]] vk::Semaphore getSwapchainImageReadySemaphore() const noexcept { return *compositionFinishSema; }
 
     private:
-        template <typename Criteria>
-        using CriteriaSeparatedIndirectDrawCommands = std::map<Criteria, std::variant<buffer::IndirectDrawCommands<false>, buffer::IndirectDrawCommands<true>>>;
-
         class PassthruResources {
         public:
             struct JumpFloodResources {
@@ -183,42 +180,41 @@ namespace vk_gltf_viewer::vulkan {
 
         struct RenderingNodes {
             std::unordered_set<std::uint16_t> indices;
-            CriteriaSeparatedIndirectDrawCommands<CommandSeparationCriteria> indirectDrawCommandBuffers;
-            CriteriaSeparatedIndirectDrawCommands<CommandSeparationCriteriaNoShading> depthPrepassIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteria, buffer::IndirectDrawCommands> indirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> depthPrepassIndirectDrawCommandBuffers;
         };
 
         struct SelectedNodes {
             std::unordered_set<std::uint16_t> indices;
-            CriteriaSeparatedIndirectDrawCommands<CommandSeparationCriteriaNoShading> jumpFloodSeedIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
 
         struct HoveringNode {
             std::uint16_t index;
-            CriteriaSeparatedIndirectDrawCommands<CommandSeparationCriteriaNoShading> jumpFloodSeedIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
 
-        const Gpu &gpu;
         const SharedData &sharedData;
 
         // Buffer, image and image views.
         vku::MappedBuffer hoveringNodeIndexBuffer;
-        std::optional<PassthruResources> passthruResources = std::nullopt;
+        std::optional<PassthruResources> passthruResources;
 
         // Attachment groups.
-        ag::SceneOpaque sceneOpaqueAttachmentGroup { gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
-        ag::SceneWeightedBlended sceneWeightedBlendedAttachmentGroup { gpu, sharedData.swapchainExtent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image };
+        ag::SceneOpaque sceneOpaqueAttachmentGroup;
+        ag::SceneWeightedBlended sceneWeightedBlendedAttachmentGroup;
 
         // Framebuffers.
-        std::vector<vk::raii::Framebuffer> framebuffers = createFramebuffers();
+        std::vector<vk::raii::Framebuffer> framebuffers;
 
         // Descriptor/command pools.
-        vk::raii::DescriptorPool descriptorPool = createDescriptorPool();
-        vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
-        vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+        vk::raii::DescriptorPool descriptorPool;
+        vk::raii::CommandPool computeCommandPool;
+        vk::raii::CommandPool graphicsCommandPool;
 
         // Descriptor sets.
         vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> hoveringNodeJumpFloodSet;
@@ -234,12 +230,12 @@ namespace vk_gltf_viewer::vulkan {
         vk::CommandBuffer jumpFloodCommandBuffer;
 
         // Synchronization stuffs.
-        vk::raii::Semaphore scenePrepassFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
-        vk::raii::Semaphore swapchainImageAcquireSema { gpu.device, vk::SemaphoreCreateInfo{} };
-        vk::raii::Semaphore sceneRenderingFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
-        vk::raii::Semaphore compositionFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
-        vk::raii::Semaphore jumpFloodFinishSema { gpu.device, vk::SemaphoreCreateInfo{} };
-        vk::raii::Fence inFlightFence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } };
+        vk::raii::Semaphore scenePrepassFinishSema;
+        vk::raii::Semaphore swapchainImageAcquireSema;
+        vk::raii::Semaphore sceneRenderingFinishSema;
+        vk::raii::Semaphore compositionFinishSema;
+        vk::raii::Semaphore jumpFloodFinishSema;
+        vk::raii::Fence inFlightFence;
 
         vk::Rect2D passthruRect;
         glm::mat4 projectionViewMatrix;

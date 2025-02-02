@@ -9,7 +9,6 @@ export import glm;
 export import vulkan_hpp;
 import vku;
 export import :vulkan.dsl.Asset;
-export import :vulkan.dsl.Scene;
 
 namespace vk_gltf_viewer::vulkan::pl {
     export struct PrimitiveNoShading : vk::raii::PipelineLayout {
@@ -19,10 +18,10 @@ namespace vk_gltf_viewer::vulkan::pl {
 
         PrimitiveNoShading(
             const vk::raii::Device &device [[clang::lifetimebound]],
-            std::pair<const dsl::Asset&, const dsl::Scene&> descriptorSetLayouts
+            const dsl::Asset& descriptorSetLayout
         ) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},
-                vku::unsafeProxy({ *descriptorSetLayouts.first, *descriptorSetLayouts.second }),
+                *descriptorSetLayout,
                 vku::unsafeProxy(vk::PushConstantRange {
                     vk::ShaderStageFlagBits::eVertex,
                     0, sizeof(PushConstant),

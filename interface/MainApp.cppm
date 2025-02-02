@@ -4,15 +4,11 @@ import std;
 import :control.AppWindow;
 import :gltf.algorithm.miniball;
 import :gltf.AssetExternalBuffers;
-import :gltf.AssetGpuBuffers;
-import :gltf.AssetGpuTextures;
-import :gltf.AssetGpuFallbackTexture;
-import :gltf.AssetSceneGpuBuffers;
-import :gltf.AssetSceneHierarchy;
 import :gltf.MaterialVariantsMapping;
+import :gltf.NodeWorldTransforms;
+import :gltf.SceneInverseHierarchy;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
-import :vulkan.dsl.Scene;
 import :vulkan.dsl.Skybox;
 import :vulkan.Frame;
 
@@ -58,10 +54,6 @@ namespace vk_gltf_viewer {
              */
             gltf::MaterialVariantsMapping materialVariantsMapping { asset };
 
-        private:
-            const vulkan::Gpu &gpu;
-
-        public:
             /**
 			 * @brief External buffers that are not embedded in the glTF file, such like .bin files.
              * 
@@ -69,8 +61,8 @@ namespace vk_gltf_viewer {
              */
             gltf::AssetExternalBuffers assetExternalBuffers{ asset, directory };
 
-            gltf::AssetGpuBuffers assetGpuBuffers;
-            gltf::AssetGpuTextures assetGpuTextures;
+            gltf::NodeWorldTransforms nodeWorldTransforms;
+            gltf::OrderedPrimitives orderedPrimitives;
 
             /**
              * @brief The glTF scene that is currently used by.
@@ -80,15 +72,7 @@ namespace vk_gltf_viewer {
              */
             std::reference_wrapper<fastgltf::Scene> scene { asset.scenes[asset.defaultScene.value_or(0)] };
 
-            /**
-             * @brief Hierarchy information of current scene.
-             */
-            gltf::AssetSceneHierarchy sceneHierarchy { asset, scene };
-
-			/**
-			 * @brief GPU buffers that are used for rendering the current scene.
-			 */
-            gltf::AssetSceneGpuBuffers sceneGpuBuffers;
+            gltf::SceneInverseHierarchy sceneInverseHierarchy;
 
 			/**
 			 * @brief Smallest enclosing sphere of all meshes (a.k.a. miniball) in the scene.
@@ -97,11 +81,7 @@ namespace vk_gltf_viewer {
 			 */
             std::pair<fastgltf::math::dvec3, double> sceneMiniball;
 
-            Gltf(
-                fastgltf::Parser &parser,
-                const std::filesystem::path &path,
-                const vulkan::Gpu &gpu [[clang::lifetimebound]],
-                BS::thread_pool<> threadPool = {});
+            Gltf(fastgltf::Parser &parser, const std::filesystem::path &path);
 
             void setScene(std::size_t sceneIndex);
         };
@@ -151,7 +131,6 @@ namespace vk_gltf_viewer {
         vku::AllocatedImage brdfmapImage = createBrdfmapImage();
         vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
         vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
-        gltf::AssetGpuFallbackTexture gpuFallbackTexture { gpu };
 
         // --------------------
         // Descriptor sets.
@@ -164,7 +143,7 @@ namespace vk_gltf_viewer {
         // --------------------
 
         vulkan::SharedData sharedData { gpu, swapchainExtent, swapchainImages };
-        std::array<vulkan::Frame, FRAMES_IN_FLIGHT> frames{ vulkan::Frame { gpu, sharedData }, vulkan::Frame { gpu, sharedData } };
+        std::array<vulkan::Frame, FRAMES_IN_FLIGHT> frames{ vulkan::Frame { sharedData }, vulkan::Frame { sharedData } };
         
         [[nodiscard]] vk::raii::Instance createInstance() const;
         [[nodiscard]] vk::raii::SwapchainKHR createSwapchain(vk::SwapchainKHR oldSwapchain = {}) const;

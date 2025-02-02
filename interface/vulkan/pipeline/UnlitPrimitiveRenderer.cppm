@@ -21,8 +21,8 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class UnlitPrimitiveRendererSpecialization {
     public:
-        std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
-        std::optional<std::pair<std::uint8_t, fastgltf::ComponentType>> colorComponentCountAndType;
+        std::optional<std::uint8_t> baseColorTexcoordComponentType;
+        std::optional<std::pair<std::uint8_t, std::uint8_t>> colorComponentCountAndType;
         shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
         fastgltf::AlphaMode alphaMode;
 
@@ -166,14 +166,14 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             VertexShaderSpecializationData result{};
 
             if (baseColorTexcoordComponentType) {
-                result.texcoordComponentType = getGLComponentType(*baseColorTexcoordComponentType);
+                result.texcoordComponentType = *baseColorTexcoordComponentType;
             }
 
             if (colorComponentCountAndType) {
                 assert(ranges::one_of(colorComponentCountAndType->first, 3, 4));
-                assert(ranges::one_of(colorComponentCountAndType->second, fastgltf::ComponentType::UnsignedByte, fastgltf::ComponentType::UnsignedShort, fastgltf::ComponentType::Float));
+                assert(ranges::one_of(colorComponentCountAndType->second, 1 /* UNSIGNED_BYTE */, 3 /* UNSIGNED_SHORT */, 6 /* FLOAT */));
                 result.colorComponentCount = colorComponentCountAndType->first;
-                result.colorComponentType = getGLComponentType(colorComponentCountAndType->second);
+                result.colorComponentType = colorComponentCountAndType->second;
             }
 
             return result;

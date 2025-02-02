@@ -1,3 +1,6 @@
+#ifndef TYPES_GLSL
+#define TYPES_GLSL
+
 struct Material {
     uint8_t baseColorTexcoordIndex;
     uint8_t metallicRoughnessTexcoordIndex;
@@ -17,16 +20,11 @@ struct Material {
     float occlusionStrength;
     vec3 emissiveFactor;
     float alphaCutoff;
-    mat2 baseColorTextureTransformUpperLeft2x2;
-    vec2 baseColorTextureTransformOffset;
-    mat2 metallicRoughnessTextureTransformUpperLeft2x2;
-    vec2 metallicRoughnessTextureTransformOffset;
-    mat2 normalTextureTransformUpperLeft2x2;
-    vec2 normalTextureTransformOffset;
-    mat2 occlusionTextureTransformUpperLeft2x2;
-    vec2 occlusionTextureTransformOffset;
-    mat2 emissiveTextureTransformUpperLeft2x2;
-    vec2 emissiveTextureTransformOffset;
+    mat3x2 baseColorTextureTransform;
+    mat3x2 metallicRoughnessTextureTransform;
+    mat3x2 normalTextureTransform;
+    mat3x2 occlusionTextureTransform;
+    mat3x2 emissiveTextureTransform;
     vec2 padding1;
 }; // 192 bytes.
 
@@ -36,18 +34,21 @@ struct Material {
 
 #ifdef VERTEX_SHADER
 
-struct IndexedAttributeMappingInfo {
-    uint64_t bytesPtr;
+struct Accessor {
+    uint64_t bufferAddress;
+    uint8_t componentType;
+    uint8_t componentCount;
     uint8_t stride;
+    uint8_t _padding_[5];
 };
 
-layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer IndexedAttributeMappingInfos { IndexedAttributeMappingInfo data[]; };
+layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Accessors { Accessor data[]; };
 
 struct Primitive {
     uint64_t pPositionBuffer;
     uint64_t pNormalBuffer;
     uint64_t pTangentBuffer;
-    IndexedAttributeMappingInfos texcoordAttributeMappingInfos;
+    Accessors texcoordAccessors;
     uint64_t pColorBuffer;
     uint8_t positionByteStride;
     uint8_t normalByteStride;
@@ -57,3 +58,5 @@ struct Primitive {
 };
 
 #endif
+
+#endif // TYPES_GLSL

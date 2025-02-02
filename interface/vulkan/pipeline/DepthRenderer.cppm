@@ -16,8 +16,8 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     class MaskDepthRendererSpecialization {
     public:
-        std::optional<fastgltf::ComponentType> baseColorTexcoordComponentType;
-        std::optional<fastgltf::ComponentType> colorAlphaComponentType;
+        std::optional<std::uint8_t> baseColorTexcoordComponentType;
+        std::optional<std::uint8_t> colorAlphaComponentType;
         shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
 
         [[nodiscard]] bool operator==(const MaskDepthRendererSpecialization&) const = default;
@@ -88,10 +88,10 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             VertexShaderSpecializationData result{};
 
             if (baseColorTexcoordComponentType) {
-                result.texcoordComponentType = getGLComponentType(*baseColorTexcoordComponentType);
+                result.texcoordComponentType = *baseColorTexcoordComponentType;
             }
             if (colorAlphaComponentType) {
-                result.colorComponentType = getGLComponentType(*colorAlphaComponentType);
+                result.colorComponentType = *colorAlphaComponentType;
             }
 
             return result;

@@ -30,10 +30,10 @@ layout (location = 0) out vec4 outColor;
 layout (location = 1) out float outRevealage;
 #endif
 
-layout (set = 1, binding = 1, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 3, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout (set = 1, binding = 2) uniform sampler2D textures[];
+layout (set = 1, binding = 4) uniform sampler2D textures[];
 
 #if ALPHA_MODE == 0 || ALPHA_MODE == 2
 layout (early_fragment_tests) in;
@@ -71,10 +71,10 @@ void main(){
 #if HAS_BASE_COLOR_TEXTURE
     vec2 baseColorTexcoord = variadic_in.baseColorTexcoord;
     if (TEXTURE_TRANSFORM_TYPE == 1) {
-        baseColorTexcoord = vec2(MATERIAL.baseColorTextureTransformUpperLeft2x2[0][0], MATERIAL.baseColorTextureTransformUpperLeft2x2[0][1]) * baseColorTexcoord + MATERIAL.baseColorTextureTransformOffset;
+        baseColorTexcoord = vec2(MATERIAL.baseColorTextureTransform[0][0], MATERIAL.baseColorTextureTransform[0][1]) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
     else if (TEXTURE_TRANSFORM_TYPE == 2) {
-        baseColorTexcoord = MATERIAL.baseColorTextureTransformUpperLeft2x2 * baseColorTexcoord + MATERIAL.baseColorTextureTransformOffset;
+        baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
     baseColor *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], baseColorTexcoord);
 #endif

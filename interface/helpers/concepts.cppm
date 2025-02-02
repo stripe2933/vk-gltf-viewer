@@ -12,4 +12,7 @@ namespace concepts {
     concept compatible_signature_of = requires(F f, Ts... ts) {
         { f(std::forward<Ts>(ts)...) } -> std::convertible_to<R>;
     };
+
+    export template <typename T, typename... Ts>
+    concept one_of = (std::same_as<T, Ts> || ...);
 }

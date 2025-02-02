@@ -24,8 +24,8 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class PrimitiveRendererSpecialization {
     public:
-        boost::container::static_vector<fastgltf::ComponentType, 4> texcoordComponentTypes;
-        std::optional<std::pair<std::uint8_t, fastgltf::ComponentType>> colorComponentCountAndType;
+        boost::container::static_vector<std::uint8_t, 4> texcoordComponentTypes;
+        std::optional<std::pair<std::uint8_t, std::uint8_t>> colorComponentCountAndType;
         bool fragmentShaderGeneratedTBN;
         shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
         shader_type::TextureTransform metallicRoughnessTextureTransform = shader_type::TextureTransform::None;
@@ -175,34 +175,20 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             VertexShaderSpecializationData result{};
 
             for (auto [i, componentType] : texcoordComponentTypes | ranges::views::enumerate) {
-                assert(ranges::one_of(componentType, fastgltf::ComponentType::UnsignedByte, fastgltf::ComponentType::UnsignedShort, fastgltf::ComponentType::Float));
-
-                /* Change the i-th byte (from LSB) to the componentType - fastgltf::ComponentType::Byte, which can be
-                 * represented by the 1-byte integer.
-                 *
-                 * fastgltf::ComponentType::Byte - fastgltf::ComponentType::Byte = 0
-                 * fastgltf::ComponentType::UnsignedByte - fastgltf::ComponentType::Byte = 1
-                 * fastgltf::ComponentType::Short - fastgltf::ComponentType::Byte = 2
-                 * fastgltf::ComponentType::UnsignedShort - fastgltf::ComponentType::Byte = 3
-                 * fastgltf::ComponentType::Int - fastgltf::ComponentType::Byte = 4
-                 * fastgltf::ComponentType::UnsignedInt - fastgltf::ComponentType::Byte = 5
-                 * fastgltf::ComponentType::Float - fastgltf::ComponentType::Byte = 6
-                 * fastgltf::ComponentType::Double - fastgltf::ComponentType::Byte = 10
-                 */
+                assert(ranges::one_of(componentType, 1 /* UNSIGNED_BYTE */, 3 /* UNSIGNED_SHORT */, 6 /* FLOAT */));
 
                 // Step 1: clear the i-th byte (=[8*(i+1):8*i] bits)
                 result.packedTexcoordComponentTypes &= ~(0xFFU << (8 * i));
 
-                // Step 2: set the i-th byte to the componentType - fastgltf::ComponentType::Byte
-                result.packedTexcoordComponentTypes
-                    |= (getGLComponentType(componentType) - getGLComponentType(fastgltf::ComponentType::Byte)) << (8 * i);
+                // Step 2: set the i-th byte to the componentType
+                result.packedTexcoordComponentTypes |= static_cast<std::uint32_t>(componentType) << (8 * i);
             }
 
             if (colorComponentCountAndType) {
                 assert(ranges::one_of(colorComponentCountAndType->first, 3, 4));
-                assert(ranges::one_of(colorComponentCountAndType->second, fastgltf::ComponentType::UnsignedByte, fastgltf::ComponentType::UnsignedShort, fastgltf::ComponentType::Float));
+                assert(ranges::one_of(colorComponentCountAndType->second, 1 /* UNSIGNED_BYTE */, 3 /* UNSIGNED_SHORT */, 6 /* FLOAT */));
                 result.colorComponentCount = colorComponentCountAndType->first;
-                result.colorComponentType = getGLComponentType(colorComponentCountAndType->second);
+                result.colorComponentType = colorComponentCountAndType->second;
             }
 
             return result;

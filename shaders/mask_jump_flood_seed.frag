@@ -26,20 +26,20 @@ layout (location = 1) in FRAG_VARIDIC_IN {
 
 layout (location = 0) out uvec2 outCoordinate;
 
-layout (set = 0, binding = 1, std430) readonly buffer MaterialBuffer {
+layout (set = 0, binding = 3, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout (set = 0, binding = 2) uniform sampler2D textures[];
+layout (set = 0, binding = 4) uniform sampler2D textures[];
 
 void main(){
     float baseColorAlpha = MATERIAL.baseColorFactor.a;
 #if HAS_BASE_COLOR_TEXTURE
     vec2 baseColorTexcoord = variadic_in.baseColorTexcoord;
     if (TEXTURE_TRANSFORM_TYPE == 1) {
-        baseColorTexcoord = vec2(MATERIAL.baseColorTextureTransformUpperLeft2x2[0][0], MATERIAL.baseColorTextureTransformUpperLeft2x2[0][1]) * baseColorTexcoord + MATERIAL.baseColorTextureTransformOffset;
+        baseColorTexcoord = vec2(MATERIAL.baseColorTextureTransform[0][0], MATERIAL.baseColorTextureTransform[0][1]) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
     else if (TEXTURE_TRANSFORM_TYPE == 2) {
-        baseColorTexcoord = MATERIAL.baseColorTextureTransformUpperLeft2x2 * baseColorTexcoord + MATERIAL.baseColorTextureTransformOffset;
+        baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
     baseColorAlpha *= texture(textures[uint(MATERIAL.baseColorTextureIndex) + 1], baseColorTexcoord).a;
 #endif

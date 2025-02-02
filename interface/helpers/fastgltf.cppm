@@ -172,67 +172,120 @@ namespace fastgltf {
     }
 
     /**
+     * @brief Get the instance transform for given node.
+     * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view. If you provided <tt>fastgltf::Options::LoadExternalBuffers</tt> to the <tt>fastgltf::Parser</tt> while loading the glTF, the parameter can be omitted.
+     * @param asset fastgltf asset
+     * @param nodeIndex Node index to get the instance transforms.
+     * @param instanceIndex Instance index to get the transform.
+     * @param adapter Buffer data adapter.
+     * @return Instance transform matrix.
+     * @throw std::invalid_argument If the node is not instanced.
+     */
+    export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
+    [[nodiscard]] math::fmat4x4 getInstanceTransform(const Asset &asset, std::size_t nodeIndex, std::size_t instanceIndex, const BufferDataAdapter &adapter = {}) {
+        const Node &node = asset.nodes[nodeIndex];
+        if (node.instancingAttributes.empty()) {
+            throw std::invalid_argument { "Node is not instanced" };
+        }
+
+        math::fmat4x4 result;
+        if (auto it = node.findInstancingAttribute("TRANSLATION"); it != node.instancingAttributes.end()) {
+            const Accessor &accessor = asset.accessors[it->accessorIndex];
+            const math::fvec3 translation = getAccessorElement<math::fvec3>(asset, accessor, instanceIndex, adapter);
+            result = translate(result, translation);
+        }
+        if (auto it = node.findInstancingAttribute("ROTATION"); it != node.instancingAttributes.end()) {
+            const Accessor &accessor = asset.accessors[it->accessorIndex];
+            math::fquat rotation = getAccessorElement<math::fquat>(asset, accessor, instanceIndex, adapter);
+            if (accessor.normalized) {
+                switch (accessor.componentType) {
+                    case ComponentType::Byte:
+                        rotation /= 256.f;
+                        break;
+                    case ComponentType::Short:
+                        rotation /= 65536.f;
+                        break;
+                    default:
+                        // EXT_mesh_gpu_instancing restricts the component type of ROTATION attribute to BYTE
+                        // normalized and SHORT normalized only.
+                        std::unreachable();
+                }
+            }
+
+            result = rotate(result, rotation);
+        }
+        if (auto it = node.findInstancingAttribute("SCALE"); it != node.instancingAttributes.end()) {
+            const Accessor &accessor = asset.accessors[it->accessorIndex];
+            const math::fvec3 scale = getAccessorElement<math::fvec3>(asset, accessor, instanceIndex, adapter);
+            result = math::scale(result, scale);
+        }
+
+        return result;
+    }
+
+    /**
      * @brief Get transform matrices of \p node instances.
      *
      * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view. If you provided <tt>fastgltf::Options::LoadExternalBuffers</tt> to the <tt>fastgltf::Parser</tt> while loading the glTF, the parameter can be omitted.
      * @param asset fastgltf asset.
-     * @param node Node to get instance transforms. This MUST be originated from the \p asset.
+     * @param nodeIndex Node index to get the instance transforms.
      * @param adapter Buffer data adapter.
      * @return A vector of instance transform matrices.
+     * @throw std::invalid_argument If the node is not instanced.
      * @note This function has effect only if \p asset is loaded with EXT_mesh_gpu_instancing extension supporting parser (otherwise, it will return the empty vector).
      */
     export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
-    [[nodiscard]] std::vector<math::fmat4x4> getInstanceTransforms(const Asset &asset, const Node &node, const BufferDataAdapter &adapter = {}) {
+    [[nodiscard]] std::vector<math::fmat4x4> getInstanceTransforms(const Asset &asset, std::size_t nodeIndex, const BufferDataAdapter &adapter = {}) {
+        const Node &node = asset.nodes[nodeIndex];
         if (node.instancingAttributes.empty()) {
-            // No instance transforms. Returning an empty vector.
-            return {};
+            throw std::invalid_argument { "Node is not instanced" };
         }
 
         // According to the EXT_mesh_gpu_instancing specification, all attribute accessors in a given node must
         // have the same count. Therefore, we can use the count of the first attribute accessor.
         const std::uint32_t instanceCount = asset.accessors[node.instancingAttributes[0].accessorIndex].count;
+        std::vector<math::fmat4x4> result(instanceCount);
 
-        std::vector<math::fvec3> translations(instanceCount);
         if (auto it = node.findInstancingAttribute("TRANSLATION"); it != node.instancingAttributes.end()) {
             const Accessor &accessor = asset.accessors[it->accessorIndex];
-            copyFromAccessor<math::fvec3>(asset, accessor, translations.data(), adapter);
+            iterateAccessorWithIndex<math::fvec3>(asset, accessor, [&](const math::fvec3 &translation, std::size_t i) {
+                result[i] = translate(result[i], translation);
+            }, adapter);
         }
 
-        std::vector<math::fquat> rotations(instanceCount);
         if (auto it = node.findInstancingAttribute("ROTATION"); it != node.instancingAttributes.end()) {
             const Accessor &accessor = asset.accessors[it->accessorIndex];
-            copyFromAccessor<math::fquat>(asset, accessor, rotations.data(), adapter);
 
-            // TODO: why fastgltf::copyFromAccessor does not respect the normalized accessor? Need investigation.
+            float multiplier = 1.f;
             if (accessor.normalized) {
-                float multiplier = 1.f / [&]() {
-                    switch (accessor.componentType) {
-                    case ComponentType::Byte: return 256.f;
-                    case ComponentType::Short: return 65536.f;
-                    default:
-                        // EXT_mesh_gpu_instancing restricts the component type of ROTATION attribute to BYTE
-                        // normalized and SHORT normalized only.
-                        std::unreachable();
-                    }
-                }();
-
-                for (math::fquat &rotation : rotations) {
-                    rotation *= multiplier;
+                switch (accessor.componentType) {
+                case ComponentType::Byte:
+                    multiplier = 1.f / 256.f;
+                    break;
+                case ComponentType::Short:
+                    multiplier = 1.f / 65536.f;
+                    break;
+                default:
+                    // EXT_mesh_gpu_instancing restricts the component type of ROTATION attribute to BYTE
+                    // normalized and SHORT normalized only.
+                    std::unreachable();
                 }
             }
+
+            // TODO: why fastgltf::iterateAccessorWithIndex does not de-normalize the normalized accessor?
+            iterateAccessorWithIndex<math::fquat>(asset, accessor, [&](math::fquat rotation, std::size_t i) {
+                if (accessor.normalized) {
+                    rotation *= multiplier;
+                }
+                result[i] = rotate(result[i], rotation);
+            }, adapter);
         }
 
-        std::vector<math::fvec3> scale(instanceCount);
         if (auto it = node.findInstancingAttribute("SCALE"); it != node.instancingAttributes.end()) {
             const Accessor &accessor = asset.accessors[it->accessorIndex];
-            fastgltf::copyFromAccessor<math::fvec3>(asset, accessor, scale.data(), adapter);
-        }
-
-        std::vector<math::fmat4x4> result;
-        result.reserve(instanceCount);
-        for (std::uint32_t i = 0; i < instanceCount; ++i) {
-            constexpr math::fmat4x4 identity { 1.f };
-            result.push_back(translate(identity, translations[i]) * rotate(identity, rotations[i]) * math::scale(identity, scale[i]));
+            iterateAccessorWithIndex<math::fvec3>(asset, accessor, [&](const math::fvec3 &scale, std::size_t i) {
+                result[i] = math::scale(result[i], scale);
+            }, adapter);
         }
 
         return result;
