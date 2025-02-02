@@ -174,6 +174,10 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
             const std::span data = result.asRange<fastgltf::math::fmat4x4>();
             for (const auto &[nodeIndex, node] : asset.get().nodes | ranges::views::enumerate) {
+                if (!node.meshIndex) {
+                    continue;
+                }
+                
                 if (node.instancingAttributes.empty()) {
                     data[instanceOffsets[nodeIndex]] = nodeWorldTransforms[nodeIndex];
                 }
