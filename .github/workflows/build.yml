@@ -32,7 +32,7 @@ jobs:
 
       - name: Install build dependencies (macOS)
         if: ${{ matrix.os == 'macos-latest' }}
-        run: brew install llvm ninja autoconf automake libtool nasm
+        run: brew install llvm ninja autoconf automake libtool nasm molten-vk
 
       - name: Install build dependencies (ubuntu-24.04)
         if: ${{ matrix.os == 'ubuntu-24.04' }}

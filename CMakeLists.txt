@@ -222,6 +222,21 @@ if (UNIX AND NOT APPLE) # Linux?
     endif()
 endif()
 
+# If MoltenVK.xcframework path is given in Apple platform, link it.
+if (APPLE AND DEFINED MOLTENVK_XCFRAMEWORK_PATH)
+    message(STATUS "Using MoltenVK.xcframework at ${MOLTENVK_XCFRAMEWORK_PATH}")
+
+    target_link_libraries(vk-gltf-viewer PRIVATE
+        ${MOLTENVK_XCFRAMEWORK_PATH}
+        "-framework Metal"
+        "-framework Foundation"
+        "-framework QuartzCore"
+        "-framework CoreGraphics"
+        "-framework IOSurface"
+        "-framework IOKit"
+        "-framework AppKit"
+    )
+endif()
 
 # --------------------
 # Shader compilation.
