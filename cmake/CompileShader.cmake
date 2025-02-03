@@ -122,8 +122,6 @@ function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
                 DEPENDS "${absolute_source}"
                 BYPRODUCTS shader_depfile/${filename}_${variant_filename}.d
                 DEPFILE shader_depfile/${filename}_${variant_filename}.d
-                VERBATIM
-                COMMAND_EXPAND_LISTS
                 APPEND
             )
         elseif (${Vulkan_glslangValidator_FOUND})
@@ -139,8 +137,6 @@ function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
                 # Implementation file generation.
                 COMMAND ${CMAKE_COMMAND} -E echo "extern template struct ${target_identifier}::shader::${shader_identifier}_t<${value_params}>\;" >> shader/${filename}.cpp
                 DEPENDS "${absolute_source}"
-                VERBATIM
-                COMMAND_EXPAND_LISTS
                 APPEND
             )
         endif ()
@@ -162,8 +158,6 @@ function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm
         COMMAND ${CMAKE_COMMAND} -E echo "template <${template_named_type_params}> constexpr auto &${shader_identifier} = ${shader_identifier}_t<${name_params}>::value\; }" >> shader/${filename}.cppm
         APPEND
-        VERBATIM
-        COMMAND_EXPAND_LISTS
     )
 
     target_sources(${TARGET} PRIVATE FILE_SET CXX_MODULES FILES ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm)
