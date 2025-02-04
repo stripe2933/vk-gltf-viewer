@@ -329,12 +329,7 @@ void vk_gltf_viewer::MainApp::run() {
                     regenerateDrawCommands.fill(true);
                 },
                 [&](control::task::CloseGltf) {
-                    gltf.reset();
-
-                    gpu.device.waitIdle();
-                    appState.gltfAsset.reset();
-
-                    window.setTitle("Vulkan glTF Viewer");
+                    closeGltf();
                 },
                 [&](control::task::ShowEqmapLoadFileDialog) {
                     constexpr std::array filterItems {
@@ -820,17 +815,20 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     }
     catch (gltf::AssetProcessError error) {
         std::println(std::cerr, "The glTF file cannot be processed because of an error: {}", to_string(error));
+        closeGltf();
         return;
     }
     catch (fastgltf::Error error) {
         // If error is due to missing or unknown required extension, show a message and return.
         if (ranges::one_of(error, fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension)) {
             std::println(std::cerr, "The glTF file requires an extension that is not supported by this application.");
+            closeGltf();
             return;
         }
-
-        // Application fault.
-        std::rethrow_exception(std::current_exception());
+        else {
+            // Application fault.
+            std::rethrow_exception(std::current_exception());
+        }
     }
 
     // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
@@ -865,6 +863,15 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     appState.camera.targetDistance = distance;
 
     control::ImGuiTaskCollector::selectedMaterialIndex.reset();
+}
+
+void vk_gltf_viewer::MainApp::closeGltf() {
+    gltf.reset();
+
+    gpu.device.waitIdle();
+    appState.gltfAsset.reset();
+
+    window.setTitle("Vulkan glTF Viewer");
 }
 
 void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) {

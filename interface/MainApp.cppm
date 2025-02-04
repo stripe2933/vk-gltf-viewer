@@ -153,6 +153,7 @@ namespace vk_gltf_viewer {
         [[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
 
         void loadGltf(const std::filesystem::path &path);
+        void closeGltf();
         void loadEqmap(const std::filesystem::path &eqmapPath);
 
         [[nodiscard]] vk::Extent2D getSwapchainExtent() const {
