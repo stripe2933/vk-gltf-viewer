@@ -41,7 +41,7 @@ void main(){
     else if (TEXTURE_TRANSFORM_TYPE == 2) {
         baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
-    baseColorAlpha *= texture(textures[uint(MATERIAL.baseColorTextureIndex) + 1], baseColorTexcoord).a;
+    baseColorAlpha *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], baseColorTexcoord).a;
 #endif
 #if HAS_COLOR_ALPHA_ATTRIBUTE
     baseColorAlpha *= variadic_in.colorAlpha;
