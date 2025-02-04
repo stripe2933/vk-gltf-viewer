@@ -112,6 +112,7 @@ The extensions and feature used in this application are quite common in the mode
     - `bufferDeviceAddress`
     - `descriptorIndexing`
     - `descriptorBindingSampledImageUpdateAfterBind`
+    - `descriptorBindingVariableDescriptorCount`
     - `runtimeDescriptorArray`
     - `storageBuffer8BitAccess`
     - `uniformAndStorageBuffer8BitAccess`
