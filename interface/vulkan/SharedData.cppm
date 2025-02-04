@@ -151,7 +151,7 @@ namespace vk_gltf_viewer::vulkan {
             , cubeIndices { gpu.allocator }
             , cubemapSampler { gpu.device }
             , brdfLutSampler { gpu.device }
-            , assetDescriptorSetLayout { gpu.device, 1 } // TODO: set proper initial texture count.
+            , assetDescriptorSetLayout { gpu, 1 } // TODO: set proper initial texture count.
             , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
             , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
             , sceneRenderPass { gpu.device }
@@ -238,9 +238,14 @@ namespace vk_gltf_viewer::vulkan {
             const gltf::OrderedPrimitives &orderedPrimitives,
             const BufferDataAdapter &adapter = {}
         ) {
-            const GltfAsset &inner = gltfAsset.emplace(asset, directory, nodeWorldTransforms, orderedPrimitives, gpu, adapter);
-
+            // If asset texture count exceeds the available texture count provided by the GPU, throw the error before
+            // processing data to avoid unnecessary processing.
             const std::uint32_t textureCount = 1 + asset.textures.size();
+            if (textureCount > dsl::Asset::maxTextureCount(gpu)) {
+                throw gltf::AssetProcessError::TooManyTextureError;
+            }
+
+            const GltfAsset &inner = gltfAsset.emplace(asset, directory, nodeWorldTransforms, orderedPrimitives, gpu, adapter);
             if (assetDescriptorSetLayout.descriptorCounts[4] != textureCount) {
                 // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
                 depthRenderer.reset();
@@ -250,7 +255,7 @@ namespace vk_gltf_viewer::vulkan {
                 primitivePipelines.clear();
                 unlitPrimitivePipelines.clear();
 
-                assetDescriptorSetLayout = { gpu.device, textureCount };
+                assetDescriptorSetLayout = { gpu, textureCount };
                 primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
                 primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
 

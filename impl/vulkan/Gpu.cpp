@@ -40,8 +40,10 @@ vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::Surface
     // Retrieve physical device properties.
     const vk::StructureChain physicalDeviceProperties = physicalDevice.getProperties2<
         vk::PhysicalDeviceProperties2,
-        vk::PhysicalDeviceSubgroupProperties>();
+        vk::PhysicalDeviceSubgroupProperties,
+        vk::PhysicalDeviceDescriptorIndexingProperties>();
     subgroupSize = physicalDeviceProperties.get<vk::PhysicalDeviceSubgroupProperties>().subgroupSize;
+    maxPerStageDescriptorUpdateAfterBindSamplers = physicalDeviceProperties.get<vk::PhysicalDeviceDescriptorIndexingProperties>().maxPerStageDescriptorUpdateAfterBindSamplers;
 
 	// Retrieve physical device memory properties.
 	const vk::PhysicalDeviceMemoryProperties memoryProperties = physicalDevice.getMemoryProperties();

@@ -1,12 +1,12 @@
 export module vk_gltf_viewer:vulkan.dsl.Asset;
 
 import std;
-export import vku;
+export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::dsl {
     export struct Asset : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eCombinedImageSampler> {
-        Asset(const vk::raii::Device &device [[clang::lifetimebound]], std::uint32_t textureCount)
-            : DescriptorSetLayout { device, vk::StructureChain {
+        Asset(const Gpu &gpu [[clang::lifetimebound]], std::uint32_t textureCount)
+            : DescriptorSetLayout { gpu.device, vk::StructureChain {
                 vk::DescriptorSetLayoutCreateInfo {
                     vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
                     vku::unsafeProxy(getBindings(
@@ -26,5 +26,15 @@ namespace vk_gltf_viewer::vulkan::dsl {
                     }),
                 },
             }.get() } { }
+
+        /**
+         * Get maximum available texture count for asset, including the fallback texture.
+         * @param gpu The GPU object that is storing <tt>maxPerStageDescriptorUpdateAfterBindSamplers</tt> which have been retrieved from physical device selection.
+         * @return The maximum available texture count.
+         */
+        [[nodiscard]] static std::uint32_t maxTextureCount(const Gpu &gpu) noexcept {
+            // BRDF LUT texture and prefiltered map texture will acquire two slots, therefore we need to subtract 2.
+            return std::min(gpu.maxPerStageDescriptorUpdateAfterBindSamplers, 128U) - 2U;
+        }
     };
 }
