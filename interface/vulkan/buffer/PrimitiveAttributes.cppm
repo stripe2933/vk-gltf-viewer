@@ -14,6 +14,7 @@ export import :gltf.AssetProcessError;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
+import :helpers.type_map;
 import :vulkan.buffer;
 export import :vulkan.buffer.StagingBufferStorage;
 export import :vulkan.Gpu;
@@ -113,6 +114,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
             // Get buffer view indices that are used in primitive attributes.
             std::vector<std::size_t> attributeBufferViewIndices;
+            std::unordered_map<std::size_t, std::vector<std::byte>> sparseAccessorData;
             for (const fastgltf::Primitive &primitive : primitives) {
                 for (const fastgltf::Attribute &attribute : primitive.attributes) {
                     // Process only used attributes.
@@ -123,11 +125,36 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     if (!isAttributeUsed) continue;
 
                     const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
+                    if (accessor.sparse) {
+                        std::vector<std::byte> data(getElementByteSize(accessor.type, accessor.componentType) * accessor.count);
 
-                    // Check accessor validity.
-                    if (accessor.sparse) throw gltf::AssetProcessError::SparseAttributeBufferAccessor;
+                        constexpr type_map accessorTypeMap {
+                            make_type_map_entry<std::integral_constant<int, 1>>(fastgltf::AccessorType::Scalar),
+                            make_type_map_entry<std::integral_constant<int, 2>>(fastgltf::AccessorType::Vec2),
+                            make_type_map_entry<std::integral_constant<int, 3>>(fastgltf::AccessorType::Vec3),
+                            make_type_map_entry<std::integral_constant<int, 4>>(fastgltf::AccessorType::Vec4),
+                        };
+                        constexpr type_map componentTypeMap {
+                            make_type_map_entry<std::int8_t>(fastgltf::ComponentType::Byte),
+                            make_type_map_entry<std::uint8_t>(fastgltf::ComponentType::UnsignedByte),
+                            make_type_map_entry<std::int16_t>(fastgltf::ComponentType::Short),
+                            make_type_map_entry<std::uint16_t>(fastgltf::ComponentType::UnsignedShort),
+                            make_type_map_entry<std::int32_t>(fastgltf::ComponentType::Int),
+                            make_type_map_entry<std::uint32_t>(fastgltf::ComponentType::UnsignedInt),
+                            make_type_map_entry<float>(fastgltf::ComponentType::Float),
+                        };
+                        std::visit([&]<int ComponentCount, typename ComponentType>(std::type_identity<std::integral_constant<int, ComponentCount>>, std::type_identity<ComponentType>) {
+                            if constexpr (ComponentCount == 1) {
+                                copyFromAccessor<ComponentType>(asset, accessor, data.data(), adapter);
+                            }
+                            else {
+                                copyFromAccessor<fastgltf::math::vec<ComponentType, ComponentCount>>(asset, accessor, data.data(), adapter);
+                            }
+                        }, accessorTypeMap.get_variant(accessor.type), componentTypeMap.get_variant(accessor.componentType));
 
-                    if (accessor.bufferViewIndex) {
+                        sparseAccessorData.emplace(attribute.accessorIndex, std::move(data));
+                    }
+                    else if (accessor.bufferViewIndex) {
                         attributeBufferViewIndices.push_back(*accessor.bufferViewIndex);
                     }
                     // Accessor without buffer view will be handled by zero buffer address.
@@ -139,23 +166,40 @@ namespace vk_gltf_viewer::vulkan::buffer {
             const auto ret = std::ranges::unique(attributeBufferViewIndices);
             attributeBufferViewIndices.erase(ret.begin(), ret.end());
 
-            // Create Vulkan buffer consisted of the buffer view data.
-            auto [buffer, copyOffsets] = createCombinedBuffer<true>(
-                gpu.allocator,
-                attributeBufferViewIndices | std::views::transform([&](std::size_t bufferViewIndex) { return adapter(asset, bufferViewIndex); }),
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
-            if (StagingBufferStorage::needStaging(buffer)) {
-                stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+            // Hashmap that can get buffer device address by corresponding buffer view index.
+            std::unordered_map<std::size_t, vk::DeviceAddress> bufferDeviceAddressMappings;
+            if (!attributeBufferViewIndices.empty()) {
+                // Create Vulkan buffer consisted of the buffer view data.
+                auto [buffer, copyOffsets] = createCombinedBuffer<true>(
+                    gpu.allocator,
+                    attributeBufferViewIndices | std::views::transform([&](std::size_t bufferViewIndex) { return adapter(asset, bufferViewIndex); }),
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
+                if (StagingBufferStorage::needStaging(buffer)) {
+                    stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+                }
+
+                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
+                for (auto [bufferViewIndex, copyOffset] : std::views::zip(attributeBufferViewIndices, copyOffsets)) {
+                    bufferDeviceAddressMappings.emplace(bufferViewIndex, bufferAddress + copyOffset);
+                }
             }
 
-            // Hashmap that can get buffer device address by corresponding buffer view index.
-            const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
-            const std::unordered_map<std::size_t, vk::DeviceAddress> bufferDeviceAddressMappings { std::from_range, std::views::zip(
-                attributeBufferViewIndices,
-                copyOffsets | std::views::transform([&](vk::DeviceSize offset) {
-                    return bufferAddress + offset;
-                }))
-            };
+            // Hashmap that can get buffer device address by corresponding accessor index.
+            std::unordered_map<std::size_t, vk::DeviceAddress> sparseBufferDeviceAddressMappings;
+            if (!sparseAccessorData.empty()) {
+                auto [buffer, copyOffsets] = createCombinedBuffer<true>(
+                    gpu.allocator,
+                    sparseAccessorData | std::views::values,
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
+                if (StagingBufferStorage::needStaging(buffer)) {
+                    stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+                }
+
+                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
+                for (auto [bufferViewIndex, copyOffset] : std::views::zip(sparseAccessorData | std::views::keys, copyOffsets)) {
+                    sparseBufferDeviceAddressMappings.emplace(bufferViewIndex, bufferAddress + copyOffset);
+                }
+            }
 
             return primitives
                 | std::views::transform([&](const fastgltf::Primitive &primitive) {
@@ -179,7 +223,13 @@ namespace vk_gltf_viewer::vulkan::buffer {
                                 .componentType = static_cast<std::uint8_t>(getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte)),
                                 .componentCount = static_cast<std::uint8_t>(getNumComponents(accessor.type)),
                             };
-                            if (accessor.bufferViewIndex) {
+
+                            if (accessor.sparse) {
+                                result.bufferAddress = sparseBufferDeviceAddressMappings.at(accessorIndex);
+                                const std::size_t byteStride = getElementByteSize(accessor.type, accessor.componentType);
+                                result.byteStride = static_cast<std::uint8_t>(byteStride);
+                            }
+                            else if (accessor.bufferViewIndex) {
                                 const std::size_t byteStride
                                     = asset.bufferViews[*accessor.bufferViewIndex].byteStride
                                     .value_or(getElementByteSize(accessor.type, accessor.componentType));
