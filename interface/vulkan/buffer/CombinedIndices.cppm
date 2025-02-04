@@ -69,22 +69,11 @@ namespace vk_gltf_viewer::vulkan::buffer {
             // Get buffer view bytes from indexedPrimitives and group them by index type.
             for (const fastgltf::Primitive &primitive : indexedPrimitives) {
                 const fastgltf::Accessor &accessor = asset.accessors[*primitive.indicesAccessor];
-
-                bool shouldGenerateIndices = false;
-
-                // Sparse accessor have to be handled.
-                shouldGenerateIndices |= accessor.sparse.has_value();
-
-                // Vulkan does not support interleaved index buffer.
-                if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride) {
-                    const bool isAccessorStrided = *byteStride != getElementByteSize(accessor.type, accessor.componentType);
-                    shouldGenerateIndices |= isAccessorStrided;
+                if (isAccessorBufferViewCompatibleWithIndexBuffer(accessor, asset, gpu)) {
+                    indexBufferBytesByType[getIndexType(accessor.componentType)]
+                        .emplace_back(&primitive, getByteRegion(asset, accessor, adapter));
                 }
-
-                // Unsigned byte indices have to be converted to uint16 if the device does not support it.
-                shouldGenerateIndices |= accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index;
-
-                if (shouldGenerateIndices) {
+                else {
                     if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) {
                         const std::size_t dataSize = sizeof(std::uint16_t) * accessor.count;
                         std::unique_ptr<std::byte[]> indexBytes = std::make_unique_for_overwrite<std::byte[]>(dataSize);
@@ -116,10 +105,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
                                 std::span { generatedIndexBytes.emplace_back(std::move(indexBytes)).get(), dataSize });
                         }, indexTypeMap.get_variant(accessor.componentType));
                     }
-                }
-                else {
-                    indexBufferBytesByType[getIndexType(accessor.componentType)]
-                        .emplace_back(&primitive, getByteRegion(asset, accessor, adapter));
                 }
             }
 
@@ -156,5 +141,27 @@ namespace vk_gltf_viewer::vulkan::buffer {
     private:
         std::unordered_map<const fastgltf::Primitive*, std::pair<vk::IndexType, std::uint32_t>> indexInfos;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> bufferByIndexType;
+
+        [[nodiscard]] static bool isAccessorBufferViewCompatibleWithIndexBuffer(
+            const fastgltf::Accessor &accessor,
+            const fastgltf::Asset &asset,
+            const Gpu &gpu
+        ) noexcept {
+            if (accessor.sparse) return false;
+
+            // Accessor without buffer view has to be treated as zeros.
+            if (!accessor.bufferViewIndex) return false;
+
+            // Vulkan does not support interleaved index buffer.
+            if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride) {
+                // Is accessor strided?
+                if (*byteStride != getElementByteSize(accessor.type, accessor.componentType)) return false;
+            }
+
+            // Accessor data is unsigned byte and the device does not support it.
+            if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) return false;
+
+            return true;
+        }
     };
 }

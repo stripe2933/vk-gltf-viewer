@@ -61,6 +61,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
             BS::thread_pool<> &threadPool,
             const BufferDataAdapter &adapter = {}
         ) : PostTransferObject { stagingBufferStorage },
+            zeroBufferAddress { getZeroBufferAddress(gpu) },
             mappings { createMappings(asset, gpu, adapter) } {
             generateIndexedAttributeMappingInfos(gpu);
             generateMissingTangentBuffers(asset, gpu, threadPool, adapter);
@@ -72,7 +73,35 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
     private:
         std::vector<vku::AllocatedBuffer> internalBuffers;
+
+        /**
+         * @brief Device address of the buffer of 16 byte zeros, which is used for accessor without buffer view.
+         *
+         * From glTF spec:
+         *   When accessor buffer view is undefined, the accessor MUST be initialized with zeros.
+         *
+         * However, this doesn't imply that buffer of consecutive zeros has to be generated. Instead, it could be zero
+         * filled with the largest accessor data type possible, and setting the stride in the GPU accessor as zero to
+         * emulate the behavior. The largest component type of accessor in glTF spec is VEC4, which is 16 bytes, so the
+         * buffer will be filled with 16 bytes of zeros (and stored in <tt>internalBuffers</tt>). Every fetch address
+         * of that accessor would point to this buffer device address.
+         */
+        vk::DeviceAddress zeroBufferAddress;
+
         std::unordered_map<const fastgltf::Primitive*, PrimitiveAccessors> mappings;
+
+        [[nodiscard]] vk::DeviceAddress getZeroBufferAddress(const Gpu &gpu) {
+            vku::AllocatedBuffer &buffer = internalBuffers.emplace_back(vku::MappedBuffer {
+                gpu.allocator,
+                std::array { 0.f, 0.f, 0.f, 0.f },
+                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
+            }.unmap());
+            if (StagingBufferStorage::needStaging(buffer)) {
+                stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+            }
+
+            return gpu.device.getBufferAddress({ buffer });
+        }
 
         template <typename DataBufferAdapter>
         std::unordered_map<const fastgltf::Primitive*, PrimitiveAccessors> createMappings(
@@ -98,7 +127,10 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     // Check accessor validity.
                     if (accessor.sparse) throw gltf::AssetProcessError::SparseAttributeBufferAccessor;
 
-                    attributeBufferViewIndices.push_back(accessor.bufferViewIndex.value());
+                    if (accessor.bufferViewIndex) {
+                        attributeBufferViewIndices.push_back(*accessor.bufferViewIndex);
+                    }
+                    // Accessor without buffer view will be handled by zero buffer address.
                 }
             }
 
@@ -142,17 +174,27 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     // Process the attributes by identifying their names.
                     for (const auto &[attributeName, accessorIndex] : primitive.attributes) {
                         const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
-                        const auto getGpuAccessor = [&]() -> shader_type::Accessor {
-                            const std::size_t byteStride
-                                = asset.bufferViews[*accessor.bufferViewIndex].byteStride
-                                .value_or(getElementByteSize(accessor.type, accessor.componentType));
-                            if (!std::in_range<std::uint8_t>(byteStride)) throw gltf::AssetProcessError::TooLargeAccessorByteStride;
-                            return {
-                                .bufferAddress = bufferDeviceAddressMappings.at(*accessor.bufferViewIndex) + accessor.byteOffset,
+                        const auto getGpuAccessor = [&]() {
+                            shader_type::Accessor result {
                                 .componentType = static_cast<std::uint8_t>(getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte)),
                                 .componentCount = static_cast<std::uint8_t>(getNumComponents(accessor.type)),
-                                .byteStride = static_cast<std::uint8_t>(byteStride),
                             };
+                            if (accessor.bufferViewIndex) {
+                                const std::size_t byteStride
+                                    = asset.bufferViews[*accessor.bufferViewIndex].byteStride
+                                    .value_or(getElementByteSize(accessor.type, accessor.componentType));
+                                if (!std::in_range<std::uint8_t>(byteStride)) throw gltf::AssetProcessError::TooLargeAccessorByteStride;
+
+                                result.bufferAddress = bufferDeviceAddressMappings.at(*accessor.bufferViewIndex) + accessor.byteOffset;
+                                result.byteStride = static_cast<std::uint8_t>(byteStride);
+                            }
+                            else {
+                                result.bufferAddress = zeroBufferAddress;
+                                // Use zero stride to make every accessor element point to the zero buffer address.
+                                result.byteStride = 0;
+                            }
+
+                            return result;
                         };
 
                         using namespace std::string_view_literals;
