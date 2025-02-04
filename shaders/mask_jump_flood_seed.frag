@@ -3,6 +3,7 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_8bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 
 #define FRAGMENT_SHADER
 #include "indexing.glsl"
@@ -41,7 +42,7 @@ void main(){
     else if (TEXTURE_TRANSFORM_TYPE == 2) {
         baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
-    baseColorAlpha *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], baseColorTexcoord).a;
+    baseColorAlpha *= texture(textures[MATERIAL.baseColorTextureIndex + 1S], baseColorTexcoord).a;
 #endif
 #if HAS_COLOR_ALPHA_ATTRIBUTE
     baseColorAlpha *= variadic_in.colorAlpha;

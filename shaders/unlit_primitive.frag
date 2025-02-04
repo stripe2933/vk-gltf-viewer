@@ -3,6 +3,7 @@
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_8bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 
 #define FRAGMENT_SHADER
 #include "indexing.glsl"
@@ -48,7 +49,7 @@ void writeOutput(vec4 color) {
     outColor = vec4(color.rgb, 1.0);
 #elif ALPHA_MODE == 1
 #if HAS_BASE_COLOR_TEXTURE
-    color.a *= 1.0 + geometricMean(textureQueryLod(textures[int(MATERIAL.baseColorTextureIndex) + 1], variadic_in.baseColorTexcoord)) * 0.25;
+    color.a *= 1.0 + geometricMean(textureQueryLod(textures[MATERIAL.baseColorTextureIndex + 1S], variadic_in.baseColorTexcoord)) * 0.25;
     // Apply sharpness to the alpha.
     // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
     color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
@@ -76,7 +77,7 @@ void main(){
     else if (TEXTURE_TRANSFORM_TYPE == 2) {
         baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
-    baseColor *= texture(textures[int(MATERIAL.baseColorTextureIndex) + 1], baseColorTexcoord);
+    baseColor *= texture(textures[MATERIAL.baseColorTextureIndex + 1S], baseColorTexcoord);
 #endif
 #if HAS_COLOR_ATTRIBUTE
     baseColor *= variadic_in.color;
