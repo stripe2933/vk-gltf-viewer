@@ -427,16 +427,7 @@ void vk_gltf_viewer::MainApp::run() {
                     if (appState.automaticNearFarPlaneAdjustment) {
                         const auto &[center, radius]
                             = gltf->sceneMiniball
-                            = gltf::algorithm::getMiniball(
-                                gltf->asset, gltf->scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-                                    const fastgltf::math::fmat4x4 &nodeWorldTransform = gltf->nodeWorldTransforms[nodeIndex];
-                                    if (gltf->asset.nodes[nodeIndex].instancingAttributes.empty()) {
-                                        return cast<double>(nodeWorldTransform);
-                                    }
-                                    else {
-                                        return cast<double>(nodeWorldTransform * getInstanceTransform(gltf->asset, nodeIndex, instanceIndex, gltf->assetExternalBuffers));
-                                    }
-                                });
+                            = gltf::algorithm::getMiniball(gltf->asset, gltf->scene, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
                 },
@@ -495,16 +486,7 @@ void vk_gltf_viewer::MainApp::run() {
                     if (appState.automaticNearFarPlaneAdjustment) {
                         const auto &[center, radius]
                             = gltf->sceneMiniball
-                            = gltf::algorithm::getMiniball(
-                                gltf->asset, gltf->scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-                                    const fastgltf::math::fmat4x4 &nodeWorldTransform = gltf->nodeWorldTransforms[nodeIndex];
-                                    if (gltf->asset.nodes[nodeIndex].instancingAttributes.empty()) {
-                                        return cast<double>(nodeWorldTransform);
-                                    }
-                                    else {
-                                        return cast<double>(nodeWorldTransform * getInstanceTransform(gltf->asset, nodeIndex, instanceIndex, gltf->assetExternalBuffers));
-                                    }
-                                });
+                            = gltf::algorithm::getMiniball(gltf->asset, gltf->scene, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
                 },
@@ -660,30 +642,14 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     , orderedPrimitives { asset }
     , sceneInverseHierarchy { asset, scene } {
     nodeWorldTransforms.update(scene);
-    sceneMiniball = gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-        const fastgltf::math::fmat4x4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
-        if (asset.nodes[nodeIndex].instancingAttributes.empty()) {
-            return cast<double>(nodeWorldTransform);
-        }
-        else {
-            return cast<double>(nodeWorldTransform * getInstanceTransform(asset, nodeIndex, instanceIndex, assetExternalBuffers));
-        }
-    });
+    sceneMiniball = gltf::algorithm::getMiniball(asset, scene, nodeWorldTransforms, assetExternalBuffers);
 }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
     nodeWorldTransforms.update(scene);
     sceneInverseHierarchy = { asset, scene };
-    sceneMiniball = gltf::algorithm::getMiniball(asset, scene, [this](std::size_t nodeIndex, std::size_t instanceIndex) {
-        const fastgltf::math::fmat4x4 &nodeWorldTransform = nodeWorldTransforms[nodeIndex];
-        if (asset.nodes[nodeIndex].instancingAttributes.empty()) {
-            return cast<double>(nodeWorldTransform);
-        }
-        else {
-            return cast<double>(nodeWorldTransform * getInstanceTransform(asset, nodeIndex, instanceIndex, assetExternalBuffers));
-        }
-    });
+    sceneMiniball = gltf::algorithm::getMiniball(asset, scene, nodeWorldTransforms, assetExternalBuffers);
 }
 
 vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {

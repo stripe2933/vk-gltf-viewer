@@ -8,23 +8,28 @@ export module vk_gltf_viewer:gltf.algorithm.miniball;
 
 import std;
 export import fastgltf;
+import :helpers.fastgltf;
 import :gltf.algorithm.bounding_box;
 import :gltf.algorithm.traversal;
-import :helpers.concepts;
-import :helpers.ranges;
+export import :gltf.NodeWorldTransforms;
 
 namespace vk_gltf_viewer::gltf::algorithm {
     /**
      * @brief The smallest enclosing sphere of the scene meshes' bounding boxes, i.e. miniball.
      *
-     * @tparam MeshNodeTransformGetter A function type that return world transform matrix for an instance of a node. First parameter is the node index, and the second parameter is the instance index. If node doesn't have instanced mesh, 0 will be passed for the second parameter.
+     * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view.
      * @param asset fastgltf Asset.
      * @param scene Scene to be considered. It must be from the same asset.
-     * @param transformGetter A function that follows the MeshNodeTransformGetter concept.
+     * @param nodeWorldTransforms Pre-calculated world transforms for each node in the scene.
      * @return The pair of the miniball's center and radius.
      */
-    template <concepts::compatible_signature_of<fastgltf::math::dmat4x4, std::size_t, std::size_t> MeshNodeTransformGetter>
-    [[nodiscard]] std::pair<fastgltf::math::dvec3, double> getMiniball(const fastgltf::Asset &asset, const fastgltf::Scene &scene, const MeshNodeTransformGetter &transformGetter) {
+    template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
+    [[nodiscard]] std::pair<fastgltf::math::dvec3, double> getMiniball(
+        const fastgltf::Asset &asset,
+        const fastgltf::Scene &scene,
+        const NodeWorldTransforms &nodeWorldTransforms,
+        const BufferDataAdapter &adapter = {}
+    ) {
         // See https://doc.cgal.org/latest/Bounding_volumes/index.html for the original code.
         using Traits = CGAL::Min_sphere_of_points_d_traits_3<CGAL::Simple_cartesian<double>, double>;
         std::vector<Traits::Point> meshBoundingBoxPoints;
@@ -46,12 +51,13 @@ namespace vk_gltf_viewer::gltf::algorithm {
                 }
             };
 
+            const fastgltf::math::fmat4x4 &worldTransform = nodeWorldTransforms[nodeIndex];
             if (node.instancingAttributes.empty()) {
-                collectTransformedBoundingBoxPoints(transformGetter(nodeIndex, 0U));
+                collectTransformedBoundingBoxPoints(cast<double>(worldTransform));
             }
             else {
-                for (std::size_t instanceIndex : ranges::views::upto(asset.accessors[node.instancingAttributes[0].accessorIndex].count)) {
-                    collectTransformedBoundingBoxPoints(transformGetter(nodeIndex, instanceIndex));
+                for (const fastgltf::math::fmat4x4 &instanceTransform : getInstanceTransforms(asset, nodeIndex, adapter)) {
+                    collectTransformedBoundingBoxPoints(cast<double>(worldTransform * instanceTransform));
                 }
             }
         });
