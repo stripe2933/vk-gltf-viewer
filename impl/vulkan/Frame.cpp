@@ -11,6 +11,7 @@ import imgui.vulkan;
 import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
+import :helpers.optional;
 import :helpers.ranges;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.buffer.IndirectDrawCommands;
@@ -121,7 +122,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteria result {
             .subpass = 0U,
-            .indexType = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first,
+            .indexType = value_if(primitive.indicesAccessor.has_value(), [&]() {
+                return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
+            }),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
@@ -206,7 +209,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     const auto depthPrepassCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
-            .indexType = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first,
+            .indexType = value_if(primitive.indicesAccessor.has_value(), [&]() {
+                return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
+            }),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
@@ -237,7 +242,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     const auto jumpFloodSeedCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result {
-            .indexType = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first,
+            .indexType = value_if(primitive.indicesAccessor.has_value(), [&]() {
+                return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
+            }),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
