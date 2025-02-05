@@ -131,6 +131,8 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
             }
             else {
                 ImGui::TextDisabled("-");
+                ImGui::SameLine();
+                ImGui::HelperMarker("(?)", "Zero will be used for accessor data.");
             }
         }) });
 }

@@ -13,6 +13,7 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - Runtime missing tangent attribute generation using MikkTSpace algorithm for indexed geometry.
   - Runtime missing per-face normal and tangent attribute generation for non-indexed geometry.
   - `OPAQUE`, `MASK` (using alpha testing and Alpha To Coverage) and `BLEND` (using Weighted Blended OIT) materials.
+  - Normalized and sparse accessors.
   - Multiple scenes.
   - Binary format (`.glb`).
 - Support glTF 2.0 extensions:
@@ -33,7 +34,6 @@ Followings are not supported:
 
 - Primitive Type except for `TRIANGLES`.
 - Animation.
-- Sparse accessors (indices accessor is supported).
 
 ## Performance
 
