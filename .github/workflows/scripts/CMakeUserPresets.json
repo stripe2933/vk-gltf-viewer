@@ -2,7 +2,7 @@
   "version": 6,
   "configurePresets": [
     {
-      "name": "Windows",
+      "name": "windows-latest",
       "inherits": "default",
       "cacheVariables": {
         "CMAKE_CXX_FLAGS": "/EHsc /wd5050",
@@ -10,7 +10,7 @@
       }
     },
     {
-      "name": "macOS",
+      "name": "macos-latest",
       "inherits": "default",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
@@ -21,7 +21,7 @@
       }
     },
     {
-      "name": "Linux",
+      "name": "ubuntu-latest",
       "inherits": "default",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/usr/bin/clang",
@@ -32,6 +32,13 @@
       },
       "environment": {
         "VCPKG_ROOT": "$env{VCPKG_INSTALLATION_ROOT}"
+      }
+    },
+    {
+      "name": "ubuntu-24.04-arm",
+      "inherits": "ubuntu-latest",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-linux-clang"
       }
     }
   ]
