@@ -72,7 +72,7 @@ target_sources(vk-gltf-viewer_asset PUBLIC
 )
 add_library(vk-gltf-viewer::asset ALIAS vk-gltf-viewer_asset)
 
-add_executable(vk-gltf-viewer
+add_executable(vk-gltf-viewer WIN32
     impl.cpp
     impl/control/AppWindow.cpp
     impl/control/ImGuiTaskCollector.cpp
