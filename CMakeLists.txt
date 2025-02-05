@@ -1,6 +1,11 @@
 ﻿cmake_minimum_required (VERSION 3.30)
 
-project(vk-gltf-viewer LANGUAGES CXX)
+project(vk-gltf-viewer
+    VERSION 0.1.0
+    DESCRIPTION "Vulkan glTF Viewer"
+    HOMEPAGE_URL "https://github.com/stripe2933/vk-gltf-viewer"
+    LANGUAGES CXX
+)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_MODULE_STD 1)
@@ -72,7 +77,7 @@ target_sources(vk-gltf-viewer_asset PUBLIC
 )
 add_library(vk-gltf-viewer::asset ALIAS vk-gltf-viewer_asset)
 
-add_executable(vk-gltf-viewer WIN32
+add_executable(vk-gltf-viewer WIN32 MACOSX_BUNDLE
     impl.cpp
     impl/control/AppWindow.cpp
     impl/control/ImGuiTaskCollector.cpp
@@ -229,6 +234,22 @@ if (UNIX AND NOT APPLE) # Linux?
     endif()
 endif()
 
+if (APPLE AND ${CMAKE_BUILD_TYPE} STREQUAL "Release")
+    set_target_properties(vk-gltf-viewer PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION}"
+    )
+
+    find_package(Vulkan COMPONENTS MoltenVK REQUIRED)
+    set(APP_BUNDLE_CONTENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/vk-gltf-viewer.app/Contents")
+    add_custom_command(TARGET vk-gltf-viewer POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_BUNDLE_CONTENTS_DIR}/lib" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
+            && ${CMAKE_COMMAND} -E copy ${Vulkan_LIBRARY} ${Vulkan_MoltenVK_LIBRARY} "${APP_BUNDLE_CONTENTS_DIR}/lib" # Copy libvulkan.dylib, libMoltenVK.dylib
+            && ${CMAKE_COMMAND} -E rename "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.dylib" "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.1.dylib"
+            && ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/asset/resources" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
+            && install_name_tool -add_rpath "@executable_path/../lib/" "${APP_BUNDLE_CONTENTS_DIR}/MacOS/vk-gltf-viewer")
+endif()
 
 # --------------------
 # Shader compilation.
