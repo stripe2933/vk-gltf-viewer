@@ -112,7 +112,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
         ) {
             const auto primitives = asset.meshes | std::views::transform(&fastgltf::Mesh::primitives) | std::views::join;
 
-            // Get buffer view indices that are used in primitive attributes.
+            // Get buffer view indices that are used in primitive attributes, or generate accessor data if it is not
+            // compatible to the GPU accessor.
             std::vector<std::size_t> attributeBufferViewIndices;
             std::unordered_map<std::size_t, std::vector<std::byte>> sparseAccessorData;
             for (const fastgltf::Primitive &primitive : primitives) {
@@ -126,33 +127,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
                     const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
                     if (accessor.sparse) {
-                        std::vector<std::byte> data(getElementByteSize(accessor.type, accessor.componentType) * accessor.count);
-
-                        constexpr type_map accessorTypeMap {
-                            make_type_map_entry<std::integral_constant<int, 1>>(fastgltf::AccessorType::Scalar),
-                            make_type_map_entry<std::integral_constant<int, 2>>(fastgltf::AccessorType::Vec2),
-                            make_type_map_entry<std::integral_constant<int, 3>>(fastgltf::AccessorType::Vec3),
-                            make_type_map_entry<std::integral_constant<int, 4>>(fastgltf::AccessorType::Vec4),
-                        };
-                        constexpr type_map componentTypeMap {
-                            make_type_map_entry<std::int8_t>(fastgltf::ComponentType::Byte),
-                            make_type_map_entry<std::uint8_t>(fastgltf::ComponentType::UnsignedByte),
-                            make_type_map_entry<std::int16_t>(fastgltf::ComponentType::Short),
-                            make_type_map_entry<std::uint16_t>(fastgltf::ComponentType::UnsignedShort),
-                            make_type_map_entry<std::int32_t>(fastgltf::ComponentType::Int),
-                            make_type_map_entry<std::uint32_t>(fastgltf::ComponentType::UnsignedInt),
-                            make_type_map_entry<float>(fastgltf::ComponentType::Float),
-                        };
-                        std::visit([&]<int ComponentCount, typename ComponentType>(std::type_identity<std::integral_constant<int, ComponentCount>>, std::type_identity<ComponentType>) {
-                            if constexpr (ComponentCount == 1) {
-                                copyFromAccessor<ComponentType>(asset, accessor, data.data(), adapter);
-                            }
-                            else {
-                                copyFromAccessor<fastgltf::math::vec<ComponentType, ComponentCount>>(asset, accessor, data.data(), adapter);
-                            }
-                        }, accessorTypeMap.get_variant(accessor.type), componentTypeMap.get_variant(accessor.componentType));
-
-                        sparseAccessorData.emplace(attribute.accessorIndex, std::move(data));
+                        sparseAccessorData.emplace(attribute.accessorIndex, getAccessorByteData(accessor, asset, adapter));
                     }
                     else if (accessor.bufferViewIndex) {
                         attributeBufferViewIndices.push_back(*accessor.bufferViewIndex);
