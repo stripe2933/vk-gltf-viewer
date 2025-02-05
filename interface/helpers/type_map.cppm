@@ -34,7 +34,7 @@ export template <typename V, typename K>
  * // ./main 0 -> return 1 (sizeof(char) = 1)
  * // ./main 1 -> return 4 (sizeof(int) = 4)
  * // ./main 2 -> return 8 (sizeof(double) = 8)
- * // ./main 3 -> std::runtime_error { "No mapping found for the given key." }
+ * // ./main 3 -> std::out_of_range
  * @endcode
  *
  * @tparam K Key type.
@@ -42,10 +42,19 @@ export template <typename V, typename K>
  */
 export template <typename K, typename... Vs>
 struct type_map : type_map_entry<Vs, K>...{
+    /**
+     * @brief Get variant of <tt>std::type_identity<Vs>...</tt> that is storing the type matching to the given \p key.
+     * @param key Key to get the value.
+     * @return Variant of <tt>std::type_identity<Vs>...</tt>.
+     * @throw std::out_of_range If the key is not found.
+     */
     [[nodiscard]] constexpr std::variant<std::type_identity<Vs>...> get_variant(K key) const {
         std::variant<std::type_identity<Vs>...> result;
         [&, this]<std::size_t... Is>(std::index_sequence<Is...>){
-            std::ignore = ((key == static_cast<const type_map_entry<Vs, K>*>(this)->key ? (result.template emplace<Is>(), true) : false) || ...);
+            // If there is no key in the type_map, the below fold expression will be evaluated as false.
+            if (!((key == static_cast<const type_map_entry<Vs, K>*>(this)->key ? (result.template emplace<Is>(), true) : false) || ...)) {
+                throw std::out_of_range { "type_map::get_variant" };
+            }
         }(std::make_index_sequence<sizeof...(Vs)>{});
         return result;
     }
@@ -68,7 +77,7 @@ struct type_map : type_map_entry<Vs, K>...{
  *
  * // ./main 0 1 -> print ["./main", "0", "1"]
  * // ./main hello -> print ["./main", "hello"]
- * // ./main 0 1 2 -> std::runtime_error { "No mapping found for the given key." } (argc > 3)
+ * // ./main 0 1 2 -> std::out_of_range (argc > 3)
  * @endcode
  *
  * @tparam Stop The stop value of the iota sequence.
@@ -77,10 +86,18 @@ export template <auto Stop>
 struct iota_map {
     explicit iota_map() = default;
 
+    /**
+     * @brief Get variant of <tt>std::integral_constant<decltype(Stop), Is>...</tt> that is storing the type matching to the given \p key.
+     * @param key Key to get the value.
+     * @return Variant of <tt>std::integral_constant<decltype(Stop), Is>...</tt>.
+     * @throw std::out_of_range If the key is not found.
+     */
     [[nodiscard]] constexpr auto get_variant(decltype(Stop) key) const {
         return INTEGER_SEQ(Is, Stop, {
             std::variant<std::integral_constant<decltype(Is), Is>...> result;
-            std::ignore = ((key == Is ? (result.template emplace<Is>(), true) : false) || ...);
+            if (!((key == Is ? (result.template emplace<Is>(), true) : false) || ...)) {
+                throw std::out_of_range { "iota_map::get_variant" };
+            }
             return result;
         });
     }
