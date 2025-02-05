@@ -1,5 +1,8 @@
 if (${Vulkan_glslc_FOUND})
     message(STATUS "Using Vulkan glslc for shader compilation.")
+
+    # glslc needs to create dependency file in ${CMAKE_CURRENT_BINARY_DIR}/shader_depfile.
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shader_depfile)
 elseif (${Vulkan_glslangValidator_FOUND})
     message(WARNING "Vulkan glslc not found, using glslangValidator for shader compilation instead. Modifying indirectly included files will NOT trigger recompilation.")
 else()
