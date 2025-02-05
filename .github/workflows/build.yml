@@ -28,7 +28,7 @@ jobs:
         with:
           vulkan-query-version: 1.3.296.0
           vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
-          vulkan-use-cache: true
+          vulkan-use-cache: false
 
       - name: Install build dependencies (macOS)
         if: ${{ runner.os == 'macOS' }}
@@ -71,7 +71,7 @@ jobs:
       - name: Upload Binary as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ runner.os }}_${{ runner.architecture }}
+          name: ${{ runner.os }}_${{ runner.arch }}
           path: |
             build/vk-gltf-viewer
             build/vk-gltf-viewer.exe
