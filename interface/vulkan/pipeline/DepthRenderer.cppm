@@ -16,7 +16,7 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class DepthRendererSpecialization {
     public:
-        bool hasPositionMorphTarget = false;
+        std::uint32_t positionMorphTargetWeightCount = 0;
 
         [[nodiscard]] bool operator==(const DepthRendererSpecialization&) const = default;
 
@@ -60,11 +60,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
     private:
         struct VertexShaderSpecializationData {
-            vk::Bool32 hasPositionMorphTarget;
+            std::uint32_t positionMorphTargetWeightCount;
         };
 
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
-            return { hasPositionMorphTarget };
+            return { positionMorphTargetWeightCount };
         }
     };
 
@@ -72,7 +72,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     public:
         std::optional<std::uint8_t> baseColorTexcoordComponentType;
         std::optional<std::uint8_t> colorAlphaComponentType;
-        bool hasPositionMorphTarget = false;
+        std::uint32_t positionMorphTargetWeightCount = 0;
         shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
 
         [[nodiscard]] bool operator==(const MaskDepthRendererSpecialization&) const = default;
@@ -126,7 +126,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         struct VertexShaderSpecializationData {
             std::uint32_t texcoordComponentType = 5126; // FLOAT
             std::uint32_t colorComponentType = 5126; // FLOAT
-            vk::Bool32 hasPositionMorphTarget;
+            std::uint32_t positionMorphTargetWeightCount;
         };
 
         struct FragmentShaderSpecializationData {
@@ -142,7 +142,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
             VertexShaderSpecializationData result {
-                .hasPositionMorphTarget = hasPositionMorphTarget,
+                .positionMorphTargetWeightCount = positionMorphTargetWeightCount,
             };
 
             if (baseColorTexcoordComponentType) {

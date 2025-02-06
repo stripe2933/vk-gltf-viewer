@@ -17,7 +17,7 @@
 layout (constant_id = 0) const uint TEXCOORD_COMPONENT_TYPE = 6; // FLOAT
 layout (constant_id = 1) const uint COLOR_COMPONENT_COUNT = 0;
 layout (constant_id = 2) const uint COLOR_COMPONENT_TYPE = 6; // FLOAT
-layout (constant_id = 3) const bool HAS_POSITION_MORPH_TARGET = false;
+layout (constant_id = 3) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
 
 layout (location = 0) flat out uint outMaterialIndex;
 #if HAS_VARIADIC_OUT
@@ -53,7 +53,7 @@ layout (push_constant, std430) uniform PushConstant {
 #include "vertex_pulling.glsl"
 
 void main(){
-    vec3 inPosition = getPosition(HAS_POSITION_MORPH_TARGET);
+    vec3 inPosition = getPosition(POSITION_MORPH_TARGET_WEIGHT_COUNT);
 
     outMaterialIndex = MATERIAL_INDEX;
 #if HAS_BASE_COLOR_TEXTURE

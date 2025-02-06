@@ -152,7 +152,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .colorComponentCountAndType = accessors.colorAccessor.transform([](const auto &info) {
                         return std::pair { info.componentCount, info.componentType };
                     }),
-                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
                         .value_or(shader_type::TextureTransform::None),
@@ -171,6 +171,11 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         return std::pair { info.componentCount, info.componentType };
                     }),
                     .fragmentShaderGeneratedTBN = !accessors.normalAccessor.has_value(),
+                    .morphTargetWeightCount = static_cast<std::uint32_t>(std::max({
+                        accessors.positionMorphTargetAccessors.size(),
+                        accessors.normalMorphTargetAccessors.size(),
+                        accessors.tangentMorphTargetAccessors.size(),
+                    })),
                     .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
                     .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
                     .hasTangentMorphTarget = !accessors.tangentMorphTargetAccessors.empty(),
@@ -206,6 +211,11 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     return std::pair { info.componentCount, info.componentType };
                 }),
                 .fragmentShaderGeneratedTBN = !accessors.normalAccessor.has_value(),
+                .morphTargetWeightCount = static_cast<std::uint32_t>(std::max({
+                    accessors.positionMorphTargetAccessors.size(),
+                    accessors.normalMorphTargetAccessors.size(),
+                    accessors.tangentMorphTargetAccessors.size(),
+                })),
                 .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
                 .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
                 .hasTangentMorphTarget = !accessors.tangentMorphTargetAccessors.empty(),
@@ -234,19 +244,19 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         // Alpha value exists only if COLOR_0 is Vec4 type.
                         return value_if(info.componentCount == 4, info.componentType);
                     }),
-                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 });
             }
             else {
                 result.pipeline = sharedData.getDepthRenderer({
-                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 });
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else {
             result.pipeline = sharedData.getDepthRenderer({
-                .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
             });
         }
         return result;
@@ -272,19 +282,19 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         // Alpha value exists only if COLOR_0 is Vec4 type.
                         return value_if(info.componentCount == 4, info.componentType);
                     }),
-                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 });
             }
             else {
                 result.pipeline = sharedData.getJumpFloodSeedRenderer({
-                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 });
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else {
             result.pipeline = sharedData.getJumpFloodSeedRenderer({
-                .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
             });
         }
         return result;

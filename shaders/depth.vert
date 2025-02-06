@@ -12,7 +12,7 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
-layout (constant_id = 0) const bool HAS_POSITION_MORPH_TARGET = false;
+layout (constant_id = 0) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
 
 layout (location = 0) flat out uint outNodeIndex;
 
@@ -35,6 +35,6 @@ layout (push_constant) uniform PushConstant {
 void main(){
     outNodeIndex = NODE_INDEX;
 
-    vec3 inPosition = getPosition(HAS_POSITION_MORPH_TARGET);
+    vec3 inPosition = getPosition(POSITION_MORPH_TARGET_WEIGHT_COUNT);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }

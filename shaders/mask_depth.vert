@@ -16,7 +16,7 @@
 
 layout (constant_id = 0) const uint TEXCOORD_COMPONENT_TYPE = 6; // FLOAT
 layout (constant_id = 1) const uint COLOR_COMPONENT_TYPE = 6; // FLOAT
-layout (constant_id = 2) const bool HAS_POSITION_MORPH_TARGET = false;
+layout (constant_id = 2) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
 
 layout (location = 0) flat out uint outNodeIndex;
 layout (location = 1) flat out uint outMaterialIndex;
@@ -60,6 +60,6 @@ void main(){
     variadic_out.colorAlpha = getColorAlpha();
 #endif
 
-    vec3 inPosition = getPosition(HAS_POSITION_MORPH_TARGET);
+    vec3 inPosition = getPosition(POSITION_MORPH_TARGET_WEIGHT_COUNT);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }

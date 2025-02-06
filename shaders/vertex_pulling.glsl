@@ -18,48 +18,42 @@ layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Ve
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec3Ref { vec3 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec4Ref { vec4 data; };
 
-vec3 getPosition(bool hasMorphTarget) {
+vec3 getPosition(uint morphTargetWeightCount) {
     uint64_t fetchAddress = PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * uint(gl_VertexIndex);
     vec3 position = Vec3Ref(fetchAddress).data;
 
-    if (hasMorphTarget) {
-        for (uint i = 0; i < NODE.morphTargetWeightCount; i++) {
-            Accessor accessor = PRIMITIVE.positionMorphTargetAccessors.data[i];
-            fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
-            position += Vec3Ref(fetchAddress).data * NODE.morphTargetWeights.data[i];
-        }
+    for (uint i = 0; i < morphTargetWeightCount; i++) {
+        Accessor accessor = PRIMITIVE.positionMorphTargetAccessors.data[i];
+        fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
+        position += Vec3Ref(fetchAddress).data * NODE.morphTargetWeights.data[i];
     }
 
     return position;
 }
 
-vec3 getNormal(bool hasMorphTarget) {
+vec3 getNormal(uint morphTargetWeightCount) {
     uint64_t fetchAddress = PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * uint(gl_VertexIndex);
     vec3 normal = Vec3Ref(fetchAddress).data;
 
-    if (hasMorphTarget) {
-        for (uint i = 0; i < NODE.morphTargetWeightCount; i++) {
-            Accessor accessor = PRIMITIVE.normalMorphTargetAccessors.data[i];
-            fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
-            normal += Vec3Ref(fetchAddress).data * NODE.morphTargetWeights.data[i];
-        }
+    for (uint i = 0; i < morphTargetWeightCount; i++) {
+        Accessor accessor = PRIMITIVE.normalMorphTargetAccessors.data[i];
+        fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
+        normal += Vec3Ref(fetchAddress).data * NODE.morphTargetWeights.data[i];
     }
 
     return normal;
 }
 
-vec4 getTangent(bool hasMorphTarget) {
+vec4 getTangent(uint morphTargetWeightCount) {
     uint64_t fetchAddress = PRIMITIVE.pTangentBuffer + uint(PRIMITIVE.tangentByteStride) * uint(gl_VertexIndex);
     vec4 tangent = Vec4Ref(fetchAddress).data;
 
-    if (hasMorphTarget) {
-        for (uint i = 0; i < NODE.morphTargetWeightCount; i++) {
-            Accessor accessor = PRIMITIVE.tangentMorphTargetAccessors.data[i];
-            fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
+    for (uint i = 0; i < morphTargetWeightCount; i++) {
+        Accessor accessor = PRIMITIVE.tangentMorphTargetAccessors.data[i];
+        fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
 
-            // Tangent morph target only adds XYZ vertex tangent displacements.
-            tangent.xyz += Vec3Ref(fetchAddress).data * NODE.morphTargetWeights.data[i];
-        }
+        // Tangent morph target only adds XYZ vertex tangent displacements.
+        tangent.xyz += Vec3Ref(fetchAddress).data * NODE.morphTargetWeights.data[i];
     }
 
     return tangent;

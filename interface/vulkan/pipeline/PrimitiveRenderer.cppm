@@ -27,6 +27,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         boost::container::static_vector<std::uint8_t, 4> texcoordComponentTypes;
         std::optional<std::pair<std::uint8_t, std::uint8_t>> colorComponentCountAndType;
         bool fragmentShaderGeneratedTBN;
+        std::uint32_t morphTargetWeightCount = 0;
         bool hasPositionMorphTarget = false;
         bool hasNormalMorphTarget = false;
         bool hasTangentMorphTarget = false;
@@ -160,6 +161,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             std::uint32_t packedTexcoordComponentTypes = 0x06060606; // [FLOAT, FLOAT, FLOAT, FLOAT]
             std::uint32_t colorComponentCount = 0;
             std::uint32_t colorComponentType = 5126; // FLOAT
+            std::uint32_t morphTargetWeightCount = 0;
             std::uint32_t packedMorphTargetAvailability = 0x00000000;
         };
 
@@ -177,6 +179,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
             VertexShaderSpecializationData result {
+                .morphTargetWeightCount = morphTargetWeightCount,
                 .packedMorphTargetAvailability = (hasPositionMorphTarget ? 1U : 0U)
                                                | (hasNormalMorphTarget ? 2U : 0U)
                                                | (hasTangentMorphTarget ? 4U : 0U),
