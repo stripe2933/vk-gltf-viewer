@@ -2,6 +2,7 @@ export module vk_gltf_viewer:vulkan.buffer.MorphTargetWeights;
 
 import std;
 export import fastgltf;
+import :helpers.ranges;
 import :vulkan.buffer;
 export import :vulkan.Gpu;
 
@@ -28,14 +29,18 @@ namespace vk_gltf_viewer::vulkan::buffer {
         [[nodiscard]] vku::MappedBuffer createBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) {
             auto [buffer, copyOffsets] = createCombinedBuffer(
                 allocator,
-                asset.nodes | std::views::transform([&](const fastgltf::Node &node) {
-                    std::span<const float> weights = node.weights;
-                    if (node.meshIndex) {
-                        const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-                        weights = mesh.weights;
-                    }
-                    return weights;
-                }),
+                ranges::views::concat(
+                    asset.nodes | std::views::transform([&](const fastgltf::Node &node) {
+                        std::span<const float> weights = node.weights;
+                        if (node.meshIndex) {
+                            const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+                            weights = mesh.weights;
+                        }
+                        return weights;
+                    }),
+                    // A dummy NaN-valued weight for preventing the zero-sized buffer creation.
+                    // This will not affect to the actual weight indexing.
+                    std::views::single(std::array { std::numeric_limits<float>::quiet_NaN() })),
                 vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
             startOffsets = std::move(copyOffsets);
 
