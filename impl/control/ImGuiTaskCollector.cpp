@@ -986,6 +986,20 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                 });
             }
 
+            std::span<float> morphTargetWeights = node.weights;
+            if (node.meshIndex && !asset.meshes[*node.meshIndex].weights.empty()) {
+                morphTargetWeights = asset.meshes[*node.meshIndex].weights;
+            }
+            if (!morphTargetWeights.empty()) {
+                ImGui::SeparatorText("Morph Target Weights");
+
+                for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
+                    if (ImGui::DragFloat(tempStringBuffer.write("Weight {}", i).view().c_str(), &weight, 0.01f)) {
+                        tasks.emplace_back(std::in_place_type<task::ChangeMorphTargetWeight>, selectedNodeIndex, i, weight);
+                    }
+                }
+            }
+
             if (ImGui::BeginTabBar("node-tab-bar")) {
                 if (node.meshIndex && ImGui::BeginTabItem("Mesh")) {
                     fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];

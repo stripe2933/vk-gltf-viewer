@@ -526,7 +526,11 @@ void vk_gltf_viewer::MainApp::run() {
                         gpu.queues.graphicsPresent.submit(vk::SubmitInfo { {}, {}, sharedDataUpdateCommandBuffer });
                         gpu.device.waitIdle();
                     }
-                }
+                },
+                [&](const control::task::ChangeMorphTargetWeight &task) {
+                    gpu.device.waitIdle();
+                    sharedData.gltfAsset.value().morphTargetWeightBuffer.updateWeight(task.nodeIndex, task.targetWeightIndex, task.newValue);
+                },
             }, task);
         }
 

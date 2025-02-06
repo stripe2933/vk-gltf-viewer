@@ -9,19 +9,25 @@ namespace vk_gltf_viewer::vulkan::buffer {
     export class MorphTargetWeights {
     public:
         MorphTargetWeights(const fastgltf::Asset &asset, const Gpu &gpu [[clang::lifetimebound]])
-            : buffer { createBuffer(asset, gpu) } { }
+            : buffer { createBuffer(asset, gpu.allocator) }
+            , bufferAddress { gpu.device.getBufferAddress({ buffer }) }{ }
 
         [[nodiscard]] vk::DeviceAddress getStartAddress(std::size_t nodeIndex) const noexcept {
-            return startAddresses[nodeIndex];
+            return bufferAddress + startOffsets[nodeIndex];
+        }
+
+        void updateWeight(std::size_t nodeIndex, std::size_t weightIndex, float weight) {
+            buffer.asRange<float>(startOffsets[nodeIndex])[weightIndex] = weight;
         }
 
     private:
-        std::vector<vk::DeviceAddress> startAddresses;
+        std::vector<vk::DeviceSize> startOffsets;
         vku::MappedBuffer buffer;
+        vk::DeviceAddress bufferAddress;
 
-        [[nodiscard]] vku::MappedBuffer createBuffer(const fastgltf::Asset &asset, const Gpu &gpu) {
+        [[nodiscard]] vku::MappedBuffer createBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) {
             auto [buffer, copyOffsets] = createCombinedBuffer(
-                gpu.allocator,
+                allocator,
                 asset.nodes | std::views::transform([&](const fastgltf::Node &node) {
                     std::span<const float> weights = node.weights;
                     if (node.meshIndex) {
@@ -31,11 +37,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     return weights;
                 }),
                 vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-
-            const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ buffer });
-            startAddresses = { std::from_range, copyOffsets | std::views::transform([&](vk::DeviceSize copyOffset) {
-                return bufferAddress + copyOffset;
-            }) };
+            startOffsets = std::move(copyOffsets);
 
             return std::move(buffer);
         }
