@@ -46,11 +46,17 @@ namespace vk_gltf_viewer::vulkan::buffer {
     public:
         struct PrimitiveAccessors {
             shader_type::Accessor positionAccessor;
+            std::vector<shader_type::Accessor> positionMorphTargetAccessors;
             std::optional<shader_type::Accessor> normalAccessor;
+            std::vector<shader_type::Accessor> normalMorphTargetAccessors;
             std::optional<shader_type::Accessor> tangentAccessor;
+            std::vector<shader_type::Accessor> tangentMorphTargetAccessors;
             std::vector<shader_type::Accessor> texcoordAccessors;
             std::optional<shader_type::Accessor> colorAccessor;
 
+            vk::DeviceAddress positionMorphTargetAccessorBufferAddress;
+            vk::DeviceAddress normalMorphTargetAccessorBufferAddress;
+            vk::DeviceAddress tangentMorphTargetAccessorBufferAddress;
             vk::DeviceAddress texcoordAccessorBufferAddress;
         };
 
@@ -64,6 +70,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         ) : PostTransferObject { stagingBufferStorage },
             mappings { createMappings(asset, gpu, adapter) } {
             generateIndexedAttributeMappingInfos(gpu);
+            generateMorphTargetMappingInfos(gpu);
             generateMissingTangentBuffers(asset, gpu, threadPool, adapter);
         }
 
@@ -118,26 +125,29 @@ namespace vk_gltf_viewer::vulkan::buffer {
             std::unordered_map<std::size_t, std::vector<std::byte>> generatedAccessorByteData;
             vk::DeviceAddress zeroBufferAddress = 0; // Generate this on-demand.
             for (const fastgltf::Primitive &primitive : primitives) {
+                using namespace std::string_view_literals;
+
+                const auto isAccessorBufferViewCompatibleWithGpuAccessor = [&](const fastgltf::Accessor &accessor) {
+                    if (accessor.sparse) return false;
+
+                    if (accessor.bufferViewIndex) {
+                        const auto byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride;
+                        if (byteStride && !std::in_range<std::uint8_t>(*byteStride)) return false;
+                    }
+
+                    return true;
+                };
+
+                // Primitive attributes.
                 for (const fastgltf::Attribute &attribute : primitive.attributes) {
                     // Process only used attributes.
-                    using namespace std::string_view_literals;
                     const bool isAttributeUsed
                         = ranges::one_of(attribute.name, "POSITION"sv, "NORMAL"sv, "TANGENT"sv, "COLOR_0"sv)
                         || attribute.name.starts_with("TEXCOORD_"sv);
                     if (!isAttributeUsed) continue;
 
                     const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
-                    const bool isAccessorBufferViewCompatibleWithGpuAccessor = [&]() {
-                        if (accessor.sparse) return false;
-
-                        if (accessor.bufferViewIndex) {
-                            const auto byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride;
-                            if (byteStride && !std::in_range<std::uint8_t>(*byteStride)) return false;
-                        }
-
-                        return true;
-                    }();
-                    if (!isAccessorBufferViewCompatibleWithGpuAccessor) {
+                    if (!isAccessorBufferViewCompatibleWithGpuAccessor(accessor)) {
                         generatedAccessorByteData.emplace(attribute.accessorIndex, getAccessorByteData(accessor, asset, adapter));
                     }
                     else if (accessor.bufferViewIndex) {
@@ -146,6 +156,28 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     else if (zeroBufferAddress == 0) {
                         // Accessor without buffer view will be handled by zero buffer address.
                         zeroBufferAddress = getZeroBufferAddress(gpu);
+                    }
+                }
+
+                // Morph target attributes.
+                for (std::span<const fastgltf::Attribute> attributes : primitive.targets) {
+                    for (const auto &[attributeName, accessorIndex] : attributes) {
+                        // Process only used attributes.
+                        // TODO: TEXCOORD_<i> and COLOR_0.
+                        const bool isAttributeUsed = ranges::one_of(attributeName, "POSITION"sv, "NORMAL"sv, "TANGENT"sv);
+                        if (!isAttributeUsed) continue;
+
+                        const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
+                        if (!isAccessorBufferViewCompatibleWithGpuAccessor(accessor)) {
+                            generatedAccessorByteData.emplace(accessorIndex, getAccessorByteData(accessor, asset, adapter));
+                        }
+                        else if (accessor.bufferViewIndex) {
+                            attributeBufferViewIndices.push_back(*accessor.bufferViewIndex);
+                        }
+                        else if (zeroBufferAddress == 0) {
+                            // Accessor without buffer view will be handled by zero buffer address.
+                            zeroBufferAddress = getZeroBufferAddress(gpu);
+                        }
                     }
                 }
             }
@@ -204,45 +236,45 @@ namespace vk_gltf_viewer::vulkan::buffer {
                         [](std::string_view name) { return name.starts_with("TEXCOORD_"); });
                     accessors.texcoordAccessors.resize(texcoordCount);
 
-                    // Process the attributes by identifying their names.
-                    for (const auto &[attributeName, accessorIndex] : primitive.attributes) {
+                    const auto getGpuAccessor = [&](std::size_t accessorIndex) {
                         const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
-                        const auto getGpuAccessor = [&]() {
-                            shader_type::Accessor result {
-                                .componentType = static_cast<std::uint8_t>(getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte)),
-                                .componentCount = static_cast<std::uint8_t>(getNumComponents(accessor.type)),
-                            };
-
-                            if (auto it = generatedBufferDeviceAddressMappings.find(accessorIndex); it != generatedBufferDeviceAddressMappings.end()) {
-                                result.bufferAddress = it->second;
-                                result.byteStride = getElementByteSize(accessor.type, accessor.componentType);
-                            }
-                            else if (accessor.bufferViewIndex) {
-                                const std::uint8_t byteStride
-                                    = asset.bufferViews[*accessor.bufferViewIndex].byteStride
-                                    .value_or(getElementByteSize(accessor.type, accessor.componentType));
-                                result.bufferAddress = bufferDeviceAddressMappings.at(*accessor.bufferViewIndex) + accessor.byteOffset;
-                                result.byteStride = byteStride;
-                            }
-                            else {
-                                result.bufferAddress = zeroBufferAddress;
-                                // Use zero stride to make every accessor element point to the zero buffer address.
-                                result.byteStride = 0;
-                            }
-
-                            return result;
+                        shader_type::Accessor result {
+                            .componentType = static_cast<std::uint8_t>(getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte)),
+                            .componentCount = static_cast<std::uint8_t>(getNumComponents(accessor.type)),
                         };
 
-                        using namespace std::string_view_literals;
+                        if (auto it = generatedBufferDeviceAddressMappings.find(accessorIndex); it != generatedBufferDeviceAddressMappings.end()) {
+                            result.bufferAddress = it->second;
+                            result.byteStride = getElementByteSize(accessor.type, accessor.componentType);
+                        }
+                        else if (accessor.bufferViewIndex) {
+                            const std::uint8_t byteStride
+                                = asset.bufferViews[*accessor.bufferViewIndex].byteStride
+                                .value_or(getElementByteSize(accessor.type, accessor.componentType));
+                            result.bufferAddress = bufferDeviceAddressMappings.at(*accessor.bufferViewIndex) + accessor.byteOffset;
+                            result.byteStride = byteStride;
+                        }
+                        else {
+                            result.bufferAddress = zeroBufferAddress;
+                            // Use zero stride to make every accessor element point to the zero buffer address.
+                            result.byteStride = 0;
+                        }
 
+                        return result;
+                    };
+
+                    using namespace std::string_view_literals;
+
+                    // Process the attributes by identifying their names.
+                    for (const auto &[attributeName, accessorIndex] : primitive.attributes) {
                         if (attributeName == "POSITION"sv) {
-                            accessors.positionAccessor = getGpuAccessor();
+                            accessors.positionAccessor = getGpuAccessor(accessorIndex);
                         }
                         else if (attributeName == "NORMAL"sv) {
-                            accessors.normalAccessor.emplace(getGpuAccessor());
+                            accessors.normalAccessor.emplace(getGpuAccessor(accessorIndex));
                         }
                         else if (attributeName == "TANGENT"sv) {
-                            accessors.tangentAccessor.emplace(getGpuAccessor());
+                            accessors.tangentAccessor.emplace(getGpuAccessor(accessorIndex));
                         }
                         else if (constexpr auto prefix = "TEXCOORD_"sv; attributeName.starts_with(prefix)) {
                             std::size_t index;
@@ -255,10 +287,25 @@ namespace vk_gltf_viewer::vulkan::buffer {
                                 throw fastgltf::Error::InvalidOrMissingAssetField;
                             }
 
-                            accessors.texcoordAccessors[index] = getGpuAccessor();
+                            accessors.texcoordAccessors[index] = getGpuAccessor(accessorIndex);
                         }
                         else if (attributeName == "COLOR_0"sv) {
-                            accessors.colorAccessor.emplace(getGpuAccessor());
+                            accessors.colorAccessor.emplace(getGpuAccessor(accessorIndex));
+                        }
+                    }
+
+                    // Morph targets processing.
+                    for (std::span<const fastgltf::Attribute> attributes : primitive.targets) {
+                        for (const auto &[attributeName, accessorIndex] : attributes) {
+                            if (attributeName == "POSITION"sv) {
+                                accessors.positionMorphTargetAccessors.push_back(getGpuAccessor(accessorIndex));
+                            }
+                            else if (attributeName == "NORMAL"sv) {
+                                accessors.normalMorphTargetAccessors.push_back(getGpuAccessor(accessorIndex));
+                            }
+                            else if (attributeName == "TANGENT"sv) {
+                                accessors.tangentMorphTargetAccessors.push_back(getGpuAccessor(accessorIndex));
+                            }
                         }
                     }
 
@@ -291,6 +338,43 @@ namespace vk_gltf_viewer::vulkan::buffer {
             for (auto &&[accessors, copyOffset] : std::views::zip(primitiveAccessorsWithTextures, copyOffsets)) {
                 accessors.texcoordAccessorBufferAddress = bufferAddress + copyOffset;
             }
+        }
+
+        void generateMorphTargetMappingInfos(const Gpu &gpu) {
+            const auto processMorphTargetAccessors = [&](auto &&morphTargetAccessorGetter, auto &&morphTargetAccessorBufferAddressGetter) -> void {
+                auto morphTargetAccessors
+                    = mappings
+                    | std::views::values
+                    | std::views::filter([&](const PrimitiveAccessors &accessors) {
+                        return !std::invoke(morphTargetAccessorGetter, accessors).empty();
+                    });
+                if (morphTargetAccessors.empty()) {
+                    return;
+                }
+
+                auto [buffer, copyOffsets] = createCombinedBuffer<true>(
+                    gpu.allocator,
+                    morphTargetAccessors | std::views::transform(morphTargetAccessorGetter),
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
+                if (StagingBufferStorage::needStaging(buffer)) {
+                    stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+                }
+
+                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
+                for (auto &&[accessors, copyOffset] : std::views::zip(morphTargetAccessors, copyOffsets)) {
+                    std::invoke(morphTargetAccessorBufferAddressGetter, accessors) = bufferAddress + copyOffset;
+                }
+            };
+
+            processMorphTargetAccessors(
+                &PrimitiveAccessors::positionMorphTargetAccessors,
+                &PrimitiveAccessors::positionMorphTargetAccessorBufferAddress);
+            processMorphTargetAccessors(
+                &PrimitiveAccessors::normalMorphTargetAccessors,
+                &PrimitiveAccessors::normalMorphTargetAccessorBufferAddress);
+            processMorphTargetAccessors(
+                &PrimitiveAccessors::tangentMorphTargetAccessors,
+                &PrimitiveAccessors::tangentMorphTargetAccessorBufferAddress);
         }
 
         template <typename BufferDataAdapter>

@@ -15,6 +15,7 @@ import :helpers.ranges;
 export import :vulkan.ag.Swapchain;
 import :vulkan.buffer.CombinedIndices;
 import :vulkan.buffer.Materials;
+import :vulkan.buffer.MorphTargetWeights;
 import :vulkan.buffer.Nodes;
 import :vulkan.buffer.PrimitiveAttributes;
 import :vulkan.buffer.Primitives;
@@ -41,6 +42,7 @@ namespace vk_gltf_viewer::vulkan {
             // --------------------
 
             buffer::InstancedNodeWorldTransforms instancedNodeWorldTransformBuffer;
+            buffer::MorphTargetWeights morphTargetWeightBuffer;
             buffer::Nodes nodeBuffer;
             buffer::Materials materialBuffer;
             buffer::CombinedIndices combinedIndexBuffers;
@@ -64,7 +66,8 @@ namespace vk_gltf_viewer::vulkan {
                 buffer::StagingBufferStorage stagingBufferStorage = {},
                 BS::thread_pool<> threadPool = {}
             ) : instancedNodeWorldTransformBuffer { asset, nodeWorldTransforms, gpu.allocator, adapter },
-                nodeBuffer { asset, instancedNodeWorldTransformBuffer, gpu.allocator, stagingBufferStorage },
+                morphTargetWeightBuffer { asset, gpu },
+                nodeBuffer { asset, instancedNodeWorldTransformBuffer, morphTargetWeightBuffer, gpu.allocator, stagingBufferStorage },
                 materialBuffer { asset, gpu.allocator, stagingBufferStorage },
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
@@ -179,11 +182,10 @@ namespace vk_gltf_viewer::vulkan {
         // Pipeline selectors.
         // --------------------
 
-        [[nodiscard]] vk::Pipeline getDepthRenderer() const {
-            if (!depthRenderer) {
-                depthRenderer = createDepthRenderer(gpu.device, primitiveNoShadingPipelineLayout);
-            }
-            return *depthRenderer;
+        [[nodiscard]] vk::Pipeline getDepthRenderer(const DepthRendererSpecialization &specialization) const {
+            return ranges::try_emplace_if_not_exists(depthPipelines, specialization, [&]() {
+                return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
+            }).first->second;
         }
 
         [[nodiscard]] vk::Pipeline getMaskDepthRenderer(const MaskDepthRendererSpecialization &specialization) const {
@@ -192,11 +194,10 @@ namespace vk_gltf_viewer::vulkan {
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getJumpFloodSeedRenderer() const {
-            if (!jumpFloodSeedRenderer) {
-                jumpFloodSeedRenderer = createJumpFloodSeedRenderer(gpu.device, primitiveNoShadingPipelineLayout);
-            }
-            return *jumpFloodSeedRenderer;
+        [[nodiscard]] vk::Pipeline getJumpFloodSeedRenderer(const JumpFloodSeedRendererSpecialization &specialization) const {
+            return ranges::try_emplace_if_not_exists(jumpFloodSeedPipelines, specialization, [&]() {
+                return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
+            }).first->second;
         }
 
         [[nodiscard]] vk::Pipeline getMaskJumpFloodSeedRenderer(const MaskJumpFloodSeedRendererSpecialization &specialization) const {
@@ -248,9 +249,9 @@ namespace vk_gltf_viewer::vulkan {
             const GltfAsset &inner = gltfAsset.emplace(asset, directory, nodeWorldTransforms, orderedPrimitives, gpu, adapter);
             if (assetDescriptorSetLayout.descriptorCounts[4] != textureCount) {
                 // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
-                depthRenderer.reset();
+                depthPipelines.clear();
                 maskDepthPipelines.clear();
-                jumpFloodSeedRenderer.reset();
+                jumpFloodSeedPipelines.clear();
                 maskJumpFloodSeedPipelines.clear();
                 primitivePipelines.clear();
                 unlitPrimitivePipelines.clear();
@@ -290,9 +291,9 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         // glTF primitive rendering pipelines.
-        mutable std::optional<vk::raii::Pipeline> depthRenderer;
+        mutable std::unordered_map<DepthRendererSpecialization, vk::raii::Pipeline, AggregateHasher> depthPipelines;
         mutable std::unordered_map<MaskDepthRendererSpecialization, vk::raii::Pipeline, AggregateHasher> maskDepthPipelines;
-        mutable std::optional<vk::raii::Pipeline> jumpFloodSeedRenderer;
+        mutable std::unordered_map<JumpFloodSeedRendererSpecialization, vk::raii::Pipeline, AggregateHasher> jumpFloodSeedPipelines;
         mutable std::unordered_map<MaskJumpFloodSeedRendererSpecialization, vk::raii::Pipeline, AggregateHasher> maskJumpFloodSeedPipelines;
         mutable std::unordered_map<PrimitiveRendererSpecialization, vk::raii::Pipeline, AggregateHasher> primitivePipelines;
         mutable std::unordered_map<UnlitPrimitiveRendererSpecialization, vk::raii::Pipeline, AggregateHasher> unlitPrimitivePipelines;

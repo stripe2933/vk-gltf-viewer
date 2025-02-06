@@ -153,6 +153,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/buffer/IndirectDrawCommands.cppm
         interface/vulkan/buffer/InstancedNodeWorldTransforms.cppm
         interface/vulkan/buffer/Materials.cppm
+        interface/vulkan/buffer/MorphTargetWeights.cppm
         interface/vulkan/buffer/Nodes.cppm
         interface/vulkan/buffer/PrimitiveAttributes.cppm
         interface/vulkan/buffer/Primitives.cppm
@@ -188,6 +189,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/sampler/BrdfLutSampler.cppm
         interface/vulkan/sampler/CubemapSampler.cppm
         interface/vulkan/shader_type/Accessor.cppm
+        interface/vulkan/shader_type/Node.cppm
         interface/vulkan/shader_type/Primitive.cppm
         interface/vulkan/shader_type/TextureTransform.cppm
         interface/vulkan/SharedData.cppm

@@ -152,6 +152,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .colorComponentCountAndType = accessors.colorAccessor.transform([](const auto &info) {
                         return std::pair { info.componentCount, info.componentType };
                     }),
+                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
                         .value_or(shader_type::TextureTransform::None),
@@ -170,6 +171,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         return std::pair { info.componentCount, info.componentType };
                     }),
                     .fragmentShaderGeneratedTBN = !accessors.normalAccessor.has_value(),
+                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                    .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
+                    .hasTangentMorphTarget = !accessors.tangentMorphTargetAccessors.empty(),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
                         .value_or(shader_type::TextureTransform::None),
@@ -202,6 +206,9 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     return std::pair { info.componentCount, info.componentType };
                 }),
                 .fragmentShaderGeneratedTBN = !accessors.normalAccessor.has_value(),
+                .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
+                .hasTangentMorphTarget = !accessors.tangentMorphTargetAccessors.empty(),
             });
         }
         return result;
@@ -227,15 +234,20 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         // Alpha value exists only if COLOR_0 is Vec4 type.
                         return value_if(info.componentCount == 4, info.componentType);
                     }),
+                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
                 });
             }
             else {
-                result.pipeline = sharedData.getDepthRenderer();
+                result.pipeline = sharedData.getDepthRenderer({
+                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                });
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else {
-            result.pipeline = sharedData.getDepthRenderer();
+            result.pipeline = sharedData.getDepthRenderer({
+                .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+            });
         }
         return result;
     };
@@ -260,15 +272,20 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         // Alpha value exists only if COLOR_0 is Vec4 type.
                         return value_if(info.componentCount == 4, info.componentType);
                     }),
+                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
                 });
             }
             else {
-                result.pipeline = sharedData.getJumpFloodSeedRenderer();
+                result.pipeline = sharedData.getJumpFloodSeedRenderer({
+                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                });
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else {
-            result.pipeline = sharedData.getJumpFloodSeedRenderer();
+            result.pipeline = sharedData.getJumpFloodSeedRenderer({
+                .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+            });
         }
         return result;
     };

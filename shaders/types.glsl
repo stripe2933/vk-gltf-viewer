@@ -34,6 +34,14 @@ struct Material {
 
 #ifdef VERTEX_SHADER
 
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer FloatArray { float data[]; };
+
+struct Node {
+    FloatArray morphTargetWeights;
+    uint morphTargetWeightCount;
+    uint instancedTransformStartIndex;
+};
+
 struct Accessor {
     uint64_t bufferAddress;
     uint8_t componentType;
@@ -42,12 +50,19 @@ struct Accessor {
     uint8_t _padding_[5];
 };
 
+uint64_t getFetchAddress(Accessor accessor, uint index) {
+    return accessor.bufferAddress + uint(accessor.stride) * index;
+}
+
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Accessors { Accessor data[]; };
 
 struct Primitive {
     uint64_t pPositionBuffer;
+    Accessors positionMorphTargetAccessors;
     uint64_t pNormalBuffer;
+    Accessors normalMorphTargetAccessors;
     uint64_t pTangentBuffer;
+    Accessors tangentMorphTargetAccessors;
     Accessors texcoordAccessors;
     uint64_t pColorBuffer;
     uint8_t positionByteStride;
@@ -55,6 +70,7 @@ struct Primitive {
     uint8_t tangentByteStride;
     uint8_t colorByteStride;
     uint materialIndex;
+    vec2 _padding0_;
 };
 
 #endif

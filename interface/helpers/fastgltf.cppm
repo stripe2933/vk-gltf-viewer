@@ -385,6 +385,29 @@ namespace fastgltf {
         return data;
     }
 
+    /**
+     * @brief Get target weight count of \p node, with respecting its mesh target weights existency.
+     *
+     * glTF spec:
+     *   A mesh with morph targets MAY also define an optional mesh.weights property that stores the default targets'
+     *   weights. These weights MUST be used when node.weights is undefined. When mesh.weights is undefined, the default
+     *   targets' weights are zeros.
+     *
+     * Therefore, when calculating the count of a node's target weights, its mesh target weights MUST be also considered.
+     *
+     * @param node Node to get the target weight count.
+     * @param asset Asset that is owning \p node.
+     * @return Target weight count.
+     */
+    export
+    [[nodiscard]] std::size_t getTargetWeightCount(const Node &node, const Asset &asset) noexcept {
+        return to_optional(node.meshIndex)
+            .and_then([&](std::size_t meshIndex) {
+                return value_if(!asset.meshes[meshIndex].weights.empty(), asset.meshes[meshIndex].weights.size());
+            })
+            .value_or(node.weights.size());
+    }
+
 namespace math {
     /**
      * @brief Convert matrix of type \tp U to matrix of type \tp T.

@@ -14,10 +14,65 @@ import :vulkan.specialization_constants.SpecializationMap;
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
+    export class DepthRendererSpecialization {
+    public:
+        bool hasPositionMorphTarget = false;
+
+        [[nodiscard]] bool operator==(const DepthRendererSpecialization&) const = default;
+
+        [[nodiscard]] vk::raii::Pipeline createPipeline(
+            const vk::raii::Device &device,
+            const pl::PrimitiveNoShading &pipelineLayout
+        ) const {
+            return { device, nullptr, vk::StructureChain {
+                vku::getDefaultGraphicsPipelineCreateInfo(
+                    createPipelineStages(
+                        device,
+                        vku::Shader {
+                            shader::depth_vert,
+                            vk::ShaderStageFlagBits::eVertex,
+                            vku::unsafeAddress(vk::SpecializationInfo {
+                                SpecializationMap<VertexShaderSpecializationData>::value,
+                                vku::unsafeProxy(getVertexShaderSpecializationData()),
+                            }),
+                        },
+                        vku::Shader { shader::depth_frag, vk::ShaderStageFlagBits::eFragment }).get(),
+                    *pipelineLayout, 1, true)
+                    .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
+                        {},
+                        true, true, vk::CompareOp::eGreater, // Use reverse Z.
+                    }))
+                    .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
+                        {},
+                        vku::unsafeProxy({
+                            vk::DynamicState::eViewport,
+                            vk::DynamicState::eScissor,
+                            vk::DynamicState::eCullMode,
+                        }),
+                    })),
+                vk::PipelineRenderingCreateInfo {
+                    {},
+                    vku::unsafeProxy(vk::Format::eR16Uint),
+                    vk::Format::eD32Sfloat,
+                }
+            }.get() };
+        }
+
+    private:
+        struct VertexShaderSpecializationData {
+            vk::Bool32 hasPositionMorphTarget;
+        };
+
+        [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
+            return { hasPositionMorphTarget };
+        }
+    };
+
     class MaskDepthRendererSpecialization {
     public:
         std::optional<std::uint8_t> baseColorTexcoordComponentType;
         std::optional<std::uint8_t> colorAlphaComponentType;
+        bool hasPositionMorphTarget = false;
         shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
 
         [[nodiscard]] bool operator==(const MaskDepthRendererSpecialization&) const = default;
@@ -71,6 +126,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         struct VertexShaderSpecializationData {
             std::uint32_t texcoordComponentType = 5126; // FLOAT
             std::uint32_t colorComponentType = 5126; // FLOAT
+            vk::Bool32 hasPositionMorphTarget;
         };
 
         struct FragmentShaderSpecializationData {
@@ -85,7 +141,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         }
 
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
-            VertexShaderSpecializationData result{};
+            VertexShaderSpecializationData result {
+                .hasPositionMorphTarget = hasPositionMorphTarget,
+            };
 
             if (baseColorTexcoordComponentType) {
                 result.texcoordComponentType = *baseColorTexcoordComponentType;
@@ -112,35 +170,4 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             return result;
         }
     };
-
-    [[nodiscard]] vk::raii::Pipeline createDepthRenderer(
-        const vk::raii::Device &device,
-        const pl::PrimitiveNoShading &pipelineLayout
-    ) {
-        return { device, nullptr, vk::StructureChain {
-            vku::getDefaultGraphicsPipelineCreateInfo(
-                createPipelineStages(
-                    device,
-                    vku::Shader { shader::depth_vert, vk::ShaderStageFlagBits::eVertex },
-                    vku::Shader { shader::depth_frag, vk::ShaderStageFlagBits::eFragment }).get(),
-                *pipelineLayout, 1, true)
-                .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
-                    {},
-                    true, true, vk::CompareOp::eGreater, // Use reverse Z.
-                }))
-                .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
-                    {},
-                    vku::unsafeProxy({
-                        vk::DynamicState::eViewport,
-                        vk::DynamicState::eScissor,
-                        vk::DynamicState::eCullMode,
-                    }),
-                })),
-            vk::PipelineRenderingCreateInfo {
-                {},
-                vku::unsafeProxy(vk::Format::eR16Uint),
-                vk::Format::eD32Sfloat,
-            }
-        }.get() };
-    }
 }

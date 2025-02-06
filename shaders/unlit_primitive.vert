@@ -17,6 +17,7 @@
 layout (constant_id = 0) const uint TEXCOORD_COMPONENT_TYPE = 6; // FLOAT
 layout (constant_id = 1) const uint COLOR_COMPONENT_COUNT = 0;
 layout (constant_id = 2) const uint COLOR_COMPONENT_TYPE = 6; // FLOAT
+layout (constant_id = 3) const bool HAS_POSITION_MORPH_TARGET = false;
 
 layout (location = 0) flat out uint outMaterialIndex;
 #if HAS_VARIADIC_OUT
@@ -35,7 +36,7 @@ layout (set = 1, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
 layout (set = 1, binding = 1, std430) readonly buffer NodeBuffer {
-    uint instancedTransformStartIndices[];
+    Node nodes[];
 };
 layout (set = 1, binding = 2) readonly buffer InstancedTransformBuffer {
     mat4 instancedTransforms[];
@@ -52,7 +53,7 @@ layout (push_constant, std430) uniform PushConstant {
 #include "vertex_pulling.glsl"
 
 void main(){
-    vec3 inPosition = getPosition();
+    vec3 inPosition = getPosition(HAS_POSITION_MORPH_TARGET);
 
     outMaterialIndex = MATERIAL_INDEX;
 #if HAS_BASE_COLOR_TEXTURE

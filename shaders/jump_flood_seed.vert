@@ -12,11 +12,13 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
+layout (constant_id = 0) const bool HAS_POSITION_MORPH_TARGET = false;
+
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
 layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {
-    uint instancedTransformStartIndices[];
+    Node nodes[];
 };
 layout (set = 0, binding = 2) readonly buffer InstancedTransformBuffer {
     mat4 instancedTransforms[];
@@ -29,6 +31,6 @@ layout (push_constant) uniform PushConstant {
 #include "vertex_pulling.glsl"
 
 void main(){
-    vec3 inPosition = getPosition();
+    vec3 inPosition = getPosition(HAS_POSITION_MORPH_TARGET);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }
