@@ -23,20 +23,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Vulkan SDK
-        uses: humbletim/setup-vulkan-sdk@v1.2.0
+      - name: Install Vulkan SDK (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        uses: stripe2933/setup-vulkan-sdk@main
         with:
           vulkan-query-version: 1.3.296.0
           vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
-          vulkan-use-cache: false
+          vulkan-use-cache: true
+
+      - name: Install Vulkan SDK (Windows)
+        if: ${{ runner.os != 'Windows' }}
+        uses: stripe2933/setup-vulkan-sdk@main
+        with:
+          vulkan-query-version: 1.3.296.0
+          vulkan-components: Vulkan-Headers, Vulkan-Loader
+          vulkan-use-cache: true
 
       - name: Install build dependencies (macOS)
         if: ${{ runner.os == 'macOS' }}
-        run: brew install llvm ninja autoconf automake libtool nasm
+        run: brew install llvm ninja shaderc autoconf automake libtool nasm
 
-      - name: Install build dependencies (ubuntu-24.04)
+      - name: Install build dependencies (Linux)
         if: ${{ runner.os == 'Linux' }}
-        run: sudo apt-get install ninja-build libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev
+        run: sudo apt-get install ninja-build libc++-dev libc++abi-dev glslc xorg-dev libtool libltdl-dev
 
       - name: Setup vcpkg (macOS)
         if: ${{ runner.os == 'macOS' }}
@@ -76,3 +85,4 @@ jobs:
             build/vk-gltf-viewer
             build/vk-gltf-viewer.exe
             build/*.dll
+            build/*.so
