@@ -5,17 +5,14 @@ module;
 export module vk_gltf_viewer:vulkan.shader_type.Node;
 
 import std;
-export import vulkan_hpp;
 
 namespace vk_gltf_viewer::vulkan::shader_type {
     export struct Node {
-        vk::DeviceAddress morphTargetWeightsStartAddress;
-        std::uint32_t morphTargetWeightsCount;
         std::uint32_t instancedTransformStartIndex;
+        std::uint32_t morphTargetWeightStartIndex;
     };
 
-    static_assert(sizeof(Node) == 16);
-    static_assert(offsetof(Node, morphTargetWeightsStartAddress) == 0);
-    static_assert(offsetof(Node, morphTargetWeightsCount) == 8);
-    static_assert(offsetof(Node, instancedTransformStartIndex) == 12);
+    static_assert(sizeof(Node) == 8);
+    static_assert(offsetof(Node, instancedTransformStartIndex) == 0);
+    static_assert(offsetof(Node, morphTargetWeightStartIndex) == 4);
 }

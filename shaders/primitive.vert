@@ -55,7 +55,10 @@ layout (set = 1, binding = 1, std430) readonly buffer NodeBuffer {
 layout (set = 1, binding = 2) readonly buffer InstancedTransformBuffer {
     mat4 instancedTransforms[];
 };
-layout (set = 1, binding = 3, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 3) readonly buffer MorphTargetWeightBuffer {
+    float morphTargetWeights[];
+};
+layout (set = 1, binding = 4, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 

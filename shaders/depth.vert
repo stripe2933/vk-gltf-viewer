@@ -25,6 +25,9 @@ layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {
 layout (set = 0, binding = 2) readonly buffer InstancedTransformBuffer {
     mat4 instancedTransforms[];
 };
+layout (set = 0, binding = 3) readonly buffer MorphTargetWeightBuffer {
+    float morphTargetWeights[];
+};
 
 layout (push_constant) uniform PushConstant {
     mat4 projectionView;

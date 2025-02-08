@@ -11,10 +11,14 @@ namespace vk_gltf_viewer::vulkan::buffer {
     public:
         MorphTargetWeights(const fastgltf::Asset &asset, const Gpu &gpu [[clang::lifetimebound]])
             : buffer { createBuffer(asset, gpu.allocator) }
-            , bufferAddress { gpu.device.getBufferAddress({ buffer }) }{ }
+            , descriptorInfo { buffer, 0, vk::WholeSize } { }
 
-        [[nodiscard]] vk::DeviceAddress getStartAddress(std::size_t nodeIndex) const noexcept {
-            return bufferAddress + startOffsets[nodeIndex];
+        [[nodiscard]] std::uint32_t getStartIndex(std::size_t nodeIndex) const noexcept {
+            return startOffsets[nodeIndex];
+        }
+
+        [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept {
+            return descriptorInfo;
         }
 
         void updateWeight(std::size_t nodeIndex, std::size_t weightIndex, float weight) {
@@ -22,9 +26,9 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
     private:
-        std::vector<vk::DeviceSize> startOffsets;
+        std::vector<std::uint32_t> startOffsets;
         vku::MappedBuffer buffer;
-        vk::DeviceAddress bufferAddress;
+        vk::DescriptorBufferInfo descriptorInfo;
 
         [[nodiscard]] vku::MappedBuffer createBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) {
             auto [buffer, copyOffsets] = createCombinedBuffer(
@@ -41,8 +45,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     // A dummy NaN-valued weight for preventing the zero-sized buffer creation.
                     // This will not affect to the actual weight indexing.
                     std::views::single(std::array { std::numeric_limits<float>::quiet_NaN() })),
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-            startOffsets = std::move(copyOffsets);
+                vk::BufferUsageFlagBits::eStorageBuffer);
+            startOffsets = { std::from_range, copyOffsets };
 
             return std::move(buffer);
         }

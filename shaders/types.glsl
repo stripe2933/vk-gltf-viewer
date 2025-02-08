@@ -34,12 +34,9 @@ struct Material {
 
 #ifdef VERTEX_SHADER
 
-layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer FloatArray { float data[]; };
-
 struct Node {
-    FloatArray morphTargetWeights;
-    uint morphTargetWeightCount;
     uint instancedTransformStartIndex;
+    uint morphTargetWeightStartIndex;
 };
 
 struct Accessor {

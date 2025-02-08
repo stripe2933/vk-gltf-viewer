@@ -247,7 +247,7 @@ namespace vk_gltf_viewer::vulkan {
             }
 
             const GltfAsset &inner = gltfAsset.emplace(asset, directory, nodeWorldTransforms, orderedPrimitives, gpu, adapter);
-            if (assetDescriptorSetLayout.descriptorCounts[4] != textureCount) {
+            if (assetDescriptorSetLayout.descriptorCounts[5] != textureCount) {
                 // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
                 depthPipelines.clear();
                 maskDepthPipelines.clear();
@@ -280,8 +280,9 @@ namespace vk_gltf_viewer::vulkan {
                 assetDescriptorSet.getWrite<0>(inner.primitiveBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<1>(inner.nodeBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<2>(inner.instancedNodeWorldTransformBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<3>(inner.materialBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<4>(imageInfos),
+                assetDescriptorSet.getWrite<3>(inner.morphTargetWeightBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<4>(inner.materialBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<5>(imageInfos),
             }, {});
         }
 

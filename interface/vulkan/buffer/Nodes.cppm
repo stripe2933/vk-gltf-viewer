@@ -48,9 +48,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 allocator,
                 std::from_range, ranges::views::upto(asset.nodes.size()) | std::views::transform([&](std::size_t nodeIndex) {
                     return shader_type::Node {
-                        .morphTargetWeightsStartAddress = morphTargetWeights.getStartAddress(nodeIndex),
-                        .morphTargetWeightsCount = static_cast<std::uint32_t>(getTargetWeightCount(asset.nodes[nodeIndex], asset)),
                         .instancedTransformStartIndex = instancedNodeWorldTransformBuffer.getStartIndex(nodeIndex),
+                        .morphTargetWeightStartIndex = morphTargetWeights.getStartIndex(nodeIndex),
                     };
                 }),
                 vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
