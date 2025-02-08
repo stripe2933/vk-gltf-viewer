@@ -301,6 +301,16 @@ void vk_gltf_viewer::MainApp::run() {
             }
         }
 
+        if (static bool init = true; init) {
+            if (const char *gltfPath = std::getenv("GLTF_PATH")) {
+                tasks.emplace_back(std::in_place_type<control::task::LoadGltf>, gltfPath);
+            }
+            if (const char *eqmapPath = std::getenv("EQMAP_PATH")) {
+                tasks.emplace_back(std::in_place_type<control::task::LoadEqmap>, eqmapPath);
+            }
+            init = false;
+        }
+
         for (const control::Task &task : tasks) {
             visit(multilambda {
                 [this](const control::task::ChangePassthruRect &task) {
@@ -530,6 +540,14 @@ void vk_gltf_viewer::MainApp::run() {
                 [&](const control::task::ChangeMorphTargetWeight &task) {
                     gpu.device.waitIdle();
                     sharedData.gltfAsset.value().morphTargetWeightBuffer.updateWeight(task.nodeIndex, task.targetWeightIndex, task.newValue);
+
+                    // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
+                    if (appState.automaticNearFarPlaneAdjustment) {
+                        const auto &[center, radius]
+                            = gltf->sceneMiniball
+                            = gltf::algorithm::getMiniball(gltf->asset, gltf->scene, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                        appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+                    }
                 },
             }, task);
         }
