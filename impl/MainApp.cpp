@@ -822,7 +822,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
             return ImGui_ImplVulkan_AddTexture(
                 to_optional(texture.samplerIndex)
-                    .transform([this](std::size_t samplerIndex) { return *sharedData.gltfAsset->textures.samplers[samplerIndex]; })
+                    .transform([this](std::size_t samplerIndex) { return *sharedData.gltfAsset->samplers[samplerIndex]; })
                     .value_or(*sharedData.fallbackTexture.sampler),
                 ranges::value_or(
                     sharedData.gltfAsset->textures.imageViews,

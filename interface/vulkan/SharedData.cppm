@@ -30,6 +30,7 @@ export import :vulkan.pipeline.SkyboxRenderer;
 export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
 export import :vulkan.rp.Scene;
+export import :vulkan.sampler.Samplers;
 export import :vulkan.texture.Fallback;
 export import :vulkan.texture.Textures;
 
@@ -53,6 +54,7 @@ namespace vk_gltf_viewer::vulkan {
             // Textures.
             // --------------------
 
+            sampler::Samplers samplers;
             texture::Textures textures;
 
             template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
@@ -72,6 +74,7 @@ namespace vk_gltf_viewer::vulkan {
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
                 primitiveBuffer { materialBuffer, orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
+                samplers { asset, gpu.device },
                 textures { asset, directory, gpu, threadPool, adapter } {
                 // Setup node world transforms as the default scene hierarchy.
                 instancedNodeWorldTransformBuffer.update(asset.scenes[asset.defaultScene.value_or(0)], nodeWorldTransforms, adapter);
@@ -98,8 +101,8 @@ namespace vk_gltf_viewer::vulkan {
 
         // Buffer, image and image views and samplers.
         buffer::CubeIndices cubeIndices;
-        CubemapSampler cubemapSampler;
-        BrdfLutSampler brdfLutSampler;
+        sampler::Cubemap cubemapSampler;
+        sampler::BrdfLut brdfLutSampler;
 
         // Descriptor set layouts.
         dsl::Asset assetDescriptorSetLayout;
@@ -298,7 +301,7 @@ namespace vk_gltf_viewer::vulkan {
             imageInfos.append_range(asset.textures | std::views::transform([&](const fastgltf::Texture &texture) {
                 return vk::DescriptorImageInfo {
                     to_optional(texture.samplerIndex)
-                        .transform([&](std::size_t samplerIndex) { return *inner.textures.samplers[samplerIndex]; })
+                        .transform([&](std::size_t samplerIndex) { return *inner.samplers[samplerIndex]; })
                         .value_or(*fallbackTexture.sampler),
                     *inner.textures.imageViews.at(getPreferredImageIndex(texture)),
                     vk::ImageLayout::eShaderReadOnlyOptimal,

@@ -62,21 +62,9 @@ template <typename T, typename U>
     return result;
 }
 
-constexpr auto convertSamplerAddressMode(fastgltf::Wrap wrap) noexcept -> vk::SamplerAddressMode {
-    switch (wrap) {
-        case fastgltf::Wrap::ClampToEdge:
-            return vk::SamplerAddressMode::eClampToEdge;
-        case fastgltf::Wrap::MirroredRepeat:
-            return vk::SamplerAddressMode::eMirroredRepeat;
-        case fastgltf::Wrap::Repeat:
-            return vk::SamplerAddressMode::eRepeat;
-    }
-    std::unreachable();
-}
-
 namespace vk_gltf_viewer::vulkan::texture {
     /**
-     * @brief GPU textures (images, image views and samplers) for <tt>fastgltf::Asset</tt>.
+     * @brief GPU textures (images and image views) for <tt>fastgltf::Asset</tt>.
      *
      * It loads the required textures from <tt>fastgltf::Asset</tt> at the construction time with multithreaded image
      * decoding and resource creation.
@@ -85,7 +73,7 @@ namespace vk_gltf_viewer::vulkan::texture {
      * roughness, normal, occlusion and emissive textures. Therefore, even if the texture is presented in the glTF asset,
      * it may not be presented in this class, which makes the type of the field <tt>images</tt> to be
      * <tt>std::unordered_map<std::size_t, vku::AllocatedImage></tt> instead of <tt>std::vector<vku::AllocatedImage></tt>
-     * (also for <tt>imageViews</tt>). This does not hold for samplers (all the samplers are created).
+     * (also for <tt>imageViews</tt>).
      */
     export class Textures {
         const fastgltf::Asset &asset;
@@ -112,13 +100,6 @@ namespace vk_gltf_viewer::vulkan::texture {
          * <tt>imageViews[i]</tt> is the view for <tt>images[i]</tt> with color aspect flag and full subresource range.
          */
         std::unordered_map<std::size_t, vk::raii::ImageView> imageViews;
-
-        /**
-         * @brief Asset samplers.
-         *
-         * <tt>samplers[i]</tt> represents <tt>asset.samplers[i]</tt>.
-         */
-        std::vector<vk::raii::Sampler> samplers = createSamplers();
 
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         Textures(
@@ -535,61 +516,6 @@ namespace vk_gltf_viewer::vulkan::texture {
         }
 
     private:
-        [[nodiscard]] auto createSamplers() const -> std::vector<vk::raii::Sampler> {
-            return asset.samplers
-                | std::views::transform([this](const fastgltf::Sampler &sampler) {
-                    vk::SamplerCreateInfo createInfo {
-                        {},
-                        {}, {}, {},
-                        convertSamplerAddressMode(sampler.wrapS), convertSamplerAddressMode(sampler.wrapT), {},
-                        {},
-                        true, 16.f,
-                        {}, {},
-                        {}, vk::LodClampNone,
-                    };
-
-                    // TODO: how can map OpenGL filter to Vulkan corresponds?
-                    // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkSamplerCreateInfo.html
-                    const auto applyFilter = [&](bool mag, fastgltf::Filter filter) -> void {
-                        switch (filter) {
-                        case fastgltf::Filter::Nearest:
-                            (mag ? createInfo.magFilter : createInfo.minFilter) = vk::Filter::eNearest;
-                            break;
-                        case fastgltf::Filter::Linear:
-                            (mag ? createInfo.magFilter : createInfo.minFilter) = vk::Filter::eLinear;
-                            break;
-                        case fastgltf::Filter::NearestMipMapNearest:
-                            (mag ? createInfo.magFilter : createInfo.minFilter) = vk::Filter::eNearest;
-                            createInfo.mipmapMode = vk::SamplerMipmapMode::eNearest;
-                            break;
-                        case fastgltf::Filter::LinearMipMapNearest:
-                            (mag ? createInfo.magFilter : createInfo.minFilter) = vk::Filter::eLinear;
-                            createInfo.mipmapMode = vk::SamplerMipmapMode::eNearest;
-                            break;
-                        case fastgltf::Filter::NearestMipMapLinear:
-                            (mag ? createInfo.magFilter : createInfo.minFilter) = vk::Filter::eNearest;
-                            createInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
-                            break;
-                        case fastgltf::Filter::LinearMipMapLinear:
-                            (mag ? createInfo.magFilter : createInfo.minFilter) = vk::Filter::eLinear;
-                            createInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
-                            break;
-                        }
-                    };
-                    if (sampler.magFilter) applyFilter(true, *sampler.magFilter);
-                    if (sampler.minFilter) applyFilter(false, *sampler.minFilter);
-
-                    // For best performance, all address mode should be the same.
-                    // https://developer.arm.com/documentation/101897/0302/Buffers-and-textures/Texture-and-sampler-descriptors
-                    if (createInfo.addressModeU == createInfo.addressModeV) {
-                        createInfo.addressModeW = createInfo.addressModeU;
-                    }
-
-                    return vk::raii::Sampler { gpu.device, createInfo };
-                })
-                | std::ranges::to<std::vector>();
-        }
-
         [[nodiscard]] std::unordered_map<std::size_t, vk::raii::ImageView> createImageViews(const vk::raii::Device &device) const {
             return images
                 | ranges::views::value_transform([&](const vku::Image &image) -> vk::raii::ImageView {

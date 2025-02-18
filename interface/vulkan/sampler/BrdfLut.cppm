@@ -1,13 +1,13 @@
-export module vk_gltf_viewer:vulkan.sampler.BrdfLutSampler;
+export module vk_gltf_viewer:vulkan.sampler.BrdfLut;
 
 #ifdef _MSC_VER
 import std;
 #endif
 export import vulkan_hpp;
 
-namespace vk_gltf_viewer::vulkan::inline sampler {
-    export struct BrdfLutSampler : vk::raii::Sampler {
-        explicit BrdfLutSampler(
+namespace vk_gltf_viewer::vulkan::sampler {
+    export struct BrdfLut : vk::raii::Sampler {
+        explicit BrdfLut(
             const vk::raii::Device &device [[clang::lifetimebound]]
         ) : Sampler { device, vk::SamplerCreateInfo {
                 {},
