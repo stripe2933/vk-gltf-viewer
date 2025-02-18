@@ -203,11 +203,11 @@ Add the following CMake user preset file in your project directory. I'll assume 
   "version": 6,
   "configurePresets": [
     {
-      "name": "linux-clang-18",
+      "name": "linux-clang",
       "inherits": "default",
       "cacheVariables": {
-        "CMAKE_C_COMPILER": "/usr/bin/clang-18",
-        "CMAKE_CXX_COMPILER": "/usr/bin/clang++-18",
+        "CMAKE_C_COMPILER": "/usr/bin/clang",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
         "CMAKE_CXX_FLAGS": "-stdlib=libc++",
         "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++ -lc++abi",
         "VCPKG_TARGET_TRIPLET": "x64-linux-clang"
@@ -221,8 +221,8 @@ Add the following CMake user preset file in your project directory. I'll assume 
 
 `clang-toolchain.cmake`
 ```cmake
-set(CMAKE_C_COMPILER /usr/bin/clang-18)
-set(CMAKE_CXX_COMPILER /usr/bin/clang++-18)
+set(CMAKE_C_COMPILER /usr/bin/clang)
+set(CMAKE_CXX_COMPILER /usr/bin/clang++)
 set(CMAKE_CXX_FLAGS "-stdlib=libc++")
 set(CMAKE_EXE_LINKER_FLAGS "-stdlib=libc++ -lc++abi")
 ```
@@ -236,10 +236,10 @@ set(VCPKG_CMAKE_SYSTEM_NAME Linux)
 set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../clang-toolchain.cmake)
 ```
 
-Configure and build the project with `linux-clang-18` configuration preset.
+Configure and build the project with `linux-clang` configuration preset.
 
 ```sh
-cmake --preset=linux-clang-18
+cmake --preset=linux-clang
 cmake --build build -t vk-gltf-viewer
 ```
 
