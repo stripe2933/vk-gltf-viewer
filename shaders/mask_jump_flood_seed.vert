@@ -16,6 +16,7 @@
 
 layout (constant_id = 0) const uint TEXCOORD_COMPONENT_TYPE = 6; // FLOAT
 layout (constant_id = 1) const uint COLOR_COMPONENT_TYPE = 6; // FLOAT
+layout (constant_id = 2) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
 
 layout (location = 0) flat out uint outMaterialIndex;
 #if HAS_VARIADIC_OUT
@@ -33,12 +34,15 @@ layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
 layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {
-    uint instancedTransformStartIndices[];
+    Node nodes[];
 };
 layout (set = 0, binding = 2) readonly buffer InstancedTransformBuffer {
     mat4 instancedTransforms[];
 };
-layout (set = 0, binding = 3, std430) readonly buffer MaterialBuffer {
+layout (set = 0, binding = 3) readonly buffer MorphTargetWeightBuffer {
+    float morphTargetWeights[];
+};
+layout (set = 0, binding = 4, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
@@ -57,6 +61,6 @@ void main(){
     variadic_out.colorAlpha = getColorAlpha();
 #endif
 
-    vec3 inPosition = getPosition();
+    vec3 inPosition = getPosition(POSITION_MORPH_TARGET_WEIGHT_COUNT);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }

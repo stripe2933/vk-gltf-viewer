@@ -18,25 +18,51 @@ layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Ve
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec3Ref { vec3 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec4Ref { vec4 data; };
 
-vec3 getPosition() {
+vec3 getPosition(uint morphTargetWeightCount) {
     uint64_t fetchAddress = PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * uint(gl_VertexIndex);
-    return Vec3Ref(fetchAddress).data;
+    vec3 position = Vec3Ref(fetchAddress).data;
+
+    for (uint i = 0; i < morphTargetWeightCount; i++) {
+        Accessor accessor = PRIMITIVE.positionMorphTargetAccessors.data[i];
+        fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
+        position += Vec3Ref(fetchAddress).data * morphTargetWeights[NODE.morphTargetWeightStartIndex + i];
+    }
+
+    return position;
 }
 
-vec3 getNormal() {
+vec3 getNormal(uint morphTargetWeightCount) {
     uint64_t fetchAddress = PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * uint(gl_VertexIndex);
-    return Vec3Ref(fetchAddress).data;
+    vec3 normal = Vec3Ref(fetchAddress).data;
+
+    for (uint i = 0; i < morphTargetWeightCount; i++) {
+        Accessor accessor = PRIMITIVE.normalMorphTargetAccessors.data[i];
+        fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
+        normal += Vec3Ref(fetchAddress).data * morphTargetWeights[NODE.morphTargetWeightStartIndex + i];
+    }
+
+    return normal;
 }
 
-vec4 getTangent() {
+vec4 getTangent(uint morphTargetWeightCount) {
     uint64_t fetchAddress = PRIMITIVE.pTangentBuffer + uint(PRIMITIVE.tangentByteStride) * uint(gl_VertexIndex);
-    return Vec4Ref(fetchAddress).data;
+    vec4 tangent = Vec4Ref(fetchAddress).data;
+
+    for (uint i = 0; i < morphTargetWeightCount; i++) {
+        Accessor accessor = PRIMITIVE.tangentMorphTargetAccessors.data[i];
+        fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
+
+        // Tangent morph target only adds XYZ vertex tangent displacements.
+        tangent.xyz += Vec3Ref(fetchAddress).data * morphTargetWeights[NODE.morphTargetWeightStartIndex + i];
+    }
+
+    return tangent;
 }
 
 #if TEXCOORD_COUNT >= 1
 vec2 getTexcoord(uint texcoordIndex){
     Accessor texcoordAccessor = PRIMITIVE.texcoordAccessors.data[texcoordIndex];
-    uint64_t fetchAddress = texcoordAccessor.bufferAddress + uint(texcoordAccessor.stride) * uint(gl_VertexIndex);
+    uint64_t fetchAddress = getFetchAddress(texcoordAccessor, gl_VertexIndex);
 
     switch ((PACKED_TEXCOORD_COMPONENT_TYPES >> (8U * texcoordIndex)) & 0xFFU) {
     case 1U: // UNSIGNED BYTE
@@ -53,7 +79,7 @@ vec2 getTexcoord(uint texcoordIndex){
 #if HAS_BASE_COLOR_TEXTURE
 vec2 getTexcoord(uint texcoordIndex){
     Accessor texcoordAccessor = PRIMITIVE.texcoordAccessors.data[texcoordIndex];
-    uint64_t fetchAddress = texcoordAccessor.bufferAddress + uint(texcoordAccessor.stride) * uint(gl_VertexIndex);
+    uint64_t fetchAddress = getFetchAddress(texcoordAccessor, gl_VertexIndex);
 
     switch (TEXCOORD_COMPONENT_TYPE) {
     case 1U: // UNSIGNED BYTE

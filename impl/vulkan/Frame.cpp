@@ -8,6 +8,7 @@ import :vulkan.Frame;
 
 import std;
 import imgui.vulkan;
+import :gltf.algorithm.bounding_box;
 import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
@@ -152,6 +153,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .colorComponentCountAndType = accessors.colorAccessor.transform([](const auto &info) {
                         return std::pair { info.componentCount, info.componentType };
                     }),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
                         .value_or(shader_type::TextureTransform::None),
@@ -170,6 +172,14 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         return std::pair { info.componentCount, info.componentType };
                     }),
                     .fragmentShaderGeneratedTBN = !accessors.normalAccessor.has_value(),
+                    .morphTargetWeightCount = static_cast<std::uint32_t>(std::max({
+                        accessors.positionMorphTargetAccessors.size(),
+                        accessors.normalMorphTargetAccessors.size(),
+                        accessors.tangentMorphTargetAccessors.size(),
+                    })),
+                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                    .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
+                    .hasTangentMorphTarget = !accessors.tangentMorphTargetAccessors.empty(),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
                         .value_or(shader_type::TextureTransform::None),
@@ -202,6 +212,14 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     return std::pair { info.componentCount, info.componentType };
                 }),
                 .fragmentShaderGeneratedTBN = !accessors.normalAccessor.has_value(),
+                .morphTargetWeightCount = static_cast<std::uint32_t>(std::max({
+                    accessors.positionMorphTargetAccessors.size(),
+                    accessors.normalMorphTargetAccessors.size(),
+                    accessors.tangentMorphTargetAccessors.size(),
+                })),
+                .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
+                .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
+                .hasTangentMorphTarget = !accessors.tangentMorphTargetAccessors.empty(),
             });
         }
         return result;
@@ -227,15 +245,20 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         // Alpha value exists only if COLOR_0 is Vec4 type.
                         return value_if(info.componentCount == 4, info.componentType);
                     }),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 });
             }
             else {
-                result.pipeline = sharedData.getDepthRenderer();
+                result.pipeline = sharedData.getDepthRenderer({
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+                });
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else {
-            result.pipeline = sharedData.getDepthRenderer();
+            result.pipeline = sharedData.getDepthRenderer({
+                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+            });
         }
         return result;
     };
@@ -260,15 +283,20 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         // Alpha value exists only if COLOR_0 is Vec4 type.
                         return value_if(info.componentCount == 4, info.componentType);
                     }),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 });
             }
             else {
-                result.pipeline = sharedData.getJumpFloodSeedRenderer();
+                result.pipeline = sharedData.getJumpFloodSeedRenderer({
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+                });
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else {
-            result.pipeline = sharedData.getJumpFloodSeedRenderer();
+            result.pipeline = sharedData.getJumpFloodSeedRenderer({
+                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+            });
         }
         return result;
     };
@@ -321,21 +349,20 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
                     const std::uint16_t nodeIndex = command.firstInstance >> 16U;
                     const std::uint16_t primitiveIndex = command.firstInstance & 0xFFFFU;
-                    const fastgltf::Primitive &primitive = *task.gltf->orderedPrimitives[primitiveIndex];
+                    const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax<float>(
+                        *task.gltf->orderedPrimitives[primitiveIndex],
+                        task.gltf->asset.nodes[nodeIndex],
+                        task.gltf->asset);
 
-                    const fastgltf::Accessor &positionAccessor = task.gltf->asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];
-                    const double *positionMinData = get_if<std::pmr::vector<double>>(&positionAccessor.min)->data();
-                    const double *positionMaxData = get_if<std::pmr::vector<double>>(&positionAccessor.max)->data();
+                    const fastgltf::math::fmat4x4 &nodeWorldTransform = task.gltf->nodeWorldTransforms[nodeIndex];
+                    const fastgltf::math::fvec3 transformedMin { nodeWorldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
+                    const fastgltf::math::fvec3 transformedMax { nodeWorldTransform * fastgltf::math::fvec4 { max.x(), max.y(), max.z(), 1.f } };
 
-                    const glm::mat4 nodeWorldTransform = glm::make_mat4(task.gltf->nodeWorldTransforms[nodeIndex].data());
-                    const glm::vec3 transformedMin { nodeWorldTransform * glm::vec4 { glm::make_vec3(positionMinData), 1.f } };
-                    const glm::vec3 transformedMax { nodeWorldTransform * glm::vec4 { glm::make_vec3(positionMaxData), 1.f } };
-
-                    const glm::vec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
-                    const glm::vec3 center = transformedMin + halfDisplacement;
+                    const fastgltf::math::fvec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
+                    const fastgltf::math::fvec3 center = transformedMin + halfDisplacement;
                     const float radius = length(halfDisplacement);
 
-                    return task.frustum->isOverlapApprox(center, radius);
+                    return task.frustum->isOverlapApprox(glm::make_vec3(center.data()), radius);
                 });
             };
 

@@ -87,13 +87,24 @@ namespace vk_gltf_viewer::vulkan::buffer {
                         .positionByteStride = accessors.positionAccessor.byteStride,
                         .materialIndex = to_optional(pPrimitive->materialIndex).transform(LIFT(materialBuffer.get().padMaterialIndex)).value_or(0U),
                     };
+                    if (!accessors.positionMorphTargetAccessors.empty()) {
+                        result.pPositionMorphTargetAccessorBuffer = accessors.positionMorphTargetAccessorBufferAddress;
+                    }
                     if (accessors.normalAccessor) {
                         result.pNormalBuffer = accessors.normalAccessor->bufferAddress;
                         result.normalByteStride = accessors.normalAccessor->byteStride;
+
+                        if (!accessors.normalMorphTargetAccessors.empty()) {
+                            result.pNormalMorphTargetAccessorBuffer = accessors.normalMorphTargetAccessorBufferAddress;
+                        }
                     }
                     if (accessors.tangentAccessor) {
                         result.pTangentBuffer = accessors.tangentAccessor->bufferAddress;
                         result.tangentByteStride = accessors.tangentAccessor->byteStride;
+
+                        if (!accessors.tangentMorphTargetAccessors.empty()) {
+                            result.pTangentMorphTargetAccessorBuffer = accessors.tangentMorphTargetAccessorBufferAddress;
+                        }
                     }
                     if (accessors.colorAccessor) {
                         result.pColorBuffer = accessors.colorAccessor->bufferAddress;
