@@ -23,7 +23,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Vulkan SDK
+      - name: Install Vulkan SDK (without GLSL -> SPIR-V compiler)
+        if: ${{ runner.os != 'Windows' }}
+        uses: utzcoz/setup-vulkan-sdk@improve-cache-for-architectures
+        with:
+          vulkan-query-version: 1.3.296.0
+          vulkan-components: Vulkan-Headers, Vulkan-Loader
+          vulkan-use-cache: true
+
+      - name: Install Vulkan SDK (with GLSL -> SPIR-V compiler)
+        if: ${{ runner.os == 'Windows' }}
         uses: utzcoz/setup-vulkan-sdk@improve-cache-for-architectures
         with:
           vulkan-query-version: 1.3.296.0
@@ -32,11 +41,11 @@ jobs:
 
       - name: Install build dependencies (macOS)
         if: ${{ runner.os == 'macOS' }}
-        run: brew install llvm ninja autoconf automake libtool nasm
+        run: brew install llvm ninja autoconf automake libtool nasm shaderc
 
       - name: Install build dependencies (Linux)
         if: ${{ runner.os == 'Linux' }}
-        run: sudo apt-get install ninja-build libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev
+        run: sudo apt-get install ninja-build libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev glslc
 
       - name: Setup vcpkg (macOS)
         if: ${{ runner.os == 'macOS' }}
