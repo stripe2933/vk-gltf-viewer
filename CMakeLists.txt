@@ -185,6 +185,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/generator/ImageBasedLightingResourceGenerator.cppm
         interface/vulkan/generator/MipmappedCubemapGenerator.cppm
         interface/vulkan/Gpu.cppm
+        interface/vulkan/image/Images.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/BrdfmapComputer.cppm
         interface/vulkan/pipeline/CubemapComputer.cppm
@@ -206,8 +207,9 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline_layout/PrimitiveNoShading.cppm
         interface/vulkan/render_pass/CubemapToneMapping.cppm
         interface/vulkan/render_pass/Scene.cppm
-        interface/vulkan/sampler/BrdfLutSampler.cppm
-        interface/vulkan/sampler/CubemapSampler.cppm
+        interface/vulkan/sampler/BrdfLut.cppm
+        interface/vulkan/sampler/Cubemap.cppm
+        interface/vulkan/sampler/Samplers.cppm
         interface/vulkan/shader_type/Accessor.cppm
         interface/vulkan/shader_type/Node.cppm
         interface/vulkan/shader_type/Primitive.cppm
