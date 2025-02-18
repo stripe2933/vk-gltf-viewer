@@ -18,28 +18,28 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest, ubuntu-24.04-arm]
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Vulkan SDK
-        uses: humbletim/setup-vulkan-sdk@v1.2.0
+        uses: utzcoz/setup-vulkan-sdk@improve-cache-for-architectures
         with:
           vulkan-query-version: 1.3.296.0
           vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
           vulkan-use-cache: true
 
       - name: Install build dependencies (macOS)
-        if: ${{ matrix.os == 'macos-latest' }}
+        if: ${{ runner.os == 'macOS' }}
         run: brew install llvm ninja autoconf automake libtool nasm
 
-      - name: Install build dependencies (ubuntu-24.04)
-        if: ${{ matrix.os == 'ubuntu-24.04' }}
+      - name: Install build dependencies (Linux)
+        if: ${{ runner.os == 'Linux' }}
         run: sudo apt-get install ninja-build libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev
 
       - name: Setup vcpkg (macOS)
-        if: ${{ matrix.os == 'macos-latest' }}
+        if: ${{ runner.os == 'macOS' }}
         run: |
           git clone https://github.com/microsoft/vcpkg.git --depth 1
           cd vcpkg && ./bootstrap-vcpkg.sh
@@ -53,17 +53,17 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Enable Developer Command Prompt (Windows)
-        if: ${{ matrix.os == 'windows-latest' }}
+        if: ${{ runner.os == 'Windows' }}
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Workaround for CMake bug that cannot find __CMAKE::CXX23 target when using homebrew libc++ (macOS)
-        if: ${{ matrix.os == 'macos-latest' }}
+        if: ${{ runner.os == 'macOS' }}
         run: sed -i '' 's|libc++.modules.json|../../c++/libc++.modules.json|g' /opt/homebrew/opt/cmake/share/cmake/Modules/Compiler/Clang-CXX-CXXImportStd.cmake # https://gitlab.kitware.com/cmake/cmake/-/issues/25965#note_1523575
 
       - name: Configure
         run: |
           mv .github/workflows/scripts/* .
-          cmake --preset=${{ runner.os }}
+          cmake --preset=${{ matrix.os }}
 
       - name: Build
         run: cmake --build build --config release
@@ -71,7 +71,7 @@ jobs:
       - name: Upload Binary as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ runner.os }}
+          name: ${{ runner.os }}_${{ runner.arch }}
           path: |
             build/vk-gltf-viewer
             build/vk-gltf-viewer.exe
