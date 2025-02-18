@@ -2,7 +2,6 @@ export module vk_gltf_viewer:vulkan.buffer.MorphTargetWeights;
 
 import std;
 export import fastgltf;
-import :helpers.ranges;
 import :vulkan.buffer;
 export import :vulkan.Gpu;
 
@@ -31,21 +30,25 @@ namespace vk_gltf_viewer::vulkan::buffer {
         vk::DescriptorBufferInfo descriptorInfo;
 
         [[nodiscard]] vku::MappedBuffer createBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) {
-            auto [buffer, copyOffsets] = createCombinedBuffer(
-                allocator,
-                ranges::views::concat(
-                    asset.nodes | std::views::transform([&](const fastgltf::Node &node) {
-                        std::span<const float> weights = node.weights;
-                        if (node.meshIndex) {
-                            const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-                            weights = mesh.weights;
-                        }
-                        return weights;
-                    }),
-                    // A dummy NaN-valued weight for preventing the zero-sized buffer creation.
-                    // This will not affect to the actual weight indexing.
-                    std::views::single(std::array { std::numeric_limits<float>::quiet_NaN() })),
-                vk::BufferUsageFlagBits::eStorageBuffer);
+            // This is workaround for Clang 19's bug that ranges::views::concat causes ambiguous spaceship operator error.
+            // TODO: change it to use ranges::views::concat when available.
+            std::vector<std::span<const float>> weights;
+            weights.reserve(asset.nodes.size() + 1);
+
+            weights.append_range(asset.nodes | std::views::transform([&](const fastgltf::Node &node) {
+                std::span<const float> weights = node.weights;
+                if (node.meshIndex) {
+                    const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+                    weights = mesh.weights;
+                }
+                return weights;
+            }));
+            // A dummy NaN-valued weight for preventing the zero-sized buffer creation.
+            // This will not affect to the actual weight indexing.
+            constexpr float dummyWeight = std::numeric_limits<float>::quiet_NaN();
+            weights.emplace_back(&dummyWeight, 1);
+
+            auto [buffer, copyOffsets] = createCombinedBuffer(allocator, weights, vk::BufferUsageFlagBits::eStorageBuffer);
             startOffsets = { std::from_range, copyOffsets };
 
             return std::move(buffer);
