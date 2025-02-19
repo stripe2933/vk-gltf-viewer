@@ -19,9 +19,16 @@ export using ::ImGuiDir_Down;
 #endif
 
 namespace ImGui {
+    export using ImGui::ButtonBehavior;
     export using ImGui::FindWindowByName;
     export using ImGui::FocusWindow;
+    export using ImGui::GetCurrentWindow;
+    export using ImGui::ItemAdd;
+    export using ImGui::ItemSize;
     export using ImGui::PushMultiItemsWidths;
+    export using ImGui::RenderFrame;
+    export using ImGui::RenderNavCursor;
+    export using ImGui::ScrollToItem;
 
 #ifdef IMGUI_HAS_DOCK
     export using ImGui::DockBuilderDockWindow;

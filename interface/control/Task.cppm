@@ -14,7 +14,7 @@ namespace vk_gltf_viewer::control {
         struct ChangeScene { std::size_t newSceneIndex; };
         struct ChangeNodeVisibilityType { };
         struct ChangeNodeVisibility { std::uint16_t nodeIndex; };
-        struct SelectNodeFromSceneHierarchy { std::uint16_t nodeIndex; bool combine; };
+        struct SelectNode { std::uint16_t nodeIndex; bool combine; };
         struct HoverNodeFromSceneHierarchy { std::uint16_t nodeIndex; };
         struct ChangeNodeLocalTransform { std::uint16_t nodeIndex; };
         struct ChangeSelectedNodeWorldTransform{};
@@ -35,7 +35,7 @@ namespace vk_gltf_viewer::control {
         task::ChangeScene,
         task::ChangeNodeVisibilityType,
         task::ChangeNodeVisibility,
-        task::SelectNodeFromSceneHierarchy,
+        task::SelectNode,
         task::HoverNodeFromSceneHierarchy,
         task::ChangeNodeLocalTransform,
         task::ChangeSelectedNodeWorldTransform,

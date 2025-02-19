@@ -31,6 +31,7 @@ import std;
 import asset;
 import imgui.glfw;
 import imgui.vulkan;
+import :gltf.algorithm.misc;
 import :gltf.AssetExternalBuffers;
 import :helpers.fastgltf;
 import :helpers.functional;
@@ -280,6 +281,7 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths());
             if (auto &gltfAsset = appState.gltfAsset) {
                 imguiTaskCollector.assetInspector(gltfAsset->asset, gltf->directory);
+                imguiTaskCollector.assetTextures(gltfAsset->asset, assetTextureDescriptorSets, gltf->textureUsage);
                 imguiTaskCollector.materialEditor(gltfAsset->asset, assetTextureDescriptorSets);
                 if (!gltfAsset->asset.materialVariants.empty()) {
                     imguiTaskCollector.materialVariants(gltfAsset->asset);
@@ -409,11 +411,16 @@ void vk_gltf_viewer::MainApp::run() {
                         },
                     }, appState.gltfAsset->nodeVisibilities);
                 },
-                [this](const control::task::SelectNodeFromSceneHierarchy &task) {
+                [this](const control::task::SelectNode &task) {
                     if (!task.combine) {
                         appState.gltfAsset->selectedNodeIndices.clear();
                     }
                     appState.gltfAsset->selectedNodeIndices.emplace(task.nodeIndex);
+
+                    // If selected nodes have a single material, show it in the Material Editor window.
+                    if (auto materialIndex = gltf::algorithm::getUniqueMaterialIndex(gltf->asset, appState.gltfAsset->selectedNodeIndices)) {
+                        control::ImGuiTaskCollector::selectedMaterialIndex = *materialIndex;;
+                    }
                 },
                 [this](const control::task::HoverNodeFromSceneHierarchy &task) {
                     appState.gltfAsset->hoveringNodeIndex.emplace(task.nodeIndex);

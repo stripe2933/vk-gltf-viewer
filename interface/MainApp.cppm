@@ -7,6 +7,8 @@ import :gltf.AssetExternalBuffers;
 import :gltf.MaterialVariantsMapping;
 import :gltf.NodeWorldTransforms;
 import :gltf.SceneInverseHierarchy;
+import :gltf.TextureUsage;
+import :helpers.fastgltf;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Skybox;
@@ -53,6 +55,8 @@ namespace vk_gltf_viewer {
              * @brief Associative data structure for KHR_materials_variants.
              */
             gltf::MaterialVariantsMapping materialVariantsMapping { asset };
+
+            gltf::TextureUsage textureUsage { asset, fastgltf::getPreferredImageIndex };
 
             /**
 			 * @brief External buffers that are not embedded in the glTF file, such like .bin files.

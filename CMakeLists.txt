@@ -104,9 +104,11 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/control/Camera.cppm
         interface/control/ImGuiTaskCollector.cppm
         interface/control/Task.cppm
+        interface/global.cppm
         interface/gltf/algorithm/bounding_box.cppm
         interface/gltf/algorithm/MikktSpaceInterface.cppm
         interface/gltf/algorithm/miniball.cppm
+        interface/gltf/algorithm/misc.cppm
         interface/gltf/algorithm/traversal.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetProcessError.cppm
@@ -114,8 +116,11 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/MaterialVariantsMapping.cppm
         interface/gltf/NodeWorldTransforms.cppm
         interface/gltf/OrderedPrimitives.cppm
+        interface/gltf/TextureUsage.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/concepts.cppm
+        interface/helpers/enums/FlagTraits.cppm
+        interface/helpers/enums/Flags.cppm
         interface/helpers/fastgltf.cppm
         interface/helpers/formatter/ByteSize.cppm
         interface/helpers/full_optional.cppm
