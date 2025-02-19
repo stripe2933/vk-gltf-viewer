@@ -239,7 +239,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     const auto getGpuAccessor = [&](std::size_t accessorIndex) {
                         const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
                         shader_type::Accessor result {
-                            .componentType = static_cast<std::uint8_t>(getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte)),
+                            .componentType = static_cast<std::uint8_t>((accessor.normalized ? 8U : 0U)
+                                | (getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte))),
                             .componentCount = static_cast<std::uint8_t>(getNumComponents(accessor.type)),
                         };
 

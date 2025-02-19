@@ -21,6 +21,7 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class UnlitPrimitiveRendererSpecialization {
     public:
+        std::uint8_t positionComponentType;
         std::optional<std::uint8_t> baseColorTexcoordComponentType;
         std::optional<std::pair<std::uint8_t, std::uint8_t>> colorComponentCountAndType;
         std::uint32_t positionMorphTargetWeightCount = 0;
@@ -147,6 +148,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
     private:
         struct VertexShaderSpecializationData {
+            std::uint32_t positionComponentType;
             std::uint32_t texcoordComponentType = 5126; // FLOAT
             std::uint32_t colorComponentCount = 0;
             std::uint32_t colorComponentType = 5126; // FLOAT
@@ -166,6 +168,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
             VertexShaderSpecializationData result {
+                .positionComponentType = positionComponentType,
                 .positionMorphTargetWeightCount = positionMorphTargetWeightCount,
             };
 

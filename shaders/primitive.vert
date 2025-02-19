@@ -14,11 +14,10 @@
 
 #define HAS_VARIADIC_OUT !FRAGMENT_SHADER_GENERATED_TBN || TEXCOORD_COUNT >= 1 || HAS_COLOR_ATTRIBUTE
 
-layout (constant_id = 0) const uint PACKED_TEXCOORD_COMPONENT_TYPES = 0x06060606; // [FLOAT, FLOAT, FLOAT, FLOAT]
+layout (constant_id = 0) const uint PACKED_ATTRIBUTE_COMPONENT_TYPES = 0;
 layout (constant_id = 1) const uint COLOR_COMPONENT_COUNT = 0;
-layout (constant_id = 2) const uint COLOR_COMPONENT_TYPE = 6; // FLOAT
-layout (constant_id = 3) const uint MORPH_TARGET_WEIGHT_COUNT = 0;
-layout (constant_id = 4) const uint PACKED_MORPH_TARGET_AVAILABILITY = 0;
+layout (constant_id = 2) const uint MORPH_TARGET_WEIGHT_COUNT = 0;
+layout (constant_id = 3) const uint PACKED_MORPH_TARGET_AVAILABILITY = 0;
 
 layout (location = 0) out vec3 outPosition;
 layout (location = 1) flat out uint outMaterialIndex;
@@ -70,32 +69,32 @@ layout (push_constant, std430) uniform PushConstant {
 #include "vertex_pulling.glsl"
 
 void main(){
-    vec3 inPosition = getPosition((PACKED_MORPH_TARGET_AVAILABILITY & 0x1U) == 0x1U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
+    vec3 inPosition = getPosition(PACKED_ATTRIBUTE_COMPONENT_TYPES & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x1U) == 0x1U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
     outPosition = (TRANSFORM * vec4(inPosition, 1.0)).xyz;
 
     outMaterialIndex = MATERIAL_INDEX;
 
 #if !FRAGMENT_SHADER_GENERATED_TBN
-    vec3 inNormal = getNormal((PACKED_MORPH_TARGET_AVAILABILITY & 0x2U) == 0x2U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
+    vec3 inNormal = getNormal((PACKED_ATTRIBUTE_COMPONENT_TYPES >> 4U) & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x2U) == 0x2U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
     variadic_out.tbn[2] = normalize(mat3(TRANSFORM) * inNormal); // N
 
     if (int(MATERIAL.normalTextureIndex) != -1){
-        vec4 inTangent = getTangent((PACKED_MORPH_TARGET_AVAILABILITY & 0x4U) == 0x4U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
+        vec4 inTangent = getTangent((PACKED_ATTRIBUTE_COMPONENT_TYPES >> 8U) & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x4U) == 0x4U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
         variadic_out.tbn[0] = normalize(mat3(TRANSFORM) * inTangent.xyz); // T
         variadic_out.tbn[1] = cross(variadic_out.tbn[2], variadic_out.tbn[0]) * -inTangent.w; // B
     }
 #endif
 
 #if TEXCOORD_COUNT == 1
-    variadic_out.texcoord = getTexcoord(0, PACKED_TEXCOORD_COMPONENT_TYPES & 0xFFU);
+    variadic_out.texcoord = getTexcoord(0, (PACKED_ATTRIBUTE_COMPONENT_TYPES >> 12U) & 0xFU);
 #elif TEXCOORD_COUNT >= 2
     for (uint i = 0; i < TEXCOORD_COUNT; i++){
-        variadic_out.texcoords[i] = getTexcoord(i, (PACKED_TEXCOORD_COMPONENT_TYPES >> (8U * i)) & 0xFFU);
+        variadic_out.texcoords[i] = getTexcoord(i, (PACKED_ATTRIBUTE_COMPONENT_TYPES >> (12U + 4U * i)) & 0xFU);
     }
 #endif
 
 #if HAS_COLOR_ATTRIBUTE
-    variadic_out.color = getColor(COLOR_COMPONENT_TYPE);
+    variadic_out.color = getColor(PACKED_ATTRIBUTE_COMPONENT_TYPES >> 28U);
 #endif
 
     gl_Position = pc.projectionView * vec4(outPosition, 1.0);

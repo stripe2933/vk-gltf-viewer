@@ -16,6 +16,7 @@ import :helpers.optional;
 import :helpers.ranges;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.buffer.IndirectDrawCommands;
+import :vulkan.shader_type.Accessor;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
 
@@ -147,6 +148,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
             if (material.unlit) {
                 result.pipeline = sharedData.getUnlitPrimitiveRenderer({
+                    .positionComponentType = accessors.positionAccessor.componentType,
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
                     }),
@@ -162,6 +164,13 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
             else {
                 result.pipeline = sharedData.getPrimitiveRenderer({
+                    .positionComponentType = accessors.positionAccessor.componentType,
+                    .normalComponentType = accessors.normalAccessor.transform([](const shader_type::Accessor &accessor) {
+                        return accessor.componentType;
+                     }),
+                    .tangentComponentType = accessors.tangentAccessor.transform([](const shader_type::Accessor &accessor) {
+                        return accessor.componentType;
+                     }),
                     .texcoordComponentTypes = accessors.texcoordAccessors
                         | std::views::transform([](const auto &info) {
                             return info.componentType;
@@ -202,6 +211,13 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         }
         else {
             result.pipeline = sharedData.getPrimitiveRenderer({
+                .positionComponentType = accessors.positionAccessor.componentType,
+                .normalComponentType = accessors.normalAccessor.transform([](const shader_type::Accessor &accessor) {
+                    return accessor.componentType;
+                }),
+                .tangentComponentType = accessors.tangentAccessor.transform([](const shader_type::Accessor &accessor) {
+                    return accessor.componentType;
+                }),
                 .texcoordComponentTypes = accessors.texcoordAccessors
                     | std::views::transform([](const auto &info) {
                         return info.componentType;
@@ -238,6 +254,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             const fastgltf::Material& material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskDepthRenderer({
+                    .positionComponentType = accessors.positionAccessor.componentType,
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
                     }),
@@ -253,6 +270,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
             else {
                 result.pipeline = sharedData.getDepthRenderer({
+                    .positionComponentType = accessors.positionAccessor.componentType,
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 });
             }
@@ -260,6 +278,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         }
         else {
             result.pipeline = sharedData.getDepthRenderer({
+                .positionComponentType = accessors.positionAccessor.componentType,
                 .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
             });
         }
@@ -279,6 +298,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskJumpFloodSeedRenderer({
+                    .positionComponentType = accessors.positionAccessor.componentType,
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
                     }),
@@ -294,6 +314,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
             else {
                 result.pipeline = sharedData.getJumpFloodSeedRenderer({
+                    .positionComponentType = accessors.positionAccessor.componentType,
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 });
             }
@@ -301,6 +322,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         }
         else {
             result.pipeline = sharedData.getJumpFloodSeedRenderer({
+                .positionComponentType = accessors.positionAccessor.componentType,
                 .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
             });
         }

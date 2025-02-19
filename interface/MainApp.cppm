@@ -26,6 +26,7 @@ namespace vk_gltf_viewer {
         static constexpr fastgltf::Extensions SUPPORTED_EXTENSIONS
             = fastgltf::Extensions::KHR_materials_unlit
             | fastgltf::Extensions::KHR_materials_variants
+            | fastgltf::Extensions::KHR_mesh_quantization
             | fastgltf::Extensions::KHR_texture_basisu
             | fastgltf::Extensions::KHR_texture_transform
             | fastgltf::Extensions::EXT_mesh_gpu_instancing;
