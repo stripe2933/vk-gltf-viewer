@@ -198,21 +198,6 @@ namespace fastgltf {
         if (auto it = node.findInstancingAttribute("ROTATION"); it != node.instancingAttributes.end()) {
             const Accessor &accessor = asset.accessors[it->accessorIndex];
             math::fquat rotation = getAccessorElement<math::fquat>(asset, accessor, instanceIndex, adapter);
-            if (accessor.normalized) {
-                switch (accessor.componentType) {
-                    case ComponentType::Byte:
-                        rotation /= 256.f;
-                        break;
-                    case ComponentType::Short:
-                        rotation /= 65536.f;
-                        break;
-                    default:
-                        // EXT_mesh_gpu_instancing restricts the component type of ROTATION attribute to BYTE
-                        // normalized and SHORT normalized only.
-                        std::unreachable();
-                }
-            }
-
             result = rotate(result, rotation);
         }
         if (auto it = node.findInstancingAttribute("SCALE"); it != node.instancingAttributes.end()) {
@@ -256,28 +241,7 @@ namespace fastgltf {
 
         if (auto it = node.findInstancingAttribute("ROTATION"); it != node.instancingAttributes.end()) {
             const Accessor &accessor = asset.accessors[it->accessorIndex];
-
-            float multiplier = 1.f;
-            if (accessor.normalized) {
-                switch (accessor.componentType) {
-                case ComponentType::Byte:
-                    multiplier = 1.f / 256.f;
-                    break;
-                case ComponentType::Short:
-                    multiplier = 1.f / 65536.f;
-                    break;
-                default:
-                    // EXT_mesh_gpu_instancing restricts the component type of ROTATION attribute to BYTE
-                    // normalized and SHORT normalized only.
-                    std::unreachable();
-                }
-            }
-
-            // TODO: why fastgltf::iterateAccessorWithIndex does not de-normalize the normalized accessor?
             iterateAccessorWithIndex<math::fquat>(asset, accessor, [&](math::fquat rotation, std::size_t i) {
-                if (accessor.normalized) {
-                    rotation *= multiplier;
-                }
                 result[i] = rotate(result[i], rotation);
             }, adapter);
         }
