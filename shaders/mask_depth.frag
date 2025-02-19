@@ -38,7 +38,7 @@ void main(){
 #if HAS_BASE_COLOR_TEXTURE
     vec2 baseColorTexcoord = variadic_in.baseColorTexcoord;
     if (TEXTURE_TRANSFORM_TYPE == 1) {
-        baseColorTexcoord = vec2(MATERIAL.baseColorTextureTransform[0][0], MATERIAL.baseColorTextureTransform[0][1]) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
+        baseColorTexcoord = vec2(MATERIAL.baseColorTextureTransform[0][0], MATERIAL.baseColorTextureTransform[1][1]) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
     else if (TEXTURE_TRANSFORM_TYPE == 2) {
         baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
