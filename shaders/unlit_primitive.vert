@@ -60,11 +60,11 @@ void main(){
 
     outMaterialIndex = MATERIAL_INDEX;
 #if HAS_BASE_COLOR_TEXTURE
-    variadic_out.baseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
+    variadic_out.baseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex), TEXCOORD_COMPONENT_TYPE);
 #endif
 
 #if HAS_COLOR_ATTRIBUTE
-    variadic_out.color = getColor();
+    variadic_out.color = getColor(COLOR_COMPONENT_TYPE);
 #endif
 
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);

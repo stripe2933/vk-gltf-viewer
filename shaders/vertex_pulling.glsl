@@ -59,29 +59,12 @@ vec4 getTangent(uint morphTargetWeightCount) {
     return tangent;
 }
 
-#if TEXCOORD_COUNT >= 1
-vec2 getTexcoord(uint texcoordIndex){
+#if TEXCOORD_COUNT >= 1 || HAS_BASE_COLOR_TEXTURE
+vec2 getTexcoord(uint texcoordIndex, uint componentType){
     Accessor texcoordAccessor = PRIMITIVE.texcoordAccessors.data[texcoordIndex];
     uint64_t fetchAddress = getFetchAddress(texcoordAccessor, gl_VertexIndex);
 
-    switch ((PACKED_TEXCOORD_COMPONENT_TYPES >> (8U * texcoordIndex)) & 0xFFU) {
-    case 1U: // UNSIGNED BYTE
-        return dequantize(U8Vec2Ref(fetchAddress).data);
-    case 3U: // UNSIGNED SHORT
-        return dequantize(U16Vec2Ref(fetchAddress).data);
-    case 6U: // FLOAT
-        return Vec2Ref(fetchAddress).data;
-    }
-    return vec2(0.0); // unreachable.
-}
-#endif
-
-#if HAS_BASE_COLOR_TEXTURE
-vec2 getTexcoord(uint texcoordIndex){
-    Accessor texcoordAccessor = PRIMITIVE.texcoordAccessors.data[texcoordIndex];
-    uint64_t fetchAddress = getFetchAddress(texcoordAccessor, gl_VertexIndex);
-
-    switch (TEXCOORD_COMPONENT_TYPE) {
+    switch (componentType) {
     case 1U: // UNSIGNED BYTE
         return dequantize(U8Vec2Ref(fetchAddress).data);
     case 3U: // UNSIGNED SHORT
@@ -94,10 +77,10 @@ vec2 getTexcoord(uint texcoordIndex){
 #endif
 
 #if HAS_COLOR_ATTRIBUTE
-vec4 getColor() {
+vec4 getColor(uint componentType) {
     uint64_t fetchAddress = PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex);
     if (COLOR_COMPONENT_COUNT == 3U) {
-        switch (COLOR_COMPONENT_TYPE) {
+        switch (componentType) {
         case 1U: // UNSIGNED BYTE
             return vec4(dequantize(U8Vec3Ref(fetchAddress).data), 1.0);
         case 3U: // UNSIGNED SHORT
@@ -107,7 +90,7 @@ vec4 getColor() {
         }
     }
     else if (COLOR_COMPONENT_COUNT == 4U) {
-        switch (COLOR_COMPONENT_TYPE) {
+        switch (componentType) {
         case 1U: // UNSIGNED BYTE
             return dequantize(U8Vec4Ref(fetchAddress).data);
         case 3U: // UNSIGNED SHORT
@@ -121,11 +104,11 @@ vec4 getColor() {
 #endif
 
 #if HAS_COLOR_ALPHA_ATTRIBUTE
-float getColorAlpha() {
+float getColorAlpha(uint componentType) {
     // Here uint64_t address should not be used because adding the size of RGB components to it will make 64-bit
     // integer arithmetic instruction.
     uint fetchIndex = uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex);
-    switch (COLOR_COMPONENT_TYPE) {
+    switch (componentType) {
     case 1U: // UNSIGNED BYTE
         fetchIndex += 3U; // sizeof(u8vec3)
         return dequantize(Uint8Ref(PRIMITIVE.pColorBuffer + fetchIndex).data);

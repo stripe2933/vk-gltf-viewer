@@ -57,10 +57,10 @@ void main(){
     outNodeIndex = NODE_INDEX;
     outMaterialIndex = MATERIAL_INDEX;
 #if HAS_BASE_COLOR_TEXTURE
-    variadic_out.baseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
+    variadic_out.baseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex), TEXCOORD_COMPONENT_TYPE);
 #endif
 #if HAS_COLOR_ALPHA_ATTRIBUTE
-    variadic_out.colorAlpha = getColorAlpha();
+    variadic_out.colorAlpha = getColorAlpha(COLOR_COMPONENT_TYPE);
 #endif
 
     vec3 inPosition = getPosition(POSITION_MORPH_TARGET_WEIGHT_COUNT);

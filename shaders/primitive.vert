@@ -87,15 +87,15 @@ void main(){
 #endif
 
 #if TEXCOORD_COUNT == 1
-    variadic_out.texcoord = getTexcoord(0);
+    variadic_out.texcoord = getTexcoord(0, PACKED_TEXCOORD_COMPONENT_TYPES & 0xFFU);
 #elif TEXCOORD_COUNT >= 2
     for (uint i = 0; i < TEXCOORD_COUNT; i++){
-        variadic_out.texcoords[i] = getTexcoord(i);
+        variadic_out.texcoords[i] = getTexcoord(i, (PACKED_TEXCOORD_COMPONENT_TYPES >> (8U * i)) & 0xFFU);
     }
 #endif
 
 #if HAS_COLOR_ATTRIBUTE
-    variadic_out.color = getColor();
+    variadic_out.color = getColor(COLOR_COMPONENT_TYPE);
 #endif
 
     gl_Position = pc.projectionView * vec4(outPosition, 1.0);
