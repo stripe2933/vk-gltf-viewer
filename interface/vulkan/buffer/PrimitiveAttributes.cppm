@@ -454,7 +454,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
             const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
             for (auto [pPrimitive, copyOffset] : std::views::zip(missingTangentPrimitives | std::views::keys, copyOffsets)) {
-                pPrimitive->tangentAccessor.emplace(bufferAddress + copyOffset, 16);
+                pPrimitive->tangentAccessor.emplace(bufferAddress + copyOffset, 6, 4, 16);
             }
         }
     };
