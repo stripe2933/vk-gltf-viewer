@@ -16,6 +16,7 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class DepthRendererSpecialization {
     public:
+        std::uint8_t positionComponentType = 0;
         std::uint32_t positionMorphTargetWeightCount = 0;
 
         [[nodiscard]] bool operator==(const DepthRendererSpecialization&) const = default;
@@ -60,16 +61,18 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
     private:
         struct VertexShaderSpecializationData {
+            std::uint32_t positionComponentType;
             std::uint32_t positionMorphTargetWeightCount;
         };
 
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
-            return { positionMorphTargetWeightCount };
+            return { positionComponentType, positionMorphTargetWeightCount };
         }
     };
 
     class MaskDepthRendererSpecialization {
     public:
+        std::uint8_t positionComponentType;
         std::optional<std::uint8_t> baseColorTexcoordComponentType;
         std::optional<std::uint8_t> colorAlphaComponentType;
         std::uint32_t positionMorphTargetWeightCount = 0;
@@ -124,6 +127,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
     private:
         struct VertexShaderSpecializationData {
+            std::uint32_t positionComponentType;
             std::uint32_t texcoordComponentType = 5126; // FLOAT
             std::uint32_t colorComponentType = 5126; // FLOAT
             std::uint32_t positionMorphTargetWeightCount;
@@ -142,6 +146,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
             VertexShaderSpecializationData result {
+                .positionComponentType = positionComponentType,
                 .positionMorphTargetWeightCount = positionMorphTargetWeightCount,
             };
 

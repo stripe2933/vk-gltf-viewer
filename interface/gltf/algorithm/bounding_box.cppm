@@ -1,7 +1,12 @@
+module;
+
+#include <cassert>
+
 export module vk_gltf_viewer:gltf.algorithm.bounding_box;
 
 import std;
 export import fastgltf;
+import :helpers.functional;
 
 namespace vk_gltf_viewer::gltf::algorithm {
     /**
@@ -20,18 +25,50 @@ namespace vk_gltf_viewer::gltf::algorithm {
         const fastgltf::Asset &asset
     ) {
         constexpr auto getAccessorMinMax = [](const fastgltf::Accessor &accessor) {
-            if (accessor.normalized) {
-                // Unless KHR_mesh_quantization extension is enabled, POSITION accessor must be VEC3/FLOAT type.
-                // Normalized accessor means that extension is used.
-                throw std::runtime_error { "Sorry, unimplemented." };
-            }
-
-            const auto pMin = std::get_if<std::pmr::vector<double>>(&accessor.min)->data();
-            const auto pMax = std::get_if<std::pmr::vector<double>>(&accessor.max)->data();
-            return std::array {
-                fastgltf::math::vec<T, 3> { static_cast<T>(pMin[0]), static_cast<T>(pMin[1]), static_cast<T>(pMin[2]) },
-                fastgltf::math::vec<T, 3> { static_cast<T>(pMax[0]), static_cast<T>(pMax[1]), static_cast<T>(pMax[2]) },
+            constexpr auto fetchVec3 = multilambda {
+                []<typename U>(const std::pmr::vector<U> &v) {
+                    assert(v.size() == 3);
+                    return fastgltf::math::vec<T, 3> { static_cast<T>(v[0]), static_cast<T>(v[1]), static_cast<T>(v[2]) };
+                },
+                [](const auto&) -> fastgltf::math::vec<T, 3> {
+                    throw std::invalid_argument { "Accessor min/max is not number" };
+                },
             };
+
+            fastgltf::math::vec<T, 3> min = visit(fetchVec3, accessor.min);
+            fastgltf::math::vec<T, 3> max = visit(fetchVec3, accessor.max);
+
+            if (accessor.normalized) {
+                switch (accessor.componentType) {
+                case fastgltf::ComponentType::Byte:
+                    min.x() = std::max<T>(min.x() / 127, -1);
+                    min.y() = std::max<T>(min.y() / 127, -1);
+                    min.z() = std::max<T>(min.z() / 127, -1);
+                    max.x() = std::max<T>(max.x() / 127, -1);
+                    max.y() = std::max<T>(max.y() / 127, -1);
+                    max.z() = std::max<T>(max.z() / 127, -1);
+                    break;
+                case fastgltf::ComponentType::UnsignedByte:
+                    min /= 255;
+                    max /= 255;
+                    break;
+                case fastgltf::ComponentType::Short:
+                    min.x() = std::max<T>(min.x() / 32767, -1);
+                    min.y() = std::max<T>(min.y() / 32767, -1);
+                    min.z() = std::max<T>(min.z() / 32767, -1);
+                    max.x() = std::max<T>(max.x() / 32767, -1);
+                    max.y() = std::max<T>(max.y() / 32767, -1);
+                    max.z() = std::max<T>(max.z() / 32767, -1);
+                    break;
+                case fastgltf::ComponentType::UnsignedShort:
+                    min /= 65535;
+                    max /= 65535;
+                    break;
+                default:
+                    throw std::logic_error { "Normalized accessor must be either BYTE, UNSIGNED_BYTE, SHORT, or UNSIGNED_SHORT" };
+                }
+            }
+            return std::array { min, max };
         };
 
         const fastgltf::Accessor &accessor = asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];

@@ -14,9 +14,10 @@
 
 #define HAS_VARIADIC_OUT HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ALPHA_ATTRIBUTE
 
-layout (constant_id = 0) const uint TEXCOORD_COMPONENT_TYPE = 6; // FLOAT
-layout (constant_id = 1) const uint COLOR_COMPONENT_TYPE = 6; // FLOAT
-layout (constant_id = 2) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
+layout (constant_id = 0) const uint POSITION_COMPONENT_TYPE = 0;
+layout (constant_id = 1) const uint TEXCOORD_COMPONENT_TYPE = 6; // FLOAT
+layout (constant_id = 2) const uint COLOR_COMPONENT_TYPE = 6; // FLOAT
+layout (constant_id = 3) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
 
 layout (location = 0) flat out uint outMaterialIndex;
 #if HAS_VARIADIC_OUT
@@ -55,12 +56,12 @@ layout (push_constant, std430) uniform PushConstant {
 void main(){
     outMaterialIndex = MATERIAL_INDEX;
 #if HAS_BASE_COLOR_TEXTURE
-    variadic_out.baseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
+    variadic_out.baseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex), TEXCOORD_COMPONENT_TYPE);
 #endif
 #if HAS_COLOR_ALPHA_ATTRIBUTE
-    variadic_out.colorAlpha = getColorAlpha();
+    variadic_out.colorAlpha = getColorAlpha(COLOR_COMPONENT_TYPE);
 #endif
 
-    vec3 inPosition = getPosition(POSITION_MORPH_TARGET_WEIGHT_COUNT);
+    vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_MORPH_TARGET_WEIGHT_COUNT);
     gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
 }

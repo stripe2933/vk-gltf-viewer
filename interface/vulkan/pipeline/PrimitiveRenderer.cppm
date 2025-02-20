@@ -24,6 +24,9 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class PrimitiveRendererSpecialization {
     public:
+        std::uint8_t positionComponentType;
+        std::optional<std::uint8_t> normalComponentType;
+        std::optional<std::uint8_t> tangentComponentType;
         boost::container::static_vector<std::uint8_t, 4> texcoordComponentTypes;
         std::optional<std::pair<std::uint8_t, std::uint8_t>> colorComponentCountAndType;
         bool fragmentShaderGeneratedTBN;
@@ -158,11 +161,10 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
     private:
         struct VertexShaderSpecializationData {
-            std::uint32_t packedTexcoordComponentTypes = 0x06060606; // [FLOAT, FLOAT, FLOAT, FLOAT]
-            std::uint32_t colorComponentCount = 0;
-            std::uint32_t colorComponentType = 5126; // FLOAT
-            std::uint32_t morphTargetWeightCount = 0;
-            std::uint32_t packedMorphTargetAvailability = 0x00000000;
+            std::uint32_t packedAttributeComponentTypes;
+            std::uint32_t colorComponentCount;
+            std::uint32_t morphTargetWeightCount;
+            std::uint32_t packedMorphTargetAvailability;
         };
 
         struct FragmentShaderSpecializationData {
@@ -185,21 +187,31 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                                                | (hasTangentMorphTarget ? 4U : 0U),
             };
 
-            for (auto [i, componentType] : texcoordComponentTypes | ranges::views::enumerate) {
-                assert(ranges::one_of(componentType, 1 /* UNSIGNED_BYTE */, 3 /* UNSIGNED_SHORT */, 6 /* FLOAT */));
+            // Packed components types are:
+            // PCT & 0xF -> POSITION
+            // (PCT >> 4) & 0xF -> NORMAL
+            // (PCT >> 8) & 0xF -> TANGENT
+            // (PCT >> 12) & 0xF -> TEXCOORD_0 // <- TEXCOORD_<i> attributes starts from third.
+            // (PCT >> 16) & 0xF -> TEXCOORD_1
+            // (PCT >> 20) & 0xF -> TEXCOORD_2
+            // (PCT >> 24) & 0xF -> TEXCOORD_3
+            // (PCT >> 28) & 0xF -> COLOR_0
+            result.packedAttributeComponentTypes |= static_cast<std::uint32_t>(positionComponentType);
+            if (normalComponentType) {
+                result.packedAttributeComponentTypes |= static_cast<std::uint32_t>(*normalComponentType) << 4;
+            }
+            if (tangentComponentType) {
+                result.packedAttributeComponentTypes |= static_cast<std::uint32_t>(*tangentComponentType) << 8;
+            }
 
-                // Step 1: clear the i-th byte (=[8*(i+1):8*i] bits)
-                result.packedTexcoordComponentTypes &= ~(0xFFU << (8 * i));
-
-                // Step 2: set the i-th byte to the componentType
-                result.packedTexcoordComponentTypes |= static_cast<std::uint32_t>(componentType) << (8 * i);
+            for (auto [i, componentType] : std::views::zip(std::views::iota(3), texcoordComponentTypes)) {
+                result.packedAttributeComponentTypes |= static_cast<std::uint32_t>(componentType) << (4 * i);
             }
 
             if (colorComponentCountAndType) {
                 assert(ranges::one_of(colorComponentCountAndType->first, 3, 4));
-                assert(ranges::one_of(colorComponentCountAndType->second, 1 /* UNSIGNED_BYTE */, 3 /* UNSIGNED_SHORT */, 6 /* FLOAT */));
                 result.colorComponentCount = colorComponentCountAndType->first;
-                result.colorComponentType = colorComponentCountAndType->second;
+                result.packedAttributeComponentTypes |= static_cast<std::uint32_t>(colorComponentCountAndType->second) << 28;
             }
 
             return result;
