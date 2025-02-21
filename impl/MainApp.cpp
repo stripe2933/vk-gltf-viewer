@@ -303,16 +303,6 @@ void vk_gltf_viewer::MainApp::run() {
             }
         }
 
-        if (static bool init = true; init) {
-            if (const char *gltfPath = std::getenv("GLTF_PATH")) {
-                tasks.emplace_back(std::in_place_type<control::task::LoadGltf>, gltfPath);
-            }
-            if (const char *eqmapPath = std::getenv("EQMAP_PATH")) {
-                tasks.emplace_back(std::in_place_type<control::task::LoadEqmap>, eqmapPath);
-            }
-            init = false;
-        }
-
         for (const control::Task &task : tasks) {
             visit(multilambda {
                 [this](const control::task::ChangePassthruRect &task) {
