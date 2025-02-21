@@ -877,13 +877,13 @@ void vk_gltf_viewer::MainApp::closeGltf() {
 }
 
 void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) {
-    const auto [eqmapImageExtent, eqmapStagingBuffer] = [&]() {
+    const auto loadResult = [&]() -> std::expected<std::pair<vk::Extent2D, vku::MappedBuffer>, std::string> {
         if (auto extension = eqmapPath.extension(); extension == ".hdr") {
             int width, height;
             std::unique_ptr<float[]> data; // It should be freed after copying to the staging buffer, therefore declared as unique_ptr.
             data.reset(stbi_loadf(PATH_C_STR(eqmapPath), &width, &height, nullptr, 4));
             if (!data) {
-                throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
+                return std::unexpected { std::format("Failed to load image: {}", stbi_failure_reason()) };
             }
 
             return std::pair {
@@ -896,36 +896,50 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             };
         } // After this scope, data will be automatically freed.
         else if (extension == ".exr") {
-            Imf::InputFile file { PATH_C_STR(eqmapPath), static_cast<int>(std::thread::hardware_concurrency()) };
+            return [&]() -> std::expected<Imf::InputFile, std::string> {
+                try {
+                    return Imf::InputFile { PATH_C_STR(eqmapPath), static_cast<int>(std::thread::hardware_concurrency()) };
+                }
+                catch (const Iex::InputExc &err) {
+                    return std::unexpected { err.message() };
+                }
+            }().transform([this](Imf::InputFile file) {
+                const Imath::Box2i dw = file.header().dataWindow();
+                const vk::Extent2D eqmapExtent {
+                    static_cast<std::uint32_t>(dw.max.x - dw.min.x + 1),
+                    static_cast<std::uint32_t>(dw.max.y - dw.min.y + 1),
+                };
 
-            const Imath::Box2i dw = file.header().dataWindow();
-            const vk::Extent2D eqmapExtent {
-                static_cast<std::uint32_t>(dw.max.x - dw.min.x + 1),
-                static_cast<std::uint32_t>(dw.max.y - dw.min.y + 1),
-            };
+                vku::MappedBuffer buffer { gpu.allocator, vk::BufferCreateInfo {
+                    {},
+                    blockSize(vk::Format::eR32G32B32A32Sfloat) * eqmapExtent.width * eqmapExtent.height,
+                    vk::BufferUsageFlagBits::eTransferSrc,
+                } };
+                const std::span data = buffer.asRange<glm::vec4>();
 
-            vku::MappedBuffer buffer { gpu.allocator, vk::BufferCreateInfo {
-                {},
-                blockSize(vk::Format::eR32G32B32A32Sfloat) * eqmapExtent.width * eqmapExtent.height,
-                vk::BufferUsageFlagBits::eTransferSrc,
-            } };
-            const std::span data = buffer.asRange<glm::vec4>();
+                // Create frame buffers for each channel.
+                // Note: Alpha channel will be ignored.
+                Imf::FrameBuffer frameBuffer;
+                const std::size_t rowBytes = eqmapExtent.width * sizeof(glm::vec4);
+                frameBuffer.insert("R", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].x), sizeof(glm::vec4), rowBytes });
+                frameBuffer.insert("G", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].y), sizeof(glm::vec4), rowBytes });
+                frameBuffer.insert("B", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].z), sizeof(glm::vec4), rowBytes });
 
-            // Create frame buffers for each channel.
-            // Note: Alpha channel will be ignored.
-            Imf::FrameBuffer frameBuffer;
-            const std::size_t rowBytes = eqmapExtent.width * sizeof(glm::vec4);
-            frameBuffer.insert("R", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].x), sizeof(glm::vec4), rowBytes });
-            frameBuffer.insert("G", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].y), sizeof(glm::vec4), rowBytes });
-            frameBuffer.insert("B", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].z), sizeof(glm::vec4), rowBytes });
+                file.readPixels(frameBuffer, dw.min.y, dw.max.y);
 
-            file.readPixels(frameBuffer, dw.min.y, dw.max.y);
-
-            return std::pair { eqmapExtent, std::move(buffer) };
+                return std::pair { eqmapExtent, std::move(buffer) };
+            });
         }
-
-        throw std::runtime_error { "Unknown file format: only HDR and EXR are supported." };
+        else {
+            return std::unexpected { "Unknown file format: only HDR and EXR are supported." };
+        }
     }();
+    if (!loadResult) {
+        std::ignore = NMB::show("Skybox Loading Error", loadResult.error().c_str(), NMB::Icon::ICON_ERROR);
+        return;
+    }
+
+    const auto &[eqmapImageExtent, eqmapStagingBuffer] = *loadResult;
 
     std::uint32_t eqmapImageMipLevels = 0;
     for (std::uint32_t mipWidth = eqmapImageExtent.width; mipWidth > 512; mipWidth >>= 1, ++eqmapImageMipLevels);
