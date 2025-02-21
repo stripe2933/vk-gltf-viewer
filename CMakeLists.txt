@@ -97,6 +97,7 @@ target_sources(vk-gltf-viewer PRIVATE
         extlibs/module-ports/imgui/imgui.internal.cppm
         extlibs/module-ports/imgui/imgui.vulkan.cppm
         extlibs/module-ports/ImGuizmo.cppm
+        extlibs/NMB.cppm
         extlibs/reflect.cppm
         interface/mod.cppm
         interface/AppState.cppm

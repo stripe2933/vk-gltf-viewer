@@ -156,6 +156,7 @@ This project depends on:
 - [KTX-Software](https://github.com/KhronosGroup/KTX-Software)
 - [MikkTSpace](http://www.mikktspace.com)
 - [Native File Dialog Extended](https://github.com/btzy/nativefiledialog-extended)
+- [Native Message Box](https://github.com/thegabman/native_message_box)
 - [OpenEXR](https://openexr.com/en/latest/)
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h)
 - [thread-pool](https://github.com/bshoshany/thread-pool)

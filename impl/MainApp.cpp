@@ -31,6 +31,7 @@ import std;
 import asset;
 import imgui.glfw;
 import imgui.vulkan;
+import NMB;
 import :gltf.algorithm.misc;
 import :gltf.AssetExternalBuffers;
 import :helpers.fastgltf;
@@ -204,7 +205,10 @@ vk_gltf_viewer::MainApp::MainApp() {
         io.Fonts->AddFontFromFileTTF(defaultFontPath, 16.f * io.DisplayFramebufferScale.x);
     }
     else {
-        std::println(std::cerr, "Your system doesn't have expected system font at {}. Low-resolution font will be used instead.", defaultFontPath);
+        std::ignore = NMB::show(
+            "Missing Font Warning",
+            std::format("Your system doesn't have expected system font at {}. Low-resolution font will be used instead.", defaultFontPath).c_str(),
+            NMB::Icon::ICON_WARNING);
         io.Fonts->AddFontDefault(&fontConfig);
     }
 
@@ -832,19 +836,28 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         control::ImGuiTaskCollector::selectedMaterialIndex.reset();
     }
     catch (gltf::AssetProcessError error) {
-        std::println(std::cerr, "The glTF file cannot be processed because of an error: {}", to_string(error));
+        std::ignore = NMB::show(
+            "glTF Processing Error",
+            std::format("The glTF file cannot be processed because of an error: {}", to_string(error)).c_str(),
+            NMB::Icon::ICON_ERROR);
         closeGltf();
     }
     catch (fastgltf::Error error) {
         switch (error) {
         case fastgltf::Error::InvalidPath:
-            std::println(std::cerr, "The file does not exist.");
+            std::ignore = NMB::show(
+                "glTF Parsing Error",
+                std::format("The file path is invalid: {}", path.string()).c_str(),
+                NMB::Icon::ICON_ERROR);
             closeGltf();
             break;
         case fastgltf::Error::MissingExtensions:
         case fastgltf::Error::UnknownRequiredExtension:
             // If error is due to missing or unknown required extension, show a message and return.
-            std::println(std::cerr, "The glTF file requires an extension that is not supported by this application.");
+            std::ignore = NMB::show(
+                "glTF Parsing Error",
+                "The glTF file requires an extension that is not supported by this application.",
+                NMB::Icon::ICON_ERROR);
             closeGltf();
             break;
         default:
