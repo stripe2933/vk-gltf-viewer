@@ -29,6 +29,30 @@ namespace vk_gltf_viewer::vulkan::dsl {
                 },
             }.get() } { }
 
+        Asset(const Gpu &gpu [[clang::lifetimebound]], std::uint32_t textureCount)
+            : DescriptorSetLayout { gpu.device, vk::StructureChain {
+                vk::DescriptorSetLayoutCreateInfo {
+                    vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
+                    vku::unsafeProxy(getBindings(
+                        { 1, vk::ShaderStageFlagBits::eVertex },
+                        { 1, vk::ShaderStageFlagBits::eVertex },
+                        { 1, vk::ShaderStageFlagBits::eVertex },
+                        { 1, vk::ShaderStageFlagBits::eVertex },
+                        { 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment },
+                        { textureCount, vk::ShaderStageFlagBits::eFragment })),
+                },
+                vk::DescriptorSetLayoutBindingFlagsCreateInfo {
+                    vku::unsafeProxy<vk::DescriptorBindingFlags>({
+                        {},
+                        {},
+                        {},
+                        {},
+                        {},
+                        vk::DescriptorBindingFlagBits::eUpdateAfterBind,
+                    }),
+                },
+            }.get() } { }
+
         /**
          * Get maximum available texture count for asset, including the fallback texture.
          * @param gpu The GPU object that is storing <tt>maxPerStageDescriptorUpdateAfterBindSamplers</tt> which have been retrieved from physical device selection.

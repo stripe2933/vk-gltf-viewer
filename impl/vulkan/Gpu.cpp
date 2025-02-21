@@ -183,6 +183,14 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
 
     supportDrawIndirectCount = availableFeatures.template get<vk::PhysicalDeviceVulkan12Features>().drawIndirectCount;
     supportUint8Index = availableFeatures.template get<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>().indexTypeUint8;
+#if __APPLE__
+    // MoltenVK with Metal Argument Buffer does not work with variable descriptor count.
+    // Tracked issue: https://github.com/KhronosGroup/MoltenVK/issues/2343
+    // TODO: Remove this workaround when the issue is fixed.
+    supportVariableDescriptorCount = false;
+#else
+    supportVariableDescriptorCount = availableFeatures.template get<vk::PhysicalDeviceVulkan12Features>().descriptorBindingVariableDescriptorCount;
+#endif
 
 	const vku::RefHolder queueCreateInfos = Queues::getCreateInfos(physicalDevice, queueFamilies);
     vk::StructureChain createInfo {
@@ -202,7 +210,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
             .setBufferDeviceAddress(true)
             .setDescriptorIndexing(true)
             .setDescriptorBindingSampledImageUpdateAfterBind(true)
-            .setDescriptorBindingVariableDescriptorCount(true)
+            .setDescriptorBindingVariableDescriptorCount(supportVariableDescriptorCount)
             .setRuntimeDescriptorArray(true)
             .setStorageBuffer8BitAccess(true)
             .setUniformAndStorageBuffer8BitAccess(true)

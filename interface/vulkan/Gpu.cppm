@@ -71,6 +71,7 @@ namespace vk_gltf_viewer::vulkan {
         std::uint32_t subgroupSize;
         std::uint32_t maxPerStageDescriptorUpdateAfterBindSamplers;
         bool supportShaderImageLoadStoreLod;
+        bool supportVariableDescriptorCount;
 
         Gpu(const vk::raii::Instance &instance [[clang::lifetimebound]], vk::SurfaceKHR surface);
         ~Gpu();
