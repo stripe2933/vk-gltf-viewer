@@ -791,63 +791,67 @@ auto vk_gltf_viewer::MainApp::createBrdfmapImage() const -> decltype(brdfmapImag
 
 void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     try {
-        const Gltf &inner = gltf.emplace(parser, path);
+        Gltf &inner = gltf.emplace(parser, path);
 
         // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
         //  so I'll just use it for now.
         gpu.device.waitIdle();
         sharedData.changeAsset(inner.asset, path.parent_path(), inner.nodeWorldTransforms, inner.orderedPrimitives, inner.assetExternalBuffers);
+
+        // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
+        assetTextureDescriptorSets
+            = inner.asset.textures
+            | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
+                return ImGui_ImplVulkan_AddTexture(
+                    to_optional(texture.samplerIndex)
+                        .transform([this](std::size_t samplerIndex) { return *sharedData.gltfAsset->textures.samplers[samplerIndex]; })
+                        .value_or(*sharedData.fallbackTexture.sampler),
+                    ranges::value_or(
+                        sharedData.gltfAsset->textures.imageViews,
+                        getPreferredImageIndex(texture),
+                        *sharedData.fallbackTexture.imageView),
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            })
+            | std::ranges::to<std::vector>();
+
+        // Change window title.
+        window.setTitle(PATH_C_STR(path.filename()));
+
+        // Update AppState.
+        appState.gltfAsset.emplace(inner.asset);
+        appState.pushRecentGltfPath(path);
+
+        // Adjust the camera based on the scene enclosing sphere.
+        const auto &[center, radius] = inner.sceneMiniball;
+        const float distance = radius / std::sin(appState.camera.fov / 2.f);
+        appState.camera.position = glm::make_vec3(center.data()) - glm::dvec3 { distance * normalize(appState.camera.direction) };
+        appState.camera.zMin = distance - radius;
+        appState.camera.zMax = distance + radius;
+        appState.camera.targetDistance = distance;
+
+        control::ImGuiTaskCollector::selectedMaterialIndex.reset();
     }
     catch (gltf::AssetProcessError error) {
         std::println(std::cerr, "The glTF file cannot be processed because of an error: {}", to_string(error));
         closeGltf();
-        return;
     }
     catch (fastgltf::Error error) {
-        // If error is due to missing or unknown required extension, show a message and return.
-        if (ranges::one_of(error, fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension)) {
+        switch (error) {
+        case fastgltf::Error::InvalidPath:
+            std::println(std::cerr, "The file does not exist.");
+            closeGltf();
+            break;
+        case fastgltf::Error::MissingExtensions:
+        case fastgltf::Error::UnknownRequiredExtension:
+            // If error is due to missing or unknown required extension, show a message and return.
             std::println(std::cerr, "The glTF file requires an extension that is not supported by this application.");
             closeGltf();
-            return;
-        }
-        else {
+            break;
+        default:
             // Application fault.
             std::rethrow_exception(std::current_exception());
         }
     }
-
-    // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
-    assetTextureDescriptorSets
-        = gltf->asset.textures
-        | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
-            return ImGui_ImplVulkan_AddTexture(
-                to_optional(texture.samplerIndex)
-                    .transform([this](std::size_t samplerIndex) { return *sharedData.gltfAsset->textures.samplers[samplerIndex]; })
-                    .value_or(*sharedData.fallbackTexture.sampler),
-                ranges::value_or(
-                    sharedData.gltfAsset->textures.imageViews,
-                    getPreferredImageIndex(texture),
-                    *sharedData.fallbackTexture.imageView),
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        })
-        | std::ranges::to<std::vector>();
-
-    // Change window title.
-    window.setTitle(PATH_C_STR(path.filename()));
-
-    // Update AppState.
-    appState.gltfAsset.emplace(gltf->asset);
-    appState.pushRecentGltfPath(path);
-
-    // Adjust the camera based on the scene enclosing sphere.
-    const auto &[center, radius] = gltf->sceneMiniball;
-    const float distance = radius / std::sin(appState.camera.fov / 2.f);
-    appState.camera.position = glm::make_vec3(center.data()) - glm::dvec3 { distance * normalize(appState.camera.direction) };
-    appState.camera.zMin = distance - radius;
-    appState.camera.zMax = distance + radius;
-    appState.camera.targetDistance = distance;
-
-    control::ImGuiTaskCollector::selectedMaterialIndex.reset();
 }
 
 void vk_gltf_viewer::MainApp::closeGltf() {
