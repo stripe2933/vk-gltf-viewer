@@ -41,7 +41,7 @@ jobs:
 
       - name: Install build dependencies (macOS)
         if: ${{ runner.os == 'macOS' }}
-        run: brew install llvm ninja autoconf automake libtool nasm shaderc
+        run: brew install llvm ninja autoconf automake libtool nasm shaderc molten-vk
 
       - name: Install build dependencies (Linux)
         if: ${{ runner.os == 'Linux' }}
@@ -82,6 +82,7 @@ jobs:
         with:
           name: ${{ runner.os }}_${{ runner.arch }}
           path: |
-            build/vk-gltf-viewer
             build/vk-gltf-viewer.exe
+            build/vk-gltf-viewer.app
+            build/vk-gltf-viewer
             build/*.dll

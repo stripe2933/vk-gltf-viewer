@@ -4,7 +4,11 @@
 import vk_gltf_viewer;
 import vulkan_hpp;
 
+#ifdef _WIN32
+int WinMain() {
+#else
 int main() {
+#endif
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
