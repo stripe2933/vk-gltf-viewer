@@ -38,10 +38,6 @@ namespace vk_gltf_viewer::vulkan {
     export class SharedData {
     public:
         struct GltfAsset {
-            // --------------------
-            // Buffers.
-            // --------------------
-
             buffer::InstancedNodeWorldTransforms instancedNodeWorldTransformBuffer;
             buffer::MorphTargetWeights morphTargetWeightBuffer;
             buffer::Nodes nodeBuffer;
@@ -49,12 +45,6 @@ namespace vk_gltf_viewer::vulkan {
             buffer::CombinedIndices combinedIndexBuffers;
             buffer::PrimitiveAttributes primitiveAttributes;
             buffer::Primitives primitiveBuffer;
-
-            // --------------------
-            // Textures.
-            // --------------------
-
-            sampler::Samplers samplers;
             texture::Textures textures;
 
             template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
@@ -64,6 +54,7 @@ namespace vk_gltf_viewer::vulkan {
                 const gltf::NodeWorldTransforms &nodeWorldTransforms,
                 const gltf::OrderedPrimitives &orderedPrimitives,
                 const Gpu &gpu,
+                const texture::Fallback &fallbackTexture,
                 const BufferDataAdapter &adapter = {},
                 buffer::StagingBufferStorage stagingBufferStorage = {},
                 BS::thread_pool<> threadPool = {}
@@ -74,8 +65,7 @@ namespace vk_gltf_viewer::vulkan {
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
                 primitiveBuffer { materialBuffer, orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
-                samplers { asset, gpu.device },
-                textures { asset, directory, gpu, threadPool, adapter } {
+                textures { asset, directory, gpu, fallbackTexture, threadPool, adapter } {
                 // Setup node world transforms as the default scene hierarchy.
                 instancedNodeWorldTransformBuffer.update(asset.scenes[asset.defaultScene.value_or(0)], nodeWorldTransforms, adapter);
 
@@ -298,15 +288,7 @@ namespace vk_gltf_viewer::vulkan {
             std::vector<vk::DescriptorImageInfo> imageInfos;
             imageInfos.reserve(textureCount);
             imageInfos.emplace_back(*fallbackTexture.sampler, *fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-            imageInfos.append_range(asset.textures | std::views::transform([&](const fastgltf::Texture &texture) {
-                return vk::DescriptorImageInfo {
-                    to_optional(texture.samplerIndex)
-                        .transform([&](std::size_t samplerIndex) { return *inner.samplers[samplerIndex]; })
-                        .value_or(*fallbackTexture.sampler),
-                    *inner.textures.imageViews.at(getPreferredImageIndex(texture)),
-                    vk::ImageLayout::eShaderReadOnlyOptimal,
-                };
-            }));
+            imageInfos.append_range(inner.textures.descriptorInfos);
             gpu.device.updateDescriptorSets({
                 assetDescriptorSet.getWrite<0>(inner.primitiveBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<1>(inner.nodeBuffer.getDescriptorInfo()),

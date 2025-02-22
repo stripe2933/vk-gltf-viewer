@@ -175,6 +175,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/generator/ImageBasedLightingResourceGenerator.cppm
         interface/vulkan/generator/MipmappedCubemapGenerator.cppm
         interface/vulkan/Gpu.cppm
+        interface/vulkan/image/Images.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/BrdfmapComputer.cppm
         interface/vulkan/pipeline/CubemapComputer.cppm
