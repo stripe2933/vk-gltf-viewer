@@ -6,6 +6,7 @@ export module vk_gltf_viewer:vulkan.buffer.MorphTargetWeights;
 
 import std;
 export import fastgltf;
+import :helpers.ranges;
 import :vulkan.buffer;
 export import :vulkan.Gpu;
 
@@ -53,7 +54,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
             weights.emplace_back(&dummyWeight, 1);
 
             auto [buffer, copyOffsets] = createCombinedBuffer(allocator, weights, vk::BufferUsageFlagBits::eStorageBuffer);
-            startOffsets = { std::from_range, copyOffsets };
+            startOffsets = { std::from_range, copyOffsets | ranges::views::cast<std::uint32_t> };
 
             return std::move(buffer);
         }
