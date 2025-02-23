@@ -58,7 +58,7 @@ void main(){
     outNodeIndex = NODE_INDEX;
     outMaterialIndex = MATERIAL_INDEX;
 #if HAS_BASE_COLOR_TEXTURE
-    variadic_out.baseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex), TEXCOORD_COMPONENT_TYPE);
+    variadic_out.baseColorTexcoord = getTexcoord(getTexcoordIndex(MATERIAL.baseColorPackedTextureInfo), TEXCOORD_COMPONENT_TYPE);
 #endif
 #if HAS_COLOR_ALPHA_ATTRIBUTE
     variadic_out.colorAlpha = getColorAlpha(COLOR_COMPONENT_TYPE);

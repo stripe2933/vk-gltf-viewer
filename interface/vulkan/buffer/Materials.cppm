@@ -10,6 +10,7 @@ export import glm;
 import vku;
 export import vk_mem_alloc_hpp;
 export import vulkan_hpp;
+import :helpers.fastgltf;
 import :helpers.optional;
 import :helpers.ranges;
 export import :vulkan.buffer.StagingBufferStorage;
@@ -71,68 +72,48 @@ namespace vk_gltf_viewer::vulkan::buffer {
             }
             bufferData.append_range(asset.materials | std::views::transform([&](const fastgltf::Material& material) {
                 shader_type::Material result {
-                    .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
                     .metallicFactor = material.pbrData.metallicFactor,
                     .roughnessFactor = material.pbrData.roughnessFactor,
+                    .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
                     .emissiveFactor = glm::gtc::make_vec3(material.emissiveFactor.data()),
                     .alphaCutOff = material.alphaCutoff,
                 };
 
-                if (const auto& baseColorTexture = material.pbrData.baseColorTexture) {
-                    result.baseColorTexcoordIndex = baseColorTexture->texCoordIndex;
-                    result.baseColorTextureIndex = static_cast<std::int16_t>(baseColorTexture->textureIndex);
+                if (const auto& textureInfo = material.pbrData.baseColorTexture) {
+                    result.baseColorPackedTextureInfo = packTextureInfo(*textureInfo);
 
-                    if (const auto &transform = baseColorTexture->transform) {
+                    if (const auto &transform = textureInfo->transform) {
                         result.baseColorTextureTransform = getTextureTransform(*transform);
-                        if (transform->texCoordIndex) {
-                            result.baseColorTexcoordIndex = *transform->texCoordIndex;
-                        }
                     }
                 }
-                if (const auto& metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture) {
-                    result.metallicRoughnessTexcoordIndex = metallicRoughnessTexture->texCoordIndex;
-                    result.metallicRoughnessTextureIndex = static_cast<std::int16_t>(metallicRoughnessTexture->textureIndex);
+                if (const auto& textureInfo = material.pbrData.metallicRoughnessTexture) {
+                    result.metallicRoughnessPackedTextureInfo = packTextureInfo(*textureInfo);
 
-                    if (const auto &transform = metallicRoughnessTexture->transform) {
+                    if (const auto &transform = textureInfo->transform) {
                         result.metallicRoughnessTextureTransform = getTextureTransform(*transform);
-                        if (transform->texCoordIndex) {
-                            result.metallicRoughnessTexcoordIndex = *transform->texCoordIndex;
-                        }
                     }
                 }
-                if (const auto& normalTexture = material.normalTexture) {
-                    result.normalTexcoordIndex = normalTexture->texCoordIndex;
-                    result.normalTextureIndex = static_cast<std::int16_t>(normalTexture->textureIndex);
-                    result.normalScale = normalTexture->scale;
+                if (const auto& textureInfo = material.normalTexture) {
+                    result.normalPackedTextureInfo = packTextureInfo(*textureInfo);
+                    result.normalScale = textureInfo->scale;
 
-                    if (const auto &transform = normalTexture->transform) {
+                    if (const auto &transform = textureInfo->transform) {
                         result.normalTextureTransform = getTextureTransform(*transform);
-                        if (transform->texCoordIndex) {
-                            result.normalTexcoordIndex = *transform->texCoordIndex;
-                        }
                     }
                 }
-                if (const auto& occlusionTexture = material.occlusionTexture) {
-                    result.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
-                    result.occlusionTextureIndex = static_cast<std::int16_t>(occlusionTexture->textureIndex);
-                    result.occlusionStrength = occlusionTexture->strength;
+                if (const auto& textureInfo = material.occlusionTexture) {
+                    result.occlusionPackedTextureInfo = packTextureInfo(*textureInfo);
+                    result.occlusionStrength = textureInfo->strength;
 
-                    if (const auto &transform = occlusionTexture->transform) {
+                    if (const auto &transform = textureInfo->transform) {
                         result.occlusionTextureTransform = getTextureTransform(*transform);
-                        if (transform->texCoordIndex) {
-                            result.occlusionTexcoordIndex = *transform->texCoordIndex;
-                        }
                     }
                 }
-                if (const auto& emissiveTexture = material.emissiveTexture) {
-                    result.emissiveTexcoordIndex = emissiveTexture->texCoordIndex;
-                    result.emissiveTextureIndex = static_cast<std::int16_t>(emissiveTexture->textureIndex);
+                if (const auto& textureInfo = material.emissiveTexture) {
+                    result.emissivePackedTextureInfo = packTextureInfo(*textureInfo);
 
-                    if (const auto &transform = emissiveTexture->transform) {
+                    if (const auto &transform = textureInfo->transform) {
                         result.emissiveTextureTransform = getTextureTransform(*transform);
-                        if (transform->texCoordIndex) {
-                            result.emissiveTexcoordIndex = *transform->texCoordIndex;
-                        }
                     }
                 }
 
@@ -149,6 +130,10 @@ namespace vk_gltf_viewer::vulkan::buffer {
             }
 
             return buffer;
+        }
+
+        [[nodiscard]] static std::uint32_t packTextureInfo(const fastgltf::TextureInfo &textureInfo) noexcept {
+            return (textureInfo.textureIndex + 1) << 2 | getTexcoordIndex(textureInfo);
         }
     };
 }

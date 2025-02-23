@@ -2,31 +2,33 @@
 #define TYPES_GLSL
 
 struct Material {
-    uint8_t baseColorTexcoordIndex;
-    uint8_t metallicRoughnessTexcoordIndex;
-    uint8_t normalTexcoordIndex;
-    uint8_t occlusionTexcoordIndex;
-    uint8_t emissiveTexcoordIndex;
-    uint8_t padding0[1];
-    int16_t baseColorTextureIndex;
-    int16_t metallicRoughnessTextureIndex;
-    int16_t normalTextureIndex;
-    int16_t occlusionTextureIndex;
-    int16_t emissiveTextureIndex;
-    vec4 baseColorFactor;
+    uint baseColorPackedTextureInfo;
+    uint metallicRoughnessPackedTextureInfo;
+    uint normalPackedTextureInfo;
+    uint occlusionPackedTextureInfo;
+    uint emissivePackedTextureInfo;
     float metallicFactor;
     float roughnessFactor;
     float normalScale;
-    float occlusionStrength;
+    vec4 baseColorFactor;
     vec3 emissiveFactor;
+    float occlusionStrength;
     float alphaCutoff;
+    float _padding_;
     mat3x2 baseColorTextureTransform;
     mat3x2 metallicRoughnessTextureTransform;
     mat3x2 normalTextureTransform;
     mat3x2 occlusionTextureTransform;
     mat3x2 emissiveTextureTransform;
-    vec2 padding1;
 }; // 192 bytes.
+
+uint getTexcoordIndex(uint packedTextureInfo) {
+    return packedTextureInfo & 3U;
+}
+
+uint getTextureIndex(uint packedTextureInfo) {
+    return packedTextureInfo >> 2U;
+}
 
 // --------------------
 // Vertex shader only types
