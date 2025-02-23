@@ -25,7 +25,7 @@ namespace vk_gltf_viewer::gltf {
             for (fastgltf::Primitive &primitive : asset.meshes | std::views::transform(&fastgltf::Mesh::primitives) | std::views::join) {
                 for (const auto &[materialVariantIndex, mapping] : primitive.mappings | ranges::views::enumerate) {
                     if (mapping) {
-                        data[materialVariantIndex].emplace_back(&primitive, *mapping);
+                        data[materialVariantIndex].emplace_back(&primitive, static_cast<std::uint32_t>(*mapping));
                     }
                 }
             }

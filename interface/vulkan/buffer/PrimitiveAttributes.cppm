@@ -112,7 +112,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
             }
 
-            return gpu.device.getBufferAddress({ buffer });
+            return gpu.device.getBufferAddress({ buffer.buffer });
         }
 
         template <typename DataBufferAdapter>
@@ -205,7 +205,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
                 }
 
-                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
+                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
                 for (auto [bufferViewIndex, copyOffset] : std::views::zip(attributeBufferViewIndices, copyOffsets)) {
                     bufferDeviceAddressMappings.emplace(bufferViewIndex, bufferAddress + copyOffset);
                 }
@@ -222,7 +222,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
                 }
 
-                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
+                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
                 for (auto [bufferViewIndex, copyOffset] : std::views::zip(generatedAccessorByteData | std::views::keys, copyOffsets)) {
                     generatedBufferDeviceAddressMappings.emplace(bufferViewIndex, bufferAddress + copyOffset);
                 }
@@ -358,7 +358,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
                 }
 
-                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
+                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
                 for (auto &&[accessors, copyOffset] : std::views::zip(indexedAttributeAccessors, copyOffsets)) {
                     std::invoke(indexedAttributeAccessorBufferAddressGetter, accessors) = bufferAddress + copyOffset;
                 }
@@ -395,7 +395,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
                 }
 
-                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
+                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
                 for (auto &&[accessors, copyOffset] : std::views::zip(morphTargetAccessors, copyOffsets)) {
                     std::invoke(morphTargetAccessorBufferAddressGetter, accessors) = bufferAddress + copyOffset;
                 }
@@ -487,7 +487,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
             }
 
-            const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
+            const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
             for (auto [pPrimitive, copyOffset] : std::views::zip(missingTangentPrimitives | std::views::keys, copyOffsets)) {
                 pPrimitive->tangentAccessor.emplace(bufferAddress + copyOffset, 6, 4, 16);
             }
