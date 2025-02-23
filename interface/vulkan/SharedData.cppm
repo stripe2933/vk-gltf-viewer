@@ -132,7 +132,7 @@ namespace vk_gltf_viewer::vulkan {
         std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> imGuiSwapchainAttachmentGroup;
 
         // Descriptor pools.
-        vk::raii::DescriptorPool textureDescriptorPool;
+        std::optional<vk::raii::DescriptorPool> assetDescriptorPool; // nullopt if Gpu::supportVariableDescriptorCount is true.
         vk::raii::DescriptorPool descriptorPool;
 
         // Descriptor sets.
@@ -154,7 +154,14 @@ namespace vk_gltf_viewer::vulkan {
             , cubeIndices { gpu.allocator }
             , cubemapSampler { gpu.device }
             , brdfLutSampler { gpu.device }
-            , assetDescriptorSetLayout { gpu, 1 } // TODO: set proper initial texture count.
+            , assetDescriptorSetLayout { [&]() {
+                if (gpu.supportVariableDescriptorCount) {
+                    return dsl::Asset { gpu };
+                }
+                else {
+                    return dsl::Asset { gpu, 1 }; // TODO: set proper initial texture count.
+                }
+            }() }
             , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
             , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
             , sceneRenderPass { gpu.device }
@@ -166,12 +173,16 @@ namespace vk_gltf_viewer::vulkan {
             , weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass }
             , swapchainAttachmentGroup { gpu, swapchainExtent, swapchainImages }
             , imGuiSwapchainAttachmentGroup { getImGuiSwapchainAttachmentGroup() }
-            , textureDescriptorPool { createTextureDescriptorPool() }
-            , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
+            , descriptorPool { gpu.device, [&]() {
+                if (gpu.supportVariableDescriptorCount) {
+                    return getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout, assetDescriptorSetLayout)
+                        .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet | vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind);
+                }
+                else {
+                    return getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo();
+                }
+            }().get() }
             , fallbackTexture { gpu }{
-            std::tie(assetDescriptorSet)
-                = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(
-                    assetDescriptorSetLayout));
             std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet)
                 = vku::allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
                     imageBasedLightingDescriptorSetLayout,
@@ -247,21 +258,38 @@ namespace vk_gltf_viewer::vulkan {
             }
 
             const GltfAsset &inner = gltfAsset.emplace(asset, directory, nodeWorldTransforms, orderedPrimitives, gpu, adapter);
-            if (assetDescriptorSetLayout.descriptorCounts[5] != textureCount) {
-                // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
-                depthPipelines.clear();
-                maskDepthPipelines.clear();
-                jumpFloodSeedPipelines.clear();
-                maskJumpFloodSeedPipelines.clear();
-                primitivePipelines.clear();
-                unlitPrimitivePipelines.clear();
+            if (gpu.supportVariableDescriptorCount) {
+                (*gpu.device).freeDescriptorSets(*descriptorPool, assetDescriptorSet);
+                assetDescriptorSet = decltype(assetDescriptorSet) {
+                    vku::unsafe,
+                    (*gpu.device).allocateDescriptorSets(vk::StructureChain {
+                         vk::DescriptorSetAllocateInfo {
+                             *descriptorPool,
+                             *assetDescriptorSetLayout,
+                         },
+                         vk::DescriptorSetVariableDescriptorCountAllocateInfo {
+                             vk::ArrayProxyNoTemporaries<const std::uint32_t> { textureCount },
+                         }
+                     }.get())[0],
+                };
+            }
+            else {
+                if (assetDescriptorSetLayout.descriptorCounts[5] != textureCount) {
+                    // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
+                    depthPipelines.clear();
+                    maskDepthPipelines.clear();
+                    jumpFloodSeedPipelines.clear();
+                    maskJumpFloodSeedPipelines.clear();
+                    primitivePipelines.clear();
+                    unlitPrimitivePipelines.clear();
 
-                assetDescriptorSetLayout = { gpu, textureCount };
-                primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
-                primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
+                    assetDescriptorSetLayout = { gpu, textureCount };
+                    primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
+                    primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
 
-                textureDescriptorPool = createTextureDescriptorPool();
-                std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, *textureDescriptorPool, std::tie(assetDescriptorSetLayout));
+                    assetDescriptorPool.emplace(gpu.device, getPoolSizes(assetDescriptorSetLayout).getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind));
+                    std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, *assetDescriptorPool, std::tie(assetDescriptorSetLayout));
+                }
             }
 
             std::vector<vk::DescriptorImageInfo> imageInfos;
@@ -306,10 +334,6 @@ namespace vk_gltf_viewer::vulkan {
             else {
                 return decltype(imGuiSwapchainAttachmentGroup) { std::in_place_index<1>, swapchainAttachmentGroup };
             }
-        }
-
-        [[nodiscard]] auto createTextureDescriptorPool() const -> vk::raii::DescriptorPool {
-            return { gpu.device, getPoolSizes(assetDescriptorSetLayout).getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind) };
         }
     };
 }

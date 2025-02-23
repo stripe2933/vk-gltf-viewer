@@ -5,6 +5,30 @@ export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::dsl {
     export struct Asset : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eCombinedImageSampler> {
+        explicit Asset(const Gpu &gpu [[clang::lifetimebound]])
+            : DescriptorSetLayout { gpu.device, vk::StructureChain {
+                vk::DescriptorSetLayoutCreateInfo {
+                    vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
+                    vku::unsafeProxy(getBindings(
+                        { 1, vk::ShaderStageFlagBits::eVertex },
+                        { 1, vk::ShaderStageFlagBits::eVertex },
+                        { 1, vk::ShaderStageFlagBits::eVertex },
+                        { 1, vk::ShaderStageFlagBits::eVertex },
+                        { 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment },
+                        { maxTextureCount(gpu), vk::ShaderStageFlagBits::eFragment })),
+                },
+                vk::DescriptorSetLayoutBindingFlagsCreateInfo {
+                    vku::unsafeProxy<vk::DescriptorBindingFlags>({
+                        {},
+                        {},
+                        {},
+                        {},
+                        {},
+                        vk::DescriptorBindingFlagBits::eUpdateAfterBind | vk::DescriptorBindingFlagBits::eVariableDescriptorCount,
+                    }),
+                },
+            }.get() } { }
+
         Asset(const Gpu &gpu [[clang::lifetimebound]], std::uint32_t textureCount)
             : DescriptorSetLayout { gpu.device, vk::StructureChain {
                 vk::DescriptorSetLayoutCreateInfo {
