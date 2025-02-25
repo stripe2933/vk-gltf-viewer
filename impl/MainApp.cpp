@@ -254,6 +254,11 @@ void vk_gltf_viewer::MainApp::run() {
     std::array<bool, FRAMES_IN_FLIGHT> shouldHandleSwapchainResize{};
     std::array<bool, FRAMES_IN_FLIGHT> regenerateDrawCommands{};
 
+    // Currently frame feedback result contains which node is in hovered state, which is only valid
+    // with the asset that is used for hovering test. Therefore, if asset may changed, the result is
+	// being invalidated. This booleans indicate whether the frame feedback result is valid or not.
+    std::array<bool, FRAMES_IN_FLIGHT> frameFeedbackResultValid{};
+
     // TODO: we need more general mechanism to upload the GPU buffer data in shared data. This is just a stopgap solution
     //  for current KHR_materials_variants implementation.
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
@@ -329,6 +334,7 @@ void vk_gltf_viewer::MainApp::run() {
                 [&](const control::task::LoadGltf &task) {
                     loadGltf(task.path);
                     regenerateDrawCommands.fill(true);
+                    frameFeedbackResultValid.fill(false);
                 },
                 [&](control::task::CloseGltf) {
                     closeGltf();
@@ -600,9 +606,14 @@ void vk_gltf_viewer::MainApp::run() {
             .handleSwapchainResize = std::exchange(shouldHandleSwapchainResize[frameIndex], false),
         });
 
-        // Feedback the update result into this.
-        if (appState.gltfAsset) {
-            appState.gltfAsset->hoveringNodeIndex = updateResult.hoveringNodeIndex;
+		if (frameFeedbackResultValid[frameIndex]) {
+            // Feedback the update result into this.
+            if (appState.gltfAsset) {
+                appState.gltfAsset->hoveringNodeIndex = updateResult.hoveringNodeIndex;
+            }
+		}
+        else {
+			frameFeedbackResultValid[frameIndex] = true;
         }
 
         try {
