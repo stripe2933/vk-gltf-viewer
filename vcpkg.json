@@ -28,11 +28,5 @@
       ]
     },
     "bshoshany-thread-pool"
-  ],
-  "overrides": [
-    {
-      "name": "gmp",
-      "version": "6.3.0#0"
-    }
   ]
 }
