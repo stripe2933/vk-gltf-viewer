@@ -10,6 +10,8 @@ project(vk-gltf-viewer
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_MODULE_STD 1)
 
+option(RUN_BRDFGEN "Run offline BRDF LUT image generator")
+
 # --------------------
 # External dependencies.
 # --------------------
@@ -228,6 +230,12 @@ target_compile_definitions(vk-gltf-viewer PRIVATE
     GLFW_INCLUDE_NONE
 )
 
+if (UNIX AND NOT APPLE) # Linux?
+    if (DEFINED ENV{WAYLAND_DISPLAY})
+        target_compile_definitions(vk-gltf-viewer PRIVATE WAYLAND_DISPLAY)
+    endif()
+endif()
+
 if (APPLE AND ${CMAKE_BUILD_TYPE} STREQUAL "Release")
     set_target_properties(vk-gltf-viewer PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in
@@ -249,22 +257,19 @@ endif()
 # Generate BRDF LUT resource.
 # --------------------
 
-add_subdirectory(brdfgen)
+if (RUN_BRDFGEN)
+    add_subdirectory(brdfgen)
 
-add_custom_command(
-    OUTPUT asset/brdf.ktx2
-    COMMAND brdfgen ${CMAKE_CURRENT_SOURCE_DIR}/asset/brdf.ktx2
-)
-target_sources(vk-gltf-viewer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/asset/brdf.ktx2)
+    add_custom_command(
+        OUTPUT asset/brdf.ktx2
+        COMMAND brdfgen ${CMAKE_CURRENT_SOURCE_DIR}/asset/brdf.ktx2
+    )
+    target_sources(vk-gltf-viewer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/asset/brdf.ktx2)
+endif()
+
 set_target_properties(vk-gltf-viewer PROPERTIES
     RESOURCE ${CMAKE_CURRENT_SOURCE_DIR}/asset/brdf.ktx2
 )
-
-if (UNIX AND NOT APPLE) # Linux?
-    if (DEFINED ENV{WAYLAND_DISPLAY})
-        target_compile_definitions(vk-gltf-viewer PRIVATE WAYLAND_DISPLAY)
-    endif()
-endif()
 
 # --------------------
 # Shader compilation.
