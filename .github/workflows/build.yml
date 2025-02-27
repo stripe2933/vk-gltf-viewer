@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, macos-15, ubuntu-latest, ubuntu-24.04-arm]
+        os: [macos-15]
 
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +77,13 @@ jobs:
         run: |
           mv .github/workflows/scripts/* .
           cmake --preset=${{ matrix.os }}
+
+      - name: Show Error
+        if: ${{ failure() }}
+        run: |
+          cat /Users/runner/work/vk-gltf-viewer/vk-gltf-viewer/vcpkg/buildtrees/detect_compiler/config-arm64-macos-clang-release-rel-CMakeCache.txt.log
+          cat /Users/runner/work/vk-gltf-viewer/vk-gltf-viewer/vcpkg/buildtrees/detect_compiler/config-arm64-macos-clang-release-rel-out.log
+          cat /Users/runner/work/vk-gltf-viewer/vk-gltf-viewer/vcpkg/buildtrees/detect_compiler/config-arm64-macos-clang-release-rel-err.log
 
       - name: Build
         run: cmake --build build --config release
