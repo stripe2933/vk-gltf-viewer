@@ -30,6 +30,7 @@ export import :vulkan.pipeline.SkyboxRenderer;
 export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
 export import :vulkan.rp.Scene;
+export import :vulkan.texture.Brdf;
 export import :vulkan.texture.Fallback;
 export import :vulkan.texture.Textures;
 
@@ -145,6 +146,7 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         texture::Fallback fallbackTexture;
+        texture::Brdf brdfTexture;
         std::optional<GltfAsset> gltfAsset;
 
         SharedData(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages)
@@ -182,11 +184,16 @@ namespace vk_gltf_viewer::vulkan {
                     return getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo();
                 }
             }().get() }
-            , fallbackTexture { gpu }{
+            , fallbackTexture { gpu }
+            , brdfTexture { gpu }{
             std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet)
                 = vku::allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
                     imageBasedLightingDescriptorSetLayout,
                     skyboxDescriptorSetLayout));
+
+            gpu.device.updateDescriptorSets(
+                imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                {});
         }
 
         // --------------------

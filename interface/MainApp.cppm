@@ -133,8 +133,6 @@ namespace vk_gltf_viewer {
 
         ImageBasedLightingResources imageBasedLightingResources = createDefaultImageBasedLightingResources();
         std::optional<SkyboxResources> skyboxResources{};
-        vku::AllocatedImage brdfmapImage = createBrdfmapImage();
-        vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
         vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
 
         // --------------------
@@ -155,7 +153,6 @@ namespace vk_gltf_viewer {
 
         [[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
         [[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;
-        [[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
 
         void loadGltf(const std::filesystem::path &path);
         void closeGltf();

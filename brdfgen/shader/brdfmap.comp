@@ -8,7 +8,7 @@ const float INV_PI = 1.0 / PI;
 
 layout (constant_id = 0) const uint TOTAL_SAMPLE_COUNT = 1024;
 
-layout (set = 0, binding = 0) writeonly uniform image2D brdfmapImage;
+layout (set = 0, binding = 0, rg16) writeonly uniform image2D brdfmapImage;
 
 layout (local_size_x = 16, local_size_y = 16) in;
 

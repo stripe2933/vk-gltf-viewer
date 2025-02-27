@@ -43,7 +43,6 @@ import :vulkan.Frame;
 import :vulkan.generator.ImageBasedLightingResourceGenerator;
 import :vulkan.generator.MipmappedCubemapGenerator;
 import :vulkan.mipmap;
-import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
 #ifdef _MSC_VER
@@ -69,111 +68,42 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 }
 
 vk_gltf_viewer::MainApp::MainApp() {
-    const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
+    const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
 
-    const vk::raii::CommandPool computeCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute } };
-    std::variant<vk::CommandPool, vk::raii::CommandPool> graphicsCommandPool = *computeCommandPool;
-    if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
-        graphicsCommandPool = decltype(graphicsCommandPool) {
-            std::in_place_type<vk::raii::CommandPool>,
-            gpu.device,
-            vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent },
-        };
-    }
+    vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
+        // Clear prefilteredmapImage to white.
+        cb.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+            {}, {}, {},
+            vk::ImageMemoryBarrier {
+                {}, vk::AccessFlagBits::eTransferWrite,
+                {}, vk::ImageLayout::eTransferDstOptimal,
+                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                imageBasedLightingResources.prefilteredmapImage, vku::fullSubresourceRange(),
+            });
+        cb.clearColorImage(
+            imageBasedLightingResources.prefilteredmapImage, vk::ImageLayout::eTransferDstOptimal,
+            vk::ClearColorValue { 1.f, 1.f, 1.f, 0.f },
+            vku::fullSubresourceRange());
+        cb.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+            {}, {}, {},
+            vk::ImageMemoryBarrier {
+                vk::AccessFlagBits::eTransferWrite, {},
+                vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                imageBasedLightingResources.prefilteredmapImage, vku::fullSubresourceRange(),
+            });
 
-    const auto [timelineSemaphores, finalWaitValues] = vku::executeHierarchicalCommands(
-        gpu.device,
-        std::forward_as_tuple(
-            // Initialize the image based lighting resources by default(white).
-            vku::ExecutionInfo { [this](vk::CommandBuffer cb) {
-                // Clear prefilteredmapImage to white.
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        {}, vk::AccessFlagBits::eTransferWrite,
-                        {}, vk::ImageLayout::eTransferDstOptimal,
-                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        imageBasedLightingResources.prefilteredmapImage, vku::fullSubresourceRange(),
-                    });
-                cb.clearColorImage(
-                    imageBasedLightingResources.prefilteredmapImage, vk::ImageLayout::eTransferDstOptimal,
-                    vk::ClearColorValue { 1.f, 1.f, 1.f, 0.f },
-                    vku::fullSubresourceRange());
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        vk::AccessFlagBits::eTransferWrite, {},
-                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        imageBasedLightingResources.prefilteredmapImage, vku::fullSubresourceRange(),
-                    });
-            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent },
-            // Create BRDF LUT image.
-            vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
-                // Change brdfmapImage layout to GENERAL.
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eComputeShader,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        {}, vk::AccessFlagBits::eShaderWrite,
-                        {}, vk::ImageLayout::eGeneral,
-                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        brdfmapImage, vku::fullSubresourceRange(),
-                    });
-
-                // Compute BRDF.
-                vku::DescriptorSet<vulkan::BrdfmapComputer::DescriptorSetLayout> brdfmapSet;
-                brdfmapComputer.compute(
-                    cb,
-                    brdfmapSet.getWriteOne<0>({ {}, *brdfmapImageView, vk::ImageLayout::eGeneral }),
-                    vku::toExtent2D(brdfmapImage.extent));
-
-                // brdfmapImage will be used as sampled image.
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eBottomOfPipe,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        vk::AccessFlagBits::eShaderWrite, {},
-                        vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
-                        gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-                        brdfmapImage, vku::fullSubresourceRange(),
-                    });
-            }, *computeCommandPool, gpu.queues.compute }),
-        std::forward_as_tuple(
-            // Acquire BRDF LUT image's queue family ownership from compute to graphicsPresent.
-            vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
-                if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
-                    cb.pipelineBarrier(
-                        vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-                        {}, {}, {},
-                        vk::ImageMemoryBarrier {
-                            {}, {},
-                            vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
-                            gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-                            brdfmapImage, vku::fullSubresourceRange(),
-                        });
-                }
-            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent }));
-
-    std::ignore = gpu.device.waitSemaphores({
-        {},
-        vku::unsafeProxy(timelineSemaphores | ranges::views::deref | std::ranges::to<std::vector>()),
-        finalWaitValues
-    }, ~0ULL);
+        // Change swapchain image layout.
+        recordSwapchainImageLayoutTransitionCommands(cb);
+    });
+    gpu.queues.graphicsPresent.waitIdle();
 
     gpu.device.updateDescriptorSets({
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
     }, {});
-
-    const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-    vku::executeSingleCommand(*gpu.device, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
-        recordSwapchainImageLayoutTransitionCommands(cb);
-    }, *fence);
-    std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
     // Init ImGui.
     ImGui::CheckVersion();
@@ -784,19 +714,6 @@ auto vk_gltf_viewer::MainApp::createEqmapSampler() const -> vk::raii::Sampler {
         {}, {},
         {}, {},
         0, vk::LodClampNone,
-    } };
-}
-
-auto vk_gltf_viewer::MainApp::createBrdfmapImage() const -> decltype(brdfmapImage) {
-    return { gpu.allocator, vk::ImageCreateInfo {
-        {},
-        vk::ImageType::e2D,
-        vk::Format::eR16G16Unorm,
-        vk::Extent3D { 512, 512, 1 },
-        1, 1,
-        vk::SampleCountFlagBits::e1,
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
     } };
 }
 

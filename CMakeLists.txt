@@ -176,7 +176,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/generator/MipmappedCubemapGenerator.cppm
         interface/vulkan/Gpu.cppm
         interface/vulkan/mipmap.cppm
-        interface/vulkan/pipeline/BrdfmapComputer.cppm
         interface/vulkan/pipeline/CubemapComputer.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
         interface/vulkan/pipeline/DepthRenderer.cppm
@@ -204,6 +203,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/shader_type/TextureTransform.cppm
         interface/vulkan/SharedData.cppm
         interface/vulkan/specialization_constants/SpecializationMap.cppm
+        interface/vulkan/texture/Brdf.cppm
         interface/vulkan/texture/Fallback.cppm
         interface/vulkan/texture/Textures.cppm
         interface/vulkan/trait/PostTransferObject.cppm
@@ -228,12 +228,6 @@ target_compile_definitions(vk-gltf-viewer PRIVATE
     GLFW_INCLUDE_NONE
 )
 
-if (UNIX AND NOT APPLE) # Linux?
-    if (DEFINED ENV{WAYLAND_DISPLAY})
-        target_compile_definitions(vk-gltf-viewer PRIVATE WAYLAND_DISPLAY)
-    endif()
-endif()
-
 if (APPLE AND ${CMAKE_BUILD_TYPE} STREQUAL "Release")
     set_target_properties(vk-gltf-viewer PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in
@@ -252,13 +246,33 @@ if (APPLE AND ${CMAKE_BUILD_TYPE} STREQUAL "Release")
 endif()
 
 # --------------------
+# Generate BRDF LUT resource.
+# --------------------
+
+add_subdirectory(brdfgen)
+
+add_custom_command(
+    OUTPUT asset/brdf.ktx2
+    COMMAND brdfgen ${CMAKE_CURRENT_SOURCE_DIR}/asset/brdf.ktx2
+)
+target_sources(vk-gltf-viewer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/asset/brdf.ktx2)
+set_target_properties(vk-gltf-viewer PROPERTIES
+    RESOURCE ${CMAKE_CURRENT_SOURCE_DIR}/asset/brdf.ktx2
+)
+
+if (UNIX AND NOT APPLE) # Linux?
+    if (DEFINED ENV{WAYLAND_DISPLAY})
+        target_compile_definitions(vk-gltf-viewer PRIVATE WAYLAND_DISPLAY)
+    endif()
+endif()
+
+# --------------------
 # Shader compilation.
 # --------------------
 
 include(cmake/CompileShader.cmake)
 
 target_link_shaders(vk-gltf-viewer
-    shaders/brdfmap.comp
     shaders/cubemap_tone_mapping.frag
     shaders/cubemap.comp
     shaders/depth.frag
