@@ -29,30 +29,39 @@ function(target_link_shaders TARGET)
         set(spirv_num_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.h")
 
         if (${Vulkan_glslc_FOUND})
+            set(depfile "${CMAKE_CURRENT_BINARY_DIR}/shader_depfile/${filename}.d")
             add_custom_command(
                 OUTPUT ${spirv_num_filename}
-                COMMAND ${Vulkan_GLSLC_EXECUTABLE} -MD -MF shader_depfile/${filename}.d $<$<CONFIG:Release>:-O> --target-env=vulkan1.2 -mfmt=num ${source} -o ${spirv_num_filename}
+                COMMAND Vulkan::glslc -MD -MF ${depfile} $<$<CONFIG:Release>:-O> --target-env=vulkan1.2 -mfmt=num ${source} -o ${spirv_num_filename}
                 DEPENDS ${source}
-                BYPRODUCTS shader_depfile/${filename}.d
-                DEPFILE shader_depfile/${filename}.d
-                VERBATIM
+                BYPRODUCTS ${depfile}
+                DEPFILE ${depfile}
                 COMMAND_EXPAND_LISTS
+                VERBATIM
             )
         elseif (${Vulkan_glslangValidator_FOUND})
             add_custom_command(
                 OUTPUT ${spirv_num_filename}
-                COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} -V $<$<CONFIG:Release>:-Os> --target-env vulkan1.2 -x ${source} -o ${spirv_num_filename}
+                COMMAND Vulkan::glslangValidator -V $<$<CONFIG:Release>:-Os> --target-env vulkan1.2 -x ${source} -o ${spirv_num_filename}
                 DEPENDS ${source}
-                VERBATIM
                 COMMAND_EXPAND_LISTS
+                VERBATIM
             )
         endif ()
         list(APPEND spirv_num_filenames ${spirv_num_filename})
+
+        # --------------------
+        # Make interface file.
+        # --------------------
 
         set(shader_module_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm")
         configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/shader_module.cmake.in ${shader_module_filename} @ONLY)
         list(APPEND shader_module_filenames ${shader_module_filename})
     endforeach ()
+
+    # --------------------
+    # Attach sources to the target.
+    # --------------------
 
     target_sources(${TARGET} PRIVATE FILE_SET HEADERS FILES ${spirv_num_filenames})
     target_sources(${TARGET} PRIVATE FILE_SET CXX_MODULES FILES ${shader_module_filenames})
@@ -69,21 +78,11 @@ function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
     string(MAKE_C_IDENTIFIER ${filename} shader_identifier)
 
     # Make source path absolute.
-    cmake_path(ABSOLUTE_PATH SOURCE OUTPUT_VARIABLE absolute_source)
+    cmake_path(ABSOLUTE_PATH SOURCE)
 
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cpp
-        # Interface file generation.
-        COMMAND ${CMAKE_COMMAND} -E echo "export module ${target_identifier}:shader.${shader_identifier}\;" > shader/${filename}.cppm
-        COMMAND ${CMAKE_COMMAND} -E echo "namespace ${target_identifier}::shader { template <int...> struct ${shader_identifier}_t\;" >> shader/${filename}.cppm
-        # Implementation file generation.
-        COMMAND ${CMAKE_COMMAND} -E echo "module ${target_identifier}\;" > shader/${filename}.cpp
-        COMMAND ${CMAKE_COMMAND} -E echo "import :shader.${shader_identifier}\;" >> shader/${filename}.cpp
-        COMMENT "Compiling SPIR-V: ${SOURCE}"
-        VERBATIM
-        COMMAND_EXPAND_LISTS
-    )
-
+    set(spirv_num_filenames "")
+    set(template_specializations "")
+    set(extern_template_instantiations "")
     foreach (macro_values IN LISTS ARGN)
         # Split whitespace-delimited string to list.
         separate_arguments(macro_values)
@@ -101,64 +100,64 @@ function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
         # Make filename-like parameter string.
         # e.g., If macro_values=[0, 1], variant_filename="0_1".
         list(JOIN macro_values "_" variant_filename)
+        set(spirv_num_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}_${variant_filename}.h")
+
+        if (${Vulkan_glslc_FOUND})
+            set(depfile "${CMAKE_CURRENT_BINARY_DIR}/shader_depfile/${filename}_${variant_filename}.d")
+            add_custom_command(
+                OUTPUT ${spirv_num_filename}
+                # Compile GLSL to SPIR-V.
+                COMMAND Vulkan::glslc -MD -MF ${depfile} $<$<CONFIG:Release>:-O> --target-env=vulkan1.2 -mfmt=num ${macro_cli_defs} ${SOURCE} -o ${spirv_num_filename}
+                DEPENDS ${SOURCE}
+                BYPRODUCTS ${depfile}
+                DEPFILE ${depfile}
+                COMMAND_EXPAND_LISTS
+                VERBATIM
+            )
+        elseif (${Vulkan_glslangValidator_FOUND})
+            add_custom_command(
+                OUTPUT ${spirv_num_filename}
+                # Compile GLSL to SPIR-V.
+                COMMAND Vulkan::glslangValidator -V $<$<CONFIG:Release>:-Os> --target-env vulkan1.2 -x ${macro_cli_defs} ${SOURCE} -o ${spirv_num_filename}
+                DEPENDS ${SOURCE}
+                COMMAND_EXPAND_LISTS
+                VERBATIM
+            )
+        endif ()
 
         # Make value parameter string.
         # e.g., If macro_values=[0, 1], value_params="0, 1".
         list(JOIN macro_values ", " value_params)
 
-        if (${Vulkan_glslc_FOUND})
-            add_custom_command(
-                OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cpp
-                # Compile GLSL to SPIR-V.
-                COMMAND ${Vulkan_GLSLC_EXECUTABLE} -MD -MF shader_depfile/${filename}_${variant_filename}.d $<$<CONFIG:Release>:-O> --target-env=vulkan1.2 -mfmt=num ${macro_cli_defs} "${absolute_source}" -o shader/${filename}_${variant_filename}_body.h
-                # Interface file generation.
-                COMMAND ${CMAKE_COMMAND} -E echo "template <> struct ${shader_identifier}_t<${value_params}> { static constexpr unsigned int value[] = {" >> shader/${filename}.cppm
-                    && ${CMAKE_COMMAND} -E cat shader/${filename}_${variant_filename}_body.h >> shader/${filename}.cppm
-                    && ${CMAKE_COMMAND} -E rm shader/${filename}_${variant_filename}_body.h
-                    && ${CMAKE_COMMAND} -E echo "}\; }\;" >> shader/${filename}.cppm
-                # Implementation file generation.
-                COMMAND ${CMAKE_COMMAND} -E echo "extern template struct ${target_identifier}::shader::${shader_identifier}_t<${value_params}>\;" >> shader/${filename}.cpp
-                DEPENDS "${absolute_source}"
-                BYPRODUCTS shader_depfile/${filename}_${variant_filename}.d
-                DEPFILE shader_depfile/${filename}_${variant_filename}.d
-                APPEND
-            )
-        elseif (${Vulkan_glslangValidator_FOUND})
-            add_custom_command(
-                OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cpp
-                # Compile GLSL to SPIR-V.
-                COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} -V $<$<CONFIG:Release>:-Os> --target-env vulkan1.2 -x ${macro_cli_defs} ${absolute_source} -o shader/${filename}_${variant_filename}_body.h
-                # Interface file generation.
-                COMMAND ${CMAKE_COMMAND} -E echo "template <> struct ${shader_identifier}_t<${value_params}> { static constexpr unsigned int value[] = {" >> shader/${filename}.cppm
-                    && ${CMAKE_COMMAND} -E cat shader/${filename}_${variant_filename}_body.h >> shader/${filename}.cppm
-                    && ${CMAKE_COMMAND} -E rm shader/${filename}_${variant_filename}_body.h
-                    && ${CMAKE_COMMAND} -E echo "}\; }\;" >> shader/${filename}.cppm
-                # Implementation file generation.
-                COMMAND ${CMAKE_COMMAND} -E echo "extern template struct ${target_identifier}::shader::${shader_identifier}_t<${value_params}>\;" >> shader/${filename}.cpp
-                DEPENDS "${absolute_source}"
-                APPEND
-            )
-        endif ()
+        list(APPEND spirv_num_filenames ${spirv_num_filename})
+        list(APPEND template_specializations "SPECIALIZATION_BEGIN(${value_params})\n#include \"${spirv_num_filename}\"\nSPECIALIZATION_END()")
+        list(APPEND extern_template_instantiations "INSTANTIATION(${value_params})")
     endforeach ()
 
-    # Make template named type parameters string.
-    # e.g., If there are 3 macros, template_named_type_params="int MACRO1, int MACRO2, int MACRO3".
-    set(template_named_type_params "")
-    foreach (macro_name IN LISTS MACRO_NAMES)
-        list(APPEND template_named_type_params "int ${macro_name}")
-    endforeach ()
-    list(JOIN template_named_type_params ", " template_named_type_params)
+    # --------------------
+    # Make interface file.
+    # --------------------
 
-    # Make named parameter string.
-    # e.g., If there are 3 macros, name_params="MACRO1, MACRO2, MACRO3".
-    list(JOIN MACRO_NAMES ", " name_params)
+    # "MACRO1;MACRO2;MACRO3" -> "int MACRO1, int MACRO2, int MACRO3"
+    list(TRANSFORM MACRO_NAMES PREPEND "int " OUTPUT_VARIABLE comma_separated_macro_params)
+    list(JOIN comma_separated_macro_params ", " comma_separated_macro_params)
 
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm
-        COMMAND ${CMAKE_COMMAND} -E echo "template <${template_named_type_params}> constexpr auto &${shader_identifier} = ${shader_identifier}_t<${name_params}>::value\; }" >> shader/${filename}.cppm
-        APPEND
-    )
+    # "MACRO1;MACRO2;MACRO3" -> "MACRO1, MACRO2, MACRO3"
+    list(JOIN MACRO_NAMES ", " comma_separated_macro_names)
 
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/variant_shader_module_interface.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm @ONLY)
+
+    # --------------------
+    # Make implementation file.
+    # --------------------
+
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/variant_shader_module_impl.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cpp @ONLY)
+
+    # --------------------
+    # Attach sources to the target.
+    # --------------------
+
+    target_sources(${TARGET} PRIVATE FILE_SET HEADERS FILES ${spirv_num_filenames})
     target_sources(${TARGET} PRIVATE FILE_SET CXX_MODULES FILES ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm)
     target_sources(${TARGET} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cpp)
 endfunction()
