@@ -1,0 +1,7 @@
+export module @target_identifier@:shader.@shader_identifier@;
+
+namespace @target_identifier@::shader {
+    export constexpr unsigned int @shader_identifier@[] = {
+#include "@spirv_num_filename@"
+    };
+}

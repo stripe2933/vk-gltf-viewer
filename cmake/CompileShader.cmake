@@ -13,53 +13,49 @@ function(target_link_shaders TARGET)
     # Make target identifier.
     string(MAKE_C_IDENTIFIER ${TARGET} target_identifier)
 
-    set(outputs "")
+    set(spirv_num_filenames "")
+    set(shader_module_filenames "")
     foreach (source IN LISTS ARGN)
         # Get filename from source.
         cmake_path(GET source FILENAME filename)
 
         # Make source path absolute.
-        cmake_path(ABSOLUTE_PATH source OUTPUT_VARIABLE absolute_source)
+        cmake_path(ABSOLUTE_PATH source)
 
         # Make shader identifier.
         string(MAKE_C_IDENTIFIER ${filename} shader_identifier)
 
+        # Make output SPIR-V num path.
+        set(spirv_num_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.h")
+
         if (${Vulkan_glslc_FOUND})
             add_custom_command(
-                OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm
-                COMMAND ${Vulkan_GLSLC_EXECUTABLE} -MD -MF shader_depfile/${filename}.d $<$<CONFIG:Release>:-O> --target-env=vulkan1.2 -mfmt=num ${absolute_source} -o "shader/${filename}.h"
-                COMMAND ${CMAKE_COMMAND} -E echo "export module ${target_identifier}:shader.${shader_identifier}\;" > shader/${filename}.cppm
-                    && ${CMAKE_COMMAND} -E echo "namespace ${target_identifier}::shader { export constexpr unsigned int ${shader_identifier}[] = {" >> shader/${filename}.cppm
-                    && ${CMAKE_COMMAND} -E cat shader/${filename}.h >> shader/${filename}.cppm
-                    && ${CMAKE_COMMAND} -E rm shader/${filename}.h
-                    && ${CMAKE_COMMAND} -E echo "}\;}" >> shader/${filename}.cppm
-                DEPENDS ${absolute_source}
+                OUTPUT ${spirv_num_filename}
+                COMMAND ${Vulkan_GLSLC_EXECUTABLE} -MD -MF shader_depfile/${filename}.d $<$<CONFIG:Release>:-O> --target-env=vulkan1.2 -mfmt=num ${source} -o ${spirv_num_filename}
+                DEPENDS ${source}
                 BYPRODUCTS shader_depfile/${filename}.d
-                COMMENT "Compiling SPIR-V: ${source} -> ${filename}.cppm"
                 DEPFILE shader_depfile/${filename}.d
                 VERBATIM
                 COMMAND_EXPAND_LISTS
             )
         elseif (${Vulkan_glslangValidator_FOUND})
             add_custom_command(
-                OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm
-                COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} -V $<$<CONFIG:Release>:-Os> --target-env vulkan1.2 -x ${absolute_source} -o "shader/${filename}.h"
-                COMMAND ${CMAKE_COMMAND} -E echo "export module ${target_identifier}:shader.${shader_identifier}\;" > shader/${filename}.cppm
-                    && ${CMAKE_COMMAND} -E echo "namespace ${target_identifier}::shader { export constexpr unsigned int ${shader_identifier}[] = {" >> shader/${filename}.cppm
-                    && ${CMAKE_COMMAND} -E cat shader/${filename}.h >> shader/${filename}.cppm
-                    && ${CMAKE_COMMAND} -E rm shader/${filename}.h
-                    && ${CMAKE_COMMAND} -E echo "}\;}" >> shader/${filename}.cppm
-                DEPENDS ${absolute_source}
-                COMMENT "Compiling SPIR-V: ${source}"
+                OUTPUT ${spirv_num_filename}
+                COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} -V $<$<CONFIG:Release>:-Os> --target-env vulkan1.2 -x ${source} -o ${spirv_num_filename}
+                DEPENDS ${source}
                 VERBATIM
                 COMMAND_EXPAND_LISTS
             )
         endif ()
+        list(APPEND spirv_num_filenames ${spirv_num_filename})
 
-        list(APPEND outputs ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm)
+        set(shader_module_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm")
+        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/shader_module.cmake.in ${shader_module_filename} @ONLY)
+        list(APPEND shader_module_filenames ${shader_module_filename})
     endforeach ()
 
-    target_sources(${TARGET} PRIVATE FILE_SET CXX_MODULES FILES ${outputs})
+    target_sources(${TARGET} PRIVATE FILE_SET HEADERS FILES ${spirv_num_filenames})
+    target_sources(${TARGET} PRIVATE FILE_SET CXX_MODULES FILES ${shader_module_filenames})
 endfunction()
 
 function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
