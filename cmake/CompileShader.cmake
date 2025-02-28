@@ -10,12 +10,20 @@ else()
 endif ()
 
 function(target_link_shaders TARGET)
+    set(oneValueArgs TARGET_ENV)
+    set(multiValueArgs FILES)
+    cmake_parse_arguments(arg "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if (NOT arg_TARGET_ENV)
+        set(arg_TARGET_ENV "vulkan1.0")
+    endif()
+
     # Make target identifier.
     string(MAKE_C_IDENTIFIER ${TARGET} target_identifier)
 
     set(spirv_num_filenames "")
     set(shader_module_filenames "")
-    foreach (source IN LISTS ARGN)
+    foreach (source IN LISTS arg_FILES)
         # Get filename from source.
         cmake_path(GET source FILENAME filename)
 
@@ -32,7 +40,7 @@ function(target_link_shaders TARGET)
             set(depfile "${CMAKE_CURRENT_BINARY_DIR}/shader_depfile/${filename}.d")
             add_custom_command(
                 OUTPUT ${spirv_num_filename}
-                COMMAND Vulkan::glslc -MD -MF ${depfile} $<$<CONFIG:Release>:-O> --target-env=vulkan1.2 -mfmt=num ${source} -o ${spirv_num_filename}
+                COMMAND Vulkan::glslc -MD -MF ${depfile} $<$<CONFIG:Release>:-O> --target-env=${arg_TARGET_ENV} -mfmt=num ${source} -o ${spirv_num_filename}
                 DEPENDS ${source}
                 BYPRODUCTS ${depfile}
                 DEPFILE ${depfile}
@@ -42,7 +50,7 @@ function(target_link_shaders TARGET)
         elseif (${Vulkan_glslangValidator_FOUND})
             add_custom_command(
                 OUTPUT ${spirv_num_filename}
-                COMMAND Vulkan::glslangValidator -V $<$<CONFIG:Release>:-Os> --target-env vulkan1.2 -x ${source} -o ${spirv_num_filename}
+                COMMAND Vulkan::glslangValidator -V $<$<CONFIG:Release>:-Os> --target-env ${arg_TARGET_ENV} -x ${source} -o ${spirv_num_filename}
                 DEPENDS ${source}
                 COMMAND_EXPAND_LISTS
                 VERBATIM
@@ -67,30 +75,38 @@ function(target_link_shaders TARGET)
     target_sources(${TARGET} PRIVATE FILE_SET CXX_MODULES FILES ${shader_module_filenames})
 endfunction()
 
-function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
+function(target_link_shader_variants TARGET)
+    set(oneValueArgs TARGET_ENV FILE)
+    set(multiValueArgs MACRO_NAMES MACRO_VALUES)
+    cmake_parse_arguments(arg "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if (NOT arg_TARGET_ENV)
+        set(arg_TARGET_ENV "vulkan1.0")
+    endif()
+
     # Make target identifier.
     string(MAKE_C_IDENTIFIER ${TARGET} target_identifier)
 
     # Get filename from source.
-    cmake_path(GET SOURCE FILENAME filename)
+    cmake_path(GET arg_FILE FILENAME filename)
 
     # Make shader identifier.
     string(MAKE_C_IDENTIFIER ${filename} shader_identifier)
 
     # Make source path absolute.
-    cmake_path(ABSOLUTE_PATH SOURCE)
+    cmake_path(ABSOLUTE_PATH arg_FILE)
 
     set(spirv_num_filenames "")
     set(template_specializations "")
     set(extern_template_instantiations "")
-    foreach (macro_values IN LISTS ARGN)
+    foreach (macro_values IN LISTS arg_MACRO_VALUES)
         # Split whitespace-delimited string to list.
         separate_arguments(macro_values)
 
         # Create CLI macro definitions by zipping the macro names and values.
         # e.g. MACRO_NAMES=[MACRO1, MACRO2], macro_values=[0, 1] -> macro_cli_defs="-DMACRO1=0 -DMACRO2=1"
         set(macro_cli_defs "")
-        foreach (macro_name macro_value IN ZIP_LISTS MACRO_NAMES macro_values)
+        foreach (macro_name macro_value IN ZIP_LISTS arg_MACRO_NAMES macro_values)
             string(APPEND macro_cli_defs "-D${macro_name}=${macro_value} ")
         endforeach ()
 
@@ -107,8 +123,8 @@ function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
             add_custom_command(
                 OUTPUT ${spirv_num_filename}
                 # Compile GLSL to SPIR-V.
-                COMMAND Vulkan::glslc -MD -MF ${depfile} $<$<CONFIG:Release>:-O> --target-env=vulkan1.2 -mfmt=num ${macro_cli_defs} ${SOURCE} -o ${spirv_num_filename}
-                DEPENDS ${SOURCE}
+                COMMAND Vulkan::glslc -MD -MF ${depfile} $<$<CONFIG:Release>:-O> --target-env=${arg_TARGET_ENV} -mfmt=num ${macro_cli_defs} ${arg_FILE} -o ${spirv_num_filename}
+                DEPENDS ${arg_FILE}
                 BYPRODUCTS ${depfile}
                 DEPFILE ${depfile}
                 COMMAND_EXPAND_LISTS
@@ -118,8 +134,8 @@ function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
             add_custom_command(
                 OUTPUT ${spirv_num_filename}
                 # Compile GLSL to SPIR-V.
-                COMMAND Vulkan::glslangValidator -V $<$<CONFIG:Release>:-Os> --target-env vulkan1.2 -x ${macro_cli_defs} ${SOURCE} -o ${spirv_num_filename}
-                DEPENDS ${SOURCE}
+                COMMAND Vulkan::glslangValidator -V $<$<CONFIG:Release>:-Os> --target-env ${arg_TARGET_ENV} -x ${macro_cli_defs} ${arg_FILE} -o ${spirv_num_filename}
+                DEPENDS ${arg_FILE}
                 COMMAND_EXPAND_LISTS
                 VERBATIM
             )
@@ -139,11 +155,11 @@ function(target_link_shader_variants TARGET SOURCE MACRO_NAMES)
     # --------------------
 
     # "MACRO1;MACRO2;MACRO3" -> "int MACRO1, int MACRO2, int MACRO3"
-    list(TRANSFORM MACRO_NAMES PREPEND "int " OUTPUT_VARIABLE comma_separated_macro_params)
+    list(TRANSFORM arg_MACRO_NAMES PREPEND "int " OUTPUT_VARIABLE comma_separated_macro_params)
     list(JOIN comma_separated_macro_params ", " comma_separated_macro_params)
 
     # "MACRO1;MACRO2;MACRO3" -> "MACRO1, MACRO2, MACRO3"
-    list(JOIN MACRO_NAMES ", " comma_separated_macro_names)
+    list(JOIN arg_MACRO_NAMES ", " comma_separated_macro_names)
 
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/variant_shader_module_interface.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm @ONLY)
 
