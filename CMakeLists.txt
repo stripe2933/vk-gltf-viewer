@@ -280,19 +280,19 @@ target_link_shaders(vk-gltf-viewer
 
 target_link_shader_variants(vk-gltf-viewer
     TARGET_ENV vulkan1.2
-    FILE shaders/prefilteredmap.comp
+    FILES
+        shaders/prefilteredmap.comp
+        shaders/subgroup_mipmap.comp
     MACRO_NAMES "AMD_SHADER_IMAGE_LOAD_STORE_LOD"
     MACRO_VALUES 0 1
 )
 target_link_shader_variants(vk-gltf-viewer
     TARGET_ENV vulkan1.2
-    FILE shaders/subgroup_mipmap.comp
-    MACRO_NAMES "AMD_SHADER_IMAGE_LOAD_STORE_LOD"
-    MACRO_VALUES 0 1
-)
-target_link_shader_variants(vk-gltf-viewer
-    TARGET_ENV vulkan1.2
-    FILE shaders/mask_depth.vert
+    FILES
+        shaders/mask_depth.vert
+        shaders/mask_depth.frag
+        shaders/mask_jump_flood_seed.vert
+        shaders/mask_jump_flood_seed.frag
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ALPHA_ATTRIBUTE"
     MACRO_VALUES
         "0 0" "0 1"
@@ -300,31 +300,7 @@ target_link_shader_variants(vk-gltf-viewer
 )
 target_link_shader_variants(vk-gltf-viewer
     TARGET_ENV vulkan1.2
-    FILE shaders/mask_depth.frag
-    MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ALPHA_ATTRIBUTE"
-    MACRO_VALUES
-        "0 0" "0 1"
-        "1 0" "1 1"
-)
-target_link_shader_variants(vk-gltf-viewer
-    TARGET_ENV vulkan1.2
-    FILE shaders/mask_jump_flood_seed.vert
-    MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ALPHA_ATTRIBUTE"
-    MACRO_VALUES
-        "0 0" "0 1"
-        "1 0" "1 1"
-)
-target_link_shader_variants(vk-gltf-viewer
-    TARGET_ENV vulkan1.2
-    FILE shaders/mask_jump_flood_seed.frag
-    MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ALPHA_ATTRIBUTE"
-    MACRO_VALUES
-        "0 0" "0 1"
-        "1 0" "1 1"
-)
-target_link_shader_variants(vk-gltf-viewer
-    TARGET_ENV vulkan1.2
-    FILE shaders/primitive.vert
+    FILES shaders/primitive.vert
     MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN"
     MACRO_VALUES
         "0 0 0" "0 0 1" "0 1 0" "0 1 1"
@@ -335,7 +311,7 @@ target_link_shader_variants(vk-gltf-viewer
 )
 target_link_shader_variants(vk-gltf-viewer
     TARGET_ENV vulkan1.2
-    FILE shaders/primitive.frag
+    FILES shaders/primitive.frag
     MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN" "ALPHA_MODE"
     MACRO_VALUES
         "0 0 0 0" "0 0 0 1" "0 0 0 2" "0 0 1 0" "0 0 1 1" "0 0 1 2"
@@ -351,7 +327,7 @@ target_link_shader_variants(vk-gltf-viewer
 )
 target_link_shader_variants(vk-gltf-viewer
     TARGET_ENV vulkan1.2
-    FILE shaders/unlit_primitive.vert
+    FILES shaders/unlit_primitive.vert
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ATTRIBUTE"
     MACRO_VALUES
         "0 0" "0 1"
@@ -359,7 +335,7 @@ target_link_shader_variants(vk-gltf-viewer
 )
 target_link_shader_variants(vk-gltf-viewer
     TARGET_ENV vulkan1.2
-    FILE shaders/unlit_primitive.frag
+    FILES shaders/unlit_primitive.frag
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ATTRIBUTE" "ALPHA_MODE"
     MACRO_VALUES
         "0 0 0" "0 0 1" "0 0 2" "0 1 0" "0 1 1" "0 1 2"
