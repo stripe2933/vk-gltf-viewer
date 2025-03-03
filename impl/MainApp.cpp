@@ -9,11 +9,7 @@ module;
 #elifdef __APPLE__
 #define GLFW_EXPOSE_NATIVE_COCOA
 #elifdef __linux__
-#ifdef WAYLAND_DISPLAY
-#define GLFW_EXPOSE_NATIVE_WAYLAND
-#else
 #define GLFW_EXPOSE_NATIVE_X11
-#endif
 #endif
 #include <nfd_glfw3.h>
 #include <nfd.hpp>
