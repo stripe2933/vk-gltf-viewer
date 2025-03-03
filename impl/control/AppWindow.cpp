@@ -11,7 +11,6 @@ import glm;
 import ImGuizmo;
 import :global;
 import :helpers.ranges;
-import :math.extended_arithmetic;
 
 vk_gltf_viewer::control::AppWindow::AppWindow(
     const vk::raii::Instance &instance,

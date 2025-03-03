@@ -1,7 +1,6 @@
 export module vk_gltf_viewer:shader_selector.mask_depth_frag;
 
 import std;
-export import fastgltf;
 import :shader.mask_depth_frag;
 import :helpers.type_map;
 
