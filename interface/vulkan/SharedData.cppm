@@ -274,7 +274,8 @@ namespace vk_gltf_viewer::vulkan {
                 };
             }
             else {
-                if (assetDescriptorSetLayout.descriptorCounts[5] != textureCount) {
+                const bool recreatePipelines = assetDescriptorSetLayout.descriptorCounts[5] != textureCount;
+                if (recreatePipelines) {
                     // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
                     depthPipelines.clear();
                     maskDepthPipelines.clear();
@@ -286,9 +287,14 @@ namespace vk_gltf_viewer::vulkan {
                     assetDescriptorSetLayout = { gpu, textureCount };
                     primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
                     primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
+                }
 
-                    assetDescriptorPool.emplace(gpu.device, getPoolSizes(assetDescriptorSetLayout).getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind));
-                    std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, *assetDescriptorPool, std::tie(assetDescriptorSetLayout));
+                if (recreatePipelines || !assetDescriptorSet) {
+                    const auto &inner = assetDescriptorPool.emplace(
+                        gpu.device,
+                        getPoolSizes(assetDescriptorSetLayout)
+                            .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind));
+                    std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, inner, std::tie(assetDescriptorSetLayout));
                 }
             }
 
