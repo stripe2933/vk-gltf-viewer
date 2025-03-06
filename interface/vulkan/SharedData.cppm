@@ -69,7 +69,7 @@ namespace vk_gltf_viewer::vulkan {
                 materialBuffer { asset, gpu.allocator, stagingBufferStorage },
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
-                primitiveBuffer { materialBuffer, orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
+                primitiveBuffer { orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
                 skinJointIndices { asset, gpu.allocator },
                 inverseBindMatrixBuffer { asset, gpu.allocator, adapter },
                 textures { asset, directory, gpu, fallbackTexture, threadPool, adapter } {
