@@ -34,11 +34,11 @@ namespace vk_gltf_viewer::vulkan::buffer {
             std::uint8_t occlusionTexcoordIndex;
             std::uint8_t emissiveTexcoordIndex;
             char padding0[1];
-            std::int16_t baseColorTextureIndex = -1;
-            std::int16_t metallicRoughnessTextureIndex = -1;
-            std::int16_t normalTextureIndex = -1;
-            std::int16_t occlusionTextureIndex = -1;
-            std::int16_t emissiveTextureIndex = -1;
+            std::uint16_t baseColorTextureIndex = 0;
+            std::uint16_t metallicRoughnessTextureIndex = 0;
+            std::uint16_t normalTextureIndex = 0;
+            std::uint16_t occlusionTextureIndex = 0;
+            std::uint16_t emissiveTextureIndex = 0;
             glm::vec4 baseColorFactor = { 1.f, 1.f, 1.f, 1.f };
             float metallicFactor = 1.f;
             float roughnessFactor = 1.f;
@@ -107,7 +107,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
                 if (const auto& baseColorTexture = material.pbrData.baseColorTexture) {
                     gpuMaterial.baseColorTexcoordIndex = baseColorTexture->texCoordIndex;
-                    gpuMaterial.baseColorTextureIndex = static_cast<std::int16_t>(baseColorTexture->textureIndex);
+                    gpuMaterial.baseColorTextureIndex = static_cast<std::uint16_t>(baseColorTexture->textureIndex) + 1;
 
                     if (const auto &transform = baseColorTexture->transform) {
                         gpuMaterial.baseColorTextureTransform = getTextureTransform(*transform);
@@ -118,7 +118,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 }
                 if (const auto& metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture) {
                     gpuMaterial.metallicRoughnessTexcoordIndex = metallicRoughnessTexture->texCoordIndex;
-                    gpuMaterial.metallicRoughnessTextureIndex = static_cast<std::int16_t>(metallicRoughnessTexture->textureIndex);
+                    gpuMaterial.metallicRoughnessTextureIndex = static_cast<std::uint16_t>(metallicRoughnessTexture->textureIndex) + 1;
 
                     if (const auto &transform = metallicRoughnessTexture->transform) {
                         gpuMaterial.metallicRoughnessTextureTransform = getTextureTransform(*transform);
@@ -129,7 +129,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 }
                 if (const auto& normalTexture = material.normalTexture) {
                     gpuMaterial.normalTexcoordIndex = normalTexture->texCoordIndex;
-                    gpuMaterial.normalTextureIndex = static_cast<std::int16_t>(normalTexture->textureIndex);
+                    gpuMaterial.normalTextureIndex = static_cast<std::uint16_t>(normalTexture->textureIndex) + 1;
                     gpuMaterial.normalScale = normalTexture->scale;
 
                     if (const auto &transform = normalTexture->transform) {
@@ -141,7 +141,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 }
                 if (const auto& occlusionTexture = material.occlusionTexture) {
                     gpuMaterial.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
-                    gpuMaterial.occlusionTextureIndex = static_cast<std::int16_t>(occlusionTexture->textureIndex);
+                    gpuMaterial.occlusionTextureIndex = static_cast<std::uint16_t>(occlusionTexture->textureIndex) + 1;
                     gpuMaterial.occlusionStrength = occlusionTexture->strength;
 
                     if (const auto &transform = occlusionTexture->transform) {
@@ -153,7 +153,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 }
                 if (const auto& emissiveTexture = material.emissiveTexture) {
                     gpuMaterial.emissiveTexcoordIndex = emissiveTexture->texCoordIndex;
-                    gpuMaterial.emissiveTextureIndex = static_cast<std::int16_t>(emissiveTexture->textureIndex);
+                    gpuMaterial.emissiveTextureIndex = static_cast<std::uint16_t>(emissiveTexture->textureIndex) + 1;
 
                     if (const auto &transform = emissiveTexture->transform) {
                         gpuMaterial.emissiveTextureTransform = getTextureTransform(*transform);
