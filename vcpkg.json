@@ -2,7 +2,6 @@
   "dependencies": [
     "boost-container",
     "boost-container-hash",
-    "cgal",
     "cstring-view",
     "fastgltf",
     "glfw3",
@@ -29,11 +28,5 @@
       ]
     },
     "bshoshany-thread-pool"
-  ],
-  "overrides": [
-    {
-      "name": "gmp",
-      "version": "6.3.0#0"
-    }
   ]
 }
