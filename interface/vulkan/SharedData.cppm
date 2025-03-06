@@ -66,7 +66,7 @@ namespace vk_gltf_viewer::vulkan {
                 materialBuffer { asset, gpu.allocator, stagingBufferStorage },
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
-                primitiveBuffer { materialBuffer, orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
+                primitiveBuffer { orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
                 textures { asset, directory, gpu, fallbackTexture, threadPool, adapter } {
                 // Setup node world transforms as the default scene hierarchy.
                 instancedNodeWorldTransformBuffer.update(asset.scenes[asset.defaultScene.value_or(0)], nodeWorldTransforms, adapter);
