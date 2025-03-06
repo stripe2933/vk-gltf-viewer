@@ -15,6 +15,7 @@ set(CMAKE_CXX_MODULE_STD 1)
 # --------------------
 
 find_package(boost_container CONFIG REQUIRED)
+find_package(boost_container_hash CONFIG REQUIRED)
 find_path(BSHOSHANY_THREAD_POOL_INCLUDE_DIRS "BS_thread_pool.hpp")
 find_package(CGAL CONFIG REQUIRED)
 find_package(cstring_view CONFIG REQUIRED)
@@ -210,6 +211,7 @@ target_sources(vk-gltf-viewer PRIVATE
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
     Boost::container
+    Boost::container_hash
     BS_thread_pool::module
     CGAL::CGAL
     cpp_util::cstring_view::module
