@@ -33,7 +33,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
             vma::Allocator allocator,
             StagingBufferStorage &stagingBufferStorage
         ) : PostTransferObject { stagingBufferStorage },
-            useFallbackMaterialAtZero { determineUseFallbackMaterialAtZero(asset) },
             buffer { createBuffer(asset, allocator) },
             descriptorInfo { buffer, 0, vk::WholeSize } { }
 
@@ -41,34 +40,16 @@ namespace vk_gltf_viewer::vulkan::buffer {
             return descriptorInfo;
         }
 
-        [[nodiscard]] std::uint32_t padMaterialIndex(std::uint32_t materialIndex) const noexcept {
-            return materialIndex + useFallbackMaterialAtZero;
-        }
-
     private:
-        bool useFallbackMaterialAtZero;
         vku::AllocatedBuffer buffer;
         vk::DescriptorBufferInfo descriptorInfo;
-
-        [[nodiscard]] static bool determineUseFallbackMaterialAtZero(const fastgltf::Asset &asset) noexcept {
-            // If any primitive of the asset is missing the material, we have use the fallback material.
-            const auto primitives = asset.meshes | std::views::transform(&fastgltf::Mesh::primitives) | std::views::join;
-            for (const fastgltf::Primitive &primitive : primitives) {
-                if (!primitive.materialIndex.has_value()) {
-                    return true;
-                }
-            }
-            return false;
-        }
 
         [[nodiscard]] vku::AllocatedBuffer createBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const {
             // This is workaround for Clang 18's bug that ranges::views::concat cannot be used with std::optional<shader_type::Material>.
             // TODO: change it to use ranges::views::concat when available.
             std::vector<shader_type::Material> bufferData;
-            bufferData.reserve(asset.materials.size() + useFallbackMaterialAtZero);
-            if (useFallbackMaterialAtZero) {
-                bufferData.push_back({});
-            }
+            bufferData.reserve(1 + asset.materials.size());
+            bufferData.push_back({});
             bufferData.append_range(asset.materials | std::views::transform([&](const fastgltf::Material& material) {
                 shader_type::Material result {
                     .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
