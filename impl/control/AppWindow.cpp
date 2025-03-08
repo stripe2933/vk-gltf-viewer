@@ -136,12 +136,14 @@ void vk_gltf_viewer::control::AppWindow::onMouseButtonCallback(int button, int a
         }
         else if (action == GLFW_RELEASE) {
             if (lastMouseDownPosition) {
-                if (appState.gltfAsset && appState.gltfAsset->hoveringNodeIndex) {
-                    pTasks->emplace_back(std::in_place_type<task::SelectNode>, *appState.gltfAsset->hoveringNodeIndex, mods == GLFW_MOD_CONTROL);
-                    global::shouldNodeInSceneHierarchyScrolledToBeVisible = true;
-                }
-                else {
-                    appState.gltfAsset->selectedNodeIndices.clear();
+                if (appState.gltfAsset) {
+                    if (appState.gltfAsset->hoveringNodeIndex) {
+                        pTasks->emplace_back(std::in_place_type<task::SelectNode>, *appState.gltfAsset->hoveringNodeIndex, mods == GLFW_MOD_CONTROL);
+                        global::shouldNodeInSceneHierarchyScrolledToBeVisible = true;
+                    }
+                    else {
+                        appState.gltfAsset->selectedNodeIndices.clear();
+                    }
                 }
                 lastMouseDownPosition = std::nullopt;
             }
