@@ -62,7 +62,7 @@ namespace vk_gltf_viewer::vulkan::inline generator {
 
         void recordCommands(
             vk::CommandBuffer computeCommandBuffer,
-            const Pipelines &pipelines [[clang::lifetimebound]],
+            const Pipelines &pipelines,
             const vku::Image &cubemapImage
         ) {
             constexpr auto getWorkgroupTotal = [](std::span<const std::uint32_t, 3> workgroupCount) {

@@ -48,7 +48,7 @@ namespace vk_gltf_viewer::vulkan::inline generator {
 
         void recordCommands(
             vk::CommandBuffer computeCommandBuffer,
-            const Pipelines &pipelines [[clang::lifetimebound]],
+            const Pipelines &pipelines,
             const vku::Image &eqmapImage
         ) {
             // --------------------
