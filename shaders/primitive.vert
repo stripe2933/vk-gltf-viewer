@@ -78,7 +78,7 @@ void main(){
     vec3 inNormal = getNormal((PACKED_ATTRIBUTE_COMPONENT_TYPES >> 4U) & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x2U) == 0x2U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
     variadic_out.tbn[2] = normalize(mat3(TRANSFORM) * inNormal); // N
 
-    if (int(MATERIAL.normalTextureIndex) != -1){
+    if (MATERIAL.normalTextureIndex != 0US){
         vec4 inTangent = getTangent((PACKED_ATTRIBUTE_COMPONENT_TYPES >> 8U) & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x4U) == 0x4U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
         variadic_out.tbn[0] = normalize(mat3(TRANSFORM) * inTangent.xyz); // T
         variadic_out.tbn[1] = cross(variadic_out.tbn[2], variadic_out.tbn[0]) * -inTangent.w; // B

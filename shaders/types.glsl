@@ -8,11 +8,11 @@ struct Material {
     uint8_t occlusionTexcoordIndex;
     uint8_t emissiveTexcoordIndex;
     uint8_t padding0[1];
-    int16_t baseColorTextureIndex;
-    int16_t metallicRoughnessTextureIndex;
-    int16_t normalTextureIndex;
-    int16_t occlusionTextureIndex;
-    int16_t emissiveTextureIndex;
+    uint16_t baseColorTextureIndex;
+    uint16_t metallicRoughnessTextureIndex;
+    uint16_t normalTextureIndex;
+    uint16_t occlusionTextureIndex;
+    uint16_t emissiveTextureIndex;
     vec4 baseColorFactor;
     float metallicFactor;
     float roughnessFactor;

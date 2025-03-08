@@ -13,6 +13,7 @@ export import vulkan_hpp;
 import :helpers.optional;
 import :helpers.ranges;
 export import :vulkan.buffer.StagingBufferStorage;
+import :vulkan.shader_type.Material;
 import :vulkan.trait.PostTransferObject;
 
 [[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept {
@@ -27,34 +28,6 @@ import :vulkan.trait.PostTransferObject;
 namespace vk_gltf_viewer::vulkan::buffer {
     export class Materials : trait::PostTransferObject {
     public:
-        struct GpuMaterial {
-            std::uint8_t baseColorTexcoordIndex;
-            std::uint8_t metallicRoughnessTexcoordIndex;
-            std::uint8_t normalTexcoordIndex;
-            std::uint8_t occlusionTexcoordIndex;
-            std::uint8_t emissiveTexcoordIndex;
-            char padding0[1];
-            std::int16_t baseColorTextureIndex = -1;
-            std::int16_t metallicRoughnessTextureIndex = -1;
-            std::int16_t normalTextureIndex = -1;
-            std::int16_t occlusionTextureIndex = -1;
-            std::int16_t emissiveTextureIndex = -1;
-            glm::vec4 baseColorFactor = { 1.f, 1.f, 1.f, 1.f };
-            float metallicFactor = 1.f;
-            float roughnessFactor = 1.f;
-            float normalScale = 1.f;
-            float occlusionStrength = 1.f;
-            glm::vec3 emissiveFactor = { 0.f, 0.f, 0.f };
-            float alphaCutOff;
-            glm::mat3x2 baseColorTextureTransform;
-            glm::mat3x2 metallicRoughnessTextureTransform;
-            glm::mat3x2 normalTextureTransform;
-            glm::mat3x2 occlusionTextureTransform;
-            glm::mat3x2 emissiveTextureTransform;
-            char padding1[8];
-        };
-        static_assert(sizeof(GpuMaterial) == 192);
-
         Materials(
             const fastgltf::Asset &asset,
             vma::Allocator allocator,
@@ -89,15 +62,15 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
         [[nodiscard]] vku::AllocatedBuffer createBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const {
-            // This is workaround for Clang 18's bug that ranges::views::concat cannot be used with std::optional<GpuMaterial>.
+            // This is workaround for Clang 18's bug that ranges::views::concat cannot be used with std::optional<shader_type::Material>.
             // TODO: change it to use ranges::views::concat when available.
-            std::vector<GpuMaterial> bufferData;
+            std::vector<shader_type::Material> bufferData;
             bufferData.reserve(asset.materials.size() + useFallbackMaterialAtZero);
             if (useFallbackMaterialAtZero) {
                 bufferData.push_back({});
             }
             bufferData.append_range(asset.materials | std::views::transform([&](const fastgltf::Material& material) {
-                GpuMaterial gpuMaterial {
+                shader_type::Material result {
                     .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
                     .metallicFactor = material.pbrData.metallicFactor,
                     .roughnessFactor = material.pbrData.roughnessFactor,
@@ -106,64 +79,64 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 };
 
                 if (const auto& baseColorTexture = material.pbrData.baseColorTexture) {
-                    gpuMaterial.baseColorTexcoordIndex = baseColorTexture->texCoordIndex;
-                    gpuMaterial.baseColorTextureIndex = static_cast<std::int16_t>(baseColorTexture->textureIndex);
+                    result.baseColorTexcoordIndex = baseColorTexture->texCoordIndex;
+                    result.baseColorTextureIndex = static_cast<std::uint16_t>(baseColorTexture->textureIndex) + 1;
 
                     if (const auto &transform = baseColorTexture->transform) {
-                        gpuMaterial.baseColorTextureTransform = getTextureTransform(*transform);
+                        result.baseColorTextureTransform = getTextureTransform(*transform);
                         if (transform->texCoordIndex) {
-                            gpuMaterial.baseColorTexcoordIndex = *transform->texCoordIndex;
+                            result.baseColorTexcoordIndex = *transform->texCoordIndex;
                         }
                     }
                 }
                 if (const auto& metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture) {
-                    gpuMaterial.metallicRoughnessTexcoordIndex = metallicRoughnessTexture->texCoordIndex;
-                    gpuMaterial.metallicRoughnessTextureIndex = static_cast<std::int16_t>(metallicRoughnessTexture->textureIndex);
+                    result.metallicRoughnessTexcoordIndex = metallicRoughnessTexture->texCoordIndex;
+                    result.metallicRoughnessTextureIndex = static_cast<std::uint16_t>(metallicRoughnessTexture->textureIndex) + 1;
 
                     if (const auto &transform = metallicRoughnessTexture->transform) {
-                        gpuMaterial.metallicRoughnessTextureTransform = getTextureTransform(*transform);
+                        result.metallicRoughnessTextureTransform = getTextureTransform(*transform);
                         if (transform->texCoordIndex) {
-                            gpuMaterial.metallicRoughnessTexcoordIndex = *transform->texCoordIndex;
+                            result.metallicRoughnessTexcoordIndex = *transform->texCoordIndex;
                         }
                     }
                 }
                 if (const auto& normalTexture = material.normalTexture) {
-                    gpuMaterial.normalTexcoordIndex = normalTexture->texCoordIndex;
-                    gpuMaterial.normalTextureIndex = static_cast<std::int16_t>(normalTexture->textureIndex);
-                    gpuMaterial.normalScale = normalTexture->scale;
+                    result.normalTexcoordIndex = normalTexture->texCoordIndex;
+                    result.normalTextureIndex = static_cast<std::uint16_t>(normalTexture->textureIndex) + 1;
+                    result.normalScale = normalTexture->scale;
 
                     if (const auto &transform = normalTexture->transform) {
-                        gpuMaterial.normalTextureTransform = getTextureTransform(*transform);
+                        result.normalTextureTransform = getTextureTransform(*transform);
                         if (transform->texCoordIndex) {
-                            gpuMaterial.normalTexcoordIndex = *transform->texCoordIndex;
+                            result.normalTexcoordIndex = *transform->texCoordIndex;
                         }
                     }
                 }
                 if (const auto& occlusionTexture = material.occlusionTexture) {
-                    gpuMaterial.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
-                    gpuMaterial.occlusionTextureIndex = static_cast<std::int16_t>(occlusionTexture->textureIndex);
-                    gpuMaterial.occlusionStrength = occlusionTexture->strength;
+                    result.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
+                    result.occlusionTextureIndex = static_cast<std::uint16_t>(occlusionTexture->textureIndex) + 1;
+                    result.occlusionStrength = occlusionTexture->strength;
 
                     if (const auto &transform = occlusionTexture->transform) {
-                        gpuMaterial.occlusionTextureTransform = getTextureTransform(*transform);
+                        result.occlusionTextureTransform = getTextureTransform(*transform);
                         if (transform->texCoordIndex) {
-                            gpuMaterial.occlusionTexcoordIndex = *transform->texCoordIndex;
+                            result.occlusionTexcoordIndex = *transform->texCoordIndex;
                         }
                     }
                 }
                 if (const auto& emissiveTexture = material.emissiveTexture) {
-                    gpuMaterial.emissiveTexcoordIndex = emissiveTexture->texCoordIndex;
-                    gpuMaterial.emissiveTextureIndex = static_cast<std::int16_t>(emissiveTexture->textureIndex);
+                    result.emissiveTexcoordIndex = emissiveTexture->texCoordIndex;
+                    result.emissiveTextureIndex = static_cast<std::uint16_t>(emissiveTexture->textureIndex) + 1;
 
                     if (const auto &transform = emissiveTexture->transform) {
-                        gpuMaterial.emissiveTextureTransform = getTextureTransform(*transform);
+                        result.emissiveTextureTransform = getTextureTransform(*transform);
                         if (transform->texCoordIndex) {
-                            gpuMaterial.emissiveTexcoordIndex = *transform->texCoordIndex;
+                            result.emissiveTexcoordIndex = *transform->texCoordIndex;
                         }
                     }
                 }
 
-                return gpuMaterial;
+                return result;
             }));
             
             vku::AllocatedBuffer buffer = vku::MappedBuffer {
