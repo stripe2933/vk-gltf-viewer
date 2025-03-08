@@ -13,3 +13,9 @@ export using ::ImGui_ImplVulkan_NewFrame;
 export using ::ImGui_ImplVulkan_RemoveTexture;
 export using ::ImGui_ImplVulkan_RenderDrawData;
 export using ::ImGui_ImplVulkan_Shutdown;
+
+// --------------------
+// Not part of ImGui, but these definitions are necessary for interoping with Vulkan-Hpp module.
+// --------------------
+
+export using ::VkImageLayout;

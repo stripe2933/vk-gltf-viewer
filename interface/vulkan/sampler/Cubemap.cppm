@@ -1,13 +1,13 @@
-export module vk_gltf_viewer:vulkan.sampler.CubemapSampler;
+export module vk_gltf_viewer:vulkan.sampler.Cubemap;
 
 #ifdef _MSC_VER
 import std;
 #endif
 export import vulkan_hpp;
 
-namespace vk_gltf_viewer::vulkan::inline sampler {
-    export struct CubemapSampler : vk::raii::Sampler {
-        explicit CubemapSampler(
+namespace vk_gltf_viewer::vulkan::sampler {
+    export struct Cubemap : vk::raii::Sampler {
+        explicit Cubemap(
             const vk::raii::Device &device [[clang::lifetimebound]]
         ) : Sampler { device, vk::SamplerCreateInfo {
                 {},

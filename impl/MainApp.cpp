@@ -825,17 +825,9 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 
     // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
     assetTextureDescriptorSets
-        = gltf->asset.textures
-        | std::views::transform([this](const fastgltf::Texture &texture) -> vk::DescriptorSet {
-            return ImGui_ImplVulkan_AddTexture(
-                to_optional(texture.samplerIndex)
-                    .transform([this](std::size_t samplerIndex) { return *sharedData.gltfAsset->textures.samplers[samplerIndex]; })
-                    .value_or(*sharedData.fallbackTexture.sampler),
-                ranges::value_or(
-                    sharedData.gltfAsset->textures.imageViews,
-                    getPreferredImageIndex(texture),
-                    *sharedData.fallbackTexture.imageView),
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        = sharedData.gltfAsset->textures.descriptorInfos
+        | std::views::transform([](const vk::DescriptorImageInfo &descriptorInfo) -> vk::DescriptorSet {
+            return ImGui_ImplVulkan_AddTexture(descriptorInfo.sampler, descriptorInfo.imageView, static_cast<VkImageLayout>(descriptorInfo.imageLayout));
         })
         | std::ranges::to<std::vector>();
 
