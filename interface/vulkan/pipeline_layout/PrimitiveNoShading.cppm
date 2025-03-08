@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.pl.PrimitiveNoShading;
 
 import std;
@@ -17,7 +19,7 @@ namespace vk_gltf_viewer::vulkan::pl {
         };
 
         PrimitiveNoShading(
-            const vk::raii::Device &device [[clang::lifetimebound]],
+            const vk::raii::Device &device LIFETIMEBOUND,
             const dsl::Asset& descriptorSetLayout
         ) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},

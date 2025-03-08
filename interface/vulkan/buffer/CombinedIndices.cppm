@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.buffer.CombinedIndices;
 
 import std;
@@ -47,7 +49,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         CombinedIndices(
             const fastgltf::Asset &asset,
-            const Gpu &gpu [[clang::lifetimebound]],
+            const Gpu &gpu LIFETIMEBOUND,
             StagingBufferStorage &stagingBufferStorage,
             const BufferDataAdapter &adapter = {}
         ) : PostTransferObject { stagingBufferStorage } {

@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
@@ -121,7 +123,7 @@ namespace vk_gltf_viewer::vulkan {
             std::optional<std::uint16_t> hoveringNodeIndex;
         };
 
-        explicit Frame(const SharedData &sharedData [[clang::lifetimebound]]);
+        explicit Frame(const SharedData &sharedData LIFETIMEBOUND);
 
         /**
          * @brief Wait for the previous frame execution to finish.
@@ -159,7 +161,7 @@ namespace vk_gltf_viewer::vulkan {
                 vk::raii::ImageView pingImageView;
                 vk::raii::ImageView pongImageView;
 
-                JumpFloodResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent);
+                JumpFloodResources(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent);
             };
 
             vk::Extent2D extent;
@@ -172,7 +174,7 @@ namespace vk_gltf_viewer::vulkan {
             ag::JumpFloodSeed hoveringNodeJumpFloodSeedAttachmentGroup;
             ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 
-            PassthruResources(const Gpu &gpu [[clang::lifetimebound]], const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
+            PassthruResources(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
 
         private:
             auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;

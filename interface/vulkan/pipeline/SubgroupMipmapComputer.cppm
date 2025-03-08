@@ -4,6 +4,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.pipeline.SubgroupMipmapComputer;
 
 import std;
@@ -21,7 +23,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     public:
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
             DescriptorSetLayout(
-                const Gpu &gpu [[clang::lifetimebound]],
+                const Gpu &gpu LIFETIMEBOUND,
                 std::uint32_t mipImageCount
             ) : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
                 gpu.device,
@@ -37,7 +39,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::Pipeline pipeline;
 
         SubgroupMipmapComputer(
-            const Gpu &gpu [[clang::lifetimebound]],
+            const Gpu &gpu LIFETIMEBOUND,
             std::uint32_t mipImageCount
         ) : descriptorSetLayout { gpu, mipImageCount },
             pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {

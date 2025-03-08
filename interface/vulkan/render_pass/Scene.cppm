@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.rp.Scene;
 
 #ifdef _MSC_VER
@@ -8,7 +12,7 @@ export import vulkan_hpp;
 
 namespace vk_gltf_viewer::vulkan::rp {
     export struct Scene final : vk::raii::RenderPass {
-        explicit Scene(const vk::raii::Device &device [[clang::lifetimebound]])
+        explicit Scene(const vk::raii::Device &device LIFETIMEBOUND)
             : RenderPass { device, vk::RenderPassCreateInfo {
                 {},
                 vku::unsafeProxy({

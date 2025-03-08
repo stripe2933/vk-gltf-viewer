@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:gltf.NodeWorldTransforms;
 
 import std;
@@ -10,7 +14,7 @@ namespace vk_gltf_viewer::gltf {
         std::reference_wrapper<const fastgltf::Asset> asset;
 
     public:
-        explicit NodeWorldTransforms(const fastgltf::Asset &asset [[clang::lifetimebound]])
+        explicit NodeWorldTransforms(const fastgltf::Asset &asset LIFETIMEBOUND)
             : vector { std::from_range, asset.nodes | std::views::transform([](const fastgltf::Node &node) {
                 return visit(fastgltf::visitor {
                     [](const fastgltf::TRS &trs) { return toMatrix(trs); },

@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:gltf.OrderedPrimitives;
 
 import std;
@@ -13,7 +17,7 @@ namespace vk_gltf_viewer::gltf {
      */
     export class OrderedPrimitives : public std::vector<const fastgltf::Primitive*> {
     public:
-        explicit OrderedPrimitives(const fastgltf::Asset &asset [[clang::lifetimebound]])
+        explicit OrderedPrimitives(const fastgltf::Asset &asset LIFETIMEBOUND)
             : vector {
                 std::from_range,
                 asset.meshes

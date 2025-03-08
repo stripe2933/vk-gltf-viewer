@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.pipeline.SphericalHarmonicsComputer;
 
 import std;
@@ -14,7 +16,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     public:
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage, vk::DescriptorType::eStorageBuffer> {
             explicit DescriptorSetLayout(
-                const vk::raii::Device &device [[clang::lifetimebound]]
+                const vk::raii::Device &device LIFETIMEBOUND
             ) : vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage, vk::DescriptorType::eStorageBuffer> {
                 device,
                     vk::DescriptorSetLayoutCreateInfo {
@@ -31,7 +33,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::Pipeline pipeline;
 
         explicit SphericalHarmonicsComputer(
-            const vk::raii::Device &device [[clang::lifetimebound]]
+            const vk::raii::Device &device LIFETIMEBOUND
         ) : descriptorSetLayout { device },
             pipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},

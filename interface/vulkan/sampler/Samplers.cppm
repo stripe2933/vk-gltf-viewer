@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.sampler.Samplers;
 
 import std;
@@ -23,7 +25,7 @@ export import vulkan_hpp;
 
 namespace vk_gltf_viewer::vulkan::sampler {
     export struct Samplers : std::vector<vk::raii::Sampler> {
-        Samplers(const fastgltf::Asset &asset, const vk::raii::Device &device [[clang::lifetimebound]]) {
+        Samplers(const fastgltf::Asset &asset, const vk::raii::Device &device LIFETIMEBOUND) {
             reserve(asset.samplers.size());
             for (const fastgltf::Sampler &sampler : asset.samplers) {
                 vk::SamplerCreateInfo createInfo {

@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:gltf.MaterialVariantsMapping;
 
 import std;
@@ -17,7 +21,7 @@ namespace vk_gltf_viewer::gltf {
             std::uint32_t materialIndex;
         };
 
-        explicit MaterialVariantsMapping(fastgltf::Asset &asset [[clang::lifetimebound]]) noexcept {
+        explicit MaterialVariantsMapping(fastgltf::Asset &asset LIFETIMEBOUND) noexcept {
             for (fastgltf::Primitive &primitive : asset.meshes | std::views::transform(&fastgltf::Mesh::primitives) | std::views::join) {
                 for (const auto &[materialVariantIndex, mapping] : primitive.mappings | ranges::views::enumerate) {
                     if (mapping) {

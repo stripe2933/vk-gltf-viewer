@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.ag.DepthPrepass;
 
 export import vku;
@@ -6,7 +10,7 @@ export import :vulkan.Gpu;
 namespace vk_gltf_viewer::vulkan::ag {
     export struct DepthPrepass final : vku::AttachmentGroup {
         DepthPrepass(
-            const Gpu &gpu [[clang::lifetimebound]],
+            const Gpu &gpu LIFETIMEBOUND,
             const vk::Extent2D &extent
         ) : AttachmentGroup { extent } {
             addColorAttachment(
