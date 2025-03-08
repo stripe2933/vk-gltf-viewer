@@ -11,14 +11,23 @@
       }
     },
     {
-      "name": "macos-15",
+      "name": "macos-latest",
       "inherits": "default",
       "cacheVariables": {
-        "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm@18/bin/clang",
-        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm@18/bin/clang++",
+        "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
+        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++",
         "CMAKE_EXE_LINKER_FLAGS": "-fuse-ld=lld",
         "VCPKG_TARGET_TRIPLET": "arm64-macos-clang-release",
         "EXACT_BOUNDING_VOLUME_USING_CGAL": "ON"
+      }
+    },
+    {
+      "name": "macos-15",
+      "inherits": "macos-latest",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm@18/bin/clang",
+        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm@18/bin/clang++",
+        "VCPKG_TARGET_TRIPLET": "arm64-macos-clang-18-release"
       }
     },
     {
