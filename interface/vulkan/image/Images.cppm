@@ -15,6 +15,7 @@ export import fastgltf;
 export import :gltf.AssetProcessError;
 import :helpers.fastgltf;
 import :helpers.ranges;
+import :helpers.span;
 export import :vulkan.Gpu;
 import :vulkan.mipmap;
 
@@ -23,20 +24,6 @@ import :vulkan.mipmap;
 #else
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
-
-/**
- * Convert the span of \p U to the span of \p T. The result span byte size must be same as the \p span's.
- * @tparam T Result span type.
- * @tparam U Source span type.
- * @param span Source span.
- * @return Converted span.
- * @note Since the source and result span sizes must be same, <tt>span.size_bytes()</tt> must be divisible by <tt>sizeof(T)</tt>.
- */
-template <typename T, typename U>
-[[nodiscard]] auto as_span(std::span<U> span) -> std::span<T> {
-    assert(span.size_bytes() % sizeof(T) == 0 && "Span size mismatch: span of T does not fully fit into the current span.");
-    return { reinterpret_cast<T*>(span.data()), span.size_bytes() / sizeof(T) };
-}
 
 [[nodiscard]] std::vector<std::byte> loadFileAsBinary(const std::filesystem::path &path, std::size_t offset = 0) {
     std::ifstream file { path, std::ios::binary };
@@ -331,9 +318,9 @@ namespace vk_gltf_viewer::vulkan::image {
                         [&](const fastgltf::sources::Array& array) {
                             switch (array.mimeType) {
                                 case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
-                                    return processNonCompressedImageFromMemory(as_span<const stbi_uc>(std::span { array.bytes }));
+                                    return processNonCompressedImageFromMemory(reinterpret_span<const stbi_uc>(std::span { array.bytes }));
                                 case fastgltf::MimeType::KTX2:
-                                    return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(std::span { array.bytes }));
+                                    return processCompressedImageFromMemory(reinterpret_span<const ktx_uint8_t>(std::span { array.bytes }));
                                 default:
                                     throw gltf::AssetProcessError::IndeterminateImageMimeType;
                             }
@@ -341,9 +328,9 @@ namespace vk_gltf_viewer::vulkan::image {
                         [&](const fastgltf::sources::ByteView& byteView) {
                             switch (byteView.mimeType) {
                                 case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
-                                    return processNonCompressedImageFromMemory(as_span<const stbi_uc>(static_cast<std::span<const std::byte>>(byteView.bytes)));
+                                    return processNonCompressedImageFromMemory(reinterpret_span<const stbi_uc>(static_cast<std::span<const std::byte>>(byteView.bytes)));
                                 case fastgltf::MimeType::KTX2:
-                                    return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(static_cast<std::span<const std::byte>>(byteView.bytes)));
+                                    return processCompressedImageFromMemory(reinterpret_span<const ktx_uint8_t>(static_cast<std::span<const std::byte>>(byteView.bytes)));
                                 default:
                                     throw gltf::AssetProcessError::IndeterminateImageMimeType;
                             }
@@ -363,7 +350,7 @@ namespace vk_gltf_viewer::vulkan::image {
                                 else {
                                     // Non-zero file byte offset is not supported for stbi_load.
                                     std::vector<std::byte> data = loadFileAsBinary(PATH_C_STR(assetDir / uri.uri.fspath()), uri.fileByteOffset);
-                                    return processNonCompressedImageFromMemory(as_span<const stbi_uc>(std::span { data }));
+                                    return processNonCompressedImageFromMemory(reinterpret_span<const stbi_uc>(std::span { data }));
                                 }
                             }
                             else if (uri.mimeType == fastgltf::MimeType::KTX2 || extension == ".ktx2") {
@@ -373,7 +360,7 @@ namespace vk_gltf_viewer::vulkan::image {
                                 else {
                                     // Non-zero file byte offset is not supported for ktxTexture2_CreateFromNamedFile.
                                     std::vector<std::byte> data = loadFileAsBinary(PATH_C_STR(assetDir / uri.uri.fspath()), uri.fileByteOffset);
-                                    return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(std::span { data }));
+                                    return processCompressedImageFromMemory(reinterpret_span<const ktx_uint8_t>(std::span { data }));
                                 }
                             }
                             else {
@@ -383,9 +370,9 @@ namespace vk_gltf_viewer::vulkan::image {
                         [&](const fastgltf::sources::BufferView& bufferView) {
                             switch (bufferView.mimeType) {
                                 case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
-                                    return processNonCompressedImageFromMemory(as_span<const stbi_uc>(adapter(asset, bufferView.bufferViewIndex)));
+                                    return processNonCompressedImageFromMemory(reinterpret_span<const stbi_uc>(adapter(asset, bufferView.bufferViewIndex)));
                                 case fastgltf::MimeType::KTX2:
-                                    return processCompressedImageFromMemory(as_span<const ktx_uint8_t>(adapter(asset, bufferView.bufferViewIndex)));
+                                    return processCompressedImageFromMemory(reinterpret_span<const ktx_uint8_t>(adapter(asset, bufferView.bufferViewIndex)));
                                 default:
                                     throw gltf::AssetProcessError::IndeterminateImageMimeType;
                             }

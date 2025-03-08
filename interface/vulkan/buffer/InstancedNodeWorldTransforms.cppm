@@ -16,23 +16,7 @@ export import :gltf.NodeWorldTransforms;
 import :helpers.algorithm;
 import :helpers.fastgltf;
 import :helpers.ranges;
-
-/**
- * Convert the span of \p U to the span of \p T. The result span byte size must be same as the \p span's.
- * @tparam T Result span type.
- * @tparam U Source span type.
- * @param span Source span.
- * @return Converted span.
- * @note Since the source and result span sizes must be same, <tt>span.size_bytes()</tt> must be divisible by <tt>sizeof(T)</tt>.
- */
-template <typename T, typename U>
-[[nodiscard]] std::span<T> reinterpret_span(std::span<U> span) {
-    if (span.size_bytes() % sizeof(T) != 0) {
-        throw std::invalid_argument { "Span size mismatch: span of T does not fully fit into the current span." };
-    }
-
-    return { reinterpret_cast<T*>(span.data()), span.size_bytes() / sizeof(T) };
-}
+import :helpers.span;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     /**
