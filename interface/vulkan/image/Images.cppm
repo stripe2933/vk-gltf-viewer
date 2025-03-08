@@ -1,8 +1,5 @@
 module;
 
-#include <cassert>
-#include <cerrno>
-
 #include <ktx.h>
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
@@ -14,6 +11,7 @@ export import BS.thread_pool;
 export import fastgltf;
 export import :gltf.AssetProcessError;
 import :helpers.fastgltf;
+import :helpers.io;
 import :helpers.ranges;
 import :helpers.span;
 export import :vulkan.Gpu;
@@ -24,29 +22,6 @@ import :vulkan.mipmap;
 #else
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
-
-[[nodiscard]] std::vector<std::byte> loadFileAsBinary(const std::filesystem::path &path, std::size_t offset = 0) {
-    std::ifstream file { path, std::ios::binary };
-    if (!file) {
-#if __clang__
-        // Using std::format in Clang causes template instantiation of formatter<wchar_t, const char*>.
-        // TODO: report to Clang developers.
-        using namespace std::string_literals;
-        throw std::runtime_error { "Failed to open file: "s + std::strerror(errno) + " (error code=" + std::to_string(errno) + ")" };
-#else
-        throw std::runtime_error { std::format("Failed to open file: {} (error code={})", std::strerror(errno), errno) };
-#endif
-    }
-
-    file.seekg(0, std::ios::end);
-    const std::size_t fileSize = file.tellg();
-    file.seekg(offset);
-
-    std::vector<std::byte> result(fileSize - offset);
-    file.read(reinterpret_cast<char*>(result.data()), result.size());
-
-    return result;
-}
 
 namespace vk_gltf_viewer::vulkan::image {
     /**
