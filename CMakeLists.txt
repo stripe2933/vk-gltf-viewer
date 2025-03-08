@@ -211,6 +211,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/sampler/Cubemap.cppm
         interface/vulkan/sampler/Samplers.cppm
         interface/vulkan/shader_type/Accessor.cppm
+        interface/vulkan/shader_type/Material.cppm
         interface/vulkan/shader_type/Node.cppm
         interface/vulkan/shader_type/Primitive.cppm
         interface/vulkan/shader_type/TextureTransform.cppm
