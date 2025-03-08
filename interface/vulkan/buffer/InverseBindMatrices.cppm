@@ -5,16 +5,8 @@ export import fastgltf;
 import glm; // TODO: use fastgltf::math::fmat4x4 when it gets being trivially copyable.
 export import vk_mem_alloc_hpp;
 import :helpers.fastgltf;
+import :helpers.span;
 import :vulkan.buffer;
-
-template <typename T, typename U>
-[[nodiscard]] std::span<T> reinterpret_span(std::span<U> span) {
-    if (span.size_bytes() % sizeof(T) != 0) {
-        throw std::invalid_argument { "Span size mismatch: span of T does not fully fit into the current span." };
-    }
-
-    return { reinterpret_cast<T*>(span.data()), span.size_bytes() / sizeof(T) };
-}
 
 namespace vk_gltf_viewer::vulkan::buffer {
     export class InverseBindMatrices {
