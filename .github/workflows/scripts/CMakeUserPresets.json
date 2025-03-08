@@ -17,8 +17,7 @@
         "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
         "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++",
         "CMAKE_EXE_LINKER_FLAGS": "-fuse-ld=lld",
-        "VCPKG_TARGET_TRIPLET": "arm64-macos-clang-release",
-        "EXACT_BOUNDING_VOLUME_USING_CGAL": "ON"
+        "VCPKG_TARGET_TRIPLET": "arm64-macos-clang-release"
       }
     },
     {
