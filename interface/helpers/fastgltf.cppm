@@ -388,40 +388,6 @@ namespace math {
             return mat<T, N, M> { vec<T, N> { m[Is] }... };
         });
     }
-
-    /**
-     * @brief Component-wise minimum of two vector.
-     * @tparam T Component type.
-     * @tparam N Components count (=dimension).
-     * @param a The first vector.
-     * @param b The second vector.
-     * @return The component-wise minimum vector.
-     */
-    export template <typename T, std::size_t N>
-    [[nodiscard]] vec<T, N> cwiseMin(const vec<T, N> &a, const vec<T, N> &b) noexcept {
-        vec<T, N> result;
-        INDEX_SEQ(Is, N, {
-            ((result[Is] = std::min(a[Is], b[Is])), ...);
-        });
-        return result;
-    }
-
-    /**
-     * @brief Component-wise maximum of two vector.
-     * @tparam T Component type.
-     * @tparam N Components count (=dimension).
-     * @param a The first vector.
-     * @param b The second vector.
-     * @return The component-wise maximum vector.
-     */
-    export template <typename T, std::size_t N>
-    [[nodiscard]] vec<T, N> cwiseMax(const vec<T, N> &a, const vec<T, N> &b) noexcept {
-        vec<T, N> result;
-        INDEX_SEQ(Is, N, {
-            ((result[Is] = std::max(a[Is], b[Is])), ...);
-        });
-        return result;
-    }
 }
 }
 

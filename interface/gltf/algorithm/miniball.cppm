@@ -57,8 +57,12 @@ namespace vk_gltf_viewer::gltf::algorithm {
 #ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
                         meshBoundingBoxPoints.emplace_back(transformedPoint.x(), transformedPoint.y(), transformedPoint.z());
 #else
-                        min = cwiseMin(min, transformedPoint);
-                        max = cwiseMax(max, transformedPoint);
+                        min.x() = std::min(min.x(), transformedPoint.x());
+                        min.y() = std::min(min.y(), transformedPoint.y());
+                        min.z() = std::min(min.z(), transformedPoint.z());
+                        max.x() = std::max(max.x(), transformedPoint.x());
+                        max.y() = std::max(max.y(), transformedPoint.y());
+                        max.z() = std::max(max.z(), transformedPoint.z());
 #endif
                     }
                 }
