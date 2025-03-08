@@ -1,8 +1,10 @@
 module;
 
+#ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
 #include <CGAL/Simple_cartesian.h>
 #include <CGAL/Min_sphere_of_points_d_traits_3.h>
 #include <CGAL/Min_sphere_of_spheres_d.h>
+#endif
 
 export module vk_gltf_viewer:gltf.algorithm.miniball;
 
@@ -30,9 +32,14 @@ namespace vk_gltf_viewer::gltf::algorithm {
         const NodeWorldTransforms &nodeWorldTransforms,
         const BufferDataAdapter &adapter = {}
     ) {
+#ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
         // See https://doc.cgal.org/latest/Bounding_volumes/index.html for the original code.
         using Traits = CGAL::Min_sphere_of_points_d_traits_3<CGAL::Simple_cartesian<double>, double>;
         std::vector<Traits::Point> meshBoundingBoxPoints;
+#else
+        fastgltf::math::dvec3 min { std::numeric_limits<double>::max() };
+        fastgltf::math::dvec3 max { std::numeric_limits<double>::lowest() };
+#endif
 
         traverseScene(asset, scene, [&](std::size_t nodeIndex) {
             const fastgltf::Node &node = asset.nodes[nodeIndex];
@@ -46,7 +53,17 @@ namespace vk_gltf_viewer::gltf::algorithm {
                 for (const fastgltf::Primitive &primitive : mesh.primitives) {
                     for (const fastgltf::math::dvec3 &point : getBoundingBoxCornerPoints(primitive, node, asset)) {
                         const fastgltf::math::dvec3 transformedPoint { worldTransform * fastgltf::math::dvec4 { point.x(), point.y(), point.z(), 1.0 } };
+
+#ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
                         meshBoundingBoxPoints.emplace_back(transformedPoint.x(), transformedPoint.y(), transformedPoint.z());
+#else
+                        min.x() = std::min(min.x(), transformedPoint.x());
+                        min.y() = std::min(min.y(), transformedPoint.y());
+                        min.z() = std::min(min.z(), transformedPoint.z());
+                        max.x() = std::max(max.x(), transformedPoint.x());
+                        max.y() = std::max(max.y(), transformedPoint.y());
+                        max.z() = std::max(max.z(), transformedPoint.z());
+#endif
                     }
                 }
             };
@@ -62,10 +79,15 @@ namespace vk_gltf_viewer::gltf::algorithm {
             }
         });
 
+#ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
         CGAL::Min_sphere_of_spheres_d<Traits> ms { meshBoundingBoxPoints.begin(), meshBoundingBoxPoints.end() };
 
         fastgltf::math::dvec3 center;
         std::copy(ms.center_cartesian_begin(), ms.center_cartesian_end(), center.data());
         return { center, ms.radius() };
+#else
+        const fastgltf::math::dvec3 halfDisplacement = (max - min) / 2.0;
+        return { min + halfDisplacement, fastgltf::math::length(halfDisplacement) };
+#endif
     }
 }

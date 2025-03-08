@@ -1,0 +1,12 @@
+diff --git a/vcpkg.json b/vcpkg.json
+index ca04ad8..fb4de85 100644
+--- a/vcpkg.json
++++ b/vcpkg.json
+@@ -2,6 +2,7 @@
+   "dependencies": [
+     "boost-container",
+     "boost-container-hash",
++    "cgal",
+     "cstring-view",
+     "fastgltf",
+     "glfw3",

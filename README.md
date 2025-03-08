@@ -146,7 +146,7 @@ Additionally, you need vcpkg for dependency management. Make sure `VCPKG_ROOT` e
 
 This project depends on:
 - [boost-container](https://www.boost.org/doc/libs/1_86_0/doc/html/container.html)
-- [CGAL](https://www.cgal.org) (due to its usage, **this project is licensed under GPL**.)
+- [boost-container-hash](https://www.boost.org/doc/libs/1_87_0/libs/container_hash/doc/html/hash.html)
 - [cstring_view](https://github.com/stripe2933/cstring_view)
 - [fastgltf](https://github.com/spnda/fastgltf)
 - [GLFW](https://github.com/glfw/glfw)
@@ -162,6 +162,9 @@ This project depends on:
 - My own Vulkan-Hpp helper library, [vku](https://github.com/stripe2933/vku/tree/module) (branch `module`), which has the following dependencies:
   - [Vulkan-Hpp](https://github.com/KhronosGroup/Vulkan-Hpp)
   - [VulkanMemoryAllocator-Hpp](https://github.com/YaaZ/VulkanMemoryAllocator-Hpp)
+
+Also, there are some optional dependencies that can be configured via CMake options. These are disabled by default.
+- [CGAL](https://www.cgal.org) for exact bounding volume calculation (due to its usage, **this project is licensed under GPL**.)
 
 Dependencies will be automatically fetched via vcpkg.
 

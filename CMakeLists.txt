@@ -11,12 +11,18 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_MODULE_STD 1)
 
 # --------------------
+# Build options.
+# --------------------
+
+option(EXACT_BOUNDING_VOLUME_USING_CGAL "Calculate bounding volume of the scene nodes with exact algorithm using CGAL.")
+
+# --------------------
 # External dependencies.
 # --------------------
 
 find_package(boost_container CONFIG REQUIRED)
+find_package(boost_container_hash CONFIG REQUIRED)
 find_path(BSHOSHANY_THREAD_POOL_INCLUDE_DIRS "BS_thread_pool.hpp")
-find_package(CGAL CONFIG REQUIRED)
 find_package(cstring_view CONFIG REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
@@ -28,6 +34,10 @@ find_package(nfd CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(vku CONFIG REQUIRED)
+
+if (EXACT_BOUNDING_VOLUME_USING_CGAL)
+    find_package(CGAL CONFIG REQUIRED)
+endif()
 
 # --------------------
 # Module configurations for the external dependencies.
@@ -210,8 +220,8 @@ target_sources(vk-gltf-viewer PRIVATE
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
     Boost::container
+    Boost::container_hash
     BS_thread_pool::module
-    CGAL::CGAL
     cpp_util::cstring_view::module
     fastgltf::module
     glm::module
@@ -227,6 +237,11 @@ target_link_libraries(vk-gltf-viewer PRIVATE
 target_compile_definitions(vk-gltf-viewer PRIVATE
     GLFW_INCLUDE_NONE
 )
+
+if (EXACT_BOUNDING_VOLUME_USING_CGAL)
+    target_link_libraries(vk-gltf-viewer PRIVATE CGAL::CGAL)
+    target_compile_definitions(vk-gltf-viewer PRIVATE EXACT_BOUNDING_VOLUME_USING_CGAL)
+endif()
 
 if (APPLE AND ${CMAKE_BUILD_TYPE} STREQUAL "Release")
     set_target_properties(vk-gltf-viewer PROPERTIES
