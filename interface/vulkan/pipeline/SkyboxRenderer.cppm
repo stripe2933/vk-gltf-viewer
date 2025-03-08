@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.pipeline.SkyboxRenderer;
 
 import std;
@@ -23,11 +25,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::Pipeline pipeline;
 
         SkyboxRenderer(
-            const vk::raii::Device &device [[clang::lifetimebound]],
-            const dsl::Skybox &descriptorSetLayout [[clang::lifetimebound]],
+            const vk::raii::Device &device LIFETIMEBOUND,
+            const dsl::Skybox &descriptorSetLayout LIFETIMEBOUND,
             bool isCubemapImageToneMapped,
-            const rp::Scene &sceneRenderPass [[clang::lifetimebound]],
-            const buffer::CubeIndices &cubeIndices [[clang::lifetimebound]]
+            const rp::Scene &sceneRenderPass LIFETIMEBOUND,
+            const buffer::CubeIndices &cubeIndices LIFETIMEBOUND
         ) : pipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},
                 *descriptorSetLayout,

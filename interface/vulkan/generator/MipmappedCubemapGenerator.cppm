@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.generator.MipmappedCubemapGenerator;
 
 import std;
@@ -32,7 +34,7 @@ namespace vk_gltf_viewer::vulkan::inline generator {
         vku::AllocatedImage cubemapImage;
 
         MipmappedCubemapGenerator(
-            const Gpu &gpu [[clang::lifetimebound]],
+            const Gpu &gpu LIFETIMEBOUND,
             const Config &config
         ) : gpu { gpu },
             cubemapImage { gpu.allocator, vk::ImageCreateInfo {

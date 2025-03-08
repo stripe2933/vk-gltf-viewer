@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.rp.CubemapToneMapping;
 
 #ifdef _MSC_VER
@@ -8,7 +12,7 @@ export import vulkan_hpp;
 
 namespace vk_gltf_viewer::vulkan::rp {
     export struct CubemapToneMapping final : vk::raii::RenderPass {
-        explicit CubemapToneMapping(const vk::raii::Device &device [[clang::lifetimebound]])
+        explicit CubemapToneMapping(const vk::raii::Device &device LIFETIMEBOUND)
             : RenderPass { device, vk::StructureChain {
                 vk::RenderPassCreateInfo {
                     {},

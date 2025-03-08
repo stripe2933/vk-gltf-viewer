@@ -102,6 +102,7 @@ add_executable(vk-gltf-viewer WIN32 MACOSX_BUNDLE
 target_include_directories(vk-gltf-viewer PRIVATE
     extlibs/include
     ${Stb_INCLUDE_DIR}
+    include
 )
 target_sources(vk-gltf-viewer PRIVATE
     FILE_SET CXX_MODULES

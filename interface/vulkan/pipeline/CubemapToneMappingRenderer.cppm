@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.pipeline.CubemapToneMappingRenderer;
 
 import std;
@@ -11,7 +15,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class CubemapToneMappingRenderer {
     public:
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage> {
-            explicit DescriptorSetLayout(const vk::raii::Device &device [[clang::lifetimebound]])
+            explicit DescriptorSetLayout(const vk::raii::Device &device LIFETIMEBOUND)
                 : vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage> { device, vk::DescriptorSetLayoutCreateInfo {
                     vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
                     vku::unsafeProxy(getBindings({ 1, vk::ShaderStageFlagBits::eFragment })),
@@ -23,8 +27,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::Pipeline pipeline;
 
         CubemapToneMappingRenderer(
-            const vk::raii::Device &device [[clang::lifetimebound]],
-            const rp::CubemapToneMapping &renderPass [[clang::lifetimebound]]
+            const vk::raii::Device &device LIFETIMEBOUND,
+            const rp::CubemapToneMapping &renderPass LIFETIMEBOUND
         ) : descriptorSetLayout { device },
             pipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},

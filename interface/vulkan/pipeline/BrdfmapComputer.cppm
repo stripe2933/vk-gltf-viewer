@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.pipeline.BrdfmapComputer;
 
 import std;
@@ -11,7 +13,7 @@ import :shader.brdfmap_comp;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct BrdfmapComputer {
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
-            explicit DescriptorSetLayout(const vk::raii::Device &device [[clang::lifetimebound]])
+            explicit DescriptorSetLayout(const vk::raii::Device &device LIFETIMEBOUND)
                 : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
                     device,
                     vk::DescriptorSetLayoutCreateInfo {
@@ -29,7 +31,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        explicit BrdfmapComputer(const vk::raii::Device &device [[clang::lifetimebound]], const SpecializationConstants &specializationConstants = { 1024 })
+        explicit BrdfmapComputer(const vk::raii::Device &device LIFETIMEBOUND, const SpecializationConstants &specializationConstants = { 1024 })
             : descriptorSetLayout { device }
             , pipelineLayout { device, vk::PipelineLayoutCreateInfo {
                     {},

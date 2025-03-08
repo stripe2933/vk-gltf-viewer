@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.dsl.Asset;
 
 import std;
@@ -5,7 +9,7 @@ export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::dsl {
     export struct Asset : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eCombinedImageSampler> {
-        explicit Asset(const Gpu &gpu [[clang::lifetimebound]])
+        explicit Asset(const Gpu &gpu LIFETIMEBOUND)
             : DescriptorSetLayout { gpu.device, vk::StructureChain {
                 vk::DescriptorSetLayoutCreateInfo {
                     vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
@@ -29,7 +33,7 @@ namespace vk_gltf_viewer::vulkan::dsl {
                 },
             }.get() } { }
 
-        Asset(const Gpu &gpu [[clang::lifetimebound]], std::uint32_t textureCount)
+        Asset(const Gpu &gpu LIFETIMEBOUND, std::uint32_t textureCount)
             : DescriptorSetLayout { gpu.device, vk::StructureChain {
                 vk::DescriptorSetLayoutCreateInfo {
                     vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,

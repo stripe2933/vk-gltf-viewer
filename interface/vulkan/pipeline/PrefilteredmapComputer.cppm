@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.pipeline.PrefilteredmapComputer;
 
 import std;
@@ -24,8 +26,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> {
             DescriptorSetLayout(
-                const Gpu &gpu [[clang::lifetimebound]],
-                const vk::Sampler &sampler [[clang::lifetimebound]],
+                const Gpu &gpu LIFETIMEBOUND,
+                const vk::Sampler &sampler LIFETIMEBOUND,
                 std::uint32_t roughnessLevels
             ) : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> {
                 gpu.device,
@@ -45,7 +47,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::Pipeline pipeline;
 
         PrefilteredmapComputer(
-            const Gpu &gpu [[clang::lifetimebound]],
+            const Gpu &gpu LIFETIMEBOUND,
             const SpecializationConstants &specializationConstants
         ) : cubemapSampler { gpu.device, vk::SamplerCreateInfo {
                 {},

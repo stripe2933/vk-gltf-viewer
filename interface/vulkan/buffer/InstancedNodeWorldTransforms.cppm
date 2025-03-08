@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.buffer.InstancedNodeWorldTransforms;
 
 import std;
@@ -43,7 +45,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
          */
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         InstancedNodeWorldTransforms(
-            const fastgltf::Asset &asset [[clang::lifetimebound]],
+            const fastgltf::Asset &asset LIFETIMEBOUND,
             const gltf::NodeWorldTransforms &nodeWorldTransforms,
             vma::Allocator allocator,
             const BufferDataAdapter &adapter = {}

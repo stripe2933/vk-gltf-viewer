@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.buffer.MorphTargetWeights;
 
 import std;
@@ -8,7 +12,7 @@ export import :vulkan.Gpu;
 namespace vk_gltf_viewer::vulkan::buffer {
     export class MorphTargetWeights {
     public:
-        MorphTargetWeights(const fastgltf::Asset &asset, const Gpu &gpu [[clang::lifetimebound]])
+        MorphTargetWeights(const fastgltf::Asset &asset, const Gpu &gpu LIFETIMEBOUND)
             : buffer { createBuffer(asset, gpu.allocator) }
             , descriptorInfo { buffer, 0, vk::WholeSize } { }
 

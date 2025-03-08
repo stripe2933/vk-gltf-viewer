@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.generator.ImageBasedLightingResourceGenerator;
 
 import std;
@@ -41,7 +43,7 @@ namespace vk_gltf_viewer::vulkan::inline generator {
         vku::MappedBuffer sphericalHarmonicsBuffer;
 
         ImageBasedLightingResourceGenerator(
-            const Gpu &gpu [[clang::lifetimebound]],
+            const Gpu &gpu LIFETIMEBOUND,
             const Config &config
         ) : gpu { gpu },
             prefilteredmapImage { gpu.allocator, vk::ImageCreateInfo {

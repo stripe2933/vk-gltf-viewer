@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.pipeline.JumpFloodComputer;
 
 import std;
@@ -7,14 +11,14 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class JumpFloodComputer {
     public:
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> {
-            explicit DescriptorSetLayout(const vk::raii::Device &device [[clang::lifetimebound]]);
+            explicit DescriptorSetLayout(const vk::raii::Device &device LIFETIMEBOUND);
         };
 
         DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        explicit JumpFloodComputer(const vk::raii::Device &device [[clang::lifetimebound]]);
+        explicit JumpFloodComputer(const vk::raii::Device &device LIFETIMEBOUND);
 
         [[nodiscard]] auto compute(
             vk::CommandBuffer commandBuffer,

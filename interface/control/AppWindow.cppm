@@ -2,6 +2,8 @@ module;
 
 #include <GLFW/glfw3.h>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:control.AppWindow;
 
 import std;
@@ -15,7 +17,7 @@ namespace vk_gltf_viewer::control {
     public:
         AppState &appState;
 
-        AppWindow(const vk::raii::Instance &instance [[clang::lifetimebound]], AppState &appState);
+        AppWindow(const vk::raii::Instance &instance LIFETIMEBOUND, AppState &appState);
         ~AppWindow();
 
         [[nodiscard]] operator GLFWwindow*() const noexcept;

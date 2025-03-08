@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.Gpu;
 
 import std;
@@ -73,7 +75,7 @@ namespace vk_gltf_viewer::vulkan {
         bool supportShaderImageLoadStoreLod;
         bool supportVariableDescriptorCount;
 
-        Gpu(const vk::raii::Instance &instance [[clang::lifetimebound]], vk::SurfaceKHR surface);
+        Gpu(const vk::raii::Instance &instance LIFETIMEBOUND, vk::SurfaceKHR surface);
         ~Gpu();
 
     private:

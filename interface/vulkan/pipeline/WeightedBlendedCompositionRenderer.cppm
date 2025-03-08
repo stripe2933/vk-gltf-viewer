@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.pipeline.WeightedBlendedCompositionRenderer;
 
 import vku;
@@ -9,7 +13,7 @@ export import :vulkan.rp.Scene;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct WeightedBlendedCompositionRenderer {
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment, vk::DescriptorType::eInputAttachment> {
-            explicit DescriptorSetLayout(const vk::raii::Device &device [[clang::lifetimebound]])
+            explicit DescriptorSetLayout(const vk::raii::Device &device LIFETIMEBOUND)
                 : vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment, vk::DescriptorType::eInputAttachment> {
                     device,
                     vk::DescriptorSetLayoutCreateInfo {
@@ -26,8 +30,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::Pipeline pipeline;
 
         WeightedBlendedCompositionRenderer(
-            const vk::raii::Device &device [[clang::lifetimebound]],
-            const rp::Scene &sceneRenderPass [[clang::lifetimebound]]
+            const vk::raii::Device &device LIFETIMEBOUND,
+            const rp::Scene &sceneRenderPass LIFETIMEBOUND
         ) : descriptorSetLayout { device },
             pipelineLayout { device, vk::PipelineLayoutCreateInfo {
                 {},

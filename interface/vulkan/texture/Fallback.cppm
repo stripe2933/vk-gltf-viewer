@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.texture.Fallback;
 
 import std;
@@ -31,7 +33,7 @@ namespace vk_gltf_viewer::vulkan::texture {
          */
         vk::raii::Sampler sampler;
 
-        explicit Fallback(const vulkan::Gpu &gpu [[clang::lifetimebound]])
+        explicit Fallback(const vulkan::Gpu &gpu LIFETIMEBOUND)
             : image { gpu.allocator, vk::ImageCreateInfo {
                 {},
                 vk::ImageType::e2D,

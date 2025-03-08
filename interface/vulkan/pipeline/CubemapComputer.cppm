@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.pipeline.CubemapComputer;
 
 import std;
@@ -13,8 +15,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct CubemapComputer {
         struct DescriptorSetLayout : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> {
             DescriptorSetLayout(
-                const vk::raii::Device &device [[clang::lifetimebound]],
-                const vk::Sampler &sampler [[clang::lifetimebound]]
+                const vk::raii::Device &device LIFETIMEBOUND,
+                const vk::Sampler &sampler LIFETIMEBOUND
             ) : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> {
                     device,
                     vk::DescriptorSetLayoutCreateInfo {
@@ -32,7 +34,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::Pipeline pipeline;
 
         explicit CubemapComputer(
-            const vk::raii::Device &device [[clang::lifetimebound]]
+            const vk::raii::Device &device LIFETIMEBOUND
         ) : eqmapSampler { device, vk::SamplerCreateInfo {
                 {},
                 vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,

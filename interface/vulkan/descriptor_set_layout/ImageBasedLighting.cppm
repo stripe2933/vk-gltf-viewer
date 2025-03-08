@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.dsl.ImageBasedLighting;
 
 import std;
@@ -8,9 +12,9 @@ export import :vulkan.sampler.Cubemap;
 namespace vk_gltf_viewer::vulkan::dsl {
     export struct ImageBasedLighting : vku::DescriptorSetLayout<vk::DescriptorType::eUniformBuffer, vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eCombinedImageSampler> {
         ImageBasedLighting(
-            const vk::raii::Device &device [[clang::lifetimebound]],
-            const sampler::Cubemap &cubemapSampler [[clang::lifetimebound]],
-            const sampler::BrdfLut &brdfLutSampler [[clang::lifetimebound]]
+            const vk::raii::Device &device LIFETIMEBOUND,
+            const sampler::Cubemap &cubemapSampler LIFETIMEBOUND,
+            const sampler::BrdfLut &brdfLutSampler LIFETIMEBOUND
         ) : DescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
                 {},
                 vku::unsafeProxy(getBindings(

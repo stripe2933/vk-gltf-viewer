@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer:vulkan.ag.SceneWeightedBlended;
 
 export import vku;
@@ -6,7 +10,7 @@ export import :vulkan.Gpu;
 namespace vk_gltf_viewer::vulkan::ag {
     export struct SceneWeightedBlended final : vku::MultisampleAttachmentGroup {
         SceneWeightedBlended(
-            const Gpu &gpu [[clang::lifetimebound]],
+            const Gpu &gpu LIFETIMEBOUND,
             const vk::Extent2D &extent,
             const vku::Image &depthImage
         ) : MultisampleAttachmentGroup { extent, vk::SampleCountFlagBits::e4 } {
