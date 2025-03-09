@@ -738,13 +738,17 @@ auto vk_gltf_viewer::vulkan::Frame::createFramebuffers() const -> std::vector<vk
         | std::ranges::to<std::vector>();
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const -> decltype(descriptorPool) {
-    return {
-        sharedData.gpu.device,
-        (2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout)
-            + sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize())
-            .getDescriptorPoolCreateInfo(),
-    };
+vk::raii::DescriptorPool vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const {
+    vku::PoolSizes poolSizes
+        = 2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout)
+        + sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize();
+    vk::DescriptorPoolCreateFlags flags{};
+    if (sharedData.gpu.supportVariableDescriptorCount) {
+        poolSizes += sharedData.assetDescriptorSetLayout.getPoolSize();
+        flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet | vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind;
+    }
+
+    return { sharedData.gpu.device, poolSizes.getDescriptorPoolCreateInfo(flags) };
 }
 
 auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer cb) const -> void {
@@ -801,7 +805,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 
             if (!resourceBindingState.descriptorSetBound) {
                 cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveNoShadingPipelineLayout,
-                    0, sharedData.assetDescriptorSet, {});
+                    0, assetDescriptorSet, {});
                 resourceBindingState.descriptorSetBound = true;
             }
 
@@ -945,7 +949,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         }
         if (!resourceBindingState.descriptorBound) {
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout, 0,
-                { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet }, {});
+                { sharedData.imageBasedLightingDescriptorSet, assetDescriptorSet }, {});
             resourceBindingState.descriptorBound = true;
         }
         if (!resourceBindingState.pushConstantBound) {
@@ -987,7 +991,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
         }
         if (!resourceBindingState.descriptorBound) {
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout, 0,
-                { sharedData.imageBasedLightingDescriptorSet, sharedData.assetDescriptorSet }, {});
+                { sharedData.imageBasedLightingDescriptorSet, assetDescriptorSet }, {});
             resourceBindingState.descriptorBound = true;
         }
         if (!resourceBindingState.pushConstantBound) {

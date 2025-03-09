@@ -8,8 +8,8 @@ import std;
 export import fastgltf;
 import :helpers.fastgltf;
 import :helpers.ranges;
-export import :vulkan.buffer.InstancedNodeWorldTransforms;
-export import :vulkan.buffer.MorphTargetWeights;
+export import :gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
+export import :gltf.data_structure.TargetWeightCountExclusiveScan;
 export import :vulkan.buffer.StagingBufferStorage;
 import :vulkan.shader_type.Node;
 import :vulkan.trait.PostTransferObject;
@@ -19,12 +19,28 @@ namespace vk_gltf_viewer::vulkan::buffer {
     public:
         Nodes(
             const fastgltf::Asset &asset,
-            const InstancedNodeWorldTransforms &instancedNodeWorldTransformBuffer,
-            const MorphTargetWeights &morphTargetWeights,
+            const gltf::ds::NodeInstanceCountExclusiveScanWithCount &nodeInstanceCountExclusiveScan,
+            const gltf::ds::TargetWeightCountExclusiveScan &targetWeightCountExclusiveScan,
             vma::Allocator allocator,
             StagingBufferStorage &stagingBufferStorage
         ) : PostTransferObject { stagingBufferStorage },
-            buffer { createBuffer(asset, instancedNodeWorldTransformBuffer, morphTargetWeights, allocator) },
+            buffer { [&]() {
+                vku::AllocatedBuffer result = vku::MappedBuffer {
+                    allocator,
+                    std::from_range, ranges::views::upto(asset.nodes.size()) | std::views::transform([&](std::size_t nodeIndex) {
+                        return shader_type::Node {
+                            .instancedTransformStartIndex = nodeInstanceCountExclusiveScan[nodeIndex],
+                            .morphTargetWeightStartIndex = targetWeightCountExclusiveScan[nodeIndex],
+                        };
+                    }),
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+                }.unmap();
+                if (StagingBufferStorage::needStaging(result)) {
+                    stagingBufferStorage.stage(result, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer);
+                }
+
+                return result;
+            }() },
             descriptorInfo { buffer, 0, vk::WholeSize } { }
 
         [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept {
@@ -37,28 +53,5 @@ namespace vk_gltf_viewer::vulkan::buffer {
          */
         vku::AllocatedBuffer buffer;
         vk::DescriptorBufferInfo descriptorInfo;
-
-        [[nodiscard]] vku::AllocatedBuffer createBuffer(
-            const fastgltf::Asset &asset,
-            const InstancedNodeWorldTransforms &instancedNodeWorldTransformBuffer,
-            const MorphTargetWeights &morphTargetWeights,
-            vma::Allocator allocator
-        ) const {
-            vku::AllocatedBuffer buffer = vku::MappedBuffer {
-                allocator,
-                std::from_range, ranges::views::upto(asset.nodes.size()) | std::views::transform([&](std::size_t nodeIndex) {
-                    return shader_type::Node {
-                        .instancedTransformStartIndex = instancedNodeWorldTransformBuffer.getStartIndex(nodeIndex),
-                        .morphTargetWeightStartIndex = morphTargetWeights.getStartIndex(nodeIndex),
-                    };
-                }),
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
-            }.unmap();
-            if (StagingBufferStorage::needStaging(buffer)) {
-                stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer);
-            }
-
-            return buffer;
-        }
     };
 }

@@ -360,8 +360,10 @@ void vk_gltf_viewer::MainApp::run() {
                     // TODO: I'm aware that there are more good solutions than waitIdle, but I don't have much time for it
                     //  so I'll just use it for now.
                     gpu.device.waitIdle();
-                    sharedData.gltfAsset->instancedNodeWorldTransformBuffer.update(
-                        gltf->asset.scenes[task.newSceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    for (vulkan::Frame &frame : frames) {
+                        frame.gltfAsset->instancedNodeWorldTransformBuffer.update(
+                            gltf->asset.scenes[task.newSceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    }
 
                     // Update AppState.
                     appState.gltfAsset->setScene(task.newSceneIndex);
@@ -428,8 +430,10 @@ void vk_gltf_viewer::MainApp::run() {
                     // Update the current and its descendant nodes' world transforms for both host and GPU side data.
                     gltf->nodeWorldTransforms.update(task.nodeIndex, nodeWorldTransform);
                     gpu.device.waitIdle();
-                    sharedData.gltfAsset->instancedNodeWorldTransformBuffer.update(
-                        task.nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    for (vulkan::Frame &frame : frames) {
+                        frame.gltfAsset->instancedNodeWorldTransformBuffer.update(
+                            task.nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    }
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -487,8 +491,10 @@ void vk_gltf_viewer::MainApp::run() {
                     // Update the current and its descendant nodes' world transforms for both host and GPU side data.
                     gltf->nodeWorldTransforms.update(selectedNodeIndex, selectedNodeWorldTransform);
                     gpu.device.waitIdle();
-                    sharedData.gltfAsset->instancedNodeWorldTransformBuffer.update(
-                        selectedNodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    for (vulkan::Frame &frame : frames) {
+                        frame.gltfAsset->instancedNodeWorldTransformBuffer.update(
+                            selectedNodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    }
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -537,7 +543,9 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [&](const control::task::ChangeMorphTargetWeight &task) {
                     gpu.device.waitIdle();
-                    sharedData.gltfAsset.value().morphTargetWeightBuffer.updateWeight(task.nodeIndex, task.targetWeightIndex, task.newValue);
+                    for (vulkan::Frame &frame : frames) {
+                        frame.gltfAsset.value().morphTargetWeightBuffer.updateWeight(task.nodeIndex, task.targetWeightIndex, task.newValue);
+                    }
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -802,7 +810,10 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
         //  so I'll just use it for now.
         gpu.device.waitIdle();
-        sharedData.changeAsset(inner.asset, path.parent_path(), inner.nodeWorldTransforms, inner.orderedPrimitives, inner.assetExternalBuffers);
+        sharedData.changeAsset(inner.asset, path.parent_path(), inner.orderedPrimitives, inner.assetExternalBuffers);
+        for (vulkan::Frame &frame : frames) {
+            frame.changeAsset(inner.asset, inner.nodeWorldTransforms, inner.assetExternalBuffers);
+        }
     }
     catch (gltf::AssetProcessError error) {
         std::println(std::cerr, "The glTF file cannot be processed because of an error: {}", to_string(error));
