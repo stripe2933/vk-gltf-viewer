@@ -200,7 +200,7 @@ vk_gltf_viewer::MainApp::MainApp() {
         io.Fonts->AddFontFromFileTTF(defaultFontPath, 16.f * io.DisplayFramebufferScale.x);
     }
     else {
-        std::println(std::cerr, "Your system doesn't have expected system font at {}. Low-resolution font will be used instead.", defaultFontPath);
+		std::cerr << "Your system doesn't have expected system font at " << defaultFontPath << ". Low-resolution font will be used instead.\n";
         io.Fonts->AddFontDefault(&fontConfig);
     }
 
@@ -319,7 +319,7 @@ void vk_gltf_viewer::MainApp::run() {
                     // Get native window handle.
                     nfdwindowhandle_t windowHandle = {};
                     if (!NFD_GetNativeWindowFromGLFWWindow(window, &windowHandle)) {
-                        std::println(std::cerr, "Failed to get window handle from GLFW window.");
+                        std::cerr << "Failed to get window handle from GLFW window.\n";
                     }
 
                     if (auto filename = processFileDialog(filterItems, windowHandle)) {
@@ -345,7 +345,7 @@ void vk_gltf_viewer::MainApp::run() {
                     // Get native window handle.
                     nfdwindowhandle_t windowHandle = {};
                     if (!NFD_GetNativeWindowFromGLFWWindow(window, &windowHandle)) {
-                        std::println(std::cerr, "Failed to get window handle from GLFW window.");
+                        std::cerr << "Failed to get window handle from GLFW window.\n";
                     }
 
                     if (auto filename = processFileDialog(filterItems, windowHandle)) {
@@ -806,14 +806,14 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         sharedData.changeAsset(inner.asset, path.parent_path(), inner.nodeWorldTransforms, inner.orderedPrimitives, inner.assetExternalBuffers);
     }
     catch (gltf::AssetProcessError error) {
-        std::println(std::cerr, "The glTF file cannot be processed because of an error: {}", to_string(error));
+        std::cerr << "The glTF file cannot be processed because of an error: " << to_string(error) << '\n';
         closeGltf();
         return;
     }
     catch (fastgltf::Error error) {
         // If error is due to missing or unknown required extension, show a message and return.
         if (ranges::one_of(error, fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension)) {
-            std::println(std::cerr, "The glTF file requires an extension that is not supported by this application.");
+            std::cerr << "The glTF file requires an extension that is not supported by this application.\n";
             closeGltf();
             return;
         }
