@@ -245,6 +245,15 @@ vk_gltf_viewer::MainApp::~MainApp() {
 }
 
 void vk_gltf_viewer::MainApp::run() {
+    // When using multiple frames in flight, updating resources in a frame while it’s still being used by the GPU can
+    // lead to data hazards. Since resource updates occur when one of the frames is fenced, that frame can be updated
+    // safely, but the others cannot.
+    // One way to handle this is by storing update tasks for the other frames and executing them once the target frame
+    // becomes idle. This approach is especially efficient for two frames in flight, as it requires only a single task
+    // vector to store updates for the “another” frame.
+    static_assert(FRAMES_IN_FLIGHT == 2, "Frames ≥ 3 needs different update deferring mechanism.");
+    std::vector<std::function<void(vulkan::Frame&)>> deferredFrameUpdateTasks;
+
     // Booleans that indicates frame at the corresponding index should handle swapchain resizing.
     std::array<bool, FRAMES_IN_FLIGHT> shouldHandleSwapchainResize{};
     std::array<bool, FRAMES_IN_FLIGHT> regenerateDrawCommands{};
@@ -303,6 +312,15 @@ void vk_gltf_viewer::MainApp::run() {
             }
         }
 
+        // Wait for previous frame execution to end.
+        vulkan::Frame &frame = frames[frameIndex];
+        frame.waitForPreviousExecution();
+
+        for (const auto &task : deferredFrameUpdateTasks) {
+            task(frame);
+        }
+        deferredFrameUpdateTasks.clear();
+
         for (const control::Task &task : tasks) {
             visit(multilambda {
                 [this](const control::task::ChangePassthruRect &task) {
@@ -357,13 +375,12 @@ void vk_gltf_viewer::MainApp::run() {
                 [&](control::task::ChangeScene task) {
                     gltf->setScene(task.newSceneIndex);
 
-                    // TODO: I'm aware that there are more good solutions than waitIdle, but I don't have much time for it
-                    //  so I'll just use it for now.
-                    gpu.device.waitIdle();
-                    for (vulkan::Frame &frame : frames) {
+                    auto nodeWorldTransformUpdateTask = [this, sceneIndex = task.newSceneIndex](vulkan::Frame &frame) {
                         frame.gltfAsset->instancedNodeWorldTransformBuffer.update(
-                            gltf->asset.scenes[task.newSceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
-                    }
+                            gltf->asset.scenes[sceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    };
+                    nodeWorldTransformUpdateTask(frame);
+                    deferredFrameUpdateTasks.push_back(std::move(nodeWorldTransformUpdateTask));
 
                     // Update AppState.
                     appState.gltfAsset->setScene(task.newSceneIndex);
@@ -418,7 +435,7 @@ void vk_gltf_viewer::MainApp::run() {
                 [this](const control::task::HoverNodeFromSceneHierarchy &task) {
                     appState.gltfAsset->hoveringNodeIndex.emplace(task.nodeIndex);
                 },
-                [this](const control::task::ChangeNodeLocalTransform &task) {
+                [&](const control::task::ChangeNodeLocalTransform &task) {
                     fastgltf::math::fmat4x4 nodeWorldTransform = visit(fastgltf::visitor {
                         [](const fastgltf::TRS &trs) { return toMatrix(trs); },
                         [](fastgltf::math::fmat4x4 matrix) { return matrix; }
@@ -429,11 +446,12 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Update the current and its descendant nodes' world transforms for both host and GPU side data.
                     gltf->nodeWorldTransforms.update(task.nodeIndex, nodeWorldTransform);
-                    gpu.device.waitIdle();
-                    for (vulkan::Frame &frame : frames) {
+                    auto updateNodeTransformTask = [this, nodeIndex = task.nodeIndex](vulkan::Frame &frame) {
                         frame.gltfAsset->instancedNodeWorldTransformBuffer.update(
-                            task.nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
-                    }
+                            nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    };
+                    updateNodeTransformTask(frame);
+                    deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -443,7 +461,7 @@ void vk_gltf_viewer::MainApp::run() {
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
                 },
-                [this](control::task::ChangeSelectedNodeWorldTransform) {
+                [&](control::task::ChangeSelectedNodeWorldTransform) {
                     const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
                     const fastgltf::math::fmat4x4 &selectedNodeWorldTransform = gltf->nodeWorldTransforms[selectedNodeIndex];
 
@@ -490,11 +508,12 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Update the current and its descendant nodes' world transforms for both host and GPU side data.
                     gltf->nodeWorldTransforms.update(selectedNodeIndex, selectedNodeWorldTransform);
-                    gpu.device.waitIdle();
-                    for (vulkan::Frame &frame : frames) {
+                    auto updateNodeTransformTask = [this, selectedNodeIndex](vulkan::Frame &frame) {
                         frame.gltfAsset->instancedNodeWorldTransformBuffer.update(
                             selectedNodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
-                    }
+                    };
+                    updateNodeTransformTask(frame);
+                    deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -542,10 +561,11 @@ void vk_gltf_viewer::MainApp::run() {
                     }
                 },
                 [&](const control::task::ChangeMorphTargetWeight &task) {
-                    gpu.device.waitIdle();
-                    for (vulkan::Frame &frame : frames) {
-                        frame.gltfAsset.value().morphTargetWeightBuffer.updateWeight(task.nodeIndex, task.targetWeightIndex, task.newValue);
-                    }
+                    auto updateTargetWeightTask = [this, task](vulkan::Frame &frame) {
+                        frame.gltfAsset->morphTargetWeightBuffer.updateWeight(task.nodeIndex, task.targetWeightIndex, task.newValue);
+                    };
+                    updateTargetWeightTask(frame);
+                    deferredFrameUpdateTasks.push_back(std::move(updateTargetWeightTask));
 
                     // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
                     if (appState.automaticNearFarPlaneAdjustment) {
@@ -557,10 +577,6 @@ void vk_gltf_viewer::MainApp::run() {
                 },
             }, task);
         }
-
-        // Wait for previous frame execution to end.
-        vulkan::Frame &frame = frames[frameIndex];
-        frame.waitForPreviousExecution();
 
         // Update frame resources.
         const vulkan::Frame::UpdateResult updateResult = frame.update({
