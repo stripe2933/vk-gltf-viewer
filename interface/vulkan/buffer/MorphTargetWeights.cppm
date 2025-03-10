@@ -25,7 +25,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
         void updateWeight(std::size_t nodeIndex, std::size_t weightIndex, float weight) {
-            buffer.asRange<float>(startOffsets[nodeIndex])[weightIndex] = weight;
+            buffer.asRange<float>()[startOffsets[nodeIndex] + weightIndex] = weight;
         }
 
     private:
