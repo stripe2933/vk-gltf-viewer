@@ -28,6 +28,7 @@ import asset;
 import imgui.glfw;
 import imgui.vulkan;
 import :gltf.algorithm.misc;
+import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
 import :helpers.fastgltf;
 import :helpers.functional;
@@ -42,6 +43,7 @@ import :vulkan.mipmap;
 import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
+#define MOVE_CAP(x) x = std::move(x)
 #ifdef _MSC_VER
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
@@ -297,6 +299,10 @@ void vk_gltf_viewer::MainApp::run() {
                 }
                 imguiTaskCollector.sceneHierarchy(gltfAsset->asset, gltfAsset->getSceneIndex(), gltfAsset->nodeVisibilities, gltfAsset->hoveringNodeIndex, gltfAsset->selectedNodeIndices);
                 imguiTaskCollector.nodeInspector(gltfAsset->asset, gltfAsset->selectedNodeIndices);
+
+                if (!gltfAsset->asset.animations.empty()) {
+                    imguiTaskCollector.animations(gltfAsset->asset, gltf->animationEnabled);
+                }
             }
             if (const auto &iblInfo = appState.imageBasedLightingProperties) {
                 imguiTaskCollector.imageBasedLighting(*iblInfo, skyboxResources->imGuiEqmapTextureDescriptorSet);
@@ -578,6 +584,44 @@ void vk_gltf_viewer::MainApp::run() {
             }, task);
         }
 
+        if (gltf) {
+            std::vector<std::size_t> transformedNodeIndices;
+            std::vector<std::size_t> morphedNodeIndices;
+            for (const auto &[animation, enabled] : std::views::zip(gltf->animations, gltf->animationEnabled)) {
+                if (!enabled) continue;
+                animation.update(glfwGetTime(), back_inserter(transformedNodeIndices), back_inserter(morphedNodeIndices), gltf->assetExternalBuffers);
+            }
+
+            if (!transformedNodeIndices.empty()) {
+                gltf->nodeWorldTransforms.update(gltf->scene);
+                auto updateNodeTransformTask = [this, MOVE_CAP(transformedNodeIndices)](vulkan::Frame &frame) {
+                    for (std::size_t nodeIndex : transformedNodeIndices) {
+                        frame.gltfAsset->instancedNodeWorldTransformBuffer.update(
+                            nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    }
+                };
+                updateNodeTransformTask(frame);
+                deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
+            }
+            if (!morphedNodeIndices.empty()) {
+                auto updateTargetWeightTask = [this, MOVE_CAP(morphedNodeIndices)](vulkan::Frame &frame) {
+                    for (std::size_t nodeIndex : morphedNodeIndices) {
+                        const fastgltf::Node &node = gltf->asset.nodes[nodeIndex];
+                        std::span weights = node.weights;
+                        if (node.meshIndex) {
+                            weights = gltf->asset.meshes[*node.meshIndex].weights;
+                        }
+
+                        for (auto [weightIndex, weight] : weights | ranges::views::enumerate) {
+                            frame.gltfAsset->morphTargetWeightBuffer.updateWeight(nodeIndex, weightIndex, weight);
+                        }
+                    }
+                };
+                updateTargetWeightTask(frame);
+                deferredFrameUpdateTasks.push_back(std::move(updateTargetWeightTask));
+            }
+        }
+
         // Update frame resources.
         const vulkan::Frame::UpdateResult updateResult = frame.update({
             .passthruRect = passthruRect,
@@ -689,6 +733,10 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
     , nodeWorldTransforms { asset }
     , orderedPrimitives { asset }
+    , animations { std::from_range, asset.animations | std::views::transform([&](const fastgltf::Animation &animation) {
+        return gltf::Animation { asset, animation, assetExternalBuffers };
+    }) }
+    , animationEnabled { std::vector(asset.animations.size(), false) }
     , sceneInverseHierarchy { asset, scene } {
     nodeWorldTransforms.update(scene);
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, nodeWorldTransforms, assetExternalBuffers);

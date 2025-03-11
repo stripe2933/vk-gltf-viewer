@@ -126,6 +126,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/algorithm/miniball.cppm
         interface/gltf/algorithm/misc.cppm
         interface/gltf/algorithm/traversal.cppm
+        interface/gltf/Animation.cppm
         interface/gltf/data_structure/NodeInstanceCountExclusiveScanWithCount.cppm
         interface/gltf/data_structure/TargetWeightCountExclusiveScan.cppm
         interface/gltf/AssetExternalBuffers.cppm

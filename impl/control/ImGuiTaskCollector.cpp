@@ -424,6 +424,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
     // bottomSidebar
     ImGui::DockBuilderDockWindow("Material Editor", bottomSidebar);
     ImGui::DockBuilderDockWindow("Material Variants", bottomSidebar);
+    ImGui::DockBuilderDockWindow("Animations", bottomSidebar);
 
     ImGui::DockBuilderFinish(dockSpaceOverViewport);
 
@@ -552,6 +553,18 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
         }
         ImGui::EndMainMenuBar();
     }
+}
+
+void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Asset &asset, std::vector<bool> &animationEnabled) {
+    if (ImGui::Begin("Animation")) {
+        for (auto &&[animation, enabled] : std::views::zip(asset.animations, animationEnabled)) {
+            bool enabledBool = enabled;
+            if (ImGui::Checkbox(nonempty_or(animation.name, []() -> cpp_util::cstring_view { return "<Unnamed animation>"; }).c_str(), &enabledBool)) {
+                enabled = enabledBool;
+            }
+        }
+    }
+    ImGui::End();
 }
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(
