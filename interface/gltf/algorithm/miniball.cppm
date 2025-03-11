@@ -37,8 +37,8 @@ namespace vk_gltf_viewer::gltf::algorithm {
         using Traits = CGAL::Min_sphere_of_points_d_traits_3<CGAL::Simple_cartesian<double>, double>;
         std::vector<Traits::Point> meshBoundingBoxPoints;
 #else
-        fastgltf::math::dvec3 min { std::numeric_limits<double>::max() };
-        fastgltf::math::dvec3 max { std::numeric_limits<double>::lowest() };
+        fastgltf::math::dvec3 min(std::numeric_limits<double>::max());
+        fastgltf::math::dvec3 max(std::numeric_limits<double>::lowest());
 #endif
 
         traverseScene(asset, scene, [&](std::size_t nodeIndex) {
