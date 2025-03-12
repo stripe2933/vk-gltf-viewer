@@ -60,7 +60,7 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 {},
                 27 * sizeof(float),
                 vk::BufferUsageFlagBits::eStorageBuffer | config.sphericalHarmonicsBufferUsage,
-            } } { }
+            }, vku::allocation::hostRead } { }
 
         void recordCommands(
             vk::CommandBuffer computeCommandBuffer,
