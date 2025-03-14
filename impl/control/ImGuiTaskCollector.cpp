@@ -1100,7 +1100,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
                 for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
                     if (ImGui::DragFloat(tempStringBuffer.write("Weight {}", i).view().c_str(), &weight, 0.01f)) {
-                        tasks.emplace_back(std::in_place_type<task::ChangeMorphTargetWeight>, selectedNodeIndex, i, weight);
+                        tasks.emplace_back(std::in_place_type<task::ChangeMorphTargetWeight>, selectedNodeIndex, i, 1);
                     }
                 }
             }

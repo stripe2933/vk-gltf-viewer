@@ -275,6 +275,22 @@ void vk_gltf_viewer::MainApp::run() {
     for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % FRAMES_IN_FLIGHT) {
         tasks.clear();
 
+        if (gltf) {
+            std::vector<std::size_t> transformedNodes, morphedNodes;
+            for (const auto &[animation, enabled] : std::views::zip(gltf->animations, gltf->animationEnabled)) {
+                if (!enabled) continue;
+                animation.update(glfwGetTime(), back_inserter(transformedNodes), back_inserter(morphedNodes), gltf->assetExternalBuffers);
+            }
+
+            for (std::size_t nodeIndex : transformedNodes) {
+                tasks.emplace_back(std::in_place_type<control::task::ChangeNodeLocalTransform>, nodeIndex);
+            }
+            for (std::size_t nodeIndex : morphedNodes) {
+                const std::size_t targetWeightCount = fastgltf::getTargetWeightCount(gltf->asset.nodes[nodeIndex], gltf->asset);
+                tasks.emplace_back(std::in_place_type<control::task::ChangeMorphTargetWeight>, nodeIndex, 0, targetWeightCount);
+            }
+        }
+
         // Collect task from window event (mouse, keyboard, drag and drop, ...).
         window.handleEvents(tasks);
 
@@ -568,7 +584,15 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [&](const control::task::ChangeMorphTargetWeight &task) {
                     auto updateTargetWeightTask = [this, task](vulkan::Frame &frame) {
-                        frame.gltfAsset->morphTargetWeightBuffer.updateWeight(task.nodeIndex, task.targetWeightIndex, task.newValue);
+                        const fastgltf::Node &node = gltf->asset.nodes[task.nodeIndex];
+                        std::span targetWeights = node.weights;
+                        if (node.meshIndex) {
+                            targetWeights = gltf->asset.meshes[*node.meshIndex].weights;
+                        }
+
+                        for (auto weightIndex = task.targetWeightStartIndex; float weight : targetWeights.subspan(task.targetWeightStartIndex, task.targetWeightCount)) {
+                            frame.gltfAsset->morphTargetWeightBuffer.updateWeight(task.nodeIndex, weightIndex++, weight);
+                        }
                     };
                     updateTargetWeightTask(frame);
                     deferredFrameUpdateTasks.push_back(std::move(updateTargetWeightTask));
@@ -582,44 +606,6 @@ void vk_gltf_viewer::MainApp::run() {
                     }
                 },
             }, task);
-        }
-
-        if (gltf) {
-            std::vector<std::size_t> transformedNodeIndices;
-            std::vector<std::size_t> morphedNodeIndices;
-            for (const auto &[animation, enabled] : std::views::zip(gltf->animations, gltf->animationEnabled)) {
-                if (!enabled) continue;
-                animation.update(glfwGetTime(), back_inserter(transformedNodeIndices), back_inserter(morphedNodeIndices), gltf->assetExternalBuffers);
-            }
-
-            if (!transformedNodeIndices.empty()) {
-                gltf->nodeWorldTransforms.update(gltf->scene);
-                auto updateNodeTransformTask = [this, MOVE_CAP(transformedNodeIndices)](vulkan::Frame &frame) {
-                    for (std::size_t nodeIndex : transformedNodeIndices) {
-                        frame.gltfAsset->instancedNodeWorldTransformBuffer.update(
-                            nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
-                    }
-                };
-                updateNodeTransformTask(frame);
-                deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
-            }
-            if (!morphedNodeIndices.empty()) {
-                auto updateTargetWeightTask = [this, MOVE_CAP(morphedNodeIndices)](vulkan::Frame &frame) {
-                    for (std::size_t nodeIndex : morphedNodeIndices) {
-                        const fastgltf::Node &node = gltf->asset.nodes[nodeIndex];
-                        std::span weights = node.weights;
-                        if (node.meshIndex) {
-                            weights = gltf->asset.meshes[*node.meshIndex].weights;
-                        }
-
-                        for (auto [weightIndex, weight] : weights | ranges::views::enumerate) {
-                            frame.gltfAsset->morphTargetWeightBuffer.updateWeight(nodeIndex, weightIndex, weight);
-                        }
-                    }
-                };
-                updateTargetWeightTask(frame);
-                deferredFrameUpdateTasks.push_back(std::move(updateTargetWeightTask));
-            }
         }
 
         // Update frame resources.
