@@ -25,7 +25,7 @@ jobs:
 
       - name: Install Vulkan SDK (without GLSL -> SPIR-V compiler)
         if: ${{ runner.os != 'Windows' }}
-        uses: utzcoz/setup-vulkan-sdk@improve-cache-for-architectures
+        uses: humbletim/setup-vulkan-sdk@v1.2.1
         with:
           vulkan-query-version: 1.3.296.0
           vulkan-components: Vulkan-Headers, Vulkan-Loader
@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Vulkan SDK (with GLSL -> SPIR-V compiler)
         if: ${{ runner.os == 'Windows' }}
-        uses: utzcoz/setup-vulkan-sdk@improve-cache-for-architectures
+        uses: humbletim/setup-vulkan-sdk@v1.2.1
         with:
           vulkan-query-version: 1.3.296.0
           vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
