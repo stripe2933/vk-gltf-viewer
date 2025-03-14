@@ -88,12 +88,11 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 });
 
             // Generate cubemap from eqmapImage.
-            vku::DescriptorSet<CubemapComputer::DescriptorSetLayout> cubemapComputerSet;
             pipelines.cubemapComputer.compute(
                 computeCommandBuffer,
                 {
-                    cubemapComputerSet.getWriteOne<0>({ {}, *intermediateResources->eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                    cubemapComputerSet.getWriteOne<1>({ {}, *intermediateResources->cubemapMipImageViews[0], vk::ImageLayout::eGeneral}),
+                    CubemapComputer::DescriptorSetLayout::getWriteOne<0>({ {}, *intermediateResources->eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                    CubemapComputer::DescriptorSetLayout::getWriteOne<1>({ {}, *intermediateResources->cubemapMipImageViews[0], vk::ImageLayout::eGeneral}),
                 },
                 cubemapImage.extent.width);
 
@@ -105,10 +104,9 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 {}, {});
 
             // Generate cubemapImage mipmaps.
-            vku::DescriptorSet<SubgroupMipmapComputer::DescriptorSetLayout> subgroupMipmapComputerSet;
             pipelines.subgroupMipmapComputer.compute(
                 computeCommandBuffer,
-                subgroupMipmapComputerSet.getWrite<0>(vku::unsafeProxy(
+                SubgroupMipmapComputer::DescriptorSetLayout::getWrite<0>(vku::unsafeProxy(
                     intermediateResources->cubemapMipImageViews
                         | std::views::transform([](vk::ImageView view) {
                             return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };

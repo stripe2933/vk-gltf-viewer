@@ -23,8 +23,7 @@
     {
       "name": "vku",
       "features": [
-        "dynamic-dispatcher",
-        "std-module"
+        "dynamic-dispatcher"
       ]
     },
     "bshoshany-thread-pool"

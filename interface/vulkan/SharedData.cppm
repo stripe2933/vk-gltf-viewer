@@ -178,10 +178,8 @@ namespace vk_gltf_viewer::vulkan {
                 }
             }().get() }
             , fallbackTexture { gpu }{
-            std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet)
-                = vku::allocateDescriptorSets(*gpu.device, *descriptorPool, std::tie(
-                    imageBasedLightingDescriptorSetLayout,
-                    skyboxDescriptorSetLayout));
+            std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet) = vku::allocateDescriptorSets(
+                *descriptorPool, std::tie(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout));
         }
 
         // --------------------
@@ -289,7 +287,7 @@ namespace vk_gltf_viewer::vulkan {
                         gpu.device,
                         getPoolSizes(assetDescriptorSetLayout)
                             .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind));
-                    std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*gpu.device, inner, std::tie(assetDescriptorSetLayout));
+                    std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(inner, std::tie(assetDescriptorSetLayout));
                 }
             }
 
