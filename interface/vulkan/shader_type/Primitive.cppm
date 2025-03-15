@@ -15,8 +15,10 @@ namespace vk_gltf_viewer::vulkan::shader_type {
         vk::DeviceAddress pNormalMorphTargetAccessorBuffer;
         vk::DeviceAddress pTangentBuffer;
         vk::DeviceAddress pTangentMorphTargetAccessorBuffer;
-        vk::DeviceAddress pTexcoordAttributeMappingInfoBuffer;
         vk::DeviceAddress pColorBuffer;
+        vk::DeviceAddress pTexcoordAttributeMappingInfoBuffer;
+        vk::DeviceAddress pJointsAttributeMappingInfoBuffer;
+        vk::DeviceAddress pWeightsAttributeMappingInfoBuffer;
         std::uint8_t positionByteStride;
         std::uint8_t normalByteStride;
         std::uint8_t tangentByteStride;
@@ -25,7 +27,7 @@ namespace vk_gltf_viewer::vulkan::shader_type {
         std::uint8_t _padding0_[8];
     };
 
-    static_assert(sizeof(Primitive) == 80);
-    static_assert(offsetof(Primitive, positionByteStride) == 64);
-    static_assert(offsetof(Primitive, materialIndex) == 68);
+    static_assert(sizeof(Primitive) == 96);
+    static_assert(offsetof(Primitive, positionByteStride) == 80);
+    static_assert(offsetof(Primitive, materialIndex) == 84);
 }

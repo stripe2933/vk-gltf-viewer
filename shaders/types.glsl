@@ -60,8 +60,10 @@ struct Primitive {
     Accessors normalMorphTargetAccessors;
     uint64_t pTangentBuffer;
     Accessors tangentMorphTargetAccessors;
-    Accessors texcoordAccessors;
     uint64_t pColorBuffer;
+    Accessors texcoordAccessors;
+    Accessors jointsAccessors;
+    Accessors weightsAccessors;
     uint8_t positionByteStride;
     uint8_t normalByteStride;
     uint8_t tangentByteStride;
