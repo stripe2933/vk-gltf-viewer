@@ -97,10 +97,7 @@ namespace vk_gltf_viewer::gltf {
 	                    *transformedNodeIt++ = nodeIndex;
 	                    break;
         			case fastgltf::AnimationPath::Weights: {
-        				std::span targetWeights = node.weights;
-        				if (node.meshIndex) {
-        					targetWeights = asset.get().meshes[*node.meshIndex].weights;
-        				}
+        				const std::span targetWeights = getTargetWeights(node, asset);
         				std::ranges::copy(sample(sampler, time, targetWeights.size(), adapter), targetWeights.data());
         				*morphedNodeIt++ = nodeIndex;
         			}

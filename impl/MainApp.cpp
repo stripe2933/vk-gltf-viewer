@@ -584,12 +584,7 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [&](const control::task::ChangeMorphTargetWeight &task) {
                     auto updateTargetWeightTask = [this, task](vulkan::Frame &frame) {
-                        const fastgltf::Node &node = gltf->asset.nodes[task.nodeIndex];
-                        std::span targetWeights = node.weights;
-                        if (node.meshIndex) {
-                            targetWeights = gltf->asset.meshes[*node.meshIndex].weights;
-                        }
-
+                        const std::span targetWeights = getTargetWeights(gltf->asset.nodes[task.nodeIndex], gltf->asset);
                         for (auto weightIndex = task.targetWeightStartIndex; float weight : targetWeights.subspan(task.targetWeightStartIndex, task.targetWeightCount)) {
                             frame.gltfAsset->morphTargetWeightBuffer.updateWeight(task.nodeIndex, weightIndex++, weight);
                         }

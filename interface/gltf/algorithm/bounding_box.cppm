@@ -6,6 +6,7 @@ export module vk_gltf_viewer:gltf.algorithm.bounding_box;
 
 import std;
 export import fastgltf;
+import :helpers.fastgltf;
 import :helpers.functional;
 
 namespace vk_gltf_viewer::gltf::algorithm {
@@ -74,12 +75,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
         const fastgltf::Accessor &accessor = asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];
         std::array bound = getAccessorMinMax(accessor);
 
-        std::span<const float> morphTargetWeights = node.weights;
-        if (node.meshIndex && !asset.meshes[*node.meshIndex].weights.empty()) {
-            morphTargetWeights = asset.meshes[*node.meshIndex].weights;
-        }
-
-        for (const auto &[weight, attributes] : std::views::zip(morphTargetWeights, primitive.targets)) {
+        for (const auto &[weight, attributes] : std::views::zip(getTargetWeights(node, asset), primitive.targets)) {
             for (const auto &[attributeName, accessorIndex] : attributes) {
                 using namespace std::string_view_literals;
                 if (attributeName == "POSITION"sv) {

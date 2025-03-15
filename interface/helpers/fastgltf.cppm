@@ -350,7 +350,42 @@ namespace fastgltf {
     }
 
     /**
-     * @brief Get target weight count of \p node, with respecting its mesh target weights existency.
+     * @brief Get non-owning target weights of \p node, with respecting its mesh target weights existence.
+     *
+     * glTF spec:
+     *   A mesh with morph targets MAY also define an optional mesh.weights property that stores the default targets'
+     *   weights. These weights MUST be used when node.weights is undefined. When mesh.weights is undefined, the default
+     *   targets' weights are zeros.
+     *
+     * Therefore, when calculating the count of a node's target weights, its mesh target weights MUST be also considered.
+     *
+     * @param node Node to get the target weight count.
+     * @param asset Asset that is owning \p node.
+     * @return <tt>std::span</tt> of \p node 's target weights.
+     */
+    export
+    [[nodiscard]] std::span<float> getTargetWeights(Node &node, Asset &asset) noexcept {
+        std::span weights = node.weights;
+        if (node.meshIndex) {
+            weights = asset.meshes[*node.meshIndex].weights;
+        }
+        return weights;
+    }
+
+    /**
+     * @copydoc getTargetWeights
+     */
+    export
+    [[nodiscard]] std::span<const float> getTargetWeights(const Node &node, const Asset &asset) noexcept {
+        std::span weights = node.weights;
+        if (node.meshIndex) {
+            weights = asset.meshes[*node.meshIndex].weights;
+        }
+        return weights;
+    }
+
+    /**
+     * @brief Get target weight count of \p node, with respecting its mesh target weights existence.
      *
      * glTF spec:
      *   A mesh with morph targets MAY also define an optional mesh.weights property that stores the default targets'
@@ -365,11 +400,11 @@ namespace fastgltf {
      */
     export
     [[nodiscard]] std::size_t getTargetWeightCount(const Node &node, const Asset &asset) noexcept {
-        return to_optional(node.meshIndex)
-            .and_then([&](std::size_t meshIndex) {
-                return value_if(!asset.meshes[meshIndex].weights.empty(), asset.meshes[meshIndex].weights.size());
-            })
-            .value_or(node.weights.size());
+        std::size_t count = node.weights.size();
+        if (node.meshIndex) {
+            count = asset.meshes[*node.meshIndex].weights.size();
+        }
+        return count;
     }
 
 namespace math {
