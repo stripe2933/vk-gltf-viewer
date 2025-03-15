@@ -42,24 +42,16 @@ namespace vk_gltf_viewer::gltf::algorithm {
             if (accessor.normalized) {
                 switch (accessor.componentType) {
                 case fastgltf::ComponentType::Byte:
-                    min.x() = std::max<T>(min.x() / 127, -1);
-                    min.y() = std::max<T>(min.y() / 127, -1);
-                    min.z() = std::max<T>(min.z() / 127, -1);
-                    max.x() = std::max<T>(max.x() / 127, -1);
-                    max.y() = std::max<T>(max.y() / 127, -1);
-                    max.z() = std::max<T>(max.z() / 127, -1);
+                    min = cwiseMax(min / 127, fastgltf::math::vec<T, 3>(-1));
+                    max = cwiseMax(max / 127, fastgltf::math::vec<T, 3>(-1));
                     break;
                 case fastgltf::ComponentType::UnsignedByte:
                     min /= 255;
                     max /= 255;
                     break;
                 case fastgltf::ComponentType::Short:
-                    min.x() = std::max<T>(min.x() / 32767, -1);
-                    min.y() = std::max<T>(min.y() / 32767, -1);
-                    min.z() = std::max<T>(min.z() / 32767, -1);
-                    max.x() = std::max<T>(max.x() / 32767, -1);
-                    max.y() = std::max<T>(max.y() / 32767, -1);
-                    max.z() = std::max<T>(max.z() / 32767, -1);
+                    min = cwiseMax(min / 32767, fastgltf::math::vec<T, 3>(-1));
+                    max = cwiseMax(max / 32767, fastgltf::math::vec<T, 3>(-1));
                     break;
                 case fastgltf::ComponentType::UnsignedShort:
                     min /= 65535;
