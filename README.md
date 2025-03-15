@@ -222,10 +222,10 @@ Add the following CMake user preset file in your project directory. I'll assume 
 
 `clang-toolchain.cmake`
 ```cmake
+include($ENV{VCPKG_ROOT}/scripts/toolchains/linux.cmake)
+
 set(CMAKE_C_COMPILER /usr/bin/clang)
 set(CMAKE_CXX_COMPILER /usr/bin/clang++)
-set(CMAKE_CXX_FLAGS "-stdlib=libc++")
-set(CMAKE_EXE_LINKER_FLAGS "-stdlib=libc++ -lc++abi")
 ```
 
 `triplets/x64-linux-clang.cmake`
@@ -235,6 +235,10 @@ set(VCPKG_CRT_LINKAGE dynamic)
 set(VCPKG_LIBRARY_LINKAGE static)
 set(VCPKG_CMAKE_SYSTEM_NAME Linux)
 set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../clang-toolchain.cmake)
+
+set(VCPKG_C_FLAGS "")
+set(VCPKG_CXX_FLAGS "-stdlib=libc++")
+set(VCPKG_LINKER_FLAGS "-stdlib=libc++ -lc++abi")
 ```
 
 Configure and build the project with `linux-clang` configuration preset.
@@ -278,6 +282,8 @@ Add the following CMake user preset file in your project directory. I'll assume 
 
 `homebrew-clang-toolchain.cmake`
 ```cmake
+include($ENV{VCPKG_ROOT}/scripts/toolchains/osx.cmake)
+
 set(CMAKE_C_COMPILER /opt/homebrew/opt/llvm/bin/clang)
 set(CMAKE_CXX_COMPILER /opt/homebrew/opt/llvm/bin/clang++)
 ```
