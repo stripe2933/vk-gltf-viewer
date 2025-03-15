@@ -2,6 +2,7 @@ export module vk_gltf_viewer:gltf.data_structure.TargetWeightCountExclusiveScan;
 
 import std;
 export import fastgltf;
+import :helpers.fastgltf;
 import :helpers.algorithm;
 
 namespace vk_gltf_viewer::gltf::ds {
@@ -12,14 +13,8 @@ namespace vk_gltf_viewer::gltf::ds {
      */
     export struct TargetWeightCountExclusiveScan final : std::vector<std::uint32_t> {
         explicit TargetWeightCountExclusiveScan(const fastgltf::Asset &asset)
-            : vector { exclusive_scan(asset.nodes | std::views::transform([&](const fastgltf::Node &node) {
-                std::uint32_t weightCount = node.weights.size();
-                if (node.meshIndex) {
-                    const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-                    weightCount = mesh.weights.size();
-                }
-
-                return weightCount;
+            : vector { exclusive_scan(asset.nodes | std::views::transform([&](const fastgltf::Node &node) -> std::uint32_t {
+                return getTargetWeightCount(node, asset);
             })) } { }
     };
 }

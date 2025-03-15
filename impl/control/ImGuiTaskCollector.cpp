@@ -1091,11 +1091,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                 });
             }
 
-            std::span<float> morphTargetWeights = node.weights;
-            if (node.meshIndex && !asset.meshes[*node.meshIndex].weights.empty()) {
-                morphTargetWeights = asset.meshes[*node.meshIndex].weights;
-            }
-            if (!morphTargetWeights.empty()) {
+            if (const std::span morphTargetWeights = getTargetWeights(node, asset); !morphTargetWeights.empty()) {
                 ImGui::SeparatorText("Morph Target Weights");
 
                 for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
