@@ -34,7 +34,7 @@ Blazingly fast[^1] Vulkan glTF viewer.
 Followings are not supported:
 
 - Primitive Type except for `TRIANGLES`.
-- Animation.
+- Skinning.
 
 ## Performance
 
@@ -308,12 +308,13 @@ All shaders are located in the [shaders](/shaders) folder and will be automatica
 
 - [x] Basis Universal texture support (`KHR_texture_basisu`).
 - [x] Automatic camera position adjustment based on the bounding sphere calculation.
+- [x] Animations.
 - [ ] Frustum culling
   - [x] CPU frustum culling (Note: still experimental; unexpected popped in/out may happened.)
   - [ ] GPU frustum culling
 - [ ] Occlusion culling
 - [ ] Reduce skybox memory usage with BC6H compressed cubemap.
-- [ ] Animations.
+- [ ] Skinning
 
 ## License
 

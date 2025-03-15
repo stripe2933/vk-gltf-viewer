@@ -3,6 +3,7 @@ export module vk_gltf_viewer:MainApp;
 import std;
 import :control.AppWindow;
 import :gltf.algorithm.miniball;
+import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
 import :gltf.MaterialVariantsMapping;
 import :gltf.NodeWorldTransforms;
@@ -68,6 +69,9 @@ namespace vk_gltf_viewer {
 
             gltf::NodeWorldTransforms nodeWorldTransforms;
             gltf::OrderedPrimitives orderedPrimitives;
+
+            std::vector<gltf::Animation> animations;
+            std::vector<bool> animationEnabled;
 
             /**
              * @brief The glTF scene that is currently used by.

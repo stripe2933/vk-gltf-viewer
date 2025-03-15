@@ -1,5 +1,7 @@
 module;
 
+#include <cassert>
+
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 #include <lifetimebound.hpp>
@@ -9,12 +11,15 @@ export module vk_gltf_viewer:vulkan.Frame;
 import std;
 export import :gltf.NodeWorldTransforms;
 export import :gltf.OrderedPrimitives;
+import :helpers.optional;
 export import :math.Frustum;
 import :vulkan.ag.DepthPrepass;
 import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.SceneOpaque;
 import :vulkan.ag.SceneWeightedBlended;
 import :vulkan.buffer.IndirectDrawCommands;
+import :vulkan.buffer.InstancedNodeWorldTransforms;
+import :vulkan.buffer.MorphTargetWeights;
 export import :vulkan.SharedData;
 
 /**
@@ -54,7 +59,36 @@ struct CommandSeparationCriteriaNoShading {
 
 namespace vk_gltf_viewer::vulkan {
     export class Frame {
+        const SharedData &sharedData;
+
     public:
+        struct GltfAsset {
+            buffer::InstancedNodeWorldTransforms instancedNodeWorldTransformBuffer;
+            buffer::MorphTargetWeights morphTargetWeightBuffer;
+
+            // Used only if GPU does not support variable descriptor count.
+            std::optional<vk::raii::DescriptorPool> descriptorPool;
+
+            template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
+            GltfAsset(
+                const fastgltf::Asset &asset LIFETIMEBOUND,
+                const gltf::NodeWorldTransforms &nodeWorldTransforms,
+                const SharedData &sharedData LIFETIMEBOUND,
+                const BufferDataAdapter &adapter = {}
+            ) : instancedNodeWorldTransformBuffer { asset, sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount, nodeWorldTransforms, sharedData.gpu.allocator, adapter },
+                morphTargetWeightBuffer { asset, sharedData.gltfAsset->targetWeightCountExclusiveScan, sharedData.gpu },
+                descriptorPool { value_if(!sharedData.gpu.supportVariableDescriptorCount, [&]() {
+                    return vk::raii::DescriptorPool {
+                        sharedData.gpu.device,
+                        sharedData.assetDescriptorSetLayout.getPoolSize()
+                            .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind),
+                    };
+                }) } {
+                // Setup node world transforms as the default scene hierarchy.
+                instancedNodeWorldTransformBuffer.update(asset.scenes[asset.defaultScene.value_or(0)], nodeWorldTransforms, adapter);
+            }
+        };
+
         struct ExecutionTask {
             struct Gltf {
                 struct RenderingNodes {
@@ -123,6 +157,13 @@ namespace vk_gltf_viewer::vulkan {
             std::optional<std::uint16_t> hoveringNodeIndex;
         };
 
+        // --------------------
+        // glTF asset.
+        // --------------------
+
+        std::optional<GltfAsset> gltfAsset;
+        vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
+
         explicit Frame(const SharedData &sharedData LIFETIMEBOUND);
 
         /**
@@ -151,6 +192,46 @@ namespace vk_gltf_viewer::vulkan {
          * @return The semaphore.
          */
         [[nodiscard]] vk::Semaphore getSwapchainImageReadySemaphore() const noexcept { return *compositionFinishSema; }
+
+        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
+        void changeAsset(
+            const fastgltf::Asset &asset,
+            const gltf::NodeWorldTransforms &nodeWorldTransforms,
+            const BufferDataAdapter &adapter = {}
+        ) {
+            const auto &inner = gltfAsset.emplace(asset, nodeWorldTransforms, sharedData, adapter);
+            if (sharedData.gpu.supportVariableDescriptorCount) {
+                (*sharedData.gpu.device).freeDescriptorSets(*descriptorPool, assetDescriptorSet);
+                assetDescriptorSet = decltype(assetDescriptorSet) {
+                    vku::unsafe,
+                    (*sharedData.gpu.device).allocateDescriptorSets(vk::StructureChain {
+                         vk::DescriptorSetAllocateInfo {
+                             *descriptorPool,
+                             *sharedData.assetDescriptorSetLayout,
+                         },
+                         vk::DescriptorSetVariableDescriptorCountAllocateInfo {
+                             vku::unsafeProxy<std::uint32_t>(asset.textures.size() + 1),
+                         },
+                     }.get())[0],
+                };
+            }
+            else {
+                std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*inner.descriptorPool.value(), std::tie(sharedData.assetDescriptorSetLayout));
+            }
+
+            std::vector<vk::DescriptorImageInfo> imageInfos;
+            imageInfos.reserve(asset.textures.size() + 1);
+            imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+            imageInfos.append_range(sharedData.gltfAsset->textures.descriptorInfos);
+            sharedData.gpu.device.updateDescriptorSets({
+                assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<1>(sharedData.gltfAsset->nodeBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<2>(inner.instancedNodeWorldTransformBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<3>(inner.morphTargetWeightBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<4>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<5>(imageInfos),
+            }, {});
+        }
 
     private:
         class PassthruResources {
@@ -200,8 +281,6 @@ namespace vk_gltf_viewer::vulkan {
             float outlineThickness;
         };
 
-        const SharedData &sharedData;
-
         // Buffer, image and image views.
         vku::MappedBuffer hoveringNodeIndexBuffer;
         std::optional<PassthruResources> passthruResources;
@@ -250,7 +329,7 @@ namespace vk_gltf_viewer::vulkan {
         std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
 
         [[nodiscard]] auto createFramebuffers() const -> std::vector<vk::raii::Framebuffer>;
-        [[nodiscard]] auto createDescriptorPool() const -> decltype(descriptorPool);
+        [[nodiscard]] vk::raii::DescriptorPool createDescriptorPool() const;
 
         auto recordScenePrepassCommands(vk::CommandBuffer cb) const -> void;
         // Return true if last jump flood calculation direction is forward (result is in pong image), false if backward.

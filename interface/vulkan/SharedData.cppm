@@ -17,7 +17,6 @@ import :helpers.ranges;
 export import :vulkan.ag.Swapchain;
 import :vulkan.buffer.CombinedIndices;
 import :vulkan.buffer.Materials;
-import :vulkan.buffer.MorphTargetWeights;
 import :vulkan.buffer.Nodes;
 import :vulkan.buffer.PrimitiveAttributes;
 import :vulkan.buffer.Primitives;
@@ -40,8 +39,9 @@ namespace vk_gltf_viewer::vulkan {
     export class SharedData {
     public:
         struct GltfAsset {
-            buffer::InstancedNodeWorldTransforms instancedNodeWorldTransformBuffer;
-            buffer::MorphTargetWeights morphTargetWeightBuffer;
+            std::shared_ptr<gltf::ds::NodeInstanceCountExclusiveScanWithCount> nodeInstanceCountExclusiveScanWithCount;
+            std::shared_ptr<gltf::ds::TargetWeightCountExclusiveScan> targetWeightCountExclusiveScan;
+
             buffer::Nodes nodeBuffer;
             buffer::Materials materialBuffer;
             buffer::CombinedIndices combinedIndexBuffers;
@@ -53,24 +53,20 @@ namespace vk_gltf_viewer::vulkan {
             GltfAsset(
                 const fastgltf::Asset &asset,
                 const std::filesystem::path &directory,
-                const gltf::NodeWorldTransforms &nodeWorldTransforms,
                 const gltf::OrderedPrimitives &orderedPrimitives,
                 const Gpu &gpu,
                 const texture::Fallback &fallbackTexture,
                 const BufferDataAdapter &adapter = {},
                 buffer::StagingBufferStorage stagingBufferStorage = {},
                 BS::thread_pool<> threadPool = {}
-            ) : instancedNodeWorldTransformBuffer { asset, nodeWorldTransforms, gpu.allocator, adapter },
-                morphTargetWeightBuffer { asset, gpu },
-                nodeBuffer { asset, instancedNodeWorldTransformBuffer, morphTargetWeightBuffer, gpu.allocator, stagingBufferStorage },
+            ) : nodeInstanceCountExclusiveScanWithCount { std::make_shared<gltf::ds::NodeInstanceCountExclusiveScanWithCount>(asset) },
+                targetWeightCountExclusiveScan { std::make_shared<gltf::ds::TargetWeightCountExclusiveScan>(asset) },
+                nodeBuffer { asset, *nodeInstanceCountExclusiveScanWithCount, *targetWeightCountExclusiveScan, gpu.allocator, stagingBufferStorage },
                 materialBuffer { asset, gpu.allocator, stagingBufferStorage },
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
                 primitiveBuffer { materialBuffer, orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
                 textures { asset, directory, gpu, fallbackTexture, threadPool, adapter } {
-                // Setup node world transforms as the default scene hierarchy.
-                instancedNodeWorldTransformBuffer.update(asset.scenes[asset.defaultScene.value_or(0)], nodeWorldTransforms, adapter);
-
                 if (stagingBufferStorage.hasStagingCommands()) {
                     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
                     const vk::raii::Fence transferFence { gpu.device, vk::FenceCreateInfo{} };
@@ -127,11 +123,9 @@ namespace vk_gltf_viewer::vulkan {
         std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> imGuiSwapchainAttachmentGroup;
 
         // Descriptor pools.
-        std::optional<vk::raii::DescriptorPool> assetDescriptorPool; // nullopt if Gpu::supportVariableDescriptorCount is true.
         vk::raii::DescriptorPool descriptorPool;
 
         // Descriptor sets.
-        vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
         vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
         vku::DescriptorSet<dsl::Skybox> skyboxDescriptorSet;
 
@@ -168,15 +162,7 @@ namespace vk_gltf_viewer::vulkan {
             , weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass }
             , swapchainAttachmentGroup { gpu, swapchainExtent, swapchainImages }
             , imGuiSwapchainAttachmentGroup { getImGuiSwapchainAttachmentGroup() }
-            , descriptorPool { gpu.device, [&]() {
-                if (gpu.supportVariableDescriptorCount) {
-                    return getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout, assetDescriptorSetLayout)
-                        .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet | vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind);
-                }
-                else {
-                    return getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo();
-                }
-            }().get() }
+            , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
             , fallbackTexture { gpu }{
             std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet) = vku::allocateDescriptorSets(
                 *descriptorPool, std::tie(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout));
@@ -239,7 +225,6 @@ namespace vk_gltf_viewer::vulkan {
         void changeAsset(
             const fastgltf::Asset &asset,
             const std::filesystem::path &directory,
-            const gltf::NodeWorldTransforms &nodeWorldTransforms,
             const gltf::OrderedPrimitives &orderedPrimitives,
             const BufferDataAdapter &adapter = {}
         ) {
@@ -250,59 +235,20 @@ namespace vk_gltf_viewer::vulkan {
                 throw gltf::AssetProcessError::TooManyTextureError;
             }
 
-            const GltfAsset &inner = gltfAsset.emplace(asset, directory, nodeWorldTransforms, orderedPrimitives, gpu, fallbackTexture, adapter);
-            if (gpu.supportVariableDescriptorCount) {
-                (*gpu.device).freeDescriptorSets(*descriptorPool, assetDescriptorSet);
-                assetDescriptorSet = decltype(assetDescriptorSet) {
-                    vku::unsafe,
-                    (*gpu.device).allocateDescriptorSets(vk::StructureChain {
-                         vk::DescriptorSetAllocateInfo {
-                             *descriptorPool,
-                             *assetDescriptorSetLayout,
-                         },
-                         vk::DescriptorSetVariableDescriptorCountAllocateInfo {
-                             vk::ArrayProxyNoTemporaries<const std::uint32_t> { textureCount },
-                         }
-                     }.get())[0],
-                };
+            gltfAsset.emplace(asset, directory, orderedPrimitives, gpu, fallbackTexture, adapter);
+            if (!gpu.supportVariableDescriptorCount && assetDescriptorSetLayout.descriptorCounts[5] != textureCount) {
+                // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
+                depthPipelines.clear();
+                maskDepthPipelines.clear();
+                jumpFloodSeedPipelines.clear();
+                maskJumpFloodSeedPipelines.clear();
+                primitivePipelines.clear();
+                unlitPrimitivePipelines.clear();
+
+                assetDescriptorSetLayout = { gpu, textureCount };
+                primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
+                primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
             }
-            else {
-                const bool recreatePipelines = assetDescriptorSetLayout.descriptorCounts[5] != textureCount;
-                if (recreatePipelines) {
-                    // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
-                    depthPipelines.clear();
-                    maskDepthPipelines.clear();
-                    jumpFloodSeedPipelines.clear();
-                    maskJumpFloodSeedPipelines.clear();
-                    primitivePipelines.clear();
-                    unlitPrimitivePipelines.clear();
-
-                    assetDescriptorSetLayout = { gpu, textureCount };
-                    primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
-                    primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
-                }
-
-                if (recreatePipelines || !assetDescriptorSet) {
-                    const auto &inner = assetDescriptorPool.emplace(
-                        gpu.device,
-                        getPoolSizes(assetDescriptorSetLayout)
-                            .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind));
-                    std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(inner, std::tie(assetDescriptorSetLayout));
-                }
-            }
-
-            std::vector<vk::DescriptorImageInfo> imageInfos;
-            imageInfos.reserve(textureCount);
-            imageInfos.emplace_back(*fallbackTexture.sampler, *fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-            imageInfos.append_range(inner.textures.descriptorInfos);
-            gpu.device.updateDescriptorSets({
-                assetDescriptorSet.getWrite<0>(inner.primitiveBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<1>(inner.nodeBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<2>(inner.instancedNodeWorldTransformBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<3>(inner.morphTargetWeightBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<4>(inner.materialBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<5>(imageInfos),
-            }, {});
         }
 
     private:
