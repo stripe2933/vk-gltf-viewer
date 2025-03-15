@@ -113,12 +113,11 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 });
 
             // Generate prefiltered map.
-            vku::DescriptorSet<PrefilteredmapComputer::DescriptorSetLayout> prefilteredmapComputerSet;
             pipelines.prefilteredmapComputer.compute(
                 computeCommandBuffer,
                 {
-                    prefilteredmapComputerSet.getWriteOne<0>({ {}, *intermediateResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                    prefilteredmapComputerSet.getWrite<1>(vku::unsafeProxy(
+                    PrefilteredmapComputer::DescriptorSetLayout::getWriteOne<0>({ {}, *intermediateResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                    PrefilteredmapComputer::DescriptorSetLayout::getWrite<1>(vku::unsafeProxy(
                         intermediateResources->prefilteredmapMipImageViews
                             | std::views::transform([](vk::ImageView view) {
                                 return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
@@ -128,12 +127,11 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 prefilteredmapImage.extent.width);
 
             // Initial spherical harmonic coefficients reduction.
-            vku::DescriptorSet<SphericalHarmonicsComputer::DescriptorSetLayout> sphericalHarmonicsComputerSet;
             pipelines.sphericalHarmonicsComputer.compute(
                 computeCommandBuffer,
                 {
-                    sphericalHarmonicsComputerSet.getWriteOne<0>({ {}, *intermediateResources->cubemapArrayImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                    sphericalHarmonicsComputerSet.getWriteOne<1>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
+                    SphericalHarmonicsComputer::DescriptorSetLayout::getWriteOne<0>({ {}, *intermediateResources->cubemapArrayImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                    SphericalHarmonicsComputer::DescriptorSetLayout::getWriteOne<1>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
                 },
                 cubemapImage.extent.width);
 
@@ -145,11 +143,10 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 {}, {});
 
             // Calculate sum of total spherical harmonic coefficients using ping-pong buffer dispatches.
-            vku::DescriptorSet<SphericalHarmonicCoefficientsSumComputer::DescriptorSetLayout> sphericalHarmonicCoefficientsSumComputerSet;
             const std::uint32_t workgroupTotal = getWorkgroupTotal(SphericalHarmonicsComputer::getWorkgroupCount(cubemapImage.extent.width));
             const std::uint32_t dstOffset = pipelines.sphericalHarmonicCoefficientsSumComputer.compute(
                 computeCommandBuffer,
-                sphericalHarmonicCoefficientsSumComputerSet.getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
+                SphericalHarmonicCoefficientsSumComputer::DescriptorSetLayout::getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, 0, vk::WholeSize }),
                 {
                     .srcOffset = 0,
                     .count = workgroupTotal,
@@ -165,14 +162,13 @@ namespace vk_gltf_viewer::vulkan::inline generator {
                 {});
 
             // Copy from sphericalHarmonicsReductionBuffer to sphericalHarmonicsBuffer with normalization multiplier.
-            vku::DescriptorSet<MultiplyComputer::DescriptorSetLayout> multiplyComputerSet;
             pipelines.multiplyComputer.compute(
                 computeCommandBuffer,
                 {
                     // sphericalHarmonicsReductionBuffer[dstOffset:dstOffset + 9 * sizeof(glm::vec3)] represents the total sum.
                     // It has to be divided by the total cubemap texel count for the average calculation.
-                    multiplyComputerSet.getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, sizeof(float) * 27 * dstOffset, sizeof(float) * 27 }),
-                    multiplyComputerSet.getWriteOne<1>({ sphericalHarmonicsBuffer, 0, vk::WholeSize }),
+                    MultiplyComputer::DescriptorSetLayout::getWriteOne<0>({ intermediateResources->sphericalHarmonicsReductionBuffer, sizeof(float) * 27 * dstOffset, sizeof(float) * 27 }),
+                    MultiplyComputer::DescriptorSetLayout::getWriteOne<1>({ sphericalHarmonicsBuffer, 0, vk::WholeSize }),
                 },
                 {
                     .numCount = 27,

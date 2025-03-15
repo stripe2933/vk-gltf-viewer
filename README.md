@@ -71,9 +71,6 @@ I initially developed this application for leveraging Vulkan's performance and u
 
 ## Usage
 
-> [!WARNING]
-> The latest Vulkan SDK (1.4.304) is not compatible to the application's core library ([vku](https://github.com/stripe2933/vku)), due to [the upstream issue](https://github.com/KhronosGroup/Vulkan-Hpp/issues/2045). You need to use the previous version (1.3.296) for now.
-
 ### Vulkan Requirements
 
 The extensions and feature used in this application are quite common in the modern desktop GPU drivers, so I hope you don't have any problem with this.

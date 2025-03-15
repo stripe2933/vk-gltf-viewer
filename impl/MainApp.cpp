@@ -120,10 +120,9 @@ vk_gltf_viewer::MainApp::MainApp() {
                     });
 
                 // Compute BRDF.
-                vku::DescriptorSet<vulkan::BrdfmapComputer::DescriptorSetLayout> brdfmapSet;
                 brdfmapComputer.compute(
                     cb,
-                    brdfmapSet.getWriteOne<0>({ {}, *brdfmapImageView, vk::ImageLayout::eGeneral }),
+                    vulkan::BrdfmapComputer::DescriptorSetLayout::getWriteOne<0>({ {}, *brdfmapImageView, vk::ImageLayout::eGeneral }),
                     vku::toExtent2D(brdfmapImage.extent));
 
                 // brdfmapImage will be used as sampled image.
@@ -1217,11 +1216,10 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 }, vk::SubpassContents::eInline);
 
                 cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapToneMappingRenderer.pipeline);
-                vku::DescriptorSet<vulkan::CubemapToneMappingRenderer::DescriptorSetLayout> cubemapToneMappingDescriptorSet;
                 cb.pushDescriptorSetKHR(
                     vk::PipelineBindPoint::eGraphics,
                     *cubemapToneMappingRenderer.pipelineLayout,
-                    0, cubemapToneMappingDescriptorSet.getWriteOne<0>({ {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal }));
+                    0, vulkan::CubemapToneMappingRenderer::DescriptorSetLayout::getWriteOne<0>({ {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal }));
                 cb.setViewport(0, vku::unsafeProxy(vku::toViewport(vku::toExtent2D(toneMappedCubemapImage.extent))));
                 cb.setScissor(0, vku::unsafeProxy(vk::Rect2D { { 0, 0 }, vku::toExtent2D(toneMappedCubemapImage.extent) }));
                 cb.draw(3, 1, 0, 0);

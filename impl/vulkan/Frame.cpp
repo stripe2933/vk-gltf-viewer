@@ -44,7 +44,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
 
     // Allocate descriptor sets.
     std::tie(hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet)
-        = allocateDescriptorSets(*sharedData.gpu.device, *descriptorPool, std::tie(
+        = allocateDescriptorSets(*descriptorPool, std::tie(
             sharedData.jumpFloodComputer.descriptorSetLayout,
             sharedData.jumpFloodComputer.descriptorSetLayout,
             sharedData.outlineRenderer.descriptorSetLayout,
