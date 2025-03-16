@@ -73,8 +73,16 @@ namespace vk_gltf_viewer::vulkan::buffer {
             const BufferDataAdapter &adapter = {}
         ) : PostTransferObject { stagingBufferStorage },
             mappings { createMappings(asset, gpu, adapter) } {
-            generateIndexedAttributeMappingInfos(gpu);
-            generateMorphTargetMappingInfos(gpu);
+            // Generate mappings of indexed attribute accessors: {TEXCOORD,JOINTS,WEIGHTS}_<i>.
+            generateCombinedAccessorMappingInfo(gpu, &PrimitiveAccessors::texcoordAccessors, &PrimitiveAccessors::texcoordAccessorBufferAddress);
+            generateCombinedAccessorMappingInfo(gpu, &PrimitiveAccessors::jointsAccessors, &PrimitiveAccessors::jointsAccessorBufferAddress);
+            generateCombinedAccessorMappingInfo(gpu, &PrimitiveAccessors::weightsAccessors, &PrimitiveAccessors::weightsAccessorBufferAddress);
+
+            // Generate morph target accessors of POSITION, NORMAL and TANGENT attributes.
+            generateCombinedAccessorMappingInfo(gpu, &PrimitiveAccessors::positionMorphTargetAccessors, &PrimitiveAccessors::positionMorphTargetAccessorBufferAddress);
+            generateCombinedAccessorMappingInfo(gpu, &PrimitiveAccessors::normalMorphTargetAccessors, &PrimitiveAccessors::normalMorphTargetAccessorBufferAddress);
+            generateCombinedAccessorMappingInfo(gpu, &PrimitiveAccessors::tangentMorphTargetAccessors, &PrimitiveAccessors::tangentMorphTargetAccessorBufferAddress);
+            
             generateMissingTangentBuffers(asset, gpu, threadPool, adapter);
         }
 
@@ -338,78 +346,29 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 | std::ranges::to<std::unordered_map>();
         }
 
-        void generateIndexedAttributeMappingInfos(const Gpu &gpu) {
-            const auto processIndexedAttributeAccessors = [&](auto &&indexedAttributeAccessorGetter, auto &&indexedAttributeAccessorBufferAddressGetter) -> void {
-                auto indexedAttributeAccessors
-                    = mappings
-                    | std::views::values
-                    | std::views::filter([&](const PrimitiveAccessors &accessors) {
-                        return !std::invoke(indexedAttributeAccessorGetter, accessors).empty();
-                    });
-                if (indexedAttributeAccessors.empty()) {
-                    return;
-                }
+        void generateCombinedAccessorMappingInfo(const Gpu &gpu, auto &&accessorGetter, auto &&bufferAddressGetter) {
+            auto indexedAttributeAccessors
+                = mappings
+                | std::views::values
+                | std::views::filter([&](const PrimitiveAccessors &accessors) {
+                    return !std::invoke(accessorGetter, accessors).empty();
+                });
+            if (indexedAttributeAccessors.empty()) {
+                return;
+            }
 
-                auto [buffer, copyOffsets] = createCombinedBuffer<true>(
-                    gpu.allocator,
-                    indexedAttributeAccessors | std::views::transform(indexedAttributeAccessorGetter),
-                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
-                if (StagingBufferStorage::needStaging(buffer)) {
-                    stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-                }
+            auto [buffer, copyOffsets] = createCombinedBuffer<true>(
+                gpu.allocator,
+                indexedAttributeAccessors | std::views::transform(accessorGetter),
+                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
+            if (StagingBufferStorage::needStaging(buffer)) {
+                stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+            }
 
-                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
-                for (auto &&[accessors, copyOffset] : std::views::zip(indexedAttributeAccessors, copyOffsets)) {
-                    std::invoke(indexedAttributeAccessorBufferAddressGetter, accessors) = bufferAddress + copyOffset;
-                }
-            };
-
-            processIndexedAttributeAccessors(
-                &PrimitiveAccessors::texcoordAccessors,
-                &PrimitiveAccessors::texcoordAccessorBufferAddress);
-            processIndexedAttributeAccessors(
-                &PrimitiveAccessors::jointsAccessors,
-                &PrimitiveAccessors::jointsAccessorBufferAddress);
-            processIndexedAttributeAccessors(
-                &PrimitiveAccessors::weightsAccessors,
-                &PrimitiveAccessors::weightsAccessorBufferAddress);
-        }
-
-        void generateMorphTargetMappingInfos(const Gpu &gpu) {
-            const auto processMorphTargetAccessors = [&](auto &&morphTargetAccessorGetter, auto &&morphTargetAccessorBufferAddressGetter) -> void {
-                auto morphTargetAccessors
-                    = mappings
-                    | std::views::values
-                    | std::views::filter([&](const PrimitiveAccessors &accessors) {
-                        return !std::invoke(morphTargetAccessorGetter, accessors).empty();
-                    });
-                if (morphTargetAccessors.empty()) {
-                    return;
-                }
-
-                auto [buffer, copyOffsets] = createCombinedBuffer<true>(
-                    gpu.allocator,
-                    morphTargetAccessors | std::views::transform(morphTargetAccessorGetter),
-                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
-                if (StagingBufferStorage::needStaging(buffer)) {
-                    stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-                }
-
-                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
-                for (auto &&[accessors, copyOffset] : std::views::zip(morphTargetAccessors, copyOffsets)) {
-                    std::invoke(morphTargetAccessorBufferAddressGetter, accessors) = bufferAddress + copyOffset;
-                }
-            };
-
-            processMorphTargetAccessors(
-                &PrimitiveAccessors::positionMorphTargetAccessors,
-                &PrimitiveAccessors::positionMorphTargetAccessorBufferAddress);
-            processMorphTargetAccessors(
-                &PrimitiveAccessors::normalMorphTargetAccessors,
-                &PrimitiveAccessors::normalMorphTargetAccessorBufferAddress);
-            processMorphTargetAccessors(
-                &PrimitiveAccessors::tangentMorphTargetAccessors,
-                &PrimitiveAccessors::tangentMorphTargetAccessorBufferAddress);
+            const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
+            for (auto &&[accessors, copyOffset] : std::views::zip(indexedAttributeAccessors, copyOffsets)) {
+                std::invoke(bufferAddressGetter, accessors) = bufferAddress + copyOffset;
+            }
         }
 
         template <typename BufferDataAdapter>
