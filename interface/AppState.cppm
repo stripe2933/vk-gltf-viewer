@@ -88,7 +88,7 @@ namespace vk_gltf_viewer {
                                 return visibility.value_or(false) && asset.nodes[nodeIndex].meshIndex.has_value();
                             }))
                             | std::views::keys
-                            | ranges::views::cast<std::uint16_t>
+                            | std::views::transform([](auto nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
                             | std::ranges::to<std::unordered_set>();
                     },
                     [this](const std::vector<bool> &visibilities) {
@@ -98,7 +98,7 @@ namespace vk_gltf_viewer {
                                 return visibility && asset.nodes[nodeIndex].meshIndex.has_value();
                             }))
                             | std::views::keys
-                            | ranges::views::cast<std::uint16_t>
+                            | std::views::transform([](auto nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
                             | std::ranges::to<std::unordered_set>();
                     }
                 }, nodeVisibilities);

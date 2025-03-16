@@ -82,7 +82,9 @@ namespace vk_gltf_viewer::vulkan::buffer {
                         .pJointsAttributeMappingInfoBuffer = accessors.jointsAccessorBufferAddress,
                         .pWeightsAttributeMappingInfoBuffer = accessors.weightsAccessorBufferAddress,
                         .positionByteStride = accessors.positionAccessor.byteStride,
-                        .materialIndex = to_optional(pPrimitive->materialIndex).transform([](std::uint32_t index) { return index + 1; }).value_or(0U),
+                        .materialIndex = to_optional(pPrimitive->materialIndex)
+                            .transform([](auto index) { return static_cast<std::uint32_t>(index) + 1U; })
+                            .value_or(0U),
                     };
                     if (!accessors.positionMorphTargetAccessors.empty()) {
                         result.pPositionMorphTargetAccessorBuffer = accessors.positionMorphTargetAccessorBufferAddress;

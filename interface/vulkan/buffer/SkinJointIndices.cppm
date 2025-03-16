@@ -15,7 +15,9 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 std::vector<std::vector<std::uint32_t>> jointIndices;
                 jointIndices.reserve(std::max<std::size_t>(asset.skins.size(), 1));
                 for (const fastgltf::Skin &skin : asset.skins) {
-                    jointIndices.emplace_back(std::from_range, skin.joints);
+                    jointIndices.emplace_back(std::from_range, skin.joints | std::views::transform([](std::size_t skinIndex) {
+                        return static_cast<std::uint32_t>(skinIndex);
+                    }));
                 }
 
                 // Avoid zero-sized buffer

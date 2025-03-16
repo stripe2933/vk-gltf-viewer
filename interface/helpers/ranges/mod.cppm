@@ -165,9 +165,6 @@ namespace views {
         return &x;
     });
 
-    export template <typename T>
-    constexpr auto cast = std::views::transform([](auto x) -> T { return static_cast<T>(x); });
-
     /**
      * A range adaptor object that apply a transformation function, invocable with underlying sequence's tuple-like elements.
      * @example
