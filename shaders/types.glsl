@@ -37,6 +37,8 @@ struct Material {
 struct Node {
     uint instancedTransformStartIndex;
     uint morphTargetWeightStartIndex;
+    uint skinJointStartIndex;
+    uint _padding_;
 };
 
 struct Accessor {

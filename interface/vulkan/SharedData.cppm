@@ -16,10 +16,12 @@ import :helpers.fastgltf;
 import :helpers.ranges;
 export import :vulkan.ag.Swapchain;
 import :vulkan.buffer.CombinedIndices;
+import :vulkan.buffer.InverseBindMatrices;
 import :vulkan.buffer.Materials;
 import :vulkan.buffer.Nodes;
 import :vulkan.buffer.PrimitiveAttributes;
 import :vulkan.buffer.Primitives;
+import :vulkan.buffer.SkinJointIndices;
 import :vulkan.buffer.StagingBufferStorage;
 export import :vulkan.Gpu;
 export import :vulkan.pipeline.DepthRenderer;
@@ -47,6 +49,8 @@ namespace vk_gltf_viewer::vulkan {
             buffer::CombinedIndices combinedIndexBuffers;
             buffer::PrimitiveAttributes primitiveAttributes;
             buffer::Primitives primitiveBuffer;
+            buffer::SkinJointIndices skinJointIndices;
+            buffer::InverseBindMatrices inverseBindMatrixBuffer;
             texture::Textures textures;
 
             template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
@@ -66,6 +70,8 @@ namespace vk_gltf_viewer::vulkan {
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
                 primitiveBuffer { materialBuffer, orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
+                skinJointIndices { asset, gpu.allocator },
+                inverseBindMatrixBuffer { asset, gpu.allocator, adapter },
                 textures { asset, directory, gpu, fallbackTexture, threadPool, adapter } {
                 if (stagingBufferStorage.hasStagingCommands()) {
                     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
