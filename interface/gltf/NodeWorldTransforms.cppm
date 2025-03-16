@@ -7,7 +7,9 @@ export module vk_gltf_viewer:gltf.NodeWorldTransforms;
 import std;
 export import fastgltf;
 import :gltf.algorithm.traversal;
-import :helpers.fastgltf;
+
+#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
+#define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 namespace vk_gltf_viewer::gltf {
     export class NodeWorldTransforms : public std::vector<fastgltf::math::fmat4x4> {
@@ -15,12 +17,7 @@ namespace vk_gltf_viewer::gltf {
 
     public:
         explicit NodeWorldTransforms(const fastgltf::Asset &asset LIFETIMEBOUND)
-            : vector { std::from_range, asset.nodes | std::views::transform([](const fastgltf::Node &node) {
-                return visit(fastgltf::visitor {
-                    [](const fastgltf::TRS &trs) { return toMatrix(trs); },
-                    [](fastgltf::math::fmat4x4 matrix) { return matrix; },
-                }, node.transform);
-            }) }
+            : vector { std::from_range, asset.nodes | std::views::transform(LIFT(fastgltf::getTransformMatrix)) }
             , asset { asset } { }
 
         /**

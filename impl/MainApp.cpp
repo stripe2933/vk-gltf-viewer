@@ -458,13 +458,11 @@ void vk_gltf_viewer::MainApp::run() {
                     appState.gltfAsset->hoveringNodeIndex.emplace(task.nodeIndex);
                 },
                 [&](const control::task::ChangeNodeLocalTransform &task) {
-                    fastgltf::math::fmat4x4 nodeWorldTransform = visit(fastgltf::visitor {
-                        [](const fastgltf::TRS &trs) { return toMatrix(trs); },
-                        [](fastgltf::math::fmat4x4 matrix) { return matrix; }
-                    }, gltf->asset.nodes[task.nodeIndex].transform);
+                    fastgltf::math::fmat4x4 baseMatrix { 1.f };
                     if (auto parentNodeIndex = gltf->sceneInverseHierarchy.getParentNodeIndex(task.nodeIndex)) {
-                        nodeWorldTransform = gltf->nodeWorldTransforms[*parentNodeIndex] * nodeWorldTransform;
+                        baseMatrix = gltf->nodeWorldTransforms[*parentNodeIndex];
                     }
+                    const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(gltf->asset.nodes[task.nodeIndex], baseMatrix);
 
                     // Update the current and its descendant nodes' world transforms for both host and GPU side data.
                     gltf->nodeWorldTransforms.update(task.nodeIndex, nodeWorldTransform);
