@@ -8,8 +8,6 @@
 #define PRIMITIVE primitives[PRIMITIVE_INDEX]
 #define NODE_INDEX gl_BaseInstance >> 16U
 #define NODE nodes[NODE_INDEX]
-#define INSTANCE_INDEX gl_InstanceIndex - gl_BaseInstance
-#define TRANSFORM instancedTransforms[NODE.instancedTransformStartIndex + INSTANCE_INDEX]
 #define MATERIAL_INDEX PRIMITIVE.materialIndex
 #define MATERIAL materials[MATERIAL_INDEX]
 

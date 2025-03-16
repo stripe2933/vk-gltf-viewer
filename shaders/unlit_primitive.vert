@@ -45,7 +45,13 @@ layout (set = 1, binding = 2) readonly buffer InstancedTransformBuffer {
 layout (set = 1, binding = 3) readonly buffer MorphTargetWeightBuffer {
     float morphTargetWeights[];
 };
-layout (set = 1, binding = 4, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 4, std430) readonly buffer SkinJointIndexBuffer {
+    uint skinJointIndices[];
+};
+layout (set = 1, binding = 5) readonly buffer InverseBindMatrixBuffer {
+    mat4 inverseBindMatrices[];
+};
+layout (set = 1, binding = 6, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
@@ -55,6 +61,7 @@ layout (push_constant, std430) uniform PushConstant {
 } pc;
 
 #include "vertex_pulling.glsl"
+#include "transform.glsl"
 
 void main(){
     vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_MORPH_TARGET_WEIGHT_COUNT);
@@ -68,5 +75,5 @@ void main(){
     variadic_out.color = getColor(COLOR_COMPONENT_TYPE);
 #endif
 
-    gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
+    gl_Position = pc.projectionView * getTransform((NODE.skinJointStartIndex != 0xFFFFFFFFU) ? 1U : 0U) * vec4(inPosition, 1.0);
 }
