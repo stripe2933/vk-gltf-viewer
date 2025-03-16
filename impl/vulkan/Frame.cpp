@@ -156,6 +156,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         return std::pair { info.componentCount, info.componentType };
                     }),
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
                         .value_or(shader_type::TextureTransform::None),
@@ -189,6 +190,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
                     .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
                     .hasTangentMorphTarget = !accessors.tangentMorphTargetAccessors.empty(),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
                         .value_or(shader_type::TextureTransform::None),
@@ -236,6 +238,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                 .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
                 .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
                 .hasTangentMorphTarget = !accessors.tangentMorphTargetAccessors.empty(),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
             });
         }
         return result;
@@ -263,6 +266,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         return value_if(info.componentCount == 4, info.componentType);
                     }),
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
                         .value_or(shader_type::TextureTransform::None),
@@ -272,6 +276,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                 result.pipeline = sharedData.getDepthRenderer({
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
                 });
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
@@ -280,6 +285,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             result.pipeline = sharedData.getDepthRenderer({
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
             });
         }
         return result;
@@ -307,6 +313,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                         return value_if(info.componentCount == 4, info.componentType);
                     }),
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture
                         .transform(fetchTextureTransform)
                         .value_or(shader_type::TextureTransform::None),
@@ -316,6 +323,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                 result.pipeline = sharedData.getJumpFloodSeedRenderer({
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
                 });
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
@@ -324,6 +332,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             result.pipeline = sharedData.getJumpFloodSeedRenderer({
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
             });
         }
         return result;

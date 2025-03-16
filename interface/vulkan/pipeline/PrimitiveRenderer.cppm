@@ -34,6 +34,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         bool hasPositionMorphTarget = false;
         bool hasNormalMorphTarget = false;
         bool hasTangentMorphTarget = false;
+        std::uint32_t skinAttributeCount = 0;
         shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
         shader_type::TextureTransform metallicRoughnessTextureTransform = shader_type::TextureTransform::None;
         shader_type::TextureTransform normalTextureTransform = shader_type::TextureTransform::None;
@@ -165,6 +166,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             std::uint32_t colorComponentCount;
             std::uint32_t morphTargetWeightCount;
             std::uint32_t packedMorphTargetAvailability;
+            std::uint32_t skinAttributeCount;
         };
 
         struct FragmentShaderSpecializationData {
@@ -185,6 +187,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 .packedMorphTargetAvailability = (hasPositionMorphTarget ? 1U : 0U)
                                                | (hasNormalMorphTarget ? 2U : 0U)
                                                | (hasTangentMorphTarget ? 4U : 0U),
+                .skinAttributeCount = skinAttributeCount,
             };
 
             // Packed components types are:

@@ -25,6 +25,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         std::optional<std::uint8_t> baseColorTexcoordComponentType;
         std::optional<std::pair<std::uint8_t, std::uint8_t>> colorComponentCountAndType;
         std::uint32_t positionMorphTargetWeightCount = 0;
+        std::uint32_t skinAttributeCount = 0;
         shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
         fastgltf::AlphaMode alphaMode;
 
@@ -153,6 +154,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             std::uint32_t colorComponentCount = 0;
             std::uint32_t colorComponentType = 5126; // FLOAT
             std::uint32_t positionMorphTargetWeightCount;
+            std::uint32_t skinAttributeCount;
         };
 
         struct FragmentShaderSpecializationData {
@@ -170,6 +172,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             VertexShaderSpecializationData result {
                 .positionComponentType = positionComponentType,
                 .positionMorphTargetWeightCount = positionMorphTargetWeightCount,
+                .skinAttributeCount = skinAttributeCount,
             };
 
             if (baseColorTexcoordComponentType) {

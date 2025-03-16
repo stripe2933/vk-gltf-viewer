@@ -14,6 +14,7 @@
 
 layout (constant_id = 0) const uint POSITION_COMPONENT_TYPE = 0;
 layout (constant_id = 1) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
+layout (constant_id = 2) const uint SKIN_ATTRIBUTE_COUNT = 0;
 
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
@@ -43,5 +44,5 @@ layout (push_constant) uniform PushConstant {
 
 void main(){
     vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_MORPH_TARGET_WEIGHT_COUNT);
-    gl_Position = pc.projectionView * getTransform((NODE.skinJointStartIndex != 0xFFFFFFFFU) ? 1U : 0U) * vec4(inPosition, 1.0);
+    gl_Position = pc.projectionView * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
 }

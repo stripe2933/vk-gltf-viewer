@@ -19,6 +19,7 @@ layout (constant_id = 1) const uint TEXCOORD_COMPONENT_TYPE = 6; // FLOAT
 layout (constant_id = 2) const uint COLOR_COMPONENT_COUNT = 0;
 layout (constant_id = 3) const uint COLOR_COMPONENT_TYPE = 6; // FLOAT
 layout (constant_id = 4) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
+layout (constant_id = 5) const uint SKIN_ATTRIBUTE_COUNT = 0;
 
 layout (location = 0) flat out uint outMaterialIndex;
 #if HAS_VARIADIC_OUT
@@ -75,5 +76,5 @@ void main(){
     variadic_out.color = getColor(COLOR_COMPONENT_TYPE);
 #endif
 
-    gl_Position = pc.projectionView * getTransform((NODE.skinJointStartIndex != 0xFFFFFFFFU) ? 1U : 0U) * vec4(inPosition, 1.0);
+    gl_Position = pc.projectionView * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
 }

@@ -18,6 +18,7 @@ layout (constant_id = 0) const uint PACKED_ATTRIBUTE_COMPONENT_TYPES = 0;
 layout (constant_id = 1) const uint COLOR_COMPONENT_COUNT = 0;
 layout (constant_id = 2) const uint MORPH_TARGET_WEIGHT_COUNT = 0;
 layout (constant_id = 3) const uint PACKED_MORPH_TARGET_AVAILABILITY = 0;
+layout (constant_id = 4) const uint SKIN_ATTRIBUTE_COUNT = 0;
 
 layout (location = 0) out vec3 outPosition;
 layout (location = 1) flat out uint outMaterialIndex;
@@ -76,7 +77,7 @@ layout (push_constant, std430) uniform PushConstant {
 #include "transform.glsl"
 
 void main(){
-    mat4 transform = getTransform((NODE.skinJointStartIndex != 0xFFFFFFFFU) ? 1U : 0U);
+    mat4 transform = getTransform(SKIN_ATTRIBUTE_COUNT);
 
     vec3 inPosition = getPosition(PACKED_ATTRIBUTE_COMPONENT_TYPES & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x1U) == 0x1U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
     outPosition = (transform * vec4(inPosition, 1.0)).xyz;

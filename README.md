@@ -14,6 +14,7 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - Runtime missing per-face normal and tangent attribute generation for non-indexed geometry.
   - `OPAQUE`, `MASK` (using alpha testing and Alpha To Coverage) and `BLEND` (using Weighted Blended OIT) materials.
   - Normalized and sparse accessors.
+  - Infinite morph targets and skinning attributes.
   - Multiple scenes.
   - Binary format (`.glb`).
 - Support glTF 2.0 extensions:
@@ -34,7 +35,6 @@ Blazingly fast[^1] Vulkan glTF viewer.
 Followings are not supported:
 
 - Primitive Type except for `TRIANGLES`.
-- Skinning.
 
 ## Performance
 
@@ -315,12 +315,12 @@ All shaders are located in the [shaders](/shaders) folder and will be automatica
 - [x] Basis Universal texture support (`KHR_texture_basisu`).
 - [x] Automatic camera position adjustment based on the bounding sphere calculation.
 - [x] Animations.
+- [x] Skinning
 - [ ] Frustum culling
   - [x] CPU frustum culling (Note: still experimental; unexpected popped in/out may happened.)
   - [ ] GPU frustum culling
 - [ ] Occlusion culling
 - [ ] Reduce skybox memory usage with BC6H compressed cubemap.
-- [ ] Skinning
 
 ## License
 
