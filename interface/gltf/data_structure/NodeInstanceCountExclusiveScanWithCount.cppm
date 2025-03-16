@@ -11,9 +11,6 @@ namespace vk_gltf_viewer::gltf::ds {
     export struct NodeInstanceCountExclusiveScanWithCount final : std::vector<std::uint32_t> {
         explicit NodeInstanceCountExclusiveScanWithCount(const fastgltf::Asset &asset)
             : vector { exclusive_scan_with_count(asset.nodes | std::views::transform([&](const fastgltf::Node &node) -> std::uint32_t {
-                if (!node.meshIndex) {
-                    return 0;
-                }
                 if (node.instancingAttributes.empty()) {
                     return 1;
                 }

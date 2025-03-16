@@ -84,6 +84,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     shader_type::Primitive result {
                         .pPositionBuffer = accessors.positionAccessor.bufferAddress,
                         .pTexcoordAttributeMappingInfoBuffer = accessors.texcoordAccessorBufferAddress,
+                        .pJointsAttributeMappingInfoBuffer = accessors.jointsAccessorBufferAddress,
+                        .pWeightsAttributeMappingInfoBuffer = accessors.weightsAccessorBufferAddress,
                         .positionByteStride = accessors.positionAccessor.byteStride,
                         .materialIndex = to_optional(pPrimitive->materialIndex).transform(LIFT(materialBuffer.get().padMaterialIndex)).value_or(0U),
                     };

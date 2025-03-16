@@ -36,15 +36,7 @@ template <typename T, typename U>
 
 namespace vk_gltf_viewer::vulkan::buffer {
     /**
-     * @brief Buffer that stores the mesh nodes' transform matrices, with flattened instance matrices.
-     *
-     * The term "mesh node" means a node that has a mesh. This buffer only contains transform matrices of mesh nodes. In other words, <tt>buffer.asRange<const fastgltf::math::fmat4x4>()[nodeIndex]</tt> may NOT represent the world transformation matrix of the <tt>nodeIndex</tt>-th node, because maybe there were nodes with no mesh prior to the <tt>nodeIndex</tt>-th node.
-     *
-     * For example, a scene has 4 nodes (denoted as A B C D) and A has 2 instances (<tt>M1</tt>, <tt>M2</tt>), B has 3 instances (<tt>M3</tt>, <tt>M4</tt>, <tt>M5</tt>), C is meshless, and D has 1 instance (<tt>M6</tt>), then the flattened matrices will be laid out as:
-     * @code
-     * [MA * M1, MA * M2, MB * M3, MB * M4, MB * M5, MD * M6]
-     * @endcode
-     * Be careful that there is no transform matrix related about node C, because it is meshless.
+     * @brief Buffer that stores the nodes' transform matrices, with flattened instance matrices.
      */
     export class InstancedNodeWorldTransforms {
     public:
@@ -74,10 +66,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
             descriptorInfo { buffer, 0, vk::WholeSize } {
             const std::span data = buffer.asRange<fastgltf::math::fmat4x4>();
             for (const auto &[nodeIndex, node] : asset.nodes | ranges::views::enumerate) {
-                if (!node.meshIndex) {
-                    continue;
-                }
-
                 if (node.instancingAttributes.empty()) {
                     data[(*this->nodeInstanceCountExclusiveScanWithCount)[nodeIndex]] = nodeWorldTransforms[nodeIndex];
                 }
@@ -100,7 +88,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
         /**
-         * @brief Update the mesh node world transforms from given \p nodeIndex, to its descendants.
+         * @brief Update the node world transforms from given \p nodeIndex, to its descendants.
          * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view.
          * @param nodeIndex Node index to be started.
          * @param nodeWorldTransforms pre-calculated node world transforms.
@@ -115,10 +103,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
             const std::span bufferData = buffer.asRange<fastgltf::math::fmat4x4>();
             gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
                 const fastgltf::Node &node = asset.get().nodes[nodeIndex];
-                if (!node.meshIndex) {
-                    return;
-                }
-
                 if (node.instancingAttributes.empty()) {
                     bufferData[(*nodeInstanceCountExclusiveScanWithCount)[nodeIndex]] = nodeWorldTransforms[nodeIndex];
                 }
@@ -134,7 +118,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
         /**
-         * @brief Update the mesh node world transforms for all nodes in a scene.
+         * @brief Update the node world transforms for all nodes in a scene.
          * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view.
          * @param scene Scene to be updated.
          * @param nodeWorldTransforms pre-calculated node world transforms.

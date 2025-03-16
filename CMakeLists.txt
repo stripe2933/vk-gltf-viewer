@@ -127,6 +127,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/algorithm/misc.cppm
         interface/gltf/algorithm/traversal.cppm
         interface/gltf/Animation.cppm
+        interface/gltf/data_structure/SkinJointCountExclusiveScan.cppm
         interface/gltf/data_structure/NodeInstanceCountExclusiveScanWithCount.cppm
         interface/gltf/data_structure/TargetWeightCountExclusiveScan.cppm
         interface/gltf/AssetExternalBuffers.cppm
@@ -177,11 +178,13 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/buffer/CubeIndices.cppm
         interface/vulkan/buffer/IndirectDrawCommands.cppm
         interface/vulkan/buffer/InstancedNodeWorldTransforms.cppm
+        interface/vulkan/buffer/InverseBindMatrices.cppm
         interface/vulkan/buffer/Materials.cppm
         interface/vulkan/buffer/MorphTargetWeights.cppm
         interface/vulkan/buffer/Nodes.cppm
         interface/vulkan/buffer/PrimitiveAttributes.cppm
         interface/vulkan/buffer/Primitives.cppm
+        interface/vulkan/buffer/SkinJointIndices.cppm
         interface/vulkan/buffer/StagingBufferStorage.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm

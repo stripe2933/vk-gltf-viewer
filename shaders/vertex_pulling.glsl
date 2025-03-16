@@ -235,4 +235,32 @@ float getColorAlpha(uint componentType) {
 }
 #endif
 
+uvec4 getJoints(uint jointIndex){
+    Accessor jointsAccessor = PRIMITIVE.jointsAccessors.data[jointIndex];
+    uint64_t fetchAddress = getFetchAddress(jointsAccessor, gl_VertexIndex);
+
+    switch (uint(jointsAccessor.componentType)) {
+    case 1U: // UNSIGNED BYTE
+        return uvec4(U8Vec4Ref(fetchAddress).data);
+    case 3U: // UNSIGNED SHORT
+        return uvec4(U16Vec4Ref(fetchAddress).data);
+    }
+    return uvec4(0); // unreachable.
+}
+
+vec4 getWeights(uint weightIndex){
+    Accessor weightsAccessor = PRIMITIVE.weightsAccessors.data[weightIndex];
+    uint64_t fetchAddress = getFetchAddress(weightsAccessor, gl_VertexIndex);
+
+    switch (uint(weightsAccessor.componentType)) {
+    case 6U: // FLOAT
+        return Vec4Ref(fetchAddress).data;
+    case 9U: // UNSIGNED BYTE normalized
+        return dequantize(U8Vec4Ref(fetchAddress).data);
+    case 11U: // UNSIGNED SHORT normalized
+        return dequantize(U16Vec4Ref(fetchAddress).data);
+    }
+    return vec4(0.0); // unreachable.
+}
+
 #endif // VERTEX_PULLING_GLSL

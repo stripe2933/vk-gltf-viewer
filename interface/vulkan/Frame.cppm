@@ -228,8 +228,10 @@ namespace vk_gltf_viewer::vulkan {
                 assetDescriptorSet.getWrite<1>(sharedData.gltfAsset->nodeBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<2>(inner.instancedNodeWorldTransformBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<3>(inner.morphTargetWeightBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<4>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<5>(imageInfos),
+                assetDescriptorSet.getWrite<4>(sharedData.gltfAsset->skinJointIndices.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<5>(sharedData.gltfAsset->inverseBindMatrixBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<6>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<7>(imageInfos),
             }, {});
         }
 

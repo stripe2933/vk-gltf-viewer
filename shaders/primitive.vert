@@ -18,6 +18,7 @@ layout (constant_id = 0) const uint PACKED_ATTRIBUTE_COMPONENT_TYPES = 0;
 layout (constant_id = 1) const uint COLOR_COMPONENT_COUNT = 0;
 layout (constant_id = 2) const uint MORPH_TARGET_WEIGHT_COUNT = 0;
 layout (constant_id = 3) const uint PACKED_MORPH_TARGET_AVAILABILITY = 0;
+layout (constant_id = 4) const uint SKIN_ATTRIBUTE_COUNT = 0;
 
 layout (location = 0) out vec3 outPosition;
 layout (location = 1) flat out uint outMaterialIndex;
@@ -57,7 +58,13 @@ layout (set = 1, binding = 2) readonly buffer InstancedTransformBuffer {
 layout (set = 1, binding = 3) readonly buffer MorphTargetWeightBuffer {
     float morphTargetWeights[];
 };
-layout (set = 1, binding = 4, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 4, std430) readonly buffer SkinJointIndexBuffer {
+    uint skinJointIndices[];
+};
+layout (set = 1, binding = 5) readonly buffer InverseBindMatrixBuffer {
+    mat4 inverseBindMatrices[];
+};
+layout (set = 1, binding = 6, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
@@ -67,20 +74,23 @@ layout (push_constant, std430) uniform PushConstant {
 } pc;
 
 #include "vertex_pulling.glsl"
+#include "transform.glsl"
 
 void main(){
+    mat4 transform = getTransform(SKIN_ATTRIBUTE_COUNT);
+
     vec3 inPosition = getPosition(PACKED_ATTRIBUTE_COMPONENT_TYPES & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x1U) == 0x1U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
-    outPosition = (TRANSFORM * vec4(inPosition, 1.0)).xyz;
+    outPosition = (transform * vec4(inPosition, 1.0)).xyz;
 
     outMaterialIndex = MATERIAL_INDEX;
 
 #if !FRAGMENT_SHADER_GENERATED_TBN
     vec3 inNormal = getNormal((PACKED_ATTRIBUTE_COMPONENT_TYPES >> 4U) & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x2U) == 0x2U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
-    variadic_out.tbn[2] = normalize(mat3(TRANSFORM) * inNormal); // N
+    variadic_out.tbn[2] = normalize(mat3(transform) * inNormal); // N
 
     if (MATERIAL.normalTextureIndex != 0US){
         vec4 inTangent = getTangent((PACKED_ATTRIBUTE_COMPONENT_TYPES >> 8U) & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x4U) == 0x4U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
-        variadic_out.tbn[0] = normalize(mat3(TRANSFORM) * inTangent.xyz); // T
+        variadic_out.tbn[0] = normalize(mat3(transform) * inTangent.xyz); // T
         variadic_out.tbn[1] = cross(variadic_out.tbn[2], variadic_out.tbn[0]) * -inTangent.w; // B
     }
 #endif

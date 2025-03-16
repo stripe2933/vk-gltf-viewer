@@ -53,11 +53,15 @@ namespace vk_gltf_viewer::vulkan::buffer {
             std::vector<shader_type::Accessor> tangentMorphTargetAccessors;
             std::vector<shader_type::Accessor> texcoordAccessors;
             std::optional<shader_type::Accessor> colorAccessor;
+            std::vector<shader_type::Accessor> jointsAccessors;
+            std::vector<shader_type::Accessor> weightsAccessors;
 
             vk::DeviceAddress positionMorphTargetAccessorBufferAddress;
             vk::DeviceAddress normalMorphTargetAccessorBufferAddress;
             vk::DeviceAddress tangentMorphTargetAccessorBufferAddress;
             vk::DeviceAddress texcoordAccessorBufferAddress;
+            vk::DeviceAddress jointsAccessorBufferAddress;
+            vk::DeviceAddress weightsAccessorBufferAddress;
         };
 
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
@@ -117,6 +121,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
             const Gpu &gpu,
             const DataBufferAdapter &adapter
         ) {
+            using namespace std::string_view_literals;
+
             const auto primitives = asset.meshes | std::views::transform(&fastgltf::Mesh::primitives) | std::views::join;
 
             // Get buffer view indices that are used in primitive attributes, or generate accessor data if it is not
@@ -125,8 +131,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
             std::unordered_map<std::size_t, std::vector<std::byte>> generatedAccessorByteData;
             vk::DeviceAddress zeroBufferAddress = 0; // Generate this on-demand.
             for (const fastgltf::Primitive &primitive : primitives) {
-                using namespace std::string_view_literals;
-
                 const auto isAccessorBufferViewCompatibleWithGpuAccessor = [&](const fastgltf::Accessor &accessor) {
                     if (accessor.sparse) return false;
 
@@ -143,7 +147,9 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     // Process only used attributes.
                     const bool isAttributeUsed
                         = ranges::one_of(attribute.name, "POSITION"sv, "NORMAL"sv, "TANGENT"sv, "COLOR_0"sv)
-                        || attribute.name.starts_with("TEXCOORD_"sv);
+                        || attribute.name.starts_with("TEXCOORD_"sv)
+                        || attribute.name.starts_with("JOINTS_"sv)
+                        || attribute.name.starts_with("WEIGHTS_"sv);
                     if (!isAttributeUsed) continue;
 
                     const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
@@ -227,14 +233,19 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     std::pair result { &primitive, PrimitiveAccessors{} };
                     auto &[_, accessors] = result;
 
-                    // Get number of TEXCOORD_<i> attributes.
-                    const auto attributeNames
-                        = primitive.attributes
-                        | std::views::transform([](const auto &attribute) -> std::string_view { return attribute.name; });
-                    const std::size_t texcoordCount = std::ranges::count_if(
-                        attributeNames,
-                        [](std::string_view name) { return name.starts_with("TEXCOORD_"); });
-                    accessors.texcoordAccessors.resize(texcoordCount);
+                    const auto resizeIndexedAccessors = [&](std::string_view prefix, std::vector<shader_type::Accessor> &accessors) {
+                        // Get number of indexed attributes.
+                        const auto attributeNames
+                            = primitive.attributes
+                            | std::views::transform([](const auto &attribute) -> std::string_view { return attribute.name; });
+                        const std::size_t attributeCount = std::ranges::count_if(
+                            attributeNames,
+                            [&](std::string_view name) { return name.starts_with(prefix); });
+                        accessors.resize(attributeCount);
+                    };
+                    resizeIndexedAccessors("TEXCOORD_"sv, accessors.texcoordAccessors);
+                    resizeIndexedAccessors("JOINTS_"sv, accessors.jointsAccessors);
+                    resizeIndexedAccessors("WEIGHTS_"sv, accessors.weightsAccessors);
 
                     const auto getGpuAccessor = [&](std::size_t accessorIndex) {
                         const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
@@ -277,21 +288,33 @@ namespace vk_gltf_viewer::vulkan::buffer {
                         else if (attributeName == "TANGENT"sv) {
                             accessors.tangentAccessor.emplace(getGpuAccessor(accessorIndex));
                         }
-                        else if (constexpr auto prefix = "TEXCOORD_"sv; attributeName.starts_with(prefix)) {
-                            std::size_t index;
-                            if (auto result = parse<std::size_t>(std::string_view { attributeName }.substr(prefix.size()))) {
-                                index = *result;
-                            }
-                            else {
-                                // Attribute name starting with "TEXCOORD_", but the following string is not a number.
-                                // TODO: would it be filtered by the glTF validation?
-                                throw fastgltf::Error::InvalidOrMissingAssetField;
-                            }
-
-                            accessors.texcoordAccessors[index] = getGpuAccessor(accessorIndex);
-                        }
                         else if (attributeName == "COLOR_0"sv) {
                             accessors.colorAccessor.emplace(getGpuAccessor(accessorIndex));
+                        }
+                        else {
+                            const auto assignAccessor = [&](std::string_view prefix, std::vector<shader_type::Accessor> &accessors) {
+                                std::size_t index;
+                                if (auto result = parse<std::size_t>(std::string_view { attributeName }.substr(prefix.size()))) {
+                                    index = *result;
+                                }
+                                else {
+                                    // Attribute name starting with "TEXCOORD_", but the following string is not a number.
+                                    // TODO: would it be filtered by the glTF validation?
+                                    throw fastgltf::Error::InvalidOrMissingAssetField;
+                                }
+
+                                accessors[index] = getGpuAccessor(accessorIndex);
+                            };
+
+                            if (constexpr auto prefix = "TEXCOORD_"sv; attributeName.starts_with(prefix)) {
+                                assignAccessor(prefix, accessors.texcoordAccessors);
+                            }
+                            else if (constexpr auto prefix = "JOINTS_"sv; attributeName.starts_with(prefix)) {
+                                assignAccessor(prefix, accessors.jointsAccessors);
+                            }
+                            else if (constexpr auto prefix = "WEIGHTS_"sv; attributeName.starts_with(prefix)) {
+                                assignAccessor(prefix, accessors.weightsAccessors);
+                            }
                         }
                     }
 
@@ -316,29 +339,40 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
         void generateIndexedAttributeMappingInfos(const Gpu &gpu) {
-            // Collect primitive infos to be filled.
-            auto primitiveAccessorsWithTextures
-                = mappings
-                | std::views::values
-                | std::views::filter([](const PrimitiveAccessors &accessors) {
-                    return !accessors.texcoordAccessors.empty();
-                });
-            if (primitiveAccessorsWithTextures.empty()) {
-                return;
-            }
+            const auto processIndexedAttributeAccessors = [&](auto &&indexedAttributeAccessorGetter, auto &&indexedAttributeAccessorBufferAddressGetter) -> void {
+                auto indexedAttributeAccessors
+                    = mappings
+                    | std::views::values
+                    | std::views::filter([&](const PrimitiveAccessors &accessors) {
+                        return !std::invoke(indexedAttributeAccessorGetter, accessors).empty();
+                    });
+                if (indexedAttributeAccessors.empty()) {
+                    return;
+                }
 
-            auto [buffer, copyOffsets] = createCombinedBuffer<true>(
-                gpu.allocator,
-                primitiveAccessorsWithTextures | std::views::transform(&PrimitiveAccessors::texcoordAccessors),
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
-            if (StagingBufferStorage::needStaging(buffer)) {
-                stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-            }
+                auto [buffer, copyOffsets] = createCombinedBuffer<true>(
+                    gpu.allocator,
+                    indexedAttributeAccessors | std::views::transform(indexedAttributeAccessorGetter),
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
+                if (StagingBufferStorage::needStaging(buffer)) {
+                    stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+                }
 
-            const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
-            for (auto &&[accessors, copyOffset] : std::views::zip(primitiveAccessorsWithTextures, copyOffsets)) {
-                accessors.texcoordAccessorBufferAddress = bufferAddress + copyOffset;
-            }
+                const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)) });
+                for (auto &&[accessors, copyOffset] : std::views::zip(indexedAttributeAccessors, copyOffsets)) {
+                    std::invoke(indexedAttributeAccessorBufferAddressGetter, accessors) = bufferAddress + copyOffset;
+                }
+            };
+
+            processIndexedAttributeAccessors(
+                &PrimitiveAccessors::texcoordAccessors,
+                &PrimitiveAccessors::texcoordAccessorBufferAddress);
+            processIndexedAttributeAccessors(
+                &PrimitiveAccessors::jointsAccessors,
+                &PrimitiveAccessors::jointsAccessorBufferAddress);
+            processIndexedAttributeAccessors(
+                &PrimitiveAccessors::weightsAccessors,
+                &PrimitiveAccessors::weightsAccessorBufferAddress);
         }
 
         void generateMorphTargetMappingInfos(const Gpu &gpu) {

@@ -18,6 +18,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     public:
         std::uint8_t positionComponentType = 0;
         std::uint32_t positionMorphTargetWeightCount = 0;
+        std::uint32_t skinAttributeCount = 0;
 
         [[nodiscard]] bool operator==(const DepthRendererSpecialization&) const = default;
 
@@ -63,10 +64,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         struct VertexShaderSpecializationData {
             std::uint32_t positionComponentType;
             std::uint32_t positionMorphTargetWeightCount;
+            std::uint32_t skinAttributeCount;
         };
 
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
-            return { positionComponentType, positionMorphTargetWeightCount };
+            return { positionComponentType, positionMorphTargetWeightCount, skinAttributeCount };
         }
     };
 
@@ -76,6 +78,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         std::optional<std::uint8_t> baseColorTexcoordComponentType;
         std::optional<std::uint8_t> colorAlphaComponentType;
         std::uint32_t positionMorphTargetWeightCount = 0;
+        std::uint32_t skinAttributeCount = 0;
         shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
 
         [[nodiscard]] bool operator==(const MaskDepthRendererSpecialization&) const = default;
@@ -131,6 +134,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             std::uint32_t texcoordComponentType = 5126; // FLOAT
             std::uint32_t colorComponentType = 5126; // FLOAT
             std::uint32_t positionMorphTargetWeightCount;
+            std::uint32_t skinAttributeCount;
         };
 
         struct FragmentShaderSpecializationData {
@@ -148,6 +152,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             VertexShaderSpecializationData result {
                 .positionComponentType = positionComponentType,
                 .positionMorphTargetWeightCount = positionMorphTargetWeightCount,
+                .skinAttributeCount = skinAttributeCount,
             };
 
             if (baseColorTexcoordComponentType) {

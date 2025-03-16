@@ -14,6 +14,7 @@
 
 layout (constant_id = 0) const uint POSITION_COMPONENT_TYPE = 0;
 layout (constant_id = 1) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
+layout (constant_id = 2) const uint SKIN_ATTRIBUTE_COUNT = 0;
 
 layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
@@ -27,14 +28,21 @@ layout (set = 0, binding = 2) readonly buffer InstancedTransformBuffer {
 layout (set = 0, binding = 3) readonly buffer MorphTargetWeightBuffer {
     float morphTargetWeights[];
 };
+layout (set = 0, binding = 4, std430) readonly buffer SkinJointIndexBuffer {
+    uint skinJointIndices[];
+};
+layout (set = 0, binding = 5) readonly buffer InverseBindMatrixBuffer {
+    mat4 inverseBindMatrices[];
+};
 
 layout (push_constant) uniform PushConstant {
     mat4 projectionView;
 } pc;
 
 #include "vertex_pulling.glsl"
+#include "transform.glsl"
 
 void main(){
     vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_MORPH_TARGET_WEIGHT_COUNT);
-    gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
+    gl_Position = pc.projectionView * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
 }

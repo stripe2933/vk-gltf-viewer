@@ -18,6 +18,7 @@ layout (constant_id = 0) const uint POSITION_COMPONENT_TYPE = 0;
 layout (constant_id = 1) const uint TEXCOORD_COMPONENT_TYPE = 6; // FLOAT
 layout (constant_id = 2) const uint COLOR_COMPONENT_TYPE = 6; // FLOAT
 layout (constant_id = 3) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
+layout (constant_id = 4) const uint SKIN_ATTRIBUTE_COUNT = 0;
 
 layout (location = 0) flat out uint outMaterialIndex;
 #if HAS_VARIADIC_OUT
@@ -43,7 +44,13 @@ layout (set = 0, binding = 2) readonly buffer InstancedTransformBuffer {
 layout (set = 0, binding = 3) readonly buffer MorphTargetWeightBuffer {
     float morphTargetWeights[];
 };
-layout (set = 0, binding = 4, std430) readonly buffer MaterialBuffer {
+layout (set = 0, binding = 4, std430) readonly buffer SkinJointIndexBuffer {
+    uint skinJointIndices[];
+};
+layout (set = 0, binding = 5) readonly buffer InverseBindMatrixBuffer {
+    mat4 inverseBindMatrices[];
+};
+layout (set = 0, binding = 6, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
@@ -52,6 +59,7 @@ layout (push_constant, std430) uniform PushConstant {
 } pc;
 
 #include "vertex_pulling.glsl"
+#include "transform.glsl"
 
 void main(){
     outMaterialIndex = MATERIAL_INDEX;
@@ -63,5 +71,5 @@ void main(){
 #endif
 
     vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_MORPH_TARGET_WEIGHT_COUNT);
-    gl_Position = pc.projectionView * TRANSFORM * vec4(inPosition, 1.0);
+    gl_Position = pc.projectionView * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
 }
