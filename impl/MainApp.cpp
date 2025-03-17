@@ -570,7 +570,7 @@ void vk_gltf_viewer::MainApp::run() {
                     for (const auto &[pPrimitive, materialIndex] : gltf->materialVariantsMapping.at(task.variantIndex)) {
                         pPrimitive->materialIndex.emplace(materialIndex);
                         hasUpdateData |= sharedData.gltfAsset->primitiveBuffer.updateMaterial(
-                            gltf->orderedPrimitives.getIndex(*pPrimitive), materialIndex, sharedDataUpdateCommandBuffer);
+                            gltf->orderedPrimitives.getIndex(*pPrimitive), static_cast<std::uint32_t>(materialIndex), sharedDataUpdateCommandBuffer);
                     }
 
                     sharedDataUpdateCommandBuffer.end();

@@ -5,7 +5,7 @@ import :control.AppWindow;
 import :gltf.algorithm.miniball;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
-import :gltf.MaterialVariantsMapping;
+import :gltf.data_structure.MaterialVariantsMapping;
 import :gltf.NodeWorldTransforms;
 import :gltf.SceneInverseHierarchy;
 import :gltf.TextureUsage;
@@ -56,7 +56,7 @@ namespace vk_gltf_viewer {
             /**
              * @brief Associative data structure for KHR_materials_variants.
              */
-            gltf::MaterialVariantsMapping materialVariantsMapping { asset };
+            gltf::ds::MaterialVariantsMapping materialVariantsMapping { asset };
 
             gltf::TextureUsage textureUsage { asset, fastgltf::getPreferredImageIndex };
 
