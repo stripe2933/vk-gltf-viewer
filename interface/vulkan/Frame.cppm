@@ -75,7 +75,7 @@ namespace vk_gltf_viewer::vulkan {
                 const gltf::NodeWorldTransforms &nodeWorldTransforms,
                 const SharedData &sharedData LIFETIMEBOUND,
                 const BufferDataAdapter &adapter = {}
-            ) : instancedNodeWorldTransformBuffer { asset, sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount, nodeWorldTransforms, sharedData.gpu.allocator, adapter },
+            ) : instancedNodeWorldTransformBuffer { asset, asset.scenes[asset.defaultScene.value_or(0)], sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount, nodeWorldTransforms, sharedData.gpu.allocator, adapter },
                 morphTargetWeightBuffer { asset, sharedData.gltfAsset->targetWeightCountExclusiveScan, sharedData.gpu },
                 descriptorPool { value_if(!sharedData.gpu.supportVariableDescriptorCount, [&]() {
                     return vk::raii::DescriptorPool {
@@ -83,10 +83,7 @@ namespace vk_gltf_viewer::vulkan {
                         sharedData.assetDescriptorSetLayout.getPoolSize()
                             .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind),
                     };
-                }) } {
-                // Setup node world transforms as the default scene hierarchy.
-                instancedNodeWorldTransformBuffer.update(asset.scenes[asset.defaultScene.value_or(0)], nodeWorldTransforms, adapter);
-            }
+                }) } { }
         };
 
         struct ExecutionTask {

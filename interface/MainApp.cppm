@@ -67,7 +67,6 @@ namespace vk_gltf_viewer {
              */
             gltf::AssetExternalBuffers assetExternalBuffers{ asset, directory };
 
-            gltf::NodeWorldTransforms nodeWorldTransforms;
             gltf::OrderedPrimitives orderedPrimitives;
 
             std::vector<gltf::Animation> animations;
@@ -81,6 +80,7 @@ namespace vk_gltf_viewer {
              */
             std::reference_wrapper<fastgltf::Scene> scene { asset.scenes[asset.defaultScene.value_or(0)] };
 
+            gltf::NodeWorldTransforms nodeWorldTransforms;
             gltf::SceneInverseHierarchy sceneInverseHierarchy;
 
 			/**

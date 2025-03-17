@@ -710,14 +710,13 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     : dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) }
     , directory { path.parent_path() }
     , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
-    , nodeWorldTransforms { asset }
     , orderedPrimitives { asset }
     , animations { std::from_range, asset.animations | std::views::transform([&](const fastgltf::Animation &animation) {
         return gltf::Animation { asset, animation, assetExternalBuffers };
     }) }
     , animationEnabled { std::vector(asset.animations.size(), false) }
+    , nodeWorldTransforms { asset, scene }
     , sceneInverseHierarchy { asset, scene } {
-    nodeWorldTransforms.update(scene);
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, nodeWorldTransforms, assetExternalBuffers);
 }
 

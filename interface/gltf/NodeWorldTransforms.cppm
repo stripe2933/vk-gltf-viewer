@@ -8,17 +8,16 @@ import std;
 export import fastgltf;
 import :gltf.algorithm.traversal;
 
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
-
 namespace vk_gltf_viewer::gltf {
     export class NodeWorldTransforms : public std::vector<fastgltf::math::fmat4x4> {
         std::reference_wrapper<const fastgltf::Asset> asset;
 
     public:
-        explicit NodeWorldTransforms(const fastgltf::Asset &asset LIFETIMEBOUND)
-            : vector { std::from_range, asset.nodes | std::views::transform(LIFT(fastgltf::getTransformMatrix)) }
-            , asset { asset } { }
+        NodeWorldTransforms(const fastgltf::Asset &asset LIFETIMEBOUND, const fastgltf::Scene &scene)
+            : vector { vector(asset.nodes.size()) }
+            , asset { asset } {
+            update(scene);
+        }
 
         /**
          * @brief Update the world transform matrices of the current (specified by \p nodeIndex) and its descendant nodes.
