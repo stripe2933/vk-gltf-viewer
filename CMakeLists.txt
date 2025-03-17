@@ -127,13 +127,13 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/algorithm/misc.cppm
         interface/gltf/algorithm/traversal.cppm
         interface/gltf/Animation.cppm
+        interface/gltf/AssetExternalBuffers.cppm
+        interface/gltf/AssetProcessError.cppm
         interface/gltf/data_structure/SkinJointCountExclusiveScan.cppm
         interface/gltf/data_structure/MaterialVariantsMapping.cppm
         interface/gltf/data_structure/NodeInstanceCountExclusiveScanWithCount.cppm
+        interface/gltf/data_structure/SceneInverseHierarchy.cppm
         interface/gltf/data_structure/TargetWeightCountExclusiveScan.cppm
-        interface/gltf/AssetExternalBuffers.cppm
-        interface/gltf/AssetProcessError.cppm
-        interface/gltf/SceneInverseHierarchy.cppm
         interface/gltf/NodeWorldTransforms.cppm
         interface/gltf/OrderedPrimitives.cppm
         interface/gltf/TextureUsage.cppm

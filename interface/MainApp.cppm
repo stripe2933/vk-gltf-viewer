@@ -6,8 +6,8 @@ import :gltf.algorithm.miniball;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
 import :gltf.data_structure.MaterialVariantsMapping;
+import :gltf.data_structure.SceneInverseHierarchy;
 import :gltf.NodeWorldTransforms;
-import :gltf.SceneInverseHierarchy;
 import :gltf.TextureUsage;
 import :helpers.fastgltf;
 import :vulkan.dsl.Asset;
@@ -81,7 +81,7 @@ namespace vk_gltf_viewer {
             std::reference_wrapper<fastgltf::Scene> scene { asset.scenes[asset.defaultScene.value_or(0)] };
 
             gltf::NodeWorldTransforms nodeWorldTransforms;
-            gltf::SceneInverseHierarchy sceneInverseHierarchy;
+            gltf::ds::SceneInverseHierarchy sceneInverseHierarchy;
 
 			/**
 			 * @brief Smallest enclosing sphere of all meshes (a.k.a. miniball) in the scene.
