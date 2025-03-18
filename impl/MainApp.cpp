@@ -217,8 +217,8 @@ vk_gltf_viewer::MainApp::MainApp() {
 }
 
 vk_gltf_viewer::MainApp::~MainApp() {
-    for (vk::DescriptorSet textureDescriptorSet : assetTextureDescriptorSets) {
-        ImGui_ImplVulkan_RemoveTexture(textureDescriptorSet);
+    for (ImTextureID textureDescriptorSet : assetTextureDescriptorSets) {
+        ImGui_ImplVulkan_RemoveTexture(*reinterpret_cast<vk::DescriptorSet*>(textureDescriptorSet));
     }
     if (skyboxResources) {
         ImGui_ImplVulkan_RemoveTexture(skyboxResources->imGuiEqmapTextureDescriptorSet);
@@ -278,7 +278,7 @@ void vk_gltf_viewer::MainApp::run() {
         window.handleEvents(tasks);
 
         // Collect task from ImGui (button click, menu selection, ...).
-        static vk::Rect2D passthruRect{};
+        static ImRect passthruRect{};
         {
             ImGui_ImplGlfw_NewFrame();
             ImGui_ImplVulkan_NewFrame();
@@ -308,7 +308,7 @@ void vk_gltf_viewer::MainApp::run() {
                 }
             }
             if (const auto &iblInfo = appState.imageBasedLightingProperties) {
-                imguiTaskCollector.imageBasedLighting(*iblInfo, skyboxResources->imGuiEqmapTextureDescriptorSet);
+                imguiTaskCollector.imageBasedLighting(*iblInfo, vku::toUint64(skyboxResources->imGuiEqmapTextureDescriptorSet));
             }
             imguiTaskCollector.background(appState.canSelectSkyboxBackground, appState.background);
             imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline);
@@ -333,7 +333,7 @@ void vk_gltf_viewer::MainApp::run() {
         for (const control::Task &task : tasks) {
             visit(multilambda {
                 [this](const control::task::ChangePassthruRect &task) {
-                    appState.camera.aspectRatio = vku::aspect(task.newRect.extent);
+                    appState.camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
                     passthruRect = task.newRect;
                 },
                 [&](const control::task::LoadGltf &task) {
@@ -556,7 +556,10 @@ void vk_gltf_viewer::MainApp::run() {
 
         // Update frame resources.
         const vulkan::Frame::UpdateResult updateResult = frame.update({
-            .passthruRect = passthruRect,
+            .passthruRect = vk::Rect2D {
+                { static_cast<std::int32_t>(passthruRect.Min.x), static_cast<std::int32_t>(passthruRect.Min.y) },
+                { static_cast<std::uint32_t>(passthruRect.GetWidth()), static_cast<std::uint32_t>(passthruRect.GetHeight()) },
+            },
             .camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
             .frustum = value_if(appState.useFrustumCulling, [this]() {
                 return appState.camera.getFrustum();
@@ -568,10 +571,10 @@ void vk_gltf_viewer::MainApp::run() {
                 if (framebufferCursorPosition.x >= framebufferSize.x || framebufferCursorPosition.y >= framebufferSize.y) return std::nullopt;
 
                 const vk::Offset2D offset {
-                    static_cast<std::int32_t>(framebufferCursorPosition.x) - passthruRect.offset.x,
-                    static_cast<std::int32_t>(framebufferCursorPosition.y) - passthruRect.offset.y
+                    static_cast<std::int32_t>(framebufferCursorPosition.x - passthruRect.Min.x),
+                    static_cast<std::int32_t>(framebufferCursorPosition.y - passthruRect.Min.y),
                 };
-                return value_if(0 <= offset.x && offset.x < passthruRect.extent.width && 0 <= offset.y && offset.y < passthruRect.extent.height, offset);
+                return value_if(0 <= offset.x && offset.x < passthruRect.GetWidth() && 0 <= offset.y && offset.y < passthruRect.GetHeight(), offset);
             }),
             .gltf = gltf.transform([&](Gltf &gltf) {
                 assert(appState.gltfAsset && "Synchronization error: gltfAsset is not set in AppState.");
@@ -831,8 +834,9 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
     assetTextureDescriptorSets
         = sharedData.gltfAsset->textures.descriptorInfos
-        | std::views::transform([](const vk::DescriptorImageInfo &descriptorInfo) -> vk::DescriptorSet {
-            return ImGui_ImplVulkan_AddTexture(descriptorInfo.sampler, descriptorInfo.imageView, static_cast<VkImageLayout>(descriptorInfo.imageLayout));
+        | std::views::transform([](const vk::DescriptorImageInfo &descriptorInfo) {
+            return reinterpret_cast<ImTextureID>(ImGui_ImplVulkan_AddTexture(
+                descriptorInfo.sampler, descriptorInfo.imageView, static_cast<VkImageLayout>(descriptorInfo.imageLayout)));
         })
         | std::ranges::to<std::vector>();
 

@@ -145,7 +145,7 @@ namespace vk_gltf_viewer {
         // Descriptor sets.
         // --------------------
 
-        std::vector<vk::DescriptorSet> assetTextureDescriptorSets;
+        std::vector<ImTextureID> assetTextureDescriptorSets;
 
         // --------------------
         // Frames.
