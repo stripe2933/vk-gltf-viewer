@@ -53,6 +53,11 @@ jobs:
           git clone https://github.com/microsoft/vcpkg.git --depth 1
           cd vcpkg && ./bootstrap-vcpkg.sh
           echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
+          echo "${{ github.workspace }}/vcpkg" >> $GITHUB_PATH
+
+      - name: Setup vcpkg (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        run: echo ${VCPKG_INSTALLATION_ROOT} >> GITHUB_PATH
 
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@v7
@@ -71,7 +76,7 @@ jobs:
 
       - name: Configure
         run: |
-          git apply vcpkg-cgal.patch
+          vcpkg add port cgal
           mv .github/workflows/scripts/* .
           cmake --preset=${{ matrix.os }}
 
