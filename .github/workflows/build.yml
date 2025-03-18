@@ -25,7 +25,7 @@ jobs:
 
       - name: Install Vulkan SDK (without GLSL -> SPIR-V compiler)
         if: ${{ runner.os != 'Windows' }}
-        uses: humbletim/setup-vulkan-sdk@v1.2.1
+        uses: stripe2933/setup-vulkan-sdk@30a1c4f5464781f4559063b11e19b080a53b4411
         with:
           vulkan-query-version: latest
           vulkan-components: Vulkan-Headers, Vulkan-Loader
@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Vulkan SDK (with GLSL -> SPIR-V compiler)
         if: ${{ runner.os == 'Windows' }}
-        uses: humbletim/setup-vulkan-sdk@v1.2.1
+        uses: stripe2933/setup-vulkan-sdk@30a1c4f5464781f4559063b11e19b080a53b4411
         with:
           vulkan-query-version: latest
           vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
