@@ -96,7 +96,6 @@ add_executable(vk-gltf-viewer WIN32 MACOSX_BUNDLE
     impl/mod.cpp
     impl/vulkan/Frame.cpp
     impl/vulkan/Gpu.cpp
-    impl/vulkan/pipeline/JumpFloodComputer.cpp
     main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
