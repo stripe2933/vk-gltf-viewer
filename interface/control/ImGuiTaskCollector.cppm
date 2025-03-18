@@ -1,3 +1,7 @@
+module;
+
+#include <nfd.hpp>
+
 export module vk_gltf_viewer:imgui.TaskCollector;
 
 import std;
@@ -18,7 +22,7 @@ namespace vk_gltf_viewer::control {
         ImGuiTaskCollector(std::vector<Task> &tasks, const ImVec2 &framebufferSize, const vk::Rect2D &oldPassthruRect);
         ~ImGuiTaskCollector();
 
-        void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes);
+        void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
         void animations(const fastgltf::Asset &asset, std::vector<bool> &animationEnabled);
         void assetInspector(fastgltf::Asset &asset, const std::filesystem::path &assetDir);
         void assetTextures(fastgltf::Asset &asset, std::span<const vk::DescriptorSet> assetTextureImGuiDescriptorSets, const gltf::TextureUsage &textureUsage);

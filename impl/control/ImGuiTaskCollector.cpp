@@ -4,6 +4,7 @@ module;
 #include <version>
 
 #include <IconsFontAwesome4.h>
+#include <nfd.hpp>
 
 module vk_gltf_viewer;
 import :imgui.TaskCollector;
@@ -49,6 +50,22 @@ template <concepts::signature_of<cpp_util::cstring_view> F>
 [[nodiscard]] auto nonempty_or(cpp_util::cstring_view str, F &&fallback) -> cpp_util::cstring_view {
     if (str.empty()) return FWD(fallback)();
     else return str;
+}
+
+[[nodiscard]] std::optional<std::filesystem::path> processFileDialog(std::span<const nfdfilteritem_t> filterItems, const nfdwindowhandle_t &windowHandle) {
+    static NFD::Guard nfdGuard;
+
+    NFD::UniquePath outPath;
+    if (nfdresult_t nfdResult = OpenDialog(outPath, filterItems.data(), filterItems.size(), nullptr, windowHandle); nfdResult == NFD_OKAY) {
+        return outPath.get();
+    }
+    else if (nfdResult == NFD_CANCEL) {
+        return std::nullopt;
+        // Do nothing.
+    }
+    else {
+        throw std::runtime_error { std::format("File dialog error: {}", NFD::GetError() ) };
+    }
 }
 
 void makeWindowVisible(const char* window_name) {
@@ -507,12 +524,20 @@ vk_gltf_viewer::control::ImGuiTaskCollector::~ImGuiTaskCollector() {
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
     const std::list<std::filesystem::path> &recentGltfs,
-    const std::list<std::filesystem::path> &recentSkyboxes
+    const std::list<std::filesystem::path> &recentSkyboxes,
+    nfdwindowhandle_t windowHandle
 ) {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Open glTF File", "Ctrl+O")) {
-                tasks.emplace_back(std::in_place_type<task::ShowGltfLoadFileDialog>);
+                constexpr std::array filterItems {
+                    nfdfilteritem_t { "All Supported Files", "gltf,glb" },
+                    nfdfilteritem_t { "glTF File", "gltf,glb" },
+                };
+
+                if (auto filename = processFileDialog(filterItems, windowHandle)) {
+                    tasks.emplace_back(std::in_place_type<task::LoadGltf>, *filename);
+                }
             }
             if (ImGui::BeginMenu("Recent glTF Files")) {
                 if (recentGltfs.empty()) {
@@ -534,7 +559,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
         }
         if (ImGui::BeginMenu("Skybox")) {
             if (ImGui::MenuItem("Open Skybox")) {
-                tasks.emplace_back(std::in_place_type<task::ShowEqmapLoadFileDialog>);
+                constexpr std::array filterItems {
+                    nfdfilteritem_t { "All Supported Images", "hdr,exr" },
+                    nfdfilteritem_t { "HDR Image", "hdr" },
+                    nfdfilteritem_t { "EXR Image", "exr" },
+                };
+
+                if (auto filename = processFileDialog(filterItems, windowHandle)) {
+                    tasks.emplace_back(std::in_place_type<task::LoadEqmap>, *filename);
+                }
             }
             if (ImGui::BeginMenu("Recent Skyboxes")) {
                 if (recentSkyboxes.empty()) {

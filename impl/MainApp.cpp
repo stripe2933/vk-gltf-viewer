@@ -12,7 +12,6 @@ module;
 #define GLFW_EXPOSE_NATIVE_X11
 #endif
 #include <nfd_glfw3.h>
-#include <nfd.hpp>
 #include <OpenEXR/ImfInputFile.h>
 #include <OpenEXR/ImfFrameBuffer.h>
 #include <OpenEXR/ImfChannelList.h>
@@ -49,22 +48,6 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 #else
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
-
-[[nodiscard]] std::optional<std::filesystem::path> processFileDialog(std::span<const nfdfilteritem_t> filterItems, const nfdwindowhandle_t &windowHandle) {
-    static NFD::Guard nfdGuard;
-
-    NFD::UniquePath outPath;
-    if (nfdresult_t nfdResult = OpenDialog(outPath, filterItems.data(), filterItems.size(), nullptr, windowHandle); nfdResult == NFD_OKAY) {
-        return outPath.get();
-    }
-    else if (nfdResult == NFD_CANCEL) {
-        return std::nullopt;
-        // Do nothing.
-    }
-    else {
-        throw std::runtime_error { std::format("File dialog error: {}", NFD::GetError() ) };
-    }
-}
 
 vk_gltf_viewer::MainApp::MainApp() {
     const vulkan::pipeline::BrdfmapComputer brdfmapComputer { gpu.device };
@@ -305,7 +288,11 @@ void vk_gltf_viewer::MainApp::run() {
                 passthruRect,
             };
 
-            imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths());
+            // Get native window handle.
+            nfdwindowhandle_t windowHandle = {};
+            NFD_GetNativeWindowFromGLFWWindow(window, &windowHandle);
+
+            imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths(), windowHandle);
             if (auto &gltfAsset = appState.gltfAsset) {
                 imguiTaskCollector.assetInspector(gltfAsset->asset, gltf->directory);
                 imguiTaskCollector.assetTextures(gltfAsset->asset, assetTextureDescriptorSets, gltf->textureUsage);
@@ -349,23 +336,6 @@ void vk_gltf_viewer::MainApp::run() {
                     appState.camera.aspectRatio = vku::aspect(task.newRect.extent);
                     passthruRect = task.newRect;
                 },
-                [&](control::task::ShowGltfLoadFileDialog) {
-                    constexpr std::array filterItems {
-                        nfdfilteritem_t { "All Supported Files", "gltf,glb" },
-                        nfdfilteritem_t { "glTF File", "gltf,glb" },
-                    };
-
-                    // Get native window handle.
-                    nfdwindowhandle_t windowHandle = {};
-                    if (!NFD_GetNativeWindowFromGLFWWindow(window, &windowHandle)) {
-                        std::println(std::cerr, "Failed to get window handle from GLFW window.");
-                    }
-
-                    if (auto filename = processFileDialog(filterItems, windowHandle)) {
-                        loadGltf(*filename);
-                        regenerateDrawCommands.fill(true);
-                    }
-                },
                 [&](const control::task::LoadGltf &task) {
                     loadGltf(task.path);
                     regenerateDrawCommands.fill(true);
@@ -373,23 +343,6 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [&](control::task::CloseGltf) {
                     closeGltf();
-                },
-                [&](control::task::ShowEqmapLoadFileDialog) {
-                    constexpr std::array filterItems {
-                        nfdfilteritem_t { "All Supported Images", "hdr,exr" },
-                        nfdfilteritem_t { "HDR Image", "hdr" },
-                        nfdfilteritem_t { "EXR Image", "exr" },
-                    };
-
-                    // Get native window handle.
-                    nfdwindowhandle_t windowHandle = {};
-                    if (!NFD_GetNativeWindowFromGLFWWindow(window, &windowHandle)) {
-                        std::println(std::cerr, "Failed to get window handle from GLFW window.");
-                    }
-
-                    if (auto filename = processFileDialog(filterItems, windowHandle)) {
-                        loadEqmap(*filename);
-                    }
                 },
                 [&](const control::task::LoadEqmap &task) {
                     loadEqmap(task.path);
