@@ -424,7 +424,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
     // bottomSidebar
     ImGui::DockBuilderDockWindow("Material Editor", bottomSidebar);
     ImGui::DockBuilderDockWindow("Material Variants", bottomSidebar);
-    ImGui::DockBuilderDockWindow("Animations", bottomSidebar);
+    ImGui::DockBuilderDockWindow("Animation", bottomSidebar);
 
     ImGui::DockBuilderFinish(dockSpaceOverViewport);
 
