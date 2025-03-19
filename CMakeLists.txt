@@ -96,7 +96,6 @@ add_executable(vk-gltf-viewer WIN32 MACOSX_BUNDLE
     impl/mod.cpp
     impl/vulkan/Frame.cpp
     impl/vulkan/Gpu.cpp
-    impl/vulkan/pipeline/JumpFloodComputer.cpp
     main.cpp
 )
 target_include_directories(vk-gltf-viewer PRIVATE
@@ -127,13 +126,13 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/algorithm/misc.cppm
         interface/gltf/algorithm/traversal.cppm
         interface/gltf/Animation.cppm
-        interface/gltf/data_structure/SkinJointCountExclusiveScan.cppm
-        interface/gltf/data_structure/NodeInstanceCountExclusiveScanWithCount.cppm
-        interface/gltf/data_structure/TargetWeightCountExclusiveScan.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetProcessError.cppm
-        interface/gltf/SceneInverseHierarchy.cppm
-        interface/gltf/MaterialVariantsMapping.cppm
+        interface/gltf/data_structure/SkinJointCountExclusiveScan.cppm
+        interface/gltf/data_structure/MaterialVariantsMapping.cppm
+        interface/gltf/data_structure/NodeInstanceCountExclusiveScanWithCount.cppm
+        interface/gltf/data_structure/SceneInverseHierarchy.cppm
+        interface/gltf/data_structure/TargetWeightCountExclusiveScan.cppm
         interface/gltf/NodeWorldTransforms.cppm
         interface/gltf/OrderedPrimitives.cppm
         interface/gltf/TextureUsage.cppm
@@ -148,10 +147,12 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/functional.cppm
         interface/helpers/imgui/mod.cppm
         interface/helpers/imgui/table.cppm
+        interface/helpers/io.cppm
         interface/helpers/optional.cppm
         interface/helpers/ranges/mod.cppm
         interface/helpers/ranges/concat.cppm
         interface/helpers/ranges/contains.cppm
+        interface/helpers/span.cppm
         interface/helpers/TempStringBuffer.cppm
         interface/helpers/tristate.cppm
         interface/helpers/type_map.cppm

@@ -16,23 +16,7 @@ export import :gltf.NodeWorldTransforms;
 import :helpers.algorithm;
 import :helpers.fastgltf;
 import :helpers.ranges;
-
-/**
- * Convert the span of \p U to the span of \p T. The result span byte size must be same as the \p span's.
- * @tparam T Result span type.
- * @tparam U Source span type.
- * @param span Source span.
- * @return Converted span.
- * @note Since the source and result span sizes must be same, <tt>span.size_bytes()</tt> must be divisible by <tt>sizeof(T)</tt>.
- */
-template <typename T, typename U>
-[[nodiscard]] std::span<T> reinterpret_span(std::span<U> span) {
-    if (span.size_bytes() % sizeof(T) != 0) {
-        throw std::invalid_argument { "Span size mismatch: span of T does not fully fit into the current span." };
-    }
-
-    return { reinterpret_cast<T*>(span.data()), span.size_bytes() / sizeof(T) };
-}
+import :helpers.span;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     /**
@@ -43,6 +27,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         /**
          * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view.
          * @param asset glTF asset.
+         * @param scene Scene represents the node hierarchy.
          * @param nodeInstanceCountExclusiveScanWithCount pre-calculated scanned instance counts, with additional total count at the end.
          * @param nodeWorldTransforms pre-calculated node world transforms.
          * @param allocator VMA allocator.
@@ -52,6 +37,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         InstancedNodeWorldTransforms(
             const fastgltf::Asset &asset LIFETIMEBOUND,
+            const fastgltf::Scene &scene,
             std::shared_ptr<const gltf::ds::NodeInstanceCountExclusiveScanWithCount> nodeInstanceCountExclusiveScanWithCount,
             const gltf::NodeWorldTransforms &nodeWorldTransforms,
             vma::Allocator allocator,
@@ -64,19 +50,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 vk::BufferUsageFlagBits::eStorageBuffer,
             } },
             descriptorInfo { buffer, 0, vk::WholeSize } {
-            const std::span data = buffer.asRange<fastgltf::math::fmat4x4>();
-            for (const auto &[nodeIndex, node] : asset.nodes | ranges::views::enumerate) {
-                if (node.instancingAttributes.empty()) {
-                    data[(*this->nodeInstanceCountExclusiveScanWithCount)[nodeIndex]] = nodeWorldTransforms[nodeIndex];
-                }
-                else {
-                    std::ranges::transform(
-                        getInstanceTransforms(asset, nodeIndex, adapter), &data[(*this->nodeInstanceCountExclusiveScanWithCount)[nodeIndex]],
-                        [&](const fastgltf::math::fmat4x4 &instanceTransform) {
-                            return nodeWorldTransforms[nodeIndex] * instanceTransform;
-                        });
-                }
-            }
+            update(scene, nodeWorldTransforms, adapter);
         }
 
         [[nodiscard]] std::uint32_t getStartIndex(std::size_t nodeIndex) const noexcept {

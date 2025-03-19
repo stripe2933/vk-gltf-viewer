@@ -2,7 +2,6 @@ export module vk_gltf_viewer:gltf.algorithm.traversal;
 
 import std;
 export import fastgltf;
-import :helpers.fastgltf;
 
 namespace vk_gltf_viewer::gltf::algorithm {
     /**
@@ -51,10 +50,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
             }
             
             for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
-                const fastgltf::math::fmat4x4 childNodeWorldTransform = visit(fastgltf::visitor {
-                    [&](const fastgltf::TRS &trs) { return toMatrix(trs, worldTransform); },
-                    [&](const fastgltf::math::fmat4x4 &matrix) { return worldTransform * matrix; },
-                }, asset.nodes[childNodeIndex].transform);
+                const fastgltf::math::fmat4x4 childNodeWorldTransform = fastgltf::getTransformMatrix(asset.nodes[childNodeIndex], worldTransform);
                 self(childNodeIndex, childNodeWorldTransform);
             }
         }(nodeIndex, initialNodeWorldTransform);
@@ -84,14 +80,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
     export template <std::invocable<std::size_t, const fastgltf::math::fmat4x4&> F>
     void traverseScene(const fastgltf::Asset &asset, const fastgltf::Scene &scene, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t, const fastgltf::math::fmat4x4&>) {
         for (std::size_t nodeIndex : scene.nodeIndices) {
-            std::visit(fastgltf::visitor {
-                [&](const fastgltf::TRS &trs) {
-                    traverseNode(asset, nodeIndex, f, toMatrix(trs));
-                },
-                [&](const fastgltf::math::fmat4x4 &matrix) {
-                    traverseNode(asset, nodeIndex, f, matrix);
-                },
-            }, asset.nodes[nodeIndex].transform);
+            traverseNode(asset, nodeIndex, f, fastgltf::getTransformMatrix(asset.nodes[nodeIndex]));
         }
     }
 }

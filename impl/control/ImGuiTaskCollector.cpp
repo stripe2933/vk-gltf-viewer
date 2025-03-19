@@ -4,6 +4,7 @@ module;
 #include <version>
 
 #include <IconsFontAwesome4.h>
+#include <nfd.hpp>
 
 module vk_gltf_viewer;
 import :imgui.TaskCollector;
@@ -13,7 +14,6 @@ import glm;
 import imgui.internal;
 import imgui.math;
 import ImGuizmo;
-import vku;
 import :global;
 import :helpers.concepts;
 import :helpers.fastgltf;
@@ -51,6 +51,22 @@ template <concepts::signature_of<cpp_util::cstring_view> F>
     else return str;
 }
 
+[[nodiscard]] std::optional<std::filesystem::path> processFileDialog(std::span<const nfdfilteritem_t> filterItems, const nfdwindowhandle_t &windowHandle) {
+    static NFD::Guard nfdGuard;
+
+    NFD::UniquePath outPath;
+    if (nfdresult_t nfdResult = OpenDialog(outPath, filterItems.data(), filterItems.size(), nullptr, windowHandle); nfdResult == NFD_OKAY) {
+        return outPath.get();
+    }
+    else if (nfdResult == NFD_CANCEL) {
+        return std::nullopt;
+        // Do nothing.
+    }
+    else {
+        throw std::runtime_error { std::format("File dialog error: {}", NFD::GetError() ) };
+    }
+}
+
 void makeWindowVisible(const char* window_name) {
     ImGuiWindow *const window = ImGui::FindWindowByName(window_name);
     assert(window && "Unknown window name");
@@ -67,9 +83,9 @@ void makeWindowVisible(const char* window_name) {
     }
 }
 
-void hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f}) {
+void hoverableImage(ImTextureID texture, const ImVec2 &size, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f}) {
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
-    ImGui::Image(vku::toUint64(texture), size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
+    ImGui::Image(texture, size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
 
     if (ImGui::BeginItemTooltip()) {
         const ImGuiIO &io = ImGui::GetIO();
@@ -80,7 +96,7 @@ void hoverableImage(vk::DescriptorSet texture, const ImVec2 &size, const ImVec4 
         region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
 
         constexpr float zoomScale = 4.0f;
-        ImGui::Image(vku::toUint64(texture), zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size, tint);
+        ImGui::Image(texture, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size, tint);
         ImGui::TextUnformatted(tempStringBuffer.write("Showing: [{:.0f}, {:.0f}]x[{:.0f}, {:.0f}]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y));
 
         ImGui::EndTooltip();
@@ -298,7 +314,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetSamplers(std::span<fastgl
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
     fastgltf::Asset &asset,
-    std::span<const vk::DescriptorSet> assetTextureImGuiDescriptorSets,
+    std::span<const ImTextureID> assetTextureImGuiDescriptorSets,
     const gltf::TextureUsage &textureUsage
 ) {
     if (ImGui::Begin("Textures")) {
@@ -309,7 +325,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
             bool buttonClicked;
             const std::string_view label = nonempty_or(asset.textures[i].name, [&] { return tempStringBuffer.write("Unnamed texture {}", i).view(); });
             ImGui::WithID(i, [&]() {
-                buttonClicked = ImGui::ImageButtonWithText("", vku::toUint64(assetTextureImGuiDescriptorSets[i]), label, { 64, 64 });
+                buttonClicked = ImGui::ImageButtonWithText("", assetTextureImGuiDescriptorSets[i], label, { 64, 64 });
             });
             if (ImGui::BeginItemTooltip()) {
                 ImGui::TextUnformatted(label);
@@ -434,7 +450,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
 vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
     std::vector<Task> &tasks,
     const ImVec2 &framebufferSize,
-    const vk::Rect2D &oldPassthruRect
+    const ImRect &oldPassthruRect
 ) : tasks { tasks } {
     // If there is no imgui.ini file, make default dock state to avoid the initial window sprawling.
     // This should be called before any ImGui::NewFrame() call, because that will create the imgui.ini file.
@@ -459,11 +475,8 @@ vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
 
     // Calculate framebuffer coordinate based passthru rect.
     const ImVec2 scaleFactor = framebufferSize / ImGui::GetIO().DisplaySize;
-    const vk::Rect2D passthruRect {
-        { static_cast<std::int32_t>(centerNodeRect.Min.x * scaleFactor.x), static_cast<std::int32_t>(centerNodeRect.Min.y * scaleFactor.y) },
-        { static_cast<std::uint32_t>(centerNodeRect.GetWidth() * scaleFactor.x), static_cast<std::uint32_t>(centerNodeRect.GetHeight() * scaleFactor.y) },
-    };
-    if (passthruRect != oldPassthruRect) {
+    const ImRect passthruRect { scaleFactor * centerNodeRect.Min, scaleFactor * centerNodeRect.Max };
+    if (passthruRect.ToVec4() != oldPassthruRect.ToVec4()) {
         tasks.emplace_back(std::in_place_type<task::ChangePassthruRect>, passthruRect);
     }
 }
@@ -507,12 +520,20 @@ vk_gltf_viewer::control::ImGuiTaskCollector::~ImGuiTaskCollector() {
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
     const std::list<std::filesystem::path> &recentGltfs,
-    const std::list<std::filesystem::path> &recentSkyboxes
+    const std::list<std::filesystem::path> &recentSkyboxes,
+    nfdwindowhandle_t windowHandle
 ) {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Open glTF File", "Ctrl+O")) {
-                tasks.emplace_back(std::in_place_type<task::ShowGltfLoadFileDialog>);
+                constexpr std::array filterItems {
+                    nfdfilteritem_t { "All Supported Files", "gltf,glb" },
+                    nfdfilteritem_t { "glTF File", "gltf,glb" },
+                };
+
+                if (auto filename = processFileDialog(filterItems, windowHandle)) {
+                    tasks.emplace_back(std::in_place_type<task::LoadGltf>, *filename);
+                }
             }
             if (ImGui::BeginMenu("Recent glTF Files")) {
                 if (recentGltfs.empty()) {
@@ -534,7 +555,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
         }
         if (ImGui::BeginMenu("Skybox")) {
             if (ImGui::MenuItem("Open Skybox")) {
-                tasks.emplace_back(std::in_place_type<task::ShowEqmapLoadFileDialog>);
+                constexpr std::array filterItems {
+                    nfdfilteritem_t { "All Supported Images", "hdr,exr" },
+                    nfdfilteritem_t { "HDR Image", "hdr" },
+                    nfdfilteritem_t { "EXR Image", "exr" },
+                };
+
+                if (auto filename = processFileDialog(filterItems, windowHandle)) {
+                    tasks.emplace_back(std::in_place_type<task::LoadEqmap>, *filename);
+                }
             }
             if (ImGui::BeginMenu("Recent Skyboxes")) {
                 if (recentSkyboxes.empty()) {
@@ -601,7 +630,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
     fastgltf::Asset &asset,
-    std::span<const vk::DescriptorSet> assetTextureImGuiDescriptorSets
+    std::span<const ImTextureID> assetTextureImGuiDescriptorSets
 ) {
     if (ImGui::Begin("Material Editor")) {
         assert(!selectedMaterialIndex || *selectedMaterialIndex < asset.materials.size()
@@ -1091,11 +1120,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                 });
             }
 
-            std::span<float> morphTargetWeights = node.weights;
-            if (node.meshIndex && !asset.meshes[*node.meshIndex].weights.empty()) {
-                morphTargetWeights = asset.meshes[*node.meshIndex].weights;
-            }
-            if (!morphTargetWeights.empty()) {
+            if (const std::span morphTargetWeights = getTargetWeights(node, asset); !morphTargetWeights.empty()) {
                 ImGui::SeparatorText("Morph Target Weights");
 
                 for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
@@ -1250,7 +1275,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::background(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
     const AppState::ImageBasedLighting &info,
-    vk::DescriptorSet eqmapTextureImGuiDescriptorSet
+    ImTextureID eqmapTextureImGuiDescriptorSet
 ) {
     if (ImGui::Begin("IBL")) {
         if (ImGui::CollapsingHeader("Equirectangular map")) {

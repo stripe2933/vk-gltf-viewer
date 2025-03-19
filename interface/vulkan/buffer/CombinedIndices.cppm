@@ -120,7 +120,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 }
 
                 for (auto [pPrimitive, offset] : std::views::zip(primitiveAndIndexBytesPairs | std::views::keys, copyOffsets)) {
-                    indexInfos.try_emplace(pPrimitive, indexType, offset / getIndexTypeSize(indexType));
+                    indexInfos.try_emplace(pPrimitive, indexType, static_cast<std::uint32_t>(offset / getIndexTypeSize(indexType)));
                 }
 
                 return std::pair { indexType, std::move(buffer) };

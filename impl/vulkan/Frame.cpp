@@ -213,31 +213,20 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         }
         else {
             result.pipeline = sharedData.getPrimitiveRenderer({
+                // TANGENT, TEXCOORD_<i> and their corresponding morph targets are unnecessary as there is no texture.
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .normalComponentType = accessors.normalAccessor.transform([](const shader_type::Accessor &accessor) {
                     return accessor.componentType;
                 }),
-                .tangentComponentType = accessors.tangentAccessor.transform([](const shader_type::Accessor &accessor) {
-                    return accessor.componentType;
-                }),
-                .texcoordComponentTypes = accessors.texcoordAccessors
-                    | std::views::transform([](const auto &info) {
-                        return info.componentType;
-                    })
-                    | std::views::take(4) // Avoid bad_alloc for static_vector.
-                    | std::ranges::to<boost::container::static_vector<std::uint8_t, 4>>(),
                 .colorComponentCountAndType = accessors.colorAccessor.transform([](const auto &info) {
                     return std::pair { info.componentCount, info.componentType };
                 }),
                 .fragmentShaderGeneratedTBN = !accessors.normalAccessor.has_value(),
-                .morphTargetWeightCount = static_cast<std::uint32_t>(std::max({
+                .morphTargetWeightCount = std::max<std::uint32_t>(
                     accessors.positionMorphTargetAccessors.size(),
-                    accessors.normalMorphTargetAccessors.size(),
-                    accessors.tangentMorphTargetAccessors.size(),
-                })),
+                    accessors.normalMorphTargetAccessors.size()),
                 .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
                 .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
-                .hasTangentMorphTarget = !accessors.tangentMorphTargetAccessors.empty(),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
             });
         }

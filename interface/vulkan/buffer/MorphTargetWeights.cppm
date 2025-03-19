@@ -7,6 +7,7 @@ export module vk_gltf_viewer:vulkan.buffer.MorphTargetWeights;
 import std;
 export import fastgltf;
 export import :gltf.data_structure.TargetWeightCountExclusiveScan;
+import :helpers.fastgltf;
 import :vulkan.buffer;
 export import :vulkan.Gpu;
 
@@ -24,12 +25,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 weights.reserve(asset.nodes.size() + 1);
 
                 weights.append_range(asset.nodes | std::views::transform([&](const fastgltf::Node &node) {
-                    std::span<const float> weights = node.weights;
-                    if (node.meshIndex) {
-                        const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-                        weights = mesh.weights;
-                    }
-                    return weights;
+                    return getTargetWeights(node, asset);
                 }));
                 // A dummy NaN-valued weight for preventing the zero-sized buffer creation.
                 // This will not affect to the actual weight indexing.

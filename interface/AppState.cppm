@@ -88,8 +88,8 @@ namespace vk_gltf_viewer {
                                 return visibility.value_or(false) && asset.nodes[nodeIndex].meshIndex.has_value();
                             }))
                             | std::views::keys
-                            // Explicit value type must be specified, because std::views::enumerate's index type is range_difference_t<R> (!= std::uint16_t).
-                            | std::ranges::to<std::unordered_set<std::uint16_t>>();
+                            | std::views::transform([](auto nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
+                            | std::ranges::to<std::unordered_set>();
                     },
                     [this](const std::vector<bool> &visibilities) {
                         return visibilities
@@ -98,8 +98,8 @@ namespace vk_gltf_viewer {
                                 return visibility && asset.nodes[nodeIndex].meshIndex.has_value();
                             }))
                             | std::views::keys
-                            // Explicit value type must be specified, because std::views::enumerate's index type is range_difference_t<R> (!= std::uint16_t).
-                            | std::ranges::to<std::unordered_set<std::uint16_t>>();
+                            | std::views::transform([](auto nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
+                            | std::ranges::to<std::unordered_set>();
                     }
                 }, nodeVisibilities);
             }

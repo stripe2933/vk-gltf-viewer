@@ -5,9 +5,9 @@ import :control.AppWindow;
 import :gltf.algorithm.miniball;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
-import :gltf.MaterialVariantsMapping;
+import :gltf.data_structure.MaterialVariantsMapping;
+import :gltf.data_structure.SceneInverseHierarchy;
 import :gltf.NodeWorldTransforms;
-import :gltf.SceneInverseHierarchy;
 import :gltf.TextureUsage;
 import :helpers.fastgltf;
 import :vulkan.dsl.Asset;
@@ -56,7 +56,7 @@ namespace vk_gltf_viewer {
             /**
              * @brief Associative data structure for KHR_materials_variants.
              */
-            gltf::MaterialVariantsMapping materialVariantsMapping { asset };
+            gltf::ds::MaterialVariantsMapping materialVariantsMapping { asset };
 
             gltf::TextureUsage textureUsage { asset, fastgltf::getPreferredImageIndex };
 
@@ -67,7 +67,6 @@ namespace vk_gltf_viewer {
              */
             gltf::AssetExternalBuffers assetExternalBuffers{ asset, directory };
 
-            gltf::NodeWorldTransforms nodeWorldTransforms;
             gltf::OrderedPrimitives orderedPrimitives;
 
             std::vector<gltf::Animation> animations;
@@ -81,7 +80,8 @@ namespace vk_gltf_viewer {
              */
             std::reference_wrapper<fastgltf::Scene> scene { asset.scenes[asset.defaultScene.value_or(0)] };
 
-            gltf::SceneInverseHierarchy sceneInverseHierarchy;
+            gltf::NodeWorldTransforms nodeWorldTransforms;
+            gltf::ds::SceneInverseHierarchy sceneInverseHierarchy;
 
 			/**
 			 * @brief Smallest enclosing sphere of all meshes (a.k.a. miniball) in the scene.
@@ -145,7 +145,7 @@ namespace vk_gltf_viewer {
         // Descriptor sets.
         // --------------------
 
-        std::vector<vk::DescriptorSet> assetTextureDescriptorSets;
+        std::vector<ImTextureID> assetTextureDescriptorSets;
 
         // --------------------
         // Frames.

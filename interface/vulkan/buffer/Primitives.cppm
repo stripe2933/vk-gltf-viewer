@@ -11,7 +11,6 @@ import :gltf.OrderedPrimitives;
 import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
-export import :vulkan.buffer.Materials;
 export import :vulkan.buffer.PrimitiveAttributes;
 export import :vulkan.buffer.StagingBufferStorage;
 export import :vulkan.Gpu;
@@ -25,13 +24,11 @@ namespace vk_gltf_viewer::vulkan::buffer {
     export class Primitives : trait::PostTransferObject {
     public:
         Primitives(
-            const Materials &materialBuffer,
             const gltf::OrderedPrimitives &orderedPrimitives,
             const PrimitiveAttributes &primitiveAttributes,
             const Gpu &gpu,
             StagingBufferStorage &stagingBufferStorage
         ) : PostTransferObject { stagingBufferStorage },
-            materialBuffer { materialBuffer },
             buffer { createBuffer(orderedPrimitives, primitiveAttributes, gpu.allocator) },
             descriptorInfo { visit_as<vk::Buffer>(buffer), 0, vk::WholeSize }{ }
 
@@ -51,24 +48,22 @@ namespace vk_gltf_viewer::vulkan::buffer {
             std::uint32_t materialIndex,
             vk::CommandBuffer transferCommandBuffer
         ) {
-            const std::uint32_t paddedMaterialIndex = materialBuffer.get().padMaterialIndex(materialIndex);
             return std::visit(multilambda {
                 [&](vku::MappedBuffer &primitiveBuffer) {
-                    primitiveBuffer.asRange<shader_type::Primitive>()[primitiveIndex].materialIndex = paddedMaterialIndex;
+                    primitiveBuffer.asRange<shader_type::Primitive>()[primitiveIndex].materialIndex = materialIndex + 1;
                     return false;
                 },
                 [&](vk::Buffer primitiveBuffer) {
                     transferCommandBuffer.updateBuffer<std::uint32_t>(
                         primitiveBuffer,
                         sizeof(shader_type::Primitive) * primitiveIndex + offsetof(shader_type::Primitive, materialIndex),
-                        paddedMaterialIndex);
+                        materialIndex + 1);
                     return true;
                 }
             }, buffer);
         }
 
     private:
-        std::reference_wrapper<const Materials> materialBuffer;
         std::variant<vku::AllocatedBuffer, vku::MappedBuffer> buffer;
         vk::DescriptorBufferInfo descriptorInfo;
 
@@ -87,7 +82,9 @@ namespace vk_gltf_viewer::vulkan::buffer {
                         .pJointsAttributeMappingInfoBuffer = accessors.jointsAccessorBufferAddress,
                         .pWeightsAttributeMappingInfoBuffer = accessors.weightsAccessorBufferAddress,
                         .positionByteStride = accessors.positionAccessor.byteStride,
-                        .materialIndex = to_optional(pPrimitive->materialIndex).transform(LIFT(materialBuffer.get().padMaterialIndex)).value_or(0U),
+                        .materialIndex = to_optional(pPrimitive->materialIndex)
+                            .transform([](auto index) { return static_cast<std::uint32_t>(index) + 1U; })
+                            .value_or(0U),
                     };
                     if (!accessors.positionMorphTargetAccessors.empty()) {
                         result.pPositionMorphTargetAccessorBuffer = accessors.positionMorphTargetAccessorBufferAddress;
