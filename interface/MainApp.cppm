@@ -28,7 +28,9 @@ namespace vk_gltf_viewer {
             = fastgltf::Extensions::KHR_materials_unlit
             | fastgltf::Extensions::KHR_materials_variants
             | fastgltf::Extensions::KHR_mesh_quantization
+#ifdef SUPPORT_KHR_TEXTURE_BASISU
             | fastgltf::Extensions::KHR_texture_basisu
+#endif
             | fastgltf::Extensions::KHR_texture_transform
             | fastgltf::Extensions::EXT_mesh_gpu_instancing;
         static constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;

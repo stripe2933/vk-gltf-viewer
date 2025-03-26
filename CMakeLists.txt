@@ -11,12 +11,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_MODULE_STD 1)
 
 # --------------------
-# Build options.
-# --------------------
-
-option(EXACT_BOUNDING_VOLUME_USING_CGAL "Calculate bounding volume of the scene nodes with exact algorithm using CGAL.")
-
-# --------------------
 # External dependencies.
 # --------------------
 
@@ -28,16 +22,18 @@ find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(imguizmo CONFIG REQUIRED)
-find_package(Ktx CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
-find_package(OpenEXR CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(vku CONFIG REQUIRED)
 
-if (EXACT_BOUNDING_VOLUME_USING_CGAL)
-    find_package(CGAL CONFIG REQUIRED)
-endif()
+# --------------------
+# Optional external dependencies.
+# --------------------
+
+find_package(CGAL CONFIG)
+find_package(Ktx CONFIG)
+find_package(OpenEXR CONFIG)
 
 # --------------------
 # Module configurations for the external dependencies.
@@ -238,11 +234,9 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     fastgltf::module
     glm::module
     imgui::imgui
-    KTX::ktx
     imguizmo::imguizmo
     mikktspace::mikktspace
     nfd::nfd
-    OpenEXR::OpenEXR
     vku::vku
     vk-gltf-viewer::asset
 )
@@ -250,9 +244,25 @@ target_compile_definitions(vk-gltf-viewer PRIVATE
     GLFW_INCLUDE_NONE
 )
 
-if (EXACT_BOUNDING_VOLUME_USING_CGAL)
+if (CGAL_FOUND)
     target_link_libraries(vk-gltf-viewer PRIVATE CGAL::CGAL)
     target_compile_definitions(vk-gltf-viewer PRIVATE EXACT_BOUNDING_VOLUME_USING_CGAL)
+else()
+    message(STATUS "CGAL not found, using approximate bounding volume calculation.")
+endif()
+
+if (Ktx_FOUND)
+    target_link_libraries(vk-gltf-viewer PRIVATE KTX::ktx)
+    target_compile_definitions(vk-gltf-viewer PRIVATE SUPPORT_KHR_TEXTURE_BASISU)
+else()
+    message(STATUS "KTX not found, KHR_texture_basisu extension will not be supported.")
+endif()
+
+if (OpenEXR_FOUND)
+    target_link_libraries(vk-gltf-viewer PRIVATE OpenEXR::OpenEXR)
+    target_compile_definitions(vk-gltf-viewer PRIVATE SUPPORT_EXR_SKYBOX)
+else()
+    message(STATUS "OpenEXR not found, loading EXR skybox will not be supported.")
 endif()
 
 if (APPLE AND ${CMAKE_BUILD_TYPE} STREQUAL "Release")

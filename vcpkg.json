@@ -2,6 +2,7 @@
   "dependencies": [
     "boost-container",
     "boost-container-hash",
+    "bshoshany-thread-pool",
     "cstring-view",
     "fastgltf",
     "glfw3",
@@ -15,17 +16,14 @@
       ]
     },
     "imguizmo",
-    "ktx",
     "mikktspace",
     "nativefiledialog-extended",
-    "openexr",
     "stb",
     {
       "name": "vku",
       "features": [
         "dynamic-dispatcher"
       ]
-    },
-    "bshoshany-thread-pool"
+    }
   ]
 }

@@ -150,20 +150,34 @@ This project depends on:
 - [glm](https://github.com/g-truc/glm)
 - [ImGui](https://github.com/ocornut/imgui)
 - [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo)
-- [KTX-Software](https://github.com/KhronosGroup/KTX-Software)
 - [MikkTSpace](http://www.mikktspace.com)
 - [Native File Dialog Extended](https://github.com/btzy/nativefiledialog-extended)
-- [OpenEXR](https://openexr.com/en/latest/)
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h)
 - [thread-pool](https://github.com/bshoshany/thread-pool)
 - My own Vulkan-Hpp helper library, [vku](https://github.com/stripe2933/vku/tree/module) (branch `module`), which has the following dependencies:
   - [Vulkan-Hpp](https://github.com/KhronosGroup/Vulkan-Hpp)
   - [VulkanMemoryAllocator-Hpp](https://github.com/YaaZ/VulkanMemoryAllocator-Hpp)
 
-Also, there are some optional dependencies that can be configured via CMake options. These are disabled by default.
-- [CGAL](https://www.cgal.org) for exact bounding volume calculation (due to its usage, **this project is licensed under GPL**.)
-
 Dependencies will be automatically fetched via vcpkg.
+
+Also, there are some optional dependencies that are enabling the features. These are not included in `vcpkg.json` by default.
+- [CGAL](https://www.cgal.org) for exact bounding volume calculation (due to its usage, **this project is licensed under GPL**.)
+- [KTX-Software](https://github.com/KhronosGroup/KTX-Software) for support `KHR_texture_basisu` extension.
+- [OpenEXR](https://openexr.com/en/latest/) if you want to use `.exr` skybox.
+
+You can provide the dependencies at the CMake configuration time to enable the corresponding features. Followings are some ways to provide.
+
+```sh
+# Provide all optional dependencies, with platform agnostic way (most recommended).
+# Be aware that fetching cgal will be extremely slow since it fetches all of the boost dependencies and build gmp and mpfr.
+vcpkg add port cgal ktx openexr
+
+# Provide CGAL, if you're using Ubuntu and apt system package manager.
+sudo apt install libcgal-dev
+
+# Provide OpenEXR, if you're using macOS and Homebrew system package manager.
+brew install openexr
+```
 
 #### Build Steps
 

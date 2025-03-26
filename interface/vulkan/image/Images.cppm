@@ -1,6 +1,8 @@
 module;
 
+#ifdef SUPPORT_KHR_TEXTURE_BASISU
 #include <ktx.h>
+#endif
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
@@ -201,6 +203,7 @@ namespace vk_gltf_viewer::vulkan::image {
                         return processNonCompressedImageFromLoadResult(width, height, channels, std::move(data));
                     };
 
+#ifdef SUPPORT_KHR_TEXTURE_BASISU
                     // WARNING: texture WOULD BE DESTROYED IN THE FUNCTION (for reducing memory footprint)!
                     // Therefore, I explicitly marked the parameter type of texture as ktxTexture2*&& (which force the user to
                     // pass it like std::move(texture).
@@ -288,14 +291,17 @@ namespace vk_gltf_viewer::vulkan::image {
 
                         return processCompressedImageFromLoadResult(std::move(texture));
                     };
+#endif
 
                     vku::AllocatedImage image = visit(fastgltf::visitor {
                         [&](const fastgltf::sources::Array& array) {
                             switch (array.mimeType) {
                                 case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
                                     return processNonCompressedImageFromMemory(reinterpret_span<const stbi_uc>(std::span { array.bytes }));
+#ifdef SUPPORT_KHR_TEXTURE_BASISU
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(reinterpret_span<const ktx_uint8_t>(std::span { array.bytes }));
+#endif
                                 default:
                                     throw gltf::AssetProcessError::IndeterminateImageMimeType;
                             }
@@ -304,8 +310,10 @@ namespace vk_gltf_viewer::vulkan::image {
                             switch (byteView.mimeType) {
                                 case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
                                     return processNonCompressedImageFromMemory(reinterpret_span<const stbi_uc>(static_cast<std::span<const std::byte>>(byteView.bytes)));
+#ifdef SUPPORT_KHR_TEXTURE_BASISU
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(reinterpret_span<const ktx_uint8_t>(static_cast<std::span<const std::byte>>(byteView.bytes)));
+#endif
                                 default:
                                     throw gltf::AssetProcessError::IndeterminateImageMimeType;
                             }
@@ -328,6 +336,7 @@ namespace vk_gltf_viewer::vulkan::image {
                                     return processNonCompressedImageFromMemory(reinterpret_span<const stbi_uc>(std::span { data }));
                                 }
                             }
+#ifdef SUPPORT_KHR_TEXTURE_BASISU
                             else if (uri.mimeType == fastgltf::MimeType::KTX2 || extension == ".ktx2") {
                                 if (uri.fileByteOffset == 0) {
                                     return processCompressedImageFromFile(PATH_C_STR(assetDir / uri.uri.fspath()));
@@ -338,6 +347,7 @@ namespace vk_gltf_viewer::vulkan::image {
                                     return processCompressedImageFromMemory(reinterpret_span<const ktx_uint8_t>(std::span { data }));
                                 }
                             }
+#endif
                             else {
                                 throw gltf::AssetProcessError::IndeterminateImageMimeType;
                             }
@@ -346,8 +356,10 @@ namespace vk_gltf_viewer::vulkan::image {
                             switch (bufferView.mimeType) {
                                 case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
                                     return processNonCompressedImageFromMemory(reinterpret_span<const stbi_uc>(adapter(asset, bufferView.bufferViewIndex)));
+#ifdef SUPPORT_KHR_TEXTURE_BASISU
                                 case fastgltf::MimeType::KTX2:
                                     return processCompressedImageFromMemory(reinterpret_span<const ktx_uint8_t>(adapter(asset, bufferView.bufferViewIndex)));
+#endif
                                 default:
                                     throw gltf::AssetProcessError::IndeterminateImageMimeType;
                             }

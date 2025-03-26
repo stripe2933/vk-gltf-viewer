@@ -12,10 +12,12 @@ module;
 #define GLFW_EXPOSE_NATIVE_X11
 #endif
 #include <nfd_glfw3.h>
+#ifdef SUPPORT_EXR_SKYBOX
 #include <OpenEXR/ImfInputFile.h>
 #include <OpenEXR/ImfFrameBuffer.h>
 #include <OpenEXR/ImfChannelList.h>
 #include <OpenEXR/ImfThreading.h>
+#endif
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
@@ -886,16 +888,17 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 },
             };
         } // After this scope, data will be automatically freed.
+#ifdef SUPPORT_EXR_SKYBOX
         else if (extension == ".exr") {
-            Imf::InputFile file { PATH_C_STR(eqmapPath), static_cast<int>(std::thread::hardware_concurrency()) };
+            Imf::InputFile file{ PATH_C_STR(eqmapPath), static_cast<int>(std::thread::hardware_concurrency()) };
 
             const Imath::Box2i dw = file.header().dataWindow();
-            const vk::Extent2D eqmapExtent {
+            const vk::Extent2D eqmapExtent{
                 static_cast<std::uint32_t>(dw.max.x - dw.min.x + 1),
                 static_cast<std::uint32_t>(dw.max.y - dw.min.y + 1),
             };
 
-            vku::MappedBuffer buffer { gpu.allocator, vk::BufferCreateInfo {
+            vku::MappedBuffer buffer{ gpu.allocator, vk::BufferCreateInfo {
                 {},
                 blockSize(vk::Format::eR32G32B32A32Sfloat) * eqmapExtent.width * eqmapExtent.height,
                 vk::BufferUsageFlagBits::eTransferSrc,
@@ -906,16 +909,20 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             // Note: Alpha channel will be ignored.
             Imf::FrameBuffer frameBuffer;
             const std::size_t rowBytes = eqmapExtent.width * sizeof(glm::vec4);
-            frameBuffer.insert("R", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].x), sizeof(glm::vec4), rowBytes });
-            frameBuffer.insert("G", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].y), sizeof(glm::vec4), rowBytes });
-            frameBuffer.insert("B", Imf::Slice { Imf::FLOAT, reinterpret_cast<char*>(&data[0].z), sizeof(glm::vec4), rowBytes });
+            frameBuffer.insert("R", Imf::Slice{ Imf::FLOAT, reinterpret_cast<char*>(&data[0].x), sizeof(glm::vec4), rowBytes });
+            frameBuffer.insert("G", Imf::Slice{ Imf::FLOAT, reinterpret_cast<char*>(&data[0].y), sizeof(glm::vec4), rowBytes });
+            frameBuffer.insert("B", Imf::Slice{ Imf::FLOAT, reinterpret_cast<char*>(&data[0].z), sizeof(glm::vec4), rowBytes });
 
             file.readPixels(frameBuffer, dw.min.y, dw.max.y);
 
-            return std::pair { eqmapExtent, std::move(buffer) };
+            return std::pair{ eqmapExtent, std::move(buffer) };
         }
 
         throw std::runtime_error { "Unknown file format: only HDR and EXR are supported." };
+#else
+		throw std::runtime_error{ "Unknown file format: only HDR is supported." };
+#endif
+
     }();
 
     std::uint32_t eqmapImageMipLevels = 0;

@@ -76,7 +76,7 @@ jobs:
 
       - name: Configure
         run: |
-          vcpkg add port cgal
+          vcpkg add port cgal ktx openexr
           mv .github/workflows/scripts/* .
           cmake --preset=${{ matrix.os }}
 

@@ -556,9 +556,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
         if (ImGui::BeginMenu("Skybox")) {
             if (ImGui::MenuItem("Open Skybox")) {
                 constexpr std::array filterItems {
-                    nfdfilteritem_t { "All Supported Images", "hdr,exr" },
+                    nfdfilteritem_t { 
+                        "All Supported Images", 
+                        "hdr"
+#ifdef SUPPORT_EXR_SKYBOX
+                        ",exr",
+#endif
+                    },
                     nfdfilteritem_t { "HDR Image", "hdr" },
+#ifdef SUPPORT_EXR_SKYBOX
                     nfdfilteritem_t { "EXR Image", "exr" },
+#endif
                 };
 
                 if (auto filename = processFileDialog(filterItems, windowHandle)) {
