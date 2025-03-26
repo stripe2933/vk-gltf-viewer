@@ -158,12 +158,26 @@ This project depends on:
   - [Vulkan-Hpp](https://github.com/KhronosGroup/Vulkan-Hpp)
   - [VulkanMemoryAllocator-Hpp](https://github.com/YaaZ/VulkanMemoryAllocator-Hpp)
 
-Also, there are some optional dependencies that can be configured via CMake options. These are disabled by default.
+Dependencies will be automatically fetched via vcpkg.
+
+Also, there are some optional dependencies that are enabling the features. These are not included in `vcpkg.json` by default.
 - [CGAL](https://www.cgal.org) for exact bounding volume calculation (due to its usage, **this project is licensed under GPL**.)
 - [KTX-Software](https://github.com/KhronosGroup/KTX-Software) for support `KHR_texture_basisu` extension.
 - [OpenEXR](https://openexr.com/en/latest/) if you want to use `.exr` skybox.
 
-Dependencies will be automatically fetched via vcpkg.
+You can provide the dependencies at the CMake configuration time to enable the corresponding features. Followings are some ways to provide.
+
+```sh
+# Provide all optional dependencies, with platform agnostic way (most recommended).
+# Be aware that fetching cgal will be extremely slow since it fetches all of the boost dependencies and build gmp and mpfr.
+vcpkg add port cgal ktx openexr
+
+# Provide CGAL, if you're using Ubuntu and apt system package manager.
+sudo apt install libcgal-dev
+
+# Provide OpenEXR, if you're using macOS and Homebrew system package manager.
+brew install openexr
+```
 
 #### Build Steps
 
