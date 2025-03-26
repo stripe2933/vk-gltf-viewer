@@ -150,7 +150,6 @@ This project depends on:
 - [glm](https://github.com/g-truc/glm)
 - [ImGui](https://github.com/ocornut/imgui)
 - [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo)
-- [KTX-Software](https://github.com/KhronosGroup/KTX-Software)
 - [MikkTSpace](http://www.mikktspace.com)
 - [Native File Dialog Extended](https://github.com/btzy/nativefiledialog-extended)
 - [OpenEXR](https://openexr.com/en/latest/)
@@ -162,6 +161,7 @@ This project depends on:
 
 Also, there are some optional dependencies that can be configured via CMake options. These are disabled by default.
 - [CGAL](https://www.cgal.org) for exact bounding volume calculation (due to its usage, **this project is licensed under GPL**.)
+- [KTX-Software](https://github.com/KhronosGroup/KTX-Software) for support `KHR_texture_basisu` extension.
 
 Dependencies will be automatically fetched via vcpkg.
 

@@ -22,7 +22,6 @@ find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(imguizmo CONFIG REQUIRED)
-find_package(Ktx CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
@@ -34,6 +33,7 @@ find_package(vku CONFIG REQUIRED)
 # --------------------
 
 find_package(CGAL CONFIG)
+find_package(Ktx CONFIG)
 
 # --------------------
 # Module configurations for the external dependencies.
@@ -234,7 +234,6 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     fastgltf::module
     glm::module
     imgui::imgui
-    KTX::ktx
     imguizmo::imguizmo
     mikktspace::mikktspace
     nfd::nfd
@@ -251,6 +250,13 @@ if (CGAL_FOUND)
     target_compile_definitions(vk-gltf-viewer PRIVATE EXACT_BOUNDING_VOLUME_USING_CGAL)
 else()
     message(STATUS "CGAL not found, using approximate bounding volume calculation.")
+endif()
+
+if (Ktx_FOUND)
+    target_link_libraries(vk-gltf-viewer PRIVATE KTX::ktx)
+    target_compile_definitions(vk-gltf-viewer PRIVATE SUPPORT_KHR_TEXTURE_BASISU)
+else()
+    message(STATUS "KTX not found, KHR_texture_basisu extension will not be supported.")
 endif()
 
 if (APPLE AND ${CMAKE_BUILD_TYPE} STREQUAL "Release")
