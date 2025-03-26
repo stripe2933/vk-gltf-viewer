@@ -11,12 +11,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_MODULE_STD 1)
 
 # --------------------
-# Build options.
-# --------------------
-
-option(EXACT_BOUNDING_VOLUME_USING_CGAL "Calculate bounding volume of the scene nodes with exact algorithm using CGAL.")
-
-# --------------------
 # External dependencies.
 # --------------------
 
@@ -35,9 +29,11 @@ find_package(OpenEXR CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(vku CONFIG REQUIRED)
 
-if (EXACT_BOUNDING_VOLUME_USING_CGAL)
-    find_package(CGAL CONFIG REQUIRED)
-endif()
+# --------------------
+# Optional external dependencies.
+# --------------------
+
+find_package(CGAL CONFIG)
 
 # --------------------
 # Module configurations for the external dependencies.
@@ -250,9 +246,11 @@ target_compile_definitions(vk-gltf-viewer PRIVATE
     GLFW_INCLUDE_NONE
 )
 
-if (EXACT_BOUNDING_VOLUME_USING_CGAL)
+if (CGAL_FOUND)
     target_link_libraries(vk-gltf-viewer PRIVATE CGAL::CGAL)
     target_compile_definitions(vk-gltf-viewer PRIVATE EXACT_BOUNDING_VOLUME_USING_CGAL)
+else()
+    message(STATUS "CGAL not found, using approximate bounding volume calculation.")
 endif()
 
 if (APPLE AND ${CMAKE_BUILD_TYPE} STREQUAL "Release")
