@@ -24,7 +24,6 @@ find_package(imgui CONFIG REQUIRED)
 find_package(imguizmo CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
-find_package(OpenEXR CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(vku CONFIG REQUIRED)
 
@@ -34,6 +33,7 @@ find_package(vku CONFIG REQUIRED)
 
 find_package(CGAL CONFIG)
 find_package(Ktx CONFIG)
+find_package(OpenEXR CONFIG)
 
 # --------------------
 # Module configurations for the external dependencies.
@@ -237,7 +237,6 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     imguizmo::imguizmo
     mikktspace::mikktspace
     nfd::nfd
-    OpenEXR::OpenEXR
     vku::vku
     vk-gltf-viewer::asset
 )
@@ -257,6 +256,13 @@ if (Ktx_FOUND)
     target_compile_definitions(vk-gltf-viewer PRIVATE SUPPORT_KHR_TEXTURE_BASISU)
 else()
     message(STATUS "KTX not found, KHR_texture_basisu extension will not be supported.")
+endif()
+
+if (OpenEXR_FOUND)
+    target_link_libraries(vk-gltf-viewer PRIVATE OpenEXR::OpenEXR)
+    target_compile_definitions(vk-gltf-viewer PRIVATE SUPPORT_EXR_SKYBOX)
+else()
+    message(STATUS "OpenEXR not found, loading EXR skybox will not be supported.")
 endif()
 
 if (APPLE AND ${CMAKE_BUILD_TYPE} STREQUAL "Release")

@@ -152,7 +152,6 @@ This project depends on:
 - [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo)
 - [MikkTSpace](http://www.mikktspace.com)
 - [Native File Dialog Extended](https://github.com/btzy/nativefiledialog-extended)
-- [OpenEXR](https://openexr.com/en/latest/)
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h)
 - [thread-pool](https://github.com/bshoshany/thread-pool)
 - My own Vulkan-Hpp helper library, [vku](https://github.com/stripe2933/vku/tree/module) (branch `module`), which has the following dependencies:
@@ -162,6 +161,7 @@ This project depends on:
 Also, there are some optional dependencies that can be configured via CMake options. These are disabled by default.
 - [CGAL](https://www.cgal.org) for exact bounding volume calculation (due to its usage, **this project is licensed under GPL**.)
 - [KTX-Software](https://github.com/KhronosGroup/KTX-Software) for support `KHR_texture_basisu` extension.
+- [OpenEXR](https://openexr.com/en/latest/) if you want to use `.exr` skybox.
 
 Dependencies will be automatically fetched via vcpkg.
 

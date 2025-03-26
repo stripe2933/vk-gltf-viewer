@@ -172,6 +172,13 @@ void vk_gltf_viewer::control::AppWindow::onKeyCallback(int key, int scancode, in
 void vk_gltf_viewer::control::AppWindow::onDropCallback(std::span<const char * const> paths) {
     if (paths.empty()) return;
 
+    static constexpr auto supportedSkyboxExtensions = {
+        ".hdr",
+#ifdef SUPPORT_EXR_SKYBOX
+        ".exr",
+#endif
+    };
+
     const std::filesystem::path path = paths[0];
     if (std::filesystem::is_directory(path)) {
         // If directory contains glTF file, load it.
@@ -185,7 +192,7 @@ void vk_gltf_viewer::control::AppWindow::onDropCallback(std::span<const char * c
     else if (const std::filesystem::path extension = path.extension(); ranges::one_of(extension, ".gltf", ".glb")) {
         pTasks->emplace_back(std::in_place_type<task::LoadGltf>, path);
     }
-    else if (ranges::one_of(extension, ".hdr", ".exr")) {
+    else if (std::ranges::contains(supportedSkyboxExtensions, extension)) {
         pTasks->emplace_back(std::in_place_type<task::LoadEqmap>, path);
     }
 }
