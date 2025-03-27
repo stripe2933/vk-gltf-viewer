@@ -31,17 +31,38 @@ namespace vk_gltf_viewer::gltf::algorithm {
             tangents.resize(positionAccessor.get().count);
         }
 
-        [[nodiscard]] int getFaceCount() const noexcept {
-            return indicesAccessor.get().count / 3; // TODO: support for non-triangle list primitive?
+        [[nodiscard]] int getFaceCount() const {
+            switch (primitive.get().type) {
+            case fastgltf::PrimitiveType::Triangles:
+                return indicesAccessor.get().count / 3;
+            case fastgltf::PrimitiveType::TriangleStrip:
+            case fastgltf::PrimitiveType::TriangleFan:
+                return indicesAccessor.get().count - 2;
+            default:
+                throw std::runtime_error { "Tangent generation using MikkTSpace only supports triangle topology" };
+            }
+
         }
 
-        [[nodiscard]] int getNumVertexPerFaceCount() const noexcept {
-            return 3; // TODO: support for non-triangle list primitive?
+        [[nodiscard]] static int getNumVertexPerFaceCount() noexcept {
+            return 3;
         }
 
         [[nodiscard]] std::uint32_t getIndex(int face, int vertex) const {
-            // TODO: support for non-triangle list primitive?
-            return fastgltf::getAccessorElement<std::uint32_t>(asset, indicesAccessor, 3 * face + vertex, bufferDataAdapter);
+            const std::size_t fetchIndex = [&]() {
+                switch (primitive.get().type) {
+                case fastgltf::PrimitiveType::Triangles:
+                    return 3 * face + vertex;
+                case fastgltf::PrimitiveType::TriangleStrip:
+                    return face + vertex;
+                case fastgltf::PrimitiveType::TriangleFan:
+                    return (vertex == 0 ? 0 : face) + vertex;
+                default:
+                    // Will be handled in getFaceCount, therefore could be optimized in here.
+                    std::unreachable();
+                }
+            }();
+            return fastgltf::getAccessorElement<std::uint32_t>(asset, indicesAccessor, fetchIndex, bufferDataAdapter);
         }
 
         [[nodiscard]] fastgltf::math::fvec3 getPosition(std::size_t n) const {
