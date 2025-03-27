@@ -33,6 +33,45 @@ constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatur
     .setShaderStorageImageWriteWithoutFormat(true)
     .setIndependentBlend(true);
 
+vk_gltf_viewer::vulkan::QueueFamilies::QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface) {
+    const std::vector queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
+
+    compute = vku::getComputeSpecializedQueueFamily(queueFamilyProperties)
+        .or_else([&]() { return vku::getComputeQueueFamily(queueFamilyProperties); })
+        .value();
+    graphicsPresent = vku::getGraphicsPresentQueueFamily(physicalDevice, surface, queueFamilyProperties).value();
+    transfer = vku::getTransferSpecializedQueueFamily(queueFamilyProperties).value_or(compute);
+
+    // Calculate unique queue family indices.
+    uniqueIndices = { compute, graphicsPresent, transfer };
+    std::ranges::sort(uniqueIndices);
+    const auto ret = std::ranges::unique(uniqueIndices);
+    uniqueIndices.erase(ret.begin(), ret.end());
+}
+
+vk_gltf_viewer::vulkan::Queues::Queues(vk::Device device, const QueueFamilies& queueFamilies) noexcept
+    : compute { device.getQueue(queueFamilies.compute, 0) }
+    , graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) }
+    , transfer { device.getQueue(queueFamilies.transfer, 0) } { }
+
+vku::RefHolder<std::vector<vk::DeviceQueueCreateInfo>> vk_gltf_viewer::vulkan::Queues::getCreateInfos(
+    vk::PhysicalDevice,
+    const QueueFamilies &queueFamilies
+) noexcept {
+    return vku::RefHolder { [&]() {
+        static constexpr std::array priorities { 1.f };
+        return queueFamilies.uniqueIndices
+            | std::views::transform([=](std::uint32_t queueFamilyIndex) {
+                return vk::DeviceQueueCreateInfo {
+                    {},
+                    queueFamilyIndex,
+                    priorities,
+                };
+            })
+            | std::ranges::to<std::vector>();
+    } };
+}
+
 vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::SurfaceKHR surface)
     : physicalDevice { selectPhysicalDevice(instance, surface) }
     , queueFamilies { physicalDevice, surface }
