@@ -11,6 +11,7 @@ import std;
 export import fastgltf;
 import vku;
 import :helpers.ranges;
+export import :helpers.vulkan;
 import :shader_selector.primitive_vert;
 import :shader_selector.primitive_frag;
 export import :vulkan.pl.Primitive;
@@ -24,6 +25,7 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class PrimitiveRendererSpecialization {
     public:
+        TopologyClass topologyClass;
         std::uint8_t positionComponentType;
         std::optional<std::uint8_t> normalComponentType;
         std::optional<std::uint8_t> tangentComponentType;
@@ -74,10 +76,24 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     &fragmentShaderSpecializationInfo,
                 });
 
+            const vk::PipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo {
+                {},
+                [this]() {
+                    switch (topologyClass) {
+                        case TopologyClass::Point: return vk::PrimitiveTopology::ePointList;
+                        case TopologyClass::Line: return vk::PrimitiveTopology::eLineList;
+                        case TopologyClass::Triangle: return vk::PrimitiveTopology::eTriangleList;
+                        case TopologyClass::Patch: return vk::PrimitiveTopology::ePatchList;
+                    }
+                    std::unreachable();
+                }(),
+            };
+
             switch (alphaMode) {
                 case fastgltf::AlphaMode::Opaque:
                     return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                         pipelineStages.get(), *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
+                        .setPInputAssemblyState(&inputAssemblyStateCreateInfo)
                         .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                             {},
                             true, true, vk::CompareOp::eGreater, // Use reverse Z.
@@ -87,6 +103,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             vku::unsafeProxy({
                                 vk::DynamicState::eViewport,
                                 vk::DynamicState::eScissor,
+                                vk::DynamicState::ePrimitiveTopology,
                                 vk::DynamicState::eCullMode,
                             }),
                         }))
@@ -96,6 +113,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 case fastgltf::AlphaMode::Mask:
                     return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                         pipelineStages.get(), *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
+                        .setPInputAssemblyState(&inputAssemblyStateCreateInfo)
                         .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                             {},
                             true, true, vk::CompareOp::eGreater, // Use reverse Z.
@@ -111,6 +129,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             vku::unsafeProxy({
                                 vk::DynamicState::eViewport,
                                 vk::DynamicState::eScissor,
+                                vk::DynamicState::ePrimitiveTopology,
                                 vk::DynamicState::eCullMode,
                             }),
                         }))
@@ -120,6 +139,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 case fastgltf::AlphaMode::Blend:
                     return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                         pipelineStages.get(), *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
+                        .setPInputAssemblyState(&inputAssemblyStateCreateInfo)
                         .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                             {},
                             false, false,
@@ -152,6 +172,14 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                                 },
                             }),
                             { 1.f, 1.f, 1.f, 1.f },
+                        }))
+                        .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
+                            {},
+                            vku::unsafeProxy({
+                                vk::DynamicState::eViewport,
+                                vk::DynamicState::eScissor,
+                                vk::DynamicState::ePrimitiveTopology,
+                            }),
                         }))
                         .setRenderPass(*sceneRenderPass)
                         .setSubpass(1)
