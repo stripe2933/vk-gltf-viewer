@@ -69,13 +69,19 @@ export template <typename... Ts, std::invocable<const Ts&...> F>
 
 struct to_range_fn {
     template <typename T>
-    constexpr auto operator()(const std::optional<T> &opt) const -> std::span<const T> {
-        return { &*opt, opt.has_value() ? std::size_t{ 1 } : std::size_t{ 0 } };
+    [[nodiscard]] constexpr std::span<const T> operator()(const std::optional<T> &opt) const noexcept {
+        if (opt) {
+            return { std::addressof(*opt), 1 };
+        }
+        return {};
     }
 
     template <typename T>
-    constexpr auto operator()(std::optional<T> &opt) const -> std::span<T> {
-        return { &*opt, opt.has_value() ? std::size_t{ 1 } : std::size_t{ 0 } };
+    [[nodiscard]] constexpr std::span<T> operator()(std::optional<T> &opt) const noexcept {
+        if (opt) {
+            return { std::addressof(*opt), 1 };
+        }
+        return {};
     }
 };
 

@@ -263,7 +263,7 @@ namespace fastgltf {
      * @return The value of the expected if it is not an error.
      * @throw fastgltf::Error If the expected is an error.
      */
-    template <std::move_constructible T>
+    export template <std::move_constructible T>
     [[nodiscard]] T get_checked(Expected<T> expected) {
         if (expected) {
             return std::move(expected.get());
