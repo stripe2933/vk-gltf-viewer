@@ -1,7 +1,5 @@
 module;
 
-#include <cassert>
-
 #include <mikktspace.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
@@ -395,17 +393,10 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     return true;
                 }))
                 | std::views::transform(decomposer([&](const fastgltf::Primitive *pPrimitive, PrimitiveAccessors &accessors) {
-                    const std::size_t texcoordIndex = getTexcoordIndex(*asset.materials[*pPrimitive->materialIndex].normalTexture);
                     return std::pair<PrimitiveAccessors*, gltf::algorithm::MikktSpaceMesh<BufferDataAdapter>> {
                         std::piecewise_construct,
                         std::tuple { &accessors },
-                        std::tie(
-                            asset,
-                            asset.accessors[*pPrimitive->indicesAccessor],
-                            asset.accessors[pPrimitive->findAttribute("POSITION")->accessorIndex],
-                            asset.accessors[pPrimitive->findAttribute("NORMAL")->accessorIndex],
-                            asset.accessors[pPrimitive->findAttribute(std::format("TEXCOORD_{}", texcoordIndex))->accessorIndex],
-                            adapter),
+                        std::tie(asset, *pPrimitive, adapter),
                     };
                 }))
                 | std::ranges::to<std::vector>();
@@ -416,22 +407,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
             threadPool.submit_loop(std::size_t{ 0 }, missingTangentPrimitives.size(), [&](std::size_t i) {
                 auto& mesh = missingTangentPrimitives[i].second;
 
-                SMikkTSpaceInterface* const pInterface
-                    = [indexType = mesh.indicesAccessor.componentType]() -> SMikkTSpaceInterface* {
-                        switch (indexType) {
-                            case fastgltf::ComponentType::UnsignedByte:
-                                return &gltf::algorithm::mikktSpaceInterface<std::uint8_t, BufferDataAdapter>;
-                            case fastgltf::ComponentType::UnsignedShort:
-                                return &gltf::algorithm::mikktSpaceInterface<std::uint16_t, BufferDataAdapter>;
-                            case fastgltf::ComponentType::UnsignedInt:
-                                return &gltf::algorithm::mikktSpaceInterface<std::uint32_t, BufferDataAdapter>;
-                            default:
-                                // glTF Specification:
-                                // The indices accessor MUST have SCALAR type and an unsigned integer component type.
-                                std::unreachable();
-                        }
-                    }();
-                if (const SMikkTSpaceContext context{ pInterface, &mesh }; !genTangSpaceDefault(&context)) {
+                gltf::algorithm::MikktSpaceInterface<BufferDataAdapter> interface;
+                if (const SMikkTSpaceContext context{ &interface, &mesh }; !genTangSpaceDefault(&context)) {
                     throw std::runtime_error{ "Failed to generate the tangent attributes" };
                 }
             }).get();
