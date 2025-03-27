@@ -2,6 +2,7 @@ export module vk_gltf_viewer:vulkan.pipeline.DepthRenderer;
 
 import std;
 import vku;
+export import :helpers.vulkan;
 import :shader.depth_vert;
 import :shader.depth_frag;
 import :shader_selector.mask_depth_vert;
@@ -16,6 +17,7 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class DepthRendererSpecialization {
     public:
+        TopologyClass topologyClass;
         std::uint8_t positionComponentType = 0;
         std::uint32_t positionMorphTargetWeightCount = 0;
         std::uint32_t skinAttributeCount = 0;
@@ -40,6 +42,18 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         },
                         vku::Shader { shader::depth_frag, vk::ShaderStageFlagBits::eFragment }).get(),
                     *pipelineLayout, 1, true)
+                    .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
+                        {},
+                        [this]() {
+                            switch (topologyClass) {
+                                case TopologyClass::Point: return vk::PrimitiveTopology::ePointList;
+                                case TopologyClass::Line: return vk::PrimitiveTopology::eLineList;
+                                case TopologyClass::Triangle: return vk::PrimitiveTopology::eTriangleList;
+                                case TopologyClass::Patch: return vk::PrimitiveTopology::ePatchList;
+                            }
+                            std::unreachable();
+                        }(),
+                    }))
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},
                         true, true, vk::CompareOp::eGreater, // Use reverse Z.
@@ -49,6 +63,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         vku::unsafeProxy({
                             vk::DynamicState::eViewport,
                             vk::DynamicState::eScissor,
+                            vk::DynamicState::ePrimitiveTopology,
                             vk::DynamicState::eCullMode,
                         }),
                     })),
@@ -74,6 +89,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
     class MaskDepthRendererSpecialization {
     public:
+        TopologyClass topologyClass;
         std::uint8_t positionComponentType;
         std::optional<std::uint8_t> baseColorTexcoordComponentType;
         std::optional<std::uint8_t> colorAlphaComponentType;
@@ -108,6 +124,18 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             }),
                         }).get(),
                     *pipelineLayout, 1, true)
+                    .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
+                        {},
+                        [this]() {
+                            switch (topologyClass) {
+                                case TopologyClass::Point: return vk::PrimitiveTopology::ePointList;
+                                case TopologyClass::Line: return vk::PrimitiveTopology::eLineList;
+                                case TopologyClass::Triangle: return vk::PrimitiveTopology::eTriangleList;
+                                case TopologyClass::Patch: return vk::PrimitiveTopology::ePatchList;
+                            }
+                            std::unreachable();
+                        }(),
+                    }))
                     .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                         {},
                         true, true, vk::CompareOp::eGreater, // Use reverse Z.
@@ -117,6 +145,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         vku::unsafeProxy({
                             vk::DynamicState::eViewport,
                             vk::DynamicState::eScissor,
+                            vk::DynamicState::ePrimitiveTopology,
                             vk::DynamicState::eCullMode,
                         }),
                     })),

@@ -260,6 +260,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
         vk::PhysicalDeviceIndexTypeUint8FeaturesKHR { supportUint8Index },
 #if __APPLE__
         vk::PhysicalDevicePortabilitySubsetFeaturesKHR{}
+            .setTriangleFans(true)
             .setImageViewFormatSwizzle(true),
 #endif
     };

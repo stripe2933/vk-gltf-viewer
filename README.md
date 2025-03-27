@@ -34,7 +34,7 @@ Blazingly fast[^1] Vulkan glTF viewer.
 
 Followings are not supported:
 
-- Primitive Type except for `TRIANGLES`.
+- Line Loops primitive topology, as Vulkan does not support it natively.
 
 ## Performance
 
