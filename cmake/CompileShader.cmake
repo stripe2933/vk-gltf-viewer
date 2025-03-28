@@ -63,7 +63,7 @@ function(target_link_shaders TARGET)
         # --------------------
 
         set(shader_module_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm")
-        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/shader_module.cmake.in ${shader_module_filename} @ONLY)
+        configure_file(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/shader_module.cmake.in ${shader_module_filename} @ONLY)
         list(APPEND shader_module_filenames ${shader_module_filename})
     endforeach ()
 
@@ -163,7 +163,7 @@ function(target_link_shader_variants TARGET)
         # --------------------
 
         set(shader_module_interface_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm")
-        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/variant_shader_module_interface.cmake.in ${shader_module_interface_filename} @ONLY)
+        configure_file(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/variant_shader_module_interface.cmake.in ${shader_module_interface_filename} @ONLY)
         list(APPEND shader_module_interface_filenames ${shader_module_interface_filename})
 
         # --------------------
@@ -171,7 +171,7 @@ function(target_link_shader_variants TARGET)
         # --------------------
 
         set(shader_module_impl_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cpp")
-        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/variant_shader_module_impl.cmake.in ${shader_module_impl_filename} @ONLY)
+        configure_file(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/variant_shader_module_impl.cmake.in ${shader_module_impl_filename} @ONLY)
         list(APPEND shader_module_impl_filenames ${shader_module_impl_filename})
     endforeach()
 
