@@ -21,11 +21,16 @@ module;
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#if __has_include(<windows.h>)
+#undef MemoryBarrier
+#endif
+
 module vk_gltf_viewer;
 import :MainApp;
 
 import std;
 import asset;
+import cubemap;
 import imgui.glfw;
 import imgui.vulkan;
 import :gltf.algorithm.misc;
@@ -39,7 +44,6 @@ import :helpers.tristate;
 import :imgui.TaskCollector;
 import :vulkan.Frame;
 import :vulkan.generator.ImageBasedLightingResourceGenerator;
-import :vulkan.generator.MipmappedCubemapGenerator;
 import :vulkan.mipmap;
 import :vulkan.pipeline.BrdfmapComputer;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
@@ -951,15 +955,26 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
     } };
 
-    constexpr vulkan::MipmappedCubemapGenerator::Config mippedCubemapGeneratorConfig {
-        .cubemapSize = 1024,
-        .cubemapUsage = vk::ImageUsageFlagBits::eSampled,
-    };
-    vulkan::MipmappedCubemapGenerator mippedCubemapGenerator { gpu, mippedCubemapGeneratorConfig };
-    const vulkan::MipmappedCubemapGenerator::Pipelines mippedCubemapGeneratorPipelines {
-        vulkan::pipeline::CubemapComputer { gpu.device },
-        vulkan::pipeline::SubgroupMipmapComputer { gpu, vku::Image::maxMipLevels(mippedCubemapGeneratorConfig.cubemapSize) },
-    };
+    vku::AllocatedImage cubemapImage { gpu.allocator, vk::ImageCreateInfo {
+        vk::ImageCreateFlagBits::eCubeCompatible,
+        vk::ImageType::e2D,
+        vk::Format::eR32G32B32A32Sfloat,
+        vk::Extent3D { 1024, 1024, 1 },
+        vku::Image::maxMipLevels(1024), 6,
+        vk::SampleCountFlagBits::e1,
+        vk::ImageTiling::eOptimal,
+        cubemap::CubemapComputer::requiredCubemapImageUsageFlags
+            | cubemap::SubgroupMipmapComputer::requiredImageUsageFlags
+            | vk::ImageUsageFlagBits::eSampled,
+    } };
+
+    const vk::raii::Sampler eqmapSampler { gpu.device, vk::SamplerCreateInfo { {}, vk::Filter::eLinear, vk::Filter::eLinear }.setMaxLod(vk::LodClampNone) };
+
+    const cubemap::CubemapComputer cubemapComputer { gpu.device, eqmapImage, eqmapSampler, cubemapImage };
+    const cubemap::SubgroupMipmapComputer subgroupMipmapComputer { gpu.device, cubemapImage, {
+        .subgroupSize = gpu.subgroupSize,
+        .useShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod,
+    } };
 
     // Generate IBL resources.
     constexpr vulkan::ImageBasedLightingResourceGenerator::Config iblGeneratorConfig {
@@ -982,15 +997,15 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         vk::ImageCreateFlagBits::eCubeCompatible,
         vk::ImageType::e2D,
         vk::Format::eB8G8R8A8Srgb,
-        mippedCubemapGenerator.cubemapImage.extent,
-        1, mippedCubemapGenerator.cubemapImage.arrayLayers,
+        cubemapImage.extent,
+        1, cubemapImage.arrayLayers,
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
     } };
     const vk::raii::ImageView cubemapImageArrayView {
         gpu.device,
-        mippedCubemapGenerator.cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::e2DArray),
+        cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::e2DArray),
     };
     const vk::raii::ImageView toneMappedCubemapImageArrayView { gpu.device, toneMappedCubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray) };
 
@@ -1168,7 +1183,28 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                         });
                 }
 
-                mippedCubemapGenerator.recordCommands(cb, mippedCubemapGeneratorPipelines, eqmapImage);
+                cb.pipelineBarrier(
+                    vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eComputeShader,
+                    {}, {}, {},
+                    vk::ImageMemoryBarrier {
+                        {}, vk::AccessFlagBits::eShaderWrite,
+                        {}, vk::ImageLayout::eGeneral,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        cubemapImage, vku::fullSubresourceRange(),
+                    });
+
+                // Generate cubemap from eqmapImage.
+                cubemapComputer.recordCommands(cb);
+
+                cb.pipelineBarrier(
+                    vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
+                    {},
+                    // Ensure eqmap to cubemap projection finish before generating mipmaps.
+                    vk::MemoryBarrier { vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead },
+                    {}, {});
+
+                // Generate cubemapImage mipmaps.
+                subgroupMipmapComputer.recordCommands(cb);
 
                 cb.pipelineBarrier(
                     vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
@@ -1177,10 +1213,10 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                         vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead,
                         vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        mippedCubemapGenerator.cubemapImage, vku::fullSubresourceRange(),
+                        cubemapImage, vku::fullSubresourceRange(),
                     });
 
-                iblGenerator.recordCommands(cb, iblGeneratorPipelines, mippedCubemapGenerator.cubemapImage);
+                iblGenerator.recordCommands(cb, iblGeneratorPipelines, cubemapImage);
 
                 // Cubemap and prefilteredmap will be used as sampled image.
                 cb.pipelineBarrier(
@@ -1191,7 +1227,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                             vk::AccessFlagBits::eShaderWrite, {},
                             vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                             gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-                            mippedCubemapGenerator.cubemapImage, vku::fullSubresourceRange(),
+                            cubemapImage, vku::fullSubresourceRange(),
                         },
                         vk::ImageMemoryBarrier {
                             vk::AccessFlagBits::eShaderWrite, {},
@@ -1203,7 +1239,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             }, visit_as<vk::CommandPool>(computeCommandPool), gpu.queues.compute }),
         std::forward_as_tuple(
             // Acquire resources' queue family ownership from compute to graphicsPresent (if necessary), and create tone
-            // mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=mippedCubemapGenerator.cubemapImage).
+            // mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=cubemapImage).
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
                 if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
                     cb.pipelineBarrier(
@@ -1214,7 +1250,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                                 {}, {},
                                 vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                                 gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-                                mippedCubemapGenerator.cubemapImage, vku::fullSubresourceRange(),
+                                cubemapImage, vku::fullSubresourceRange(),
                             },
                             vk::ImageMemoryBarrier {
                                 {}, {},
@@ -1259,7 +1295,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             .dimension = { eqmapImage.extent.width, eqmapImage.extent.height },
         },
         .cubemap = {
-            .size = mippedCubemapGeneratorConfig.cubemapSize,
+            .size = 1024,
         },
         .prefilteredmap = {
             .size = iblGeneratorConfig.prefilteredmapSize,
