@@ -82,10 +82,11 @@ add_library(glm::module ALIAS glm_module)
 add_library(vk-gltf-viewer_asset)
 target_sources(vk-gltf-viewer_asset PUBLIC
     FILE_SET CXX_MODULES
+    BASE_DIRS asset
     FILES
-    asset/font/fontawesome_webfont_ttf.cppm
-    asset/font/mod.cppm
-    asset/mod.cppm
+        asset/font/fontawesome_webfont_ttf.cppm
+        asset/font/mod.cppm
+        asset/mod.cppm
 )
 add_library(vk-gltf-viewer::asset ALIAS vk-gltf-viewer_asset)
 
@@ -107,6 +108,7 @@ target_include_directories(vk-gltf-viewer PRIVATE
 )
 target_sources(vk-gltf-viewer PRIVATE
     FILE_SET CXX_MODULES
+    BASE_DIRS extlibs interface
     FILES
         extlibs/module-ports/imgui/imgui.cppm
         extlibs/module-ports/imgui/imgui.math.cppm
@@ -295,7 +297,7 @@ endif()
 
 include(cmake/CompileShader.cmake)
 
-target_link_shaders(vk-gltf-viewer
+target_link_shaders(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
         shaders/brdfmap.comp
@@ -316,7 +318,7 @@ target_link_shaders(vk-gltf-viewer
         shaders/weighted_blended_composition.frag
 )
 
-target_link_shader_variants(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
         shaders/prefilteredmap.comp
@@ -324,7 +326,7 @@ target_link_shader_variants(vk-gltf-viewer
     MACRO_NAMES "AMD_SHADER_IMAGE_LOAD_STORE_LOD"
     MACRO_VALUES 0 1
 )
-target_link_shader_variants(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
         shaders/mask_depth.vert
@@ -336,7 +338,7 @@ target_link_shader_variants(vk-gltf-viewer
         "0 0" "0 1"
         "1 0" "1 1"
 )
-target_link_shader_variants(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/primitive.vert
     MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN"
@@ -347,7 +349,7 @@ target_link_shader_variants(vk-gltf-viewer
         "3 0 0" "3 0 1" "3 1 0" "3 1 1"
         "4 0 0" "4 0 1" "4 1 0" "4 1 1"
 )
-target_link_shader_variants(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/primitive.frag
     MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN" "ALPHA_MODE"
@@ -363,7 +365,7 @@ target_link_shader_variants(vk-gltf-viewer
         "4 0 0 0" "4 0 0 1" "4 0 0 2" "4 0 1 0" "4 0 1 1" "4 0 1 2"
         "4 1 0 0" "4 1 0 1" "4 1 0 2" "4 1 1 0" "4 1 1 1" "4 1 1 2"
 )
-target_link_shader_variants(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/unlit_primitive.vert
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ATTRIBUTE"
@@ -371,7 +373,7 @@ target_link_shader_variants(vk-gltf-viewer
         "0 0" "0 1"
         "1 0" "1 1"
 )
-target_link_shader_variants(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/unlit_primitive.frag
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ATTRIBUTE" "ALPHA_MODE"
