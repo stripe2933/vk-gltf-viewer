@@ -1,5 +1,6 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_nonuniform_qualifier : require
 #if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
 #extension GL_AMD_shader_image_load_store_lod : enable
 #endif
@@ -7,18 +8,14 @@
 #include "cubemap.glsl"
 #include "pbr.glsl"
 
-layout (constant_id = 0) const uint ROUGHNESS_LEVELS = 8;
-layout (constant_id = 1) const uint SAMPLES = 1024;
+layout (constant_id = 0) const uint SAMPLES = 1024;
 
 layout (set = 0, binding = 0) uniform samplerCube cubemapSampler;
-#if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
-layout (set = 0, binding = 1) writeonly uniform imageCube prefilteredmapImage;
-#else
-layout (set = 0, binding = 1) writeonly uniform imageCube prefilteredmapMipImages[ROUGHNESS_LEVELS];
-#endif
+layout (set = 0, binding = 1) writeonly uniform imageCube prefilteredmapMipImages[];
 
 layout (push_constant) uniform PushConstant {
     int mipLevel;
+    float roughness;
 } pc;
 
 layout (local_size_x = 16, local_size_y = 16) in;
@@ -26,17 +23,13 @@ layout (local_size_x = 16, local_size_y = 16) in;
 void main(){
     const float PI = 3.14159265359;
 
-    uint prefilteredmapImageSize
-#if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
-        = imageSize(prefilteredmapImage).x >> pc.mipLevel;
-#else
-        = imageSize(prefilteredmapMipImages[0]).x >> pc.mipLevel;
-#endif
+    // Use imageSize(prefilteredmapMipImages[pc.mipLevel]).x in here causes wrong calculation in NVIDIA GPU.
+    // TODO: need investigation.
+    uint prefilteredmapImageSize = imageSize(prefilteredmapMipImages[0]).x >> pc.mipLevel;
     if (gl_GlobalInvocationID.x >= prefilteredmapImageSize || gl_GlobalInvocationID.y >= prefilteredmapImageSize){
         return;
     }
 
-    float roughness = float(pc.mipLevel) / float(ROUGHNESS_LEVELS - 1U);
     uint cubemapSize = textureSize(cubemapSampler, 0).x;
     float saTexel  = 4.0 * PI / (6 * cubemapSize * cubemapSize);
 
@@ -50,18 +43,18 @@ void main(){
     for (uint i = 0; i < SAMPLES; ++i){
         // generate sample vector towards the alignment of the specular lobe
         vec2 Xi = hammersleySequence(i, SAMPLES);
-        vec3 H = importanceSampleGGX(Xi, N, roughness);
+        vec3 H = importanceSampleGGX(Xi, N, pc.roughness);
         vec3 L = reflect(-V, H);
 
         float dotNL = dot(N, L);
         if (dotNL > 0.0){
             float dotNH = max(dot(N, H), 0.0);
             // sample from the environment's mip level based on roughness/pdf
-            float D = dGgx(dotNH, roughness);
+            float D = dGgx(dotNH, pc.roughness);
             float pdf = 0.25 * D + 0.0001;
 
             float saSample = 1.0 / (SAMPLES * pdf + 0.0001);
-            float mipLevel = roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel);
+            float mipLevel = pc.roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel);
 
             // TODO: don't know why, but use original L flips the prefilteredmap in y-axis.
             prefilteredColor += textureLod(cubemapSampler, vec3(L.x, -L.y, L.z), mipLevel).rgb * dotNL;
@@ -71,7 +64,7 @@ void main(){
     prefilteredColor /= totalWeight;
 
 #if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
-    imageStoreLodAMD(prefilteredmapImage, ivec3(gl_GlobalInvocationID), pc.mipLevel, vec4(prefilteredColor, 1.0));
+    imageStoreLodAMD(prefilteredmapMipImages[0], ivec3(gl_GlobalInvocationID), pc.mipLevel, vec4(prefilteredColor, 1.0));
 #else
     imageStore(prefilteredmapMipImages[pc.mipLevel], ivec3(gl_GlobalInvocationID), vec4(prefilteredColor, 1.0));
 #endif

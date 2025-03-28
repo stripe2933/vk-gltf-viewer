@@ -48,6 +48,7 @@ find_package(OpenEXR CONFIG)
 include(cmake/CompileShader.cmake)
 
 add_subdirectory(cubemap)
+add_subdirectory(ibl)
 
 # --------------------
 # Module configurations for the external dependencies.
@@ -204,7 +205,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
         interface/vulkan/descriptor_set_layout/Skybox.cppm
         interface/vulkan/Frame.cppm
-        interface/vulkan/generator/ImageBasedLightingResourceGenerator.cppm
         interface/vulkan/Gpu.cppm
         interface/vulkan/image/Images.cppm
         interface/vulkan/mipmap.cppm
@@ -213,12 +213,8 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/DepthRenderer.cppm
         interface/vulkan/pipeline/JumpFloodComputer.cppm
         interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
-        interface/vulkan/pipeline/MultiplyComputer.cppm
         interface/vulkan/pipeline/OutlineRenderer.cppm
-        interface/vulkan/pipeline/PrefilteredmapComputer.cppm
         interface/vulkan/pipeline/PrimitiveRenderer.cppm
-        interface/vulkan/pipeline/SphericalHarmonicCoefficientsSumComputer.cppm
-        interface/vulkan/pipeline/SphericalHarmonicsComputer.cppm
         interface/vulkan/pipeline/SkyboxRenderer.cppm
         interface/vulkan/pipeline/UnlitPrimitiveRenderer.cppm
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderer.cppm
@@ -248,6 +244,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     cubemap
     fastgltf::module
     glm::module
+    ibl
     imgui::imgui
     imguizmo::imguizmo
     mikktspace::mikktspace
@@ -311,22 +308,13 @@ target_link_shaders(vk-gltf-viewer PRIVATE
         shaders/jump_flood_seed.frag
         shaders/jump_flood_seed.vert
         shaders/jump_flood.comp
-        shaders/multiply.comp
         shaders/outline.frag
         shaders/screen_quad.vert
         shaders/skybox.frag
         shaders/skybox.vert
-        shaders/spherical_harmonic_coefficients_sum.comp
-        shaders/spherical_harmonics.comp
         shaders/weighted_blended_composition.frag
 )
 
-target_link_shader_variants(vk-gltf-viewer PRIVATE
-    TARGET_ENV vulkan1.2
-    FILES shaders/prefilteredmap.comp
-    MACRO_NAMES "AMD_SHADER_IMAGE_LOAD_STORE_LOD"
-    MACRO_VALUES 0 1
-)
 target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
