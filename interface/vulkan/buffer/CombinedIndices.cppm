@@ -15,6 +15,12 @@ export import :vulkan.buffer.StagingBufferStorage;
 export import :vulkan.Gpu;
 import :vulkan.trait.PostTransferObject;
 
+constexpr type_map indexTypeMap {
+    make_type_map_entry<std::uint8_t>(fastgltf::ComponentType::UnsignedByte),
+    make_type_map_entry<std::uint16_t>(fastgltf::ComponentType::UnsignedShort),
+    make_type_map_entry<std::uint32_t>(fastgltf::ComponentType::UnsignedInt),
+};
+
 [[nodiscard]] constexpr vk::IndexType getIndexType(fastgltf::ComponentType componentType) {
     switch (componentType) {
     case fastgltf::ComponentType::UnsignedByte:
@@ -53,14 +59,21 @@ namespace vk_gltf_viewer::vulkan::buffer {
             StagingBufferStorage &stagingBufferStorage,
             const BufferDataAdapter &adapter = {}
         ) : PostTransferObject { stagingBufferStorage } {
-            // Primitives that are contain an indices accessor.
-            auto indexedPrimitives
-                = asset.meshes
+            auto primitives = asset.meshes
                 | std::views::transform(&fastgltf::Mesh::primitives)
-                | std::views::join
-                | std::views::filter([](const fastgltf::Primitive &primitive) {
-                    return primitive.indicesAccessor.has_value();
-                });
+                | std::views::join;
+
+            // Primitives that are having an indices accessor.
+            auto indexedPrimitives = primitives | std::views::filter([](const fastgltf::Primitive &primitive) {
+                return primitive.indicesAccessor.has_value();
+            });
+
+            // Primitives whose type is LINE_LOOP.
+            auto lineLoopPrimitives = indexedPrimitives | std::views::filter([](const fastgltf::Primitive &primitive) {
+                // As GL_LINE_LOOP does not supported in Vulkan natively, it should be emulated as line strip, with
+                // additional first vertex at the end, using indexed draw.
+                return primitive.type == fastgltf::PrimitiveType::LineLoop;
+            });
 
             // Index data is either
             // - span of the buffer view region, or
@@ -76,37 +89,84 @@ namespace vk_gltf_viewer::vulkan::buffer {
                         .emplace_back(&primitive, getByteRegion(asset, accessor, adapter));
                 }
                 else {
-                    if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) {
-                        const std::size_t dataSize = sizeof(std::uint16_t) * accessor.count;
+                    // Copy accessor data as uint16_t if GPU does not support VK_KHR_index_type_uint8.
+                    fastgltf::ComponentType componentType = accessor.componentType;
+                    if (componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) {
+                        componentType = fastgltf::ComponentType::UnsignedShort;
+                    }
+
+                    visit([&]<typename T>(std::type_identity<T>) {
+                        const std::size_t dataSize = sizeof(T) * accessor.count;
                         std::unique_ptr<std::byte[]> indexBytes = std::make_unique_for_overwrite<std::byte[]>(dataSize);
+                        copyFromAccessor<T>(asset, accessor, indexBytes.get(), adapter);
 
-                        // Iterate accessor with u8 and copy as u16.
-                        std::byte *cursor = indexBytes.get();
-                        iterateAccessor<std::uint8_t>(asset, accessor, [&](std::uint16_t index /* converted to uint16 in here */) {
-                            cursor = std::ranges::copy(std::bit_cast<std::array<std::byte, 2>>(index), cursor).out;
-                        }, adapter);
-
-                        indexBufferBytesByType[vk::IndexType::eUint16].emplace_back(
+                        indexBufferBytesByType[vk::IndexTypeValue<T>::value].emplace_back(
                             &primitive,
                             std::span { generatedIndexBytes.emplace_back(std::move(indexBytes)).get(), dataSize });
-                    }
-                    else {
-                        constexpr type_map indexTypeMap {
-                            make_type_map_entry<std::uint8_t>(fastgltf::ComponentType::UnsignedByte),
-                            make_type_map_entry<std::uint16_t>(fastgltf::ComponentType::UnsignedShort),
-                            make_type_map_entry<std::uint32_t>(fastgltf::ComponentType::UnsignedInt),
-                        };
+                    }, indexTypeMap.get_variant(componentType));
+                }
+            }
 
-                        visit([&]<typename T>(std::type_identity<T>) {
-                            const std::size_t dataSize = sizeof(T) * accessor.count;
-                            std::unique_ptr<std::byte[]> indexBytes = std::make_unique_for_overwrite<std::byte[]>(dataSize);
-                            copyFromAccessor<T>(asset, accessor, indexBytes.get(), adapter);
+            for (const fastgltf::Primitive &primitive : lineLoopPrimitives) {
+                if (primitive.indicesAccessor) {
+                    // If LINE_LOOP primitive has an indices accessor (whose indices are i1...in), new indices are
+                    // generated like: [i1, i2, ..., in, i1].
+                    const fastgltf::Accessor &accessor = asset.accessors[*primitive.indicesAccessor];
 
-                            indexBufferBytesByType[vk::IndexTypeValue<T>::value].emplace_back(
-                                &primitive,
-                                std::span { generatedIndexBytes.emplace_back(std::move(indexBytes)).get(), dataSize });
-                        }, indexTypeMap.get_variant(accessor.componentType));
+                    // Copy accessor data as uint16_t if GPU does not support VK_KHR_index_type_uint8.
+                    fastgltf::ComponentType componentType = accessor.componentType;
+                    if (componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) {
+                        componentType = fastgltf::ComponentType::UnsignedShort;
                     }
+
+                    visit([&]<typename T>(std::type_identity<T>) {
+                        const std::size_t dataSize = sizeof(T) * (accessor.count + 1); // +1 for i1 at the end
+                        std::unique_ptr<std::byte[]> indexBytes = std::make_unique_for_overwrite<std::byte[]>(dataSize);
+
+                        // Copy accessor to [i1, i2, ..., in].
+                        copyFromAccessor<T>(asset, accessor, indexBytes.get(), adapter);
+
+                        // Additional index i1 at the end.
+                        std::ranges::copy(
+                            std::bit_cast<std::array<std::byte, sizeof(T)>>(getAccessorElement<T>(asset, accessor, 0, adapter)),
+                            &indexBytes[sizeof(T) * accessor.count]);
+
+                        indexBufferBytesByType[vk::IndexTypeValue<T>::value].emplace_back(
+                            &primitive,
+                            std::span { generatedIndexBytes.emplace_back(std::move(indexBytes)).get(), dataSize });
+                    }, indexTypeMap.get_variant(componentType));
+                }
+                else {
+                    // If LINE_LOOP primitive does not have an indices accessor, it is emulated with indexed drawing,
+                    // whose indices are [0, 1, ..., n, 0] (n is total vertex count).
+                    const std::size_t drawCount = asset.accessors[primitive.findAttribute("POSITION")->accessorIndex].count;
+                    const fastgltf::ComponentType componentType = [&]() {
+                        if (gpu.supportUint8Index && drawCount < 256) {
+                            return fastgltf::ComponentType::UnsignedByte;
+                        }
+                        else if (drawCount < 65536) {
+                            return fastgltf::ComponentType::UnsignedShort;
+                        }
+                        else {
+                            return fastgltf::ComponentType::UnsignedInt;
+                        }
+                    }();
+
+                    visit([&]<typename T>(std::type_identity<T>) {
+                        const std::size_t dataSize = sizeof(T) * (drawCount + 1); // +1 for 0 at the end
+                        std::unique_ptr<std::byte[]> indexBytes = std::make_unique_for_overwrite<std::byte[]>(dataSize);
+
+                        // Generate indices as [0, 1, ..., n].
+                        T *cursor = reinterpret_cast<T*>(indexBytes.get());
+                        std::iota(cursor, cursor + drawCount, T { 0 });
+
+                        // Additional index 0 at the end.
+                        *(cursor + drawCount) = 0;
+
+                        indexBufferBytesByType[vk::IndexTypeValue<T>::value].emplace_back(
+                            &primitive,
+                            std::span { generatedIndexBytes.emplace_back(std::move(indexBytes)).get(), dataSize });
+                    }, indexTypeMap.get_variant(componentType));
                 }
             }
 

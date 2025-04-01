@@ -35,6 +35,7 @@ struct CommandSeparationCriteria {
     std::uint32_t subpass;
     vk::Pipeline pipeline;
     std::optional<vk::IndexType> indexType;
+    vk::PrimitiveTopology primitiveTopology;
     vk::CullModeFlagBits cullMode;
 
     [[nodiscard]] std::strong_ordering operator<=>(const CommandSeparationCriteria&) const noexcept = default;
@@ -52,6 +53,7 @@ struct std::less<CommandSeparationCriteria> {
 struct CommandSeparationCriteriaNoShading {
     vk::Pipeline pipeline;
     std::optional<vk::IndexType> indexType;
+    vk::PrimitiveTopology primitiveTopology;
     vk::CullModeFlagBits cullMode;
 
     [[nodiscard]] std::strong_ordering operator<=>(const CommandSeparationCriteriaNoShading&) const noexcept = default;

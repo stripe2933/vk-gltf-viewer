@@ -77,4 +77,5 @@ void main(){
 #endif
 
     gl_Position = pc.projectionView * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
+    gl_PointSize = 1.0;
 }

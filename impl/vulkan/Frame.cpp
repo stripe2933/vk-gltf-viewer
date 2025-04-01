@@ -20,6 +20,26 @@ import :vulkan.shader_type.Accessor;
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
 
+[[nodiscard]] constexpr vk::PrimitiveTopology getPrimitiveTopology(fastgltf::PrimitiveType type) noexcept {
+    switch (type) {
+    case fastgltf::PrimitiveType::Points:
+        return vk::PrimitiveTopology::ePointList;
+    case fastgltf::PrimitiveType::Lines:
+        return vk::PrimitiveTopology::eLineList;
+    // There is no GL_LINE_LOOP equivalent in Vulkan, so we use GL_LINE_STRIP instead.
+    case fastgltf::PrimitiveType::LineLoop:
+    case fastgltf::PrimitiveType::LineStrip:
+        return vk::PrimitiveTopology::eLineStrip;
+    case fastgltf::PrimitiveType::Triangles:
+        return vk::PrimitiveTopology::eTriangleList;
+    case fastgltf::PrimitiveType::TriangleStrip:
+        return vk::PrimitiveTopology::eTriangleStrip;
+    case fastgltf::PrimitiveType::TriangleFan:
+        return vk::PrimitiveTopology::eTriangleFan;
+    }
+    std::unreachable();
+}
+
 vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
     : sharedData { sharedData }
     , hoveringNodeIndexBuffer { sharedData.gpu.allocator, NO_INDEX, vk::BufferUsageFlagBits::eTransferDst, vku::allocation::hostRead }
@@ -135,19 +155,29 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteria result {
             .subpass = 0U,
-            .indexType = value_if(primitive.indicesAccessor.has_value(), [&]() {
+            .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
                 return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
             }),
+            .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
         const auto &accessors = sharedData.gltfAsset->primitiveAttributes.getAccessors(primitive);
+
+        // glTF 2.0 specification:
+        //   Points or Lines with no NORMAL attribute SHOULD be rendered without lighting and instead use the sum of the
+        //   base color value (as defined above, multiplied by COLOR_0 when present) and the emissive value.
+        const bool isPrimitivePointsOrLineWithoutNormal
+            = ranges::one_of(primitive.type, fastgltf::PrimitiveType::Points, fastgltf::PrimitiveType::Lines, fastgltf::PrimitiveType::LineLoop, fastgltf::PrimitiveType::LineStrip)
+            && !accessors.normalAccessor;
+
         if (primitive.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
 
-            if (material.unlit) {
+            if (material.unlit || isPrimitivePointsOrLineWithoutNormal) {
                 result.pipeline = sharedData.getUnlitPrimitiveRenderer({
+                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
@@ -165,6 +195,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
             else {
                 result.pipeline = sharedData.getPrimitiveRenderer({
+                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .normalComponentType = accessors.normalAccessor.transform([](const shader_type::Accessor &accessor) {
                         return accessor.componentType;
@@ -211,8 +242,20 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
+        else if (isPrimitivePointsOrLineWithoutNormal) {
+            result.pipeline = sharedData.getUnlitPrimitiveRenderer({
+                .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                .positionComponentType = accessors.positionAccessor.componentType,
+                .colorComponentCountAndType = accessors.colorAccessor.transform([](const auto &info) {
+                    return std::pair { info.componentCount, info.componentType };
+                }),
+                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+            });
+        }
         else {
             result.pipeline = sharedData.getPrimitiveRenderer({
+                .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                 // TANGENT, TEXCOORD_<i> and their corresponding morph targets are unnecessary as there is no texture.
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .normalComponentType = accessors.normalAccessor.transform([](const shader_type::Accessor &accessor) {
@@ -235,9 +278,10 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     const auto depthPrepassCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
-            .indexType = value_if(primitive.indicesAccessor.has_value(), [&]() {
+            .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
                 return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
             }),
+            .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
@@ -246,6 +290,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             const fastgltf::Material& material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskDepthRenderer({
+                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
@@ -263,6 +308,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
             else {
                 result.pipeline = sharedData.getDepthRenderer({
+                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                     .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
@@ -272,6 +318,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         }
         else {
             result.pipeline = sharedData.getDepthRenderer({
+                .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
@@ -282,9 +329,10 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     const auto jumpFloodSeedCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result {
-            .indexType = value_if(primitive.indicesAccessor.has_value(), [&]() {
+            .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
                 return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
             }),
+            .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
@@ -293,6 +341,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskJumpFloodSeedRenderer({
+                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
@@ -310,6 +359,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
             }
             else {
                 result.pipeline = sharedData.getJumpFloodSeedRenderer({
+                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                     .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
@@ -319,6 +369,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         }
         else {
             result.pipeline = sharedData.getJumpFloodSeedRenderer({
+                .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
@@ -336,7 +387,12 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         // - Otherwise, the POSITION accessor will determine the draw count.
         const std::size_t drawCountDeterminingAccessorIndex
             = primitive.indicesAccessor.value_or(primitive.findAttribute("POSITION")->accessorIndex);
-        const std::uint32_t drawCount = task.gltf->asset.accessors[drawCountDeterminingAccessorIndex].count;
+        std::uint32_t drawCount = task.gltf->asset.accessors[drawCountDeterminingAccessorIndex].count;
+
+        // Since GL_LINE_LOOP primitive is emulated as LINE_STRIP draw, additional 1 index is used.
+        if (primitive.type == fastgltf::PrimitiveType::LineLoop) {
+            ++drawCount;
+        }
 
         // EXT_mesh_gpu_instancing support.
         std::uint32_t instanceCount = 1;
@@ -346,7 +402,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         const std::size_t primitiveIndex = task.gltf->orderedPrimitives.getIndex(primitive);
         const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveIndex);
-        if (primitive.indicesAccessor) {
+        if (primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor) {
             const auto [_, firstIndex] = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive);
             return vk::DrawIndexedIndirectCommand { drawCount, instanceCount, firstIndex, 0, firstInstance };
         }
@@ -786,6 +842,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 
     struct {
         vk::Pipeline pipeline{};
+        std::optional<vk::PrimitiveTopology> primitiveTopology{};
         std::optional<vk::CullModeFlagBits> cullMode{};
         std::optional<vk::IndexType> indexType;
 
@@ -810,6 +867,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             if (!resourceBindingState.pushConstantBound) {
                 sharedData.primitiveNoShadingPipelineLayout.pushConstants(cb, { projectionViewMatrix });
                 resourceBindingState.pushConstantBound = true;
+            }
+
+            if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
+                cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
             }
 
             if (resourceBindingState.cullMode != criteria.cullMode) {
@@ -931,6 +992,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
 
     struct {
         vk::Pipeline pipeline{};
+        std::optional<vk::PrimitiveTopology> primitiveTopology{};
         std::optional<vk::CullModeFlagBits> cullMode{};
         std::optional<vk::IndexType> indexType;
 
@@ -955,6 +1017,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
             resourceBindingState.pushConstantBound = true;
         }
 
+        if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
+            cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+        }
+
         if (resourceBindingState.cullMode != criteria.cullMode) {
             cb.setCullMode(resourceBindingState.cullMode.emplace(criteria.cullMode));
         }
@@ -972,6 +1038,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
 
     struct {
         vk::Pipeline pipeline{};
+        std::optional<vk::PrimitiveTopology> primitiveTopology{};
         std::optional<vk::IndexType> indexType;
 
         // Blend(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
@@ -987,6 +1054,11 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
             resourceBindingState.pipeline = criteria.pipeline;
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, resourceBindingState.pipeline);
         }
+
+        if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
+            cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+        }
+
         if (!resourceBindingState.descriptorBound) {
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout, 0,
                 { sharedData.imageBasedLightingDescriptorSet, assetDescriptorSet }, {});
