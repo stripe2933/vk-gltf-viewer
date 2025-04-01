@@ -5,6 +5,7 @@ target_sources(ibl PUBLIC
     BASE_DIRS interface
     FILES
         interface/mod.cppm
+        interface/BrdfmapRenderer.cppm
         interface/PrefilteredmapComputer.cppm
         interface/SphericalHarmonicCoefficientComputer.cppm
 )
@@ -17,6 +18,7 @@ target_link_shaders(ibl PUBLIC
     FILES
         shader/spherical_harmonic_coefficient_image_to_buffer.comp
         shader/spherical_harmonic_coefficient_buffer_to_buffer.comp
+        shader/screen_quad.vert shader/brdfmap.frag
 )
 target_link_shader_variants(ibl PUBLIC
     TARGET_ENV vulkan1.2

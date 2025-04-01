@@ -208,7 +208,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/Gpu.cppm
         interface/vulkan/image/Images.cppm
         interface/vulkan/mipmap.cppm
-        interface/vulkan/pipeline/BrdfmapComputer.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
         interface/vulkan/pipeline/DepthRenderer.cppm
         interface/vulkan/pipeline/JumpFloodComputer.cppm
@@ -301,7 +300,6 @@ endif()
 target_link_shaders(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
-        shaders/brdfmap.comp
         shaders/cubemap_tone_mapping.frag
         shaders/depth.frag
         shaders/depth.vert

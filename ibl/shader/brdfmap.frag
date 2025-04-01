@@ -8,18 +8,18 @@ const float INV_PI = 1.0 / PI;
 
 layout (constant_id = 0) const uint TOTAL_SAMPLE_COUNT = 1024;
 
-layout (set = 0, binding = 0) writeonly uniform image2D brdfmapImage;
+layout (location = 0) out vec2 outAB;
 
-layout (local_size_x = 16, local_size_y = 16) in;
+layout (push_constant, std430) uniform PushConstant {
+    float framebufferWidthRcp;
+    float framebufferHeightRcp;
+} pc;
 
 void main(){
-    uvec2 brdfmapImageSize = imageSize(brdfmapImage);
+    float dotNV = pc.framebufferWidthRcp * gl_FragCoord.x;
+    float roughness = pc.framebufferHeightRcp * gl_FragCoord.y;
 
-    ivec2 texcoord = ivec2(gl_GlobalInvocationID.xy);
-    float dotNV = float(texcoord.x) / brdfmapImageSize.x;
-    float roughness = max(float(texcoord.y) / brdfmapImageSize.x, 1e-2);
-
-    vec3 V = vec3(sqrt(1.0 - dotNV * dotNV) , 0.0 , dotNV);
+    vec3 V = vec3(sqrt(1.0 - dotNV * dotNV), 0.0, dotNV);
 
     const vec3 N = vec3(0.0, 0.0, 1.0);
     float A = 0.0;
@@ -47,5 +47,5 @@ void main(){
     A /= TOTAL_SAMPLE_COUNT;
     B /= TOTAL_SAMPLE_COUNT;
 
-    imageStore(brdfmapImage, texcoord, vec4(A, B, 0.0, 0.0));
+    outAB = vec2(A, B);
 }
