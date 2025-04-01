@@ -8,11 +8,12 @@ Blazingly fast[^1] Vulkan glTF viewer.
 
 ## Features
 
-- Support glTF 2.0, including:
+- **glTF 2.0 conformant**, especially:
   - PBR material rendering with runtime IBL resources (spherical harmonics + pre-filtered environment map) generation from input equirectangular map.
   - Runtime missing tangent attribute generation using MikkTSpace algorithm for indexed geometry.
   - Runtime missing per-face normal and tangent attribute generation for non-indexed geometry.
   - `OPAQUE`, `MASK` (using alpha testing and Alpha To Coverage) and `BLEND` (using Weighted Blended OIT) materials.
+  - All primitive modes, including emulated `LINE_LOOP` support as Vulkan does not support it natively.
   - Normalized and sparse accessors.
   - Infinite morph targets and skinning attributes.
   - Multiple scenes.
@@ -31,10 +32,6 @@ Blazingly fast[^1] Vulkan glTF viewer.
 - Arbitrary sized outline rendering using [Jump Flooding Algorithm](https://en.wikipedia.org/wiki/Jump_flooding_algorithm).
 - Conditionally render a node with three-state visibility in scene hierarchy tree.
 - GUI for used asset resources (buffers, images, samplers, etc.) list with docking support.
-
-Followings are not supported:
-
-- Line Loops primitive topology, as Vulkan does not support it natively.
 
 ## Performance
 

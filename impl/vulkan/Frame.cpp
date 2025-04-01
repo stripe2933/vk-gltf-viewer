@@ -155,7 +155,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteria result {
             .subpass = 0U,
-            .indexType = value_if(primitive.indicesAccessor.has_value(), [&]() {
+            .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
                 return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
@@ -259,7 +259,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     const auto depthPrepassCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
-            .indexType = value_if(primitive.indicesAccessor.has_value(), [&]() {
+            .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
                 return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
@@ -310,7 +310,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
     const auto jumpFloodSeedCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result {
-            .indexType = value_if(primitive.indicesAccessor.has_value(), [&]() {
+            .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
                 return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
@@ -368,7 +368,12 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         // - Otherwise, the POSITION accessor will determine the draw count.
         const std::size_t drawCountDeterminingAccessorIndex
             = primitive.indicesAccessor.value_or(primitive.findAttribute("POSITION")->accessorIndex);
-        const std::uint32_t drawCount = task.gltf->asset.accessors[drawCountDeterminingAccessorIndex].count;
+        std::uint32_t drawCount = task.gltf->asset.accessors[drawCountDeterminingAccessorIndex].count;
+
+        // Since GL_LINE_LOOP primitive is emulated as LINE_STRIP draw, additional 1 index is used.
+        if (primitive.type == fastgltf::PrimitiveType::LineLoop) {
+            ++drawCount;
+        }
 
         // EXT_mesh_gpu_instancing support.
         std::uint32_t instanceCount = 1;
@@ -378,7 +383,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
 
         const std::size_t primitiveIndex = task.gltf->orderedPrimitives.getIndex(primitive);
         const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveIndex);
-        if (primitive.indicesAccessor) {
+        if (primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor) {
             const auto [_, firstIndex] = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive);
             return vk::DrawIndexedIndirectCommand { drawCount, instanceCount, firstIndex, 0, firstInstance };
         }
