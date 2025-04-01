@@ -163,11 +163,19 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         };
 
         const auto &accessors = sharedData.gltfAsset->primitiveAttributes.getAccessors(primitive);
+
+        // glTF 2.0 specification:
+        //   Points or Lines with no NORMAL attribute SHOULD be rendered without lighting and instead use the sum of the
+        //   base color value (as defined above, multiplied by COLOR_0 when present) and the emissive value.
+        const bool isPrimitivePointsOrLineWithoutNormal
+            = ranges::one_of(primitive.type, fastgltf::PrimitiveType::Points, fastgltf::PrimitiveType::Lines, fastgltf::PrimitiveType::LineLoop, fastgltf::PrimitiveType::LineStrip)
+            && !accessors.normalAccessor;
+
         if (primitive.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
 
-            if (material.unlit) {
+            if (material.unlit || isPrimitivePointsOrLineWithoutNormal) {
                 result.pipeline = sharedData.getUnlitPrimitiveRenderer({
                     .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                     .positionComponentType = accessors.positionAccessor.componentType,
@@ -233,6 +241,17 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                 });
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
+        }
+        else if (isPrimitivePointsOrLineWithoutNormal) {
+            result.pipeline = sharedData.getUnlitPrimitiveRenderer({
+                .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                .positionComponentType = accessors.positionAccessor.componentType,
+                .colorComponentCountAndType = accessors.colorAccessor.transform([](const auto &info) {
+                    return std::pair { info.componentCount, info.componentType };
+                }),
+                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+            });
         }
         else {
             result.pipeline = sharedData.getPrimitiveRenderer({
