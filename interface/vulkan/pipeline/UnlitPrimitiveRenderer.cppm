@@ -181,7 +181,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
             if (colorComponentCountAndType) {
                 assert(ranges::one_of(colorComponentCountAndType->first, 3, 4));
-                assert(ranges::one_of(colorComponentCountAndType->second, 1 /* UNSIGNED_BYTE */, 3 /* UNSIGNED_SHORT */, 6 /* FLOAT */));
                 result.colorComponentCount = colorComponentCountAndType->first;
                 result.colorComponentType = colorComponentCountAndType->second;
             }
