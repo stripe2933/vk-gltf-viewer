@@ -76,37 +76,27 @@ namespace vk_gltf_viewer::vulkan::buffer {
                         .emplace_back(&primitive, getByteRegion(asset, accessor, adapter));
                 }
                 else {
-                    if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) {
-                        const std::size_t dataSize = sizeof(std::uint16_t) * accessor.count;
+                    constexpr type_map indexTypeMap {
+                        make_type_map_entry<std::uint8_t>(fastgltf::ComponentType::UnsignedByte),
+                        make_type_map_entry<std::uint16_t>(fastgltf::ComponentType::UnsignedShort),
+                        make_type_map_entry<std::uint32_t>(fastgltf::ComponentType::UnsignedInt),
+                    };
+
+                    // Copy accessor data as uint16_t if GPU does not support VK_KHR_index_type_uint8.
+                    fastgltf::ComponentType componentType = accessor.componentType;
+                    if (componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) {
+                        componentType = fastgltf::ComponentType::UnsignedShort;
+                    }
+
+                    visit([&]<typename T>(std::type_identity<T>) {
+                        const std::size_t dataSize = sizeof(T) * accessor.count;
                         std::unique_ptr<std::byte[]> indexBytes = std::make_unique_for_overwrite<std::byte[]>(dataSize);
+                        copyFromAccessor<T>(asset, accessor, indexBytes.get(), adapter);
 
-                        // Iterate accessor with u8 and copy as u16.
-                        std::byte *cursor = indexBytes.get();
-                        iterateAccessor<std::uint8_t>(asset, accessor, [&](std::uint16_t index /* converted to uint16 in here */) {
-                            cursor = std::ranges::copy(std::bit_cast<std::array<std::byte, 2>>(index), cursor).out;
-                        }, adapter);
-
-                        indexBufferBytesByType[vk::IndexType::eUint16].emplace_back(
+                        indexBufferBytesByType[vk::IndexTypeValue<T>::value].emplace_back(
                             &primitive,
                             std::span { generatedIndexBytes.emplace_back(std::move(indexBytes)).get(), dataSize });
-                    }
-                    else {
-                        constexpr type_map indexTypeMap {
-                            make_type_map_entry<std::uint8_t>(fastgltf::ComponentType::UnsignedByte),
-                            make_type_map_entry<std::uint16_t>(fastgltf::ComponentType::UnsignedShort),
-                            make_type_map_entry<std::uint32_t>(fastgltf::ComponentType::UnsignedInt),
-                        };
-
-                        visit([&]<typename T>(std::type_identity<T>) {
-                            const std::size_t dataSize = sizeof(T) * accessor.count;
-                            std::unique_ptr<std::byte[]> indexBytes = std::make_unique_for_overwrite<std::byte[]>(dataSize);
-                            copyFromAccessor<T>(asset, accessor, indexBytes.get(), adapter);
-
-                            indexBufferBytesByType[vk::IndexTypeValue<T>::value].emplace_back(
-                                &primitive,
-                                std::span { generatedIndexBytes.emplace_back(std::move(indexBytes)).get(), dataSize });
-                        }, indexTypeMap.get_variant(accessor.componentType));
-                    }
+                    }, indexTypeMap.get_variant(componentType));
                 }
             }
 
