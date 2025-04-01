@@ -1,10 +1,16 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
-#extension GL_EXT_samplerless_texture_functions : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_scalar_block_layout : require
 
 #include "cubemap.glsl"
+
+const ivec2 gatherOffsets[] = {
+    { 0, 1 }, // i0_j1
+    { 1, 1 }, // i1_j1
+    { 1, 0 }, // i1_j0
+    { 0, 0 }, // i0_j0
+};
 
 struct SphericalHarmonicBasis{
     float band0[1];
@@ -12,7 +18,7 @@ struct SphericalHarmonicBasis{
     float band2[5];
 };
 
-layout (set = 0, binding = 0) uniform texture2DArray cubemapTexture;
+layout (set = 0, binding = 0) uniform sampler2DArray cubemapSampler;
 layout (set = 0, binding = 1, scalar) writeonly buffer ReductionBuffer {
     vec3 coefficients[][9];
 } reduction;
@@ -25,6 +31,15 @@ shared vec3 sharedData[16][9]; // For gl_SubgroupSize = 16 (minimum requirement)
 // Functions.
 // --------------------
 
+float getComponent(vec4 v, uint i) {
+    switch (i) {
+        case 0U: return v.x;
+        case 1U: return v.y;
+        case 2U: return v.z;
+        case 3U: return v.w;
+    }
+}
+
 SphericalHarmonicBasis getSphericalHarmonicBasis(vec3 v){
     return SphericalHarmonicBasis(
         float[1](0.282095),
@@ -36,22 +51,37 @@ SphericalHarmonicBasis getSphericalHarmonicBasis(vec3 v){
 void main(){
     vec3 coefficients[9] = vec3[9](vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0));
 
-    uint cubemapTextureSize = textureSize(cubemapTexture, 0).x;
-    float solidAngle = texelSolidAngle(gl_GlobalInvocationID.xy, 1.0 / cubemapTextureSize);
-    for (uint faceIndex = 0; faceIndex < 6U; ++faceIndex){
-        vec3 L = solidAngle * texelFetch(cubemapTexture, ivec3(gl_GlobalInvocationID.xy, faceIndex), 0).rgb;
-        vec3 normal = getWorldDirection(ivec3(gl_GlobalInvocationID.xy, faceIndex), cubemapTextureSize);
-        SphericalHarmonicBasis basis = getSphericalHarmonicBasis(normal);
+    uint cubemapTextureSize = textureSize(cubemapSampler, 0).x;
+    float cubemapTextureSizeRcp = 1.0 / float(cubemapTextureSize);
+    vec2 globalInvocationId2 = 2 * vec2(gl_GlobalInvocationID.xy);
+    vec4 solidAngles = vec4(
+        texelSolidAngle(globalInvocationId2 + gatherOffsets[0], cubemapTextureSizeRcp),
+        texelSolidAngle(globalInvocationId2 + gatherOffsets[1], cubemapTextureSizeRcp),
+        texelSolidAngle(globalInvocationId2 + gatherOffsets[2], cubemapTextureSizeRcp),
+        texelSolidAngle(globalInvocationId2 + gatherOffsets[3], cubemapTextureSizeRcp)
+    );
 
-        coefficients[0] += L * basis.band0[0];
-        coefficients[1] += L * basis.band1[0];
-        coefficients[2] += L * basis.band1[1];
-        coefficients[3] += L * basis.band1[2];
-        coefficients[4] += L * basis.band2[0];
-        coefficients[5] += L * basis.band2[1];
-        coefficients[6] += L * basis.band2[2];
-        coefficients[7] += L * basis.band2[3];
-        coefficients[8] += L * basis.band2[4];
+    for (int faceIndex = 0; faceIndex < 6; ++faceIndex){
+        vec3 gatherCoordinate = vec3((globalInvocationId2 + 1.0) * cubemapTextureSizeRcp, faceIndex);
+        vec4 textureGatherRed = textureGather(cubemapSampler, gatherCoordinate, 0);
+        vec4 textureGatherGreen = textureGather(cubemapSampler, gatherCoordinate, 1);
+        vec4 textureGatherBlue = textureGather(cubemapSampler, gatherCoordinate, 2);
+
+        for (uint i = 0; i < 4; ++i) {
+            vec3 L = getComponent(solidAngles, i) * vec3(getComponent(textureGatherRed, i), getComponent(textureGatherGreen, i), getComponent(textureGatherBlue, i));
+            ivec3 coordinate = ivec3(2 * gl_GlobalInvocationID.xy + gatherOffsets[i], faceIndex);
+            SphericalHarmonicBasis basis = getSphericalHarmonicBasis(getWorldDirection(coordinate, cubemapTextureSize));
+
+            coefficients[0] += L * basis.band0[0];
+            coefficients[1] += L * basis.band1[0];
+            coefficients[2] += L * basis.band1[1];
+            coefficients[3] += L * basis.band1[2];
+            coefficients[4] += L * basis.band2[0];
+            coefficients[5] += L * basis.band2[1];
+            coefficients[6] += L * basis.band2[2];
+            coefficients[7] += L * basis.band2[3];
+            coefficients[8] += L * basis.band2[4];
+        }
     }
 
     vec3 subgroupCoefficients[9] = vec3[9](
