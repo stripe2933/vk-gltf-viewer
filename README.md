@@ -117,7 +117,7 @@ The extensions and feature used in this application are quite common in the mode
   - `VkPhysicalDeviceExtendedDynamicStateFeaturesEXT`
   - (optional) `VkPhysicalDeviceIndexTypeUint8FeaturesEXT` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
 - Device Limits
-  - Subgroup size must be at least 16 and 64 at maximum.
+  - Subgroup size must be at least 16.
   - Sampler anisotropy must support 16x.
   - Loading asset texture count must be less than `maxDescriptorSetUpdateAfterBindSampledImages`
 
