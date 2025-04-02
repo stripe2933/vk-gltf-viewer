@@ -4,6 +4,8 @@
 
 const vec3[9] _9_ZERO_VEC3S = vec3[9](vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0), vec3(0));
 
+layout (constant_id = 0) const uint SUBGROUP_SIZE = 32;
+
 layout (set = 0, binding = 0, scalar) buffer PingPongBuffer {
     vec3 data[][9];
 };
@@ -16,7 +18,7 @@ layout (push_constant, std430) uniform PushConstant{
 
 layout (local_size_x = 256) in;
 
-shared vec3 subgroupReduction[16][9]; // gl_NumSubgroups ≤ 16 (subgroup size must be at least 16).
+shared vec3 subgroupReduction[256 / SUBGROUP_SIZE][9];
 
 void main(){
     vec3 pingPongData[] = gl_GlobalInvocationID.x < pc.count ? data[pc.srcOffset + gl_GlobalInvocationID.x] : _9_ZERO_VEC3S;
