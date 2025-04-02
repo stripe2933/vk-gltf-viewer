@@ -11,7 +11,7 @@ vec3 getWorldDirection(uvec3 coord, uint imageSize){
     return vec3(0.0); // unreachable.
 }
 
-float texelSolidAngle(uvec2 xy, uint cubemapSize){
-    vec2 uv = mix(vec2(-1), vec2(1), (xy + 0.5) / cubemapSize);
+float texelSolidAngle(vec2 xy, float cubemapSizeRcp){
+    vec2 uv = cubemapSizeRcp * (2 * xy + 1) - 1;
     return 4.0 * pow(1.0 + dot(uv, uv), -1.5);
 }

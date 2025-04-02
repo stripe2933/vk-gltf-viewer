@@ -42,6 +42,15 @@ find_package(Ktx CONFIG)
 find_package(OpenEXR CONFIG)
 
 # --------------------
+# Internal dependencies.
+# --------------------
+
+include(cmake/CompileShader.cmake)
+
+add_subdirectory(cubemap)
+add_subdirectory(ibl)
+
+# --------------------
 # Module configurations for the external dependencies.
 # --------------------
 
@@ -82,10 +91,11 @@ add_library(glm::module ALIAS glm_module)
 add_library(vk-gltf-viewer_asset)
 target_sources(vk-gltf-viewer_asset PUBLIC
     FILE_SET CXX_MODULES
+    BASE_DIRS asset
     FILES
-    asset/font/fontawesome_webfont_ttf.cppm
-    asset/font/mod.cppm
-    asset/mod.cppm
+        asset/font/fontawesome_webfont_ttf.cppm
+        asset/font/mod.cppm
+        asset/mod.cppm
 )
 add_library(vk-gltf-viewer::asset ALIAS vk-gltf-viewer_asset)
 
@@ -107,6 +117,7 @@ target_include_directories(vk-gltf-viewer PRIVATE
 )
 target_sources(vk-gltf-viewer PRIVATE
     FILE_SET CXX_MODULES
+    BASE_DIRS extlibs interface
     FILES
         extlibs/module-ports/imgui/imgui.cppm
         extlibs/module-ports/imgui/imgui.math.cppm
@@ -194,24 +205,15 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
         interface/vulkan/descriptor_set_layout/Skybox.cppm
         interface/vulkan/Frame.cppm
-        interface/vulkan/generator/ImageBasedLightingResourceGenerator.cppm
-        interface/vulkan/generator/MipmappedCubemapGenerator.cppm
         interface/vulkan/Gpu.cppm
         interface/vulkan/image/Images.cppm
         interface/vulkan/mipmap.cppm
-        interface/vulkan/pipeline/BrdfmapComputer.cppm
-        interface/vulkan/pipeline/CubemapComputer.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
         interface/vulkan/pipeline/DepthRenderer.cppm
         interface/vulkan/pipeline/JumpFloodComputer.cppm
         interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
-        interface/vulkan/pipeline/MultiplyComputer.cppm
         interface/vulkan/pipeline/OutlineRenderer.cppm
-        interface/vulkan/pipeline/PrefilteredmapComputer.cppm
         interface/vulkan/pipeline/PrimitiveRenderer.cppm
-        interface/vulkan/pipeline/SphericalHarmonicCoefficientsSumComputer.cppm
-        interface/vulkan/pipeline/SphericalHarmonicsComputer.cppm
-        interface/vulkan/pipeline/SubgroupMipmapComputer.cppm
         interface/vulkan/pipeline/SkyboxRenderer.cppm
         interface/vulkan/pipeline/UnlitPrimitiveRenderer.cppm
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderer.cppm
@@ -238,8 +240,10 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     Boost::container_hash
     BS_thread_pool::module
     cpp_util::cstring_view::module
+    cubemap
     fastgltf::module
     glm::module
+    ibl
     imgui::imgui
     imguizmo::imguizmo
     mikktspace::mikktspace
@@ -293,38 +297,23 @@ endif()
 # Shader compilation.
 # --------------------
 
-include(cmake/CompileShader.cmake)
-
-target_link_shaders(vk-gltf-viewer
+target_link_shaders(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
-        shaders/brdfmap.comp
         shaders/cubemap_tone_mapping.frag
-        shaders/cubemap.comp
         shaders/depth.frag
         shaders/depth.vert
         shaders/jump_flood_seed.frag
         shaders/jump_flood_seed.vert
         shaders/jump_flood.comp
-        shaders/multiply.comp
         shaders/outline.frag
         shaders/screen_quad.vert
         shaders/skybox.frag
         shaders/skybox.vert
-        shaders/spherical_harmonic_coefficients_sum.comp
-        shaders/spherical_harmonics.comp
         shaders/weighted_blended_composition.frag
 )
 
-target_link_shader_variants(vk-gltf-viewer
-    TARGET_ENV vulkan1.2
-    FILES
-        shaders/prefilteredmap.comp
-        shaders/subgroup_mipmap.comp
-    MACRO_NAMES "AMD_SHADER_IMAGE_LOAD_STORE_LOD"
-    MACRO_VALUES 0 1
-)
-target_link_shader_variants(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
         shaders/mask_depth.vert
@@ -336,7 +325,7 @@ target_link_shader_variants(vk-gltf-viewer
         "0 0" "0 1"
         "1 0" "1 1"
 )
-target_link_shader_variants(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/primitive.vert
     MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN"
@@ -347,7 +336,7 @@ target_link_shader_variants(vk-gltf-viewer
         "3 0 0" "3 0 1" "3 1 0" "3 1 1"
         "4 0 0" "4 0 1" "4 1 0" "4 1 1"
 )
-target_link_shader_variants(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/primitive.frag
     MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN" "ALPHA_MODE"
@@ -363,7 +352,7 @@ target_link_shader_variants(vk-gltf-viewer
         "4 0 0 0" "4 0 0 1" "4 0 0 2" "4 0 1 0" "4 0 1 1" "4 0 1 2"
         "4 1 0 0" "4 1 0 1" "4 1 0 2" "4 1 1 0" "4 1 1 1" "4 1 1 2"
 )
-target_link_shader_variants(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/unlit_primitive.vert
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ATTRIBUTE"
@@ -371,7 +360,7 @@ target_link_shader_variants(vk-gltf-viewer
         "0 0" "0 1"
         "1 0" "1 1"
 )
-target_link_shader_variants(vk-gltf-viewer
+target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/unlit_primitive.frag
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ATTRIBUTE" "ALPHA_MODE"

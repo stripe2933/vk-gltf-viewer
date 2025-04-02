@@ -9,7 +9,7 @@ else()
     message(FATAL_ERROR "No shader compiler found.")
 endif ()
 
-function(target_link_shaders TARGET)
+function(target_link_shaders TARGET SCOPE)
     set(oneValueArgs TARGET_ENV)
     set(multiValueArgs FILES)
     cmake_parse_arguments(arg "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -63,7 +63,7 @@ function(target_link_shaders TARGET)
         # --------------------
 
         set(shader_module_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm")
-        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/shader_module.cmake.in ${shader_module_filename} @ONLY)
+        configure_file(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/shader_module.cmake.in ${shader_module_filename} @ONLY)
         list(APPEND shader_module_filenames ${shader_module_filename})
     endforeach ()
 
@@ -71,11 +71,11 @@ function(target_link_shaders TARGET)
     # Attach sources to the target.
     # --------------------
 
-    target_sources(${TARGET} PRIVATE FILE_SET HEADERS FILES ${spirv_num_filenames})
-    target_sources(${TARGET} PRIVATE FILE_SET CXX_MODULES FILES ${shader_module_filenames})
+    target_sources(${TARGET} ${SCOPE} FILE_SET HEADERS BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/shader FILES ${spirv_num_filenames})
+    target_sources(${TARGET} ${SCOPE} FILE_SET CXX_MODULES BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/shader FILES ${shader_module_filenames})
 endfunction()
 
-function(target_link_shader_variants TARGET)
+function(target_link_shader_variants TARGET SCOPE)
     set(oneValueArgs TARGET_ENV)
     set(multiValueArgs FILES MACRO_NAMES MACRO_VALUES)
     cmake_parse_arguments(arg "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -163,7 +163,7 @@ function(target_link_shader_variants TARGET)
         # --------------------
 
         set(shader_module_interface_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm")
-        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/variant_shader_module_interface.cmake.in ${shader_module_interface_filename} @ONLY)
+        configure_file(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/variant_shader_module_interface.cmake.in ${shader_module_interface_filename} @ONLY)
         list(APPEND shader_module_interface_filenames ${shader_module_interface_filename})
 
         # --------------------
@@ -171,7 +171,7 @@ function(target_link_shader_variants TARGET)
         # --------------------
 
         set(shader_module_impl_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cpp")
-        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/variant_shader_module_impl.cmake.in ${shader_module_impl_filename} @ONLY)
+        configure_file(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/variant_shader_module_impl.cmake.in ${shader_module_impl_filename} @ONLY)
         list(APPEND shader_module_impl_filenames ${shader_module_impl_filename})
     endforeach()
 
@@ -179,7 +179,7 @@ function(target_link_shader_variants TARGET)
     # Attach sources to the target.
     # --------------------
 
-    target_sources(${TARGET} PRIVATE FILE_SET HEADERS FILES ${spirv_num_filenames})
-    target_sources(${TARGET} PRIVATE FILE_SET CXX_MODULES FILES ${shader_module_interface_filenames})
-    target_sources(${TARGET} PRIVATE ${shader_module_impl_filenames})
+    target_sources(${TARGET} ${SCOPE} FILE_SET HEADERS BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/shader FILES ${spirv_num_filenames})
+    target_sources(${TARGET} ${SCOPE} FILE_SET CXX_MODULES BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/shader FILES ${shader_module_interface_filenames})
+    target_sources(${TARGET} ${SCOPE} ${shader_module_impl_filenames})
 endfunction()
