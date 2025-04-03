@@ -181,7 +181,7 @@ vk_gltf_viewer::MainApp::MainApp() {
 
 vk_gltf_viewer::MainApp::~MainApp() {
     for (ImTextureID textureDescriptorSet : assetTextureDescriptorSets) {
-        ImGui_ImplVulkan_RemoveTexture(*reinterpret_cast<vk::DescriptorSet*>(textureDescriptorSet));
+        ImGui_ImplVulkan_RemoveTexture(reinterpret_cast<vk::DescriptorSet::CType>(textureDescriptorSet));
     }
     if (skyboxResources) {
         ImGui_ImplVulkan_RemoveTexture(skyboxResources->imGuiEqmapTextureDescriptorSet);
