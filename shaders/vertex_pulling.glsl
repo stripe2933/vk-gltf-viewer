@@ -27,7 +27,7 @@ layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Ve
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec4Ref { vec4 data; };
 
 vec3 getPosition(uint componentType, uint morphTargetWeightCount) {
-    uint64_t fetchAddress = PRIMITIVE.pPositionBuffer + uint(PRIMITIVE.positionByteStride) * uint(gl_VertexIndex);
+    uvec2 fetchAddress = add64(PRIMITIVE.pPositionBuffer, uint(PRIMITIVE.positionByteStride) * uint(gl_VertexIndex));
     vec3 position;
     switch (componentType) {
     case 0U: // BYTE
@@ -87,7 +87,7 @@ vec3 getPosition(uint componentType, uint morphTargetWeightCount) {
 }
 
 vec3 getNormal(uint componentType, uint morphTargetWeightCount) {
-    uint64_t fetchAddress = PRIMITIVE.pNormalBuffer + uint(PRIMITIVE.normalByteStride) * uint(gl_VertexIndex);
+    uvec2 fetchAddress = add64(PRIMITIVE.pNormalBuffer, uint(PRIMITIVE.normalByteStride) * uint(gl_VertexIndex));
     vec3 normal;
     switch (componentType) {
     case 6U: // FLOAT
@@ -123,7 +123,7 @@ vec3 getNormal(uint componentType, uint morphTargetWeightCount) {
 }
 
 vec4 getTangent(uint componentType, uint morphTargetWeightCount) {
-    uint64_t fetchAddress = PRIMITIVE.pTangentBuffer + uint(PRIMITIVE.tangentByteStride) * uint(gl_VertexIndex);
+    uvec2 fetchAddress = add64(PRIMITIVE.pTangentBuffer, uint(PRIMITIVE.tangentByteStride) * uint(gl_VertexIndex));
     vec4 tangent;
     switch (componentType) {
     case 6U: // FLOAT
@@ -162,7 +162,7 @@ vec4 getTangent(uint componentType, uint morphTargetWeightCount) {
 #if TEXCOORD_COUNT >= 1 || HAS_BASE_COLOR_TEXTURE
 vec2 getTexcoord(uint texcoordIndex, uint componentType){
     Accessor texcoordAccessor = PRIMITIVE.texcoordAccessors.data[texcoordIndex];
-    uint64_t fetchAddress = getFetchAddress(texcoordAccessor, gl_VertexIndex);
+    uvec2 fetchAddress = getFetchAddress(texcoordAccessor, gl_VertexIndex);
 
     switch (componentType) {
     case 0U: // BYTE
@@ -190,7 +190,7 @@ vec2 getTexcoord(uint texcoordIndex, uint componentType){
 
 #if HAS_COLOR_ATTRIBUTE
 vec4 getColor(uint componentType) {
-    uint64_t fetchAddress = PRIMITIVE.pColorBuffer + uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex);
+    uvec2 fetchAddress = add64(PRIMITIVE.pColorBuffer, uint(PRIMITIVE.colorByteStride) * uint(gl_VertexIndex));
     if (COLOR_COMPONENT_COUNT == 3U) {
         switch (componentType) {
         case 6U: // FLOAT
@@ -223,13 +223,13 @@ float getColorAlpha(uint componentType) {
     switch (componentType) {
     case 6U: // FLOAT
         fetchIndex += 12; // sizeof(vec3)
-        return FloatRef(PRIMITIVE.pColorBuffer + fetchIndex).data;
+        return FloatRef(add64(PRIMITIVE.pColorBuffer, fetchIndex)).data;
     case 9U: // UNSIGNED BYTE normalized
         fetchIndex += 3U; // sizeof(u8vec3)
-        return dequantize(Uint8Ref(PRIMITIVE.pColorBuffer + fetchIndex).data);
+        return dequantize(Uint8Ref(add64(PRIMITIVE.pColorBuffer, fetchIndex)).data);
     case 11U: // UNSIGNED SHORT normalized
         fetchIndex += 6U; // sizeof(u16vec3)
-        return dequantize(Uint16Ref(PRIMITIVE.pColorBuffer + fetchIndex).data);
+        return dequantize(Uint16Ref(add64(PRIMITIVE.pColorBuffer, fetchIndex)).data);
     }
     return 1.0; // unreachable.
 }
@@ -237,7 +237,7 @@ float getColorAlpha(uint componentType) {
 
 uvec4 getJoints(uint jointIndex){
     Accessor jointsAccessor = PRIMITIVE.jointsAccessors.data[jointIndex];
-    uint64_t fetchAddress = getFetchAddress(jointsAccessor, gl_VertexIndex);
+    uvec2 fetchAddress = getFetchAddress(jointsAccessor, gl_VertexIndex);
 
     switch (uint(jointsAccessor.componentType)) {
     case 1U: // UNSIGNED BYTE
@@ -250,7 +250,7 @@ uvec4 getJoints(uint jointIndex){
 
 vec4 getWeights(uint weightIndex){
     Accessor weightsAccessor = PRIMITIVE.weightsAccessors.data[weightIndex];
-    uint64_t fetchAddress = getFetchAddress(weightsAccessor, gl_VertexIndex);
+    uvec2 fetchAddress = getFetchAddress(weightsAccessor, gl_VertexIndex);
 
     switch (uint(weightsAccessor.componentType)) {
     case 6U: // FLOAT

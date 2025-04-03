@@ -92,7 +92,6 @@ The extensions and feature used in this application are quite common in the mode
   - `VkPhysicalDeviceFeatures`
     - `samplerAnistropy`
     - `shaderInt16`
-    - `shaderInt64`
     - `multiDrawIndirect`
     - `shaderStorageImageWriteWithoutFormat`
     - `independentBlend` (Weighted Blended OIT)

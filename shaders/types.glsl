@@ -42,27 +42,34 @@ struct Node {
 };
 
 struct Accessor {
-    uint64_t bufferAddress;
+    uvec2 bufferAddress;
     uint8_t componentType;
     uint8_t componentCount;
     uint8_t stride;
     uint8_t _padding_[5];
 };
 
-uint64_t getFetchAddress(Accessor accessor, uint index) {
-    return accessor.bufferAddress + uint(accessor.stride) * index;
+uvec2 add64(uvec2 lhs, uint rhs) {
+    uint carry;
+    uint lo = uaddCarry(lhs.x, rhs, carry);
+    uint hi = lhs.y + carry;
+    return uvec2(lo, hi);
+}
+
+uvec2 getFetchAddress(Accessor accessor, uint index) {
+    return add64(accessor.bufferAddress, uint(accessor.stride) * index);
 }
 
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Accessors { Accessor data[]; };
 
 struct Primitive {
-    uint64_t pPositionBuffer;
+    uvec2 pPositionBuffer;
     Accessors positionMorphTargetAccessors;
-    uint64_t pNormalBuffer;
+    uvec2 pNormalBuffer;
     Accessors normalMorphTargetAccessors;
-    uint64_t pTangentBuffer;
+    uvec2 pTangentBuffer;
     Accessors tangentMorphTargetAccessors;
-    uint64_t pColorBuffer;
+    uvec2 pColorBuffer;
     Accessors texcoordAccessors;
     Accessors jointsAccessors;
     Accessors weightsAccessors;
