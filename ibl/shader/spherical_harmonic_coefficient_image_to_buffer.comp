@@ -12,6 +12,8 @@ const ivec2 gatherOffsets[] = {
     { 0, 0 }, // i0_j0
 };
 
+layout (constant_id = 0) const uint SUBGROUP_SIZE = 32;
+
 struct SphericalHarmonicBasis{
     float band0[1];
     float band1[3];
@@ -25,7 +27,7 @@ layout (set = 0, binding = 1, scalar) writeonly buffer ReductionBuffer {
 
 layout (local_size_x = 16, local_size_y = 16) in;
 
-shared vec3 sharedData[16][9]; // For gl_SubgroupSize = 16 (minimum requirement)
+shared vec3 sharedData[256 / SUBGROUP_SIZE][9];
 
 // --------------------
 // Functions.

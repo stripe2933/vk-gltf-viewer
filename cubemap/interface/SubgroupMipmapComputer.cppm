@@ -13,7 +13,7 @@ namespace cubemap {
     public:
         struct Config {
             /**
-             * @brief Subgroup size of <tt>vk::PhysicalDevice</tt>. Must be either one of 16, 32 or 64.
+             * @brief Subgroup size of <tt>vk::PhysicalDevice</tt>. Must be greater than or equal to 16.
              */
             std::uint32_t subgroupSize;
 

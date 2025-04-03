@@ -1020,6 +1020,9 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     const ibl::SphericalHarmonicCoefficientComputer sphericalHarmonicCoefficientComputer { gpu.device, gpu.allocator, cubemapImage, sphericalHarmonicsBuffer, {
         .sampleMipLevel = 0,
+        .specializationConstants = {
+            .subgroupSize = gpu.subgroupSize,
+        },
     } };
     const ibl::PrefilteredmapComputer prefilteredmapComputer { gpu.device, cubemapImage, prefilteredmapImage, {
         .useShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod,

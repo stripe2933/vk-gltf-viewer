@@ -1,5 +1,7 @@
 module;
 
+#include <cstddef>
+
 #include <lifetimebound.hpp>
 
 export module ibl:SphericalHarmonicCoefficientComputer;
@@ -20,8 +22,13 @@ import :shader.spherical_harmonic_coefficient_buffer_to_buffer_comp;
 namespace ibl {
     export class SphericalHarmonicCoefficientComputer {
     public:
+        struct SpecializationConstants {
+            std::uint32_t subgroupSize = 32;
+        };
+
         struct Config {
             std::uint32_t sampleMipLevel;
+            SpecializationConstants specializationConstants;
         };
 
         static constexpr vk::ImageUsageFlags requiredCubemapImageUsageFlags = vk::ImageUsageFlagBits::eSampled;
@@ -54,7 +61,15 @@ namespace ibl {
                 {},
                 createPipelineStages(
                     device,
-                    vku::Shader { shader::spherical_harmonic_coefficient_image_to_buffer_comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
+                    vku::Shader {
+                        shader::spherical_harmonic_coefficient_image_to_buffer_comp,
+                        vk::ShaderStageFlagBits::eCompute,
+                        // TODO: use vku::SpecializationMap when available.
+                        vku::unsafeAddress(vk::SpecializationInfo {
+                            vku::unsafeProxy(vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, subgroupSize), sizeof(SpecializationConstants::subgroupSize) }),
+                            vk::ArrayProxyNoTemporaries<const SpecializationConstants> { config.specializationConstants },
+                        }),
+                    }).get()[0],
                 *imageToBufferPipelineLayout,
             } },
             bufferToBufferPipelineDescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
@@ -73,7 +88,15 @@ namespace ibl {
                 {},
                 createPipelineStages(
                     device,
-                    vku::Shader { shader::spherical_harmonic_coefficient_buffer_to_buffer_comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
+                    vku::Shader {
+                        shader::spherical_harmonic_coefficient_buffer_to_buffer_comp,
+                        vk::ShaderStageFlagBits::eCompute,
+                        // TODO: use vku::SpecializationMap when available.
+                        vku::unsafeAddress(vk::SpecializationInfo {
+                            vku::unsafeProxy(vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, subgroupSize), sizeof(SpecializationConstants::subgroupSize) }),
+                            vk::ArrayProxyNoTemporaries<const SpecializationConstants> { config.specializationConstants },
+                        }),
+                    }).get()[0],
                 *bufferToBufferPipelineLayout,
             } },
             cubemapImageView { device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, config.sampleMipLevel, 1, 0, 6 }, vk::ImageViewType::e2DArray) },
