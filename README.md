@@ -107,7 +107,6 @@ The extensions and feature used in this application are quite common in the mode
     - `descriptorBindingSampledImageUpdateAfterBind`
     - `runtimeDescriptorArray`
     - `storageBuffer8BitAccess`
-    - `uniformAndStorageBuffer8BitAccess`
     - `scalarBlockLayout`
     - `timelineSemaphore`
     - `shaderInt8`
