@@ -874,7 +874,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             }
 
             if (resourceBindingState.cullMode != criteria.cullMode) {
-                cb.setCullMode(resourceBindingState.cullMode.emplace(criteria.cullMode));
+                cb.setCullModeEXT(resourceBindingState.cullMode.emplace(criteria.cullMode));
             }
 
             if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
@@ -1022,7 +1022,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         }
 
         if (resourceBindingState.cullMode != criteria.cullMode) {
-            cb.setCullMode(resourceBindingState.cullMode.emplace(criteria.cullMode));
+            cb.setCullModeEXT(resourceBindingState.cullMode.emplace(criteria.cullMode));
         }
 
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
