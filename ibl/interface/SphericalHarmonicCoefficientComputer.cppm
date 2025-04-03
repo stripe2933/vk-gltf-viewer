@@ -39,10 +39,11 @@ namespace ibl {
             allocator { allocator },
             cubemapImage { cubemapImage },
             resultBuffer { resultBuffer },
+            cubemapLinearSampler { device, vk::SamplerCreateInfo { {}, vk::Filter::eLinear, vk::Filter::eLinear }.setMaxLod(vk::LodClampNone) },
             imageToBufferPipelineDescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
                 vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor,
                 vku::unsafeProxy(decltype(imageToBufferPipelineDescriptorSetLayout)::getBindings(
-                    { 1, vk::ShaderStageFlagBits::eCompute },
+                    { 1, vk::ShaderStageFlagBits::eCompute, &*cubemapLinearSampler },
                     { 1, vk::ShaderStageFlagBits::eCompute })),
             } },
             imageToBufferPipelineLayout { device, vk::PipelineLayoutCreateInfo {
@@ -109,7 +110,7 @@ namespace ibl {
 
             // Image -> Buffer reduction.
             computeCommandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *imageToBufferPipeline, *d);
-            const std::uint32_t dispatchCountXY = getCubemapMipSize() / 16;
+            const std::uint32_t dispatchCountXY = getCubemapMipSize() / 32;
             computeCommandBuffer.pushDescriptorSetKHR(
                 vk::PipelineBindPoint::eCompute, *imageToBufferPipelineLayout,
                 0, {
@@ -158,7 +159,8 @@ namespace ibl {
         vma::Allocator allocator;
         std::reference_wrapper<const vku::Image> cubemapImage;
         std::reference_wrapper<const vku::Buffer> resultBuffer;
-        vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage, vk::DescriptorType::eStorageBuffer> imageToBufferPipelineDescriptorSetLayout;
+        vk::raii::Sampler cubemapLinearSampler;
+        vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageBuffer> imageToBufferPipelineDescriptorSetLayout;
         vk::raii::PipelineLayout imageToBufferPipelineLayout;
         vk::raii::Pipeline imageToBufferPipeline;
         vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer> bufferToBufferPipelineDescriptorSetLayout;
@@ -172,8 +174,8 @@ namespace ibl {
         }
 
         [[nodiscard]] vku::AllocatedBuffer createReductionBuffer() const {
-            // Image -> Buffer: 16x16 texels will be reduced to a single 2nd-order spherical harmonic coefficients set (sizeof(float[27]).
-            vk::DeviceSize coefficientSetCount = square(getCubemapMipSize() / 16);
+            // Image -> Buffer: 32x32 texels will be reduced to a single 2nd-order spherical harmonic coefficients set (sizeof(float[27]).
+            vk::DeviceSize coefficientSetCount = square(getCubemapMipSize() / 32);
             // Buffer -> Buffer: 256 2nd-order spherical harmonic coefficients sets will be reduced to a single set.
             coefficientSetCount += divCeil(coefficientSetCount, 256);
 

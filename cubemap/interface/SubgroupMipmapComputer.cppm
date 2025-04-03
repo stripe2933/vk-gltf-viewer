@@ -29,7 +29,7 @@ namespace cubemap {
             bool useShaderImageLoadStoreLod;
         };
 
-        static constexpr vk::ImageUsageFlags requiredImageUsageFlags = vk::ImageUsageFlagBits::eStorage;
+        static constexpr vk::ImageUsageFlags requiredImageUsageFlags = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage;
 
         SubgroupMipmapComputer(
             const vk::raii::Device &device LIFETIMEBOUND,
@@ -38,9 +38,11 @@ namespace cubemap {
         ) : config { config },
             device { device },
             image { image },
+            linearSampler { device, vk::SamplerCreateInfo { {}, vk::Filter::eLinear, vk::Filter::eLinear }.setMaxLod(vk::LodClampNone) },
             descriptorSetLayout { createDescriptorSetLayout() },
             pipelineLayout { createPipelineLayout() },
             pipeline { createPipeline() },
+            imageView { device, image.getViewCreateInfo(vk::ImageViewType::e2DArray) },
             mipImageViews { createMipImageViews() } { }
 
         void setImage(const vku::Image &image LIFETIME_CAPTURE_BY(this)) {
@@ -51,6 +53,7 @@ namespace cubemap {
                 pipelineLayout = createPipelineLayout();
                 pipeline = createPipeline();
             }
+            imageView = { device, image.getViewCreateInfo(vk::ImageViewType::e2DArray) };
             mipImageViews = createMipImageViews();
         }
 
@@ -84,12 +87,15 @@ namespace cubemap {
             computeCommandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline, *d);
             computeCommandBuffer.pushDescriptorSetKHR(
                 vk::PipelineBindPoint::eCompute, *pipelineLayout,
-                0, decltype(descriptorSetLayout)::getWrite<0>(vku::unsafeProxy(
-                    mipImageViews
-                        | std::views::transform([](vk::ImageView view) {
-                            return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
-                        })
-                        | std::ranges::to<std::vector>())), *d);
+                0, {
+                    decltype(descriptorSetLayout)::getWriteOne<0>({ {}, *imageView, vk::ImageLayout::eGeneral }),
+                    decltype(descriptorSetLayout)::getWrite<1>(vku::unsafeProxy(
+                        mipImageViews
+                            | std::views::transform([](vk::ImageView view) {
+                                return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
+                            })
+                            | std::ranges::to<std::vector>()))
+                }, *d);
 
             // TODO.CXX23: use std::views::enumerate.
             for (int idx = 0; std::span mipIndices : indexChunks) {
@@ -128,15 +134,18 @@ namespace cubemap {
         std::reference_wrapper<const vk::raii::Device> device;
         std::reference_wrapper<const vku::Image> image;
 
-        vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> descriptorSetLayout;
+        vk::raii::Sampler linearSampler;
+        vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
+        vk::raii::ImageView imageView;
         std::vector<vk::raii::ImageView> mipImageViews;
 
-        [[nodiscard]] vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage> createDescriptorSetLayout() const {
+        [[nodiscard]] vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> createDescriptorSetLayout() const {
             return { device, vk::DescriptorSetLayoutCreateInfo {
                 vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
                 vku::unsafeProxy(decltype(descriptorSetLayout)::getBindings(
+                    { 1, vk::ShaderStageFlagBits::eCompute, &*linearSampler },
                     { config.useShaderImageLoadStoreLod ? 1U : image.get().mipLevels, vk::ShaderStageFlagBits::eCompute })),
             } };
         }
@@ -176,10 +185,10 @@ namespace cubemap {
         [[nodiscard]] std::vector<vk::raii::ImageView> createMipImageViews() const {
             std::vector<vk::raii::ImageView> result;
             if (config.useShaderImageLoadStoreLod) {
-                result.emplace_back(device, image.get().getViewCreateInfo(vk::ImageViewType::e2DArray));
+                result.emplace_back(device, image.get().getViewCreateInfo(vk::ImageViewType::eCube));
             }
             else {
-                result.append_range(image.get().getMipViewCreateInfos(vk::ImageViewType::e2DArray)
+                result.append_range(image.get().getMipViewCreateInfos(vk::ImageViewType::eCube)
                     | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
                         return vk::raii::ImageView { device, createInfo };
                     }));
