@@ -2,7 +2,7 @@
   "version": 6,
   "configurePresets": [
     {
-      "name": "windows-latest",
+      "name": "windows-latest-msvc",
       "inherits": "default",
       "cacheVariables": {
         "CMAKE_CXX_FLAGS": "/EHsc /wd5050",
@@ -10,7 +10,18 @@
       }
     },
     {
-      "name": "macos-15",
+      "name": "windows-latest-mingw-clang",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "C:/msys64/clang64/bin/clang.exe",
+        "CMAKE_CXX_COMPILER": "C:/msys64/clang64/bin/clang++.exe",
+        "CMAKE_CXX_FLAGS": "-stdlib=libc++",
+        "CMAKE_EXE_LINKER_FLAGS": "-static",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-mingw-clang-release"
+      }
+    },
+    {
+      "name": "macos-15-clang",
       "inherits": "default",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
@@ -19,7 +30,7 @@
       }
     },
     {
-      "name": "ubuntu-latest",
+      "name": "ubuntu-latest-clang",
       "inherits": "default",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/usr/bin/clang",
@@ -33,8 +44,8 @@
       }
     },
     {
-      "name": "ubuntu-24.04-arm",
-      "inherits": "ubuntu-latest",
+      "name": "ubuntu-24.04-arm-clang",
+      "inherits": "ubuntu-latest-clang",
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "arm64-linux-clang-release"
       }
