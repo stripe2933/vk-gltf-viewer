@@ -19,7 +19,7 @@ import :helpers.span;
 export import :vulkan.Gpu;
 import :vulkan.mipmap;
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
