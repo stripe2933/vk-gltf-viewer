@@ -1,11 +1,14 @@
 ﻿#include <GLFW/glfw3.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 import vk_gltf_viewer;
 import vulkan_hpp;
 
 #ifdef _WIN32
-int WinMain() {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
 #else
 int main() {
 #endif
