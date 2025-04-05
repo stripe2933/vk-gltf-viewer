@@ -18,7 +18,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-15, ubuntu-latest, ubuntu-24.04-arm]
+        include:
+          - { os: 'windows-latest', compiler: 'msvc' }
+          - { os: 'windows-latest', compiler: 'mingw-clang' }
+          - { os: 'macos-15', compiler: 'clang' }
+          - { os: 'ubuntu-latest', compiler: 'clang' }
+          - { os: 'ubuntu-24.04-arm', compiler: 'clang' }
 
     steps:
       - uses: actions/checkout@v4
@@ -38,6 +43,10 @@ jobs:
           vulkan-query-version: latest
           vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
           vulkan-use-cache: true
+
+      - name: Install MinGW Clang (Windows + MinGW Clang)
+        if: ${{ runner.os == 'Windows' && matrix.compiler == 'mingw-clang' }}
+        run: C:\msys64\usr\bin\bash -lc 'pacman --noconfirm -S mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-libc++ mingw-w64-clang-x86_64-libwinpthread-git'
 
       - name: Install build dependencies (macOS)
         if: ${{ runner.os == 'macOS' }}
@@ -78,7 +87,7 @@ jobs:
         run: |
           vcpkg add port cgal ktx openexr
           mv .github/workflows/scripts/* .
-          cmake --preset=${{ matrix.os }}
+          cmake --preset=${{ matrix.os }}-${{ matrix.compiler }}
 
       - name: Build
         run: cmake --build build --config release
@@ -86,7 +95,7 @@ jobs:
       - name: Upload Binary as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ runner.os }}_${{ runner.arch }}
+          name: ${{ runner.os }}_${{ runner.arch }}_${{ matrix.compiler }}
           path: |
             build/vk-gltf-viewer.exe
             build/vk-gltf-viewer.app
