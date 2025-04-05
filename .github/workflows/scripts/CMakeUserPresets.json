@@ -2,8 +2,16 @@
   "version": 6,
   "configurePresets": [
     {
-      "name": "windows-latest-msvc",
+      "name": "ci",
       "inherits": "default",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON"
+      }
+    },
+    {
+      "name": "windows-latest-msvc",
+      "inherits": "ci",
       "cacheVariables": {
         "CMAKE_CXX_FLAGS": "/EHsc /wd5050",
         "VCPKG_TARGET_TRIPLET": "x64-windows-release"
@@ -11,7 +19,7 @@
     },
     {
       "name": "windows-latest-mingw-clang",
-      "inherits": "default",
+      "inherits": "ci",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "C:/msys64/clang64/bin/clang.exe",
         "CMAKE_CXX_COMPILER": "C:/msys64/clang64/bin/clang++.exe",
@@ -22,7 +30,7 @@
     },
     {
       "name": "macos-15-clang",
-      "inherits": "default",
+      "inherits": "ci",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
         "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++",
@@ -31,7 +39,7 @@
     },
     {
       "name": "ubuntu-latest-clang",
-      "inherits": "default",
+      "inherits": "ci",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/usr/bin/clang",
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
