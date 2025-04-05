@@ -2,6 +2,7 @@ module;
 
 #include <cassert>
 
+#include <boost/container/static_vector.hpp>
 #include <IconsFontAwesome4.h>
 #ifdef _WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -1032,8 +1033,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     } };
 
     // Generate Tone-mapped cubemap.
-    const vulkan::rp::CubemapToneMapping cubemapToneMappingRenderPass { gpu.device };
-    const vulkan::CubemapToneMappingRenderer cubemapToneMappingRenderer { gpu.device, cubemapToneMappingRenderPass };
+    const vulkan::CubemapToneMappingRenderer cubemapToneMappingRenderer { gpu.device };
 
     vku::AllocatedImage toneMappedCubemapImage { gpu.allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
@@ -1045,18 +1045,14 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
     } };
+
+    vku::AttachmentGroup toneMappedCubemapAttachmentGroup { vku::toExtent2D(toneMappedCubemapImage.extent) };
+    toneMappedCubemapAttachmentGroup.addColorAttachment(gpu.device, toneMappedCubemapImage, toneMappedCubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray));
+
     const vk::raii::ImageView cubemapImageArrayView {
         gpu.device,
         cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::e2DArray),
     };
-    const vk::raii::ImageView toneMappedCubemapImageArrayView { gpu.device, toneMappedCubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray) };
-
-    const vk::raii::Framebuffer cubemapToneMappingFramebuffer { gpu.device, vk::FramebufferCreateInfo {
-        {},
-        cubemapToneMappingRenderPass,
-        *toneMappedCubemapImageArrayView,
-        toneMappedCubemapImage.extent.width, toneMappedCubemapImage.extent.height, 1,
-    } };
 
     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
 
@@ -1303,54 +1299,73 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 });
             }, visit_as<vk::CommandPool>(computeCommandPool), gpu.queues.compute }),
         std::forward_as_tuple(
-            // Acquire resources' queue family ownership from compute to graphicsPresent (if necessary), and create tone
-            // mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=cubemapImage).
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
-                if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
-                    cb.pipelineBarrier2KHR({
+                boost::container::static_vector<vk::BufferMemoryBarrier2, 1> bufferMemoryBarriers;
+                boost::container::static_vector<vk::ImageMemoryBarrier2, 3> imageMemoryBarriers {
+                    vk::ImageMemoryBarrier2 {
                         {}, {},
-                        vku::unsafeProxy(vk::BufferMemoryBarrier2 {
-                            {}, {},
-                            vk::PipelineStageFlagBits2::eAllCommands, {},
-                            gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-                            sphericalHarmonicsBuffer, 0, vk::WholeSize,
-                        }),
-                        vku::unsafeProxy({
-                            vk::ImageMemoryBarrier2 {
-                                {}, {},
-                                vk::PipelineStageFlagBits2::eAllCommands, {},
-                                {}, {},
-                                gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-                                cubemapImage, vku::fullSubresourceRange(),
-                            },
-                            vk::ImageMemoryBarrier2 {
-                                {}, {},
-                                vk::PipelineStageFlagBits2::eAllCommands, {},
-                                vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
-                                gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-                                prefilteredmapImage, vku::fullSubresourceRange(),
-                            },
-                        }),
+                        vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
+                        {}, vk::ImageLayout::eColorAttachmentOptimal,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        toneMappedCubemapImage, vku::fullSubresourceRange(),
+                    },
+                };
+
+                if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
+                    // Queue family ownership transfer from compute to graphicsPresent.
+                    bufferMemoryBarriers.push_back({
+                        {}, {},
+                        vk::PipelineStageFlagBits2::eAllCommands, {},
+                        gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+                        sphericalHarmonicsBuffer, 0, vk::WholeSize,
+                    });
+                    imageMemoryBarriers.push_back({
+                        {}, {},
+                        vk::PipelineStageFlagBits2::eAllCommands, {},
+                        {}, {},
+                        gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+                        cubemapImage, vku::fullSubresourceRange(),
+                    });
+                    imageMemoryBarriers.push_back({
+                        {}, {},
+                        vk::PipelineStageFlagBits2::eAllCommands, {},
+                        vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+                        gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+                        prefilteredmapImage, vku::fullSubresourceRange(),
                     });
                 }
 
-                cb.beginRenderPass({
-                    *cubemapToneMappingRenderPass,
-                    *cubemapToneMappingFramebuffer,
-                    vk::Rect2D { { 0, 0 }, vku::toExtent2D(toneMappedCubemapImage.extent) },
-                    vku::unsafeProxy<vk::ClearValue>(vk::ClearColorValue{}),
-                }, vk::SubpassContents::eInline);
+                cb.pipelineBarrier2KHR({ {}, {}, bufferMemoryBarriers, imageMemoryBarriers });
+
+                // Create tone mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=cubemapImage).
+                cb.beginRenderingKHR(
+                    toneMappedCubemapAttachmentGroup.getRenderingInfo(
+                        vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore }).get()
+                        .setLayerCount(6)
+                        .setViewMask(0b111111U));
 
                 cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapToneMappingRenderer.pipeline);
                 cb.pushDescriptorSetKHR(
                     vk::PipelineBindPoint::eGraphics,
                     *cubemapToneMappingRenderer.pipelineLayout,
-                    0, vulkan::CubemapToneMappingRenderer::DescriptorSetLayout::getWriteOne<0>({ {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal }));
-                cb.setViewport(0, vku::unsafeProxy(vku::toViewport(vku::toExtent2D(toneMappedCubemapImage.extent))));
-                cb.setScissor(0, vku::unsafeProxy(vk::Rect2D { { 0, 0 }, vku::toExtent2D(toneMappedCubemapImage.extent) }));
+                    0, vulkan::CubemapToneMappingRenderer::DescriptorSetLayout::getWriteOne<0>({
+                        {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal,
+                    }));
+                cb.setViewport(0, vku::toViewport(vku::toExtent2D(toneMappedCubemapImage.extent)));
+                cb.setScissor(0, vk::Rect2D { { 0, 0 }, vku::toExtent2D(toneMappedCubemapImage.extent) });
                 cb.draw(3, 1, 0, 0);
 
-                cb.endRenderPass();
+                cb.endRenderingKHR();
+
+                cb.pipelineBarrier(
+                    vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
+                    {}, {}, {},
+                    vk::ImageMemoryBarrier {
+                        vk::AccessFlagBits::eColorAttachmentWrite, {},
+                        vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        toneMappedCubemapImage, vku::fullSubresourceRange(),
+                    });
             }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent }));
 
     std::ignore = gpu.device.waitSemaphores({
