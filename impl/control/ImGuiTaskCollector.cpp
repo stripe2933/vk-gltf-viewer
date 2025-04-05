@@ -689,9 +689,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 notifyPropertyChanged(task::MaterialPropertyChanged::AlphaMode);
             }
 
-            if (material.alphaMode == fastgltf::AlphaMode::Mask && ImGui::DragFloat("Alpha cutoff", &material.alphaCutoff, 0.01f, 0.f, 1.f)) {
-                notifyPropertyChanged(task::MaterialPropertyChanged::AlphaCutoff);
-            }
+            ImGui::WithDisabled([&]() {
+                if (ImGui::DragFloat("Alpha cutoff", &material.alphaCutoff, 0.01f, 0.f, 1.f)) {
+                    notifyPropertyChanged(task::MaterialPropertyChanged::AlphaCutoff);
+                }
+            }, material.alphaMode != fastgltf::AlphaMode::Mask);
 
             constexpr auto texcoordOverriddenMarker = []() {
                 ImGui::SameLine();
