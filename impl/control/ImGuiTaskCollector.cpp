@@ -669,28 +669,29 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
 
         if (selectedMaterialIndex) {
             fastgltf::Material &material = asset.materials[*selectedMaterialIndex];
+            const auto notifyPropertyChanged = [&](task::MaterialPropertyChanged::Property property) {
+                tasks.emplace_back(std::in_place_type<task::MaterialPropertyChanged>, *selectedMaterialIndex, property);
+            };
 
             ImGui::InputTextWithHint("Name", "<empty>", &material.name);
 
             if (ImGui::Checkbox("Double sided", &material.doubleSided)) {
-                tasks.emplace_back(std::in_place_type<task::InvalidateDrawCommandSeparation>);
+                notifyPropertyChanged(task::MaterialPropertyChanged::DoubleSided);
             }
 
             if (ImGui::Checkbox("KHR_materials_unlit", &material.unlit)) {
-                tasks.emplace_back(std::in_place_type<task::InvalidateDrawCommandSeparation>);
+                notifyPropertyChanged(task::MaterialPropertyChanged::Unlit);
             }
 
             constexpr std::array alphaModes { "OPAQUE", "MASK", "BLEND" };
             if (int alphaMode = static_cast<int>(material.alphaMode); ImGui::Combo("Alpha mode", &alphaMode, alphaModes.data(), alphaModes.size())) {
                 material.alphaMode = static_cast<fastgltf::AlphaMode>(alphaMode);
-                tasks.emplace_back(std::in_place_type<task::InvalidateDrawCommandSeparation>);
+                notifyPropertyChanged(task::MaterialPropertyChanged::AlphaMode);
             }
 
-            ImGui::WithDisabled([&]() {
-                if (material.alphaMode == fastgltf::AlphaMode::Mask && ImGui::DragFloat("Alpha cutoff", &material.alphaCutoff, 0.01f, 0.f, 1.f)) {
-                    // TODO
-                }
-            });
+            if (material.alphaMode == fastgltf::AlphaMode::Mask && ImGui::DragFloat("Alpha cutoff", &material.alphaCutoff, 0.01f, 0.f, 1.f)) {
+                notifyPropertyChanged(task::MaterialPropertyChanged::AlphaCutoff);
+            }
 
             constexpr auto texcoordOverriddenMarker = []() {
                 ImGui::SameLine();
@@ -706,11 +707,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 }
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                     ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat4("Factor##basecolor", material.pbrData.baseColorFactor.data(), 0.01f, 0.f, 1.f)) {
-                                // TODO
-                            }
-                        });
+                        if (ImGui::DragFloat4("Factor##basecolor", material.pbrData.baseColorFactor.data(), 0.01f, 0.f, 1.f)) {
+                            notifyPropertyChanged(task::MaterialPropertyChanged::BaseColorFactor);
+                        }
                         if (baseColorTextureInfo) {
                             ImGui::LabelText("Texture Index", "%zu", baseColorTextureInfo->textureIndex);
                             ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*baseColorTextureInfo));
@@ -739,14 +738,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 }
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                     ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat("Metallic Factor", &material.pbrData.metallicFactor, 0.01f, 0.f, 1.f)) {
-                                // TODO
-                            }
-                            if (ImGui::DragFloat("Roughness Factor", &material.pbrData.roughnessFactor, 0.01f, 0.f, 1.f)) {
-                                // TODO
-                            }
-                        });
+                        if (ImGui::DragFloat("Metallic Factor", &material.pbrData.metallicFactor, 0.01f, 0.f, 1.f)) {
+                            notifyPropertyChanged(task::MaterialPropertyChanged::MetallicFactor);
+                        }
+                        if (ImGui::DragFloat("Roughness Factor", &material.pbrData.roughnessFactor, 0.01f, 0.f, 1.f)) {
+                            notifyPropertyChanged(task::MaterialPropertyChanged::RoughnessFactor);
+                        }
                         if (metallicRoughnessTextureInfo) {
                             ImGui::LabelText("Texture Index", "%zu", metallicRoughnessTextureInfo->textureIndex);
                             ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*metallicRoughnessTextureInfo));
@@ -771,11 +768,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::SameLine();
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                     ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat("Scale", &textureInfo->scale, 0.01f)) {
-                                // TODO
-                            }
-                        });
+                        if (ImGui::DragFloat("Scale", &textureInfo->scale, 0.01f)) {
+                            notifyPropertyChanged(task::MaterialPropertyChanged::NormalScale);
+                        }
                         ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
                         ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
 
@@ -798,11 +793,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::SameLine();
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                     ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat("Strength", &textureInfo->strength, 0.01f)) {
-                                // TODO
-                            }
-                        });
+                        if (ImGui::DragFloat("Strength", &textureInfo->strength, 0.01f)) {
+                            notifyPropertyChanged(task::MaterialPropertyChanged::OcclusionStrength);
+                        }
                         ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
                         ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
 
@@ -828,11 +821,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 }
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                     ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat3("Factor##emissive", material.emissiveFactor.data(), 0.01f, 0.f, 1.f)) {
-                                // TODO
-                            }
-                        });
+                        if (ImGui::DragFloat3("Factor##emissive", material.emissiveFactor.data(), 0.01f, 0.f, 1.f)) {
+                            notifyPropertyChanged(task::MaterialPropertyChanged::EmissiveFactor);
+                        }
                         if (textureInfo) {
                             ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
                             ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));

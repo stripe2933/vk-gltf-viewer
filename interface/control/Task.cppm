@@ -18,7 +18,23 @@ namespace vk_gltf_viewer::control {
         struct ChangeSelectedNodeWorldTransform{};
         struct TightenNearFarPlane { };
         struct ChangeCameraView { };
-        struct InvalidateDrawCommandSeparation { };
+        struct MaterialPropertyChanged {
+            enum Property {
+                AlphaCutoff,
+                AlphaMode,
+                BaseColorFactor,
+                DoubleSided,
+                EmissiveFactor,
+                MetallicFactor,
+                RoughnessFactor,
+                NormalScale,
+                OcclusionStrength,
+                Unlit,
+            };
+
+            std::size_t materialIndex;
+            Property property;
+        };
         struct SelectMaterialVariants { std::size_t variantIndex; };
         struct ChangeMorphTargetWeight { std::size_t nodeIndex; std::size_t targetWeightStartIndex; std::size_t targetWeightCount; };
     }
@@ -37,7 +53,7 @@ namespace vk_gltf_viewer::control {
         task::ChangeSelectedNodeWorldTransform,
         task::TightenNearFarPlane,
         task::ChangeCameraView,
-        task::InvalidateDrawCommandSeparation,
+        task::MaterialPropertyChanged,
         task::SelectMaterialVariants,
         task::ChangeMorphTargetWeight>;
 }

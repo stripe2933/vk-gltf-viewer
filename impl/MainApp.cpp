@@ -215,11 +215,12 @@ void vk_gltf_viewer::MainApp::run() {
     //  for current KHR_materials_variants implementation.
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const auto [sharedDataUpdateCommandBuffer] = vku::allocateCommandBuffers<1>(*gpu.device, *graphicsCommandPool);
-    bool hasUpdateData = false;
 
     std::vector<control::Task> tasks;
     for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % FRAMES_IN_FLIGHT) {
         tasks.clear();
+
+        bool hasUpdateData = false;
 
         if (gltf) {
             std::vector<std::size_t> transformedNodes, morphedNodes;
@@ -292,6 +293,9 @@ void vk_gltf_viewer::MainApp::run() {
             task(frame);
         }
         deferredFrameUpdateTasks.clear();
+
+        graphicsCommandPool.reset();
+        sharedDataUpdateCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
         for (const control::Task &task : tasks) {
             visit(multilambda {
@@ -472,28 +476,68 @@ void vk_gltf_viewer::MainApp::run() {
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
                 },
-                [&](control::task::InvalidateDrawCommandSeparation) {
-                    regenerateDrawCommands.fill(true);
+                [&](const control::task::MaterialPropertyChanged &task) {
+                    const fastgltf::Material &changedMaterial = gltf->asset.materials[task.materialIndex];
+                    switch (task.property) {
+                        using Property = control::task::MaterialPropertyChanged::Property;
+                        case Property::AlphaMode:
+                        case Property::Unlit:
+                        case Property::DoubleSided:
+                            regenerateDrawCommands.fill(true);
+                            break;
+                        case Property::AlphaCutoff:
+                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::alphaCutOff>(
+                                task.materialIndex,
+                                changedMaterial.alphaCutoff,
+                                sharedDataUpdateCommandBuffer);
+                            break;
+                        case Property::BaseColorFactor:
+                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::baseColorFactor>(
+                                task.materialIndex,
+                                glm::make_vec4(changedMaterial.pbrData.baseColorFactor.data()),
+                                sharedDataUpdateCommandBuffer);
+                            break;
+                        case Property::EmissiveFactor:
+                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::emissiveFactor>(
+                                task.materialIndex,
+                                glm::make_vec3(changedMaterial.emissiveFactor.data()),
+                                sharedDataUpdateCommandBuffer);
+                            break;
+                        case Property::MetallicFactor:
+                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::metallicFactor>(
+                                task.materialIndex,
+                                changedMaterial.pbrData.metallicFactor,
+                                sharedDataUpdateCommandBuffer);
+                            break;
+                        case Property::NormalScale:
+                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::normalScale>(
+                                task.materialIndex,
+                                changedMaterial.normalTexture->scale,
+                                sharedDataUpdateCommandBuffer);
+                            break;
+                        case Property::OcclusionStrength:
+                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::occlusionStrength>(
+                                task.materialIndex,
+                                changedMaterial.occlusionTexture->strength,
+                                sharedDataUpdateCommandBuffer);
+                            break;
+                        case Property::RoughnessFactor:
+                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::roughnessFactor>(
+                                task.materialIndex,
+                                changedMaterial.pbrData.roughnessFactor,
+                                sharedDataUpdateCommandBuffer);
+                            break;
+                    }
                 },
                 [&](const control::task::SelectMaterialVariants &task) {
                     assert(gltf && "Synchronization error: gltf is unset but material variants are selected.");
 
                     gpu.device.waitIdle();
 
-                    graphicsCommandPool.reset();
-                    sharedDataUpdateCommandBuffer.begin(vk::CommandBufferBeginInfo { vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
-
                     for (const auto &[pPrimitive, materialIndex] : gltf->materialVariantsMapping.at(task.variantIndex)) {
                         pPrimitive->materialIndex.emplace(materialIndex);
                         hasUpdateData |= sharedData.gltfAsset->primitiveBuffer.updateMaterial(
                             gltf->orderedPrimitives.getIndex(*pPrimitive), static_cast<std::uint32_t>(materialIndex), sharedDataUpdateCommandBuffer);
-                    }
-
-                    sharedDataUpdateCommandBuffer.end();
-
-                    if (hasUpdateData) {
-                        gpu.queues.graphicsPresent.submit(vk::SubmitInfo { {}, {}, sharedDataUpdateCommandBuffer });
-                        gpu.device.waitIdle();
                     }
                 },
                 [&](const control::task::ChangeMorphTargetWeight &task) {
@@ -515,6 +559,14 @@ void vk_gltf_viewer::MainApp::run() {
                     }
                 },
             }, task);
+        }
+
+        if (hasUpdateData) {
+            sharedDataUpdateCommandBuffer.end();
+
+            const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+            gpu.queues.graphicsPresent.submit(vk::SubmitInfo { {}, {}, sharedDataUpdateCommandBuffer }, *fence);
+            std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
         }
 
         // Update frame resources.
