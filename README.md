@@ -177,7 +177,7 @@ brew install openexr
 #### Build Steps
 
 > [!TIP]
-> This project uses GitHub Runner to ensure build compatibility on Windows (with MSVC), macOS and Linux (with Clang), with dependency management handled by vcpkg. You can check the workflow files in the [.github/workflows](.github/workflows) folder.
+> This project uses GitHub Runner to ensure build compatibility on Windows (with MSVC and MinGW Clang), macOS and Linux (with Clang), with dependency management handled by vcpkg. You can check the workflow files in the [.github/workflows](.github/workflows) folder.
 
 First, you have to clone the repository.
 
@@ -197,7 +197,69 @@ cmake --build build -t vk-gltf-viewer
 
 The executable will be located in `build` folder.
 
-##### 2. Clang + Linux
+##### 2. MinGW Clang + Windows
+
+Install Clang, libc++ and extra build dependencies from MSYS2 pacman.
+
+```sh
+pacman -S mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-libc++ mingw-w64-clang-x86_64-libwinpthread-git
+```
+
+Add the following CMake user preset file in your project directory. I'll assume your Clang compiler executable is at `C:/tools/msys64/clang64/bin/clang++.exe`.
+
+`CMakeUserPresets.json`
+```json
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "windows-mingw-clang",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "C:/tools/msys64/clang64/bin/clang.exe",
+        "CMAKE_CXX_COMPILER": "C:/tools/msys64/clang64/bin/clang++.exe",
+        "CMAKE_CXX_FLAGS": "-stdlib=libc++",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-mingw-clang"
+      }
+    }
+  ]
+}
+```
+
+`VCPKG_TARGET_TRIPLET` configuration parameter is mandatory for make vcpkg uses Clang compiler instead of the system default compiler. Add following vcpkg toolchain and triplet files.
+
+`mingw-clang-toolchain.cmake`
+```cmake
+include($ENV{VCPKG_ROOT}/scripts/toolchains/mingw.cmake)
+
+set(CMAKE_C_COMPILER C:/tools/msys64/clang64/bin/clang.exe)
+set(CMAKE_CXX_COMPILER C:/tools/msys64/clang64/bin/clang++.exe)
+```
+
+`triplets/x64-windows-mingw-clang.cmake`
+```cmake
+set(VCPKG_TARGET_ARCHITECTURE x64)
+set(VCPKG_CRT_LINKAGE dynamic)
+set(VCPKG_LIBRARY_LINKAGE static)
+set(VCPKG_ENV_PASSTHROUGH "PATH;VCPKG_ROOT")
+
+set(VCPKG_CMAKE_SYSTEM_NAME MinGW)
+set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../mingw-clang-toolchain.cmake)
+
+set(VCPKG_C_FLAGS "")
+set(VCPKG_CXX_FLAGS "-stdlib=libc++")
+```
+
+Configure and build the project with `windows-mingw-clang` configuration preset.
+
+```sh
+cmake --preset=windows-mingw-clang
+cmake --build build -t vk-gltf-viewer
+```
+
+The executable will be located in `build` folder.
+
+##### 3. Clang + Linux
 
 Install libc++ and extra build dependencies from apt.
 
@@ -259,7 +321,7 @@ cmake --build build -t vk-gltf-viewer
 
 The executable will be located in `build` folder.
 
-##### 3. Clang + macOS
+##### 4. Clang + macOS
 
 Install extra build dependencies from homebrew.
 
