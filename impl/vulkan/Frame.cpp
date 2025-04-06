@@ -157,7 +157,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         //   Points or Lines with no NORMAL attribute SHOULD be rendered without lighting and instead use the sum of the
         //   base color value (as defined above, multiplied by COLOR_0 when present) and the emissive value.
         const bool isPrimitivePointsOrLineWithoutNormal
-            = ranges::one_of(primitive.type, fastgltf::PrimitiveType::Points, fastgltf::PrimitiveType::Lines, fastgltf::PrimitiveType::LineLoop, fastgltf::PrimitiveType::LineStrip)
+            = ranges::one_of(primitive.type, { fastgltf::PrimitiveType::Points, fastgltf::PrimitiveType::Lines, fastgltf::PrimitiveType::LineLoop, fastgltf::PrimitiveType::LineStrip })
             && !accessors.normalAccessor;
 
         if (primitive.materialIndex) {

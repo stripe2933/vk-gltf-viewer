@@ -874,7 +874,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     }
     catch (fastgltf::Error error) {
         // If error is due to missing or unknown required extension, show a message and return.
-        if (ranges::one_of(error, fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension)) {
+        if (ranges::one_of(error, { fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension })) {
             std::println(std::cerr, "The glTF file requires an extension that is not supported by this application.");
             closeGltf();
             return;

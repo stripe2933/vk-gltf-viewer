@@ -95,9 +95,9 @@ namespace ranges {
         return std::ranges::subrange(pair.first, pair.second);
     }
 
-    export template <typename T, std::equality_comparable_with<T>... Ts>
-    [[nodiscard]] constexpr bool one_of(T value, Ts... candidates) NOEXCEPT_IF(((std::declval<T>() == std::declval<Ts>()) && ...)) {
-        return ((value == candidates) || ...);
+    export template <std::equality_comparable T, std::ranges::input_range R = std::initializer_list<T>>
+    [[nodiscard]] constexpr bool one_of(const T &value, const R &candidates) NOEXCEPT_IF(std::declval<T>() == std::declval<T>()) {
+        return contains(candidates, value);
     }
 
 namespace views {

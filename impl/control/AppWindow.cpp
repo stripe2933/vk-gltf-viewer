@@ -183,13 +183,13 @@ void vk_gltf_viewer::control::AppWindow::onDropCallback(std::span<const char * c
     if (std::filesystem::is_directory(path)) {
         // If directory contains glTF file, load it.
         for (const std::filesystem::path &childPath : std::filesystem::directory_iterator { path }) {
-            if (ranges::one_of(childPath.extension(), ".gltf", ".glb")) {
+            if (ranges::one_of(childPath.extension(), { ".gltf", ".glb" })) {
                 pTasks->emplace_back(std::in_place_type<task::LoadGltf>, childPath);
                 return;
             }
         }
     }
-    else if (const std::filesystem::path extension = path.extension(); ranges::one_of(extension, ".gltf", ".glb")) {
+    else if (const std::filesystem::path extension = path.extension(); ranges::one_of(extension, { ".gltf", ".glb" })) {
         pTasks->emplace_back(std::in_place_type<task::LoadGltf>, path);
     }
     else if (std::ranges::contains(supportedSkyboxExtensions, extension)) {
