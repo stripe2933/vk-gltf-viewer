@@ -35,6 +35,14 @@ import :helpers.TempStringBuffer;
 
 using namespace std::string_view_literals;
 
+enum class MaterialProperty : std::uint8_t {
+    BaseColor,
+    MetallicRoughness,
+    Normal,
+    Occlusion,
+    Emissive,
+};
+
 std::optional<std::size_t> vk_gltf_viewer::control::ImGuiTaskCollector::selectedMaterialIndex = std::nullopt;
 bool mergeSingleChildNodes = true;
 int boundFpPrecision = 2;
@@ -669,188 +677,231 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
 
         if (selectedMaterialIndex) {
             fastgltf::Material &material = asset.materials[*selectedMaterialIndex];
+            const auto notifyPropertyChanged = [&](task::MaterialPropertyChanged::Property property) {
+                tasks.emplace_back(std::in_place_type<task::MaterialPropertyChanged>, *selectedMaterialIndex, property);
+            };
 
             ImGui::InputTextWithHint("Name", "<empty>", &material.name);
 
             if (ImGui::Checkbox("Double sided", &material.doubleSided)) {
-                tasks.emplace_back(std::in_place_type<task::InvalidateDrawCommandSeparation>);
+                notifyPropertyChanged(task::MaterialPropertyChanged::DoubleSided);
             }
 
             if (ImGui::Checkbox("KHR_materials_unlit", &material.unlit)) {
-                tasks.emplace_back(std::in_place_type<task::InvalidateDrawCommandSeparation>);
+                notifyPropertyChanged(task::MaterialPropertyChanged::Unlit);
             }
 
             constexpr std::array alphaModes { "OPAQUE", "MASK", "BLEND" };
             if (int alphaMode = static_cast<int>(material.alphaMode); ImGui::Combo("Alpha mode", &alphaMode, alphaModes.data(), alphaModes.size())) {
                 material.alphaMode = static_cast<fastgltf::AlphaMode>(alphaMode);
-                tasks.emplace_back(std::in_place_type<task::InvalidateDrawCommandSeparation>);
+                notifyPropertyChanged(task::MaterialPropertyChanged::AlphaMode);
             }
 
             ImGui::WithDisabled([&]() {
-                if (material.alphaMode == fastgltf::AlphaMode::Mask && ImGui::DragFloat("Alpha cutoff", &material.alphaCutoff, 0.01f, 0.f, 1.f)) {
-                    // TODO
+                if (ImGui::DragFloat("Alpha cutoff", &material.alphaCutoff, 0.01f, 0.f, 1.f)) {
+                    notifyPropertyChanged(task::MaterialPropertyChanged::AlphaCutoff);
                 }
-            });
+            }, material.alphaMode != fastgltf::AlphaMode::Mask);
 
             constexpr auto texcoordOverriddenMarker = []() {
                 ImGui::SameLine();
                 ImGui::HelperMarker("(overridden)", "This value is overridden by KHR_texture_transform extension.");
             };
+            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, MaterialProperty materialProperty) -> void {
+                const auto [enabledProp, changeProp] = [&]() -> std::array<task::MaterialPropertyChanged::Property, 2> {
+                    using enum task::MaterialPropertyChanged::Property;
+                    switch (materialProperty) {
+                        case MaterialProperty::BaseColor:
+                            return { BaseColorTextureTransformEnabled, BaseColorTextureTransform };
+                        case MaterialProperty::MetallicRoughness:
+                            return { MetallicRoughnessTextureTransformEnabled, MetallicRoughnessTextureTransform };
+                        case MaterialProperty::Normal:
+                            return { NormalTextureTransformEnabled, NormalTextureTransform };
+                        case MaterialProperty::Occlusion:
+                            return { OcclusionTextureTransformEnabled, OcclusionTextureTransform };
+                        case MaterialProperty::Emissive:
+                            return { EmissiveTextureTransformEnabled, EmissiveTextureTransform };
+                        std::unreachable();
+                    }
+                }();
+
+                bool useTextureTransform = textureInfo.transform != nullptr;
+                bool isChangePropNotified = false; // prevent double notifying
+                if (ImGui::Checkbox("KHR_texture_transform", &useTextureTransform)) {
+                    if (useTextureTransform) {
+                        textureInfo.transform = std::make_unique<fastgltf::TextureTransform>();
+                        // Since the new identity 3x2 matrix has to be written into the GPU buffer, texture transform
+                        // change must be notified.
+                        notifyPropertyChanged(changeProp);
+                        isChangePropNotified = true;
+                    }
+                    else {
+                        textureInfo.transform.reset();
+                    }
+
+                    // Always notify texture transform enabled status is changed to request the re-calculate pipelines.
+                    notifyPropertyChanged(enabledProp);
+                }
+
+                if (useTextureTransform) {
+                    fastgltf::TextureTransform* pTransform = textureInfo.transform.get();
+                    if (!pTransform) {
+                        static fastgltf::TextureTransform dummyTextureTransform; // avoid null dereference
+                        pTransform = &dummyTextureTransform;
+                    }
+
+                    bool transformChanged = ImGui::DragFloat2("Scale", pTransform->uvScale.data(), 0.01f);
+                    transformChanged |= ImGui::DragFloat("Rotation", &pTransform->rotation, 0.01f);
+                    transformChanged |= ImGui::DragFloat2("Offset", pTransform->uvOffset.data(), 0.01f);
+
+                    if (transformChanged && !isChangePropNotified) {
+                        notifyPropertyChanged(changeProp);
+                    }
+                }
+            };
 
             if (ImGui::CollapsingHeader("Physically Based Rendering")) {
                 ImGui::SeparatorText("Base Color");
-                const auto &baseColorTextureInfo = material.pbrData.baseColorTexture;
-                if (baseColorTextureInfo) {
-                    hoverableImage(assetTextureImGuiDescriptorSets[baseColorTextureInfo->textureIndex], { 128.f, 128.f });
-                    ImGui::SameLine();
-                }
-                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat4("Factor##basecolor", material.pbrData.baseColorFactor.data(), 0.01f, 0.f, 1.f)) {
-                                // TODO
+                ImGui::WithID("basecolor", [&]() {
+                    auto &baseColorTextureInfo = material.pbrData.baseColorTexture;
+                    if (baseColorTextureInfo) {
+                        hoverableImage(assetTextureImGuiDescriptorSets[baseColorTextureInfo->textureIndex], { 128.f, 128.f });
+                        ImGui::SameLine();
+                    }
+                    ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+                        ImGui::WithGroup([&]() {
+                            if (ImGui::DragFloat4("Factor", material.pbrData.baseColorFactor.data(), 0.01f, 0.f, 1.f)) {
+                                notifyPropertyChanged(task::MaterialPropertyChanged::BaseColorFactor);
                             }
-                        });
-                        if (baseColorTextureInfo) {
-                            ImGui::LabelText("Texture Index", "%zu", baseColorTextureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*baseColorTextureInfo));
+                            if (baseColorTextureInfo) {
+                                ImGui::LabelText("Texture Index", "%zu", baseColorTextureInfo->textureIndex);
 
-                            if (const auto &transform = baseColorTextureInfo->transform) {
-                                texcoordOverriddenMarker();
+                                const std::size_t texcoordIndex = getTexcoordIndex(*baseColorTextureInfo);
+                                ImGui::LabelText("Texture Coordinate", "%zu", texcoordIndex);
+                                if (texcoordIndex != baseColorTextureInfo->texCoordIndex) {
+                                    texcoordOverriddenMarker();
+                                }
 
-                                ImGui::SeparatorText("KHR_texture_transform");
-                                ImGui::WithDisabled([&]() { // TODO
-                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                });
+                                textureTransformControl(*baseColorTextureInfo, MaterialProperty::BaseColor);
                             }
-                        }
-                    }, baseColorTextureInfo.has_value());
+                        }, baseColorTextureInfo.has_value());
+                    });
                 });
 
-                ImGui::SeparatorText("Metallic/Roughness");
-                const auto &metallicRoughnessTextureInfo = material.pbrData.metallicRoughnessTexture;
-                if (metallicRoughnessTextureInfo) {
-                    hoverableImage(assetTextureImGuiDescriptorSets[metallicRoughnessTextureInfo->textureIndex], { 128.f, 128.f }, { 0.f, 0.f, 1.f, 1.f });
-                    ImGui::SameLine();
-                    hoverableImage(assetTextureImGuiDescriptorSets[metallicRoughnessTextureInfo->textureIndex], { 128.f, 128.f }, { 0.f, 1.f, 0.f, 1.f });
-                    ImGui::SameLine();
-                }
-                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat("Metallic Factor", &material.pbrData.metallicFactor, 0.01f, 0.f, 1.f)) {
-                                // TODO
-                            }
-                            if (ImGui::DragFloat("Roughness Factor", &material.pbrData.roughnessFactor, 0.01f, 0.f, 1.f)) {
-                                // TODO
-                            }
-                        });
+                ImGui::WithDisabled([&]() {
+                    ImGui::SeparatorText("Metallic/Roughness");
+                    ImGui::WithID("metallicroughness", [&]() {
+                        auto &metallicRoughnessTextureInfo = material.pbrData.metallicRoughnessTexture;
                         if (metallicRoughnessTextureInfo) {
-                            ImGui::LabelText("Texture Index", "%zu", metallicRoughnessTextureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*metallicRoughnessTextureInfo));
-
-                            if (const auto &transform = metallicRoughnessTextureInfo->transform) {
-                                texcoordOverriddenMarker();
-
-                                ImGui::SeparatorText("KHR_texture_transform");
-                                ImGui::WithDisabled([&]() { // TODO
-                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                });
-                            }
+                            hoverableImage(assetTextureImGuiDescriptorSets[metallicRoughnessTextureInfo->textureIndex], { 128.f, 128.f }, { 0.f, 0.f, 1.f, 1.f });
+                            ImGui::SameLine();
+                            hoverableImage(assetTextureImGuiDescriptorSets[metallicRoughnessTextureInfo->textureIndex], { 128.f, 128.f }, { 0.f, 1.f, 0.f, 1.f });
+                            ImGui::SameLine();
                         }
-                    });
-                });
-            }
+                        ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+                            ImGui::WithGroup([&]() {
+                                if (ImGui::DragFloat("Metallic Factor", &material.pbrData.metallicFactor, 0.01f, 0.f, 1.f)) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::MetallicFactor);
+                                }
+                                if (ImGui::DragFloat("Roughness Factor", &material.pbrData.roughnessFactor, 0.01f, 0.f, 1.f)) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::RoughnessFactor);
+                                }
+                                if (metallicRoughnessTextureInfo) {
+                                    ImGui::LabelText("Texture Index", "%zu", metallicRoughnessTextureInfo->textureIndex);
 
-            if (auto &textureInfo = material.normalTexture; textureInfo && ImGui::CollapsingHeader("Normal Mapping")) {
-                hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f });
-                ImGui::SameLine();
-                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat("Scale", &textureInfo->scale, 0.01f)) {
-                                // TODO
-                            }
-                        });
-                        ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                        ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
+                                    const std::size_t texcoordIndex = getTexcoordIndex(*metallicRoughnessTextureInfo);
+                                    ImGui::LabelText("Texture Coordinate", "%zu", texcoordIndex);
+                                    if (texcoordIndex != metallicRoughnessTextureInfo->texCoordIndex) {
+                                        texcoordOverriddenMarker();
+                                    }
 
-                        if (const auto &transform = textureInfo->transform) {
-                            texcoordOverriddenMarker();
-
-                            ImGui::SeparatorText("KHR_texture_transform");
-                            ImGui::WithDisabled([&]() { // TODO
-                                ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                                    textureTransformControl(*metallicRoughnessTextureInfo, MaterialProperty::MetallicRoughness);
+                                }
                             });
-                        }
-                    });
-                });
-            }
-
-            if (auto &textureInfo = material.occlusionTexture; textureInfo && ImGui::CollapsingHeader("Occlusion Mapping")) {
-                hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f }, { 1.f, 0.f, 0.f, 1.f });
-                ImGui::SameLine();
-                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat("Strength", &textureInfo->strength, 0.01f)) {
-                                // TODO
-                            }
                         });
-                        ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                        ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
-
-                        if (const auto &transform = textureInfo->transform) {
-                            texcoordOverriddenMarker();
-
-                            ImGui::SeparatorText("KHR_texture_transform");
-                            ImGui::WithDisabled([&]() { // TODO
-                                ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                            });
-                        }
                     });
-                });
+                }, material.unlit);
             }
 
-            if (ImGui::CollapsingHeader("Emissive")) {
-                const auto &textureInfo = material.emissiveTexture;
-                if (textureInfo) {
-                    hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f });
-                    ImGui::SameLine();
+            ImGui::WithID("normal", [&]() {
+                if (auto &textureInfo = material.normalTexture; textureInfo && ImGui::CollapsingHeader("Normal Mapping")) {
+                    ImGui::WithDisabled([&]() {
+                        hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f });
+                        ImGui::SameLine();
+                        ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+                            ImGui::WithGroup([&]() {
+                                if (ImGui::DragFloat("Scale", &textureInfo->scale, 0.01f)) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::NormalScale);
+                                }
+                                ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
+
+                                const std::size_t texcoordIndex = getTexcoordIndex(*textureInfo);
+                                ImGui::LabelText("Texture Coordinate", "%zu", texcoordIndex);
+                                if (texcoordIndex != textureInfo->texCoordIndex) {
+                                    texcoordOverriddenMarker();
+                                }
+
+                                textureTransformControl(*textureInfo, MaterialProperty::Normal);
+                            });
+                        });
+                    }, material.unlit);
                 }
-                ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    ImGui::WithGroup([&]() {
-                        ImGui::WithDisabled([&]() {
-                            if (ImGui::DragFloat3("Factor##emissive", material.emissiveFactor.data(), 0.01f, 0.f, 1.f)) {
-                                // TODO
-                            }
+            });
+
+            ImGui::WithID("occlusion", [&]() {
+                if (auto &textureInfo = material.occlusionTexture; textureInfo && ImGui::CollapsingHeader("Occlusion Mapping")) {
+                    ImGui::WithDisabled([&]() {
+                        hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f }, { 1.f, 0.f, 0.f, 1.f });
+                        ImGui::SameLine();
+                        ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+                            ImGui::WithGroup([&]() {
+                                if (ImGui::DragFloat("Strength", &textureInfo->strength, 0.01f)) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::OcclusionStrength);
+                                }
+                                ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
+
+                                const std::size_t texcoordIndex = getTexcoordIndex(*textureInfo);
+                                ImGui::LabelText("Texture Coordinate", "%zu", texcoordIndex);
+                                if (texcoordIndex != textureInfo->texCoordIndex) {
+                                    texcoordOverriddenMarker();
+                                }
+
+                                textureTransformControl(*textureInfo, MaterialProperty::Occlusion);
+                            });
                         });
+                    }, material.unlit);
+                }
+            });
+
+            ImGui::WithID("emissive", [&]() {
+                if (ImGui::CollapsingHeader("Emissive")) {
+                    ImGui::WithDisabled([&]() {
+                        auto &textureInfo = material.emissiveTexture;
                         if (textureInfo) {
-                            ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
-
-                            if (const auto &transform = textureInfo->transform) {
-                                texcoordOverriddenMarker();
-
-                                ImGui::SeparatorText("KHR_texture_transform");
-                                ImGui::WithDisabled([&]() { // TODO
-                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                });
-                            }
+                            hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f });
+                            ImGui::SameLine();
                         }
-                    }, textureInfo.has_value());
-                });
-            }
+                        ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
+                            ImGui::WithGroup([&]() {
+                                if (ImGui::DragFloat3("Factor", material.emissiveFactor.data(), 0.01f, 0.f, 1.f)) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::EmissiveFactor);
+                                }
+                                if (textureInfo) {
+                                    ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
+
+                                    const std::size_t texcoordIndex = getTexcoordIndex(*textureInfo);
+                                    ImGui::LabelText("Texture Coordinate", "%zu", texcoordIndex);
+                                    if (texcoordIndex != textureInfo->texCoordIndex) {
+                                        texcoordOverriddenMarker();
+                                    }
+
+                                    textureTransformControl(*textureInfo, MaterialProperty::Emissive);
+                                }
+                            }, textureInfo.has_value());
+                        });
+                    }, material.unlit);
+                }
+            });
         }
     }
     ImGui::End();

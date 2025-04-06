@@ -6,14 +6,14 @@ export module vk_gltf_viewer:vulkan.buffer.Materials;
 
 import std;
 export import fastgltf;
-export import glm;
 import vku;
 export import vk_mem_alloc_hpp;
 export import vulkan_hpp;
+import :helpers.functional;
 import :helpers.optional;
 import :helpers.ranges;
 export import :vulkan.buffer.StagingBufferStorage;
-import :vulkan.shader_type.Material;
+export import :vulkan.shader_type.Material;
 import :vulkan.trait.PostTransferObject;
 
 [[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept {
@@ -34,17 +34,49 @@ namespace vk_gltf_viewer::vulkan::buffer {
             StagingBufferStorage &stagingBufferStorage
         ) : PostTransferObject { stagingBufferStorage },
             buffer { createBuffer(asset, allocator) },
-            descriptorInfo { buffer, 0, vk::WholeSize } { }
+            descriptorInfo { visit_as<vk::Buffer>(buffer), 0, vk::WholeSize } { }
 
         [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept {
             return descriptorInfo;
         }
 
+        /**
+         * @brief Update material property with field accessor.
+         *
+         * @tparam accessor Member accessor of <tt>shader_type::Material</tt> to update.
+         * @param materialIndex Index of asset material to update.
+         * @param data Data to update, must be the type of accessor function's return type.
+         * @param transferCommandBuffer If buffer is not host-visible memory and so is unable to be updated from the host, this command buffer will be used for recording the buffer update command. Then, its execution MUST be synchronized to be available to the buffer usage. Otherwise, this parameter is unused.
+         * @return <tt>true</tt> if the buffer is not host-visible memory and the update command is recorded, <tt>false</tt> otherwise.
+         * @note <tt>materialIndex = 0</tt> will refer <tt>asset.materials[0]</tt>, NOT fallback material.
+         */
+        template <auto shader_type::Material::*accessor>
+        bool update(
+            std::size_t materialIndex,
+            const std::remove_cvref_t<std::invoke_result_t<decltype(accessor), shader_type::Material&>>& data,
+            vk::CommandBuffer transferCommandBuffer
+        ) {
+            return std::visit(multilambda {
+                [&](vku::MappedBuffer &primitiveBuffer) {
+                    std::invoke(accessor, primitiveBuffer.asRange<shader_type::Material>()[materialIndex + 1]) = data;
+                    return false;
+                },
+                [&](vk::Buffer primitiveBuffer) {
+                    static constexpr shader_type::Material dummy{};
+                    constexpr auto fieldAddress = &std::invoke(accessor, dummy);
+
+                    const vk::DeviceSize fieldOffset = reinterpret_cast<std::uintptr_t>(fieldAddress) - reinterpret_cast<std::uintptr_t>(&dummy);
+                    transferCommandBuffer.updateBuffer(primitiveBuffer, sizeof(shader_type::Material) * (materialIndex + 1) + fieldOffset, sizeof(data), &data);
+                    return true;
+                }
+            }, buffer);
+        }
+
     private:
-        vku::AllocatedBuffer buffer;
+        std::variant<vku::AllocatedBuffer, vku::MappedBuffer> buffer;
         vk::DescriptorBufferInfo descriptorInfo;
 
-        [[nodiscard]] vku::AllocatedBuffer createBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const {
+        [[nodiscard]] std::variant<vku::AllocatedBuffer, vku::MappedBuffer> createBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const {
             // This is workaround for Clang 18's bug that ranges::views::concat cannot be used with std::optional<shader_type::Material>.
             // TODO: change it to use ranges::views::concat when available.
             std::vector<shader_type::Material> bufferData;
@@ -119,17 +151,21 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
                 return result;
             }));
-            
-            vku::AllocatedBuffer buffer = vku::MappedBuffer {
+
+            vku::MappedBuffer buffer {
                 allocator,
                 std::from_range, bufferData,
                 vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
-            }.unmap();
-            if (StagingBufferStorage::needStaging(buffer)) {
-                stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer);
+            };
+
+            // If staging doesn't have to be done, preserve the mapped state.
+            if (!StagingBufferStorage::needStaging(buffer)) {
+                return std::variant<vku::AllocatedBuffer, vku::MappedBuffer> { std::in_place_type<vku::MappedBuffer>, std::move(buffer) };
             }
 
-            return buffer;
+            vku::AllocatedBuffer unmappedBuffer = std::move(buffer).unmap();
+            stagingBufferStorage.get().stage(unmappedBuffer, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst);
+            return unmappedBuffer;
         }
     };
 }
