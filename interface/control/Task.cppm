@@ -23,12 +23,17 @@ namespace vk_gltf_viewer::control {
                 AlphaCutoff,
                 AlphaMode,
                 BaseColorFactor,
+                BaseColorTextureTransform,
                 DoubleSided,
                 EmissiveFactor,
+                EmissiveTextureTransform,
                 MetallicFactor,
                 RoughnessFactor,
+                MetallicRoughnessTextureTransform,
                 NormalScale,
+                NormalTextureTransform,
                 OcclusionStrength,
+                OcclusionTextureTransform,
                 Unlit,
             };
 

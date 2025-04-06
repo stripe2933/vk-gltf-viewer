@@ -720,11 +720,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                 texcoordOverriddenMarker();
 
                                 ImGui::SeparatorText("KHR_texture_transform");
-                                ImGui::WithDisabled([&]() { // TODO
-                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                });
+                                bool transformChanged = ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                transformChanged |= ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                transformChanged |= ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                                if (transformChanged) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::BaseColorTextureTransform);
+                                }
                             }
                         }
                     }, baseColorTextureInfo.has_value());
@@ -755,11 +756,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
 
                                     ImGui::SeparatorText("KHR_texture_transform");
-                                    ImGui::WithDisabled([&]() { // TODO
-                                        ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                        ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                        ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                    });
+                                    bool transformChanged = ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                    transformChanged |= ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                    transformChanged |= ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                                    if (transformChanged) {
+                                        notifyPropertyChanged(task::MaterialPropertyChanged::MetallicRoughnessTextureTransform);
+                                    }
                                 }
                             }
                         });
@@ -783,11 +785,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                 texcoordOverriddenMarker();
 
                                 ImGui::SeparatorText("KHR_texture_transform");
-                                ImGui::WithDisabled([&]() { // TODO
-                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                });
+                                bool transformChanged = ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                transformChanged |= ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                transformChanged |= ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                                if (transformChanged) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::NormalTextureTransform);
+                                }
                             }
                         });
                     });
@@ -810,11 +813,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                 texcoordOverriddenMarker();
 
                                 ImGui::SeparatorText("KHR_texture_transform");
-                                ImGui::WithDisabled([&]() { // TODO
-                                    ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                    ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                    ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                });
+                                bool transformChanged = ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                transformChanged |= ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                transformChanged |= ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                                if (transformChanged) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::OcclusionTextureTransform);
+                                }
                             }
                         });
                     });
@@ -841,11 +845,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
 
                                     ImGui::SeparatorText("KHR_texture_transform");
-                                    ImGui::WithDisabled([&]() { // TODO
-                                        ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                        ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                        ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                    });
+                                    bool transformChanged = ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
+                                    transformChanged |= ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
+                                    transformChanged |= ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
+                                    if (transformChanged) {
+                                        notifyPropertyChanged(task::MaterialPropertyChanged::EmissiveTextureTransform);
+                                    }
                                 }
                             }
                         }, textureInfo.has_value());
