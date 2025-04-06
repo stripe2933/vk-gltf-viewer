@@ -699,7 +699,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::SameLine();
                 ImGui::HelperMarker("(overridden)", "This value is overridden by KHR_texture_transform extension.");
             };
-            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, task::MaterialPropertyChanged::Property changedProp) {
+            const auto textureTransformControl = [](fastgltf::TextureInfo &textureInfo) -> bool {
+                bool notify = false; // indicate if texture transform is changed (toggled or modified)
+
                 if (bool useTextureTransform = textureInfo.transform != nullptr;
                     ImGui::Checkbox("KHR_texture_transform", &useTextureTransform)) {
                     if (useTextureTransform) {
@@ -708,7 +710,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     else {
                         textureInfo.transform.reset();
                     }
-                    notifyPropertyChanged(task::MaterialPropertyChanged::TextureTransformToggle);
+                    notify = true;
                 }
 
                 // Texture transform control is disabled when it is not used.
@@ -724,9 +726,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     transformChanged |= ImGui::DragFloat2("Offset", pTransform->uvOffset.data(), 0.01f);
 
                     if (transformChanged) {
-                        notifyPropertyChanged(changedProp);
+                        notify = true;
                     }
                 }, textureInfo.transform == nullptr);
+
+                return notify;
             };
 
             if (ImGui::CollapsingHeader("Physically Based Rendering")) {
@@ -751,7 +755,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*baseColorTextureInfo, task::MaterialPropertyChanged::BaseColorTextureTransform);
+                                if (textureTransformControl(*baseColorTextureInfo)) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::BaseColorTextureTransform);
+                                }
                             }
                         }, baseColorTextureInfo.has_value());
                     });
@@ -784,7 +790,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                         texcoordOverriddenMarker();
                                     }
 
-                                    textureTransformControl(*metallicRoughnessTextureInfo, task::MaterialPropertyChanged::MetallicRoughnessTextureTransform);
+                                    if (textureTransformControl(*metallicRoughnessTextureInfo)) {
+                                        notifyPropertyChanged(task::MaterialPropertyChanged::MetallicRoughnessTextureTransform);
+                                    }
                                 }
                             });
                         });
@@ -810,7 +818,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*textureInfo, task::MaterialPropertyChanged::NormalTextureTransform);
+                                if (textureTransformControl(*textureInfo)) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::NormalTextureTransform);
+                                }
                             });
                         });
                     }, material.unlit);
@@ -835,7 +845,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*textureInfo, task::MaterialPropertyChanged::OcclusionTextureTransform);
+                                if (textureTransformControl(*textureInfo)) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::OcclusionTextureTransform);
+                                }
                             });
                         });
                     }, material.unlit);
@@ -864,7 +876,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                         texcoordOverriddenMarker();
                                     }
 
-                                    textureTransformControl(*textureInfo, task::MaterialPropertyChanged::EmissiveTextureTransform);
+                                    if (textureTransformControl(*textureInfo)) {
+                                        notifyPropertyChanged(task::MaterialPropertyChanged::EmissiveTextureTransform);
+                                    }
                                 }
                             }, textureInfo.has_value());
                         });

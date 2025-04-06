@@ -34,7 +34,6 @@ namespace vk_gltf_viewer::control {
                 NormalTextureTransform,
                 OcclusionStrength,
                 OcclusionTextureTransform,
-                TextureTransformToggle,
                 Unlit,
             };
 
