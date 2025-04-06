@@ -228,7 +228,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/shader_type/Material.cppm
         interface/vulkan/shader_type/Node.cppm
         interface/vulkan/shader_type/Primitive.cppm
-        interface/vulkan/shader_type/TextureTransform.cppm
         interface/vulkan/SharedData.cppm
         interface/vulkan/specialization_constants/SpecializationMap.cppm
         interface/vulkan/texture/Fallback.cppm
