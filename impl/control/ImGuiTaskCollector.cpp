@@ -743,11 +743,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                         }
                         if (baseColorTextureInfo) {
                             ImGui::LabelText("Texture Index", "%zu", baseColorTextureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*baseColorTextureInfo));
 
-                            if (baseColorTextureInfo->transform) {
+                            const std::size_t texcoordIndex = getTexcoordIndex(*baseColorTextureInfo);
+                            ImGui::LabelText("Texture Coordinate", "%zu", texcoordIndex);
+                            if (texcoordIndex != baseColorTextureInfo->texCoordIndex) {
                                 texcoordOverriddenMarker();
                             }
+
                             textureTransformControl(*baseColorTextureInfo, task::MaterialPropertyChanged::BaseColorTextureTransform);
                         }
                     }, baseColorTextureInfo.has_value());
@@ -772,11 +774,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                             }
                             if (metallicRoughnessTextureInfo) {
                                 ImGui::LabelText("Texture Index", "%zu", metallicRoughnessTextureInfo->textureIndex);
-                                ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*metallicRoughnessTextureInfo));
 
-                                if (metallicRoughnessTextureInfo->transform) {
+                                const std::size_t texcoordIndex = getTexcoordIndex(*metallicRoughnessTextureInfo);
+                                ImGui::LabelText("Texture Coordinate", "%zu", texcoordIndex);
+                                if (texcoordIndex != metallicRoughnessTextureInfo->texCoordIndex) {
                                     texcoordOverriddenMarker();
                                 }
+
                                 textureTransformControl(*metallicRoughnessTextureInfo, task::MaterialPropertyChanged::MetallicRoughnessTextureTransform);
                             }
                         });
@@ -794,11 +798,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                 notifyPropertyChanged(task::MaterialPropertyChanged::NormalScale);
                             }
                             ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
 
-                            if (textureInfo->transform) {
+                            const std::size_t texcoordIndex = getTexcoordIndex(*textureInfo);
+                            ImGui::LabelText("Texture Coordinate", "%zu", texcoordIndex);
+                            if (texcoordIndex != textureInfo->texCoordIndex) {
                                 texcoordOverriddenMarker();
                             }
+
                             textureTransformControl(*textureInfo, task::MaterialPropertyChanged::NormalTextureTransform);
                         });
                     });
@@ -815,11 +821,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                 notifyPropertyChanged(task::MaterialPropertyChanged::OcclusionStrength);
                             }
                             ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                            ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
 
-                            if (textureInfo->transform) {
+                            const std::size_t texcoordIndex = getTexcoordIndex(*textureInfo);
+                            ImGui::LabelText("Texture Coordinate", "%zu", texcoordIndex);
+                            if (texcoordIndex != textureInfo->texCoordIndex) {
                                 texcoordOverriddenMarker();
                             }
+
                             textureTransformControl(*textureInfo, task::MaterialPropertyChanged::OcclusionTextureTransform);
                         });
                     });
@@ -840,11 +848,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                             }
                             if (textureInfo) {
                                 ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
-                                ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
 
-                                if (textureInfo->transform) {
+                                const std::size_t texcoordIndex = getTexcoordIndex(*textureInfo);
+                                ImGui::LabelText("Texture Coordinate", "%zu", texcoordIndex);
+                                if (texcoordIndex != textureInfo->texCoordIndex) {
                                     texcoordOverriddenMarker();
                                 }
+
                                 textureTransformControl(*textureInfo, task::MaterialPropertyChanged::EmissiveTextureTransform);
                             }
                         }, textureInfo.has_value());
