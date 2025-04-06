@@ -141,17 +141,6 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
     passthruRect = task.passthruRect;
     cursorPosFromPassthruRectTopLeft = task.cursorPosFromPassthruRectTopLeft;
 
-    constexpr auto fetchTextureTransform = [](const fastgltf::TextureInfo &textureInfo) {
-        if (textureInfo.transform) {
-            return textureInfo.transform->rotation != 0.f
-                ? shader_type::TextureTransform::All
-                : shader_type::TextureTransform::ScaleAndOffset;
-        }
-        else {
-            return shader_type::TextureTransform::None;
-        }
-    };
-
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteria result {
             .subpass = 0U,
@@ -187,9 +176,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     }),
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                     .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
-                    .baseColorTextureTransform = material.pbrData.baseColorTexture
-                        .transform(fetchTextureTransform)
-                        .value_or(shader_type::TextureTransform::None),
+                    .baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform,
                     .alphaMode = material.alphaMode,
                 });
             }
@@ -222,21 +209,11 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
                     .hasTangentMorphTarget = !accessors.tangentMorphTargetAccessors.empty(),
                     .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
-                    .baseColorTextureTransform = material.pbrData.baseColorTexture
-                        .transform(fetchTextureTransform)
-                        .value_or(shader_type::TextureTransform::None),
-                    .metallicRoughnessTextureTransform = material.pbrData.metallicRoughnessTexture
-                        .transform(fetchTextureTransform)
-                        .value_or(shader_type::TextureTransform::None),
-                    .normalTextureTransform = material.normalTexture
-                        .transform(fetchTextureTransform)
-                        .value_or(shader_type::TextureTransform::None),
-                    .occlusionTextureTransform = material.occlusionTexture
-                        .transform(fetchTextureTransform)
-                        .value_or(shader_type::TextureTransform::None),
-                    .emissiveTextureTransform = material.emissiveTexture
-                        .transform(fetchTextureTransform)
-                        .value_or(shader_type::TextureTransform::None),
+                    .baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform,
+                    .metallicRoughnessTextureTransform = material.pbrData.metallicRoughnessTexture && material.pbrData.metallicRoughnessTexture->transform,
+                    .normalTextureTransform = material.normalTexture && material.normalTexture->transform,
+                    .occlusionTextureTransform = material.occlusionTexture && material.occlusionTexture->transform,
+                    .emissiveTextureTransform = material.emissiveTexture && material.emissiveTexture->transform,
                     .alphaMode = material.alphaMode,
                 });
             }
@@ -301,9 +278,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     }),
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                     .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
-                    .baseColorTextureTransform = material.pbrData.baseColorTexture
-                        .transform(fetchTextureTransform)
-                        .value_or(shader_type::TextureTransform::None),
+                    .baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform,
                 });
             }
             else {
@@ -352,9 +327,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
                     }),
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                     .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
-                    .baseColorTextureTransform = material.pbrData.baseColorTexture
-                        .transform(fetchTextureTransform)
-                        .value_or(shader_type::TextureTransform::None),
+                    .baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform,
                 });
             }
             else {

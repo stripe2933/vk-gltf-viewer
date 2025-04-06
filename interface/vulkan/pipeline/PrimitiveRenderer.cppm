@@ -16,7 +16,6 @@ import :shader_selector.primitive_vert;
 import :shader_selector.primitive_frag;
 export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
-export import :vulkan.shader_type.TextureTransform;
 import :vulkan.specialization_constants.SpecializationMap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
@@ -37,11 +36,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         bool hasNormalMorphTarget = false;
         bool hasTangentMorphTarget = false;
         std::uint32_t skinAttributeCount = 0;
-        shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
-        shader_type::TextureTransform metallicRoughnessTextureTransform = shader_type::TextureTransform::None;
-        shader_type::TextureTransform normalTextureTransform = shader_type::TextureTransform::None;
-        shader_type::TextureTransform occlusionTextureTransform = shader_type::TextureTransform::None;
-        shader_type::TextureTransform emissiveTextureTransform = shader_type::TextureTransform::None;
+        bool baseColorTextureTransform = false;
+        bool metallicRoughnessTextureTransform = false;
+        bool normalTextureTransform = false;
+        bool occlusionTextureTransform = false;
+        bool emissiveTextureTransform = false;
         fastgltf::AlphaMode alphaMode;
 
         [[nodiscard]] bool operator==(const PrimitiveRendererSpecialization&) const noexcept = default;
@@ -198,7 +197,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         };
 
         struct FragmentShaderSpecializationData {
-            std::uint32_t packedTextureTransformTypes = 0x00000;
+            std::uint32_t packedTextureTransforms;
         };
 
         [[nodiscard]] std::array<int, 3> getVertexShaderVariants() const noexcept {
@@ -258,30 +257,16 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         }
 
         [[nodiscard]] FragmentShaderSpecializationData getFragmentShaderSpecializationData() const {
-            FragmentShaderSpecializationData result{};
+            std::bitset<5> bits;
+            bits.set(0, baseColorTextureTransform);
+            bits.set(1, metallicRoughnessTextureTransform);
+            bits.set(2, normalTextureTransform);
+            bits.set(3, occlusionTextureTransform);
+            bits.set(4, emissiveTextureTransform);
 
-            if (baseColorTextureTransform != shader_type::TextureTransform::None) {
-                result.packedTextureTransformTypes &= ~0xFU;
-                result.packedTextureTransformTypes |= static_cast<std::uint32_t>(baseColorTextureTransform);
-            }
-            if (metallicRoughnessTextureTransform != shader_type::TextureTransform::None) {
-                result.packedTextureTransformTypes &= ~0xF0U;
-                result.packedTextureTransformTypes |= static_cast<std::uint32_t>(metallicRoughnessTextureTransform) << 4;
-            }
-            if (normalTextureTransform != shader_type::TextureTransform::None) {
-                result.packedTextureTransformTypes &= ~0xF00U;
-                result.packedTextureTransformTypes |= static_cast<std::uint32_t>(normalTextureTransform) << 8;
-            }
-            if (occlusionTextureTransform != shader_type::TextureTransform::None) {
-                result.packedTextureTransformTypes &= ~0xF000U;
-                result.packedTextureTransformTypes |= static_cast<std::uint32_t>(occlusionTextureTransform) << 12;
-            }
-            if (emissiveTextureTransform != shader_type::TextureTransform::None) {
-                result.packedTextureTransformTypes &= ~0xF0000U;
-                result.packedTextureTransformTypes |= static_cast<std::uint32_t>(emissiveTextureTransform) << 16;
-            }
-
-            return result;
+            return {
+                .packedTextureTransforms = static_cast<std::uint32_t>(bits.to_ulong()),
+            };
         }
     };
 }

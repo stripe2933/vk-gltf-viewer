@@ -8,7 +8,6 @@ import :shader.depth_frag;
 import :shader_selector.mask_depth_vert;
 import :shader_selector.mask_depth_frag;
 export import :vulkan.pl.PrimitiveNoShading;
-import :vulkan.shader_type.TextureTransform;
 import :vulkan.specialization_constants.SpecializationMap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
@@ -95,7 +94,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         std::optional<std::uint8_t> colorAlphaComponentType;
         std::uint32_t positionMorphTargetWeightCount = 0;
         std::uint32_t skinAttributeCount = 0;
-        shader_type::TextureTransform baseColorTextureTransform = shader_type::TextureTransform::None;
+        bool baseColorTextureTransform = false;
 
         [[nodiscard]] bool operator==(const MaskDepthRendererSpecialization&) const = default;
 
@@ -167,7 +166,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         };
 
         struct FragmentShaderSpecializationData {
-            std::uint32_t textureTransformType = 0x00000; // NONE
+            vk::Bool32 baseColorTextureTransform;
         };
 
         [[nodiscard]] std::array<int, 2> getVertexShaderVariants() const noexcept {
@@ -202,11 +201,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         }
 
         [[nodiscard]] FragmentShaderSpecializationData getFragmentShaderSpecializationData() const {
-            FragmentShaderSpecializationData result{};
-            if (baseColorTextureTransform != shader_type::TextureTransform::None) {
-                result.textureTransformType = static_cast<std::uint32_t>(baseColorTextureTransform);
-            }
-            return result;
+            return {
+                .baseColorTextureTransform = baseColorTextureTransform,
+            };
         }
     };
 }
