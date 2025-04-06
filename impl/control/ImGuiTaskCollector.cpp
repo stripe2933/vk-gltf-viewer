@@ -35,6 +35,14 @@ import :helpers.TempStringBuffer;
 
 using namespace std::string_view_literals;
 
+enum class MaterialProperty : std::uint8_t {
+    BaseColor,
+    MetallicRoughness,
+    Normal,
+    Occlusion,
+    Emissive,
+};
+
 std::optional<std::size_t> vk_gltf_viewer::control::ImGuiTaskCollector::selectedMaterialIndex = std::nullopt;
 bool mergeSingleChildNodes = true;
 int boundFpPrecision = 2;
@@ -699,18 +707,40 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::SameLine();
                 ImGui::HelperMarker("(overridden)", "This value is overridden by KHR_texture_transform extension.");
             };
-            const auto textureTransformControl = [](fastgltf::TextureInfo &textureInfo) -> bool {
-                bool notify = false; // indicate if texture transform is changed (toggled or modified)
+            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, MaterialProperty materialProperty) -> void {
+                const auto [enabledProp, changeProp] = [&]() -> std::array<task::MaterialPropertyChanged::Property, 2> {
+                    using enum task::MaterialPropertyChanged::Property;
+                    switch (materialProperty) {
+                        case MaterialProperty::BaseColor:
+                            return { BaseColorTextureTransformEnabled, BaseColorTextureTransform };
+                        case MaterialProperty::MetallicRoughness:
+                            return { MetallicRoughnessTextureTransformEnabled, MetallicRoughnessTextureTransform };
+                        case MaterialProperty::Normal:
+                            return { NormalTextureTransformEnabled, NormalTextureTransform };
+                        case MaterialProperty::Occlusion:
+                            return { OcclusionTextureTransformEnabled, OcclusionTextureTransform };
+                        case MaterialProperty::Emissive:
+                            return { EmissiveTextureTransformEnabled, EmissiveTextureTransform };
+                        std::unreachable();
+                    }
+                }();
 
                 bool useTextureTransform = textureInfo.transform != nullptr;
+                bool isChangePropNotified = false; // prevent double notifying
                 if (ImGui::Checkbox("KHR_texture_transform", &useTextureTransform)) {
                     if (useTextureTransform) {
                         textureInfo.transform = std::make_unique<fastgltf::TextureTransform>();
+                        // Since the new identity 3x2 matrix has to be written into the GPU buffer, texture transform
+                        // change must be notified.
+                        notifyPropertyChanged(changeProp);
+                        isChangePropNotified = true;
                     }
                     else {
                         textureInfo.transform.reset();
                     }
-                    notify = true;
+
+                    // Always notify texture transform enabled status is changed to request the re-calculate pipelines.
+                    notifyPropertyChanged(enabledProp);
                 }
 
                 if (useTextureTransform) {
@@ -724,12 +754,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     transformChanged |= ImGui::DragFloat("Rotation", &pTransform->rotation, 0.01f);
                     transformChanged |= ImGui::DragFloat2("Offset", pTransform->uvOffset.data(), 0.01f);
 
-                    if (transformChanged) {
-                        notify = true;
+                    if (transformChanged && !isChangePropNotified) {
+                        notifyPropertyChanged(changeProp);
                     }
                 }
-
-                return notify;
             };
 
             if (ImGui::CollapsingHeader("Physically Based Rendering")) {
@@ -754,9 +782,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                if (textureTransformControl(*baseColorTextureInfo)) {
-                                    notifyPropertyChanged(task::MaterialPropertyChanged::BaseColorTextureTransform);
-                                }
+                                textureTransformControl(*baseColorTextureInfo, MaterialProperty::BaseColor);
                             }
                         }, baseColorTextureInfo.has_value());
                     });
@@ -789,9 +815,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                         texcoordOverriddenMarker();
                                     }
 
-                                    if (textureTransformControl(*metallicRoughnessTextureInfo)) {
-                                        notifyPropertyChanged(task::MaterialPropertyChanged::MetallicRoughnessTextureTransform);
-                                    }
+                                    textureTransformControl(*metallicRoughnessTextureInfo, MaterialProperty::MetallicRoughness);
                                 }
                             });
                         });
@@ -817,9 +841,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                if (textureTransformControl(*textureInfo)) {
-                                    notifyPropertyChanged(task::MaterialPropertyChanged::NormalTextureTransform);
-                                }
+                                textureTransformControl(*textureInfo, MaterialProperty::Normal);
                             });
                         });
                     }, material.unlit);
@@ -844,9 +866,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                if (textureTransformControl(*textureInfo)) {
-                                    notifyPropertyChanged(task::MaterialPropertyChanged::OcclusionTextureTransform);
-                                }
+                                textureTransformControl(*textureInfo, MaterialProperty::Occlusion);
                             });
                         });
                     }, material.unlit);
@@ -875,9 +895,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                         texcoordOverriddenMarker();
                                     }
 
-                                    if (textureTransformControl(*textureInfo)) {
-                                        notifyPropertyChanged(task::MaterialPropertyChanged::EmissiveTextureTransform);
-                                    }
+                                    textureTransformControl(*textureInfo, MaterialProperty::Emissive);
                                 }
                             }, textureInfo.has_value());
                         });

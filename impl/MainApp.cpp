@@ -485,6 +485,11 @@ void vk_gltf_viewer::MainApp::run() {
                         case Property::AlphaMode:
                         case Property::Unlit:
                         case Property::DoubleSided:
+                        case Property::BaseColorTextureTransformEnabled:
+                        case Property::EmissiveTextureTransformEnabled:
+                        case Property::MetallicRoughnessTextureTransformEnabled:
+                        case Property::NormalTextureTransformEnabled:
+                        case Property::OcclusionTextureTransformEnabled:
                             regenerateDrawCommands.fill(true);
                             break;
                         case Property::AlphaCutoff:
@@ -499,75 +504,60 @@ void vk_gltf_viewer::MainApp::run() {
                                 glm::make_vec4(changedMaterial.pbrData.baseColorFactor.data()),
                                 sharedDataUpdateCommandBuffer);
                             break;
-                        case Property::BaseColorTextureTransform: {
-                            glm::mat3x2 textureTransformMatrix { 1.f };
-                            if (const auto &transform = changedMaterial.pbrData.baseColorTexture->transform) {
-                                textureTransformMatrix = getTextureTransform(*transform);
-                            }
+                        case Property::BaseColorTextureTransform:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::baseColorTextureTransform>(
-                                task.materialIndex, textureTransformMatrix, sharedDataUpdateCommandBuffer);
+                                task.materialIndex,
+                                getTextureTransform(*changedMaterial.pbrData.baseColorTexture->transform),
+                                sharedDataUpdateCommandBuffer);
                             break;
-                        }
                         case Property::EmissiveFactor:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::emissiveFactor>(
                                 task.materialIndex,
                                 glm::make_vec3(changedMaterial.emissiveFactor.data()),
                                 sharedDataUpdateCommandBuffer);
                             break;
-                        case Property::EmissiveTextureTransform: {
-                            glm::mat3x2 textureTransformMatrix { 1.f };
-                            if (const auto &transform = changedMaterial.emissiveTexture->transform) {
-                                textureTransformMatrix = getTextureTransform(*transform);
-                            }
+                        case Property::EmissiveTextureTransform:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::emissiveTextureTransform>(
-                                task.materialIndex, textureTransformMatrix, sharedDataUpdateCommandBuffer);
+                                task.materialIndex,
+                                getTextureTransform(*changedMaterial.emissiveTexture->transform),
+                                sharedDataUpdateCommandBuffer);
                             break;
-                        }
                         case Property::MetallicFactor:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::metallicFactor>(
                                 task.materialIndex,
                                 changedMaterial.pbrData.metallicFactor,
                                 sharedDataUpdateCommandBuffer);
                             break;
-                        case Property::MetallicRoughnessTextureTransform: {
-                            glm::mat3x2 textureTransformMatrix { 1.f };
-                            if (const auto &transform = changedMaterial.pbrData.metallicRoughnessTexture->transform) {
-                                textureTransformMatrix = getTextureTransform(*transform);
-                            }
+                        case Property::MetallicRoughnessTextureTransform:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::metallicRoughnessTextureTransform>(
-                                task.materialIndex, textureTransformMatrix, sharedDataUpdateCommandBuffer);
+                                task.materialIndex,
+                                getTextureTransform(*changedMaterial.pbrData.metallicRoughnessTexture->transform),
+                                sharedDataUpdateCommandBuffer);
                             break;
-                        }
                         case Property::NormalScale:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::normalScale>(
                                 task.materialIndex,
                                 changedMaterial.normalTexture->scale,
                                 sharedDataUpdateCommandBuffer);
                             break;
-                        case Property::NormalTextureTransform:{
-                            glm::mat3x2 textureTransformMatrix { 1.f };
-                            if (const auto &transform = changedMaterial.normalTexture->transform) {
-                                textureTransformMatrix = getTextureTransform(*transform);
-                            }
+                        case Property::NormalTextureTransform:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::normalTextureTransform>(
-                                task.materialIndex, textureTransformMatrix, sharedDataUpdateCommandBuffer);
+                                task.materialIndex,
+                                getTextureTransform(*changedMaterial.normalTexture->transform),
+                                sharedDataUpdateCommandBuffer);
                             break;
-                        }
                         case Property::OcclusionStrength:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::occlusionStrength>(
                                 task.materialIndex,
                                 changedMaterial.occlusionTexture->strength,
                                 sharedDataUpdateCommandBuffer);
                             break;
-                        case Property::OcclusionTextureTransform:{
-                            glm::mat3x2 textureTransformMatrix { 1.f };
-                            if (const auto &transform = changedMaterial.occlusionTexture->transform) {
-                                textureTransformMatrix = getTextureTransform(*transform);
-                            }
+                        case Property::OcclusionTextureTransform:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::occlusionTextureTransform>(
-                                task.materialIndex, textureTransformMatrix, sharedDataUpdateCommandBuffer);
+                                task.materialIndex,
+                                getTextureTransform(*changedMaterial.occlusionTexture->transform),
+                                sharedDataUpdateCommandBuffer);
                             break;
-                        }
                         case Property::RoughnessFactor:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::roughnessFactor>(
                                 task.materialIndex,
