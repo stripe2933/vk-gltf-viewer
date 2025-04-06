@@ -483,6 +483,7 @@ void vk_gltf_viewer::MainApp::run() {
                     switch (task.property) {
                         using Property = control::task::MaterialPropertyChanged::Property;
                         case Property::AlphaMode:
+                        case Property::TextureTransformToggle:
                         case Property::Unlit:
                         case Property::DoubleSided:
                             regenerateDrawCommands.fill(true);

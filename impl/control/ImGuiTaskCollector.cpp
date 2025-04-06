@@ -699,10 +699,39 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::SameLine();
                 ImGui::HelperMarker("(overridden)", "This value is overridden by KHR_texture_transform extension.");
             };
+            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, task::MaterialPropertyChanged::Property changedProp) {
+                if (bool useTextureTransform = textureInfo.transform != nullptr;
+                    ImGui::Checkbox("KHR_texture_transform", &useTextureTransform)) {
+                    if (useTextureTransform) {
+                        textureInfo.transform = std::make_unique<fastgltf::TextureTransform>();
+                    }
+                    else {
+                        textureInfo.transform.reset();
+                    }
+                    notifyPropertyChanged(task::MaterialPropertyChanged::TextureTransformToggle);
+                }
+
+                // Texture transform control is disabled when it is not used.
+                ImGui::WithDisabled([&]() {
+                    fastgltf::TextureTransform* pTransform = textureInfo.transform.get();
+                    if (!pTransform) {
+                        static fastgltf::TextureTransform dummyTextureTransform; // avoid null dereference
+                        pTransform = &dummyTextureTransform;
+                    }
+
+                    bool transformChanged = ImGui::DragFloat2("Scale", pTransform->uvScale.data(), 0.01f);
+                    transformChanged |= ImGui::DragFloat("Rotation", &pTransform->rotation, 0.01f);
+                    transformChanged |= ImGui::DragFloat2("Offset", pTransform->uvOffset.data(), 0.01f);
+
+                    if (transformChanged) {
+                        notifyPropertyChanged(changedProp);
+                    }
+                }, textureInfo.transform == nullptr);
+            };
 
             if (ImGui::CollapsingHeader("Physically Based Rendering")) {
                 ImGui::SeparatorText("Base Color");
-                const auto &baseColorTextureInfo = material.pbrData.baseColorTexture;
+                auto &baseColorTextureInfo = material.pbrData.baseColorTexture;
                 if (baseColorTextureInfo) {
                     hoverableImage(assetTextureImGuiDescriptorSets[baseColorTextureInfo->textureIndex], { 128.f, 128.f });
                     ImGui::SameLine();
@@ -716,24 +745,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                             ImGui::LabelText("Texture Index", "%zu", baseColorTextureInfo->textureIndex);
                             ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*baseColorTextureInfo));
 
-                            if (const auto &transform = baseColorTextureInfo->transform) {
+                            if (baseColorTextureInfo->transform) {
                                 texcoordOverriddenMarker();
-
-                                ImGui::SeparatorText("KHR_texture_transform");
-                                bool transformChanged = ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                transformChanged |= ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                transformChanged |= ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                if (transformChanged) {
-                                    notifyPropertyChanged(task::MaterialPropertyChanged::BaseColorTextureTransform);
-                                }
                             }
+                            textureTransformControl(*baseColorTextureInfo, task::MaterialPropertyChanged::BaseColorTextureTransform);
                         }
                     }, baseColorTextureInfo.has_value());
                 });
 
                 ImGui::WithDisabled([&]() {
                     ImGui::SeparatorText("Metallic/Roughness");
-                    const auto &metallicRoughnessTextureInfo = material.pbrData.metallicRoughnessTexture;
+                    auto &metallicRoughnessTextureInfo = material.pbrData.metallicRoughnessTexture;
                     if (metallicRoughnessTextureInfo) {
                         hoverableImage(assetTextureImGuiDescriptorSets[metallicRoughnessTextureInfo->textureIndex], { 128.f, 128.f }, { 0.f, 0.f, 1.f, 1.f });
                         ImGui::SameLine();
@@ -752,17 +774,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                 ImGui::LabelText("Texture Index", "%zu", metallicRoughnessTextureInfo->textureIndex);
                                 ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*metallicRoughnessTextureInfo));
 
-                                if (const auto &transform = metallicRoughnessTextureInfo->transform) {
+                                if (metallicRoughnessTextureInfo->transform) {
                                     texcoordOverriddenMarker();
-
-                                    ImGui::SeparatorText("KHR_texture_transform");
-                                    bool transformChanged = ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                    transformChanged |= ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                    transformChanged |= ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                    if (transformChanged) {
-                                        notifyPropertyChanged(task::MaterialPropertyChanged::MetallicRoughnessTextureTransform);
-                                    }
                                 }
+                                textureTransformControl(*metallicRoughnessTextureInfo, task::MaterialPropertyChanged::MetallicRoughnessTextureTransform);
                             }
                         });
                     });
@@ -781,17 +796,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                             ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
                             ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
 
-                            if (const auto &transform = textureInfo->transform) {
+                            if (textureInfo->transform) {
                                 texcoordOverriddenMarker();
-
-                                ImGui::SeparatorText("KHR_texture_transform");
-                                bool transformChanged = ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                transformChanged |= ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                transformChanged |= ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                if (transformChanged) {
-                                    notifyPropertyChanged(task::MaterialPropertyChanged::NormalTextureTransform);
-                                }
                             }
+                            textureTransformControl(*textureInfo, task::MaterialPropertyChanged::NormalTextureTransform);
                         });
                     });
                 }, material.unlit);
@@ -809,17 +817,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                             ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
                             ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
 
-                            if (const auto &transform = textureInfo->transform) {
+                            if (textureInfo->transform) {
                                 texcoordOverriddenMarker();
-
-                                ImGui::SeparatorText("KHR_texture_transform");
-                                bool transformChanged = ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                transformChanged |= ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                transformChanged |= ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                if (transformChanged) {
-                                    notifyPropertyChanged(task::MaterialPropertyChanged::OcclusionTextureTransform);
-                                }
                             }
+                            textureTransformControl(*textureInfo, task::MaterialPropertyChanged::OcclusionTextureTransform);
                         });
                     });
                 }, material.unlit);
@@ -827,7 +828,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
 
             if (ImGui::CollapsingHeader("Emissive")) {
                 ImGui::WithDisabled([&]() {
-                    const auto &textureInfo = material.emissiveTexture;
+                    auto &textureInfo = material.emissiveTexture;
                     if (textureInfo) {
                         hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f });
                         ImGui::SameLine();
@@ -841,17 +842,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                 ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
                                 ImGui::LabelText("Texture Coordinate", "%zu", getTexcoordIndex(*textureInfo));
 
-                                if (const auto &transform = textureInfo->transform) {
+                                if (textureInfo->transform) {
                                     texcoordOverriddenMarker();
-
-                                    ImGui::SeparatorText("KHR_texture_transform");
-                                    bool transformChanged = ImGui::DragFloat2("Scale", transform->uvScale.data(), 0.01f);
-                                    transformChanged |= ImGui::DragFloat("Rotation", &transform->rotation, 0.01f);
-                                    transformChanged |= ImGui::DragFloat2("Offset", transform->uvOffset.data(), 0.01f);
-                                    if (transformChanged) {
-                                        notifyPropertyChanged(task::MaterialPropertyChanged::EmissiveTextureTransform);
-                                    }
                                 }
+                                textureTransformControl(*textureInfo, task::MaterialPropertyChanged::EmissiveTextureTransform);
                             }
                         }, textureInfo.has_value());
                     });
