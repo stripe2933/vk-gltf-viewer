@@ -56,6 +56,11 @@ namespace vk_gltf_viewer::vulkan::buffer {
             const std::remove_cvref_t<std::invoke_result_t<decltype(accessor), shader_type::Material&>>& data,
             vk::CommandBuffer transferCommandBuffer
         ) {
+            // TODO: currently only data size 4-byte multiple checking is done, since there is no way to obtain the offset
+            //  of the member variable from accessor pointer. It could be checked at the runtime, but not implemented
+            //  as it is the validation layer's role. Check it at compile time if possible.
+            static_assert(sizeof(data) % 4 == 0 && "Data size bytes must be multiple of 4.");
+
             return std::visit(multilambda {
                 [&](vku::MappedBuffer &primitiveBuffer) {
                     std::invoke(accessor, primitiveBuffer.asRange<shader_type::Material>()[materialIndex + 1]) = data;
@@ -66,6 +71,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     constexpr auto fieldAddress = &std::invoke(accessor, dummy);
 
                     const vk::DeviceSize fieldOffset = reinterpret_cast<std::uintptr_t>(fieldAddress) - reinterpret_cast<std::uintptr_t>(&dummy);
+                    // assert(fieldOffset % 4 == 0 && "Field offset must be 4-byte aligned.");
                     transferCommandBuffer.updateBuffer(primitiveBuffer, sizeof(shader_type::Material) * (materialIndex + 1) + fieldOffset, sizeof(data), &data);
                     return true;
                 }
