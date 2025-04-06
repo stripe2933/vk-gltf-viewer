@@ -702,8 +702,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
             const auto textureTransformControl = [](fastgltf::TextureInfo &textureInfo) -> bool {
                 bool notify = false; // indicate if texture transform is changed (toggled or modified)
 
-                if (bool useTextureTransform = textureInfo.transform != nullptr;
-                    ImGui::Checkbox("KHR_texture_transform", &useTextureTransform)) {
+                bool useTextureTransform = textureInfo.transform != nullptr;
+                if (ImGui::Checkbox("KHR_texture_transform", &useTextureTransform)) {
                     if (useTextureTransform) {
                         textureInfo.transform = std::make_unique<fastgltf::TextureTransform>();
                     }
@@ -713,8 +713,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     notify = true;
                 }
 
-                // Texture transform control is disabled when it is not used.
-                ImGui::WithDisabled([&]() {
+                if (useTextureTransform) {
                     fastgltf::TextureTransform* pTransform = textureInfo.transform.get();
                     if (!pTransform) {
                         static fastgltf::TextureTransform dummyTextureTransform; // avoid null dereference
@@ -728,7 +727,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     if (transformChanged) {
                         notify = true;
                     }
-                }, textureInfo.transform == nullptr);
+                }
 
                 return notify;
             };
