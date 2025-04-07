@@ -34,6 +34,7 @@ import cubemap;
 import ibl;
 import imgui.glfw;
 import imgui.vulkan;
+import :control.AppWindow;
 import :gltf.algorithm.misc;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
@@ -120,77 +121,6 @@ vk_gltf_viewer::MainApp::MainApp() {
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
     }, {});
-
-    // Init ImGui.
-    ImGui::CheckVersion();
-    ImGui::CreateContext();
-
-    ImGuiIO &io = ImGui::GetIO();
-    const glm::vec2 contentScale = window.getContentScale();
-    io.DisplayFramebufferScale = { contentScale.x, contentScale.y };
-#if __APPLE__
-    io.FontGlobalScale = 1.f / io.DisplayFramebufferScale.x;
-#endif
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-
-    ImFontConfig fontConfig;
-    fontConfig.SizePixels = 16.f * io.DisplayFramebufferScale.x;
-
-    const char *defaultFontPath =
-#ifdef _WIN32
-        "C:\\Windows\\Fonts\\arial.ttf";
-#elif __APPLE__
-        "/Library/Fonts/Arial Unicode.ttf";
-#elif __linux__
-        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf";
-#else
-#error "Type your own font file in here!"
-#endif
-    if (std::filesystem::exists(defaultFontPath)) {
-        io.Fonts->AddFontFromFileTTF(defaultFontPath, 16.f * io.DisplayFramebufferScale.x);
-    }
-    else {
-        std::println(std::cerr, "Your system doesn't have expected system font at {}. Low-resolution font will be used instead.", defaultFontPath);
-        io.Fonts->AddFontDefault(&fontConfig);
-    }
-
-    fontConfig.MergeMode = true;
-    constexpr ImWchar fontAwesomeIconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
-    io.Fonts->AddFontFromMemoryCompressedBase85TTF(
-        asset::font::fontawesome_webfont_ttf_compressed_data_base85,
-        fontConfig.SizePixels, &fontConfig, fontAwesomeIconRanges);
-
-    io.Fonts->Build();
-
-    ImGui_ImplGlfw_InitForVulkan(window, true);
-    const vk::Format colorAttachmentFormat = gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb;
-    ImGui_ImplVulkan_InitInfo initInfo {
-        .Instance = *instance,
-        .PhysicalDevice = *gpu.physicalDevice,
-        .Device = *gpu.device,
-        .Queue = gpu.queues.graphicsPresent,
-        // ImGui requires ImGui_ImplVulkan_InitInfo::{MinImageCount,ImageCount} ≥ 2 (I don't know why...).
-        .MinImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
-        .ImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
-        .DescriptorPoolSize = 512,
-        .UseDynamicRendering = true,
-        .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
-            {},
-            colorAttachmentFormat,
-        },
-    };
-    ImGui_ImplVulkan_Init(&initInfo);
-}
-
-vk_gltf_viewer::MainApp::~MainApp() {
-    // Since loaded glTF asset and skybox resources have ImGui texture descriptor sets, they have to be destroyed before
-    // ImGui_ImplVulkan_Shutdown().
-    closeGltf();
-    skyboxResources.reset();
-
-    ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
 }
 
 void vk_gltf_viewer::MainApp::run() {
@@ -711,6 +641,73 @@ void vk_gltf_viewer::MainApp::run() {
         }
     }
     gpu.device.waitIdle();
+}
+
+vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &window, vk::Instance instance, const vulkan::Gpu &gpu) {
+    ImGui::CheckVersion();
+    ImGui::CreateContext();
+
+    ImGuiIO &io = ImGui::GetIO();
+    const glm::vec2 contentScale = window.getContentScale();
+    io.DisplayFramebufferScale = { contentScale.x, contentScale.y };
+#if __APPLE__
+    io.FontGlobalScale = 1.f / io.DisplayFramebufferScale.x;
+#endif
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+    ImFontConfig fontConfig;
+    fontConfig.SizePixels = 16.f * io.DisplayFramebufferScale.x;
+
+    const char *defaultFontPath =
+#ifdef _WIN32
+        "C:\\Windows\\Fonts\\arial.ttf";
+#elif __APPLE__
+        "/Library/Fonts/Arial Unicode.ttf";
+#elif __linux__
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf";
+#else
+#error "Type your own font file in here!"
+#endif
+    if (std::filesystem::exists(defaultFontPath)) {
+        io.Fonts->AddFontFromFileTTF(defaultFontPath, 16.f * io.DisplayFramebufferScale.x);
+    }
+    else {
+        std::println(std::cerr, "Your system doesn't have expected system font at {}. Low-resolution font will be used instead.", defaultFontPath);
+        io.Fonts->AddFontDefault(&fontConfig);
+    }
+
+    fontConfig.MergeMode = true;
+    constexpr ImWchar fontAwesomeIconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+    io.Fonts->AddFontFromMemoryCompressedBase85TTF(
+        asset::font::fontawesome_webfont_ttf_compressed_data_base85,
+        fontConfig.SizePixels, &fontConfig, fontAwesomeIconRanges);
+
+    io.Fonts->Build();
+
+    ImGui_ImplGlfw_InitForVulkan(window, true);
+    const vk::Format colorAttachmentFormat = gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb;
+    ImGui_ImplVulkan_InitInfo initInfo {
+        .Instance = instance,
+        .PhysicalDevice = *gpu.physicalDevice,
+        .Device = *gpu.device,
+        .Queue = gpu.queues.graphicsPresent,
+        // ImGui requires ImGui_ImplVulkan_InitInfo::{MinImageCount,ImageCount} ≥ 2 (I don't know why...).
+        .MinImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
+        .ImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
+        .DescriptorPoolSize = 512,
+        .UseDynamicRendering = true,
+        .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
+            {},
+            colorAttachmentFormat,
+        },
+    };
+    ImGui_ImplVulkan_Init(&initInfo);
+}
+
+vk_gltf_viewer::MainApp::ImGuiContext::~ImGuiContext() {
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 }
 
 vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesystem::path &path)
