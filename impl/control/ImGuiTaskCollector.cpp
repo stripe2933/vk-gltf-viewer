@@ -721,8 +721,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                             return { OcclusionTextureTransformEnabled, OcclusionTextureTransform };
                         case MaterialProperty::Emissive:
                             return { EmissiveTextureTransformEnabled, EmissiveTextureTransform };
-                        std::unreachable();
                     }
+                    std::unreachable();
                 }();
 
                 bool useTextureTransform = textureInfo.transform != nullptr;
