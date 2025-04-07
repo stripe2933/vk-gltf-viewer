@@ -64,7 +64,7 @@ namespace vk_gltf_viewer {
              */
             gltf::ds::MaterialVariantsMapping materialVariantsMapping { asset };
 
-            gltf::TextureUsage textureUsage { asset, fastgltf::getPreferredImageIndex };
+            gltf::TextureUsage textureUsage { asset };
 
             /**
 			 * @brief External buffers that are not embedded in the glTF file, such like .bin files.

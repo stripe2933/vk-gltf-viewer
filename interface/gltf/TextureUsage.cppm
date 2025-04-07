@@ -17,28 +17,23 @@ namespace vk_gltf_viewer::gltf {
             Emissive = 16,
         };
 
-        TextureUsage(const fastgltf::Asset &asset, std::invocable<const fastgltf::Texture&> auto const &textureIndexGetter)
+        explicit TextureUsage(const fastgltf::Asset &asset)
             : usages { asset.textures.size() } {
             for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
                 if (material.pbrData.baseColorTexture) {
-                    const fastgltf::Texture &texture = asset.textures[material.pbrData.baseColorTexture->textureIndex];
-                    usages[textureIndexGetter(texture)][i] |= Type::BaseColor;
+                    usages[material.pbrData.baseColorTexture->textureIndex][i] |= Type::BaseColor;
                 }
                 if (material.pbrData.metallicRoughnessTexture) {
-                    const fastgltf::Texture &texture = asset.textures[material.pbrData.metallicRoughnessTexture->textureIndex];
-                    usages[textureIndexGetter(texture)][i] |= Type::MetallicRoughness;
+                    usages[material.pbrData.metallicRoughnessTexture->textureIndex][i] |= Type::MetallicRoughness;
                 }
                 if (material.normalTexture) {
-                    const fastgltf::Texture &texture = asset.textures[material.normalTexture->textureIndex];
-                    usages[textureIndexGetter(texture)][i] |= Type::Normal;
+                    usages[material.normalTexture->textureIndex][i] |= Type::Normal;
                 }
                 if (material.occlusionTexture) {
-                    const fastgltf::Texture &texture = asset.textures[material.occlusionTexture->textureIndex];
-                    usages[textureIndexGetter(texture)][i] |= Type::Occlusion;
+                    usages[material.occlusionTexture->textureIndex][i] |= Type::Occlusion;
                 }
                 if (material.emissiveTexture) {
-                    const fastgltf::Texture &texture = asset.textures[material.emissiveTexture->textureIndex];
-                    usages[textureIndexGetter(texture)][i] |= Type::Emissive;
+                    usages[material.emissiveTexture->textureIndex][i] |= Type::Emissive;
                 }
             }
         }
