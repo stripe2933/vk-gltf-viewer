@@ -17,6 +17,7 @@ import :helpers.functional;
 import :helpers.io;
 import :helpers.ranges;
 import :helpers.span;
+import :helpers.vulkan;
 export import :vulkan.Gpu;
 import :vulkan.mipmap;
 
@@ -100,14 +101,14 @@ namespace vk_gltf_viewer::vulkan::image {
                     }
                 }
 
-                const auto determineNonCompressedImageFormat = [&](int channels, std::size_t imageIndex) {
+                const auto determineNonCompressedImageFormat = [](int channels) {
                     switch (channels) {
                         case 1:
                             return vk::Format::eR8Unorm;
                         case 2:
                             return vk::Format::eR8G8Unorm;
                         case 4:
-                            return srgbImageIndices.contains(imageIndex) ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
+                            return vk::Format::eR8G8B8A8Unorm;
                         default:
                             throw std::runtime_error { "Unsupported image channel: channel count must be 1, 2 or 4." };
                     }
@@ -139,16 +140,34 @@ namespace vk_gltf_viewer::vulkan::image {
                         // creation to reduce the memory footprint.
                         stbi_image_free(data);
 
-                        vku::AllocatedImage image { gpu.allocator, vk::ImageCreateInfo {
-                            {},
-                            vk::ImageType::e2D,
-                            determineNonCompressedImageFormat(channels, imageIndex),
-                            { width, height, 1 },
-                            vku::Image::maxMipLevels(vk::Extent2D { width, height }), 1,
-                            vk::SampleCountFlagBits::e1,
-                            vk::ImageTiling::eOptimal,
-                            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
-                        } };
+                        vk::Format imageFormat = determineNonCompressedImageFormat(channels);
+                        if (srgbImageIndices.contains(imageIndex)) {
+                            imageFormat = convertSrgb(imageFormat);
+                        }
+
+                        const auto viewFormats = { imageFormat, convertSrgb(imageFormat) };
+                        vk::StructureChain createInfo {
+                            vk::ImageCreateInfo {
+                                {},
+                                vk::ImageType::e2D,
+                                imageFormat,
+                                { width, height, 1 },
+                                vku::Image::maxMipLevels(vk::Extent2D { width, height }), 1,
+                                vk::SampleCountFlagBits::e1,
+                                vk::ImageTiling::eOptimal,
+                                vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
+                            },
+                            vk::ImageFormatListCreateInfo { viewFormats },
+                        };
+
+                        if (gpu.supportSwapchainMutableFormat == isSrgbFormat(imageFormat)) {
+                            createInfo.get().flags |= vk::ImageCreateFlagBits::eMutableFormat;
+                        }
+                        else {
+                            createInfo.unlink<vk::ImageFormatListCreateInfo>();
+                        }
+
+                        vku::AllocatedImage image { gpu.allocator, createInfo.get() };
 
                         std::scoped_lock lock { mutex };
                         imageIndicesToGenerateMipmap.emplace(imageIndex);
@@ -241,26 +260,38 @@ namespace vk_gltf_viewer::vulkan::image {
                             })
                             | std::ranges::to<std::vector>();
 
-                        vk::ImageCreateInfo createInfo {
-                            {},
-                            vk::ImageType::e2D,
-                            static_cast<vk::Format>(texture->vkFormat),
-                            { texture->baseWidth, texture->baseHeight, 1 },
-                            texture->numLevels, 1,
-                            vk::SampleCountFlagBits::e1,
-                            vk::ImageTiling::eOptimal,
-                            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+                        vk::Format imageFormat = static_cast<vk::Format>(texture->vkFormat);
+                        const auto viewFormats = { imageFormat, convertSrgb(imageFormat) };
+                        vk::StructureChain createInfo {
+                            vk::ImageCreateInfo {
+                                {},
+                                vk::ImageType::e2D,
+                                imageFormat,
+                                { texture->baseWidth, texture->baseHeight, 1 },
+                                texture->numLevels, 1,
+                                vk::SampleCountFlagBits::e1,
+                                vk::ImageTiling::eOptimal,
+                                vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+                            },
+                            vk::ImageFormatListCreateInfo { viewFormats },
                         };
+
+                        if (gpu.supportSwapchainMutableFormat == isSrgbFormat(imageFormat)) {
+                            createInfo.get().flags |= vk::ImageCreateFlagBits::eMutableFormat;
+                        }
+                        else {
+                            createInfo.unlink<vk::ImageFormatListCreateInfo>();
+                        }
 
                         const bool generateMipmaps = texture->generateMipmaps;
                         if (generateMipmaps) {
-                            createInfo.usage |= vk::ImageUsageFlagBits::eTransferSrc;
+                            createInfo.get().usage |= vk::ImageUsageFlagBits::eTransferSrc;
                         }
 
                         // Now KTX texture data is copied to the staging buffers, and therefore can be destroyed.
                         ktxTexture_Destroy(ktxTexture(texture));
 
-                        vku::AllocatedImage image{ gpu.allocator, createInfo };
+                        vku::AllocatedImage image{ gpu.allocator, createInfo.get() };
 
                         // Reduce the partial data to the main ones with a lock.
                         std::scoped_lock lock{ mutex };
