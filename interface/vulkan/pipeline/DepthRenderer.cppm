@@ -86,7 +86,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         }
     };
 
-    class MaskDepthRendererSpecialization {
+    export class MaskDepthRendererSpecialization {
     public:
         TopologyClass topologyClass;
         std::uint8_t positionComponentType;

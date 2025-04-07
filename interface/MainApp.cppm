@@ -2,7 +2,6 @@ export module vk_gltf_viewer:MainApp;
 
 import std;
 import :control.AppWindow;
-import :gltf.algorithm.miniball;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
 import :gltf.data_structure.MaterialVariantsMapping;

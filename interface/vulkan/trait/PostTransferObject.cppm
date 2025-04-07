@@ -4,7 +4,7 @@ import std;
 export import :vulkan.buffer.StagingBufferStorage;
 
 namespace vk_gltf_viewer::vulkan::trait {
-    struct PostTransferObject {
+    export struct PostTransferObject {
         std::reference_wrapper<buffer::StagingBufferStorage> stagingBufferStorage;
     };
 }

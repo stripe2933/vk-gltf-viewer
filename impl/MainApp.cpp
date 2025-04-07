@@ -35,6 +35,7 @@ import ibl;
 import imgui.glfw;
 import imgui.vulkan;
 import :control.AppWindow;
+import :gltf.algorithm.miniball;
 import :gltf.algorithm.misc;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;

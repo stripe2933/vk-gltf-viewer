@@ -23,7 +23,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
      * @param usage Usage flags of the result buffer.
      * @return Pair of buffer and each segments' start offsets vector.
      */
-    template <bool Unmap = false, std::ranges::forward_range R> requires (
+    export template <bool Unmap = false, std::ranges::forward_range R> requires (
         // Each segments must be a sized range.
         std::ranges::sized_range<std::ranges::range_value_t<R>>
         // Each segments must be either

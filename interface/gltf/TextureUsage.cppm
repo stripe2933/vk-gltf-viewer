@@ -3,11 +3,11 @@ export module vk_gltf_viewer:gltf.TextureUsage;
 import std;
 export import cstring_view;
 export import fastgltf;
-import :helpers.enums.Flags;
+export import :helpers.enums.Flags;
 import :helpers.ranges;
 
 namespace vk_gltf_viewer::gltf {
-    class TextureUsage {
+    export class TextureUsage {
     public:
         enum class Type : std::uint8_t {
             BaseColor = 1,
