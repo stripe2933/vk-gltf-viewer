@@ -1,3 +1,7 @@
+module;
+
+#include <boost/container/static_vector.hpp>
+
 export module vk_gltf_viewer:helpers.enums.Flags;
 
 import std;
@@ -73,21 +77,23 @@ struct std::formatter<Flags<BitType>, CharT> : range_formatter<BitType, CharT> {
         range_formatter<BitType, CharT>::set_brackets("", "");
     }
 
-    auto format(const Flags<BitType> &flags, auto &ctx) const {
-        const auto flagMask = static_cast<typename Flags<BitType>::MaskType>(flags);
+    [[nodiscard]] constexpr auto format(const Flags<BitType> &flags, auto &ctx) const {
+        const typename Flags<BitType>::MaskType flagMask { flags };
 
-        static constexpr auto allFlagMask = static_cast<typename Flags<BitType>::MaskType>(FlagTraits<BitType>::allFlags);
-        static constexpr std::size_t flagCount = std::popcount(allFlagMask);
-        std::array<BitType, flagCount> flagBits; // TODO: use boost::container::static_vector or std::inplace_vector instead.
+        constexpr typename Flags<BitType>::MaskType allFlagMask { FlagTraits<BitType>::allFlags };
+        constexpr std::size_t flagCount = std::popcount(allFlagMask);
 
-        std::size_t count = 0;
-        for (std::size_t shift = 0; shift < flagCount; ++shift) {
+        boost::container::static_vector<BitType, flagCount> flagBits;
+        for (std::size_t shift = 0; shift < flagCount;) {
             const auto bitmask = std::underlying_type_t<BitType> { 1 } << shift;
-            if ((allFlagMask & bitmask) && (flagMask & bitmask)) {
-                flagBits[count++] = static_cast<BitType>(bitmask);
+            if (allFlagMask & bitmask) {
+                if (flagMask & bitmask) {
+                    flagBits.push_back(static_cast<BitType>(bitmask));
+                }
+                ++shift;
             }
         }
 
-        return range_formatter<BitType, CharT>::format(flagBits | std::views::take(count), ctx);
+        return range_formatter<BitType, CharT>::format(flagBits, ctx);
     }
 };
