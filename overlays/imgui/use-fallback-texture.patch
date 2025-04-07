@@ -1,0 +1,60 @@
+diff --git a/backends/imgui_impl_vulkan.cpp b/backends/imgui_impl_vulkan.cpp
+index 2bd40f6..5a39244 100644
+--- a/backends/imgui_impl_vulkan.cpp
++++ b/backends/imgui_impl_vulkan.cpp
+@@ -86,6 +86,8 @@
+ #ifndef IMGUI_DISABLE
+ #include "imgui_impl_vulkan.h"
+ #include <stdio.h>
++#include <memory>
++#include <unordered_set>
+ #ifndef IM_MAX
+ #define IM_MAX(A, B)    (((A) >= (B)) ? (A) : (B))
+ #endif
+@@ -248,6 +250,8 @@ struct ImGui_ImplVulkan_Data
+     VkCommandPool               TexCommandPool;
+     VkCommandBuffer             TexCommandBuffer;
+ 
++    std::unique_ptr<std::unordered_set<VkDescriptorSet>> allocatedTextures;
++
+     // Render buffers for main window
+     ImGui_ImplVulkan_WindowRenderBuffers MainWindowRenderBuffers;
+ 
+@@ -608,6 +612,9 @@ void ImGui_ImplVulkan_RenderDrawData(ImDrawData* draw_data, VkCommandBuffer comm
+ 
+                 // Bind DescriptorSet with font or user texture
+                 VkDescriptorSet desc_set = (VkDescriptorSet)pcmd->GetTexID();
++                if (bd->allocatedTextures->find(desc_set) == bd->allocatedTextures->end()) {
++                    desc_set = bd->FontTexture.DescriptorSet;
++                }
+                 vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bd->PipelineLayout, 0, 1, &desc_set, 0, nullptr);
+ 
+                 // Draw
+@@ -1154,6 +1161,8 @@ bool    ImGui_ImplVulkan_Init(ImGui_ImplVulkan_InitInfo* info)
+     if (info->UseDynamicRendering == false)
+         IM_ASSERT(info->RenderPass != VK_NULL_HANDLE);
+ 
++    bd->allocatedTextures = std::unique_ptr<std::unordered_set<VkDescriptorSet>> { new std::unordered_set<VkDescriptorSet>{} };
++
+     bd->VulkanInitInfo = *info;
+ 
+     ImGui_ImplVulkan_CreateDeviceObjects();
+@@ -1231,6 +1240,9 @@ VkDescriptorSet ImGui_ImplVulkan_AddTexture(VkSampler sampler, VkImageView image
+         write_desc[0].pImageInfo = desc_image;
+         vkUpdateDescriptorSets(v->Device, 1, write_desc, 0, nullptr);
+     }
++
++    bd->allocatedTextures->emplace(descriptor_set);
++
+     return descriptor_set;
+ }
+ 
+@@ -1240,6 +1252,8 @@ void ImGui_ImplVulkan_RemoveTexture(VkDescriptorSet descriptor_set)
+     ImGui_ImplVulkan_InitInfo* v = &bd->VulkanInitInfo;
+     VkDescriptorPool pool = bd->DescriptorPool ? bd->DescriptorPool : v->DescriptorPool;
+     vkFreeDescriptorSets(v->Device, pool, 1, &descriptor_set);
++
++    bd->allocatedTextures->erase(descriptor_set);
+ }
+ 
+ void ImGui_ImplVulkan_DestroyFrameRenderBuffers(VkDevice device, ImGui_ImplVulkan_FrameRenderBuffers* buffers, const VkAllocationCallbacks* allocator)
