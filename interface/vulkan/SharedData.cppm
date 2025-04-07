@@ -36,6 +36,7 @@ export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
 export import :vulkan.rp.Scene;
 export import :vulkan.sampler.Samplers;
 export import :vulkan.texture.Fallback;
+export import :vulkan.texture.ImGuiColorSpaceAndUsageCorrectedTextures;
 export import :vulkan.texture.Textures;
 
 namespace vk_gltf_viewer::vulkan {
@@ -53,6 +54,7 @@ namespace vk_gltf_viewer::vulkan {
             buffer::SkinJointIndices skinJointIndices;
             buffer::InverseBindMatrices inverseBindMatrixBuffer;
             texture::Textures textures;
+            texture::ImGuiColorSpaceAndUsageCorrectedTextures imGuiColorSpaceAndUsageCorrectedTextures;
 
             std::vector<vk::DescriptorSet> imGuiTextureDescriptorSets;
 
@@ -75,7 +77,8 @@ namespace vk_gltf_viewer::vulkan {
                 primitiveBuffer { orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
                 skinJointIndices { asset, gpu.allocator },
                 inverseBindMatrixBuffer { asset, gpu.allocator, adapter },
-                textures { asset, directory, gpu, fallbackTexture, threadPool, adapter } {
+                textures { asset, directory, gpu, fallbackTexture, threadPool, adapter },
+                imGuiColorSpaceAndUsageCorrectedTextures { asset, textures, gpu } {
                 if (stagingBufferStorage.hasStagingCommands()) {
                     const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
                     const vk::raii::Fence transferFence { gpu.device, vk::FenceCreateInfo{} };
