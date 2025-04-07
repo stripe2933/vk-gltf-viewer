@@ -12,6 +12,7 @@ export import :AppState;
 export import :control.Task;
 export import :gltf.TextureUsage;
 export import :helpers.full_optional;
+export import :imgui.ColorSpaceAndUsageCorrectedTextures;
 
 namespace vk_gltf_viewer::control {
     export class ImGuiTaskCollector {
@@ -24,8 +25,8 @@ namespace vk_gltf_viewer::control {
         void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
         void animations(const fastgltf::Asset &asset, std::vector<bool> &animationEnabled);
         void assetInspector(fastgltf::Asset &asset, const std::filesystem::path &assetDir);
-        void assetTextures(fastgltf::Asset &asset, std::span<const ImTextureID> assetTextureImGuiDescriptorSets, const gltf::TextureUsage &textureUsage);
-        void materialEditor(fastgltf::Asset &asset, std::span<const ImTextureID> assetTextureImGuiDescriptorSets);
+        void assetTextures(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures, const gltf::TextureUsage &textureUsage);
+        void materialEditor(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures);
         void materialVariants(const fastgltf::Asset &asset);
         void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities, const std::optional<std::uint16_t> &hoveringNodeIndex, const std::unordered_set<std::uint16_t> &selectedNodeIndices);
         void nodeInspector(fastgltf::Asset &asset, const std::unordered_set<std::uint16_t> &selectedNodeIndices);

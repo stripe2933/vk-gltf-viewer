@@ -83,9 +83,9 @@ void makeWindowVisible(const char* window_name) {
     }
 }
 
-void hoverableImage(ImTextureID texture, const ImVec2 &size, const ImVec4 &tint = { 1.f, 1.f, 1.f, 1.f}) {
+void hoverableImage(ImTextureID texture, const ImVec2 &size) {
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
-    ImGui::Image(texture, size, { 0.f, 0.f }, { 1.f, 1.f }, tint);
+    ImGui::Image(texture, size);
 
     if (ImGui::BeginItemTooltip()) {
         const ImGuiIO &io = ImGui::GetIO();
@@ -96,7 +96,7 @@ void hoverableImage(ImTextureID texture, const ImVec2 &size, const ImVec4 &tint 
         region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
 
         constexpr float zoomScale = 4.0f;
-        ImGui::Image(texture, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size, tint);
+        ImGui::Image(texture, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
         ImGui::TextUnformatted(tempStringBuffer.write("Showing: [{:.0f}, {:.0f}]x[{:.0f}, {:.0f}]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y));
 
         ImGui::EndTooltip();
@@ -314,7 +314,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetSamplers(std::span<fastgl
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
     fastgltf::Asset &asset,
-    std::span<const ImTextureID> assetTextureImGuiDescriptorSets,
+    const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures,
     const gltf::TextureUsage &textureUsage
 ) {
     if (ImGui::Begin("Textures")) {
@@ -325,7 +325,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
             bool buttonClicked;
             const std::string_view label = nonempty_or(asset.textures[i].name, [&] { return tempStringBuffer.write("Unnamed texture {}", i).view(); });
             ImGui::WithID(i, [&]() {
-                buttonClicked = ImGui::ImageButtonWithText("", assetTextureImGuiDescriptorSets[i], label, { 64, 64 });
+                buttonClicked = ImGui::ImageButtonWithText("", imGuiTextures.getTextureID(i), label, { 64, 64 });
             });
             if (ImGui::BeginItemTooltip()) {
                 ImGui::TextUnformatted(label);
@@ -351,7 +351,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
                 return;
             }
 
-            hoverableImage(assetTextureImGuiDescriptorSets[*textureIndex], { 256, 256 });
+            hoverableImage(imGuiTextures.getTextureID(*textureIndex), { 256, 256 });
 
             ImGui::SameLine();
 
@@ -636,7 +636,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
     fastgltf::Asset &asset,
-    std::span<const ImTextureID> assetTextureImGuiDescriptorSets
+    const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures
 ) {
     if (ImGui::Begin("Material Editor")) {
         assert(!selectedMaterialIndex || *selectedMaterialIndex < asset.materials.size()
@@ -755,7 +755,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::WithID("basecolor", [&]() {
                     auto &baseColorTextureInfo = material.pbrData.baseColorTexture;
                     if (baseColorTextureInfo) {
-                        hoverableImage(assetTextureImGuiDescriptorSets[baseColorTextureInfo->textureIndex], { 128.f, 128.f });
+                        hoverableImage(imGuiTextures.getTextureID(baseColorTextureInfo->textureIndex), { 128.f, 128.f });
                         ImGui::SameLine();
                     }
                     ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
@@ -783,9 +783,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     ImGui::WithID("metallicroughness", [&]() {
                         auto &metallicRoughnessTextureInfo = material.pbrData.metallicRoughnessTexture;
                         if (metallicRoughnessTextureInfo) {
-                            hoverableImage(assetTextureImGuiDescriptorSets[metallicRoughnessTextureInfo->textureIndex], { 128.f, 128.f }, { 0.f, 0.f, 1.f, 1.f });
+                            hoverableImage(imGuiTextures.getMetallicTextureID(*selectedMaterialIndex), { 128.f, 128.f });
                             ImGui::SameLine();
-                            hoverableImage(assetTextureImGuiDescriptorSets[metallicRoughnessTextureInfo->textureIndex], { 128.f, 128.f }, { 0.f, 1.f, 0.f, 1.f });
+                            hoverableImage(imGuiTextures.getRoughnessTextureID(*selectedMaterialIndex), { 128.f, 128.f });
                             ImGui::SameLine();
                         }
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
@@ -816,7 +816,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
             ImGui::WithID("normal", [&]() {
                 if (auto &textureInfo = material.normalTexture; textureInfo && ImGui::CollapsingHeader("Normal Mapping")) {
                     ImGui::WithDisabled([&]() {
-                        hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f });
+                        hoverableImage(imGuiTextures.getNormalTextureID(*selectedMaterialIndex), { 128.f, 128.f });
                         ImGui::SameLine();
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                             ImGui::WithGroup([&]() {
@@ -841,7 +841,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
             ImGui::WithID("occlusion", [&]() {
                 if (auto &textureInfo = material.occlusionTexture; textureInfo && ImGui::CollapsingHeader("Occlusion Mapping")) {
                     ImGui::WithDisabled([&]() {
-                        hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f }, { 1.f, 0.f, 0.f, 1.f });
+                        hoverableImage(imGuiTextures.getOcclusionTextureID(*selectedMaterialIndex), { 128.f, 128.f });
                         ImGui::SameLine();
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                             ImGui::WithGroup([&]() {
@@ -868,7 +868,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     ImGui::WithDisabled([&]() {
                         auto &textureInfo = material.emissiveTexture;
                         if (textureInfo) {
-                            hoverableImage(assetTextureImGuiDescriptorSets[textureInfo->textureIndex], { 128.f, 128.f });
+                            hoverableImage(imGuiTextures.getEmissiveTextureID(*selectedMaterialIndex), { 128.f, 128.f });
                             ImGui::SameLine();
                         }
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {

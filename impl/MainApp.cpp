@@ -43,7 +43,6 @@ import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.optional;
 import :helpers.ranges;
-import :helpers.span;
 import :helpers.tristate;
 import :imgui.TaskCollector;
 import :vulkan.Frame;
@@ -192,8 +191,8 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths(), windowHandle);
             if (auto &gltfAsset = appState.gltfAsset) {
                 imguiTaskCollector.assetInspector(gltfAsset->asset, gltf->directory);
-                imguiTaskCollector.assetTextures(gltfAsset->asset, reinterpret_span<ImTextureID>(std::span { sharedData.gltfAsset->imGuiTextureDescriptorSets }), gltf->textureUsage);
-                imguiTaskCollector.materialEditor(gltfAsset->asset, reinterpret_span<ImTextureID>(std::span { sharedData.gltfAsset->imGuiTextureDescriptorSets }));
+                imguiTaskCollector.assetTextures(gltfAsset->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures, gltf->textureUsage);
+                imguiTaskCollector.materialEditor(gltfAsset->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures);
                 if (!gltfAsset->asset.materialVariants.empty()) {
                     imguiTaskCollector.materialVariants(gltfAsset->asset);
                 }
