@@ -7,7 +7,7 @@ if ("docking-experimental" IN_LIST FEATURES)
         REF "v${VERSION}-docking"
         SHA512 8c43016957a4811922e2bbf9108eecb0c94944e34b357087b8c989eb8c1155483eeb84af6b5291b3512fcd1bfe3e1a2bc04870594e7e9f4e28b0629e3eecbf25
         HEAD_REF docking
-        PATCHES draw-tree-lines.patch
+        PATCHES draw-tree-lines.patch use-fallback-texture.patch
     )
 else()
     vcpkg_from_github(
@@ -16,7 +16,7 @@ else()
         REF "v${VERSION}"
         SHA512 421aa81b55a85a8c4ea21d1b352e41e916b9e0f3ccfee3dcf415fc69c49a5feffc742c991fe10a19725a3766c92ebc5bff1027d6278ae7b8f1861474e891d6e6
         HEAD_REF master
-        PATCHES draw-tree-lines.patch
+        PATCHES draw-tree-lines.patch use-fallback-texture.patch
     )
 endif()
 

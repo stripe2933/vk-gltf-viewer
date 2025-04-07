@@ -34,6 +34,7 @@ import cubemap;
 import ibl;
 import imgui.glfw;
 import imgui.vulkan;
+import :control.AppWindow;
 import :gltf.algorithm.misc;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
@@ -41,6 +42,7 @@ import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.optional;
 import :helpers.ranges;
+import :helpers.span;
 import :helpers.tristate;
 import :imgui.TaskCollector;
 import :vulkan.Frame;
@@ -119,79 +121,6 @@ vk_gltf_viewer::MainApp::MainApp() {
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
     }, {});
-
-    // Init ImGui.
-    ImGui::CheckVersion();
-    ImGui::CreateContext();
-
-    ImGuiIO &io = ImGui::GetIO();
-    const glm::vec2 contentScale = window.getContentScale();
-    io.DisplayFramebufferScale = { contentScale.x, contentScale.y };
-#if __APPLE__
-    io.FontGlobalScale = 1.f / io.DisplayFramebufferScale.x;
-#endif
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-
-    ImFontConfig fontConfig;
-    fontConfig.SizePixels = 16.f * io.DisplayFramebufferScale.x;
-
-    const char *defaultFontPath =
-#ifdef _WIN32
-        "C:\\Windows\\Fonts\\arial.ttf";
-#elif __APPLE__
-        "/Library/Fonts/Arial Unicode.ttf";
-#elif __linux__
-        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf";
-#else
-#error "Type your own font file in here!"
-#endif
-    if (std::filesystem::exists(defaultFontPath)) {
-        io.Fonts->AddFontFromFileTTF(defaultFontPath, 16.f * io.DisplayFramebufferScale.x);
-    }
-    else {
-        std::println(std::cerr, "Your system doesn't have expected system font at {}. Low-resolution font will be used instead.", defaultFontPath);
-        io.Fonts->AddFontDefault(&fontConfig);
-    }
-
-    fontConfig.MergeMode = true;
-    constexpr ImWchar fontAwesomeIconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
-    io.Fonts->AddFontFromMemoryCompressedBase85TTF(
-        asset::font::fontawesome_webfont_ttf_compressed_data_base85,
-        fontConfig.SizePixels, &fontConfig, fontAwesomeIconRanges);
-
-    io.Fonts->Build();
-
-    ImGui_ImplGlfw_InitForVulkan(window, true);
-    const vk::Format colorAttachmentFormat = gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb;
-    ImGui_ImplVulkan_InitInfo initInfo {
-        .Instance = *instance,
-        .PhysicalDevice = *gpu.physicalDevice,
-        .Device = *gpu.device,
-        .Queue = gpu.queues.graphicsPresent,
-        // ImGui requires ImGui_ImplVulkan_InitInfo::{MinImageCount,ImageCount} ≥ 2 (I don't know why...).
-        .MinImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
-        .ImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
-        .DescriptorPoolSize = 512,
-        .UseDynamicRendering = true,
-        .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
-            {},
-            colorAttachmentFormat,
-        },
-    };
-    ImGui_ImplVulkan_Init(&initInfo);
-}
-
-vk_gltf_viewer::MainApp::~MainApp() {
-    for (ImTextureID textureDescriptorSet : assetTextureDescriptorSets) {
-        ImGui_ImplVulkan_RemoveTexture(reinterpret_cast<vk::DescriptorSet::CType>(textureDescriptorSet));
-    }
-    if (skyboxResources) {
-        ImGui_ImplVulkan_RemoveTexture(skyboxResources->imGuiEqmapTextureDescriptorSet);
-    }
-
-    ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
 }
 
 void vk_gltf_viewer::MainApp::run() {
@@ -261,8 +190,8 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths(), windowHandle);
             if (auto &gltfAsset = appState.gltfAsset) {
                 imguiTaskCollector.assetInspector(gltfAsset->asset, gltf->directory);
-                imguiTaskCollector.assetTextures(gltfAsset->asset, assetTextureDescriptorSets, gltf->textureUsage);
-                imguiTaskCollector.materialEditor(gltfAsset->asset, assetTextureDescriptorSets);
+                imguiTaskCollector.assetTextures(gltfAsset->asset, reinterpret_span<ImTextureID>(std::span { sharedData.gltfAsset->imGuiTextureDescriptorSets }), gltf->textureUsage);
+                imguiTaskCollector.materialEditor(gltfAsset->asset, reinterpret_span<ImTextureID>(std::span { sharedData.gltfAsset->imGuiTextureDescriptorSets }));
                 if (!gltfAsset->asset.materialVariants.empty()) {
                     imguiTaskCollector.materialVariants(gltfAsset->asset);
                 }
@@ -714,6 +643,73 @@ void vk_gltf_viewer::MainApp::run() {
     gpu.device.waitIdle();
 }
 
+vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &window, vk::Instance instance, const vulkan::Gpu &gpu) {
+    ImGui::CheckVersion();
+    ImGui::CreateContext();
+
+    ImGuiIO &io = ImGui::GetIO();
+    const glm::vec2 contentScale = window.getContentScale();
+    io.DisplayFramebufferScale = { contentScale.x, contentScale.y };
+#if __APPLE__
+    io.FontGlobalScale = 1.f / io.DisplayFramebufferScale.x;
+#endif
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+    ImFontConfig fontConfig;
+    fontConfig.SizePixels = 16.f * io.DisplayFramebufferScale.x;
+
+    const char *defaultFontPath =
+#ifdef _WIN32
+        "C:\\Windows\\Fonts\\arial.ttf";
+#elif __APPLE__
+        "/Library/Fonts/Arial Unicode.ttf";
+#elif __linux__
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf";
+#else
+#error "Type your own font file in here!"
+#endif
+    if (std::filesystem::exists(defaultFontPath)) {
+        io.Fonts->AddFontFromFileTTF(defaultFontPath, 16.f * io.DisplayFramebufferScale.x);
+    }
+    else {
+        std::println(std::cerr, "Your system doesn't have expected system font at {}. Low-resolution font will be used instead.", defaultFontPath);
+        io.Fonts->AddFontDefault(&fontConfig);
+    }
+
+    fontConfig.MergeMode = true;
+    constexpr ImWchar fontAwesomeIconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+    io.Fonts->AddFontFromMemoryCompressedBase85TTF(
+        asset::font::fontawesome_webfont_ttf_compressed_data_base85,
+        fontConfig.SizePixels, &fontConfig, fontAwesomeIconRanges);
+
+    io.Fonts->Build();
+
+    ImGui_ImplGlfw_InitForVulkan(window, true);
+    const vk::Format colorAttachmentFormat = gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb;
+    ImGui_ImplVulkan_InitInfo initInfo {
+        .Instance = instance,
+        .PhysicalDevice = *gpu.physicalDevice,
+        .Device = *gpu.device,
+        .Queue = gpu.queues.graphicsPresent,
+        // ImGui requires ImGui_ImplVulkan_InitInfo::{MinImageCount,ImageCount} ≥ 2 (I don't know why...).
+        .MinImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
+        .ImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
+        .DescriptorPoolSize = 512,
+        .UseDynamicRendering = true,
+        .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
+            {},
+            colorAttachmentFormat,
+        },
+    };
+    ImGui_ImplVulkan_Init(&initInfo);
+}
+
+vk_gltf_viewer::MainApp::ImGuiContext::~ImGuiContext() {
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+}
+
 vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesystem::path &path)
     : dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) }
     , directory { path.parent_path() }
@@ -733,6 +729,10 @@ void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     nodeWorldTransforms.update(scene);
     sceneInverseHierarchy = { asset, scene };
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, nodeWorldTransforms, assetExternalBuffers);
+}
+
+vk_gltf_viewer::MainApp::SkyboxResources::~SkyboxResources() {
+    ImGui_ImplVulkan_RemoveTexture(imGuiEqmapTextureDescriptorSet);
 }
 
 vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {
@@ -883,82 +883,6 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         }
     }
 
-    // Here, we need very careful mechanism for descriptor set lifetime management.
-    //
-    // Since this function could be called after ImGui::Render(), descriptor sets of the previously loaded asset textures
-    // may already recorded to the context. Therefore, they MUST NOT be destroyed using ImGui_ImplVulkan_RemoveTexture.
-    // However, since ImGui_ImplVulkan_GetDrawData() is not called yet, so do the descriptor sets are not recorded to the
-    // command buffer, and we can only update the descriptor sets using vkUpdateDescriptorSets. Note that this function is
-    // not exposed as ImGui_ImplVulkan_XXX, therefore their update layout may changed by the ImGui update.
-    //
-    // If assetTextureDescriptorSets.size() <= sharedData.gltfAsset->textures.descriptorInfos.size(), the existing
-    // descriptor sets are updated, and the remaining descriptor sets have to be created via ImGui_ImplVulkan_AddTexture.
-    //
-    // Otherwise, assetTextureDescriptorSets[:sharedData.gltfAsset->textures.descriptorInfos.size()] are updated. The
-    // problematic one is the remaining descriptor sets (=assetTextureDescriptorSets[sharedData.gltfAsset->textures.descriptorInfos.size():]).
-    // Since they are already in the ImGui context, but referring the destroyed textures, we need to fill them with the
-    // fallback texture. After that, we resize the assetTextureDescriptorSets vector to the size of sharedData.gltfAsset->textures.descriptorInfos.
-    // It relies on the behavior of std::vector::resize, which is in the specification:
-    //
-    //   Vector capacity is never reduced when resizing to smaller size because that would invalidate all iterators,
-    //   while the specification only invalidates the iterators to/after the erased elements.
-    //
-    // Therefore, resizing assetTextureDescriptorSets does not destroy the tail elements, and the shrinked descriptor sets
-    // will be used from the next frame.
-    // TODO: due to the ImGui's gamma correction issue, base color/emissive texture is rendered darker than it should be.
-    gpu.device.updateDescriptorSets(
-        ranges::views::zip_transform([&](ImTextureID imGuiTexture, const vk::DescriptorImageInfo &info) {
-            return vk::WriteDescriptorSet {
-                reinterpret_cast<vk::DescriptorSet::CType>(imGuiTexture),
-                0,
-                0,
-                vk::DescriptorType::eCombinedImageSampler,
-                info,
-            };
-        }, assetTextureDescriptorSets, sharedData.gltfAsset->textures.descriptorInfos) | std::ranges::to<std::vector>(),
-        {});
-
-    // Note that the equality operator is preferred in here, otherwise vkUpdateDescriptorSets will be called with zero
-    // descriptorWrites, which still has the driver function calling overhead.
-    if (assetTextureDescriptorSets.size() <= sharedData.gltfAsset->textures.descriptorInfos.size()) {
-        const std::span remainingDescriptorInfos
-            = std::span { sharedData.gltfAsset->textures.descriptorInfos }
-            .subspan(assetTextureDescriptorSets.size());
-        assetTextureDescriptorSets.append_range(
-            remainingDescriptorInfos
-                | std::views::transform([](const vk::DescriptorImageInfo &descriptorInfo) {
-                    return reinterpret_cast<ImTextureID>(ImGui_ImplVulkan_AddTexture(
-                        descriptorInfo.sampler, descriptorInfo.imageView, static_cast<VkImageLayout>(descriptorInfo.imageLayout)));
-                }));
-    }
-    else {
-        // Fill the remaining descriptor sets with the fallback texture.
-        const std::span remainingDescriptorSets
-            = std::span { assetTextureDescriptorSets }
-            .subspan(sharedData.gltfAsset->textures.descriptorInfos.size());
-        const vk::DescriptorImageInfo fallbackTextureDescriptorInfo {
-            *sharedData.fallbackTexture.sampler,
-            *sharedData.fallbackTexture.imageView,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-        };
-        gpu.device.updateDescriptorSets(
-            remainingDescriptorSets
-                | std::views::transform([&](ImTextureID imGuiTexture) {
-                    return vk::WriteDescriptorSet {
-                        reinterpret_cast<vk::DescriptorSet::CType>(imGuiTexture),
-                        0,
-                        0,
-                        vk::DescriptorType::eCombinedImageSampler,
-                        fallbackTextureDescriptorInfo,
-                    };
-                })
-                | std::ranges::to<std::vector>(),
-            {});
-
-        // Resize assetTextureDescriptorSets to the actual asset texture count.
-        assetTextureDescriptorSets.resize(sharedData.gltfAsset->textures.descriptorInfos.size());
-    }
-
     // Change window title.
     window.setTitle(PATH_C_STR(path.filename()));
 
@@ -978,9 +902,12 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 }
 
 void vk_gltf_viewer::MainApp::closeGltf() {
-    gltf.reset();
-
     gpu.device.waitIdle();
+    for (vulkan::Frame &frame : frames) {
+        frame.gltfAsset.reset();
+    }
+    sharedData.gltfAsset.reset();
+    gltf.reset();
     appState.gltfAsset.reset();
 
     window.setTitle("Vulkan glTF Viewer");

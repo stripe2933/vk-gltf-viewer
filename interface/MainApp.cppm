@@ -19,7 +19,6 @@ namespace vk_gltf_viewer {
     export class MainApp {
     public:
         explicit MainApp();
-        ~MainApp();
 
         void run();
 
@@ -34,6 +33,11 @@ namespace vk_gltf_viewer {
             | fastgltf::Extensions::KHR_texture_transform
             | fastgltf::Extensions::EXT_mesh_gpu_instancing;
         static constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
+
+        struct ImGuiContext {
+            ImGuiContext(const control::AppWindow &window, vk::Instance instance, const vulkan::Gpu &gpu);
+            ~ImGuiContext();
+        };
 
         /**
          * @brief Bundle of glTF asset and additional resources necessary for the rendering.
@@ -103,6 +107,8 @@ namespace vk_gltf_viewer {
             vku::AllocatedImage cubemapImage;
             vk::raii::ImageView cubemapImageView;
             vk::DescriptorSet imGuiEqmapTextureDescriptorSet;
+
+            ~SkyboxResources();
         };
 
         struct ImageBasedLightingResources {
@@ -117,6 +123,8 @@ namespace vk_gltf_viewer {
         vk::raii::Instance instance = createInstance();
         control::AppWindow window { instance, appState };
         vulkan::Gpu gpu { instance, window.getSurface() };
+
+        ImGuiContext imGuiContext { window, *instance, gpu };
 
         // --------------------
         // Vulkan swapchain.
@@ -142,12 +150,6 @@ namespace vk_gltf_viewer {
         vku::AllocatedImage brdfmapImage = createBrdfmapImage();
         vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
         vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
-
-        // --------------------
-        // Descriptor sets.
-        // --------------------
-
-        std::vector<ImTextureID> assetTextureDescriptorSets;
 
         // --------------------
         // Frames.
