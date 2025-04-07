@@ -9,6 +9,7 @@ export module vk_gltf_viewer:vulkan.SharedData;
 
 import std;
 export import fastgltf;
+import imgui.vulkan;
 export import vku;
 export import :gltf.OrderedPrimitives;
 import :helpers.AggregateHasher;
@@ -53,6 +54,8 @@ namespace vk_gltf_viewer::vulkan {
             buffer::InverseBindMatrices inverseBindMatrixBuffer;
             texture::Textures textures;
 
+            std::vector<vk::DescriptorSet> imGuiTextureDescriptorSets;
+
             template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
             GltfAsset(
                 const fastgltf::Asset &asset,
@@ -81,6 +84,17 @@ namespace vk_gltf_viewer::vulkan {
                     }, *transferFence);
                     std::ignore = gpu.device.waitForFences(*transferFence, true, ~0ULL); // TODO: failure handling
                 }
+
+                imGuiTextureDescriptorSets
+                    = textures.descriptorInfos
+                    | std::views::transform([](const vk::DescriptorImageInfo &descriptorInfo) -> vk::DescriptorSet {
+                        return ImGui_ImplVulkan_AddTexture(descriptorInfo.sampler, descriptorInfo.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    })
+                    | std::ranges::to<std::vector>();
+            }
+
+            ~GltfAsset() {
+                std::ranges::for_each(imGuiTextureDescriptorSets, ImGui_ImplVulkan_RemoveTexture);
             }
         };
 

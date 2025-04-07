@@ -41,6 +41,7 @@ import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.optional;
 import :helpers.ranges;
+import :helpers.span;
 import :helpers.tristate;
 import :imgui.TaskCollector;
 import :vulkan.Frame;
@@ -182,12 +183,10 @@ vk_gltf_viewer::MainApp::MainApp() {
 }
 
 vk_gltf_viewer::MainApp::~MainApp() {
-    for (ImTextureID textureDescriptorSet : assetTextureDescriptorSets) {
-        ImGui_ImplVulkan_RemoveTexture(reinterpret_cast<vk::DescriptorSet::CType>(textureDescriptorSet));
-    }
-    if (skyboxResources) {
-        ImGui_ImplVulkan_RemoveTexture(skyboxResources->imGuiEqmapTextureDescriptorSet);
-    }
+    // Since loaded glTF asset and skybox resources have ImGui texture descriptor sets, they have to be destroyed before
+    // ImGui_ImplVulkan_Shutdown().
+    closeGltf();
+    skyboxResources.reset();
 
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -261,8 +260,8 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths(), windowHandle);
             if (auto &gltfAsset = appState.gltfAsset) {
                 imguiTaskCollector.assetInspector(gltfAsset->asset, gltf->directory);
-                imguiTaskCollector.assetTextures(gltfAsset->asset, assetTextureDescriptorSets, gltf->textureUsage);
-                imguiTaskCollector.materialEditor(gltfAsset->asset, assetTextureDescriptorSets);
+                imguiTaskCollector.assetTextures(gltfAsset->asset, reinterpret_span<ImTextureID>(std::span { sharedData.gltfAsset->imGuiTextureDescriptorSets }), gltf->textureUsage);
+                imguiTaskCollector.materialEditor(gltfAsset->asset, reinterpret_span<ImTextureID>(std::span { sharedData.gltfAsset->imGuiTextureDescriptorSets }));
                 if (!gltfAsset->asset.materialVariants.empty()) {
                     imguiTaskCollector.materialVariants(gltfAsset->asset);
                 }
@@ -735,6 +734,10 @@ void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, nodeWorldTransforms, assetExternalBuffers);
 }
 
+vk_gltf_viewer::MainApp::SkyboxResources::~SkyboxResources() {
+    ImGui_ImplVulkan_RemoveTexture(imGuiEqmapTextureDescriptorSet);
+}
+
 vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {
     std::vector<const char*> extensions{
 #if __APPLE__
@@ -883,17 +886,6 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         }
     }
 
-    for (ImTextureID descriptorSet : assetTextureDescriptorSets) {
-        ImGui_ImplVulkan_RemoveTexture(reinterpret_cast<vk::DescriptorSet::CType>(descriptorSet));
-    }
-    assetTextureDescriptorSets.clear();
-    assetTextureDescriptorSets.append_range(
-        sharedData.gltfAsset->textures.descriptorInfos
-        | std::views::transform([](const vk::DescriptorImageInfo &descriptorInfo) -> ImTextureID {
-            return reinterpret_cast<ImTextureID>(ImGui_ImplVulkan_AddTexture(
-                descriptorInfo.sampler, descriptorInfo.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-        }));
-
     // Change window title.
     window.setTitle(PATH_C_STR(path.filename()));
 
@@ -913,9 +905,12 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 }
 
 void vk_gltf_viewer::MainApp::closeGltf() {
-    gltf.reset();
-
     gpu.device.waitIdle();
+    for (vulkan::Frame &frame : frames) {
+        frame.gltfAsset.reset();
+    }
+    sharedData.gltfAsset.reset();
+    gltf.reset();
     appState.gltfAsset.reset();
 
     window.setTitle("Vulkan glTF Viewer");

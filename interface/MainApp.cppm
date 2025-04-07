@@ -103,6 +103,8 @@ namespace vk_gltf_viewer {
             vku::AllocatedImage cubemapImage;
             vk::raii::ImageView cubemapImageView;
             vk::DescriptorSet imGuiEqmapTextureDescriptorSet;
+
+            ~SkyboxResources();
         };
 
         struct ImageBasedLightingResources {
@@ -142,12 +144,6 @@ namespace vk_gltf_viewer {
         vku::AllocatedImage brdfmapImage = createBrdfmapImage();
         vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
         vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
-
-        // --------------------
-        // Descriptor sets.
-        // --------------------
-
-        std::vector<ImTextureID> assetTextureDescriptorSets;
 
         // --------------------
         // Frames.
