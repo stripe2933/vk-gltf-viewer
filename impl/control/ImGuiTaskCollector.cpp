@@ -35,14 +35,6 @@ import :helpers.TempStringBuffer;
 
 using namespace std::string_view_literals;
 
-enum class MaterialProperty : std::uint8_t {
-    BaseColor,
-    MetallicRoughness,
-    Normal,
-    Occlusion,
-    Emissive,
-};
-
 std::optional<std::size_t> vk_gltf_viewer::control::ImGuiTaskCollector::selectedMaterialIndex = std::nullopt;
 bool mergeSingleChildNodes = true;
 int boundFpPrecision = 2;
@@ -705,19 +697,19 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::SameLine();
                 ImGui::HelperMarker("(overridden)", "This value is overridden by KHR_texture_transform extension.");
             };
-            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, MaterialProperty materialProperty) -> void {
+            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, gltf::TextureUsage::Type textureUsageType) -> void {
                 const auto [enabledProp, changeProp] = [&]() -> std::array<task::MaterialPropertyChanged::Property, 2> {
                     using enum task::MaterialPropertyChanged::Property;
-                    switch (materialProperty) {
-                        case MaterialProperty::BaseColor:
+                    switch (textureUsageType) {
+                        case gltf::TextureUsage::BaseColor:
                             return { BaseColorTextureTransformEnabled, BaseColorTextureTransform };
-                        case MaterialProperty::MetallicRoughness:
+                        case gltf::TextureUsage::MetallicRoughness:
                             return { MetallicRoughnessTextureTransformEnabled, MetallicRoughnessTextureTransform };
-                        case MaterialProperty::Normal:
+                        case gltf::TextureUsage::Normal:
                             return { NormalTextureTransformEnabled, NormalTextureTransform };
-                        case MaterialProperty::Occlusion:
+                        case gltf::TextureUsage::Occlusion:
                             return { OcclusionTextureTransformEnabled, OcclusionTextureTransform };
-                        case MaterialProperty::Emissive:
+                        case gltf::TextureUsage::Emissive:
                             return { EmissiveTextureTransformEnabled, EmissiveTextureTransform };
                     }
                     std::unreachable();
@@ -780,7 +772,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*baseColorTextureInfo, MaterialProperty::BaseColor);
+                                textureTransformControl(*baseColorTextureInfo, gltf::TextureUsage::BaseColor);
                             }
                         }, baseColorTextureInfo.has_value());
                     });
@@ -813,7 +805,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                         texcoordOverriddenMarker();
                                     }
 
-                                    textureTransformControl(*metallicRoughnessTextureInfo, MaterialProperty::MetallicRoughness);
+                                    textureTransformControl(*metallicRoughnessTextureInfo, gltf::TextureUsage::MetallicRoughness);
                                 }
                             });
                         });
@@ -839,7 +831,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*textureInfo, MaterialProperty::Normal);
+                                textureTransformControl(*textureInfo, gltf::TextureUsage::Normal);
                             });
                         });
                     }, material.unlit);
@@ -864,7 +856,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*textureInfo, MaterialProperty::Occlusion);
+                                textureTransformControl(*textureInfo, gltf::TextureUsage::Occlusion);
                             });
                         });
                     }, material.unlit);
@@ -893,7 +885,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                         texcoordOverriddenMarker();
                                     }
 
-                                    textureTransformControl(*textureInfo, MaterialProperty::Emissive);
+                                    textureTransformControl(*textureInfo, gltf::TextureUsage::Emissive);
                                 }
                             }, textureInfo.has_value());
                         });
