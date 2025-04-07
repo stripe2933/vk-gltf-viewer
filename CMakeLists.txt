@@ -171,6 +171,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/type_map.cppm
         interface/helpers/type_variant.cppm
         interface/helpers/vulkan.cppm
+        interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
         interface/MainApp.cppm
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
@@ -231,6 +232,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/SharedData.cppm
         interface/vulkan/specialization_constants/SpecializationMap.cppm
         interface/vulkan/texture/Fallback.cppm
+        interface/vulkan/texture/ImGuiColorSpaceAndUsageCorrectedTextures.cppm
         interface/vulkan/texture/Textures.cppm
         interface/vulkan/trait/PostTransferObject.cppm
 )
