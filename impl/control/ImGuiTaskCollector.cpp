@@ -366,9 +366,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
             ImGui::WithGroup([&]() {
                 fastgltf::Texture &texture = asset.textures[*textureIndex];
                 ImGui::InputTextWithHint("Name", "<empty>", &texture.name);
-                ImGui::LabelText("Image Index", "%zu",
-                    // TODO: same code in gltf::AssetGpuTextures.
-                    to_optional(texture.basisuImageIndex).or_else([&]() { return to_optional(texture.imageIndex); }).value());
+                ImGui::LabelText("Image Index", "%zu", getPreferredImageIndex(texture));
                 if (texture.samplerIndex) {
                     ImGui::LabelText("Sampler Index", "%zu", texture.samplerIndex.value_or(-1));
                 }
@@ -721,8 +719,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                             return { OcclusionTextureTransformEnabled, OcclusionTextureTransform };
                         case MaterialProperty::Emissive:
                             return { EmissiveTextureTransformEnabled, EmissiveTextureTransform };
-                        std::unreachable();
                     }
+                    std::unreachable();
                 }();
 
                 bool useTextureTransform = textureInfo.transform != nullptr;

@@ -4,7 +4,7 @@ import std;
 export import imgui.internal;
 
 namespace vk_gltf_viewer::control {
-    namespace task {
+    export namespace task {
         struct ChangePassthruRect { ImRect newRect; };
         struct LoadGltf { std::filesystem::path path; };
         struct CloseGltf { };

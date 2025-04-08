@@ -5,6 +5,7 @@ import :shader.primitive_vert;
 import :helpers.type_map;
 
 namespace vk_gltf_viewer::shader_selector {
+    export
     [[nodiscard]] std::span<const unsigned int> primitive_vert(int TEXCOORD_COUNT, int HAS_COLOR_ATTRIBUTE, int FRAGMENT_SHADER_GENERATED_TBN) {
         constexpr iota_map<5> texcoordCountMap;
         constexpr iota_map<2> hasColorAttributeMap;

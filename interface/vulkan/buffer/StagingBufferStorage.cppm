@@ -9,7 +9,7 @@ import std;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::buffer {
-    class StagingBufferStorage {
+    export class StagingBufferStorage {
     public:
         /**
          * @brief Assign the device local buffer to the \p buffer and add staging task to the storage.

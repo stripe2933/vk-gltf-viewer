@@ -12,7 +12,7 @@ namespace vk_gltf_viewer::math {
     /**
      * @brief Plane in the 3-dimensional space.
      */
-    struct Plane {
+    export struct Plane {
         /**
          * @brief Normal vector of the plane.
          */

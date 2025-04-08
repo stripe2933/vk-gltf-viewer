@@ -25,7 +25,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
      * @param nodeWorldTransforms Pre-calculated world transforms for each node in the scene.
      * @return The pair of the miniball's center and radius.
      */
-    template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
+    export template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
     [[nodiscard]] std::pair<fastgltf::math::dvec3, double> getMiniball(
         const fastgltf::Asset &asset,
         const fastgltf::Scene &scene,

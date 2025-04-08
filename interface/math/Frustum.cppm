@@ -7,7 +7,7 @@ namespace vk_gltf_viewer::math {
     /**
      * @brief Frustum in the 3-dimensional space.
      */
-    struct Frustum {
+    export struct Frustum {
         /**
          * @brief Planes of the frustum.
          *

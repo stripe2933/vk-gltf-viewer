@@ -2,7 +2,6 @@ export module vk_gltf_viewer:MainApp;
 
 import std;
 import :control.AppWindow;
-import :gltf.algorithm.miniball;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
 import :gltf.data_structure.MaterialVariantsMapping;
@@ -64,7 +63,7 @@ namespace vk_gltf_viewer {
              */
             gltf::ds::MaterialVariantsMapping materialVariantsMapping { asset };
 
-            gltf::TextureUsage textureUsage { asset, fastgltf::getPreferredImageIndex };
+            gltf::TextureUsage textureUsage { asset };
 
             /**
 			 * @brief External buffers that are not embedded in the glTF file, such like .bin files.

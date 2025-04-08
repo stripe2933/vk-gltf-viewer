@@ -35,6 +35,7 @@ import ibl;
 import imgui.glfw;
 import imgui.vulkan;
 import :control.AppWindow;
+import :gltf.algorithm.miniball;
 import :gltf.algorithm.misc;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
@@ -49,7 +50,8 @@ import :vulkan.Frame;
 import :vulkan.mipmap;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
-#define MOVE_CAP(x) x = std::move(x)
+#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
+#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 #ifdef _WIN32
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
@@ -285,7 +287,7 @@ void vk_gltf_viewer::MainApp::run() {
                                 [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
                                 task.nodeIndex, visibilities);
                             tristate::propagateBottomUp(
-                                [&](auto i) { return gltf->sceneInverseHierarchy.getParentNodeIndex(i).value_or(i); },
+                                LIFT(gltf->sceneInverseHierarchy.parentNodeIndices.operator[]),
                                 [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
                                 task.nodeIndex, visibilities);
                         },
@@ -310,7 +312,7 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [&](const control::task::ChangeNodeLocalTransform &task) {
                     fastgltf::math::fmat4x4 baseMatrix { 1.f };
-                    if (auto parentNodeIndex = gltf->sceneInverseHierarchy.getParentNodeIndex(task.nodeIndex)) {
+                    if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy.parentNodeIndices[task.nodeIndex]) {
                         baseMatrix = gltf->nodeWorldTransforms[*parentNodeIndex];
                     }
                     const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(gltf->asset.nodes[task.nodeIndex], baseMatrix);
@@ -359,7 +361,7 @@ void vk_gltf_viewer::MainApp::run() {
 
                     visit(fastgltf::visitor {
                         [&](fastgltf::math::fmat4x4 &transformMatrix) {
-                            if (auto parentNodeIndex = gltf->sceneInverseHierarchy.getParentNodeIndex(selectedNodeIndex)) {
+                            if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy.parentNodeIndices[selectedNodeIndex]) {
                                 transformMatrix = affineInverse(gltf->nodeWorldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
                             }
                             else {
@@ -367,7 +369,7 @@ void vk_gltf_viewer::MainApp::run() {
                             }
                         },
                         [&](fastgltf::TRS &trs) {
-                            if (auto parentNodeIndex = gltf->sceneInverseHierarchy.getParentNodeIndex(selectedNodeIndex)) {
+                            if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy.parentNodeIndices[selectedNodeIndex]) {
                                 const fastgltf::math::fmat4x4 transformMatrix = affineInverse(gltf->nodeWorldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
                                 decomposeTransformMatrix(transformMatrix, trs.scale, trs.rotation, trs.translation);
                             }
