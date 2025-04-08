@@ -163,11 +163,11 @@ void vk_gltf_viewer::MainApp::run() {
             }
 
             for (std::size_t nodeIndex : transformedNodes) {
-                tasks.emplace_back(std::in_place_type<control::task::ChangeNodeLocalTransform>, nodeIndex);
+                tasks.emplace_back(std::in_place_type<control::task::NodeLocalTransformChanged>, nodeIndex);
             }
             for (std::size_t nodeIndex : morphedNodes) {
-                const std::size_t targetWeightCount = fastgltf::getTargetWeightCount(gltf->asset.nodes[nodeIndex], gltf->asset);
-                tasks.emplace_back(std::in_place_type<control::task::ChangeMorphTargetWeight>, nodeIndex, 0, targetWeightCount);
+                const std::size_t targetWeightCount = getTargetWeightCount(gltf->asset.nodes[nodeIndex], gltf->asset);
+                tasks.emplace_back(std::in_place_type<control::task::MorphTargetWeightChanged>, nodeIndex, 0, targetWeightCount);
             }
         }
 
@@ -299,7 +299,7 @@ void vk_gltf_viewer::MainApp::run() {
                 [this](const control::task::HoverNodeFromSceneHierarchy &task) {
                     appState.gltfAsset->hoveringNodeIndex.emplace(task.nodeIndex);
                 },
-                [&](const control::task::ChangeNodeLocalTransform &task) {
+                [&](const control::task::NodeLocalTransformChanged &task) {
                     fastgltf::math::fmat4x4 baseMatrix { 1.f };
                     if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy.parentNodeIndices[task.nodeIndex]) {
                         baseMatrix = gltf->nodeWorldTransforms[*parentNodeIndex];
@@ -323,7 +323,7 @@ void vk_gltf_viewer::MainApp::run() {
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
                 },
-                [&](control::task::ChangeSelectedNodeWorldTransform) {
+                [&](control::task::SelectedNodeWorldTransformChanged) {
                     const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
                     const fastgltf::math::fmat4x4 &selectedNodeWorldTransform = gltf->nodeWorldTransforms[selectedNodeIndex];
 
@@ -391,7 +391,7 @@ void vk_gltf_viewer::MainApp::run() {
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
                 },
-                [this](control::task::ChangeCameraView) {
+                [this](control::task::CameraViewChanged) {
                     if (appState.automaticNearFarPlaneAdjustment && gltf) {
                         // Tighten near/far plane based on the scene enclosing sphere.
                         const auto &[center, radius] = gltf->sceneMiniball;
@@ -497,7 +497,7 @@ void vk_gltf_viewer::MainApp::run() {
                             gltf->orderedPrimitives.getIndex(*pPrimitive), static_cast<std::uint32_t>(materialIndex), sharedDataUpdateCommandBuffer);
                     }
                 },
-                [&](const control::task::ChangeMorphTargetWeight &task) {
+                [&](const control::task::MorphTargetWeightChanged &task) {
                     auto updateTargetWeightTask = [this, task](vulkan::Frame &frame) {
                         const std::span targetWeights = getTargetWeights(gltf->asset.nodes[task.nodeIndex], gltf->asset);
                         for (auto weightIndex = task.targetWeightStartIndex; float weight : targetWeights.subspan(task.targetWeightStartIndex, task.targetWeightCount)) {

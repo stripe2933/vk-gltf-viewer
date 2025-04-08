@@ -1119,7 +1119,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
             ImGui::TextUnformatted("No nodes are selected."sv);
         }
         else if (selectedNodeIndices.size() == 1) {
-            const std::uint16_t selectedNodeIndex = *selectedNodeIndices.begin();
+            const std::size_t selectedNodeIndex = *selectedNodeIndices.begin();
             fastgltf::Node &node = asset.nodes[selectedNodeIndex];
             ImGui::InputTextWithHint("Name", "<empty>", &node.name);
 
@@ -1145,7 +1145,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                     transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
 
                     if (transformChanged) {
-                        tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);
+                        tasks.emplace_back(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
                     }
                 },
                 [&](fastgltf::math::fmat4x4 &matrix) {
@@ -1156,7 +1156,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                     transformChanged |= ImGui::DragFloat4("Column 3", matrix.col(3).data());
 
                     if (transformChanged) {
-                        tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);
+                        tasks.emplace_back(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
                     }
                 },
             }, node.transform);
@@ -1174,7 +1174,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
                 for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
                     if (ImGui::DragFloat(tempStringBuffer.write("Weight {}", i).view().c_str(), &weight, 0.01f)) {
-                        tasks.emplace_back(std::in_place_type<task::ChangeMorphTargetWeight>, selectedNodeIndex, i, 1);
+                        tasks.emplace_back(std::in_place_type<task::MorphTargetWeightChanged>, selectedNodeIndex, i, 1);
                     }
                 }
             }
@@ -1387,7 +1387,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             }
 
             if (cameraViewChanged) {
-                tasks.emplace_back(std::in_place_type<task::ChangeCameraView>);
+                tasks.emplace_back(std::in_place_type<task::CameraViewChanged>);
             }
 
             if (float fovInDegree = glm::degrees(camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
@@ -1447,7 +1447,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Camera &camera) {
         camera.position = inverseView[3];
         camera.direction = -inverseView[2];
 
-        tasks.emplace_back(std::in_place_type<task::ChangeCameraView>);
+        tasks.emplace_back(std::in_place_type<task::CameraViewChanged>);
     }
 }
 
@@ -1462,7 +1462,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
 
     fastgltf::math::fmat4x4 deltaMatrix;
     if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, selectedNodeWorldTransform.data(), deltaMatrix.data())) {
-        tasks.emplace_back(std::in_place_type<task::ChangeSelectedNodeWorldTransform>);
+        tasks.emplace_back(std::in_place_type<task::SelectedNodeWorldTransformChanged>);
     }
 
     constexpr ImVec2 size { 64.f, 64.f };
@@ -1475,6 +1475,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
         camera.position = inverseView[3];
         camera.direction = -inverseView[2];
 
-        tasks.emplace_back(std::in_place_type<task::ChangeCameraView>);
+        tasks.emplace_back(std::in_place_type<task::CameraViewChanged>);
     }
 }

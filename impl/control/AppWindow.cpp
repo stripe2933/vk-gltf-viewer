@@ -103,7 +103,7 @@ void vk_gltf_viewer::control::AppWindow::onScrollCallback(glm::dvec2 offset) {
     appState.camera.targetDistance *= factor;
     appState.camera.position += (1.f - factor) * displacementToTarget;
 
-    pTasks->emplace_back(std::in_place_type<task::ChangeCameraView>);
+    pTasks->emplace_back(std::in_place_type<task::CameraViewChanged>);
 }
 
 void vk_gltf_viewer::control::AppWindow::onTrackpadRotateCallback(double angle) {
@@ -115,7 +115,7 @@ void vk_gltf_viewer::control::AppWindow::onTrackpadRotateCallback(double angle) 
     appState.camera.direction = glm::mat3 { rotation } * appState.camera.direction;
     appState.camera.position = target - appState.camera.direction * appState.camera.targetDistance;
 
-    pTasks->emplace_back(std::in_place_type<task::ChangeCameraView>);
+    pTasks->emplace_back(std::in_place_type<task::CameraViewChanged>);
 }
 
 void vk_gltf_viewer::control::AppWindow::onCursorPosCallback(glm::dvec2 position) {

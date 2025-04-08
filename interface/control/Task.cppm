@@ -14,10 +14,10 @@ namespace vk_gltf_viewer::control {
         struct NodeVisibilityChanged { std::size_t nodeIndex; };
         struct SelectNode { std::uint16_t nodeIndex; bool combine; };
         struct HoverNodeFromSceneHierarchy { std::uint16_t nodeIndex; };
-        struct ChangeNodeLocalTransform { std::uint16_t nodeIndex; };
-        struct ChangeSelectedNodeWorldTransform{};
+        struct NodeLocalTransformChanged { std::size_t nodeIndex; };
+        struct SelectedNodeWorldTransformChanged{};
         struct TightenNearFarPlane { };
-        struct ChangeCameraView { };
+        struct CameraViewChanged { };
         struct MaterialPropertyChanged {
             enum Property {
                 AlphaCutoff,
@@ -46,7 +46,7 @@ namespace vk_gltf_viewer::control {
             Property property;
         };
         struct SelectMaterialVariants { std::size_t variantIndex; };
-        struct ChangeMorphTargetWeight { std::size_t nodeIndex; std::size_t targetWeightStartIndex; std::size_t targetWeightCount; };
+        struct MorphTargetWeightChanged { std::size_t nodeIndex; std::size_t targetWeightStartIndex; std::size_t targetWeightCount; };
     }
 
     export using Task = std::variant<
@@ -59,11 +59,11 @@ namespace vk_gltf_viewer::control {
         task::NodeVisibilityChanged,
         task::SelectNode,
         task::HoverNodeFromSceneHierarchy,
-        task::ChangeNodeLocalTransform,
-        task::ChangeSelectedNodeWorldTransform,
+        task::NodeLocalTransformChanged,
+        task::SelectedNodeWorldTransformChanged,
         task::TightenNearFarPlane,
-        task::ChangeCameraView,
+        task::CameraViewChanged,
         task::MaterialPropertyChanged,
         task::SelectMaterialVariants,
-        task::ChangeMorphTargetWeight>;
+        task::MorphTargetWeightChanged>;
 }
