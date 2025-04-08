@@ -53,11 +53,15 @@ vk_gltf_viewer::AppState::~AppState() {
 void vk_gltf_viewer::AppState::GltfAsset::switchNodeVisibilityType() {
     visit(multilambda {
         [this](std::span<const std::optional<bool>> visibilities) {
-            nodeVisibilities.emplace<std::vector<bool>>(
+            // Note: std::vector<bool> must be constructed and move-assigned to nodeVisibilities.
+            // If it is generated in-place, nodeVisibilities will be created while reading visibilities span, which
+            // already has corrupted value by overwritten data.
+            nodeVisibilities = std::vector<bool> {
                 std::from_range,
-                visibilities | std::views::transform([](std::optional<bool> visibility) {
+                visibilities | std::views::transform([](const std::optional<bool> &visibility) {
                     return visibility.value_or(true);
-                }));
+                })
+            };
         },
         [this](const std::vector<bool> &visibilities) {
             nodeVisibilities.emplace<std::vector<std::optional<bool>>>(visibilities.size(), true);
