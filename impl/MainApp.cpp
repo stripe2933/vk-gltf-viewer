@@ -273,28 +273,17 @@ void vk_gltf_viewer::MainApp::run() {
                 [this](control::task::ChangeNodeVisibilityType) {
                     appState.gltfAsset->switchNodeVisibilityType();
                 },
-                [this](control::task::ChangeNodeVisibility task) {
-                    visit(multilambda {
-                        [&](std::span<std::optional<bool>> visibilities) {
-                            if (auto &visibility = visibilities[task.nodeIndex]) {
-                                *visibility = !*visibility;
-                            }
-                            else {
-                                visibility.emplace(true);
-                            }
-
-                            tristate::propagateTopDown(
-                                [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
-                                task.nodeIndex, visibilities);
-                            tristate::propagateBottomUp(
-                                LIFT(gltf->sceneInverseHierarchy.parentNodeIndices.operator[]),
-                                [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
-                                task.nodeIndex, visibilities);
-                        },
-                        [&](std::vector<bool> &visibilities) {
-                            visibilities[task.nodeIndex].flip();
-                        },
-                    }, appState.gltfAsset->nodeVisibilities);
+                [this](control::task::NodeVisibilityChanged task) {
+                    if (auto *pVisibilities = get_if<std::vector<std::optional<bool>>>(&appState.gltfAsset->nodeVisibilities)) {
+                        // If using tristate node visibility, visibility has to be propagated to both its descendants and ancestors.
+                        tristate::propagateTopDown(
+                            [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
+                            task.nodeIndex, *pVisibilities);
+                        tristate::propagateBottomUp(
+                            LIFT(gltf->sceneInverseHierarchy.parentNodeIndices.operator[]),
+                            [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
+                            task.nodeIndex, *pVisibilities);
+                    }
                 },
                 [this](const control::task::SelectNode &task) {
                     if (!task.combine) {

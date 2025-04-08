@@ -920,7 +920,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(const fastglt
 void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
     fastgltf::Asset &asset,
     std::size_t sceneIndex,
-    const std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities,
+    std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities,
     const std::optional<std::uint16_t> &hoveringNodeIndex,
     const std::unordered_set<std::uint16_t> &selectedNodeIndices
 ) {
@@ -1005,11 +1005,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 // --------------------
 
                 if (auto pVisibilities = get_if<std::vector<std::optional<bool>>>(&visibilities)) {
-                    std::optional visibility = (*pVisibilities)[nodeIndex];
-
                     ImGui::SameLine();
-                    if (ImGui::CheckboxTristate("##hierarchy-checkbox", visibility)) {
-                        tasks.emplace_back(std::in_place_type<task::ChangeNodeVisibility>, nodeIndex);
+                    if (ImGui::CheckboxTristate("##hierarchy-checkbox", (*pVisibilities)[nodeIndex])) {
+                        tasks.emplace_back(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                     }
                 }
 
@@ -1044,17 +1042,19 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 if (node.meshIndex) {
                     ImGui::TableSetColumnIndex(1);
                     const bool visibilityChanged = visit(multilambda {
-                        [&](std::span<const std::optional<bool>> visibilities) {
-                            std::optional visibility = visibilities[nodeIndex];
-                            return ImGui::CheckboxTristate("##visibility", visibility);
+                        [&](std::span<std::optional<bool>> visibilities) {
+                            return ImGui::CheckboxTristate("##visibility", visibilities[nodeIndex]);
                         },
-                        [&](const std::vector<bool> &visibilities) {
-                            bool visibility = visibilities[nodeIndex];
-                            return ImGui::Checkbox("##visibility", &visibility);
+                        [&](std::vector<bool> &visibilities) {
+                            bool visible = visibilities[nodeIndex];
+                            if (ImGui::Checkbox("##visibility", &visible)) {
+                                visibilities[nodeIndex].flip();
+                            }
+                            return visible;
                         },
                     }, visibilities);
                     if (visibilityChanged)  {
-                        tasks.emplace_back(std::in_place_type<task::ChangeNodeVisibility>, nodeIndex);
+                        tasks.emplace_back(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                     }
                 }
 
