@@ -28,6 +28,10 @@ import :vulkan.mipmap;
 #endif
 
 namespace vk_gltf_viewer::vulkan::image {
+    export struct Info {
+        bool alphaChannelPadded;
+    };
+
     /**
      * @brief GPU images (images and image views) for <tt>fastgltf::Asset</tt>.
      *
@@ -40,7 +44,7 @@ namespace vk_gltf_viewer::vulkan::image {
      * <tt>std::unordered_map<std::size_t, vku::AllocatedImage></tt> instead of <tt>std::vector<vku::AllocatedImage></tt>
      * (also for <tt>imageViews</tt>).
      */
-    export class Images {
+    export class Images : public std::unordered_map<std::size_t, std::tuple<vku::AllocatedImage, vk::raii::ImageView, Info>> {
         /**
          * Staging buffers for temporary data transfer. This have to be cleared after the transfer command execution
          * finished.
@@ -48,21 +52,6 @@ namespace vk_gltf_viewer::vulkan::image {
         std::forward_list<vku::AllocatedBuffer> stagingBuffers;
 
     public:
-        /**
-         * @brief Asset images.
-         *
-         * Only images that are used by a texture is created.
-         * <tt>images[i]</tt> represents <tt>asset.images[i]</tt>.
-         */
-        std::unordered_map<std::size_t, vku::AllocatedImage> images;
-
-        /**
-         * @brief Image views for <tt>images</tt>.
-         *
-         * <tt>imageViews[i]</tt> is the view for <tt>images[i]</tt> with color aspect flag and full subresource range.
-         */
-        std::unordered_map<std::size_t, vk::raii::ImageView> imageViews;
-
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         Images(
             const fastgltf::Asset &asset,
@@ -116,13 +105,14 @@ namespace vk_gltf_viewer::vulkan::image {
 
                 // Copy infos that have to be recorded.
                 std::vector<std::tuple<vk::Buffer, vk::Image, std::vector<vk::BufferImageCopy>>> copyInfos;
-                copyInfos.reserve(images.size());
+                copyInfos.reserve(size());
 
                 // Mutex for protecting the insertion racing to stagingBuffers, imageIndicesToGenerateMipmap and copyInfos.
                 std::mutex mutex;
 
-                images = threadPool.submit_sequence(std::size_t{ 0 }, usedImageIndices.size(), [&](std::size_t i) {
+                insert_range(threadPool.submit_sequence(std::size_t{ 0 }, usedImageIndices.size(), [&](std::size_t i) {
                     const std::size_t imageIndex = usedImageIndices[i];
+                    Info info;
 
                     // 1. Create images and load data into staging buffers, collect the copy infos.
 
@@ -193,6 +183,7 @@ namespace vk_gltf_viewer::vulkan::image {
 
                         // Vulkan is not friendly with 3-channel image.
                         if (channels == 3) {
+                            info.alphaChannelPadded = true;
                             channels = 4;
                         }
 
@@ -402,15 +393,18 @@ namespace vk_gltf_viewer::vulkan::image {
                         },
                     }, asset.images[imageIndex].data);
 
-                    return std::pair { imageIndex, std::move(image) };
-                }).get() | std::views::as_rvalue | std::ranges::to<std::unordered_map>();
+                    vk::raii::ImageView imageView = createImageView(gpu.device, image);
+
+                    return std::pair { imageIndex, std::tuple { std::move(image), std::move(imageView), info } };
+                }).get() | std::views::as_rvalue);
 
                 // 2. Copy image data from staging buffers to images.
                 cb.pipelineBarrier(
                     vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
                     {}, {}, {},
-                    images
+                    *this
                         | std::views::values
+                        | std::views::elements<0>
                         | std::views::transform([](vk::Image image) {
                             return vk::ImageMemoryBarrier {
                                 {}, vk::AccessFlagBits::eTransferWrite,
@@ -425,11 +419,12 @@ namespace vk_gltf_viewer::vulkan::image {
                 }
 
                 // Release the queue family ownerships of the images (if required).
-                if (!images.empty() && gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
+                if (!empty() && gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
                     cb.pipelineBarrier(
                         vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllCommands,
                         {}, {}, {},
-                        images | std::views::transform(decomposer([&](std::size_t imageIndex, vk::Image image) {
+                        *this | std::views::transform(decomposer([&](std::size_t imageIndex, const auto &tuple) {
+                            const auto &[image, imageView, info] = tuple;
                             if (imageIndicesToGenerateMipmap.contains(imageIndex)) {
                                 // Image data is only inside the mipLevel=0, therefore only queue family ownership
                                 // about that portion have to be transferred. New layout should be TRANSFER_SRC_OPTIMAL.
@@ -469,7 +464,8 @@ namespace vk_gltf_viewer::vulkan::image {
                 // Change image layouts and acquire resource queue family ownerships (optionally).
                 cb.pipelineBarrier2KHR({
                     {}, {}, {},
-                    vku::unsafeProxy(images | std::views::transform(decomposer([&](std::size_t imageIndex, vk::Image image) {
+                    vku::unsafeProxy(*this | std::views::transform(decomposer([&](std::size_t imageIndex, const auto &tuple) {
+                        const vku::Image &image = get<0>(tuple);
                         // See previous TRANSFER -> GRAPHICS queue family ownership release code to get insight.
                         if (imageIndicesToGenerateMipmap.contains(imageIndex)) {
                             return vk::ImageMemoryBarrier2 {
@@ -496,7 +492,7 @@ namespace vk_gltf_viewer::vulkan::image {
                 if (imageIndicesToGenerateMipmap.empty()) return;
 
                 recordBatchedMipmapGenerationCommand(cb, imageIndicesToGenerateMipmap | std::views::transform([this](std::size_t imageIndex) -> decltype(auto) {
-                    return images.at(imageIndex);
+                    return get<0>(at(imageIndex));
                 }));
 
                 cb.pipelineBarrier(
@@ -508,43 +504,37 @@ namespace vk_gltf_viewer::vulkan::image {
                                 vk::AccessFlagBits::eTransferWrite, {},
                                 {}, vk::ImageLayout::eShaderReadOnlyOptimal,
                                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                                images.at(imageIndex), vku::fullSubresourceRange(),
+                                get<0>(at(imageIndex)), vku::fullSubresourceRange(),
                             };
                         })
                         | std::ranges::to<std::vector>());
             }, *graphicsFence);
             std::ignore = gpu.device.waitForFences(*graphicsFence, true, ~0ULL); // TODO: failure handling
-
-            imageViews = createImageViews(gpu.device);
         }
 
     private:
-        [[nodiscard]] std::unordered_map<std::size_t, vk::raii::ImageView> createImageViews(const vk::raii::Device &device) const {
-            return images
-                | ranges::views::value_transform([&](const vku::Image &image) -> vk::raii::ImageView {
-                    return { device, vk::ImageViewCreateInfo {
-                        {},
-                        image,
-                        vk::ImageViewType::e2D,
-                        image.format,
-                        [&]() -> vk::ComponentMapping {
-                            switch (componentCount(image.format)) {
-                            case 1:
-                                // Grayscale: red channel have to be propagated to green/blue channels.
-                                return { {}, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne };
-                            case 2:
-                                // Grayscale \w alpha: red channel have to be propagated to green/blue channels, and alpha channel uses given green value.
-                                return { {}, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG };
-                            case 4:
-                                // RGB or RGBA.
-                                return {};
-                            }
-                            std::unreachable();
-                        }(),
-                        vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
-                    } };
-                })
-                | std::ranges::to<std::unordered_map>();
+        [[nodiscard]] static vk::raii::ImageView createImageView(const vk::raii::Device &device, const vku::Image &image) {
+            return { device, vk::ImageViewCreateInfo {
+                {},
+                image,
+                vk::ImageViewType::e2D,
+                image.format,
+                [&]() -> vk::ComponentMapping {
+                    switch (componentCount(image.format)) {
+                    case 1:
+                        // Grayscale: red channel have to be propagated to green/blue channels.
+                        return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne };
+                    case 2:
+                        // Grayscale \w alpha: red channel have to be propagated to green/blue channels, and alpha channel uses given green value.
+                        return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG };
+                    case 4:
+                        // RGB or RGBA.
+                        return {};
+                    }
+                    std::unreachable();
+                }(),
+                vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
+            } };
         }
     };
 }
