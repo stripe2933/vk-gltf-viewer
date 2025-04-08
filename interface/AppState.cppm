@@ -85,7 +85,7 @@ namespace vk_gltf_viewer {
                         return tristateVisibilities
                             | ranges::views::enumerate
                             | std::views::filter(decomposer([this](auto nodeIndex, std::optional<bool> visibility) {
-                                return visibility.value_or(false) && asset.nodes[nodeIndex].meshIndex.has_value();
+                                return visibility.value_or(true) && asset.nodes[nodeIndex].meshIndex.has_value();
                             }))
                             | std::views::keys
                             | std::views::transform([](auto nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
