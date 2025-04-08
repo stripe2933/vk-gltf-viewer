@@ -30,8 +30,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                 | ranges::views::enumerate
                 | std::views::transform(decomposer([&](std::size_t textureIndex, const fastgltf::Texture &texture) -> vk::DescriptorSet {
                     auto [sampler, imageView, _] = textures.descriptorInfos[textureIndex];
-
-                    const vku::Image &image = textures.images.images.at(getPreferredImageIndex(texture));
+                    const vku::Image &image = get<0>(textures.images.at(getPreferredImageIndex(texture)));
                     if (srgbColorAttachment != isSrgbFormat(image.format)) {
                         // Image view format is incompatible, need to be regenerated.
                         const vk::ComponentMapping components = [&]() -> vk::ComponentMapping {
@@ -58,114 +57,139 @@ namespace vk_gltf_viewer::vulkan::texture {
                 }))
                 | std::ranges::to<std::vector>();
 
-            const auto getImage = [&](std::size_t textureIndex) -> const vku::Image& {
-                const std::size_t imageIndex = getPreferredImageIndex(asset.textures[textureIndex]);
-                return textures.images.images.at(imageIndex);
-            };
-
             materialTextureDescriptorSets.resize(asset.materials.size());
             for (const auto &[materialIndex, material] : asset.materials | ranges::views::enumerate) {
                 if (const auto &textureInfo = material.pbrData.metallicRoughnessTexture) {
-                    const vku::Image &image = getImage(textureInfo->textureIndex);
-
-                    // Metallic/roughness texture is non-sRGB by default, therefore image view format must be mutated
-                    // if color space is sRGB.
-                    vk::Format colorSpaceCompatibleFormat = image.format;
-                    if (srgbColorAttachment) {
-                        colorSpaceCompatibleFormat = convertSrgb(image.format);
+                    const vku::Image &image = get<0>(textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])));
+                    if (componentCount(image.format) == 1) {
+                        // Texture is grayscale, channel propagating swizzling is unnecessary.
+                        get<0>(materialTextureDescriptorSets[materialIndex]) = textureDescriptorSets[textureInfo->textureIndex];
+                        get<1>(materialTextureDescriptorSets[materialIndex]) = textureDescriptorSets[textureInfo->textureIndex];
                     }
+                    else {
+                        vk::Format colorSpaceCompatibleFormat = image.format;
+                        if (srgbColorAttachment != isSrgbFormat(image.format)) {
+                            colorSpaceCompatibleFormat = convertSrgb(image.format);
+                        }
 
-                    // Metallic.
-                    get<0>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
-                        textures.descriptorInfos[textureInfo->textureIndex].sampler,
-                        *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
-                            .setFormat(colorSpaceCompatibleFormat)
-                            .setComponents({ vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eOne })),
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                        // Metallic.
+                        get<0>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
+                            textures.descriptorInfos[textureInfo->textureIndex].sampler,
+                            *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
+                                .setFormat(colorSpaceCompatibleFormat)
+                                .setComponents({ vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eOne })),
+                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-                    // Roughness.
-                    get<1>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
-                        textures.descriptorInfos[textureInfo->textureIndex].sampler,
-                        *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
-                            .setFormat(colorSpaceCompatibleFormat)
-                            .setComponents({ vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eOne })),
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                        // Roughness.
+                        get<1>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
+                            textures.descriptorInfos[textureInfo->textureIndex].sampler,
+                            *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
+                                .setFormat(colorSpaceCompatibleFormat)
+                                .setComponents({ vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eOne })),
+                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    }
                 }
 
                 if (const auto &textureInfo = material.normalTexture) {
-                    const vku::Image &image = getImage(textureInfo->textureIndex);
+                    get<2>(materialTextureDescriptorSets[materialIndex]) = [&]() -> vk::DescriptorSet {
+                        const auto &[image, _, info] = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex]));
+                        if (componentCount(image.format) == 1 || info.alphaChannelPadded) {
+                            // Alpha channel is sampled as 1, therefore can use the texture as is.
+                            return textureDescriptorSets[textureInfo->textureIndex];
+                        }
+                        else {
+                            vk::Format colorSpaceCompatibleFormat = image.format;
+                            if (srgbColorAttachment != isSrgbFormat(image.format)) {
+                                colorSpaceCompatibleFormat = convertSrgb(image.format);
+                            }
 
-                    // Normal texture is non-sRGB by default, therefore image view format must be mutated if color space is sRGB.
-                    vk::Format colorSpaceCompatibleFormat = image.format;
-                    if (srgbColorAttachment) {
-                        colorSpaceCompatibleFormat = convertSrgb(image.format);
-                    }
-
-                    get<2>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
-                        textures.descriptorInfos[textureInfo->textureIndex].sampler,
-                        *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
-                            .setFormat(colorSpaceCompatibleFormat)
-                            .setComponents({ {}, {}, {}, vk::ComponentSwizzle::eOne })),
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                            return ImGui_ImplVulkan_AddTexture(
+                                textures.descriptorInfos[textureInfo->textureIndex].sampler,
+                                *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
+                                    .setFormat(colorSpaceCompatibleFormat)
+                                    .setComponents({ {}, {}, {}, vk::ComponentSwizzle::eOne })),
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                        }
+                    }();
                 }
 
                 if (const auto &textureInfo = material.occlusionTexture) {
-                    const vku::Image &image = getImage(textureInfo->textureIndex);
+                    get<3>(materialTextureDescriptorSets[materialIndex]) = [&]() -> vk::DescriptorSet {
+                        const vku::Image &image = get<0>(textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])));
+                        if (componentCount(image.format) == 1) {
+                            // Texture is grayscale, channel propagating swizzling is unnecessary.
+                            return textureDescriptorSets[textureInfo->textureIndex];
+                        }
+                        else {
+                            vk::Format colorSpaceCompatibleFormat = image.format;
+                            if (srgbColorAttachment != isSrgbFormat(image.format)) {
+                                colorSpaceCompatibleFormat = convertSrgb(image.format);
+                            }
 
-                    // Occlusion texture is non-sRGB by default, therefore image view format must be mutated if color space is sRGB.
-                    vk::Format colorSpaceCompatibleFormat = image.format;
-                    if (srgbColorAttachment) {
-                        colorSpaceCompatibleFormat = convertSrgb(image.format);
-                    }
-
-                    get<3>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
-                        textures.descriptorInfos[textureInfo->textureIndex].sampler,
-                        *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
-                            .setFormat(colorSpaceCompatibleFormat)
-                            .setComponents({ vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne })),
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                            return ImGui_ImplVulkan_AddTexture(
+                                textures.descriptorInfos[textureInfo->textureIndex].sampler,
+                                *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
+                                    .setFormat(colorSpaceCompatibleFormat)
+                                    .setComponents({ vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne })),
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                        }
+                    }();
                 }
 
                 if (const auto &textureInfo = material.emissiveTexture) {
-                    const vku::Image &image = getImage(textureInfo->textureIndex);
+                    get<4>(materialTextureDescriptorSets[materialIndex]) = [&]() -> vk::DescriptorSet {
+                        const auto &[image, _, info] = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex]));
+                        if (componentCount(image.format) == 1 || info.alphaChannelPadded) {
+                            // Alpha channel is sampled as 1, therefore can use the texture as is.
+                            return textureDescriptorSets[textureInfo->textureIndex];
+                        }
+                        else {
+                            // Emissive texture must be sRGB encoded, therefore image view format must be mutated if color space
+                            // is not sRGB.
+                            vk::Format colorSpaceCompatibleFormat = image.format;
+                            if (!srgbColorAttachment) {
+                                colorSpaceCompatibleFormat = convertSrgb(image.format);
+                            }
 
-                    // Emissive texture is sRGB by default, therefore image view format must be mutated if color space is not sRGB.
-                    vk::Format colorSpaceCompatibleFormat = image.format;
-                    if (!srgbColorAttachment) {
-                        colorSpaceCompatibleFormat = convertSrgb(image.format);
-                    }
+                            const vk::ComponentMapping components = [&]() -> vk::ComponentMapping {
+                                switch (componentCount(image.format)) {
+                                    case 1:
+                                    case 2:
+                                        // Grayscale: red channel have to be propagated to green/blue channels. Alpha channel is ignored.
+                                        return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne };
+                                    case 4:
+                                        // RGB or RGBA.
+                                        return {};
+                                    default:
+                                        std::unreachable();
+                                }
+                            }();
 
-                    const vk::ComponentMapping components = [&]() -> vk::ComponentMapping {
-                        switch (componentCount(image.format)) {
-                            case 1:
-                            case 2:
-                                // Grayscale: red channel have to be propagated to green/blue channels. Alpha channel is ignored.
-                                return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne };
-                            case 4:
-                                // RGB or RGBA.
-                                return {};
-                            default:
-                                std::unreachable();
+                            return ImGui_ImplVulkan_AddTexture(
+                                textures.descriptorInfos[textureInfo->textureIndex].sampler,
+                                *imageViews.emplace_back(gpu.device, image.getViewCreateInfo().setFormat(colorSpaceCompatibleFormat).setComponents(components)),
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                         }
                     }();
-
-                    get<4>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
-                        textures.descriptorInfos[textureInfo->textureIndex].sampler,
-                        *imageViews.emplace_back(gpu.device, image.getViewCreateInfo().setFormat(colorSpaceCompatibleFormat).setComponents(components)),
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 }
             }
         }
 
         ~ImGuiColorSpaceAndUsageCorrectedTextures() override {
+            std::vector<vk::DescriptorSet> uniqueDescriptorSets;
             for (vk::DescriptorSet descriptorSet : materialTextureDescriptorSets | std::views::join) {
                 if (descriptorSet) {
-                    ImGui_ImplVulkan_RemoveTexture(descriptorSet);
+                    uniqueDescriptorSets.push_back(descriptorSet);
                 }
             }
-            for (vk::DescriptorSet descriptorSet : textureDescriptorSets) {
-                ImGui_ImplVulkan_RemoveTexture(descriptorSet);
-            }
+            uniqueDescriptorSets.append_range(textureDescriptorSets);
+
+            // Remove duplicates.
+            std::ranges::sort(uniqueDescriptorSets);
+            const auto [begin, end] = std::ranges::unique(uniqueDescriptorSets);
+            uniqueDescriptorSets.erase(begin, end);
+
+            std::ranges::for_each(uniqueDescriptorSets, ImGui_ImplVulkan_RemoveTexture);
         }
 
         [[nodiscard]] ImTextureID getTextureID(std::size_t textureIndex) const override {
