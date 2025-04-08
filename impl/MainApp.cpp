@@ -50,7 +50,6 @@ import :vulkan.Frame;
 import :vulkan.mipmap;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
-#define MOVE_CAP(x) x = std::move(x)
 #ifdef _WIN32
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
