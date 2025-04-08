@@ -796,7 +796,7 @@ vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR
     return { gpu.device, createInfo.get() };
 }
 
-auto vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources {
+vk_gltf_viewer::MainApp::ImageBasedLightingResources vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const {
     vku::MappedBuffer sphericalHarmonicsBuffer { gpu.allocator, std::from_range, std::array<glm::vec3, 9> {
         glm::vec3 { 1.f },
     }, vk::BufferUsageFlagBits::eUniformBuffer };
@@ -819,7 +819,7 @@ auto vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const -
     };
 }
 
-auto vk_gltf_viewer::MainApp::createEqmapSampler() const -> vk::raii::Sampler {
+vk::raii::Sampler vk_gltf_viewer::MainApp::createEqmapSampler() const {
     return { gpu.device, vk::SamplerCreateInfo {
         {},
         vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
@@ -831,7 +831,7 @@ auto vk_gltf_viewer::MainApp::createEqmapSampler() const -> vk::raii::Sampler {
     } };
 }
 
-auto vk_gltf_viewer::MainApp::createBrdfmapImage() const -> decltype(brdfmapImage) {
+vku::AllocatedImage vk_gltf_viewer::MainApp::createBrdfmapImage() const {
     return { gpu.allocator, vk::ImageCreateInfo {
         {},
         vk::ImageType::e2D,

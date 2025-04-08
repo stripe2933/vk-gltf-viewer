@@ -2,8 +2,47 @@ module vk_gltf_viewer;
 import :AppState;
 
 import std;
-import vku;
+import :gltf.algorithm.traversal;
 import :helpers.functional;
+import :helpers.ranges;
+
+void vk_gltf_viewer::AppState::GltfAsset::setScene(std::size_t sceneIndex) noexcept {
+    this->sceneIndex = sceneIndex;
+    visit([this](auto &visibilities) {
+        std::ranges::fill(visibilities, false);
+        gltf::algorithm::traverseScene(asset, getScene(), [&](std::size_t nodeIndex) {
+           visibilities[nodeIndex] = true;
+        });
+    }, nodeVisibilities);
+    selectedNodeIndices.clear();
+    hoveringNodeIndex.reset();
+}
+
+std::unordered_set<std::uint16_t> vk_gltf_viewer::AppState::GltfAsset::getVisibleNodeIndices() const noexcept {
+    return visit(multilambda {
+        [this](std::span<const std::optional<bool>> tristateVisibilities) {
+            return tristateVisibilities
+                | ranges::views::enumerate
+                | std::views::filter(decomposer([this](auto nodeIndex, const std::optional<bool> &visibility) {
+                    return visibility.value_or(true) && asset.nodes[nodeIndex].meshIndex.has_value();
+                }))
+                | std::views::keys
+                | std::views::transform([](std::size_t nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
+                | std::ranges::to<std::unordered_set>();
+        },
+        [this](const std::vector<bool> &visibilities) {
+            return visibilities
+                | ranges::views::enumerate
+                | std::views::filter(decomposer([this](std::size_t nodeIndex, bool visibility) {
+                    return visibility && asset.nodes[nodeIndex].meshIndex.has_value();
+                }))
+                | std::views::keys
+                | std::views::transform([](std::size_t nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
+                | std::ranges::to<std::unordered_set>();
+        }
+    }, nodeVisibilities);
+}
+
 
 vk_gltf_viewer::AppState::AppState() noexcept
     : camera {
@@ -69,7 +108,7 @@ void vk_gltf_viewer::AppState::GltfAsset::switchNodeVisibilityType() {
     }, nodeVisibilities);
 }
 
-auto vk_gltf_viewer::AppState::pushRecentGltfPath(const std::filesystem::path &path) -> void {
+void vk_gltf_viewer::AppState::pushRecentGltfPath(const std::filesystem::path &path) {
     if (auto it = std::ranges::find(recentGltfPaths, path); it == recentGltfPaths.end()) {
         recentGltfPaths.emplace_front(path);
     }
@@ -79,7 +118,7 @@ auto vk_gltf_viewer::AppState::pushRecentGltfPath(const std::filesystem::path &p
     }
 }
 
-auto vk_gltf_viewer::AppState::pushRecentSkyboxPath(const std::filesystem::path &path) -> void {
+void vk_gltf_viewer::AppState::pushRecentSkyboxPath(const std::filesystem::path &path) {
     if (auto it = std::ranges::find(recentSkyboxPaths, path); it == recentSkyboxPaths.end()) {
         recentSkyboxPaths.emplace_front(path);
     }

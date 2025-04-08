@@ -17,20 +17,20 @@ public:
     constexpr full_optional(U &&initial) noexcept(std::is_nothrow_constructible_v<T, U>)
         : value { FWD(initial) }, _active { true } { }
 
-    constexpr auto operator=(const full_optional&) noexcept(std::is_nothrow_copy_assignable_v<T>) -> full_optional& = default;
-    constexpr auto operator=(full_optional&&) noexcept -> full_optional& = default;
+    constexpr full_optional& operator=(const full_optional&) noexcept(std::is_nothrow_copy_assignable_v<T>) = default;
+    constexpr full_optional& operator=(full_optional&&) noexcept = default;
 
-    [[nodiscard]] auto operator*() const noexcept -> const T& { return value; }
-    [[nodiscard]] auto operator*() noexcept -> T& { return value; }
+    [[nodiscard]] const T &operator*() const noexcept { return value; }
+    [[nodiscard]] T &operator*() noexcept { return value; }
 
-    [[nodiscard]] auto operator->() const noexcept -> const T* { return &value; }
-    [[nodiscard]] auto operator->() noexcept -> T* { return &value; }
+    [[nodiscard]] const T *operator->() const noexcept { return &value; }
+    [[nodiscard]] T *operator->() noexcept { return &value; }
 
-    [[nodiscard]] auto get() const -> const T& {
+    [[nodiscard]] const T &get() const {
         if (_active) return value;
         throw std::bad_optional_access{};
     }
-    [[nodiscard]] auto get() -> T& {
+    [[nodiscard]] T &get() {
         if (_active) return value;
         throw std::bad_optional_access{};
     }

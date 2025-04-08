@@ -22,18 +22,18 @@ namespace vk_gltf_viewer::control {
 
         [[nodiscard]] operator GLFWwindow*() const noexcept;
 
-        [[nodiscard]] auto getSurface() const noexcept -> vk::SurfaceKHR;
+        [[nodiscard]] vk::SurfaceKHR getSurface() const noexcept;
 
-        [[nodiscard]] auto getSize() const -> glm::ivec2;
-        [[nodiscard]] auto getFramebufferSize() const -> glm::ivec2;
-        [[nodiscard]] auto getCursorPos() const -> glm::dvec2;
-        [[nodiscard]] auto getContentScale() const -> glm::vec2;
+        [[nodiscard]] glm::ivec2 getSize() const;
+        [[nodiscard]] glm::ivec2 getFramebufferSize() const;
+        [[nodiscard]] glm::dvec2 getCursorPos() const;
+        [[nodiscard]] glm::vec2 getContentScale() const;
 
         void setTitle(const char *title) {
             glfwSetWindowTitle(window, title);
         }
 
-        auto handleEvents(std::vector<Task> &tasks) -> void;
+        void handleEvents(std::vector<Task> &tasks);
 
     private:
         GLFWwindow *window = glfwCreateWindow(1280, 720, "Vulkan glTF Viewer", nullptr, nullptr);
@@ -43,7 +43,7 @@ namespace vk_gltf_viewer::control {
 
         std::optional<glm::dvec2> lastMouseDownPosition = std::nullopt;
 
-        [[nodiscard]] auto createSurface(const vk::raii::Instance &instance) const -> vk::raii::SurfaceKHR;
+        [[nodiscard]] vk::raii::SurfaceKHR createSurface(const vk::raii::Instance &instance) const;
 
         void onScrollCallback(glm::dvec2 offset);
         void onTrackpadRotateCallback(double angle);

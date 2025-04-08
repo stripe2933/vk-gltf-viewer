@@ -53,7 +53,7 @@ namespace ranges {
         typename AssociativeContainer,
         typename Key = std::remove_cvref_t<AssociativeContainer>::key_type,
         typename T = std::remove_cvref_t<AssociativeContainer>::mapped_type>
-    [[nodiscard]] constexpr auto value_or(AssociativeContainer &&c, const Key &key, T default_value) noexcept -> T {
+    [[nodiscard]] constexpr T value_or(AssociativeContainer &&c, const Key &key, T default_value) noexcept {
         const auto it = c.find(key);
         return it == c.end() ? default_value : it->second;
     }
@@ -70,11 +70,11 @@ namespace ranges {
     export template <
         typename AssociativeContainer,
         typename Key = AssociativeContainer::key_type>
-    [[nodiscard]] constexpr auto try_emplace_if_not_exists(
+    [[nodiscard]] constexpr std::pair<typename AssociativeContainer::iterator, bool> try_emplace_if_not_exists(
         AssociativeContainer &c,
         const Key &key,
         concepts::signature_of<typename AssociativeContainer::mapped_type> auto const &f
-    ) -> std::pair<typename AssociativeContainer::iterator, bool> {
+    ) {
         if (auto it = c.find(key); it != c.end()) {
             return { it, false };
         }
@@ -112,7 +112,7 @@ namespace views {
 #else
     struct enumerate_fn : range_adaptor_closure<enumerate_fn> {
         template <std::ranges::viewable_range R>
-        [[nodiscard]] static constexpr auto operator()(R &&r) -> auto {
+        [[nodiscard]] static constexpr auto operator()(R &&r) {
             if constexpr (std::ranges::sized_range<R>) {
                 return std::views::zip(upto<std::ranges::range_difference_t<R>>(r.size()), FWD(r));
             }
@@ -149,7 +149,7 @@ namespace views {
     export constexpr decltype(std::views::zip_transform) zip_transform;
 #else
     export
-    [[nodiscard]] constexpr auto zip_transform(auto &&f, std::ranges::input_range auto &&...rs) -> auto {
+    [[nodiscard]] constexpr auto zip_transform(auto &&f, std::ranges::input_range auto &&...rs) {
         return std::views::zip(FWD(rs)...) | std::views::transform([&](auto &&t) {
             return std::apply(f, FWD(t));
         });

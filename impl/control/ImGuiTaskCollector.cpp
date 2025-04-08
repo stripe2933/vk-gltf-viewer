@@ -46,7 +46,7 @@ int boundFpPrecision = 2;
  * @return <tt>cpp_util::cstring_view</tt> that contains either the original \p str, or the result of \p fallback.
  */
 template <concepts::signature_of<cpp_util::cstring_view> F>
-[[nodiscard]] auto nonempty_or(cpp_util::cstring_view str, F &&fallback) -> cpp_util::cstring_view {
+[[nodiscard]] cpp_util::cstring_view nonempty_or(cpp_util::cstring_view str, F &&fallback) {
     if (str.empty()) return FWD(fallback)();
     else return str;
 }

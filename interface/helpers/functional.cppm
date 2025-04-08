@@ -47,7 +47,7 @@ export template <typename F>
  */
 export template <typename T, typename... Ts>
     requires (std::convertible_to<const Ts&, T> && ...)
-[[nodiscard]] auto visit_as(const std::variant<Ts...> &v) -> T {
+[[nodiscard]] T visit_as(const std::variant<Ts...> &v) {
     return std::visit([](T x) -> T { return x; }, v);
 }
 
@@ -64,6 +64,6 @@ export template <typename T, typename... Ts>
  */
 export template <typename T, typename... Ts>
     requires (std::convertible_to<Ts&, T> && ...)
-[[nodiscard]] auto visit_as(std::variant<Ts...> &v) -> T {
+[[nodiscard]] T visit_as(std::variant<Ts...> &v) {
     return std::visit([](T x) -> T { return x; }, v);
 }

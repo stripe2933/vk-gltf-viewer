@@ -52,40 +52,40 @@ vk_gltf_viewer::control::AppWindow::operator GLFWwindow*() const noexcept {
     return window;
 }
 
-auto vk_gltf_viewer::control::AppWindow::getSurface() const noexcept -> vk::SurfaceKHR {
+vk::SurfaceKHR vk_gltf_viewer::control::AppWindow::getSurface() const noexcept {
     return *surface;
 }
 
-auto vk_gltf_viewer::control::AppWindow::getSize() const -> glm::ivec2 {
+glm::ivec2 vk_gltf_viewer::control::AppWindow::getSize() const {
     glm::ivec2 size;
     glfwGetWindowSize(window, &size.x, &size.y);
     return size;
 }
 
-auto vk_gltf_viewer::control::AppWindow::getFramebufferSize() const -> glm::ivec2 {
+glm::ivec2 vk_gltf_viewer::control::AppWindow::getFramebufferSize() const {
     glm::ivec2 size;
     glfwGetFramebufferSize(window, &size.x, &size.y);
     return size;
 }
 
-auto vk_gltf_viewer::control::AppWindow::getCursorPos() const -> glm::dvec2 {
+glm::dvec2 vk_gltf_viewer::control::AppWindow::getCursorPos() const {
     glm::dvec2 pos;
     glfwGetCursorPos(window, &pos.x, &pos.y);
     return pos;
 }
 
-auto vk_gltf_viewer::control::AppWindow::getContentScale() const -> glm::vec2 {
+glm::vec2 vk_gltf_viewer::control::AppWindow::getContentScale() const {
     glm::vec2 scale;
     glfwGetWindowContentScale(window, &scale.x, &scale.y);
     return scale;
 }
 
-auto vk_gltf_viewer::control::AppWindow::handleEvents(std::vector<Task> &tasks) -> void {
+void vk_gltf_viewer::control::AppWindow::handleEvents(std::vector<Task> &tasks) {
     pTasks = &tasks;
     glfwPollEvents();
 }
 
-auto vk_gltf_viewer::control::AppWindow::createSurface(const vk::raii::Instance &instance) const -> vk::raii::SurfaceKHR {
+vk::raii::SurfaceKHR vk_gltf_viewer::control::AppWindow::createSurface(const vk::raii::Instance &instance) const {
     if (VkSurfaceKHR surface; glfwCreateWindowSurface(*instance, window, nullptr, &surface) == VK_SUCCESS) {
         return { instance, surface };
     }

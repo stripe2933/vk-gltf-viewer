@@ -37,7 +37,7 @@ public:
      * @tparam T Type to set. Must be one of the alternative types.
      */
     template <concepts::one_of<Ts...> T>
-    auto emplace() noexcept -> void {
+    void emplace() noexcept {
         v.template emplace<std::type_identity<T>>();
     }
 
@@ -47,7 +47,7 @@ public:
      * @return <tt>true</tt> if the variant holds the given type, <tt>false</tt> otherwise.
      */
     template <concepts::one_of<Ts...> T>
-    auto holds_alternative() const noexcept -> bool {
+    [[nodiscard]] bool holds_alternative() const noexcept {
         return std::holds_alternative<std::type_identity<T>>(v);
     }
 
