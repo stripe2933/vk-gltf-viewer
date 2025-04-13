@@ -9,6 +9,7 @@ import :gltf.data_structure.SceneInverseHierarchy;
 import :gltf.NodeWorldTransforms;
 import :gltf.TextureUsage;
 import :helpers.fastgltf;
+import :imgui.UserData;
 import :vulkan.dsl.Asset;
 import :vulkan.dsl.ImageBasedLighting;
 import :vulkan.dsl.Skybox;
@@ -34,6 +35,8 @@ namespace vk_gltf_viewer {
         static constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
 
         struct ImGuiContext {
+            std::unique_ptr<imgui::UserData> userData;
+
             ImGuiContext(const control::AppWindow &window, vk::Instance instance, const vulkan::Gpu &gpu);
             ~ImGuiContext();
         };

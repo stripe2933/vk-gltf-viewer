@@ -136,7 +136,9 @@ namespace ImGui {
     export using ImGui::Separator;
     export using ImGui::SeparatorText;
     export using ImGui::SetCursorPosX;
+    export using ImGui::SetCursorScreenPos;
     export using ImGui::SetItemDefaultFocus;
+    export using ImGui::SetNextItemAllowOverlap;
     export using ImGui::SetNextItemWidth;
     export using ImGui::TableHeadersRow;
     export using ImGui::TableNextRow;

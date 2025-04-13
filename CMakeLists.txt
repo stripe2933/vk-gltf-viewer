@@ -172,6 +172,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/type_variant.cppm
         interface/helpers/vulkan.cppm
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
+        interface/imgui/UserData.cppm
         interface/MainApp.cppm
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
@@ -208,6 +209,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/Frame.cppm
         interface/vulkan/Gpu.cppm
         interface/vulkan/image/Images.cppm
+        interface/vulkan/imgui/UserData.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
         interface/vulkan/pipeline/DepthRenderer.cppm
@@ -231,6 +233,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/shader_type/Primitive.cppm
         interface/vulkan/SharedData.cppm
         interface/vulkan/specialization_constants/SpecializationMap.cppm
+        interface/vulkan/texture/Checkerboard.cppm
         interface/vulkan/texture/Fallback.cppm
         interface/vulkan/texture/ImGuiColorSpaceAndUsageCorrectedTextures.cppm
         interface/vulkan/texture/Textures.cppm
