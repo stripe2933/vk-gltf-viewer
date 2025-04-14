@@ -44,7 +44,7 @@ namespace tristate {
      *   - Otherwise, the parent node state is indeterminate.
      */
     export void propagateBottomUp(
-        concepts::compatible_signature_of<std::optional<std::size_t>, std::size_t> auto &&parentIndexGetter,
+        concepts::signature_of<std::optional<std::size_t>(std::size_t)> auto &&parentIndexGetter,
         std::invocable<std::size_t> auto &&childrenIndicesGetter,
         std::size_t nodeIndex,
         std::span<std::optional<bool>> tristates

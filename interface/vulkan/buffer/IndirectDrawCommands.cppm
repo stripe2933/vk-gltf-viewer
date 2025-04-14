@@ -114,7 +114,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         vma::Allocator allocator,
         const CriteriaGetter &criteriaGetter,
         const std::unordered_set<std::uint16_t> &nodeIndices,
-        concepts::compatible_signature_of<std::variant<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand>, std::uint16_t, const fastgltf::Primitive&> auto const &drawCommandGetter
+        concepts::signature_of<std::variant<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand>(std::uint16_t, const fastgltf::Primitive&)> auto const &drawCommandGetter
     ) {
         std::map<Criteria, std::variant<std::vector<vk::DrawIndirectCommand>, std::vector<vk::DrawIndexedIndirectCommand>>> commandGroups;
 

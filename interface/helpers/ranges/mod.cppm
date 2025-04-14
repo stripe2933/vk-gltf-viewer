@@ -73,7 +73,7 @@ namespace ranges {
     [[nodiscard]] constexpr std::pair<typename AssociativeContainer::iterator, bool> try_emplace_if_not_exists(
         AssociativeContainer &c,
         const Key &key,
-        concepts::signature_of<typename AssociativeContainer::mapped_type> auto const &f
+        concepts::signature_of<typename AssociativeContainer::mapped_type()> auto const &f
     ) {
         if (auto it = c.find(key); it != c.end()) {
             return { it, false };
