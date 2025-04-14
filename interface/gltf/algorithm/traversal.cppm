@@ -14,8 +14,8 @@ namespace vk_gltf_viewer::gltf::algorithm {
     export template <std::invocable<std::size_t> F>
     void traverseNode(const fastgltf::Asset &asset, std::size_t nodeIndex, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t>) {
         [&](this const auto &self, std::size_t nodeIndex) -> void {
-            // If F's return type is bool type, traversal continuation is determined by the return value of f.
-            if constexpr (std::convertible_to<std::invoke_result_t<F, std::size_t>, bool>) {
+            // If F is predicate, traversal continuation is determined by the return value of f.
+            if constexpr (std::predicate<F, std::size_t>) {
                 // Stop traversal if f returns false.
                 if (!f(nodeIndex)) return;
             }
@@ -40,8 +40,8 @@ namespace vk_gltf_viewer::gltf::algorithm {
     export template <std::invocable<std::size_t, const fastgltf::math::fmat4x4&> F>
     void traverseNode(const fastgltf::Asset &asset, std::size_t nodeIndex, const F &f, const fastgltf::math::fmat4x4 &initialNodeWorldTransform) noexcept(std::is_nothrow_invocable_v<F, std::size_t, const fastgltf::math::fmat4x4&>) {
         [&](this const auto &self, std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) -> void {
-            // If F's return type is bool type, traversal continuation is determined by the return value of f.
-            if constexpr (std::convertible_to<std::invoke_result_t<F, std::size_t, const fastgltf::math::fmat4x4&>, bool>) {
+            // If F is predicate, traversal continuation is determined by the return value of f.
+            if constexpr (std::predicate<F, std::size_t, const fastgltf::math::fmat4x4&>) {
                 // Stop traversal if f returns false.
                 if (!f(nodeIndex, worldTransform)) return;
             }

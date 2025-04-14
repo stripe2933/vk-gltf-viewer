@@ -58,10 +58,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @tparam F A functor type which determine the partition by take a draw command as an argument.
          * @param f Predicate to determine the command to be in the head (true) or in the tail (false).
          */
-        template <typename F> requires requires(F &&f) {
-            { FWD(f)(std::declval<vk::DrawIndirectCommand>()) } -> std::convertible_to<bool>;
-            { FWD(f)(std::declval<vk::DrawIndexedIndirectCommand>()) } -> std::convertible_to<bool>;
-        }
+        template <typename F> requires
+            std::predicate<F, const vk::DrawIndirectCommand&> && std::predicate<F, const vk::DrawIndexedIndirectCommand&>
         void partition(F &&f) noexcept(std::is_nothrow_invocable_v<F>) {
             if (indexed) {
                 const std::span commands = asRange<vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
