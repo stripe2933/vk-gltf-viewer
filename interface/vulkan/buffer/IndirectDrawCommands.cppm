@@ -131,20 +131,18 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     auto &commandGroup = commandGroups
                         .try_emplace(criteria, std::in_place_type<std::vector<DrawCommand>>)
                         .first->second;
-                    if (auto *pDrawCommands = get_if<std::vector<DrawCommand>>(&commandGroup)) {
-                        pDrawCommands->push_back(drawCommand);
-                    }
-                    else {
-                        // Criteria already exists in the commandGroups, but indexed property is not matching.
-                        throw std::runtime_error { "Incompatible indexed property in the same criteria" };
-                    }
+
+                    // std::bad_variant_access in here means the criteria already exists in the commandGroups, but the
+                    // indexed property is not matching, i.e. both indexed and non-indexed draw command is in the same
+                    // criteria.
+                    get<std::vector<DrawCommand>>(commandGroup).push_back(drawCommand);
                 }, drawCommandGetter(nodeIndex, primitive));
             }
         }
 
         return commandGroups
             | ranges::views::value_transform([&](const auto &variant) {
-                return visit([&]<typename DrawCommand>(const std::vector<DrawCommand> &commands) {
+                return visit([&](const auto &commands) {
                     return IndirectDrawCommands { allocator, std::span { commands } };
                 }, variant);
             })
