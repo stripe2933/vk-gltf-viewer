@@ -165,30 +165,6 @@ namespace views {
     });
 
     /**
-     * A range adaptor object that apply a transformation function, invocable with underlying sequence's tuple-like elements.
-     * @example
-     * @code
-     * using Person = std::pair<std::string, int>; // name, age.
-     * std::vector people { Person { "Alice", 20 }, Person { "Bob", 30 } };
-     * auto stringified = people | ranges::views::decompose_transform([](std::string_view name, int age) {
-     *     return std::format("Person(name={:?}, age={})", name, age);
-     * });
-     * std::println("{::s}", stringified); // Output: [Person(name="Alice", age=20), Person(name="Bob", age=30)]
-     * @endcode
-     */
-    export constexpr struct decompose_transform_fn {
-        [[nodiscard]] auto operator()(auto &&f) const {
-            return std::views::transform([f = FWD(f)](auto &&xs) {
-                return std::apply(f, FWD(xs));
-            });
-        }
-
-        [[nodiscard]] auto operator()(std::ranges::viewable_range auto &&r, auto &&f) const {
-            return FWD(r) | this->operator()(FWD(f));
-        }
-    } decompose_transform;
-
-    /**
      * A range adaptor object that transform the value underlying sequence's pair-like elements.
      * @example
      * @code

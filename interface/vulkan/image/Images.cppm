@@ -13,6 +13,7 @@ export import BS.thread_pool;
 export import fastgltf;
 export import :gltf.AssetProcessError;
 import :helpers.fastgltf;
+import :helpers.functional;
 import :helpers.io;
 import :helpers.ranges;
 import :helpers.span;
@@ -397,7 +398,7 @@ namespace vk_gltf_viewer::vulkan::image {
                     cb.pipelineBarrier(
                         vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllCommands,
                         {}, {}, {},
-                        images | ranges::views::decompose_transform([&](std::size_t imageIndex, vk::Image image) {
+                        images | std::views::transform(decomposer([&](std::size_t imageIndex, vk::Image image) {
                             if (imageIndicesToGenerateMipmap.contains(imageIndex)) {
                                 // Image data is only inside the mipLevel=0, therefore only queue family ownership
                                 // about that portion have to be transferred. New layout should be TRANSFER_SRC_OPTIMAL.
@@ -418,7 +419,7 @@ namespace vk_gltf_viewer::vulkan::image {
                                     image, vku::fullSubresourceRange(),
                                 };
                             }
-                        })
+                        }))
                         | std::ranges::to<std::vector>());
                 }
             }, *transferFence);
@@ -437,7 +438,7 @@ namespace vk_gltf_viewer::vulkan::image {
                 // Change image layouts and acquire resource queue family ownerships (optionally).
                 cb.pipelineBarrier2KHR({
                     {}, {}, {},
-                    vku::unsafeProxy(images | ranges::views::decompose_transform([&](std::size_t imageIndex, vk::Image image) {
+                    vku::unsafeProxy(images | std::views::transform(decomposer([&](std::size_t imageIndex, vk::Image image) {
                         // See previous TRANSFER -> GRAPHICS queue family ownership release code to get insight.
                         if (imageIndicesToGenerateMipmap.contains(imageIndex)) {
                             return vk::ImageMemoryBarrier2 {
@@ -457,7 +458,7 @@ namespace vk_gltf_viewer::vulkan::image {
                                 image, vku::fullSubresourceRange(),
                             };
                         }
-                    })
+                    }))
                     | std::ranges::to<std::vector>())
                 });
 
