@@ -152,7 +152,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 for (const fastgltf::Attribute &attribute : primitive.attributes) {
                     // Process only used attributes.
                     const bool isAttributeUsed
-                        = ranges::one_of(attribute.name, "POSITION"sv, "NORMAL"sv, "TANGENT"sv, "COLOR_0"sv)
+                        = ranges::one_of<std::string_view>(attribute.name, { "POSITION", "NORMAL", "TANGENT", "COLOR_0" })
                         || attribute.name.starts_with("TEXCOORD_"sv)
                         || attribute.name.starts_with("JOINTS_"sv)
                         || attribute.name.starts_with("WEIGHTS_"sv);
@@ -176,7 +176,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     for (const auto &[attributeName, accessorIndex] : attributes) {
                         // Process only used attributes.
                         // TODO: TEXCOORD_<i> and COLOR_0.
-                        const bool isAttributeUsed = ranges::one_of(attributeName, "POSITION"sv, "NORMAL"sv, "TANGENT"sv);
+                        const bool isAttributeUsed = ranges::one_of<std::string_view>(attributeName, { "POSITION", "NORMAL", "TANGENT" });
                         if (!isAttributeUsed) continue;
 
                         const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];

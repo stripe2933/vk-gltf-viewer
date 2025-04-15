@@ -27,7 +27,7 @@ namespace vk_gltf_viewer::control {
         void assetTextures(fastgltf::Asset &asset, std::span<const ImTextureID> assetTextureImGuiDescriptorSets, const gltf::TextureUsage &textureUsage);
         void materialEditor(fastgltf::Asset &asset, std::span<const ImTextureID> assetTextureImGuiDescriptorSets);
         void materialVariants(const fastgltf::Asset &asset);
-        void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, const std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities, const std::optional<std::uint16_t> &hoveringNodeIndex, const std::unordered_set<std::uint16_t> &selectedNodeIndices);
+        void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities, const std::optional<std::uint16_t> &hoveringNodeIndex, const std::unordered_set<std::uint16_t> &selectedNodeIndices);
         void nodeInspector(fastgltf::Asset &asset, const std::unordered_set<std::uint16_t> &selectedNodeIndices);
         void background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureID eqmapTextureImGuiDescriptorSet);

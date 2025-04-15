@@ -17,7 +17,7 @@ import :helpers.type_map;
 
 namespace fastgltf {
     export template <typename T>
-    [[nodiscard]] auto to_optional(OptionalWithFlagValue<T> v) noexcept -> std::optional<T> {
+    [[nodiscard]] std::optional<T> to_optional(OptionalWithFlagValue<T> v) noexcept {
         return value_if(v.has_value(), [&]() { return *v; });
     }
 

@@ -92,7 +92,7 @@ vk_gltf_viewer::vulkan::Gpu::~Gpu() {
     allocator.destroy();
 }
 
-auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance &instance, vk::SurfaceKHR surface) const -> vk::raii::PhysicalDevice {
+vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance &instance, vk::SurfaceKHR surface) const {
     std::vector physicalDevices = instance.enumeratePhysicalDevices();
     const auto physicalDeviceRater = [&](vk::PhysicalDevice physicalDevice) -> std::uint32_t {
         // Check queue family availability.
@@ -187,7 +187,7 @@ auto vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance 
     return bestPhysicalDevice;
 }
 
-auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
+vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     // Add optional extensions if available.
 	const std::vector availableExtensions = physicalDevice.enumerateDeviceExtensionProperties();
     const std::unordered_set availableExtensionNames
@@ -271,7 +271,7 @@ auto vk_gltf_viewer::vulkan::Gpu::createDevice() -> vk::raii::Device {
     return device;
 }
 
-auto vk_gltf_viewer::vulkan::Gpu::createAllocator(const vk::raii::Instance &instance) const -> vma::Allocator {
+vma::Allocator vk_gltf_viewer::vulkan::Gpu::createAllocator(const vk::raii::Instance &instance) const {
     return vma::createAllocator(vma::AllocatorCreateInfo {
         vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
         *physicalDevice, *device,

@@ -8,7 +8,7 @@ export module vk_gltf_viewer:vulkan.buffer.CombinedIndices;
 
 import std;
 export import fastgltf;
-import :helpers.ranges;
+import :helpers.functional;
 import :helpers.type_map;
 import :vulkan.buffer;
 export import :vulkan.buffer.StagingBufferStorage;
@@ -170,7 +170,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 }
             }
 
-            bufferByIndexType.insert_range(indexBufferBytesByType | ranges::views::decompose_transform([&](vk::IndexType indexType, const auto &primitiveAndIndexBytesPairs) {
+            bufferByIndexType.insert_range(indexBufferBytesByType | std::views::transform(decomposer([&](vk::IndexType indexType, const auto &primitiveAndIndexBytesPairs) {
                 auto [buffer, copyOffsets] = buffer::createCombinedBuffer<true>(
                     gpu.allocator,
                     primitiveAndIndexBytesPairs | std::views::values,
@@ -184,7 +184,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 }
 
                 return std::pair { indexType, std::move(buffer) };
-            }));
+            })));
         }
 
         [[nodiscard]] vk::Buffer getIndexBuffer(vk::IndexType indexType) const {

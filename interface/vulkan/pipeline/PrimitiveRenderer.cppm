@@ -239,7 +239,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             }
 
             if (colorComponentCountAndType) {
-                assert(ranges::one_of(colorComponentCountAndType->first, 3, 4));
+                assert(ranges::one_of(colorComponentCountAndType->first, { 3, 4 }));
                 result.colorComponentCount = colorComponentCountAndType->first;
                 result.packedAttributeComponentTypes |= static_cast<std::uint32_t>(colorComponentCountAndType->second) << 28;
             }

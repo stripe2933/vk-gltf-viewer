@@ -35,14 +35,6 @@ import :helpers.TempStringBuffer;
 
 using namespace std::string_view_literals;
 
-enum class MaterialProperty : std::uint8_t {
-    BaseColor,
-    MetallicRoughness,
-    Normal,
-    Occlusion,
-    Emissive,
-};
-
 std::optional<std::size_t> vk_gltf_viewer::control::ImGuiTaskCollector::selectedMaterialIndex = std::nullopt;
 bool mergeSingleChildNodes = true;
 int boundFpPrecision = 2;
@@ -53,8 +45,8 @@ int boundFpPrecision = 2;
  * @param fallback Fallback function to call if \p str is empty.
  * @return <tt>cpp_util::cstring_view</tt> that contains either the original \p str, or the result of \p fallback.
  */
-template <concepts::signature_of<cpp_util::cstring_view> F>
-[[nodiscard]] auto nonempty_or(cpp_util::cstring_view str, F &&fallback) -> cpp_util::cstring_view {
+template <concepts::signature_of<cpp_util::cstring_view()> F>
+[[nodiscard]] cpp_util::cstring_view nonempty_or(cpp_util::cstring_view str, F &&fallback) {
     if (str.empty()) return FWD(fallback)();
     else return str;
 }
@@ -705,19 +697,19 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::SameLine();
                 ImGui::HelperMarker("(overridden)", "This value is overridden by KHR_texture_transform extension.");
             };
-            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, MaterialProperty materialProperty) -> void {
+            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, gltf::TextureUsage::Type textureUsageType) -> void {
                 const auto [enabledProp, changeProp] = [&]() -> std::array<task::MaterialPropertyChanged::Property, 2> {
                     using enum task::MaterialPropertyChanged::Property;
-                    switch (materialProperty) {
-                        case MaterialProperty::BaseColor:
+                    switch (textureUsageType) {
+                        case gltf::TextureUsage::BaseColor:
                             return { BaseColorTextureTransformEnabled, BaseColorTextureTransform };
-                        case MaterialProperty::MetallicRoughness:
+                        case gltf::TextureUsage::MetallicRoughness:
                             return { MetallicRoughnessTextureTransformEnabled, MetallicRoughnessTextureTransform };
-                        case MaterialProperty::Normal:
+                        case gltf::TextureUsage::Normal:
                             return { NormalTextureTransformEnabled, NormalTextureTransform };
-                        case MaterialProperty::Occlusion:
+                        case gltf::TextureUsage::Occlusion:
                             return { OcclusionTextureTransformEnabled, OcclusionTextureTransform };
-                        case MaterialProperty::Emissive:
+                        case gltf::TextureUsage::Emissive:
                             return { EmissiveTextureTransformEnabled, EmissiveTextureTransform };
                     }
                     std::unreachable();
@@ -780,7 +772,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*baseColorTextureInfo, MaterialProperty::BaseColor);
+                                textureTransformControl(*baseColorTextureInfo, gltf::TextureUsage::BaseColor);
                             }
                         }, baseColorTextureInfo.has_value());
                     });
@@ -813,7 +805,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                         texcoordOverriddenMarker();
                                     }
 
-                                    textureTransformControl(*metallicRoughnessTextureInfo, MaterialProperty::MetallicRoughness);
+                                    textureTransformControl(*metallicRoughnessTextureInfo, gltf::TextureUsage::MetallicRoughness);
                                 }
                             });
                         });
@@ -839,7 +831,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*textureInfo, MaterialProperty::Normal);
+                                textureTransformControl(*textureInfo, gltf::TextureUsage::Normal);
                             });
                         });
                     }, material.unlit);
@@ -864,7 +856,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*textureInfo, MaterialProperty::Occlusion);
+                                textureTransformControl(*textureInfo, gltf::TextureUsage::Occlusion);
                             });
                         });
                     }, material.unlit);
@@ -893,7 +885,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                                         texcoordOverriddenMarker();
                                     }
 
-                                    textureTransformControl(*textureInfo, MaterialProperty::Emissive);
+                                    textureTransformControl(*textureInfo, gltf::TextureUsage::Emissive);
                                 }
                             }, textureInfo.has_value());
                         });
@@ -928,7 +920,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(const fastglt
 void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
     fastgltf::Asset &asset,
     std::size_t sceneIndex,
-    const std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities,
+    std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities,
     const std::optional<std::uint16_t> &hoveringNodeIndex,
     const std::unordered_set<std::uint16_t> &selectedNodeIndices
 ) {
@@ -1013,11 +1005,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 // --------------------
 
                 if (auto pVisibilities = get_if<std::vector<std::optional<bool>>>(&visibilities)) {
-                    std::optional visibility = (*pVisibilities)[nodeIndex];
-
                     ImGui::SameLine();
-                    if (ImGui::CheckboxTristate("##hierarchy-checkbox", visibility)) {
-                        tasks.emplace_back(std::in_place_type<task::ChangeNodeVisibility>, nodeIndex);
+                    if (ImGui::CheckboxTristate("##hierarchy-checkbox", (*pVisibilities)[nodeIndex])) {
+                        tasks.emplace_back(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                     }
                 }
 
@@ -1052,17 +1042,19 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 if (node.meshIndex) {
                     ImGui::TableSetColumnIndex(1);
                     const bool visibilityChanged = visit(multilambda {
-                        [&](std::span<const std::optional<bool>> visibilities) {
-                            std::optional visibility = visibilities[nodeIndex];
-                            return ImGui::CheckboxTristate("##visibility", visibility);
+                        [&](std::span<std::optional<bool>> visibilities) {
+                            return ImGui::CheckboxTristate("##visibility", visibilities[nodeIndex]);
                         },
-                        [&](const std::vector<bool> &visibilities) {
-                            bool visibility = visibilities[nodeIndex];
-                            return ImGui::Checkbox("##visibility", &visibility);
+                        [&](std::vector<bool> &visibilities) {
+                            bool visible = visibilities[nodeIndex];
+                            if (ImGui::Checkbox("##visibility", &visible)) {
+                                visibilities[nodeIndex].flip();
+                            }
+                            return visible;
                         },
                     }, visibilities);
                     if (visibilityChanged)  {
-                        tasks.emplace_back(std::in_place_type<task::ChangeNodeVisibility>, nodeIndex);
+                        tasks.emplace_back(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                     }
                 }
 
@@ -1127,7 +1119,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
             ImGui::TextUnformatted("No nodes are selected."sv);
         }
         else if (selectedNodeIndices.size() == 1) {
-            const std::uint16_t selectedNodeIndex = *selectedNodeIndices.begin();
+            const std::size_t selectedNodeIndex = *selectedNodeIndices.begin();
             fastgltf::Node &node = asset.nodes[selectedNodeIndex];
             ImGui::InputTextWithHint("Name", "<empty>", &node.name);
 
@@ -1153,7 +1145,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                     transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
 
                     if (transformChanged) {
-                        tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);
+                        tasks.emplace_back(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
                     }
                 },
                 [&](fastgltf::math::fmat4x4 &matrix) {
@@ -1164,7 +1156,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                     transformChanged |= ImGui::DragFloat4("Column 3", matrix.col(3).data());
 
                     if (transformChanged) {
-                        tasks.emplace_back(std::in_place_type<task::ChangeNodeLocalTransform>, selectedNodeIndex);
+                        tasks.emplace_back(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
                     }
                 },
             }, node.transform);
@@ -1182,7 +1174,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
                 for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
                     if (ImGui::DragFloat(tempStringBuffer.write("Weight {}", i).view().c_str(), &weight, 0.01f)) {
-                        tasks.emplace_back(std::in_place_type<task::ChangeMorphTargetWeight>, selectedNodeIndex, i, 1);
+                        tasks.emplace_back(std::in_place_type<task::MorphTargetWeightChanged>, selectedNodeIndex, i, 1);
                     }
                 }
             }
@@ -1395,7 +1387,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             }
 
             if (cameraViewChanged) {
-                tasks.emplace_back(std::in_place_type<task::ChangeCameraView>);
+                tasks.emplace_back(std::in_place_type<task::CameraViewChanged>);
             }
 
             if (float fovInDegree = glm::degrees(camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
@@ -1455,7 +1447,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Camera &camera) {
         camera.position = inverseView[3];
         camera.direction = -inverseView[2];
 
-        tasks.emplace_back(std::in_place_type<task::ChangeCameraView>);
+        tasks.emplace_back(std::in_place_type<task::CameraViewChanged>);
     }
 }
 
@@ -1470,7 +1462,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
 
     fastgltf::math::fmat4x4 deltaMatrix;
     if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, selectedNodeWorldTransform.data(), deltaMatrix.data())) {
-        tasks.emplace_back(std::in_place_type<task::ChangeSelectedNodeWorldTransform>);
+        tasks.emplace_back(std::in_place_type<task::SelectedNodeWorldTransformChanged>);
     }
 
     constexpr ImVec2 size { 64.f, 64.f };
@@ -1483,6 +1475,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
         camera.position = inverseView[3];
         camera.direction = -inverseView[2];
 
-        tasks.emplace_back(std::in_place_type<task::ChangeCameraView>);
+        tasks.emplace_back(std::in_place_type<task::CameraViewChanged>);
     }
 }

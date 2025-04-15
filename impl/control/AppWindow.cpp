@@ -52,40 +52,40 @@ vk_gltf_viewer::control::AppWindow::operator GLFWwindow*() const noexcept {
     return window;
 }
 
-auto vk_gltf_viewer::control::AppWindow::getSurface() const noexcept -> vk::SurfaceKHR {
+vk::SurfaceKHR vk_gltf_viewer::control::AppWindow::getSurface() const noexcept {
     return *surface;
 }
 
-auto vk_gltf_viewer::control::AppWindow::getSize() const -> glm::ivec2 {
+glm::ivec2 vk_gltf_viewer::control::AppWindow::getSize() const {
     glm::ivec2 size;
     glfwGetWindowSize(window, &size.x, &size.y);
     return size;
 }
 
-auto vk_gltf_viewer::control::AppWindow::getFramebufferSize() const -> glm::ivec2 {
+glm::ivec2 vk_gltf_viewer::control::AppWindow::getFramebufferSize() const {
     glm::ivec2 size;
     glfwGetFramebufferSize(window, &size.x, &size.y);
     return size;
 }
 
-auto vk_gltf_viewer::control::AppWindow::getCursorPos() const -> glm::dvec2 {
+glm::dvec2 vk_gltf_viewer::control::AppWindow::getCursorPos() const {
     glm::dvec2 pos;
     glfwGetCursorPos(window, &pos.x, &pos.y);
     return pos;
 }
 
-auto vk_gltf_viewer::control::AppWindow::getContentScale() const -> glm::vec2 {
+glm::vec2 vk_gltf_viewer::control::AppWindow::getContentScale() const {
     glm::vec2 scale;
     glfwGetWindowContentScale(window, &scale.x, &scale.y);
     return scale;
 }
 
-auto vk_gltf_viewer::control::AppWindow::handleEvents(std::vector<Task> &tasks) -> void {
+void vk_gltf_viewer::control::AppWindow::handleEvents(std::vector<Task> &tasks) {
     pTasks = &tasks;
     glfwPollEvents();
 }
 
-auto vk_gltf_viewer::control::AppWindow::createSurface(const vk::raii::Instance &instance) const -> vk::raii::SurfaceKHR {
+vk::raii::SurfaceKHR vk_gltf_viewer::control::AppWindow::createSurface(const vk::raii::Instance &instance) const {
     if (VkSurfaceKHR surface; glfwCreateWindowSurface(*instance, window, nullptr, &surface) == VK_SUCCESS) {
         return { instance, surface };
     }
@@ -103,7 +103,7 @@ void vk_gltf_viewer::control::AppWindow::onScrollCallback(glm::dvec2 offset) {
     appState.camera.targetDistance *= factor;
     appState.camera.position += (1.f - factor) * displacementToTarget;
 
-    pTasks->emplace_back(std::in_place_type<task::ChangeCameraView>);
+    pTasks->emplace_back(std::in_place_type<task::CameraViewChanged>);
 }
 
 void vk_gltf_viewer::control::AppWindow::onTrackpadRotateCallback(double angle) {
@@ -115,7 +115,7 @@ void vk_gltf_viewer::control::AppWindow::onTrackpadRotateCallback(double angle) 
     appState.camera.direction = glm::mat3 { rotation } * appState.camera.direction;
     appState.camera.position = target - appState.camera.direction * appState.camera.targetDistance;
 
-    pTasks->emplace_back(std::in_place_type<task::ChangeCameraView>);
+    pTasks->emplace_back(std::in_place_type<task::CameraViewChanged>);
 }
 
 void vk_gltf_viewer::control::AppWindow::onCursorPosCallback(glm::dvec2 position) {
@@ -183,13 +183,13 @@ void vk_gltf_viewer::control::AppWindow::onDropCallback(std::span<const char * c
     if (std::filesystem::is_directory(path)) {
         // If directory contains glTF file, load it.
         for (const std::filesystem::path &childPath : std::filesystem::directory_iterator { path }) {
-            if (ranges::one_of(childPath.extension(), ".gltf", ".glb")) {
+            if (ranges::one_of(childPath.extension(), { ".gltf", ".glb" })) {
                 pTasks->emplace_back(std::in_place_type<task::LoadGltf>, childPath);
                 return;
             }
         }
     }
-    else if (const std::filesystem::path extension = path.extension(); ranges::one_of(extension, ".gltf", ".glb")) {
+    else if (const std::filesystem::path extension = path.extension(); ranges::one_of(extension, { ".gltf", ".glb" })) {
         pTasks->emplace_back(std::in_place_type<task::LoadGltf>, path);
     }
     else if (std::ranges::contains(supportedSkyboxExtensions, extension)) {

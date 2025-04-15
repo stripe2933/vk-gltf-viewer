@@ -21,27 +21,27 @@ namespace vk_gltf_viewer::control {
          */
         float targetDistance;
 
-        [[nodiscard]] auto getViewMatrix() const noexcept -> glm::mat4 {
+        [[nodiscard]] glm::mat4 getViewMatrix() const noexcept {
             return lookAt(position, position + direction, up);
         }
 
-        [[nodiscard]] auto getProjectionMatrix() const noexcept -> glm::mat4 {
+        [[nodiscard]] glm::mat4 getProjectionMatrix() const noexcept {
             return glm::perspectiveRH_ZO(fov, aspectRatio, zMax, zMin);
         }
 
-        [[nodiscard]] auto getProjectionMatrixForwardZ() const noexcept -> glm::mat4 {
+        [[nodiscard]] glm::mat4 getProjectionMatrixForwardZ() const noexcept {
             return glm::perspectiveRH_ZO(fov, aspectRatio, zMin, zMax);
         }
 
-        [[nodiscard]] auto getProjectionViewMatrix() const noexcept -> glm::mat4 {
+        [[nodiscard]] glm::mat4 getProjectionViewMatrix() const noexcept {
             return getProjectionMatrix() * getViewMatrix();
         }
 
-        [[nodiscard]] auto getProjectionViewMatrixForwardZ() const noexcept -> glm::mat4 {
+        [[nodiscard]] glm::mat4 getProjectionViewMatrixForwardZ() const noexcept {
             return getProjectionMatrixForwardZ() * getViewMatrix();
         }
 
-        [[nodiscard]] constexpr auto getRight() const noexcept -> glm::vec3 {
+        [[nodiscard]] constexpr glm::vec3 getRight() const noexcept {
             return cross(direction, up);
         }
 
@@ -62,7 +62,7 @@ namespace vk_gltf_viewer::control {
             }
         }
 
-        [[nodiscard]] auto getFrustum() const -> math::Frustum {
+        [[nodiscard]] math::Frustum getFrustum() const {
             // Code from LearnOpenGL.
             // See: https://learnopengl.com/Guest-Articles/2021/Scene/Frustum-Culling.
             const float halfVSide = zMax * std::tan(fov / 2.f);

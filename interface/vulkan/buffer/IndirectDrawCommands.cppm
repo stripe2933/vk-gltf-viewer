@@ -58,10 +58,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @tparam F A functor type which determine the partition by take a draw command as an argument.
          * @param f Predicate to determine the command to be in the head (true) or in the tail (false).
          */
-        template <typename F> requires requires(F &&f) {
-            { FWD(f)(std::declval<vk::DrawIndirectCommand>()) } -> std::convertible_to<bool>;
-            { FWD(f)(std::declval<vk::DrawIndexedIndirectCommand>()) } -> std::convertible_to<bool>;
-        }
+        template <typename F> requires
+            std::predicate<F, const vk::DrawIndirectCommand&> && std::predicate<F, const vk::DrawIndexedIndirectCommand&>
         void partition(F &&f) noexcept(std::is_nothrow_invocable_v<F>) {
             if (indexed) {
                 const std::span commands = asRange<vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
@@ -116,7 +114,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         vma::Allocator allocator,
         const CriteriaGetter &criteriaGetter,
         const std::unordered_set<std::uint16_t> &nodeIndices,
-        concepts::compatible_signature_of<std::variant<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand>, std::uint16_t, const fastgltf::Primitive&> auto const &drawCommandGetter
+        concepts::signature_of<std::variant<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand>(std::uint16_t, const fastgltf::Primitive&)> auto const &drawCommandGetter
     ) {
         std::map<Criteria, std::variant<std::vector<vk::DrawIndirectCommand>, std::vector<vk::DrawIndexedIndirectCommand>>> commandGroups;
 
@@ -133,20 +131,18 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     auto &commandGroup = commandGroups
                         .try_emplace(criteria, std::in_place_type<std::vector<DrawCommand>>)
                         .first->second;
-                    if (auto *pDrawCommands = get_if<std::vector<DrawCommand>>(&commandGroup)) {
-                        pDrawCommands->push_back(drawCommand);
-                    }
-                    else {
-                        // Criteria already exists in the commandGroups, but indexed property is not matching.
-                        throw std::runtime_error { "Incompatible indexed property in the same criteria" };
-                    }
+
+                    // std::bad_variant_access in here means the criteria already exists in the commandGroups, but the
+                    // indexed property is not matching, i.e. both indexed and non-indexed draw command is in the same
+                    // criteria.
+                    get<std::vector<DrawCommand>>(commandGroup).push_back(drawCommand);
                 }, drawCommandGetter(nodeIndex, primitive));
             }
         }
 
         return commandGroups
             | ranges::views::value_transform([&](const auto &variant) {
-                return visit([&]<typename DrawCommand>(const std::vector<DrawCommand> &commands) {
+                return visit([&](const auto &commands) {
                     return IndirectDrawCommands { allocator, std::span { commands } };
                 }, variant);
             })

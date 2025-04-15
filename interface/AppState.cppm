@@ -5,11 +5,7 @@ export import fastgltf;
 export import glm;
 export import ImGuizmo;
 export import :control.Camera;
-import :gltf.algorithm.traversal;
 export import :helpers.full_optional;
-import :helpers.functional;
-import :helpers.optional;
-import :helpers.ranges;
 
 namespace vk_gltf_viewer {
     export class AppState {
@@ -51,19 +47,9 @@ namespace vk_gltf_viewer {
             explicit GltfAsset(fastgltf::Asset &asset) noexcept
                 : asset { asset } { }
 
-            [[nodiscard]] auto getSceneIndex() const noexcept -> std::size_t { return sceneIndex; }
-            [[nodiscard]] auto getScene() const noexcept -> fastgltf::Scene& { return asset.scenes[sceneIndex]; }
-            auto setScene(std::size_t _sceneIndex) noexcept -> void {
-                sceneIndex = _sceneIndex;
-                visit([this](auto &visibilities) {
-                    std::ranges::fill(visibilities, false);
-                    gltf::algorithm::traverseScene(asset, asset.scenes[sceneIndex], [&](std::size_t nodeIndex) {
-                       visibilities[nodeIndex] = true;
-                    });
-                }, nodeVisibilities);
-                selectedNodeIndices.clear();
-                hoveringNodeIndex.reset();
-            }
+            [[nodiscard]] std::size_t getSceneIndex() const noexcept { return sceneIndex; }
+            [[nodiscard]] fastgltf::Scene& getScene() const noexcept { return asset.scenes[sceneIndex]; }
+            void setScene(std::size_t _sceneIndex) noexcept;
 
             /**
              * @brief Switch node visibility type between tristate and binary.
@@ -79,30 +65,7 @@ namespace vk_gltf_viewer {
              * @note Since the result only contains node which is visible, nodes without mesh are excluded regardless of
              * its corresponding <tt>nodeVisibilities</tt> is <tt>true</tt>.
              */
-            [[nodiscard]] auto getVisibleNodeIndices() const noexcept -> std::unordered_set<std::uint16_t> {
-                return visit(multilambda {
-                    [this](std::span<const std::optional<bool>> tristateVisibilities) {
-                        return tristateVisibilities
-                            | ranges::views::enumerate
-                            | std::views::filter(decomposer([this](auto nodeIndex, std::optional<bool> visibility) {
-                                return visibility.value_or(true) && asset.nodes[nodeIndex].meshIndex.has_value();
-                            }))
-                            | std::views::keys
-                            | std::views::transform([](auto nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
-                            | std::ranges::to<std::unordered_set>();
-                    },
-                    [this](const std::vector<bool> &visibilities) {
-                        return visibilities
-                            | ranges::views::enumerate
-                            | std::views::filter(decomposer([this](auto nodeIndex, bool visibility) {
-                                return visibility && asset.nodes[nodeIndex].meshIndex.has_value();
-                            }))
-                            | std::views::keys
-                            | std::views::transform([](auto nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
-                            | std::ranges::to<std::unordered_set>();
-                    }
-                }, nodeVisibilities);
-            }
+            [[nodiscard]] std::unordered_set<std::uint16_t> getVisibleNodeIndices() const noexcept;
 
         private:
             std::size_t sceneIndex = asset.defaultScene.value_or(0);
@@ -123,12 +86,14 @@ namespace vk_gltf_viewer {
         AppState() noexcept;
         ~AppState();
 
-        [[nodiscard]] auto getRecentGltfPaths() const -> const std::list<std::filesystem::path>& { return recentGltfPaths; }
-        auto pushRecentGltfPath(const std::filesystem::path &path) -> void;
-        [[nodiscard]] auto getRecentSkyboxPaths() const -> const std::list<std::filesystem::path>& { return recentSkyboxPaths; }
-        auto pushRecentSkyboxPath(const std::filesystem::path &path) -> void;
+        [[nodiscard]] const std::list<std::filesystem::path>& getRecentGltfPaths() const { return recentGltfPaths; }
+        void pushRecentGltfPath(const std::filesystem::path &path);
+        [[nodiscard]] const std::list<std::filesystem::path>& getRecentSkyboxPaths() const { return recentSkyboxPaths; }
+        void pushRecentSkyboxPath(const std::filesystem::path &path);
 
-        [[nodiscard]] auto canManipulateImGuizmo() const -> bool { return gltfAsset && gltfAsset->selectedNodeIndices.size() == 1; }
+        [[nodiscard]] bool canManipulateImGuizmo() const {
+            return gltfAsset && gltfAsset->selectedNodeIndices.size() == 1;
+        }
 
     private:
         std::list<std::filesystem::path> recentGltfPaths;

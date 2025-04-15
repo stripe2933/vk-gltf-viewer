@@ -30,7 +30,7 @@ namespace vk_gltf_viewer::vulkan::pl {
                 }),
             } } { }
 
-        auto pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const -> void {
+        void pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const {
             commandBuffer.pushConstants<PushConstant>(**this, vk::ShaderStageFlagBits::eVertex, 0, pushConstant);
         }
     };

@@ -68,7 +68,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             },
             cubeIndices { cubeIndices } { }
 
-        auto draw(vk::CommandBuffer commandBuffer, vku::DescriptorSet<dsl::Skybox> descriptorSet, const PushConstant &pushConstant) const -> void {
+        void draw(vk::CommandBuffer commandBuffer, vku::DescriptorSet<dsl::Skybox> descriptorSet, const PushConstant &pushConstant) const {
             commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSet, {});
             commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, pushConstant);

@@ -163,11 +163,11 @@ void vk_gltf_viewer::MainApp::run() {
             }
 
             for (std::size_t nodeIndex : transformedNodes) {
-                tasks.emplace_back(std::in_place_type<control::task::ChangeNodeLocalTransform>, nodeIndex);
+                tasks.emplace_back(std::in_place_type<control::task::NodeLocalTransformChanged>, nodeIndex);
             }
             for (std::size_t nodeIndex : morphedNodes) {
-                const std::size_t targetWeightCount = fastgltf::getTargetWeightCount(gltf->asset.nodes[nodeIndex], gltf->asset);
-                tasks.emplace_back(std::in_place_type<control::task::ChangeMorphTargetWeight>, nodeIndex, 0, targetWeightCount);
+                const std::size_t targetWeightCount = getTargetWeightCount(gltf->asset.nodes[nodeIndex], gltf->asset);
+                tasks.emplace_back(std::in_place_type<control::task::MorphTargetWeightChanged>, nodeIndex, 0, targetWeightCount);
             }
         }
 
@@ -273,28 +273,17 @@ void vk_gltf_viewer::MainApp::run() {
                 [this](control::task::ChangeNodeVisibilityType) {
                     appState.gltfAsset->switchNodeVisibilityType();
                 },
-                [this](control::task::ChangeNodeVisibility task) {
-                    visit(multilambda {
-                        [&](std::span<std::optional<bool>> visibilities) {
-                            if (auto &visibility = visibilities[task.nodeIndex]) {
-                                *visibility = !*visibility;
-                            }
-                            else {
-                                visibility.emplace(true);
-                            }
-
-                            tristate::propagateTopDown(
-                                [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
-                                task.nodeIndex, visibilities);
-                            tristate::propagateBottomUp(
-                                LIFT(gltf->sceneInverseHierarchy.parentNodeIndices.operator[]),
-                                [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
-                                task.nodeIndex, visibilities);
-                        },
-                        [&](std::vector<bool> &visibilities) {
-                            visibilities[task.nodeIndex].flip();
-                        },
-                    }, appState.gltfAsset->nodeVisibilities);
+                [this](control::task::NodeVisibilityChanged task) {
+                    if (auto *pVisibilities = get_if<std::vector<std::optional<bool>>>(&appState.gltfAsset->nodeVisibilities)) {
+                        // If using tristate node visibility, visibility has to be propagated to both its descendants and ancestors.
+                        tristate::propagateTopDown(
+                            [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
+                            task.nodeIndex, *pVisibilities);
+                        tristate::propagateBottomUp(
+                            LIFT(gltf->sceneInverseHierarchy.parentNodeIndices.operator[]),
+                            [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
+                            task.nodeIndex, *pVisibilities);
+                    }
                 },
                 [this](const control::task::SelectNode &task) {
                     if (!task.combine) {
@@ -310,7 +299,7 @@ void vk_gltf_viewer::MainApp::run() {
                 [this](const control::task::HoverNodeFromSceneHierarchy &task) {
                     appState.gltfAsset->hoveringNodeIndex.emplace(task.nodeIndex);
                 },
-                [&](const control::task::ChangeNodeLocalTransform &task) {
+                [&](const control::task::NodeLocalTransformChanged &task) {
                     fastgltf::math::fmat4x4 baseMatrix { 1.f };
                     if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy.parentNodeIndices[task.nodeIndex]) {
                         baseMatrix = gltf->nodeWorldTransforms[*parentNodeIndex];
@@ -334,7 +323,7 @@ void vk_gltf_viewer::MainApp::run() {
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
                 },
-                [&](control::task::ChangeSelectedNodeWorldTransform) {
+                [&](control::task::SelectedNodeWorldTransformChanged) {
                     const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
                     const fastgltf::math::fmat4x4 &selectedNodeWorldTransform = gltf->nodeWorldTransforms[selectedNodeIndex];
 
@@ -402,7 +391,7 @@ void vk_gltf_viewer::MainApp::run() {
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
                 },
-                [this](control::task::ChangeCameraView) {
+                [this](control::task::CameraViewChanged) {
                     if (appState.automaticNearFarPlaneAdjustment && gltf) {
                         // Tighten near/far plane based on the scene enclosing sphere.
                         const auto &[center, radius] = gltf->sceneMiniball;
@@ -508,7 +497,7 @@ void vk_gltf_viewer::MainApp::run() {
                             gltf->orderedPrimitives.getIndex(*pPrimitive), static_cast<std::uint32_t>(materialIndex), sharedDataUpdateCommandBuffer);
                     }
                 },
-                [&](const control::task::ChangeMorphTargetWeight &task) {
+                [&](const control::task::MorphTargetWeightChanged &task) {
                     auto updateTargetWeightTask = [this, task](vulkan::Frame &frame) {
                         const std::span targetWeights = getTargetWeights(gltf->asset.nodes[task.nodeIndex], gltf->asset);
                         for (auto weightIndex = task.targetWeightStartIndex; float weight : targetWeights.subspan(task.targetWeightStartIndex, task.targetWeightCount)) {
@@ -807,7 +796,7 @@ vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR
     return { gpu.device, createInfo.get() };
 }
 
-auto vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources {
+vk_gltf_viewer::MainApp::ImageBasedLightingResources vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const {
     vku::MappedBuffer sphericalHarmonicsBuffer { gpu.allocator, std::from_range, std::array<glm::vec3, 9> {
         glm::vec3 { 1.f },
     }, vk::BufferUsageFlagBits::eUniformBuffer };
@@ -830,7 +819,7 @@ auto vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const -
     };
 }
 
-auto vk_gltf_viewer::MainApp::createEqmapSampler() const -> vk::raii::Sampler {
+vk::raii::Sampler vk_gltf_viewer::MainApp::createEqmapSampler() const {
     return { gpu.device, vk::SamplerCreateInfo {
         {},
         vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
@@ -842,7 +831,7 @@ auto vk_gltf_viewer::MainApp::createEqmapSampler() const -> vk::raii::Sampler {
     } };
 }
 
-auto vk_gltf_viewer::MainApp::createBrdfmapImage() const -> decltype(brdfmapImage) {
+vku::AllocatedImage vk_gltf_viewer::MainApp::createBrdfmapImage() const {
     return { gpu.allocator, vk::ImageCreateInfo {
         {},
         vk::ImageType::e2D,
@@ -874,7 +863,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     }
     catch (fastgltf::Error error) {
         // If error is due to missing or unknown required extension, show a message and return.
-        if (ranges::one_of(error, fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension)) {
+        if (ranges::one_of(error, { fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension })) {
             std::println(std::cerr, "The glTF file requires an extension that is not supported by this application.");
             closeGltf();
             return;

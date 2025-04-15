@@ -2,6 +2,6 @@ module vk_gltf_viewer;
 
 import :MainApp;
 
-auto vk_gltf_viewer::run() -> void {
+void vk_gltf_viewer::run() {
     MainApp{}.run();
 }

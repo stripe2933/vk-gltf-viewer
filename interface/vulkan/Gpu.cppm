@@ -49,8 +49,8 @@ namespace vk_gltf_viewer::vulkan {
         ~Gpu();
 
     private:
-        [[nodiscard]] auto selectPhysicalDevice(const vk::raii::Instance &instance, vk::SurfaceKHR surface) const -> vk::raii::PhysicalDevice;
-        [[nodiscard]] auto createDevice() -> vk::raii::Device;
-        [[nodiscard]] auto createAllocator(const vk::raii::Instance &instance) const -> vma::Allocator;
+        [[nodiscard]] vk::raii::PhysicalDevice selectPhysicalDevice(const vk::raii::Instance &instance, vk::SurfaceKHR surface) const;
+        [[nodiscard]] vk::raii::Device createDevice();
+        [[nodiscard]] vma::Allocator createAllocator(const vk::raii::Instance &instance) const;
     };
 }

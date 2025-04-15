@@ -160,9 +160,9 @@ namespace vk_gltf_viewer {
         [[nodiscard]] vk::raii::Instance createInstance() const;
         [[nodiscard]] vk::raii::SwapchainKHR createSwapchain(vk::SwapchainKHR oldSwapchain = {}) const;
 
-        [[nodiscard]] auto createDefaultImageBasedLightingResources() const -> ImageBasedLightingResources;
-        [[nodiscard]] auto createEqmapSampler() const -> vk::raii::Sampler;
-        [[nodiscard]] auto createBrdfmapImage() const -> decltype(brdfmapImage);
+        [[nodiscard]] ImageBasedLightingResources createDefaultImageBasedLightingResources() const;
+        [[nodiscard]] vk::raii::Sampler createEqmapSampler() const;
+        [[nodiscard]] vku::AllocatedImage createBrdfmapImage() const;
 
         void loadGltf(const std::filesystem::path &path);
         void closeGltf();

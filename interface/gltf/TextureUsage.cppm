@@ -9,7 +9,7 @@ import :helpers.ranges;
 namespace vk_gltf_viewer::gltf {
     export class TextureUsage {
     public:
-        enum class Type : std::uint8_t {
+        enum Type : std::uint8_t {
             BaseColor = 1,
             MetallicRoughness = 2,
             Normal = 4,
@@ -49,13 +49,13 @@ namespace vk_gltf_viewer::gltf {
 
     [[nodiscard]] constexpr cpp_util::cstring_view to_string(TextureUsage::Type type) {
         switch (type) {
-        case TextureUsage::Type::BaseColor: return "BaseColor";
-        case TextureUsage::Type::MetallicRoughness: return "MetallicRoughness";
-        case TextureUsage::Type::Normal: return "Normal";
-        case TextureUsage::Type::Occlusion: return "Occlusion";
-        case TextureUsage::Type::Emissive: return "Emissive";
+            case TextureUsage::BaseColor: return "BaseColor";
+            case TextureUsage::MetallicRoughness: return "MetallicRoughness";
+            case TextureUsage::Normal: return "Normal";
+            case TextureUsage::Occlusion: return "Occlusion";
+            case TextureUsage::Emissive: return "Emissive";
         }
-        throw std::runtime_error { "Invalid Enum" };
+        std::unreachable();
     }
 } // namespace vk_gltf_viewer::gltf
 
@@ -70,9 +70,9 @@ export template <>
 struct FlagTraits<vk_gltf_viewer::gltf::TextureUsage::Type> {
     static constexpr bool isBitmask = true;
     static constexpr Flags<vk_gltf_viewer::gltf::TextureUsage::Type> allFlags
-        = vk_gltf_viewer::gltf::TextureUsage::Type::BaseColor
-        | vk_gltf_viewer::gltf::TextureUsage::Type::MetallicRoughness
-        | vk_gltf_viewer::gltf::TextureUsage::Type::Normal
-        | vk_gltf_viewer::gltf::TextureUsage::Type::Occlusion
-        | vk_gltf_viewer::gltf::TextureUsage::Type::Emissive;
+        = vk_gltf_viewer::gltf::TextureUsage::BaseColor
+        | vk_gltf_viewer::gltf::TextureUsage::MetallicRoughness
+        | vk_gltf_viewer::gltf::TextureUsage::Normal
+        | vk_gltf_viewer::gltf::TextureUsage::Occlusion
+        | vk_gltf_viewer::gltf::TextureUsage::Emissive;
 };

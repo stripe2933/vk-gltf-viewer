@@ -18,11 +18,11 @@ namespace tristate {
      * @note It asserts that the current node state is not indeterminate(<tt>std::nullopt</tt>).
      * @note This function is a recursive function, and will be terminated when all children have been visited.
      */
-    export auto propagateTopDown(
+    export void propagateTopDown(
         std::invocable<std::size_t> auto &&childIndicesGetter,
         std::size_t nodeIndex,
         std::span<std::optional<bool>> tristates
-    ) -> void {
+    ) {
         const auto &currentState = tristates[nodeIndex];
         assert(currentState.has_value() && "Indeterminate state cannot be propagated top-down.");
         for (std::size_t childNodeIndex : childIndicesGetter(nodeIndex)) {
@@ -43,12 +43,12 @@ namespace tristate {
      *   - If all siblings have the same state, then the parent node will have the same state.
      *   - Otherwise, the parent node state is indeterminate.
      */
-    export auto propagateBottomUp(
-        concepts::compatible_signature_of<std::optional<std::size_t>, std::size_t> auto &&parentIndexGetter,
+    export void propagateBottomUp(
+        concepts::signature_of<std::optional<std::size_t>(std::size_t)> auto &&parentIndexGetter,
         std::invocable<std::size_t> auto &&childrenIndicesGetter,
         std::size_t nodeIndex,
         std::span<std::optional<bool>> tristates
-    ) -> void {
+    ) {
         std::optional<std::size_t> parentNodeIndex = parentIndexGetter(nodeIndex);
         if (!parentNodeIndex) {
             // Current node is a root node.

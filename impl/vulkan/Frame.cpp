@@ -85,7 +85,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
         = vku::allocateCommandBuffers<3>(*sharedData.gpu.device, *graphicsCommandPool);
 }
 
-auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateResult {
+vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
     UpdateResult result{};
 
     // --------------------
@@ -157,7 +157,7 @@ auto vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) -> UpdateR
         //   Points or Lines with no NORMAL attribute SHOULD be rendered without lighting and instead use the sum of the
         //   base color value (as defined above, multiplied by COLOR_0 when present) and the emissive value.
         const bool isPrimitivePointsOrLineWithoutNormal
-            = ranges::one_of(primitive.type, fastgltf::PrimitiveType::Points, fastgltf::PrimitiveType::Lines, fastgltf::PrimitiveType::LineLoop, fastgltf::PrimitiveType::LineStrip)
+            = ranges::one_of(primitive.type, { fastgltf::PrimitiveType::Points, fastgltf::PrimitiveType::Lines, fastgltf::PrimitiveType::LineLoop, fastgltf::PrimitiveType::LineStrip })
             && !accessors.normalAccessor;
 
         if (primitive.materialIndex) {
@@ -715,9 +715,9 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
     recordInitialImageLayoutTransitionCommands(graphicsCommandBuffer);
 }
 
-auto vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutTransitionCommands(
+void vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutTransitionCommands(
     vk::CommandBuffer graphicsCommandBuffer
-) const -> void {
+) const {
     constexpr auto layoutTransitionBarrier = [](
         vk::ImageLayout newLayout,
         vk::Image image,
@@ -742,7 +742,7 @@ auto vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutT
         });
 }
 
-auto vk_gltf_viewer::vulkan::Frame::createFramebuffers() const -> std::vector<vk::raii::Framebuffer> {
+std::vector<vk::raii::Framebuffer> vk_gltf_viewer::vulkan::Frame::createFramebuffers() const {
     return sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).views
         | std::views::transform([this](vk::ImageView swapchainImageView) {
             return vk::raii::Framebuffer { sharedData.gpu.device, vk::FramebufferCreateInfo {
@@ -778,7 +778,7 @@ vk::raii::DescriptorPool vk_gltf_viewer::vulkan::Frame::createDescriptorPool() c
     return { sharedData.gpu.device, poolSizes.getDescriptorPoolCreateInfo(flags) };
 }
 
-auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer cb) const -> void {
+void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer cb) const {
     boost::container::static_vector<vk::ImageMemoryBarrier, 3> memoryBarriers;
 
     // If glTF Scene have to be rendered, prepare attachment layout transition for node index and depth rendering.
@@ -929,12 +929,12 @@ auto vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
     }
 }
 
-auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
+bool vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
     vk::CommandBuffer cb,
     const vku::Image &image,
     vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSet,
     std::uint32_t initialSampleOffset
-) const -> bool {
+) const {
     cb.pipelineBarrier2KHR({
         {}, {}, {},
         vku::unsafeProxy({
@@ -960,7 +960,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
     return sharedData.jumpFloodComputer.compute(cb, descriptorSet, initialSampleOffset, vku::toExtent2D(image.extent));
 }
 
-auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const -> void {
+void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const {
     assert(renderingNodes && "No nodes have to be rendered.");
 
     struct {
@@ -1006,7 +1006,7 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
     }
 }
 
-auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const -> bool {
+bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const {
     assert(renderingNodes && "No nodes have to be rendered.");
 
     struct {
@@ -1053,17 +1053,17 @@ auto vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
     return hasBlendMesh;
 }
 
-auto vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer cb) const -> void {
+void vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer cb) const {
     assert(holds_alternative<vku::DescriptorSet<dsl::Skybox>>(background) && "recordSkyboxDrawCommand called, but background is not set to the proper skybox descriptor set.");
     sharedData.skyboxRenderer.draw(cb, get<vku::DescriptorSet<dsl::Skybox>>(background), { translationlessProjectionViewMatrix });
 }
 
-auto vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
+void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
     vk::CommandBuffer cb,
     std::optional<bool> hoveringNodeJumpFloodForward,
     std::optional<bool> selectedNodeJumpFloodForward,
     std::uint32_t swapchainImageIndex
-) const -> void {
+) const {
     boost::container::static_vector<vk::ImageMemoryBarrier, 2> memoryBarriers;
     // Change jump flood image layouts to ShaderReadOnlyOptimal.
     if (hoveringNodeJumpFloodForward) {
@@ -1147,10 +1147,10 @@ auto vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
     cb.endRenderingKHR();
 }
 
-auto vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
+void vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
     vk::CommandBuffer cb,
     std::uint32_t swapchainImageIndex
-) const -> void {
+) const {
     // Start dynamic rendering with B8G8R8A8_UNORM format.
     cb.beginRenderingKHR(visit_as<const ag::Swapchain&>(sharedData.imGuiSwapchainAttachmentGroup).getRenderingInfo(
         vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
@@ -1164,9 +1164,9 @@ auto vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
     cb.endRenderingKHR();
 }
 
-auto vk_gltf_viewer::vulkan::Frame::recordSwapchainExtentDependentImageLayoutTransitionCommands(
+void vk_gltf_viewer::vulkan::Frame::recordSwapchainExtentDependentImageLayoutTransitionCommands(
     vk::CommandBuffer graphicsCommandBuffer
-) const -> void {
+) const {
     graphicsCommandBuffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
         {}, {}, {},

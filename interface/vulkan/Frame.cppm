@@ -259,7 +259,7 @@ namespace vk_gltf_viewer::vulkan {
             PassthruResources(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
 
         private:
-            auto recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
+            void recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const;
         };
 
         struct RenderingNodes {
@@ -329,18 +329,18 @@ namespace vk_gltf_viewer::vulkan {
         std::optional<HoveringNode> hoveringNode;
         std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
 
-        [[nodiscard]] auto createFramebuffers() const -> std::vector<vk::raii::Framebuffer>;
+        [[nodiscard]] std::vector<vk::raii::Framebuffer> createFramebuffers() const;
         [[nodiscard]] vk::raii::DescriptorPool createDescriptorPool() const;
 
-        auto recordScenePrepassCommands(vk::CommandBuffer cb) const -> void;
+        void recordScenePrepassCommands(vk::CommandBuffer cb) const;
         // Return true if last jump flood calculation direction is forward (result is in pong image), false if backward.
-        [[nodiscard]] auto recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSet, std::uint32_t initialSampleOffset) const -> bool;
-        auto recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const -> void;
-        auto recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const -> bool;
-        auto recordSkyboxDrawCommands(vk::CommandBuffer cb) const -> void;
-        auto recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward, std::uint32_t swapchainImageIndex) const -> void;
-        auto recordImGuiCompositionCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex) const -> void;
+        [[nodiscard]] bool recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSet, std::uint32_t initialSampleOffset) const;
+        void recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const;
+        bool recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const;
+        void recordSkyboxDrawCommands(vk::CommandBuffer cb) const;
+        void recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward, std::uint32_t swapchainImageIndex) const;
+        void recordImGuiCompositionCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex) const;
 
-        auto recordSwapchainExtentDependentImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const -> void;
+        void recordSwapchainExtentDependentImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const;
     };
 }

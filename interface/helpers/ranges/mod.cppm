@@ -53,7 +53,7 @@ namespace ranges {
         typename AssociativeContainer,
         typename Key = std::remove_cvref_t<AssociativeContainer>::key_type,
         typename T = std::remove_cvref_t<AssociativeContainer>::mapped_type>
-    [[nodiscard]] constexpr auto value_or(AssociativeContainer &&c, const Key &key, T default_value) noexcept -> T {
+    [[nodiscard]] constexpr T value_or(AssociativeContainer &&c, const Key &key, T default_value) noexcept {
         const auto it = c.find(key);
         return it == c.end() ? default_value : it->second;
     }
@@ -70,11 +70,11 @@ namespace ranges {
     export template <
         typename AssociativeContainer,
         typename Key = AssociativeContainer::key_type>
-    [[nodiscard]] constexpr auto try_emplace_if_not_exists(
+    [[nodiscard]] constexpr std::pair<typename AssociativeContainer::iterator, bool> try_emplace_if_not_exists(
         AssociativeContainer &c,
         const Key &key,
-        concepts::signature_of<typename AssociativeContainer::mapped_type> auto const &f
-    ) -> std::pair<typename AssociativeContainer::iterator, bool> {
+        concepts::signature_of<typename AssociativeContainer::mapped_type()> auto const &f
+    ) {
         if (auto it = c.find(key); it != c.end()) {
             return { it, false };
         }
@@ -95,9 +95,9 @@ namespace ranges {
         return std::ranges::subrange(pair.first, pair.second);
     }
 
-    export template <typename T, std::equality_comparable_with<T>... Ts>
-    [[nodiscard]] constexpr bool one_of(T value, Ts... candidates) NOEXCEPT_IF(((std::declval<T>() == std::declval<Ts>()) && ...)) {
-        return ((value == candidates) || ...);
+    export template <std::equality_comparable T, std::ranges::input_range R = std::initializer_list<T>>
+    [[nodiscard]] constexpr bool one_of(const T &value, const R &candidates) NOEXCEPT_IF(std::declval<T>() == std::declval<T>()) {
+        return contains(candidates, value);
     }
 
 namespace views {
@@ -112,7 +112,7 @@ namespace views {
 #else
     struct enumerate_fn : range_adaptor_closure<enumerate_fn> {
         template <std::ranges::viewable_range R>
-        [[nodiscard]] static constexpr auto operator()(R &&r) -> auto {
+        [[nodiscard]] static constexpr auto operator()(R &&r) {
             if constexpr (std::ranges::sized_range<R>) {
                 return std::views::zip(upto<std::ranges::range_difference_t<R>>(r.size()), FWD(r));
             }
@@ -149,7 +149,7 @@ namespace views {
     export constexpr decltype(std::views::zip_transform) zip_transform;
 #else
     export
-    [[nodiscard]] constexpr auto zip_transform(auto &&f, std::ranges::input_range auto &&...rs) -> auto {
+    [[nodiscard]] constexpr auto zip_transform(auto &&f, std::ranges::input_range auto &&...rs) {
         return std::views::zip(FWD(rs)...) | std::views::transform([&](auto &&t) {
             return std::apply(f, FWD(t));
         });
@@ -163,30 +163,6 @@ namespace views {
     export CLANG_INLINE constexpr auto addressof = std::views::transform([](const auto &x) {
         return &x;
     });
-
-    /**
-     * A range adaptor object that apply a transformation function, invocable with underlying sequence's tuple-like elements.
-     * @example
-     * @code
-     * using Person = std::pair<std::string, int>; // name, age.
-     * std::vector people { Person { "Alice", 20 }, Person { "Bob", 30 } };
-     * auto stringified = people | ranges::views::decompose_transform([](std::string_view name, int age) {
-     *     return std::format("Person(name={:?}, age={})", name, age);
-     * });
-     * std::println("{::s}", stringified); // Output: [Person(name="Alice", age=20), Person(name="Bob", age=30)]
-     * @endcode
-     */
-    export constexpr struct decompose_transform_fn {
-        [[nodiscard]] auto operator()(auto &&f) const {
-            return std::views::transform([f = FWD(f)](auto &&xs) {
-                return std::apply(f, FWD(xs));
-            });
-        }
-
-        [[nodiscard]] auto operator()(std::ranges::viewable_range auto &&r, auto &&f) const {
-            return FWD(r) | this->operator()(FWD(f));
-        }
-    } decompose_transform;
 
     /**
      * A range adaptor object that transform the value underlying sequence's pair-like elements.
