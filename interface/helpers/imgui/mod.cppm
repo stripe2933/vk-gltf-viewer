@@ -7,7 +7,9 @@ export module vk_gltf_viewer:helpers.imgui;
 import std;
 export import imgui;
 import imgui.internal;
+import imgui.math;
 export import :helpers.imgui.table;
+import :imgui.UserData;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
@@ -113,12 +115,21 @@ namespace ImGui {
         const ImVec2 p_max { bb.Max.x - padding.x, bb.Max.y - padding.y - GetTextLineHeight() };
         if (bg_col.w > 0.0f)
             window->DrawList->AddRectFilled(p_min, p_max, GetColorU32(bg_col));
+        window->DrawList->AddImage(static_cast<const vk_gltf_viewer::imgui::UserData*>(GetIO().UserData)->checkerboardTextureID, p_min, p_max, image_size * uv0 / 16.f, image_size * uv1 / 16.f, GetColorU32(tint_col));
         window->DrawList->AddImage(user_texture_id, p_min, p_max, uv0, uv1, GetColorU32(tint_col));
         window->DrawList->PushClipRect({ p_min.x, p_max.y }, { p_max.x, p_max.y + GetTextLineHeight() }, true);
         window->DrawList->AddText({ p_min.x, p_max.y }, GetColorU32(ImGuiCol_Text), text.data(), text.data() + text.size());
         window->DrawList->PopClipRect();
 
         return pressed;
+    }
+
+    export void ImageCheckerboardBackground(ImTextureID textureId, const ImVec2 &size, const ImVec2 &uv0 = {}, const ImVec2 &uv1 = { 1, 1 }) {
+        const ImVec2 texturePosition = GetCursorScreenPos();
+        SetNextItemAllowOverlap();
+        Image(static_cast<const vk_gltf_viewer::imgui::UserData*>(GetIO().UserData)->checkerboardTextureID, size, size * uv0 / 16.f, size * uv1 / 16.f);
+        SetCursorScreenPos(texturePosition);
+        Image(textureId, size, uv0, uv1);
     }
 
     export template <std::invocable F>

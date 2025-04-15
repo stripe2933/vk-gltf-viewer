@@ -103,6 +103,26 @@ void hoverableImage(ImTextureID texture, const ImVec2 &size) {
     }
 }
 
+void hoverableImageCheckerboardBackground(ImTextureID texture, const ImVec2 &size) {
+    const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
+    ImGui::ImageCheckerboardBackground(texture, size);
+
+    if (ImGui::BeginItemTooltip()) {
+        const ImGuiIO &io = ImGui::GetIO();
+
+        const ImVec2 zoomedPortionSize = size / 4.f;
+        ImVec2 region = io.MousePos - texturePosition - zoomedPortionSize * 0.5f;
+        region.x = std::clamp(region.x, 0.f, size.x - zoomedPortionSize.x);
+        region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
+
+        constexpr float zoomScale = 4.0f;
+        ImGui::ImageCheckerboardBackground(texture, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
+        ImGui::TextUnformatted(tempStringBuffer.write("Showing: [{:.0f}, {:.0f}]x[{:.0f}, {:.0f}]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y));
+
+        ImGui::EndTooltip();
+    }
+}
+
 void attributeTable(std::ranges::viewable_range auto const &attributes) {
     ImGui::Table<false>(
         "attributes-table",
@@ -351,7 +371,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
                 return;
             }
 
-            hoverableImage(imGuiTextures.getTextureID(*textureIndex), { 256, 256 });
+            hoverableImageCheckerboardBackground(imGuiTextures.getTextureID(*textureIndex), { 256, 256 });
 
             ImGui::SameLine();
 
@@ -755,7 +775,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::WithID("basecolor", [&]() {
                     auto &baseColorTextureInfo = material.pbrData.baseColorTexture;
                     if (baseColorTextureInfo) {
-                        hoverableImage(imGuiTextures.getTextureID(baseColorTextureInfo->textureIndex), { 128.f, 128.f });
+                        hoverableImageCheckerboardBackground(imGuiTextures.getTextureID(baseColorTextureInfo->textureIndex), { 128.f, 128.f });
                         ImGui::SameLine();
                     }
                     ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
