@@ -24,14 +24,14 @@ namespace vk_gltf_viewer::vulkan::texture {
             const fastgltf::Asset &asset LIFETIMEBOUND,
             const Textures &textures LIFETIMEBOUND,
             const Gpu &gpu LIFETIMEBOUND
-        ) : ColorSpaceAndUsageCorrectedTextures { !gpu.supportSwapchainMutableFormat } {
+        ) {
             textureDescriptorSets
                 = asset.textures
                 | ranges::views::enumerate
                 | std::views::transform(decomposer([&](std::size_t textureIndex, const fastgltf::Texture &texture) -> vk::DescriptorSet {
                     auto [sampler, imageView, _] = textures.descriptorInfos[textureIndex];
                     const vku::Image &image = get<0>(textures.images.at(getPreferredImageIndex(texture)));
-                    if (srgbColorAttachment != isSrgbFormat(image.format)) {
+                    if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
                         // Image view format is incompatible, need to be regenerated.
                         const vk::ComponentMapping components = [&]() -> vk::ComponentMapping {
                             switch (componentCount(image.format)) {
@@ -68,7 +68,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                     }
                     else {
                         vk::Format colorSpaceCompatibleFormat = image.format;
-                        if (srgbColorAttachment != isSrgbFormat(image.format)) {
+                        if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
                             colorSpaceCompatibleFormat = convertSrgb(image.format);
                         }
 
@@ -99,7 +99,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                         }
                         else {
                             vk::Format colorSpaceCompatibleFormat = image.format;
-                            if (srgbColorAttachment != isSrgbFormat(image.format)) {
+                            if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
                                 colorSpaceCompatibleFormat = convertSrgb(image.format);
                             }
 
@@ -122,7 +122,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                         }
                         else {
                             vk::Format colorSpaceCompatibleFormat = image.format;
-                            if (srgbColorAttachment != isSrgbFormat(image.format)) {
+                            if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
                                 colorSpaceCompatibleFormat = convertSrgb(image.format);
                             }
 
@@ -147,7 +147,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                             // Emissive texture must be sRGB encoded, therefore image view format must be mutated if color space
                             // is not sRGB.
                             vk::Format colorSpaceCompatibleFormat = image.format;
-                            if (!srgbColorAttachment) {
+                            if (gpu.supportSwapchainMutableFormat) {
                                 colorSpaceCompatibleFormat = convertSrgb(image.format);
                             }
 

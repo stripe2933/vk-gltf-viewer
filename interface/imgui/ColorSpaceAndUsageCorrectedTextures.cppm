@@ -28,10 +28,6 @@ namespace vk_gltf_viewer::imgui {
      * like <tt>getBaseColorTextureID</tt> is needed.
      */
     export struct ColorSpaceAndUsageCorrectedTextures {
-        bool srgbColorAttachment;
-
-        explicit ColorSpaceAndUsageCorrectedTextures(bool srgbColorAttachment) noexcept
-            : srgbColorAttachment { srgbColorAttachment } { }
         virtual ~ColorSpaceAndUsageCorrectedTextures() = default;
 
         [[nodiscard]] virtual ImTextureID getTextureID(std::size_t textureIndex) const = 0;
