@@ -28,7 +28,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                     to_optional(texture.samplerIndex)
                         .transform([&](std::size_t samplerIndex) { return *samplers[samplerIndex]; })
                         .value_or(*fallbackTexture.sampler),
-                    *images.imageViews.at(getPreferredImageIndex(texture)),
+                    *get<1>(images.at(getPreferredImageIndex(texture))),
                     vk::ImageLayout::eShaderReadOnlyOptimal,
                 };
             }) } { }
