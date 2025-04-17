@@ -44,7 +44,7 @@ namespace vk_gltf_viewer::vulkan {
     public:
         struct GltfAsset {
             std::shared_ptr<gltf::ds::NodeInstanceCountExclusiveScanWithCount> nodeInstanceCountExclusiveScanWithCount;
-            std::shared_ptr<gltf::ds::TargetWeightCountExclusiveScan> targetWeightCountExclusiveScan;
+            std::shared_ptr<gltf::ds::TargetWeightCountExclusiveScanWithCount> targetWeightCountExclusiveScanWithCount;
 
             buffer::Nodes nodeBuffer;
             buffer::Materials materialBuffer;
@@ -69,8 +69,8 @@ namespace vk_gltf_viewer::vulkan {
                 buffer::StagingBufferStorage stagingBufferStorage = {},
                 BS::thread_pool<> threadPool = {}
             ) : nodeInstanceCountExclusiveScanWithCount { std::make_shared<gltf::ds::NodeInstanceCountExclusiveScanWithCount>(asset) },
-                targetWeightCountExclusiveScan { std::make_shared<gltf::ds::TargetWeightCountExclusiveScan>(asset) },
-                nodeBuffer { asset, *nodeInstanceCountExclusiveScanWithCount, *targetWeightCountExclusiveScan, gpu.allocator, stagingBufferStorage },
+                targetWeightCountExclusiveScanWithCount { std::make_shared<gltf::ds::TargetWeightCountExclusiveScanWithCount>(asset) },
+                nodeBuffer { asset, *nodeInstanceCountExclusiveScanWithCount, *targetWeightCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage },
                 materialBuffer { asset, gpu.allocator, stagingBufferStorage },
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
