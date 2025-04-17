@@ -230,13 +230,16 @@ namespace vk_gltf_viewer::vulkan {
                 assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<1>(sharedData.gltfAsset->nodeBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<2>(inner.instancedNodeWorldTransformBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<4>(sharedData.gltfAsset->skinJointIndices.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<5>(sharedData.gltfAsset->inverseBindMatrixBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<6>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<7>(imageInfos),
             };
             if (inner.morphTargetWeightBuffer) {
                 descriptorWrites.push_back(assetDescriptorSet.getWrite<3>(inner.morphTargetWeightBuffer->getDescriptorInfo()));
+            }
+            if (sharedData.gltfAsset->skinJointIndexAndInverseBindMatrixBuffer) {
+                const auto &[skinJointIndexBuffer, inverseBindMatrixBuffer] = *sharedData.gltfAsset->skinJointIndexAndInverseBindMatrixBuffer;
+                descriptorWrites.push_back(assetDescriptorSet.getWrite<4>(skinJointIndexBuffer.getDescriptorInfo()));
+                descriptorWrites.push_back(assetDescriptorSet.getWrite<5>(inverseBindMatrixBuffer.getDescriptorInfo()));
             }
 
             sharedData.gpu.device.updateDescriptorSets(descriptorWrites, {});
