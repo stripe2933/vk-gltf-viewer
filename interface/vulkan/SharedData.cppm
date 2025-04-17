@@ -51,8 +51,7 @@ namespace vk_gltf_viewer::vulkan {
             buffer::CombinedIndices combinedIndexBuffers;
             buffer::PrimitiveAttributes primitiveAttributes;
             buffer::Primitives primitiveBuffer;
-            buffer::SkinJointIndices skinJointIndices;
-            buffer::InverseBindMatrices inverseBindMatrixBuffer;
+            std::optional<std::pair<buffer::SkinJointIndices, buffer::InverseBindMatrices>> skinJointIndexAndInverseBindMatrixBuffer;
             texture::Textures textures;
             texture::ImGuiColorSpaceAndUsageCorrectedTextures imGuiColorSpaceAndUsageCorrectedTextures;
 
@@ -75,8 +74,13 @@ namespace vk_gltf_viewer::vulkan {
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
                 primitiveBuffer { orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
-                skinJointIndices { asset, gpu.allocator },
-                inverseBindMatrixBuffer { asset, gpu.allocator, adapter },
+                skinJointIndexAndInverseBindMatrixBuffer { value_if(!asset.skins.empty(), [&]() {
+                    return std::pair<buffer::SkinJointIndices, buffer::InverseBindMatrices> {
+                        std::piecewise_construct,
+                        std::tie(asset, gpu.allocator),
+                        std::tie(asset, gpu.allocator, adapter),
+                    };
+                }) },
                 textures { asset, directory, gpu, fallbackTexture, threadPool, adapter },
                 imGuiColorSpaceAndUsageCorrectedTextures { asset, textures, gpu } {
                 if (stagingBufferStorage.hasStagingCommands()) {

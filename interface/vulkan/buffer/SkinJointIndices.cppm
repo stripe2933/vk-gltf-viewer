@@ -13,16 +13,11 @@ namespace vk_gltf_viewer::vulkan::buffer {
             vma::Allocator allocator
         ) : buffer { [&]() {
                 std::vector<std::vector<std::uint32_t>> jointIndices;
-                jointIndices.reserve(std::max<std::size_t>(asset.skins.size(), 1));
+                jointIndices.reserve(asset.skins.size());
                 for (const fastgltf::Skin &skin : asset.skins) {
                     jointIndices.emplace_back(std::from_range, skin.joints | std::views::transform([](std::size_t skinIndex) {
                         return static_cast<std::uint32_t>(skinIndex);
                     }));
-                }
-
-                // Avoid zero-sized buffer
-                if (jointIndices.empty()) {
-                    jointIndices.push_back(std::vector { std::numeric_limits<std::uint32_t>::max() });
                 }
 
                 return createCombinedBuffer(allocator, jointIndices, vk::BufferUsageFlagBits::eStorageBuffer).first;

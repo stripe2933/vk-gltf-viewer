@@ -51,11 +51,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     matrices.back() = matrices.back().subspan(0, skin.joints.size());
                 }
 
-                // A dummy identity matrix for preventing the zero-sized buffer creation.
-                // This will not be actually indexed.
-                constexpr glm::mat4 dummyMatrix{};
-                matrices.emplace_back(&dummyMatrix, 1);
-
                 return createCombinedBuffer(allocator, matrices, vk::BufferUsageFlagBits::eStorageBuffer).first;
             }() },
             descriptorInfo { buffer, 0, vk::WholeSize } { }
