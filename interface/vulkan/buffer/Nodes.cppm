@@ -9,7 +9,7 @@ export import fastgltf;
 import :helpers.fastgltf;
 import :helpers.ranges;
 export import :gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
-export import :gltf.data_structure.TargetWeightCountExclusiveScan;
+export import :gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
 import :gltf.data_structure.SkinJointCountExclusiveScan;
 export import :vulkan.buffer.StagingBufferStorage;
 import :vulkan.shader_type.Node;
@@ -21,7 +21,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         Nodes(
             const fastgltf::Asset &asset,
             const gltf::ds::NodeInstanceCountExclusiveScanWithCount &nodeInstanceCountExclusiveScan,
-            const gltf::ds::TargetWeightCountExclusiveScan &targetWeightCountExclusiveScan,
+            const gltf::ds::TargetWeightCountExclusiveScanWithCount &targetWeightCountExclusiveScan,
             vma::Allocator allocator,
             StagingBufferStorage &stagingBufferStorage
         ) : PostTransferObject { stagingBufferStorage },
