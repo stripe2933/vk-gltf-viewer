@@ -79,7 +79,7 @@ namespace vk_gltf_viewer::vulkan {
                 const SharedData &sharedData LIFETIMEBOUND,
                 const BufferDataAdapter &adapter = {}
             ) : instancedNodeWorldTransformBuffer { asset, asset.scenes[asset.defaultScene.value_or(0)], sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount, nodeWorldTransforms, sharedData.gpu.allocator, adapter },
-                morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount->back() != 0, [&]() {
+                morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount.back() != 0, [&]() {
                     return buffer::MorphTargetWeights { asset, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gpu };
                 }) },
                 descriptorPool { value_if(!sharedData.gpu.supportVariableDescriptorCount, [&]() {

@@ -38,23 +38,19 @@ namespace vk_gltf_viewer::vulkan::buffer {
         InstancedNodeWorldTransforms(
             const fastgltf::Asset &asset LIFETIMEBOUND,
             const fastgltf::Scene &scene,
-            std::shared_ptr<const gltf::ds::NodeInstanceCountExclusiveScanWithCount> nodeInstanceCountExclusiveScanWithCount,
+            const gltf::ds::NodeInstanceCountExclusiveScanWithCount &nodeInstanceCountExclusiveScanWithCount LIFETIMEBOUND,
             const gltf::NodeWorldTransforms &nodeWorldTransforms,
             vma::Allocator allocator,
             const BufferDataAdapter &adapter = {}
         ) : asset { asset },
-            nodeInstanceCountExclusiveScanWithCount { std::move(nodeInstanceCountExclusiveScanWithCount) },
+            nodeInstanceCountExclusiveScanWithCount { nodeInstanceCountExclusiveScanWithCount },
             buffer { allocator, vk::BufferCreateInfo {
                 {},
-                sizeof(fastgltf::math::fmat4x4) * this->nodeInstanceCountExclusiveScanWithCount->back(),
+                sizeof(fastgltf::math::fmat4x4) * nodeInstanceCountExclusiveScanWithCount.back(),
                 vk::BufferUsageFlagBits::eStorageBuffer,
             } },
             descriptorInfo { buffer, 0, vk::WholeSize } {
             update(scene, nodeWorldTransforms, adapter);
-        }
-
-        [[nodiscard]] std::uint32_t getStartIndex(std::size_t nodeIndex) const noexcept {
-            return (*nodeInstanceCountExclusiveScanWithCount)[nodeIndex];
         }
 
         [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept {
@@ -78,12 +74,12 @@ namespace vk_gltf_viewer::vulkan::buffer {
             gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
                 const fastgltf::Node &node = asset.get().nodes[nodeIndex];
                 if (node.instancingAttributes.empty()) {
-                    bufferData[(*nodeInstanceCountExclusiveScanWithCount)[nodeIndex]] = nodeWorldTransforms[nodeIndex];
+                    bufferData[nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex]] = nodeWorldTransforms[nodeIndex];
                 }
                 else {
                     std::ranges::transform(
                         getInstanceTransforms(asset, nodeIndex, adapter),
-                        &bufferData[(*nodeInstanceCountExclusiveScanWithCount)[nodeIndex]],
+                        &bufferData[nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex]],
                         [&](const fastgltf::math::fmat4x4 &instanceTransform) {
                             return nodeWorldTransforms[nodeIndex] * instanceTransform;
                         });
@@ -111,7 +107,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
     private:
         std::reference_wrapper<const fastgltf::Asset> asset;
-        std::shared_ptr<const gltf::ds::NodeInstanceCountExclusiveScanWithCount> nodeInstanceCountExclusiveScanWithCount;
+        std::reference_wrapper<const gltf::ds::NodeInstanceCountExclusiveScanWithCount> nodeInstanceCountExclusiveScanWithCount;
         vku::MappedBuffer buffer;
         vk::DescriptorBufferInfo descriptorInfo;
     };

@@ -44,8 +44,8 @@ namespace vk_gltf_viewer::vulkan {
     export class SharedData {
     public:
         struct GltfAsset {
-            std::shared_ptr<gltf::ds::NodeInstanceCountExclusiveScanWithCount> nodeInstanceCountExclusiveScanWithCount;
-            std::shared_ptr<gltf::ds::TargetWeightCountExclusiveScanWithCount> targetWeightCountExclusiveScanWithCount;
+            gltf::ds::NodeInstanceCountExclusiveScanWithCount nodeInstanceCountExclusiveScanWithCount;
+            gltf::ds::TargetWeightCountExclusiveScanWithCount targetWeightCountExclusiveScanWithCount;
             gltf::ds::SkinJointCountExclusiveScanWithCount skinJointCountExclusiveScanWithCount;
 
             buffer::Nodes nodeBuffer;
@@ -69,10 +69,10 @@ namespace vk_gltf_viewer::vulkan {
                 const BufferDataAdapter &adapter = {},
                 buffer::StagingBufferStorage stagingBufferStorage = {},
                 BS::thread_pool<> threadPool = {}
-            ) : nodeInstanceCountExclusiveScanWithCount { std::make_shared<gltf::ds::NodeInstanceCountExclusiveScanWithCount>(asset) },
-                targetWeightCountExclusiveScanWithCount { std::make_shared<gltf::ds::TargetWeightCountExclusiveScanWithCount>(asset) },
+            ) : nodeInstanceCountExclusiveScanWithCount { asset },
+                targetWeightCountExclusiveScanWithCount { asset },
                 skinJointCountExclusiveScanWithCount { asset },
-                nodeBuffer { asset, *nodeInstanceCountExclusiveScanWithCount, *targetWeightCountExclusiveScanWithCount, skinJointCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage },
+                nodeBuffer { asset, nodeInstanceCountExclusiveScanWithCount, targetWeightCountExclusiveScanWithCount, skinJointCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage },
                 materialBuffer { asset, gpu.allocator, stagingBufferStorage },
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
