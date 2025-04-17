@@ -501,7 +501,7 @@ void vk_gltf_viewer::MainApp::run() {
                     auto updateTargetWeightTask = [this, task](vulkan::Frame &frame) {
                         const std::span targetWeights = getTargetWeights(gltf->asset.nodes[task.nodeIndex], gltf->asset);
                         for (auto weightIndex = task.targetWeightStartIndex; float weight : targetWeights.subspan(task.targetWeightStartIndex, task.targetWeightCount)) {
-                            frame.gltfAsset->morphTargetWeightBuffer.updateWeight(task.nodeIndex, weightIndex++, weight);
+                            frame.gltfAsset->morphTargetWeightBuffer.value().updateWeight(task.nodeIndex, weightIndex++, weight);
                         }
                     };
                     updateTargetWeightTask(frame);

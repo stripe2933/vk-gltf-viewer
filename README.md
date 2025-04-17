@@ -104,6 +104,7 @@ The extensions and feature used in this application are quite common in the mode
     - `bufferDeviceAddress`
     - `descriptorIndexing`
     - `descriptorBindingSampledImageUpdateAfterBind`
+    - `descriptorBindingPartiallyBound`
     - `runtimeDescriptorArray`
     - `storageBuffer8BitAccess`
     - `scalarBlockLayout`
