@@ -78,8 +78,8 @@ namespace vk_gltf_viewer::vulkan {
                 skinJointIndexAndInverseBindMatrixBuffer { value_if(!asset.skins.empty(), [&]() {
                     return std::pair<buffer::SkinJointIndices, buffer::InverseBindMatrices> {
                         std::piecewise_construct,
-                        std::tie(asset, gpu.allocator),
-                        std::tie(asset, gpu.allocator, adapter),
+                        std::tie(asset, gpu.allocator, stagingBufferStorage),
+                        std::tie(asset, gpu.allocator, stagingBufferStorage, adapter),
                     };
                 }) },
                 textures { asset, directory, gpu, fallbackTexture, threadPool, adapter },

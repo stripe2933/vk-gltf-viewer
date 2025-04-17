@@ -4,14 +4,18 @@ import std;
 export import fastgltf;
 export import vk_mem_alloc_hpp;
 import :vulkan.buffer;
+export import :vulkan.buffer.StagingBufferStorage;
+import :vulkan.trait.PostTransferObject;
 
 namespace vk_gltf_viewer::vulkan::buffer {
-    export class SkinJointIndices {
+    export class SkinJointIndices : trait::PostTransferObject {
     public:
         SkinJointIndices(
             const fastgltf::Asset &asset,
-            vma::Allocator allocator
-        ) : buffer { [&]() {
+            vma::Allocator allocator,
+            StagingBufferStorage &stagingBufferStorage
+        ) : PostTransferObject { stagingBufferStorage },
+            buffer { [&]() {
                 std::vector<std::vector<std::uint32_t>> jointIndices;
                 jointIndices.reserve(asset.skins.size());
                 for (const fastgltf::Skin &skin : asset.skins) {
@@ -20,7 +24,14 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     }));
                 }
 
-                return createCombinedBuffer(allocator, jointIndices, vk::BufferUsageFlagBits::eStorageBuffer).first;
+                vku::AllocatedBuffer result = createCombinedBuffer<true>(
+                    allocator, jointIndices, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc).first;
+
+                if (StagingBufferStorage::needStaging(result)) {
+                    stagingBufferStorage.stage(result, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer);
+                }
+
+                return result;
             }() },
             descriptorInfo { buffer, 0, vk::WholeSize } { }
 
@@ -29,7 +40,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
     private:
-        vku::MappedBuffer buffer;
+        vku::AllocatedBuffer buffer;
         vk::DescriptorBufferInfo descriptorInfo;
     };
 }
