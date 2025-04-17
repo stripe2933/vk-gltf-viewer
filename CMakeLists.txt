@@ -141,7 +141,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/Animation.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetProcessError.cppm
-        interface/gltf/data_structure/SkinJointCountExclusiveScan.cppm
+        interface/gltf/data_structure/SkinJointCountExclusiveScanWithCount.cppm
         interface/gltf/data_structure/MaterialVariantsMapping.cppm
         interface/gltf/data_structure/NodeInstanceCountExclusiveScanWithCount.cppm
         interface/gltf/data_structure/SceneInverseHierarchy.cppm
