@@ -8,7 +8,7 @@ import std;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::dsl {
-    export struct Asset : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eCombinedImageSampler> {
+    export struct Asset : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eCombinedImageSampler> {
         explicit Asset(const Gpu &gpu LIFETIMEBOUND)
             : DescriptorSetLayout { gpu.device, vk::StructureChain {
                 vk::DescriptorSetLayoutCreateInfo {
@@ -19,13 +19,11 @@ namespace vk_gltf_viewer::vulkan::dsl {
                         { 1, vk::ShaderStageFlagBits::eVertex },
                         { 1, vk::ShaderStageFlagBits::eVertex },
                         { 1, vk::ShaderStageFlagBits::eVertex },
-                        { 1, vk::ShaderStageFlagBits::eVertex },
                         { 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment },
                         { maxTextureCount(gpu), vk::ShaderStageFlagBits::eFragment })),
                 },
                 vk::DescriptorSetLayoutBindingFlagsCreateInfo {
                     vku::unsafeProxy<vk::DescriptorBindingFlags>({
-                        {},
                         {},
                         {},
                         vk::DescriptorBindingFlagBits::ePartiallyBound,
@@ -47,13 +45,11 @@ namespace vk_gltf_viewer::vulkan::dsl {
                         { 1, vk::ShaderStageFlagBits::eVertex },
                         { 1, vk::ShaderStageFlagBits::eVertex },
                         { 1, vk::ShaderStageFlagBits::eVertex },
-                        { 1, vk::ShaderStageFlagBits::eVertex },
                         { 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment },
                         { textureCount, vk::ShaderStageFlagBits::eFragment })),
                 },
                 vk::DescriptorSetLayoutBindingFlagsCreateInfo {
                     vku::unsafeProxy<vk::DescriptorBindingFlags>({
-                        {},
                         {},
                         {},
                         vk::DescriptorBindingFlagBits::ePartiallyBound,

@@ -24,6 +24,9 @@ import :vulkan.buffer.MorphTargetWeights;
 import :vulkan.buffer.Nodes;
 export import :vulkan.SharedData;
 
+#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
+#define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+
 /**
  * @brief A type that represents the state for a single multi-draw-indirect call.
  *
@@ -67,8 +70,8 @@ namespace vk_gltf_viewer::vulkan {
 
     public:
         struct GltfAsset {
+            std::optional<buffer::InstancedNodeWorldTransforms> instancedNodeWorldTransformBuffer;
             buffer::Nodes nodeBuffer;
-            buffer::InstancedNodeWorldTransforms instancedNodeWorldTransformBuffer;
             std::optional<buffer::MorphTargetWeights> morphTargetWeightBuffer;
 
             // Used only if GPU does not support variable descriptor count.
@@ -80,8 +83,26 @@ namespace vk_gltf_viewer::vulkan {
                 const gltf::NodeWorldTransforms &nodeWorldTransforms,
                 const SharedData &sharedData LIFETIMEBOUND,
                 const BufferDataAdapter &adapter = {}
-            ) : nodeBuffer { asset, nodeWorldTransforms, sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gltfAsset->skinJointCountExclusiveScanWithCount, sharedData.gpu.allocator },
-                instancedNodeWorldTransformBuffer { asset, asset.scenes[asset.defaultScene.value_or(0)], sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount, nodeWorldTransforms, sharedData.gpu.allocator, adapter },
+            ) : instancedNodeWorldTransformBuffer { value_if(sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount.back() != 0, [&]() {
+                    return buffer::InstancedNodeWorldTransforms {
+                        sharedData.gpu.device,
+                        sharedData.gpu.allocator,
+                        asset,
+                        asset.scenes[asset.defaultScene.value_or(0)],
+                        sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount,
+                        nodeWorldTransforms,
+                        adapter,
+                    };
+                }) },
+                nodeBuffer {
+                    sharedData.gpu.device,
+                    sharedData.gpu.allocator,
+                    asset,
+                    nodeWorldTransforms,
+                    sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount,
+                    sharedData.gltfAsset->skinJointCountExclusiveScanWithCount,
+                    instancedNodeWorldTransformBuffer.transform(LIFT(std::addressof)).value_or(nullptr),
+                },
                 morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount.back() != 0, [&]() {
                     return buffer::MorphTargetWeights { asset, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gpu };
                 }) },
@@ -232,17 +253,16 @@ namespace vk_gltf_viewer::vulkan {
             boost::container::static_vector<vk::WriteDescriptorSet, dsl::Asset::bindingCount> descriptorWrites {
                 assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<1>(inner.nodeBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<2>(inner.instancedNodeWorldTransformBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<6>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<7>(imageInfos),
+                assetDescriptorSet.getWrite<5>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<6>(imageInfos),
             };
             if (inner.morphTargetWeightBuffer) {
-                descriptorWrites.push_back(assetDescriptorSet.getWrite<3>(inner.morphTargetWeightBuffer->getDescriptorInfo()));
+                descriptorWrites.push_back(assetDescriptorSet.getWrite<2>(inner.morphTargetWeightBuffer->getDescriptorInfo()));
             }
             if (sharedData.gltfAsset->skinJointIndexAndInverseBindMatrixBuffer) {
                 const auto &[skinJointIndexBuffer, inverseBindMatrixBuffer] = *sharedData.gltfAsset->skinJointIndexAndInverseBindMatrixBuffer;
-                descriptorWrites.push_back(assetDescriptorSet.getWrite<4>(skinJointIndexBuffer.getDescriptorInfo()));
-                descriptorWrites.push_back(assetDescriptorSet.getWrite<5>(inverseBindMatrixBuffer.getDescriptorInfo()));
+                descriptorWrites.push_back(assetDescriptorSet.getWrite<3>(skinJointIndexBuffer.getDescriptorInfo()));
+                descriptorWrites.push_back(assetDescriptorSet.getWrite<4>(inverseBindMatrixBuffer.getDescriptorInfo()));
             }
 
             sharedData.gpu.device.updateDescriptorSets(descriptorWrites, {});

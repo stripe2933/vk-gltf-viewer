@@ -34,12 +34,13 @@ struct Material {
 
 #ifdef VERTEX_SHADER
 
+layout (buffer_reference) readonly buffer TransformMatrices { mat4 data[]; };
+
 struct Node {
     mat4 worldTransform;
-    uint instancedTransformStartIndex;
+    TransformMatrices instancedWorldTransforms;
     uint morphTargetWeightStartIndex;
     uint skinJointStartIndex;
-    uint _padding_;
 }; // 80 bytes.
 
 struct Accessor {

@@ -20,41 +20,50 @@ import :helpers.span;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     /**
-     * @brief Buffer that stores the nodes' transform matrices, with flattened instance matrices.
+     * @brief Buffer that stores the instanced nodes' transform matrices as flattened form.
+     *
+     * If EXT_mesh_gpu_instancing is unused or an asset doesn't have any instanced node, this class must not be instantiated
+     * (as it will cause the zero-sized buffer creation).
      */
     export class InstancedNodeWorldTransforms {
+        std::reference_wrapper<const fastgltf::Asset> asset;
+
     public:
+        std::reference_wrapper<const gltf::ds::NodeInstanceCountExclusiveScanWithCount> nodeInstanceCountExclusiveScanWithCount;
+
         /**
          * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view.
+         * @param device Vulkan device.
+         * @param allocator VMA allocator.
          * @param asset glTF asset.
          * @param scene Scene represents the node hierarchy.
          * @param nodeInstanceCountExclusiveScanWithCount pre-calculated scanned instance counts, with additional total count at the end.
          * @param nodeWorldTransforms pre-calculated node world transforms.
-         * @param allocator VMA allocator.
          * @param adapter Buffer data adapter.
          * @note This will fill the buffer data with each node's local transform (and post-multiplied instance transforms if presented), as the scene structure is not provided. You have to call <tt>update</tt> to update the world transforms.
          */
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         InstancedNodeWorldTransforms(
+            const vk::raii::Device &device LIFETIMEBOUND,
+            vma::Allocator allocator LIFETIMEBOUND,
             const fastgltf::Asset &asset LIFETIMEBOUND,
             const fastgltf::Scene &scene,
             const gltf::ds::NodeInstanceCountExclusiveScanWithCount &nodeInstanceCountExclusiveScanWithCount LIFETIMEBOUND,
             const gltf::NodeWorldTransforms &nodeWorldTransforms,
-            vma::Allocator allocator,
             const BufferDataAdapter &adapter = {}
         ) : asset { asset },
             nodeInstanceCountExclusiveScanWithCount { nodeInstanceCountExclusiveScanWithCount },
             buffer { allocator, vk::BufferCreateInfo {
                 {},
                 sizeof(fastgltf::math::fmat4x4) * nodeInstanceCountExclusiveScanWithCount.back(),
-                vk::BufferUsageFlagBits::eStorageBuffer,
+                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
             } },
-            descriptorInfo { buffer, 0, vk::WholeSize } {
+            deviceAddress { device.getBufferAddress({ buffer.buffer }) } {
             update(scene, nodeWorldTransforms, adapter);
         }
 
-        [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept {
-            return descriptorInfo;
+        [[nodiscard]] vk::DeviceAddress getDeviceAddress() const noexcept {
+            return deviceAddress;
         }
 
         /**
@@ -73,10 +82,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
             const std::span bufferData = buffer.asRange<fastgltf::math::fmat4x4>();
             gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
                 const fastgltf::Node &node = asset.get().nodes[nodeIndex];
-                if (node.instancingAttributes.empty()) {
-                    bufferData[nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex]] = nodeWorldTransforms[nodeIndex];
-                }
-                else {
+                if (!node.instancingAttributes.empty()) {
                     std::ranges::transform(
                         getInstanceTransforms(asset, nodeIndex, adapter),
                         &bufferData[nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex]],
@@ -106,9 +112,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
     private:
-        std::reference_wrapper<const fastgltf::Asset> asset;
-        std::reference_wrapper<const gltf::ds::NodeInstanceCountExclusiveScanWithCount> nodeInstanceCountExclusiveScanWithCount;
         vku::MappedBuffer buffer;
-        vk::DescriptorBufferInfo descriptorInfo;
+        vk::DeviceAddress deviceAddress;
     };
 }

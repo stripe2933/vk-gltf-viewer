@@ -265,7 +265,7 @@ namespace vk_gltf_viewer::vulkan {
             }
 
             gltfAsset.emplace(asset, directory, orderedPrimitives, gpu, fallbackTexture, adapter);
-            if (!gpu.supportVariableDescriptorCount && assetDescriptorSetLayout.descriptorCounts[7] != textureCount) {
+            if (!gpu.supportVariableDescriptorCount && assetDescriptorSetLayout.descriptorCounts[6] != textureCount) {
                 // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
                 depthPipelines.clear();
                 maskDepthPipelines.clear();
