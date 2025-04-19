@@ -207,6 +207,7 @@ namespace vk_gltf_viewer::vulkan::image {
                             (channels == 2 && srgbImageIndices.contains(imageIndex) && !gpu.supportR8G8SrgbImageFormat) ||
                             channels == 3) {
                             // Use VK_FORMAT_R8G8B8A8_SRGB for best compatibility.
+                            info.alphaChannelPadded = true;
                             channels = 4;
                         }
 
