@@ -251,6 +251,7 @@ void vk_gltf_viewer::MainApp::run() {
                     gltf->setScene(task.newSceneIndex);
 
                     auto nodeWorldTransformUpdateTask = [this, sceneIndex = task.newSceneIndex](vulkan::Frame &frame) {
+                        frame.gltfAsset->nodeBuffer.update(gltf->asset.scenes[sceneIndex], gltf->nodeWorldTransforms);
                         frame.gltfAsset->instancedNodeWorldTransformBuffer.update(
                             gltf->asset.scenes[sceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
                     };
@@ -309,6 +310,7 @@ void vk_gltf_viewer::MainApp::run() {
                     // Update the current and its descendant nodes' world transforms for both host and GPU side data.
                     gltf->nodeWorldTransforms.update(task.nodeIndex, nodeWorldTransform);
                     auto updateNodeTransformTask = [this, nodeIndex = task.nodeIndex](vulkan::Frame &frame) {
+                        frame.gltfAsset->nodeBuffer.update(nodeIndex, gltf->nodeWorldTransforms);
                         frame.gltfAsset->instancedNodeWorldTransformBuffer.update(
                             nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
                     };
@@ -371,6 +373,7 @@ void vk_gltf_viewer::MainApp::run() {
                     // Update the current and its descendant nodes' world transforms for both host and GPU side data.
                     gltf->nodeWorldTransforms.update(selectedNodeIndex, selectedNodeWorldTransform);
                     auto updateNodeTransformTask = [this, selectedNodeIndex](vulkan::Frame &frame) {
+                        frame.gltfAsset->nodeBuffer.update(selectedNodeIndex, gltf->nodeWorldTransforms);
                         frame.gltfAsset->instancedNodeWorldTransformBuffer.update(
                             selectedNodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
                     };

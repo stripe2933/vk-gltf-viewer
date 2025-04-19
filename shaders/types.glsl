@@ -35,11 +35,12 @@ struct Material {
 #ifdef VERTEX_SHADER
 
 struct Node {
+    mat4 worldTransform;
     uint instancedTransformStartIndex;
     uint morphTargetWeightStartIndex;
     uint skinJointStartIndex;
     uint _padding_;
-};
+}; // 80 bytes.
 
 struct Accessor {
     uvec2 bufferAddress;
