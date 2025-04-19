@@ -225,6 +225,15 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     supportVariableDescriptorCount = availableFeatures.template get<vk::PhysicalDeviceVulkan12Features>().descriptorBindingVariableDescriptorCount;
 #endif
 
+    constexpr vk::FormatFeatureFlags requiredFormatFeatureFlags
+        = vk::FormatFeatureFlagBits::eTransferDst
+        | vk::FormatFeatureFlagBits::eTransferSrc
+        | vk::FormatFeatureFlagBits::eBlitSrc
+        | vk::FormatFeatureFlagBits::eBlitDst
+        | vk::FormatFeatureFlagBits::eSampledImage;
+    supportR8SrgbImageFormat = vku::contains(physicalDevice.getFormatProperties(vk::Format::eR8Srgb).optimalTilingFeatures, requiredFormatFeatureFlags);
+    supportR8G8SrgbImageFormat = vku::contains(physicalDevice.getFormatProperties(vk::Format::eR8G8Srgb).optimalTilingFeatures, requiredFormatFeatureFlags);
+
 	const vku::RefHolder queueCreateInfos = Queues::getCreateInfos(physicalDevice, queueFamilies);
     vk::StructureChain createInfo {
         vk::DeviceCreateInfo {
