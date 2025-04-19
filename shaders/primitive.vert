@@ -50,19 +50,16 @@ layout (set = 1, binding = 0) readonly buffer PrimitiveBuffer {
 layout (set = 1, binding = 1, std430) readonly buffer NodeBuffer {
     Node nodes[];
 };
-layout (set = 1, binding = 2) readonly buffer InstancedTransformBuffer {
-    mat4 instancedTransforms[];
-};
-layout (set = 1, binding = 3) readonly buffer MorphTargetWeightBuffer {
+layout (set = 1, binding = 2) readonly buffer MorphTargetWeightBuffer {
     float morphTargetWeights[];
 };
-layout (set = 1, binding = 4, std430) readonly buffer SkinJointIndexBuffer {
+layout (set = 1, binding = 3, std430) readonly buffer SkinJointIndexBuffer {
     uint skinJointIndices[];
 };
-layout (set = 1, binding = 5) readonly buffer InverseBindMatrixBuffer {
+layout (set = 1, binding = 4) readonly buffer InverseBindMatrixBuffer {
     mat4 inverseBindMatrices[];
 };
-layout (set = 1, binding = 6, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 5, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 

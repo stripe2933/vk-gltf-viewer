@@ -7,7 +7,7 @@
 
 mat4 getTransform(uint skinAttributeCount) {
     if (skinAttributeCount == 0U) {
-        return instancedTransforms[NODE.instancedTransformStartIndex + gl_InstanceIndex - gl_BaseInstance];
+        return NODE.instancedWorldTransforms.data[gl_InstanceIndex - gl_BaseInstance];
     }
     else {
         mat4 skinMatrix = mat4(0.0);
