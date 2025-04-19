@@ -21,6 +21,7 @@ import :vulkan.ag.SceneWeightedBlended;
 import :vulkan.buffer.IndirectDrawCommands;
 import :vulkan.buffer.InstancedNodeWorldTransforms;
 import :vulkan.buffer.MorphTargetWeights;
+import :vulkan.buffer.Nodes;
 export import :vulkan.SharedData;
 
 /**
@@ -66,6 +67,7 @@ namespace vk_gltf_viewer::vulkan {
 
     public:
         struct GltfAsset {
+            buffer::Nodes nodeBuffer;
             buffer::InstancedNodeWorldTransforms instancedNodeWorldTransformBuffer;
             std::optional<buffer::MorphTargetWeights> morphTargetWeightBuffer;
 
@@ -78,7 +80,8 @@ namespace vk_gltf_viewer::vulkan {
                 const gltf::NodeWorldTransforms &nodeWorldTransforms,
                 const SharedData &sharedData LIFETIMEBOUND,
                 const BufferDataAdapter &adapter = {}
-            ) : instancedNodeWorldTransformBuffer { asset, asset.scenes[asset.defaultScene.value_or(0)], sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount, nodeWorldTransforms, sharedData.gpu.allocator, adapter },
+            ) : nodeBuffer { asset, nodeWorldTransforms, sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gltfAsset->skinJointCountExclusiveScanWithCount, sharedData.gpu.allocator },
+                instancedNodeWorldTransformBuffer { asset, asset.scenes[asset.defaultScene.value_or(0)], sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount, nodeWorldTransforms, sharedData.gpu.allocator, adapter },
                 morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount.back() != 0, [&]() {
                     return buffer::MorphTargetWeights { asset, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gpu };
                 }) },
@@ -228,7 +231,7 @@ namespace vk_gltf_viewer::vulkan {
 
             boost::container::static_vector<vk::WriteDescriptorSet, dsl::Asset::bindingCount> descriptorWrites {
                 assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<1>(sharedData.gltfAsset->nodeBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<1>(inner.nodeBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<2>(inner.instancedNodeWorldTransformBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<6>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<7>(imageInfos),

@@ -12,6 +12,8 @@ export import fastgltf;
 import imgui.vulkan;
 export import vku;
 export import :gltf.OrderedPrimitives;
+export import :gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
+export import :gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
 import :helpers.AggregateHasher;
 import :helpers.fastgltf;
 import :helpers.optional;
@@ -20,7 +22,6 @@ export import :vulkan.ag.Swapchain;
 export import :vulkan.buffer.CombinedIndices;
 export import :vulkan.buffer.InverseBindMatrices;
 export import :vulkan.buffer.Materials;
-export import :vulkan.buffer.Nodes;
 export import :vulkan.buffer.PrimitiveAttributes;
 export import :vulkan.buffer.Primitives;
 export import :vulkan.buffer.SkinJointIndices;
@@ -48,7 +49,6 @@ namespace vk_gltf_viewer::vulkan {
             gltf::ds::TargetWeightCountExclusiveScanWithCount targetWeightCountExclusiveScanWithCount;
             gltf::ds::SkinJointCountExclusiveScanWithCount skinJointCountExclusiveScanWithCount;
 
-            buffer::Nodes nodeBuffer;
             buffer::Materials materialBuffer;
             buffer::CombinedIndices combinedIndexBuffers;
             buffer::PrimitiveAttributes primitiveAttributes;
@@ -72,7 +72,6 @@ namespace vk_gltf_viewer::vulkan {
             ) : nodeInstanceCountExclusiveScanWithCount { asset },
                 targetWeightCountExclusiveScanWithCount { asset },
                 skinJointCountExclusiveScanWithCount { asset },
-                nodeBuffer { asset, nodeInstanceCountExclusiveScanWithCount, targetWeightCountExclusiveScanWithCount, skinJointCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage },
                 materialBuffer { asset, gpu.allocator, stagingBufferStorage },
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
