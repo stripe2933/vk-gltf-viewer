@@ -181,8 +181,10 @@ namespace vk_gltf_viewer::vulkan::image {
                             throw std::runtime_error { std::format("Failed to get the image info: {}", stbi_failure_reason()) };
                         }
 
-                        // Vulkan is not friendly with 3-channel image.
-                        if (channels == 3) {
+                        if ((channels == 1 && srgbImageIndices.contains(imageIndex) && !gpu.supportR8SrgbImageFormat) ||
+                            (channels == 2 && srgbImageIndices.contains(imageIndex) && !gpu.supportR8G8SrgbImageFormat) ||
+                            channels == 3) {
+                            // Use 4-channel image for best compatibility.
                             info.alphaChannelPadded = true;
                             channels = 4;
                         }
@@ -201,8 +203,11 @@ namespace vk_gltf_viewer::vulkan::image {
                             throw std::runtime_error { std::format("Failed to get the image info: {}", stbi_failure_reason()) };
                         }
 
-                        // Vulkan is not friendly with 3-channel image.
-                        if (channels == 3) {
+                        if ((channels == 1 && srgbImageIndices.contains(imageIndex) && !gpu.supportR8SrgbImageFormat) ||
+                            (channels == 2 && srgbImageIndices.contains(imageIndex) && !gpu.supportR8G8SrgbImageFormat) ||
+                            channels == 3) {
+                            // Use 4-channel image for best compatibility.
+                            info.alphaChannelPadded = true;
                             channels = 4;
                         }
 
