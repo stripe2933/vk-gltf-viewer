@@ -44,6 +44,7 @@ import :helpers.functional;
 import :helpers.optional;
 import :helpers.ranges;
 import :helpers.tristate;
+import :helpers.unicode;
 import :imgui.TaskCollector;
 import :vulkan.Frame;
 import :vulkan.imgui.UserData;
@@ -52,11 +53,6 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
-#ifdef _WIN32
-#define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
-#else
-#define PATH_C_STR(...) (__VA_ARGS__).c_str()
-#endif
 
 [[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept;
 
@@ -890,7 +886,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     }
 
     // Change window title.
-    window.setTitle(PATH_C_STR(path.filename()));
+    window.setTitle(c_str(path.filename()));
 
     // Update AppState.
     appState.gltfAsset.emplace(gltf->asset);
@@ -924,7 +920,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         if (auto extension = eqmapPath.extension(); extension == ".hdr") {
             int width, height;
             std::unique_ptr<float[]> data; // It should be freed after copying to the staging buffer, therefore declared as unique_ptr.
-            data.reset(stbi_loadf(PATH_C_STR(eqmapPath), &width, &height, nullptr, 4));
+            data.reset(stbi_loadf(c_str(eqmapPath), &width, &height, nullptr, 4));
             if (!data) {
                 throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
             }
@@ -940,7 +936,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         } // After this scope, data will be automatically freed.
 #ifdef SUPPORT_EXR_SKYBOX
         else if (extension == ".exr") {
-            Imf::InputFile file{ PATH_C_STR(eqmapPath), static_cast<int>(std::thread::hardware_concurrency()) };
+            Imf::InputFile file{ c_str(eqmapPath), static_cast<int>(std::thread::hardware_concurrency()) };
 
             const Imath::Box2i dw = file.header().dataWindow();
             const vk::Extent2D eqmapExtent{

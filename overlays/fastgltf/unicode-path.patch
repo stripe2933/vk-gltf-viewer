@@ -1,0 +1,33 @@
+From 7904cbe86fd28bcc989dfe1e5d4831e7dd9149f7 Mon Sep 17 00:00:00 2001
+From: LEE KYOUNGHEON <stripe2933@gmail.com>
+Date: Mon, 21 Apr 2025 16:25:31 +0900
+Subject: [PATCH] Fix fastgltf::URIView::fspath() behavior in Windows.
+
+Reinterpreted the returned value of path() as std::u8string_view to use the platform-specific encoded fs::path.
+
+Signed-off-by: LEE KYOUNGHEON <stripe2933@gmail.com>
+---
+ src/fastgltf.cpp | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/fastgltf.cpp b/src/fastgltf.cpp
+index 84712bcd3..472b20ea4 100644
+--- a/src/fastgltf.cpp
++++ b/src/fastgltf.cpp
+@@ -518,7 +518,16 @@ std::string_view fg::URIView::fragment() const noexcept { return _fragment; }
+ fs::path fg::URIView::fspath() const {
+ 	if (!isLocalPath())
+ 		return {};
++#ifdef _WIN32
++#if __cplusplus >= 202002L
++	const std::string_view charPath = path();
++	return { std::u8string_view { reinterpret_cast<char8_t>(charPath.data()), charPath.size() } };
++#else
++	return fs::u8path(path());
++#endif
++#else
+ 	return { path() };
++#endif
+ }
+ 
+ bool fg::URIView::valid() const noexcept {

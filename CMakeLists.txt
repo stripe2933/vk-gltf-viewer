@@ -170,6 +170,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/tristate.cppm
         interface/helpers/type_map.cppm
         interface/helpers/type_variant.cppm
+        interface/helpers/unicode.cppm
         interface/helpers/vulkan.cppm
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
         interface/imgui/UserData.cppm
@@ -257,6 +258,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE
     GLFW_INCLUDE_NONE
+    $<$<PLATFORM_ID:Windows>:STBI_WINDOWS_UTF8>
 )
 
 if (CGAL_FOUND)

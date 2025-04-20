@@ -17,15 +17,10 @@ import :helpers.functional;
 import :helpers.io;
 import :helpers.ranges;
 import :helpers.span;
+import :helpers.unicode;
 import :helpers.vulkan;
 export import :vulkan.Gpu;
 import :vulkan.mipmap;
-
-#ifdef _WIN32
-#define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
-#else
-#define PATH_C_STR(...) (__VA_ARGS__).c_str()
-#endif
 
 namespace vk_gltf_viewer::vulkan::image {
     export struct Info {
@@ -356,22 +351,22 @@ namespace vk_gltf_viewer::vulkan::image {
                                 ranges::one_of(extension, { ".jpg", ".jpeg", ".png" })) {
 
                                 if (uri.fileByteOffset == 0) {
-                                    return processNonCompressedImageFromFile(PATH_C_STR(assetDir / uri.uri.fspath()));
+                                    return processNonCompressedImageFromFile(c_str(assetDir / uri.uri.fspath()));
                                 }
                                 else {
                                     // Non-zero file byte offset is not supported for stbi_load.
-                                    std::vector<std::byte> data = loadFileAsBinary(PATH_C_STR(assetDir / uri.uri.fspath()), uri.fileByteOffset);
+                                    std::vector<std::byte> data = loadFileAsBinary(assetDir / uri.uri.fspath(), uri.fileByteOffset);
                                     return processNonCompressedImageFromMemory(reinterpret_span<const stbi_uc>(std::span { data }));
                                 }
                             }
 #ifdef SUPPORT_KHR_TEXTURE_BASISU
                             else if (uri.mimeType == fastgltf::MimeType::KTX2 || extension == ".ktx2") {
                                 if (uri.fileByteOffset == 0) {
-                                    return processCompressedImageFromFile(PATH_C_STR(assetDir / uri.uri.fspath()));
+                                    return processCompressedImageFromFile(c_str(assetDir / uri.uri.fspath()));
                                 }
                                 else {
                                     // Non-zero file byte offset is not supported for ktxTexture2_CreateFromNamedFile.
-                                    std::vector<std::byte> data = loadFileAsBinary(PATH_C_STR(assetDir / uri.uri.fspath()), uri.fileByteOffset);
+                                    std::vector<std::byte> data = loadFileAsBinary(assetDir / uri.uri.fspath(), uri.fileByteOffset);
                                     return processCompressedImageFromMemory(reinterpret_span<const ktx_uint8_t>(std::span { data }));
                                 }
                             }

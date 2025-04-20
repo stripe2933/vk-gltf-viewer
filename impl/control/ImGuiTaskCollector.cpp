@@ -23,15 +23,11 @@ import :helpers.imgui;
 import :helpers.optional;
 import :helpers.ranges;
 import :helpers.TempStringBuffer;
+import :helpers.unicode;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
-#ifdef _WIN32
-#define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
-#else
-#define PATH_C_STR(...) (__VA_ARGS__).c_str()
-#endif
 
 using namespace std::string_view_literals;
 
@@ -56,7 +52,11 @@ template <concepts::signature_of<cpp_util::cstring_view()> F>
 
     NFD::UniquePath outPath;
     if (nfdresult_t nfdResult = OpenDialog(outPath, filterItems.data(), filterItems.size(), nullptr, windowHandle); nfdResult == NFD_OKAY) {
+#ifdef _WIN32
+        return reinterpret_cast<const char8_t*>(outPath.get());
+#else
         return outPath.get();
+#endif
     }
     else if (nfdResult == NFD_CANCEL) {
         return std::nullopt;
@@ -215,7 +215,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetBuffers(std::span<fastglt
                 },
                 [&](const fastgltf::sources::URI &uri) {
                     ImGui::WithID(row, [&]() {
-                        ImGui::TextLinkOpenURL(ICON_FA_EXTERNAL_LINK, PATH_C_STR(assetDir / uri.uri.fspath()));
+                        ImGui::TextLinkOpenURL(ICON_FA_EXTERNAL_LINK, c_str(assetDir / uri.uri.fspath()));
                     });
                 },
                 [](const auto&) {
@@ -299,7 +299,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetImages(std::span<fastgltf
                 },
                 [&](const fastgltf::sources::URI &uri) {
                     ImGui::WithID(i, [&]() {
-                        ImGui::TextLinkOpenURL(ICON_FA_EXTERNAL_LINK, PATH_C_STR(assetDir / uri.uri.fspath()));
+                        ImGui::TextLinkOpenURL(ICON_FA_EXTERNAL_LINK, c_str(assetDir / uri.uri.fspath()));
                     });
                 },
                 [](const auto&) {
@@ -559,7 +559,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                 }
                 else {
                     for (const std::filesystem::path &path : recentGltfs) {
-                        if (ImGui::MenuItem(PATH_C_STR(path))) {
+                        if (ImGui::MenuItem(c_str(path))) {
                             tasks.emplace_back(std::in_place_type<task::LoadGltf>, path);
                         }
                     }
@@ -597,7 +597,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                 }
                 else {
                     for (const std::filesystem::path &path : recentSkyboxes) {
-                        if (ImGui::MenuItem(PATH_C_STR(path))) {
+                        if (ImGui::MenuItem(c_str(path))) {
                             tasks.emplace_back(std::in_place_type<task::LoadEqmap>, path);
                         }
                     }
@@ -1353,7 +1353,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
             hoverableImage(eqmapTextureImGuiDescriptorSet, eqmapTextureSize);
 
             ImGui::WithLabel("File"sv, [&]() {
-                ImGui::TextLinkOpenURL(PATH_C_STR(info.eqmap.path.filename()), PATH_C_STR(info.eqmap.path));
+                ImGui::TextLinkOpenURL(c_str(info.eqmap.path.filename()), c_str(info.eqmap.path));
             });
             ImGui::LabelText("Dimension", "%ux%u", info.eqmap.dimension.x, info.eqmap.dimension.y);
         }

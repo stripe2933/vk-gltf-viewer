@@ -179,7 +179,11 @@ void vk_gltf_viewer::control::AppWindow::onDropCallback(std::span<const char * c
 #endif
     };
 
+#ifdef _WIN32
+    const std::filesystem::path path = reinterpret_cast<const char8_t*>(paths[0]);
+#else
     const std::filesystem::path path = paths[0];
+#endif
     if (std::filesystem::is_directory(path)) {
         // If directory contains glTF file, load it.
         for (const std::filesystem::path &childPath : std::filesystem::directory_iterator { path }) {
