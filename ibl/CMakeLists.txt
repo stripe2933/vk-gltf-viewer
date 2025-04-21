@@ -14,14 +14,14 @@ target_link_libraries(ibl PUBLIC vku::vku)
 set_target_properties(ibl PROPERTIES CXX_MODULE_STD 1)
 
 target_link_shaders(ibl PUBLIC
-    TARGET_ENV vulkan1.1
+    TARGET_ENV vulkan1.3
     FILES
         shader/spherical_harmonic_coefficient_image_to_buffer.comp
         shader/spherical_harmonic_coefficient_buffer_to_buffer.comp
         shader/screen_quad.vert shader/brdfmap.frag
 )
 target_link_shader_variants(ibl PUBLIC
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     FILES shader/prefilteredmap.comp
     MACRO_NAMES "AMD_SHADER_IMAGE_LOAD_STORE_LOD"
     MACRO_VALUES 0 1

@@ -12,9 +12,6 @@ constexpr std::array requiredExtensions {
 #if __APPLE__
     vk::KHRPortabilitySubsetExtensionName,
 #endif
-    vk::KHRDynamicRenderingExtensionName,
-    vk::KHRSynchronization2ExtensionName,
-    vk::EXTExtendedDynamicStateExtensionName,
     vk::KHRPushDescriptorExtensionName,
     vk::KHRSwapchainExtensionName,
 };
@@ -125,21 +122,13 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
 
         // Check physical device feature availability.
         const vk::StructureChain availableFeatures
-            = physicalDevice.getFeatures2<
-                vk::PhysicalDeviceFeatures2,
-                vk::PhysicalDeviceVulkan11Features,
-                vk::PhysicalDeviceVulkan12Features,
-                vk::PhysicalDeviceDynamicRenderingFeatures,
-                vk::PhysicalDeviceSynchronization2Features,
-                vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
-        const vk::PhysicalDeviceFeatures &features = availableFeatures.get<vk::PhysicalDeviceFeatures2>().features;
-        const vk::PhysicalDeviceVulkan11Features &vulkan11Features = availableFeatures.get<vk::PhysicalDeviceVulkan11Features>();
-        const vk::PhysicalDeviceVulkan12Features &vulkan12Features = availableFeatures.get<vk::PhysicalDeviceVulkan12Features>();
-        if (!features.samplerAnisotropy ||
-            !features.shaderInt16 ||
-            !features.multiDrawIndirect ||
-            !features.shaderStorageImageWriteWithoutFormat ||
-            !features.independentBlend ||
+            = physicalDevice.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceVulkan13Features>();
+        const auto &[features2, vulkan11Features, vulkan12Features, vulkan13Features] = availableFeatures;
+        if (!features2.features.samplerAnisotropy ||
+            !features2.features.shaderInt16 ||
+            !features2.features.multiDrawIndirect ||
+            !features2.features.shaderStorageImageWriteWithoutFormat ||
+            !features2.features.independentBlend ||
             !vulkan11Features.shaderDrawParameters ||
             !vulkan11Features.storageBuffer16BitAccess ||
             !vulkan11Features.uniformAndStorageBuffer16BitAccess ||
@@ -154,9 +143,8 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !vulkan12Features.scalarBlockLayout ||
             !vulkan12Features.timelineSemaphore ||
             !vulkan12Features.shaderInt8 ||
-            !availableFeatures.get<vk::PhysicalDeviceDynamicRenderingFeatures>().dynamicRendering ||
-            !availableFeatures.get<vk::PhysicalDeviceSynchronization2Features>().synchronization2 ||
-            !availableFeatures.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().extendedDynamicState) {
+            !vulkan13Features.dynamicRendering ||
+            !vulkan13Features.synchronization2) {
             return 0U;
         }
 
@@ -261,9 +249,9 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
             .setTimelineSemaphore(true)
             .setShaderInt8(true)
             .setDrawIndirectCount(supportDrawIndirectCount),
-        vk::PhysicalDeviceDynamicRenderingFeatures { true },
-        vk::PhysicalDeviceSynchronization2Features { true },
-        vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true },
+        vk::PhysicalDeviceVulkan13Features{}
+            .setDynamicRendering(true)
+            .setSynchronization2(true),
         vk::PhysicalDeviceIndexTypeUint8FeaturesKHR { supportUint8Index },
 #if __APPLE__
         vk::PhysicalDevicePortabilitySubsetFeaturesKHR{}
@@ -291,6 +279,6 @@ vma::Allocator vk_gltf_viewer::vulkan::Gpu::createAllocator(const vk::raii::Inst
             instance.getDispatcher()->vkGetInstanceProcAddr,
             device.getDispatcher()->vkGetDeviceProcAddr,
         }),
-        *instance, vk::makeApiVersion(0, 1, 2, 0),
+        *instance, vk::makeApiVersion(0, 1, 3, 0),
     });
 }

@@ -73,7 +73,7 @@ namespace ibl {
         void recordCommands(vk::CommandBuffer graphicsCommandBuffer) const {
             const auto *d = device.get().getDispatcher();
 
-            graphicsCommandBuffer.beginRenderingKHR(attachmentGroup.getRenderingInfo(
+            graphicsCommandBuffer.beginRendering(attachmentGroup.getRenderingInfo(
                 vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore }), *d);
             graphicsCommandBuffer.setViewport(0, vku::toViewport(attachmentGroup.extent), *d);
             graphicsCommandBuffer.setScissor(0, vk::Rect2D { {}, attachmentGroup.extent }, *d);
@@ -83,7 +83,7 @@ namespace ibl {
                 .framebufferHeightRcp = 1.f / resultImage.get().extent.height,
             }, *d);
             graphicsCommandBuffer.draw(3, 1, 0, 0, *d);
-            graphicsCommandBuffer.endRenderingKHR(*d);
+            graphicsCommandBuffer.endRendering(*d);
         }
 
     private:

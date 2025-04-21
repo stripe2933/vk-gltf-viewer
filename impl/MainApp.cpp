@@ -761,7 +761,7 @@ vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {
         vku::unsafeAddress(vk::ApplicationInfo {
             "Vulkan glTF Viewer", 0,
             nullptr, 0,
-            vk::makeApiVersion(0, 1, 2, 0),
+            vk::makeApiVersion(0, 1, 3, 0),
         }),
         {},
         extensions,
@@ -1154,7 +1154,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 // Generate eqmapImage mipmaps.
                 vulkan::recordMipmapGenerationCommand(cb, eqmapImage);
 
-                cb.pipelineBarrier2KHR({
+                cb.pipelineBarrier2({
                     {}, {}, {},
                     vku::unsafeProxy({
                         vk::ImageMemoryBarrier2 {
@@ -1270,7 +1270,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 // Generate cubemapImage mipmaps.
                 subgroupMipmapComputer.recordCommands(cb);
 
-                cb.pipelineBarrier2KHR({
+                cb.pipelineBarrier2({
                     {}, {}, {},
                     vku::unsafeProxy({
                         // cubemapImage : General -> ShaderReadOnlyOptimal.
@@ -1298,7 +1298,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 // Reduce spherical harmonic coefficients.
                 sphericalHarmonicCoefficientComputer.recordCommands(cb);
 
-                cb.pipelineBarrier2KHR({
+                cb.pipelineBarrier2({
                     {}, {},
                     vku::unsafeProxy(vk::BufferMemoryBarrier2 {
                         vk::PipelineStageFlagBits2::eCopy, vk::AccessFlagBits2::eTransferWrite,
@@ -1329,7 +1329,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             // mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=cubemapImage).
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
                 if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
-                    cb.pipelineBarrier2KHR({
+                    cb.pipelineBarrier2({
                         {}, {},
                         vku::unsafeProxy(vk::BufferMemoryBarrier2 {
                             {}, {},

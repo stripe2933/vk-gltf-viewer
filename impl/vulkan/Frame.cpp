@@ -843,11 +843,11 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             }
 
             if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
-                cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+                cb.setPrimitiveTopology(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
             }
 
             if (resourceBindingState.cullMode != criteria.cullMode) {
-                cb.setCullModeEXT(resourceBindingState.cullMode.emplace(criteria.cullMode));
+                cb.setCullMode(resourceBindingState.cullMode.emplace(criteria.cullMode));
             }
 
             if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
@@ -861,7 +861,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
     cb.setViewport(0, vku::toViewport(passthruResources->extent, true));
 
     if (renderingNodes && cursorPosFromPassthruRectTopLeft) {
-        cb.beginRenderingKHR(passthruResources->depthPrepassAttachmentGroup.getRenderingInfo(
+        cb.beginRendering(passthruResources->depthPrepassAttachmentGroup.getRenderingInfo(
             vku::AttachmentGroup::ColorAttachmentInfo {
                 vk::AttachmentLoadOp::eClear,
                 vk::AttachmentStoreOp::eStore,
@@ -870,27 +870,27 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
         cb.setScissor(0, vk::Rect2D{ *cursorPosFromPassthruRectTopLeft, { 1, 1 } });
         drawPrimitives(renderingNodes->depthPrepassIndirectDrawCommandBuffers);
-        cb.endRenderingKHR();
+        cb.endRendering();
     }
 
     cb.setScissor(0, vk::Rect2D{ { 0, 0 }, passthruResources->extent });
 
     // Seeding jump flood initial image for hovering node.
     if (hoveringNode) {
-        cb.beginRenderingKHR(passthruResources->hoveringNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
+        cb.beginRendering(passthruResources->hoveringNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
             vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
         drawPrimitives(hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers);
-        cb.endRenderingKHR();
+        cb.endRendering();
     }
 
     // Seeding jump flood initial image for selected node.
     if (selectedNodes) {
-        cb.beginRenderingKHR(passthruResources->selectedNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
+        cb.beginRendering(passthruResources->selectedNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
             vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
             vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
         drawPrimitives(selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers);
-        cb.endRenderingKHR();
+        cb.endRendering();
     }
 
     // If there are rendered nodes and the cursor is inside the passthru rect, do mouse picking.
@@ -935,7 +935,7 @@ bool vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
     vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSet,
     std::uint32_t initialSampleOffset
 ) const {
-    cb.pipelineBarrier2KHR({
+    cb.pipelineBarrier2({
         {}, {}, {},
         vku::unsafeProxy({
             vk::ImageMemoryBarrier2 {
@@ -991,11 +991,11 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         }
 
         if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
-            cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+            cb.setPrimitiveTopology(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
         }
 
         if (resourceBindingState.cullMode != criteria.cullMode) {
-            cb.setCullModeEXT(resourceBindingState.cullMode.emplace(criteria.cullMode));
+            cb.setCullMode(resourceBindingState.cullMode.emplace(criteria.cullMode));
         }
 
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
@@ -1029,7 +1029,7 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
         }
 
         if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
-            cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+            cb.setPrimitiveTopology(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
         }
 
         if (!resourceBindingState.descriptorBound) {
@@ -1100,7 +1100,7 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
     cb.setViewport(0, passthruViewport);
     cb.setScissor(0, passthruRect);
 
-    cb.beginRenderingKHR(sharedData.swapchainAttachmentGroup.getRenderingInfo(
+    cb.beginRendering(sharedData.swapchainAttachmentGroup.getRenderingInfo(
         vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
         swapchainImageIndex));
 
@@ -1144,7 +1144,7 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
         cb.draw(3, 1, 0, 0);
     }
 
-    cb.endRenderingKHR();
+    cb.endRendering();
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
@@ -1152,7 +1152,7 @@ void vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
     std::uint32_t swapchainImageIndex
 ) const {
     // Start dynamic rendering with B8G8R8A8_UNORM format.
-    cb.beginRenderingKHR(visit_as<const ag::Swapchain&>(sharedData.imGuiSwapchainAttachmentGroup).getRenderingInfo(
+    cb.beginRendering(visit_as<const ag::Swapchain&>(sharedData.imGuiSwapchainAttachmentGroup).getRenderingInfo(
         vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
         swapchainImageIndex));
 
@@ -1161,7 +1161,7 @@ void vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
         ImGui_ImplVulkan_RenderDrawData(drawData, cb);
     }
 
-    cb.endRenderingKHR();
+    cb.endRendering();
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordSwapchainExtentDependentImageLayoutTransitionCommands(

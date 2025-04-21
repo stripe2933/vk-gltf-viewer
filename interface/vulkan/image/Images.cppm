@@ -467,7 +467,7 @@ namespace vk_gltf_viewer::vulkan::image {
             const vk::raii::Fence graphicsFence { gpu.device, vk::FenceCreateInfo{} };
             vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
                 // Change image layouts and acquire resource queue family ownerships (optionally).
-                cb.pipelineBarrier2KHR({
+                cb.pipelineBarrier2({
                     {}, {}, {},
                     vku::unsafeProxy(*this | std::views::transform(decomposer([&](std::size_t imageIndex, const auto &tuple) {
                         const vku::Image &image = get<0>(tuple);
