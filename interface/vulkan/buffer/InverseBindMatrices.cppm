@@ -7,16 +7,20 @@ export import vk_mem_alloc_hpp;
 import :helpers.fastgltf;
 import :helpers.span;
 import :vulkan.buffer;
+export import :vulkan.buffer.StagingBufferStorage;
+import :vulkan.trait.PostTransferObject;
 
 namespace vk_gltf_viewer::vulkan::buffer {
-    export class InverseBindMatrices {
+    export class InverseBindMatrices : trait::PostTransferObject {
     public:
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         InverseBindMatrices(
             const fastgltf::Asset &asset,
             vma::Allocator allocator,
+            StagingBufferStorage &stagingBufferStorage,
             const BufferDataAdapter &adapter = {}
-        ) : buffer { [&]() {
+        ) : PostTransferObject { stagingBufferStorage },
+            buffer { [&]() {
                 // When a skin's inverseBindMatrices is not defined, identity matrices must be used. It first calculates
                 // the maximum number of skin joints count (=largestContinuousIdentityMatrixCount), and allocate
                 // contiguous identity matrices of size largestContinuousIdentityMatrixCount. Then, each skin's
@@ -51,12 +55,14 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     matrices.back() = matrices.back().subspan(0, skin.joints.size());
                 }
 
-                // A dummy identity matrix for preventing the zero-sized buffer creation.
-                // This will not be actually indexed.
-                constexpr glm::mat4 dummyMatrix{};
-                matrices.emplace_back(&dummyMatrix, 1);
+                vku::AllocatedBuffer result = createCombinedBuffer<true>(
+                    allocator, matrices, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc).first;
 
-                return createCombinedBuffer(allocator, matrices, vk::BufferUsageFlagBits::eStorageBuffer).first;
+                if (StagingBufferStorage::needStaging(result)) {
+                    stagingBufferStorage.stage(result, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer);
+                }
+
+                return result;
             }() },
             descriptorInfo { buffer, 0, vk::WholeSize } { }
 
@@ -65,7 +71,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
     private:
-        vku::MappedBuffer buffer;
+        vku::AllocatedBuffer buffer;
         vk::DescriptorBufferInfo descriptorInfo;
     };
 }

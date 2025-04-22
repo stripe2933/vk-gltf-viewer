@@ -2,6 +2,7 @@ module;
 
 #include <cassert>
 
+#include <boost/container/static_vector.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 #include <lifetimebound.hpp>
@@ -66,7 +67,7 @@ namespace vk_gltf_viewer::vulkan {
     public:
         struct GltfAsset {
             buffer::InstancedNodeWorldTransforms instancedNodeWorldTransformBuffer;
-            buffer::MorphTargetWeights morphTargetWeightBuffer;
+            std::optional<buffer::MorphTargetWeights> morphTargetWeightBuffer;
 
             // Used only if GPU does not support variable descriptor count.
             std::optional<vk::raii::DescriptorPool> descriptorPool;
@@ -78,7 +79,9 @@ namespace vk_gltf_viewer::vulkan {
                 const SharedData &sharedData LIFETIMEBOUND,
                 const BufferDataAdapter &adapter = {}
             ) : instancedNodeWorldTransformBuffer { asset, asset.scenes[asset.defaultScene.value_or(0)], sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount, nodeWorldTransforms, sharedData.gpu.allocator, adapter },
-                morphTargetWeightBuffer { asset, sharedData.gltfAsset->targetWeightCountExclusiveScan, sharedData.gpu },
+                morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount.back() != 0, [&]() {
+                    return buffer::MorphTargetWeights { asset, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gpu };
+                }) },
                 descriptorPool { value_if(!sharedData.gpu.supportVariableDescriptorCount, [&]() {
                     return vk::raii::DescriptorPool {
                         sharedData.gpu.device,
@@ -222,16 +225,24 @@ namespace vk_gltf_viewer::vulkan {
             imageInfos.reserve(asset.textures.size() + 1);
             imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
             imageInfos.append_range(sharedData.gltfAsset->textures.descriptorInfos);
-            sharedData.gpu.device.updateDescriptorSets({
+
+            boost::container::static_vector<vk::WriteDescriptorSet, dsl::Asset::bindingCount> descriptorWrites {
                 assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<1>(sharedData.gltfAsset->nodeBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<2>(inner.instancedNodeWorldTransformBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<3>(inner.morphTargetWeightBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<4>(sharedData.gltfAsset->skinJointIndices.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<5>(sharedData.gltfAsset->inverseBindMatrixBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<6>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<7>(imageInfos),
-            }, {});
+            };
+            if (inner.morphTargetWeightBuffer) {
+                descriptorWrites.push_back(assetDescriptorSet.getWrite<3>(inner.morphTargetWeightBuffer->getDescriptorInfo()));
+            }
+            if (sharedData.gltfAsset->skinJointIndexAndInverseBindMatrixBuffer) {
+                const auto &[skinJointIndexBuffer, inverseBindMatrixBuffer] = *sharedData.gltfAsset->skinJointIndexAndInverseBindMatrixBuffer;
+                descriptorWrites.push_back(assetDescriptorSet.getWrite<4>(skinJointIndexBuffer.getDescriptorInfo()));
+                descriptorWrites.push_back(assetDescriptorSet.getWrite<5>(inverseBindMatrixBuffer.getDescriptorInfo()));
+            }
+
+            sharedData.gpu.device.updateDescriptorSets(descriptorWrites, {});
         }
 
     private:

@@ -148,6 +148,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !vulkan12Features.descriptorIndexing ||
             !vulkan12Features.descriptorBindingSampledImageUpdateAfterBind ||
             !vulkan12Features.descriptorBindingVariableDescriptorCount ||
+            !vulkan12Features.descriptorBindingPartiallyBound ||
             !vulkan12Features.runtimeDescriptorArray ||
             !vulkan12Features.storageBuffer8BitAccess ||
             !vulkan12Features.scalarBlockLayout ||
@@ -253,6 +254,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
             .setDescriptorIndexing(true)
             .setDescriptorBindingSampledImageUpdateAfterBind(true)
             .setDescriptorBindingVariableDescriptorCount(supportVariableDescriptorCount)
+            .setDescriptorBindingPartiallyBound(true)
             .setRuntimeDescriptorArray(true)
             .setStorageBuffer8BitAccess(true)
             .setScalarBlockLayout(true)

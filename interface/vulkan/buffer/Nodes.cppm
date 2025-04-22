@@ -9,8 +9,8 @@ export import fastgltf;
 import :helpers.fastgltf;
 import :helpers.ranges;
 export import :gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
-export import :gltf.data_structure.TargetWeightCountExclusiveScan;
-import :gltf.data_structure.SkinJointCountExclusiveScan;
+export import :gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
+export import :gltf.data_structure.SkinJointCountExclusiveScanWithCount;
 export import :vulkan.buffer.StagingBufferStorage;
 import :vulkan.shader_type.Node;
 import :vulkan.trait.PostTransferObject;
@@ -21,12 +21,12 @@ namespace vk_gltf_viewer::vulkan::buffer {
         Nodes(
             const fastgltf::Asset &asset,
             const gltf::ds::NodeInstanceCountExclusiveScanWithCount &nodeInstanceCountExclusiveScan,
-            const gltf::ds::TargetWeightCountExclusiveScan &targetWeightCountExclusiveScan,
+            const gltf::ds::TargetWeightCountExclusiveScanWithCount &targetWeightCountExclusiveScan,
+            const gltf::ds::SkinJointCountExclusiveScanWithCount &skinJointCountExclusiveScan,
             vma::Allocator allocator,
             StagingBufferStorage &stagingBufferStorage
         ) : PostTransferObject { stagingBufferStorage },
             buffer { [&]() {
-                const gltf::ds::SkinJointCountExclusiveScan skinJointCountExclusiveScan { asset };
                 vku::AllocatedBuffer result = vku::MappedBuffer {
                     allocator,
                     std::from_range, ranges::views::upto(asset.nodes.size()) | std::views::transform([&](std::size_t nodeIndex) {

@@ -14,6 +14,7 @@ export import vku;
 export import :gltf.OrderedPrimitives;
 import :helpers.AggregateHasher;
 import :helpers.fastgltf;
+import :helpers.optional;
 import :helpers.ranges;
 export import :vulkan.ag.Swapchain;
 export import :vulkan.buffer.CombinedIndices;
@@ -43,16 +44,16 @@ namespace vk_gltf_viewer::vulkan {
     export class SharedData {
     public:
         struct GltfAsset {
-            std::shared_ptr<gltf::ds::NodeInstanceCountExclusiveScanWithCount> nodeInstanceCountExclusiveScanWithCount;
-            std::shared_ptr<gltf::ds::TargetWeightCountExclusiveScan> targetWeightCountExclusiveScan;
+            gltf::ds::NodeInstanceCountExclusiveScanWithCount nodeInstanceCountExclusiveScanWithCount;
+            gltf::ds::TargetWeightCountExclusiveScanWithCount targetWeightCountExclusiveScanWithCount;
+            gltf::ds::SkinJointCountExclusiveScanWithCount skinJointCountExclusiveScanWithCount;
 
             buffer::Nodes nodeBuffer;
             buffer::Materials materialBuffer;
             buffer::CombinedIndices combinedIndexBuffers;
             buffer::PrimitiveAttributes primitiveAttributes;
             buffer::Primitives primitiveBuffer;
-            buffer::SkinJointIndices skinJointIndices;
-            buffer::InverseBindMatrices inverseBindMatrixBuffer;
+            std::optional<std::pair<buffer::SkinJointIndices, buffer::InverseBindMatrices>> skinJointIndexAndInverseBindMatrixBuffer;
             texture::Textures textures;
             texture::ImGuiColorSpaceAndUsageCorrectedTextures imGuiColorSpaceAndUsageCorrectedTextures;
 
@@ -68,15 +69,21 @@ namespace vk_gltf_viewer::vulkan {
                 const BufferDataAdapter &adapter = {},
                 buffer::StagingBufferStorage stagingBufferStorage = {},
                 BS::thread_pool<> threadPool = {}
-            ) : nodeInstanceCountExclusiveScanWithCount { std::make_shared<gltf::ds::NodeInstanceCountExclusiveScanWithCount>(asset) },
-                targetWeightCountExclusiveScan { std::make_shared<gltf::ds::TargetWeightCountExclusiveScan>(asset) },
-                nodeBuffer { asset, *nodeInstanceCountExclusiveScanWithCount, *targetWeightCountExclusiveScan, gpu.allocator, stagingBufferStorage },
+            ) : nodeInstanceCountExclusiveScanWithCount { asset },
+                targetWeightCountExclusiveScanWithCount { asset },
+                skinJointCountExclusiveScanWithCount { asset },
+                nodeBuffer { asset, nodeInstanceCountExclusiveScanWithCount, targetWeightCountExclusiveScanWithCount, skinJointCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage },
                 materialBuffer { asset, gpu.allocator, stagingBufferStorage },
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
                 primitiveBuffer { orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
-                skinJointIndices { asset, gpu.allocator },
-                inverseBindMatrixBuffer { asset, gpu.allocator, adapter },
+                skinJointIndexAndInverseBindMatrixBuffer { value_if(!asset.skins.empty(), [&]() {
+                    return std::pair<buffer::SkinJointIndices, buffer::InverseBindMatrices> {
+                        std::piecewise_construct,
+                        std::tie(asset, skinJointCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage),
+                        std::tie(asset, gpu.allocator, stagingBufferStorage, adapter),
+                    };
+                }) },
                 textures { asset, directory, gpu, fallbackTexture, threadPool, adapter },
                 imGuiColorSpaceAndUsageCorrectedTextures { asset, textures, gpu } {
                 if (stagingBufferStorage.hasStagingCommands()) {
