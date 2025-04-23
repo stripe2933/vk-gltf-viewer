@@ -921,25 +921,18 @@ void vk_gltf_viewer::MainApp::closeGltf() {
 
 void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) {
     vk::Extent2D eqmapImageExtent;
+    vk::Format eqmapImageFormat;
     const vku::MappedBuffer eqmapStagingBuffer = [&]() -> vku::MappedBuffer {
         std::unique_ptr<std::byte[]> data; // It should be freed after copying to the staging buffer, therefore declared as unique_ptr.
-        if (auto extension = eqmapPath.extension(); extension == ".hdr") {
-            int width, height;
-            data.reset(reinterpret_cast<std::byte*>(stbi_loadf(PATH_C_STR(eqmapPath), &width, &height, nullptr, 4)));
-            if (!data) {
-                throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
-            }
-
-            eqmapImageExtent.width = static_cast<std::uint32_t>(width);
-            eqmapImageExtent.height = static_cast<std::uint32_t>(height);
-        }
+        const std::filesystem::path extension = eqmapPath.extension();
 #ifdef SUPPORT_EXR_SKYBOX
-        else if (extension == ".exr") {
+        if (extension == ".exr") {
             Imf::InputFile file{ PATH_C_STR(eqmapPath), static_cast<int>(std::thread::hardware_concurrency()) };
 
             const Imath::Box2i dw = file.header().dataWindow();
             eqmapImageExtent.width = static_cast<std::uint32_t>(dw.max.x - dw.min.x + 1);
             eqmapImageExtent.height = static_cast<std::uint32_t>(dw.max.y - dw.min.y + 1);
+            eqmapImageFormat = vk::Format::eR32G32B32A32Sfloat;
 
             data = std::make_unique_for_overwrite<std::byte[]>(4 * eqmapImageExtent.width * eqmapImageExtent.height * sizeof(float));
 
@@ -954,18 +947,29 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
             file.readPixels(frameBuffer, dw.min.y, dw.max.y);
         }
+        else
 #endif
-        else {
-#ifdef SUPPORT_EXR_SKYBOX
-            throw std::runtime_error { "Unknown file format: only HDR and EXR are supported." };
-#else
-            throw std::runtime_error { "Unknown file format: only HDR is supported." };
-#endif
+        {
+            int width, height;
+            if (extension == ".hdr") {
+                data.reset(reinterpret_cast<std::byte*>(stbi_loadf(PATH_C_STR(eqmapPath), &width, &height, nullptr, 4)));
+                eqmapImageFormat = vk::Format::eR32G32B32A32Sfloat;
+            }
+            else {
+                data.reset(reinterpret_cast<std::byte*>(stbi_load(PATH_C_STR(eqmapPath), &width, &height, nullptr, 4)));
+                eqmapImageFormat = vk::Format::eR8G8B8A8Srgb;
+            }
+            if (!data) {
+                throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
+            }
+
+            eqmapImageExtent.width = static_cast<std::uint32_t>(width);
+            eqmapImageExtent.height = static_cast<std::uint32_t>(height);
         }
 
         return {
             gpu.allocator,
-            std::from_range, std::span { data.get(), sizeof(float[4]) * eqmapImageExtent.width * eqmapImageExtent.height },
+            std::from_range, std::span { data.get(), blockSize(eqmapImageFormat) * eqmapImageExtent.width * eqmapImageExtent.height },
             vk::BufferUsageFlagBits::eTransferSrc,
         };
         // After this scope, data will be automatically freed.
@@ -977,7 +981,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     const vku::AllocatedImage eqmapImage { gpu.allocator, vk::ImageCreateInfo {
         {},
         vk::ImageType::e2D,
-        vk::Format::eR32G32B32A32Sfloat,
+        eqmapImageFormat,
         vk::Extent3D { eqmapImageExtent, 1 },
         eqmapImageMipLevels, 1,
         vk::SampleCountFlagBits::e1,
@@ -1000,7 +1004,8 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     vku::AllocatedImage cubemapImage { gpu.allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
         vk::ImageType::e2D,
-        vk::Format::eR32G32B32A32Sfloat,
+        // Use non-sRGB format as sRGB format is usually not compatible with storage image.
+        eqmapImageFormat == vk::Format::eR8G8B8A8Srgb ? vk::Format::eR8G8B8A8Unorm : eqmapImageFormat,
         vk::Extent3D { 1024, 1024, 1 },
         vku::Image::maxMipLevels(1024), 6,
         vk::SampleCountFlagBits::e1,
@@ -1023,7 +1028,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     vku::AllocatedImage prefilteredmapImage { gpu.allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
         vk::ImageType::e2D,
-        vk::Format::eR32G32B32A32Sfloat,
+        cubemapImage.format,
         vk::Extent3D { prefilteredmapSize, prefilteredmapSize, 1 },
         vku::Image::maxMipLevels(prefilteredmapSize), 6,
         vk::SampleCountFlagBits::e1,

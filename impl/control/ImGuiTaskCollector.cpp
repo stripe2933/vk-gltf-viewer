@@ -576,12 +576,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                 constexpr std::array filterItems {
                     nfdfilteritem_t { 
                         "All Supported Images", 
-                        "hdr"
+                        "hdr,jpg,jpeg,png"
 #ifdef SUPPORT_EXR_SKYBOX
                         ",exr",
 #endif
                     },
                     nfdfilteritem_t { "HDR Image", "hdr" },
+                    nfdfilteritem_t { "LDR Image", "jpg,jpeg,png" },
 #ifdef SUPPORT_EXR_SKYBOX
                     nfdfilteritem_t { "EXR Image", "exr" },
 #endif
