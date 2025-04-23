@@ -173,6 +173,9 @@ void vk_gltf_viewer::control::AppWindow::onDropCallback(std::span<const char * c
     if (paths.empty()) return;
 
     static constexpr auto supportedSkyboxExtensions = {
+        ".jpg",
+        ".jpeg",
+        ".png",
         ".hdr",
 #ifdef SUPPORT_EXR_SKYBOX
         ".exr",
