@@ -343,14 +343,14 @@ namespace vk_gltf_viewer::vulkan {
         vk::CommandBuffer scenePrepassCommandBuffer;
         vk::CommandBuffer sceneRenderingCommandBuffer;
         vk::CommandBuffer compositionCommandBuffer;
-        vk::CommandBuffer jumpFloodCommandBuffer;
+        std::array<vk::CommandBuffer, 2> jumpFloodCommandBuffers;
 
         // Synchronization stuffs.
-        vk::raii::Semaphore scenePrepassFinishSema;
+        std::array<vk::raii::Semaphore, 2> scenePrepassFinishSemas;
         vk::raii::Semaphore swapchainImageAcquireSema;
         vk::raii::Semaphore sceneRenderingFinishSema;
         vk::raii::Semaphore compositionFinishSema;
-        vk::raii::Semaphore jumpFloodFinishSema;
+        std::array<vk::raii::Semaphore, 2> jumpFloodFinishSemas;
         vk::raii::Fence inFlightFence;
 
         vk::Rect2D passthruRect;

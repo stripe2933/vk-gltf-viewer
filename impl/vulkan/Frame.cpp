@@ -18,6 +18,9 @@ import :vulkan.ag.DepthPrepass;
 import :vulkan.buffer.IndirectDrawCommands;
 import :vulkan.shader_type.Accessor;
 
+#define INDEX_SEQ(Is, N, ...) [&]<auto... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
+#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)...}; })
+
 constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
 
 [[nodiscard]] constexpr vk::PrimitiveTopology getPrimitiveTopology(fastgltf::PrimitiveType type) noexcept {
@@ -49,11 +52,11 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
     , descriptorPool { createDescriptorPool() }
     , computeCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.compute } }
     , graphicsCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.graphicsPresent } }
-    , scenePrepassFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
+    , scenePrepassFinishSemas { ARRAY_OF(2, vk::raii::Semaphore { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }) }
     , swapchainImageAcquireSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
     , sceneRenderingFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
     , compositionFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
-    , jumpFloodFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
+    , jumpFloodFinishSemas { ARRAY_OF(2, vk::raii::Semaphore { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }) }
     , inFlightFence { sharedData.gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } } {
     // Change initial attachment layouts.
     const vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
@@ -80,7 +83,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
         {});
 
     // Allocate per-frame command buffers.
-    std::tie(jumpFloodCommandBuffer) = vku::allocateCommandBuffers<1>(*sharedData.gpu.device, *computeCommandPool);
+    jumpFloodCommandBuffers = vku::allocateCommandBuffers<2>(*sharedData.gpu.device, *computeCommandPool);
     std::tie(scenePrepassCommandBuffer, sceneRenderingCommandBuffer, compositionCommandBuffer)
         = vku::allocateCommandBuffers<3>(*sharedData.gpu.device, *graphicsCommandPool);
 }
@@ -498,6 +501,9 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapchainImageIndex) const {
+    const bool useDistributedJumpFloodProcessing
+        = hoveringNode && selectedNodes && sharedData.gpu.queues.computes.size() == 2;
+
     // Record commands.
     graphicsCommandPool.reset();
     computeCommandPool.reset();
@@ -508,22 +514,30 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
         recordScenePrepassCommands(scenePrepassCommandBuffer);
         scenePrepassCommandBuffer.end();
 
+        boost::container::static_vector<vk::Semaphore, 2> signalSemas;
+        if (hoveringNode || selectedNodes) {
+            signalSemas.push_back(*scenePrepassFinishSemas[0]);
+        }
+        if (useDistributedJumpFloodProcessing) {
+            signalSemas.push_back(*scenePrepassFinishSemas[1]);
+        }
         sharedData.gpu.queues.graphicsPresent.submit(vk::SubmitInfo {
             {},
             {},
             scenePrepassCommandBuffer,
-            *scenePrepassFinishSema,
+            signalSemas,
         });
     }
 
     // Jump flood calculation pass.
-    // TODO: If there are multiple compute queues, distribute the tasks to avoid the compute pipeline stalling.
     std::optional<bool> hoveringNodeJumpFloodForward{}, selectedNodeJumpFloodForward{};
     {
-        jumpFloodCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+        boost::container::static_vector<vk::CommandBuffer, 2> recordedCommandBuffers;
+
         if (hoveringNode) {
+            jumpFloodCommandBuffers[0].begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
             hoveringNodeJumpFloodForward = recordJumpFloodComputeCommands(
-                jumpFloodCommandBuffer,
+                jumpFloodCommandBuffers[0],
                 passthruResources->hoveringNodeOutlineJumpFloodResources.image,
                 hoveringNodeJumpFloodSet,
                 std::bit_ceil(static_cast<std::uint32_t>(hoveringNode->outlineThickness)));
@@ -534,12 +548,17 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
                         ? *passthruResources->hoveringNodeOutlineJumpFloodResources.pongImageView
                         : *passthruResources->hoveringNodeOutlineJumpFloodResources.pingImageView,
                     vk::ImageLayout::eShaderReadOnlyOptimal,
-                }),
+                    }),
                 {});
+            jumpFloodCommandBuffers[0].end();
+
+            recordedCommandBuffers.push_back(jumpFloodCommandBuffers[0]);
         }
+
         if (selectedNodes) {
+            jumpFloodCommandBuffers[1].begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
             selectedNodeJumpFloodForward = recordJumpFloodComputeCommands(
-                jumpFloodCommandBuffer,
+                jumpFloodCommandBuffers[1],
                 passthruResources->selectedNodeOutlineJumpFloodResources.image,
                 selectedNodeJumpFloodSet,
                 std::bit_ceil(static_cast<std::uint32_t>(selectedNodes->outlineThickness)));
@@ -550,17 +569,36 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
                         ? *passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView
                         : *passthruResources->selectedNodeOutlineJumpFloodResources.pingImageView,
                     vk::ImageLayout::eShaderReadOnlyOptimal,
-                }),
+                    }),
                 {});
-        }
-        jumpFloodCommandBuffer.end();
+            jumpFloodCommandBuffers[1].end();
 
-        sharedData.gpu.queues.compute.submit(vk::SubmitInfo {
-            *scenePrepassFinishSema,
-            vku::unsafeProxy(vk::Flags { vk::PipelineStageFlagBits::eComputeShader }),
-            jumpFloodCommandBuffer,
-            *jumpFloodFinishSema,
-        });
+            recordedCommandBuffers.push_back(jumpFloodCommandBuffers[1]);
+        }
+
+        if (useDistributedJumpFloodProcessing) {
+            // Evenly distribute the commands to the queues.
+            sharedData.gpu.queues.computes[0].submit(vk::SubmitInfo{
+                *scenePrepassFinishSemas[0],
+                vku::unsafeProxy(vk::Flags { vk::PipelineStageFlagBits::eComputeShader }),
+                recordedCommandBuffers[0],
+                *jumpFloodFinishSemas[0],
+            });
+            sharedData.gpu.queues.computes[1].submit(vk::SubmitInfo{
+                *scenePrepassFinishSemas[1],
+                vku::unsafeProxy(vk::Flags { vk::PipelineStageFlagBits::eComputeShader }),
+                recordedCommandBuffers[1],
+                *jumpFloodFinishSemas[1],
+            });
+        }
+        else if (!recordedCommandBuffers.empty()) {
+            sharedData.gpu.queues.computes[0].submit(vk::SubmitInfo{
+                *scenePrepassFinishSemas[0],
+                vku::unsafeProxy(vk::Flags { vk::PipelineStageFlagBits::eComputeShader }),
+                recordedCommandBuffers,
+                *jumpFloodFinishSemas[0],
+            });
+        }
     }
 
     // glTF scene rendering pass.
@@ -662,6 +700,16 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
         compositionCommandBuffer.end();
     }
 
+    boost::container::static_vector<vk::Semaphore, 3> compositionCommandWaitSemas{ *sceneRenderingFinishSema };
+    if (hoveringNodeJumpFloodForward || selectedNodeJumpFloodForward) {
+        compositionCommandWaitSemas.push_back(*jumpFloodFinishSemas[0]);
+        if (useDistributedJumpFloodProcessing) {
+            compositionCommandWaitSemas.push_back(*jumpFloodFinishSemas[1]);
+        }
+    }
+    const boost::container::static_vector<vk::PipelineStageFlags, 3> compositionCommandWaitDstStages(
+        compositionCommandWaitSemas.size(), vk::PipelineStageFlagBits::eFragmentShader);
+
     sharedData.gpu.queues.graphicsPresent.submit({
         vk::SubmitInfo {
             *swapchainImageAcquireSema,
@@ -670,11 +718,8 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
             *sceneRenderingFinishSema,
         },
         vk::SubmitInfo {
-            vku::unsafeProxy({ *sceneRenderingFinishSema, *jumpFloodFinishSema }),
-            vku::unsafeProxy({
-                vk::Flags { vk::PipelineStageFlagBits::eFragmentShader },
-                vk::Flags { vk::PipelineStageFlagBits::eFragmentShader },
-            }),
+            compositionCommandWaitSemas,
+            compositionCommandWaitDstStages,
             compositionCommandBuffer,
             *compositionFinishSema,
         },

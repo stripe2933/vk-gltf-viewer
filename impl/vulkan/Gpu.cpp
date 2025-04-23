@@ -46,25 +46,32 @@ vk_gltf_viewer::vulkan::QueueFamilies::QueueFamilies(vk::PhysicalDevice physical
     std::ranges::sort(uniqueIndices);
     const auto ret = std::ranges::unique(uniqueIndices);
     uniqueIndices.erase(ret.begin(), ret.end());
+
+    // Retrieve the compute queue count.
+    computeQueueCount = std::min(queueFamilyProperties[compute].queueCount, 2U);
 }
 
-vk_gltf_viewer::vulkan::Queues::Queues(vk::Device device, const QueueFamilies& queueFamilies) noexcept
-    : compute { device.getQueue(queueFamilies.compute, 0) }
-    , graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) }
-    , transfer { device.getQueue(queueFamilies.transfer, 0) } { }
+vk_gltf_viewer::vulkan::Queues::Queues(vk::Device device, const QueueFamilies& queueFamilies) noexcept { 
+    for (std::uint32_t computeQueueIndex : ranges::views::upto(queueFamilies.computeQueueCount)) {
+        computes.push_back(device.getQueue(queueFamilies.compute, computeQueueIndex));
+    }
+    graphicsPresent = device.getQueue(queueFamilies.graphicsPresent, 0);
+    transfer = device.getQueue(queueFamilies.transfer, 0);
+}
 
 vku::RefHolder<std::vector<vk::DeviceQueueCreateInfo>> vk_gltf_viewer::vulkan::Queues::getCreateInfos(
     vk::PhysicalDevice,
     const QueueFamilies &queueFamilies
 ) noexcept {
     return vku::RefHolder { [&]() {
-        static constexpr std::array priorities { 1.f };
         return queueFamilies.uniqueIndices
-            | std::views::transform([=](std::uint32_t queueFamilyIndex) {
+            | std::views::transform([&](std::uint32_t queueFamilyIndex) {
+                static constexpr std::array priorities { 1.f, 1.f };
                 return vk::DeviceQueueCreateInfo {
                     {},
                     queueFamilyIndex,
-                    priorities,
+                    queueFamilyIndex == queueFamilies.compute ? queueFamilies.computeQueueCount : 1,
+                    priorities.data(),
                 };
             })
             | std::ranges::to<std::vector>();

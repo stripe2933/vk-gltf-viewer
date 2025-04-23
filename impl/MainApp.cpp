@@ -1323,7 +1323,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                         },
                     }),
                 });
-            }, visit_as<vk::CommandPool>(computeCommandPool), gpu.queues.compute }),
+            }, visit_as<vk::CommandPool>(computeCommandPool), gpu.queues.computes[0] }),
         std::forward_as_tuple(
             // Acquire resources' queue family ownership from compute to graphicsPresent (if necessary), and create tone
             // mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=cubemapImage).

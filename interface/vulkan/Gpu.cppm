@@ -1,5 +1,6 @@
 module;
 
+#include <boost/container/static_vector.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 #include <lifetimebound.hpp>
@@ -14,11 +15,14 @@ namespace vk_gltf_viewer::vulkan {
         std::uint32_t compute, graphicsPresent, transfer;
         std::vector<std::uint32_t> uniqueIndices;
 
+        std::uint32_t computeQueueCount;
+
         QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface);
     };
 
     export struct Queues {
-        vk::Queue compute, graphicsPresent, transfer;
+        boost::container::static_vector<vk::Queue, 2> computes;
+        vk::Queue graphicsPresent, transfer;
 
         Queues(vk::Device device, const QueueFamilies& queueFamilies) noexcept;
 
