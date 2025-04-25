@@ -2,6 +2,7 @@ module;
 
 #include <cassert>
 
+#include <GLFW/glfw3.h>
 #include <IconsFontAwesome4.h>
 #ifdef _WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -34,11 +35,14 @@ import cubemap;
 import ibl;
 import imgui.glfw;
 import imgui.vulkan;
+import :AppState;
 import :control.AppWindow;
+import :global;
 import :gltf.algorithm.miniball;
 import :gltf.algorithm.misc;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
+import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.optional;
@@ -149,12 +153,12 @@ void vk_gltf_viewer::MainApp::run() {
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const auto [sharedDataUpdateCommandBuffer] = vku::allocateCommandBuffers<1>(*gpu.device, *graphicsCommandPool);
 
-    std::vector<control::Task> tasks;
     for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % FRAMES_IN_FLIGHT) {
-        tasks.clear();
-
         bool hasUpdateData = false;
 
+        std::queue<control::Task> tasks;
+
+        // Collect task from animation system.
         if (gltf) {
             std::vector<std::size_t> transformedNodes, morphedNodes;
             for (const auto &[animation, enabled] : std::views::zip(gltf->animations, gltf->animationEnabled)) {
@@ -163,16 +167,16 @@ void vk_gltf_viewer::MainApp::run() {
             }
 
             for (std::size_t nodeIndex : transformedNodes) {
-                tasks.emplace_back(std::in_place_type<control::task::NodeLocalTransformChanged>, nodeIndex);
+                tasks.emplace(std::in_place_type<control::task::NodeLocalTransformChanged>, nodeIndex);
             }
             for (std::size_t nodeIndex : morphedNodes) {
                 const std::size_t targetWeightCount = getTargetWeightCount(gltf->asset.nodes[nodeIndex], gltf->asset);
-                tasks.emplace_back(std::in_place_type<control::task::MorphTargetWeightChanged>, nodeIndex, 0, targetWeightCount);
+                tasks.emplace(std::in_place_type<control::task::MorphTargetWeightChanged>, nodeIndex, 0, targetWeightCount);
             }
         }
 
         // Collect task from window event (mouse, keyboard, drag and drop, ...).
-        window.handleEvents(tasks);
+        window.pollEvents(tasks);
 
         // Collect task from ImGui (button click, menu selection, ...).
         static ImRect passthruRect{};
@@ -230,8 +234,103 @@ void vk_gltf_viewer::MainApp::run() {
         graphicsCommandPool.reset();
         sharedDataUpdateCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-        for (const control::Task &task : tasks) {
+        // Process the collected tasks.
+        for (; !tasks.empty(); tasks.pop()) {
             visit(multilambda {
+                [this](const control::task::WindowKey &task) {
+                    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureKeyboard) return;
+
+                    if (task.action == GLFW_PRESS && appState.canManipulateImGuizmo()) {
+                        switch (task.key) {
+                            case GLFW_KEY_T:
+                                appState.imGuizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
+                                break;
+                            case GLFW_KEY_R:
+                                appState.imGuizmoOperation = ImGuizmo::OPERATION::ROTATE;
+                                break;
+                            case GLFW_KEY_S:
+                                appState.imGuizmoOperation = ImGuizmo::OPERATION::SCALE;
+                                break;
+                        }
+                    }
+                },
+                [&](const control::task::WindowMouseButton &task) {
+                    const bool leftMouseButtonPressed = task.button == GLFW_MOUSE_BUTTON_LEFT && task.action == GLFW_RELEASE && lastMouseDownPosition;
+                    if (leftMouseButtonPressed) {
+                        lastMouseDownPosition = std::nullopt;
+                    }
+
+                    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
+
+                    if (task.button == GLFW_MOUSE_BUTTON_LEFT && task.action == GLFW_PRESS) {
+                        lastMouseDownPosition = window.getCursorPos();
+                    }
+                    else if (leftMouseButtonPressed && appState.gltfAsset) {
+                        if (appState.gltfAsset->hoveringNodeIndex) {
+                            tasks.emplace(std::in_place_type<control::task::SelectNode>, *appState.gltfAsset->hoveringNodeIndex, task.mods == GLFW_MOD_CONTROL);
+                            global::shouldNodeInSceneHierarchyScrolledToBeVisible = true;
+                        }
+                        else {
+                            appState.gltfAsset->selectedNodeIndices.clear();
+                        }
+                    }
+                },
+                [&](concepts::one_of<control::task::WindowScroll, control::task::WindowTrackpadZoom> auto const &task) {
+                    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
+
+                    const double scale = multilambda {
+                        [](const control::task::WindowScroll &scroll) { return scroll.offset.y; },
+                        [](const control::task::WindowTrackpadZoom &zoom) { return zoom.scale; }
+                    }(task);
+
+                    const float factor = std::powf(1.01f, -scale);
+                    const glm::vec3 displacementToTarget = appState.camera.direction * appState.camera.targetDistance;
+                    appState.camera.targetDistance *= factor;
+                    appState.camera.position += (1.f - factor) * displacementToTarget;
+
+                    tasks.emplace(std::in_place_type<control::task::CameraViewChanged>);
+                },
+                [&](const control::task::WindowTrackpadRotate &task) {
+                    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
+
+                    // Rotate the camera around the Y-axis lied on the target point.
+                    const glm::vec3 target = appState.camera.position + appState.camera.direction * appState.camera.targetDistance;
+                    const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
+                    appState.camera.direction = glm::mat3 { rotation } * appState.camera.direction;
+                    appState.camera.position = target - appState.camera.direction * appState.camera.targetDistance;
+
+                    tasks.emplace(std::in_place_type<control::task::CameraViewChanged>);
+                },
+                [&](const control::task::WindowDrop &task) {
+                    if (task.paths.empty()) return;
+
+                    static constexpr auto supportedSkyboxExtensions = {
+                        ".jpg",
+                        ".jpeg",
+                        ".png",
+                        ".hdr",
+                        #ifdef SUPPORT_EXR_SKYBOX
+                        ".exr",
+                        #endif
+                    };
+
+                    const std::filesystem::path path = task.paths[0];
+                    if (std::filesystem::is_directory(path)) {
+                        // If directory contains glTF file, load it.
+                        for (const std::filesystem::path &childPath : std::filesystem::directory_iterator { path }) {
+                            if (ranges::one_of(childPath.extension(), { ".gltf", ".glb" })) {
+                                tasks.emplace(std::in_place_type<control::task::LoadGltf>, path);
+                                return;
+                            }
+                        }
+                    }
+                    else if (const std::filesystem::path extension = path.extension(); ranges::one_of(extension, { ".gltf", ".glb" })) {
+                        tasks.emplace(std::in_place_type<control::task::LoadGltf>, path);
+                    }
+                    else if (std::ranges::contains(supportedSkyboxExtensions, extension)) {
+                        tasks.emplace(std::in_place_type<control::task::LoadEqmap>, path);
+                    }
+                },
                 [this](const control::task::ChangePassthruRect &task) {
                     appState.camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
                     passthruRect = task.newRect;
@@ -524,7 +623,7 @@ void vk_gltf_viewer::MainApp::run() {
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
                 },
-            }, task);
+            }, tasks.front());
         }
 
         if (hasUpdateData) {
@@ -545,18 +644,32 @@ void vk_gltf_viewer::MainApp::run() {
             .frustum = value_if(appState.useFrustumCulling, [this]() {
                 return appState.camera.getFrustum();
             }),
-            .cursorPosFromPassthruRectTopLeft = appState.hoveringMousePosition.and_then([&](const glm::vec2 &position) -> std::optional<vk::Offset2D> {
-                // If cursor is outside the framebuffer, cursor position is undefined.
-                const glm::vec2 framebufferSize = window.getFramebufferSize();
-                const glm::vec2 framebufferCursorPosition = position * framebufferSize / glm::vec2 { window.getSize() };
-                if (framebufferCursorPosition.x >= framebufferSize.x || framebufferCursorPosition.y >= framebufferSize.y) return std::nullopt;
+            .cursorPosFromPassthruRectTopLeft = [this]() -> std::optional<vk::Offset2D> {
+                if (ImGui::GetIO().WantCaptureMouse) {
+                    return std::nullopt;
+                }
 
+                const glm::vec2 cursorPos = window.getCursorPos();
+
+                const glm::vec2 windowSize = window.getSize();
+                if (cursorPos.x < 0 || windowSize.x <= cursorPos.x || cursorPos.y < 0 || windowSize.y <= cursorPos.y) {
+                    // Cursor is outside the window.
+                    return std::nullopt;
+                }
+
+                const glm::vec2 framebufferScale = glm::vec2 { window.getFramebufferSize() } / windowSize;
+                const glm::vec2 cursorPositionInFramebufferScale = cursorPos * framebufferScale;
                 const vk::Offset2D offset {
-                    static_cast<std::int32_t>(framebufferCursorPosition.x - passthruRect.Min.x),
-                    static_cast<std::int32_t>(framebufferCursorPosition.y - passthruRect.Min.y),
+                    static_cast<std::int32_t>(cursorPositionInFramebufferScale.x - passthruRect.Min.x),
+                    static_cast<std::int32_t>(cursorPositionInFramebufferScale.y - passthruRect.Min.y),
                 };
-                return value_if(0 <= offset.x && offset.x < passthruRect.GetWidth() && 0 <= offset.y && offset.y < passthruRect.GetHeight(), offset);
-            }),
+                if (offset.x < 0 || offset.x > passthruRect.GetWidth() || offset.y < 0 || offset.y > passthruRect.GetHeight()) {
+                    // Cursor is outside the passthrough rect.
+                    return std::nullopt;
+                }
+
+                return offset;
+            }(),
             .gltf = gltf.transform([&](Gltf &gltf) {
                 assert(appState.gltfAsset && "Synchronization error: gltfAsset is not set in AppState.");
                 return vulkan::Frame::ExecutionTask::Gltf {
