@@ -8,6 +8,7 @@ import :shader.depth_frag;
 import :shader_selector.mask_depth_vert;
 import :shader_selector.mask_depth_frag;
 export import :vulkan.pl.PrimitiveNoShading;
+export import :vulkan.rp.MousePicking;
 import :vulkan.specialization_constants.SpecializationMap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
@@ -25,53 +26,50 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
             const vk::raii::Device &device,
-            const pl::PrimitiveNoShading &pipelineLayout
+            const pl::PrimitiveNoShading &pipelineLayout,
+            const rp::MousePicking &renderPass
         ) const {
-            return { device, nullptr, vk::StructureChain {
-                vku::getDefaultGraphicsPipelineCreateInfo(
-                    createPipelineStages(
-                        device,
-                        vku::Shader {
-                            shader::depth_vert,
-                            vk::ShaderStageFlagBits::eVertex,
-                            vku::unsafeAddress(vk::SpecializationInfo {
-                                SpecializationMap<VertexShaderSpecializationData>::value,
-                                vku::unsafeProxy(getVertexShaderSpecializationData()),
-                            }),
-                        },
-                        vku::Shader { shader::depth_frag, vk::ShaderStageFlagBits::eFragment }).get(),
-                    *pipelineLayout, 1, true)
-                    .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
-                        {},
-                        [this]() {
-                            switch (topologyClass) {
-                                case TopologyClass::Point: return vk::PrimitiveTopology::ePointList;
-                                case TopologyClass::Line: return vk::PrimitiveTopology::eLineList;
-                                case TopologyClass::Triangle: return vk::PrimitiveTopology::eTriangleList;
-                                case TopologyClass::Patch: return vk::PrimitiveTopology::ePatchList;
-                            }
-                            std::unreachable();
-                        }(),
-                    }))
-                    .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
-                        {},
-                        true, true, vk::CompareOp::eGreater, // Use reverse Z.
-                    }))
-                    .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
-                        {},
-                        vku::unsafeProxy({
-                            vk::DynamicState::eViewport,
-                            vk::DynamicState::eScissor,
-                            vk::DynamicState::ePrimitiveTopology,
-                            vk::DynamicState::eCullMode,
+            return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
+                createPipelineStages(
+                    device,
+                    vku::Shader {
+                        shader::depth_vert,
+                        vk::ShaderStageFlagBits::eVertex,
+                        vku::unsafeAddress(vk::SpecializationInfo {
+                            SpecializationMap<VertexShaderSpecializationData>::value,
+                            vku::unsafeProxy(getVertexShaderSpecializationData()),
                         }),
-                    })),
-                vk::PipelineRenderingCreateInfo {
+                    },
+                    vku::Shader { shader::depth_frag, vk::ShaderStageFlagBits::eFragment }).get(),
+                *pipelineLayout, 1, true)
+                .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
                     {},
-                    vku::unsafeProxy(vk::Format::eR16Uint),
-                    vk::Format::eD32Sfloat,
-                }
-            }.get() };
+                    [this]() {
+                        switch (topologyClass) {
+                            case TopologyClass::Point: return vk::PrimitiveTopology::ePointList;
+                            case TopologyClass::Line: return vk::PrimitiveTopology::eLineList;
+                            case TopologyClass::Triangle: return vk::PrimitiveTopology::eTriangleList;
+                            case TopologyClass::Patch: return vk::PrimitiveTopology::ePatchList;
+                        }
+                        std::unreachable();
+                    }(),
+                }))
+                .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
+                    {},
+                    true, true, vk::CompareOp::eGreater, // Use reverse Z.
+                }))
+                .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
+                    {},
+                    vku::unsafeProxy({
+                        vk::DynamicState::eViewport,
+                        vk::DynamicState::eScissor,
+                        vk::DynamicState::ePrimitiveTopology,
+                        vk::DynamicState::eCullMode,
+                    }),
+                }))
+                .setRenderPass(*renderPass)
+                .setSubpass(0),
+            };
         }
 
     private:
@@ -100,60 +98,57 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
             const vk::raii::Device &device,
-            const pl::PrimitiveNoShading &pipelineLayout
+            const pl::PrimitiveNoShading &pipelineLayout,
+            const rp::MousePicking &renderPass
         ) const {
-            return { device, nullptr, vk::StructureChain {
-                vku::getDefaultGraphicsPipelineCreateInfo(
-                    createPipelineStages(
-                        device,
-                        vku::Shader {
-                            std::apply(LIFT(shader_selector::mask_depth_vert), getVertexShaderVariants()),
-                            vk::ShaderStageFlagBits::eVertex,
-                            vku::unsafeAddress(vk::SpecializationInfo {
-                                SpecializationMap<VertexShaderSpecializationData>::value,
-                                vku::unsafeProxy(getVertexShaderSpecializationData()),
-                            }),
-                        },
-                        vku::Shader {
-                            std::apply(LIFT(shader_selector::mask_depth_frag), getFragmentShaderVariants()),
-                            vk::ShaderStageFlagBits::eFragment,
-                            vku::unsafeAddress(vk::SpecializationInfo {
-                                SpecializationMap<FragmentShaderSpecializationData>::value,
-                                vku::unsafeProxy(getFragmentShaderSpecializationData()),
-                            }),
-                        }).get(),
-                    *pipelineLayout, 1, true)
-                    .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
-                        {},
-                        [this]() {
-                            switch (topologyClass) {
-                                case TopologyClass::Point: return vk::PrimitiveTopology::ePointList;
-                                case TopologyClass::Line: return vk::PrimitiveTopology::eLineList;
-                                case TopologyClass::Triangle: return vk::PrimitiveTopology::eTriangleList;
-                                case TopologyClass::Patch: return vk::PrimitiveTopology::ePatchList;
-                            }
-                            std::unreachable();
-                        }(),
-                    }))
-                    .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
-                        {},
-                        true, true, vk::CompareOp::eGreater, // Use reverse Z.
-                    }))
-                    .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
-                        {},
-                        vku::unsafeProxy({
-                            vk::DynamicState::eViewport,
-                            vk::DynamicState::eScissor,
-                            vk::DynamicState::ePrimitiveTopology,
-                            vk::DynamicState::eCullMode,
+            return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
+                createPipelineStages(
+                    device,
+                    vku::Shader {
+                        std::apply(LIFT(shader_selector::mask_depth_vert), getVertexShaderVariants()),
+                        vk::ShaderStageFlagBits::eVertex,
+                        vku::unsafeAddress(vk::SpecializationInfo {
+                            SpecializationMap<VertexShaderSpecializationData>::value,
+                            vku::unsafeProxy(getVertexShaderSpecializationData()),
                         }),
-                    })),
-                vk::PipelineRenderingCreateInfo {
+                    },
+                    vku::Shader {
+                        std::apply(LIFT(shader_selector::mask_depth_frag), getFragmentShaderVariants()),
+                        vk::ShaderStageFlagBits::eFragment,
+                        vku::unsafeAddress(vk::SpecializationInfo {
+                            SpecializationMap<FragmentShaderSpecializationData>::value,
+                            vku::unsafeProxy(getFragmentShaderSpecializationData()),
+                        }),
+                    }).get(),
+                *pipelineLayout, 1, true)
+                .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
                     {},
-                    vku::unsafeProxy(vk::Format::eR16Uint),
-                    vk::Format::eD32Sfloat,
-                }
-            }.get() };
+                    [this]() {
+                        switch (topologyClass) {
+                            case TopologyClass::Point: return vk::PrimitiveTopology::ePointList;
+                            case TopologyClass::Line: return vk::PrimitiveTopology::eLineList;
+                            case TopologyClass::Triangle: return vk::PrimitiveTopology::eTriangleList;
+                            case TopologyClass::Patch: return vk::PrimitiveTopology::ePatchList;
+                        }
+                        std::unreachable();
+                    }(),
+                }))
+                .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
+                    {},
+                    true, true, vk::CompareOp::eGreater, // Use reverse Z.
+                }))
+                .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
+                    {},
+                    vku::unsafeProxy({
+                        vk::DynamicState::eViewport,
+                        vk::DynamicState::eScissor,
+                        vk::DynamicState::ePrimitiveTopology,
+                        vk::DynamicState::eCullMode,
+                    }),
+                }))
+                .setRenderPass(*renderPass)
+                .setSubpass(0),
+            };
         }
 
     private:

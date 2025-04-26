@@ -30,7 +30,8 @@ constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatur
     .setShaderInt16(true)
     .setMultiDrawIndirect(true)
     .setShaderStorageImageWriteWithoutFormat(true)
-    .setIndependentBlend(true);
+    .setIndependentBlend(true)
+    .setFragmentStoresAndAtomics(true);
 
 vk_gltf_viewer::vulkan::QueueFamilies::QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface) {
     const std::vector queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
@@ -140,6 +141,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !features.multiDrawIndirect ||
             !features.shaderStorageImageWriteWithoutFormat ||
             !features.independentBlend ||
+            !features.fragmentStoresAndAtomics ||
             !vulkan11Features.shaderDrawParameters ||
             !vulkan11Features.storageBuffer16BitAccess ||
             !vulkan11Features.uniformAndStorageBuffer16BitAccess ||

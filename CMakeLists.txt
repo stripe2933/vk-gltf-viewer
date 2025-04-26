@@ -214,6 +214,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/DepthRenderer.cppm
         interface/vulkan/pipeline/JumpFloodComputer.cppm
         interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
+        interface/vulkan/pipeline/MousePickingRenderer.cppm
         interface/vulkan/pipeline/OutlineRenderer.cppm
         interface/vulkan/pipeline/PrimitiveRenderer.cppm
         interface/vulkan/pipeline/SkyboxRenderer.cppm
@@ -222,6 +223,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline_layout/Primitive.cppm
         interface/vulkan/pipeline_layout/PrimitiveNoShading.cppm
         interface/vulkan/render_pass/CubemapToneMapping.cppm
+        interface/vulkan/render_pass/MousePicking.cppm
         interface/vulkan/render_pass/Scene.cppm
         interface/vulkan/sampler/BrdfLut.cppm
         interface/vulkan/sampler/Cubemap.cppm
@@ -309,6 +311,7 @@ target_link_shaders(vk-gltf-viewer PRIVATE
         shaders/jump_flood_seed.frag
         shaders/jump_flood_seed.vert
         shaders/jump_flood.comp
+        shaders/mouse_picking.frag
         shaders/outline.frag
         shaders/screen_quad.vert
         shaders/skybox.frag

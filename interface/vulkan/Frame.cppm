@@ -290,7 +290,9 @@ namespace vk_gltf_viewer::vulkan {
             ag::JumpFloodSeed hoveringNodeJumpFloodSeedAttachmentGroup;
             ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 
-            PassthruResources(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
+            vk::raii::Framebuffer mousePickingFramebuffer;
+
+            PassthruResources(const SharedData &sharedData LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
 
         private:
             void recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const;
@@ -333,6 +335,7 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::CommandPool graphicsCommandPool;
 
         // Descriptor sets.
+        vku::DescriptorSet<MousePickingRenderer::DescriptorSetLayout> mousePickingSet;
         vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> hoveringNodeJumpFloodSet;
         vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> selectedNodeJumpFloodSet;
         vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSet;

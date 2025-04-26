@@ -42,7 +42,7 @@ constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
 
 vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
     : sharedData { sharedData }
-    , hoveringNodeIndexBuffer { sharedData.gpu.allocator, NO_INDEX, vk::BufferUsageFlagBits::eTransferDst, vku::allocation::hostRead }
+    , hoveringNodeIndexBuffer { sharedData.gpu.allocator, NO_INDEX, vk::BufferUsageFlagBits::eStorageBuffer, vku::allocation::hostRead }
     , sceneOpaqueAttachmentGroup { sharedData.gpu, sharedData.swapchainExtent, sharedData.swapchainImages }
     , sceneWeightedBlendedAttachmentGroup { sharedData.gpu, sharedData.swapchainExtent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image }
     , framebuffers { createFramebuffers() }
@@ -63,8 +63,9 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
     std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
     // Allocate descriptor sets.
-    std::tie(hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet)
+    std::tie(mousePickingSet, hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet)
         = allocateDescriptorSets(*descriptorPool, std::tie(
+            sharedData.mousePickingRenderer.descriptorSetLayout,
             sharedData.jumpFloodComputer.descriptorSetLayout,
             sharedData.jumpFloodComputer.descriptorSetLayout,
             sharedData.outlineRenderer.descriptorSetLayout,
@@ -125,11 +126,13 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         // TODO: can this operation be non-blocking?
         const vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
         vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-            passthruResources.emplace(sharedData.gpu, task.passthruRect.extent, cb);
+            passthruResources.emplace(sharedData, task.passthruRect.extent, cb);
         }, *fence);
         std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
         sharedData.gpu.device.updateDescriptorSets({
+            mousePickingSet.getWriteOne<0>({ {}, *passthruResources->depthPrepassAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal }),
+            mousePickingSet.getWriteOne<1>({ hoveringNodeIndexBuffer, 0, vk::WholeSize }),
             hoveringNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
             selectedNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->selectedNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
         }, {});
@@ -703,15 +706,24 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodR
     pongImageView { gpu.device, image.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 }) } { }
 
 vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
-    const Gpu &gpu,
+    const SharedData &sharedData,
     const vk::Extent2D &extent,
     vk::CommandBuffer graphicsCommandBuffer
 ) : extent { extent },
-    hoveringNodeOutlineJumpFloodResources { gpu, extent },
-    selectedNodeOutlineJumpFloodResources { gpu, extent },
-    depthPrepassAttachmentGroup { gpu, extent },
-    hoveringNodeJumpFloodSeedAttachmentGroup { gpu, hoveringNodeOutlineJumpFloodResources.image },
-    selectedNodeJumpFloodSeedAttachmentGroup { gpu, selectedNodeOutlineJumpFloodResources.image } {
+    hoveringNodeOutlineJumpFloodResources { sharedData.gpu, extent },
+    selectedNodeOutlineJumpFloodResources { sharedData.gpu, extent },
+    depthPrepassAttachmentGroup { sharedData.gpu, extent },
+    hoveringNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, hoveringNodeOutlineJumpFloodResources.image },
+    selectedNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, selectedNodeOutlineJumpFloodResources.image },
+    mousePickingFramebuffer { sharedData.gpu.device, vk::FramebufferCreateInfo {
+        {},
+        *sharedData.mousePickingRenderPass,
+        vku::unsafeProxy({
+            *depthPrepassAttachmentGroup.getColorAttachment(0).view,
+            *depthPrepassAttachmentGroup.depthStencilAttachment->view,
+        }),
+        extent.width, extent.height, 1,
+    } }{
     recordInitialImageLayoutTransitionCommands(graphicsCommandBuffer);
 }
 
@@ -767,7 +779,8 @@ std::vector<vk::raii::Framebuffer> vk_gltf_viewer::vulkan::Frame::createFramebuf
 
 vk::raii::DescriptorPool vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const {
     vku::PoolSizes poolSizes
-        = 2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout)
+        = sharedData.mousePickingRenderer.descriptorSetLayout.getPoolSize()
+        + 2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout)
         + sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize();
     vk::DescriptorPoolCreateFlags flags{};
     if (sharedData.gpu.supportVariableDescriptorCount) {
@@ -859,20 +872,6 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
     };
 
     cb.setViewport(0, vku::toViewport(passthruResources->extent, true));
-
-    if (renderingNodes && cursorPosFromPassthruRectTopLeft) {
-        cb.beginRenderingKHR(passthruResources->depthPrepassAttachmentGroup.getRenderingInfo(
-            vku::AttachmentGroup::ColorAttachmentInfo {
-                vk::AttachmentLoadOp::eClear,
-                vk::AttachmentStoreOp::eStore,
-                { static_cast<std::uint32_t>(NO_INDEX), 0U, 0U, 0U },
-            },
-            vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
-        cb.setScissor(0, vk::Rect2D{ *cursorPosFromPassthruRectTopLeft, { 1, 1 } });
-        drawPrimitives(renderingNodes->depthPrepassIndirectDrawCommandBuffers);
-        cb.endRenderingKHR();
-    }
-
     cb.setScissor(0, vk::Rect2D{ { 0, 0 }, passthruResources->extent });
 
     // Seeding jump flood initial image for hovering node.
@@ -893,28 +892,31 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         cb.endRenderingKHR();
     }
 
-    // If there are rendered nodes and the cursor is inside the passthru rect, do mouse picking.
+    // Mouse picking.
     if (renderingNodes && cursorPosFromPassthruRectTopLeft) {
-        cb.pipelineBarrier(
-            vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer,
-            {}, {}, {},
-            // For copying to hoveringNodeIndexBuffer.
-            vk::ImageMemoryBarrier {
-                vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
-                vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                passthruResources->depthPrepassAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
-            });
+        cb.setScissor(0, vk::Rect2D{ *cursorPosFromPassthruRectTopLeft, { 1, 1 } });
 
-        cb.copyImageToBuffer(
-            passthruResources->depthPrepassAttachmentGroup.getColorAttachment(0).image, vk::ImageLayout::eTransferSrcOptimal,
-            hoveringNodeIndexBuffer,
-            vk::BufferImageCopy {
-                0, {}, {},
-                { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-                vk::Offset3D { *cursorPosFromPassthruRectTopLeft, 0 },
-                { 1, 1, 1 },
-            });
+        cb.beginRenderPass(vk::RenderPassBeginInfo {
+            *sharedData.mousePickingRenderPass,
+            *passthruResources->mousePickingFramebuffer,
+            { { 0, 0 }, passthruResources->extent },
+            vku::unsafeProxy<vk::ClearValue>({
+                vk::ClearColorValue { static_cast<std::uint32_t>(NO_INDEX), 0U, 0U, 0U },
+                vk::ClearDepthStencilValue { 0.f, 0U },
+            }),
+        }, vk::SubpassContents::eInline);
+
+        // Phase 1: draw node index to the 1x1 pixel (which lies at the right below the cursor).
+        drawPrimitives(renderingNodes->depthPrepassIndirectDrawCommandBuffers);
+
+        cb.nextSubpass(vk::SubpassContents::eInline);
+
+        // Phase 2: read it and copy to the hoveringNodeIndexBuffer.
+        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.mousePickingRenderer.pipeline);
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.mousePickingRenderer.pipelineLayout, 0, mousePickingSet, {});
+        cb.draw(3, 1, 0, 0);
+
+        cb.endRenderPass();
 
         // hoveringNodeIndexBuffer data have to be available to the host.
         cb.pipelineBarrier(

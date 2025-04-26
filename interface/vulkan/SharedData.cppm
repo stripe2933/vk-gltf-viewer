@@ -30,11 +30,13 @@ export import :vulkan.Gpu;
 export import :vulkan.pipeline.DepthRenderer;
 export import :vulkan.pipeline.JumpFloodComputer;
 export import :vulkan.pipeline.JumpFloodSeedRenderer;
+export import :vulkan.pipeline.MousePickingRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
 export import :vulkan.pipeline.PrimitiveRenderer;
 export import :vulkan.pipeline.SkyboxRenderer;
 export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
+export import :vulkan.rp.MousePicking;
 export import :vulkan.rp.Scene;
 export import :vulkan.sampler.Samplers;
 export import :vulkan.texture.Fallback;
@@ -127,6 +129,7 @@ namespace vk_gltf_viewer::vulkan {
         dsl::Skybox skyboxDescriptorSetLayout;
 
         // Render passes.
+        rp::MousePicking mousePickingRenderPass;
         rp::Scene sceneRenderPass;
 
         // Pipeline layouts.
@@ -139,6 +142,7 @@ namespace vk_gltf_viewer::vulkan {
 
         // Primitive unrelated pipelines.
         JumpFloodComputer jumpFloodComputer;
+        MousePickingRenderer mousePickingRenderer;
         OutlineRenderer outlineRenderer;
         SkyboxRenderer skyboxRenderer;
         WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
@@ -182,10 +186,12 @@ namespace vk_gltf_viewer::vulkan {
             }() }
             , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
             , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
+            , mousePickingRenderPass { gpu.device }
             , sceneRenderPass { gpu.device }
             , primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
             , primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout }
             , jumpFloodComputer { gpu.device }
+            , mousePickingRenderer { gpu.device, mousePickingRenderPass }
             , outlineRenderer { gpu.device }
             , skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices }
             , weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass }
@@ -203,13 +209,13 @@ namespace vk_gltf_viewer::vulkan {
 
         [[nodiscard]] vk::Pipeline getDepthRenderer(const DepthRendererSpecialization &specialization) const {
             return ranges::try_emplace_if_not_exists(depthPipelines, specialization, [&]() {
-                return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
+                return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass);
             }).first->second;
         }
 
         [[nodiscard]] vk::Pipeline getMaskDepthRenderer(const MaskDepthRendererSpecialization &specialization) const {
             return ranges::try_emplace_if_not_exists(maskDepthPipelines, specialization, [&]() {
-                return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
+                return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass);
             }).first->second;
         }
 
