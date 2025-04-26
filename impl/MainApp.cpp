@@ -216,6 +216,23 @@ void vk_gltf_viewer::MainApp::run() {
             else {
                 imguiTaskCollector.imguizmo(appState.camera);
             }
+
+            if (drawSelectionRectangle) {
+                const glm::dvec2 cursorPos = window.getCursorPos();
+                ImRect region {
+                    ImVec2 { static_cast<float>(lastMouseDownPosition->x), static_cast<float>(lastMouseDownPosition->y) },
+                    ImVec2 { static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) },
+                };
+                if (region.Min.x > region.Max.x) {
+                    std::swap(region.Min.x, region.Max.x);
+                }
+                if (region.Min.y > region.Max.y) {
+                    std::swap(region.Min.y, region.Max.y);
+                }
+
+                ImGui::GetBackgroundDrawList()->AddRectFilled(region.Min, region.Max, ImGui::GetColorU32({ 1.f, 1.f, 1.f, 0.2f }));
+                ImGui::GetBackgroundDrawList()->AddRect(region.Min, region.Max, ImGui::GetColorU32({ 1.f, 1.f, 1.f, 1.f }));
+            }
         }
 
         // Wait for previous frame execution to end.
@@ -250,10 +267,19 @@ void vk_gltf_viewer::MainApp::run() {
                         }
                     }
                 },
+                [&](const control::task::WindowCursorPos &task) {
+                    if (lastMouseDownPosition && distance2(*lastMouseDownPosition, task.position) >= 4.0) {
+                        drawSelectionRectangle = true;
+                    }
+                },
                 [&](const control::task::WindowMouseButton &task) {
                     const bool leftMouseButtonPressed = task.button == GLFW_MOUSE_BUTTON_LEFT && task.action == GLFW_RELEASE && lastMouseDownPosition;
                     if (leftMouseButtonPressed) {
                         lastMouseDownPosition = std::nullopt;
+
+                        if (drawSelectionRectangle) {
+                            drawSelectionRectangle = false;
+                        }
                     }
 
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;

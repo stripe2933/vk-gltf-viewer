@@ -7,6 +7,7 @@ export import imgui.internal;
 namespace vk_gltf_viewer::control {
     export namespace task {
         struct WindowKey { int key; int scancode; int action; int mods; };
+        struct WindowCursorPos { glm::dvec2 position; };
         struct WindowMouseButton { int button; int action; int mods; };
         struct WindowScroll { glm::dvec2 offset; };
         struct WindowTrackpadZoom { double scale; };
@@ -59,6 +60,7 @@ namespace vk_gltf_viewer::control {
 
     export using Task = std::variant<
         task::WindowKey,
+        task::WindowCursorPos,
         task::WindowMouseButton,
         task::WindowScroll,
         task::WindowTrackpadZoom,
