@@ -465,11 +465,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
     return dockSpaceOverViewport; // This will represent the central node.
 }
 
-vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
-    std::queue<Task> &tasks,
-    const ImVec2 &framebufferSize,
-    const ImRect &oldPassthruRect
-) : tasks { tasks } {
+vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(std::queue<Task> &tasks, const ImRect &oldPassthruRect)
+    : tasks { tasks } {
     // If there is no imgui.ini file, make default dock state to avoid the initial window sprawling.
     // This should be called before any ImGui::NewFrame() call, because that will create the imgui.ini file.
     bool shouldMakeDefaultDockState = false;
@@ -490,12 +487,8 @@ vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
 
     // Get central node region.
     centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpace)->Rect();
-
-    // Calculate framebuffer coordinate based passthru rect.
-    const ImVec2 scaleFactor = framebufferSize / ImGui::GetIO().DisplaySize;
-    const ImRect passthruRect { scaleFactor * centerNodeRect.Min, scaleFactor * centerNodeRect.Max };
-    if (passthruRect.ToVec4() != oldPassthruRect.ToVec4()) {
-        tasks.emplace(std::in_place_type<task::ChangePassthruRect>, passthruRect);
+    if (centerNodeRect.ToVec4() != oldPassthruRect.ToVec4()) {
+        tasks.emplace(std::in_place_type<task::ChangePassthruRect>, centerNodeRect);
     }
 }
 

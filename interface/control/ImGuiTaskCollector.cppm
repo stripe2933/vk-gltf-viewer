@@ -19,7 +19,7 @@ namespace vk_gltf_viewer::control {
     public:
         static std::optional<std::size_t> selectedMaterialIndex;
 
-        ImGuiTaskCollector(std::queue<Task> &tasks, const ImVec2 &framebufferSize, const ImRect &oldPassthruRect);
+        ImGuiTaskCollector(std::queue<Task> &tasks, const ImRect &oldPassthruRect);
         ~ImGuiTaskCollector();
 
         void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);

@@ -183,11 +183,7 @@ void vk_gltf_viewer::MainApp::run() {
         {
             ImGui_ImplGlfw_NewFrame();
             ImGui_ImplVulkan_NewFrame();
-            control::ImGuiTaskCollector imguiTaskCollector {
-                tasks,
-                ImVec2 { static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height) },
-                passthruRect,
-            };
+            control::ImGuiTaskCollector imguiTaskCollector { tasks, passthruRect };
 
             // Get native window handle.
             nfdwindowhandle_t windowHandle = {};
@@ -635,40 +631,25 @@ void vk_gltf_viewer::MainApp::run() {
         }
 
         // Update frame resources.
+        const glm::vec2 framebufferScale = window.getFramebufferSize() / window.getSize();
         const vulkan::Frame::UpdateResult updateResult = frame.update({
             .passthruRect = vk::Rect2D {
-                { static_cast<std::int32_t>(passthruRect.Min.x), static_cast<std::int32_t>(passthruRect.Min.y) },
-                { static_cast<std::uint32_t>(passthruRect.GetWidth()), static_cast<std::uint32_t>(passthruRect.GetHeight()) },
+                { static_cast<std::int32_t>(framebufferScale.x * passthruRect.Min.x), static_cast<std::int32_t>(framebufferScale.y * passthruRect.Min.y) },
+                { static_cast<std::uint32_t>(framebufferScale.x * passthruRect.GetWidth()), static_cast<std::uint32_t>(framebufferScale.y * passthruRect.GetHeight()) },
             },
             .camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
             .frustum = value_if(appState.useFrustumCulling, [this]() {
                 return appState.camera.getFrustum();
             }),
-            .cursorPosFromPassthruRectTopLeft = [this]() -> std::optional<vk::Offset2D> {
-                if (ImGui::GetIO().WantCaptureMouse) {
-                    return std::nullopt;
-                }
-
+            .cursorPosFromPassthruRectTopLeft = [&]() -> std::optional<vk::Offset2D> {
                 const glm::vec2 cursorPos = window.getCursorPos();
-
-                const glm::vec2 windowSize = window.getSize();
-                if (cursorPos.x < 0 || windowSize.x <= cursorPos.x || cursorPos.y < 0 || windowSize.y <= cursorPos.y) {
-                    // Cursor is outside the window.
-                    return std::nullopt;
+                if (passthruRect.Contains({ cursorPos.x, cursorPos.y }) && !ImGui::GetIO().WantCaptureMouse) {
+                    return vk::Offset2D {
+                        static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - passthruRect.Min.x)),
+                        static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - passthruRect.Min.y)),
+                    };
                 }
-
-                const glm::vec2 framebufferScale = glm::vec2 { window.getFramebufferSize() } / windowSize;
-                const glm::vec2 cursorPositionInFramebufferScale = cursorPos * framebufferScale;
-                const vk::Offset2D offset {
-                    static_cast<std::int32_t>(cursorPositionInFramebufferScale.x - passthruRect.Min.x),
-                    static_cast<std::int32_t>(cursorPositionInFramebufferScale.y - passthruRect.Min.y),
-                };
-                if (offset.x < 0 || offset.x > passthruRect.GetWidth() || offset.y < 0 || offset.y > passthruRect.GetHeight()) {
-                    // Cursor is outside the passthrough rect.
-                    return std::nullopt;
-                }
-
-                return offset;
+                return std::nullopt;
             }(),
             .gltf = gltf.transform([&](Gltf &gltf) {
                 assert(appState.gltfAsset && "Synchronization error: gltfAsset is not set in AppState.");
