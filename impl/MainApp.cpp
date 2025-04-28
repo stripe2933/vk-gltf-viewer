@@ -667,15 +667,44 @@ void vk_gltf_viewer::MainApp::run() {
             .frustum = value_if(appState.useFrustumCulling, [this]() {
                 return appState.camera.getFrustum();
             }),
-            .cursorPosFromPassthruRectTopLeft = [&]() -> std::optional<vk::Offset2D> {
-                const glm::vec2 cursorPos = window.getCursorPos();
-                if (passthruRect.Contains({ cursorPos.x, cursorPos.y }) && !ImGui::GetIO().WantCaptureMouse) {
-                    return vk::Offset2D {
+            .mousePickingInput = [&]() -> std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
+                const glm::dvec2 cursorPos = window.getCursorPos();
+                if (drawSelectionRectangle) {
+                    ImRect selectionRect {
+                        { static_cast<float>(lastMouseDownPosition->x), static_cast<float>(lastMouseDownPosition->y) },
+                        { static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) },
+                    };
+                    if (selectionRect.Min.x > selectionRect.Max.x) {
+                        std::swap(selectionRect.Min.x, selectionRect.Max.x);
+                    }
+                    if (selectionRect.Min.y > selectionRect.Max.y) {
+                        std::swap(selectionRect.Min.y, selectionRect.Max.y);
+                    }
+
+                    selectionRect.ClipWith(passthruRect);
+
+                    return vk::Rect2D {
+                        {
+                            static_cast<std::int32_t>(framebufferScale.x * (selectionRect.Min.x - passthruRect.Min.x)),
+                            static_cast<std::int32_t>(framebufferScale.y * (selectionRect.Min.y - passthruRect.Min.y)),
+                        },
+                        {
+                            static_cast<std::uint32_t>(framebufferScale.x * selectionRect.GetWidth()),
+                            static_cast<std::uint32_t>(framebufferScale.y * selectionRect.GetHeight()),
+                        },
+                    };
+                }
+                else if (passthruRect.Contains({ static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) }) && !ImGui::GetIO().WantCaptureMouse) {
+                    // Note: be aware of implicit vk::Offset2D -> vk::Rect2D promotion!
+                    return std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
+                        std::in_place_type<vk::Offset2D>,
                         static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - passthruRect.Min.x)),
                         static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - passthruRect.Min.y)),
                     };
                 }
-                return std::nullopt;
+                else {
+                    return std::monostate{};
+                }
             }(),
             .gltf = gltf.transform([&](Gltf &gltf) {
                 assert(appState.gltfAsset && "Synchronization error: gltfAsset is not set in AppState.");
@@ -707,9 +736,17 @@ void vk_gltf_viewer::MainApp::run() {
 
 		if (frameFeedbackResultValid[frameIndex]) {
             // Feedback the update result into this.
-            if (appState.gltfAsset) {
-                appState.gltfAsset->hoveringNodeIndex = updateResult.hoveringNodeIndex;
-            }
+		    if (auto *indices = get_if<std::vector<std::uint16_t>>(&updateResult.mousePickingResult)) {
+		        assert(appState.gltfAsset);
+		        appState.gltfAsset->selectedNodeIndices = { std::from_range, *indices };
+		    }
+		    else if (auto *index = get_if<std::uint16_t>(&updateResult.mousePickingResult)) {
+		        assert(appState.gltfAsset);
+                appState.gltfAsset->hoveringNodeIndex = *index;
+		    }
+		    else if (appState.gltfAsset) {
+                appState.gltfAsset->hoveringNodeIndex.reset();
+		    }
 		}
         else {
 			frameFeedbackResultValid[frameIndex] = true;
