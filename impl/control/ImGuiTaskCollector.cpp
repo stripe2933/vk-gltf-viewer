@@ -465,11 +465,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
     return dockSpaceOverViewport; // This will represent the central node.
 }
 
-vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
-    std::vector<Task> &tasks,
-    const ImVec2 &framebufferSize,
-    const ImRect &oldPassthruRect
-) : tasks { tasks } {
+vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(std::queue<Task> &tasks, const ImRect &oldPassthruRect)
+    : tasks { tasks } {
     // If there is no imgui.ini file, make default dock state to avoid the initial window sprawling.
     // This should be called before any ImGui::NewFrame() call, because that will create the imgui.ini file.
     bool shouldMakeDefaultDockState = false;
@@ -490,12 +487,8 @@ vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(
 
     // Get central node region.
     centerNodeRect = ImGui::DockBuilderGetCentralNode(dockSpace)->Rect();
-
-    // Calculate framebuffer coordinate based passthru rect.
-    const ImVec2 scaleFactor = framebufferSize / ImGui::GetIO().DisplaySize;
-    const ImRect passthruRect { scaleFactor * centerNodeRect.Min, scaleFactor * centerNodeRect.Max };
-    if (passthruRect.ToVec4() != oldPassthruRect.ToVec4()) {
-        tasks.emplace_back(std::in_place_type<task::ChangePassthruRect>, passthruRect);
+    if (centerNodeRect.ToVec4() != oldPassthruRect.ToVec4()) {
+        tasks.emplace(std::in_place_type<task::ChangePassthruRect>, centerNodeRect);
     }
 }
 
@@ -550,7 +543,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                 };
 
                 if (auto filename = processFileDialog(filterItems, windowHandle)) {
-                    tasks.emplace_back(std::in_place_type<task::LoadGltf>, *filename);
+                    tasks.emplace(std::in_place_type<task::LoadGltf>, *filename);
                 }
             }
             if (ImGui::BeginMenu("Recent glTF Files")) {
@@ -560,14 +553,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                 else {
                     for (const std::filesystem::path &path : recentGltfs) {
                         if (ImGui::MenuItem(PATH_C_STR(path))) {
-                            tasks.emplace_back(std::in_place_type<task::LoadGltf>, path);
+                            tasks.emplace(std::in_place_type<task::LoadGltf>, path);
                         }
                     }
                 }
                 ImGui::EndMenu();
             }
             if (ImGui::MenuItem("Close glTF File", "Ctrl+W")) {
-                tasks.emplace_back(std::in_place_type<task::CloseGltf>);
+                tasks.emplace(std::in_place_type<task::CloseGltf>);
             }
             ImGui::EndMenu();
         }
@@ -589,7 +582,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                 };
 
                 if (auto filename = processFileDialog(filterItems, windowHandle)) {
-                    tasks.emplace_back(std::in_place_type<task::LoadEqmap>, *filename);
+                    tasks.emplace(std::in_place_type<task::LoadEqmap>, *filename);
                 }
             }
             if (ImGui::BeginMenu("Recent Skyboxes")) {
@@ -599,7 +592,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                 else {
                     for (const std::filesystem::path &path : recentSkyboxes) {
                         if (ImGui::MenuItem(PATH_C_STR(path))) {
-                            tasks.emplace_back(std::in_place_type<task::LoadEqmap>, path);
+                            tasks.emplace(std::in_place_type<task::LoadEqmap>, path);
                         }
                     }
                 }
@@ -689,7 +682,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
         if (selectedMaterialIndex) {
             fastgltf::Material &material = asset.materials[*selectedMaterialIndex];
             const auto notifyPropertyChanged = [&](task::MaterialPropertyChanged::Property property) {
-                tasks.emplace_back(std::in_place_type<task::MaterialPropertyChanged>, *selectedMaterialIndex, property);
+                tasks.emplace(std::in_place_type<task::MaterialPropertyChanged>, *selectedMaterialIndex, property);
             };
 
             ImGui::InputTextWithHint("Name", "<empty>", &material.name);
@@ -931,7 +924,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(const fastglt
 
         for (const auto &[i, variantName] : asset.materialVariants | ranges::views::enumerate) {
             if (ImGui::RadioButton(variantName.c_str(), &selectedMaterialVariantIndex, i)) {
-                tasks.emplace_back(std::in_place_type<task::SelectMaterialVariants>, i);
+                tasks.emplace(std::in_place_type<task::SelectMaterialVariants>, i);
             }
         }
     }
@@ -950,7 +943,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
             for (const auto &[i, scene] : asset.scenes | ranges::views::enumerate) {
                 const bool isSelected = i == sceneIndex;
                 if (ImGui::Selectable(nonempty_or(scene.name, [&]() { return tempStringBuffer.write("<Unnamed scene {}>", i).view(); }).c_str(), isSelected)) {
-                    tasks.emplace_back(std::in_place_type<task::ChangeScene>, i);
+                    tasks.emplace(std::in_place_type<task::ChangeScene>, i);
                 }
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();
@@ -967,7 +960,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
         if (bool tristateVisibility = holds_alternative<std::vector<std::optional<bool>>>(visibilities);
             ImGui::Checkbox("Use tristate visibility", &tristateVisibility)) {
-            tasks.emplace_back(std::in_place_type<task::ChangeNodeVisibilityType>);
+            tasks.emplace(std::in_place_type<task::ChangeNodeVisibilityType>);
         }
         ImGui::SameLine();
         ImGui::HelperMarker(
@@ -1009,10 +1002,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                     return ImGui::TreeNodeEx("##treenode", flags);
                 }, nodeIndex == hoveringNodeIndex);
                 if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && !isNodeSelected) {
-                    tasks.emplace_back(std::in_place_type<task::SelectNode>, nodeIndex, ImGui::GetIO().KeyCtrl);
+                    tasks.emplace(std::in_place_type<task::SelectNode>, nodeIndex, ImGui::GetIO().KeyCtrl);
                 }
                 if (ImGui::IsItemHovered() && nodeIndex != hoveringNodeIndex) {
-                    tasks.emplace_back(std::in_place_type<task::HoverNodeFromSceneHierarchy>, nodeIndex);
+                    tasks.emplace(std::in_place_type<task::HoverNodeFromSceneHierarchy>, nodeIndex);
                 }
 
                 if (global::shouldNodeInSceneHierarchyScrolledToBeVisible &&
@@ -1028,7 +1021,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 if (auto pVisibilities = get_if<std::vector<std::optional<bool>>>(&visibilities)) {
                     ImGui::SameLine();
                     if (ImGui::CheckboxTristate("##hierarchy-checkbox", (*pVisibilities)[nodeIndex])) {
-                        tasks.emplace_back(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                        tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                     }
                 }
 
@@ -1075,7 +1068,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                         },
                     }, visibilities);
                     if (visibilityChanged)  {
-                        tasks.emplace_back(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                        tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                     }
                 }
 
@@ -1166,7 +1159,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                     transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
 
                     if (transformChanged) {
-                        tasks.emplace_back(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
+                        tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
                     }
                 },
                 [&](fastgltf::math::fmat4x4 &matrix) {
@@ -1177,7 +1170,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                     transformChanged |= ImGui::DragFloat4("Column 3", matrix.col(3).data());
 
                     if (transformChanged) {
-                        tasks.emplace_back(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
+                        tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
                     }
                 },
             }, node.transform);
@@ -1195,7 +1188,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
                 for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
                     if (ImGui::DragFloat(tempStringBuffer.write("Weight {}", i).view().c_str(), &weight, 0.01f)) {
-                        tasks.emplace_back(std::in_place_type<task::MorphTargetWeightChanged>, selectedNodeIndex, i, 1);
+                        tasks.emplace(std::in_place_type<task::MorphTargetWeightChanged>, selectedNodeIndex, i, 1);
                     }
                 }
             }
@@ -1408,7 +1401,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             }
 
             if (cameraViewChanged) {
-                tasks.emplace_back(std::in_place_type<task::CameraViewChanged>);
+                tasks.emplace(std::in_place_type<task::CameraViewChanged>);
             }
 
             if (float fovInDegree = glm::degrees(camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
@@ -1416,7 +1409,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             }
 
             if (ImGui::Checkbox("Automatic Near/Far Adjustment", &automaticNearFarPlaneAdjustment) && automaticNearFarPlaneAdjustment) {
-                tasks.emplace_back(std::in_place_type<task::TightenNearFarPlane>);
+                tasks.emplace(std::in_place_type<task::TightenNearFarPlane>);
             }
             ImGui::SameLine();
             ImGui::HelperMarker("(?)", "Near/Far plane will be automatically tightened to fit the scene bounding box.");
@@ -1468,7 +1461,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Camera &camera) {
         camera.position = inverseView[3];
         camera.direction = -inverseView[2];
 
-        tasks.emplace_back(std::in_place_type<task::CameraViewChanged>);
+        tasks.emplace(std::in_place_type<task::CameraViewChanged>);
     }
 }
 
@@ -1483,7 +1476,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
 
     fastgltf::math::fmat4x4 deltaMatrix;
     if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, selectedNodeWorldTransform.data(), deltaMatrix.data())) {
-        tasks.emplace_back(std::in_place_type<task::SelectedNodeWorldTransformChanged>);
+        tasks.emplace(std::in_place_type<task::SelectedNodeWorldTransformChanged>);
     }
 
     constexpr ImVec2 size { 64.f, 64.f };
@@ -1496,6 +1489,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
         camera.position = inverseView[3];
         camera.direction = -inverseView[2];
 
-        tasks.emplace_back(std::in_place_type<task::CameraViewChanged>);
+        tasks.emplace(std::in_place_type<task::CameraViewChanged>);
     }
 }

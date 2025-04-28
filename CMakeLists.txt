@@ -101,7 +101,6 @@ add_library(vk-gltf-viewer::asset ALIAS vk-gltf-viewer_asset)
 
 add_executable(vk-gltf-viewer WIN32 MACOSX_BUNDLE
     impl.cpp
-    impl/control/AppWindow.cpp
     impl/control/ImGuiTaskCollector.cpp
     impl/AppState.cpp
     impl/MainApp.cpp

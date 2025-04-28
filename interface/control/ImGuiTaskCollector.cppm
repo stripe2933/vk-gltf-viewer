@@ -19,7 +19,7 @@ namespace vk_gltf_viewer::control {
     public:
         static std::optional<std::size_t> selectedMaterialIndex;
 
-        ImGuiTaskCollector(std::vector<Task> &tasks, const ImVec2 &framebufferSize, const ImRect &oldPassthruRect);
+        ImGuiTaskCollector(std::queue<Task> &tasks, const ImRect &oldPassthruRect);
         ~ImGuiTaskCollector();
 
         void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
@@ -37,7 +37,7 @@ namespace vk_gltf_viewer::control {
         void imguizmo(Camera &camera, fastgltf::math::fmat4x4 &selectedNodeWorldTransform, ImGuizmo::OPERATION operation);
 
     private:
-        std::vector<Task> &tasks;
+        std::queue<Task> &tasks;
         ImRect centerNodeRect;
 
         bool assetInspectorCalled = false;

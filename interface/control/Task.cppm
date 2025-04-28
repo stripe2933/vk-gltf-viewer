@@ -1,10 +1,18 @@
 export module vk_gltf_viewer:control.Task;
 
 import std;
+export import glm;
 export import imgui.internal;
 
 namespace vk_gltf_viewer::control {
     export namespace task {
+        struct WindowKey { int key; int scancode; int action; int mods; };
+        struct WindowMouseButton { int button; int action; int mods; };
+        struct WindowScroll { glm::dvec2 offset; };
+        struct WindowTrackpadZoom { double scale; };
+        struct WindowTrackpadRotate { double angle; };
+        struct WindowDrop { std::span<const char* const> paths; };
+
         struct ChangePassthruRect { ImRect newRect; };
         struct LoadGltf { std::filesystem::path path; };
         struct CloseGltf { };
@@ -50,6 +58,12 @@ namespace vk_gltf_viewer::control {
     }
 
     export using Task = std::variant<
+        task::WindowKey,
+        task::WindowMouseButton,
+        task::WindowScroll,
+        task::WindowTrackpadZoom,
+        task::WindowTrackpadRotate,
+        task::WindowDrop,
         task::ChangePassthruRect,
         task::LoadGltf,
         task::CloseGltf,

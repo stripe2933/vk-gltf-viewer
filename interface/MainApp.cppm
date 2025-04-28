@@ -1,6 +1,7 @@
 export module vk_gltf_viewer:MainApp;
 
 import std;
+import :AppState;
 import :control.AppWindow;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
@@ -123,7 +124,10 @@ namespace vk_gltf_viewer {
 
         vk::raii::Context context;
         vk::raii::Instance instance = createInstance();
-        control::AppWindow window { instance, appState };
+
+        control::AppWindow window { instance };
+        std::optional<glm::dvec2> lastMouseDownPosition;
+
         vulkan::Gpu gpu { instance, window.getSurface() };
 
         ImGuiContext imGuiContext { window, *instance, gpu };
