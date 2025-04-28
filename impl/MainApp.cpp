@@ -274,11 +274,13 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [&](const control::task::WindowMouseButton &task) {
                     const bool leftMouseButtonPressed = task.button == GLFW_MOUSE_BUTTON_LEFT && task.action == GLFW_RELEASE && lastMouseDownPosition;
+                    bool selectionRectanglePopped = false;
                     if (leftMouseButtonPressed) {
                         lastMouseDownPosition = std::nullopt;
 
                         if (drawSelectionRectangle) {
                             drawSelectionRectangle = false;
+                            selectionRectanglePopped = true;
                         }
                     }
 
@@ -289,10 +291,10 @@ void vk_gltf_viewer::MainApp::run() {
                     }
                     else if (leftMouseButtonPressed && appState.gltfAsset) {
                         if (appState.gltfAsset->hoveringNodeIndex) {
-                            tasks.emplace(std::in_place_type<control::task::SelectNode>, *appState.gltfAsset->hoveringNodeIndex, task.mods == GLFW_MOD_CONTROL);
+                            tasks.emplace(std::in_place_type<control::task::SelectNode>, *appState.gltfAsset->hoveringNodeIndex, ImGui::GetIO().KeyCtrl);
                             global::shouldNodeInSceneHierarchyScrolledToBeVisible = true;
                         }
-                        else {
+                        else if (!selectionRectanglePopped) {
                             appState.gltfAsset->selectedNodeIndices.clear();
                         }
                     }
@@ -738,7 +740,12 @@ void vk_gltf_viewer::MainApp::run() {
             // Feedback the update result into this.
 		    if (auto *indices = get_if<std::vector<std::uint16_t>>(&updateResult.mousePickingResult)) {
 		        assert(appState.gltfAsset);
-		        appState.gltfAsset->selectedNodeIndices = { std::from_range, *indices };
+		        if (ImGui::GetIO().KeyCtrl) {
+		            appState.gltfAsset->selectedNodeIndices.insert_range(*indices);
+		        }
+		        else {
+		            appState.gltfAsset->selectedNodeIndices = { std::from_range, *indices };
+		        }
 		    }
 		    else if (auto *index = get_if<std::uint16_t>(&updateResult.mousePickingResult)) {
 		        assert(appState.gltfAsset);
