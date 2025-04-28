@@ -1,12 +1,12 @@
-export module vk_gltf_viewer:vulkan.pipeline.DepthRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.NodeIndexRenderer;
 
 import std;
 import vku;
 export import :helpers.vulkan;
-import :shader.depth_vert;
-import :shader.depth_frag;
-import :shader_selector.mask_depth_vert;
-import :shader_selector.mask_depth_frag;
+import :shader.node_index_frag;
+import :shader.node_index_vert;
+import :shader_selector.mask_node_index_frag;
+import :shader_selector.mask_node_index_vert;
 export import :vulkan.pl.PrimitiveNoShading;
 export import :vulkan.rp.MousePicking;
 import :vulkan.specialization_constants.SpecializationMap;
@@ -15,14 +15,14 @@ import :vulkan.specialization_constants.SpecializationMap;
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export class DepthRendererSpecialization {
+    export class NodeIndexRendererSpecialization {
     public:
         TopologyClass topologyClass;
         std::uint8_t positionComponentType = 0;
         std::uint32_t positionMorphTargetWeightCount = 0;
         std::uint32_t skinAttributeCount = 0;
 
-        [[nodiscard]] bool operator==(const DepthRendererSpecialization&) const = default;
+        [[nodiscard]] bool operator==(const NodeIndexRendererSpecialization&) const = default;
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
             const vk::raii::Device &device,
@@ -33,14 +33,14 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 createPipelineStages(
                     device,
                     vku::Shader {
-                        shader::depth_vert,
+                        shader::node_index_vert,
                         vk::ShaderStageFlagBits::eVertex,
                         vku::unsafeAddress(vk::SpecializationInfo {
                             SpecializationMap<VertexShaderSpecializationData>::value,
                             vku::unsafeProxy(getVertexShaderSpecializationData()),
                         }),
                     },
-                    vku::Shader { shader::depth_frag, vk::ShaderStageFlagBits::eFragment }).get(),
+                    vku::Shader { shader::node_index_frag, vk::ShaderStageFlagBits::eFragment }).get(),
                 *pipelineLayout, 1, true)
                 .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
                     {},
@@ -84,7 +84,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         }
     };
 
-    export class MaskDepthRendererSpecialization {
+    export class MaskNodeIndexRendererSpecialization {
     public:
         TopologyClass topologyClass;
         std::uint8_t positionComponentType;
@@ -94,7 +94,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         std::uint32_t skinAttributeCount = 0;
         bool baseColorTextureTransform = false;
 
-        [[nodiscard]] bool operator==(const MaskDepthRendererSpecialization&) const = default;
+        [[nodiscard]] bool operator==(const MaskNodeIndexRendererSpecialization&) const = default;
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
             const vk::raii::Device &device,
@@ -105,7 +105,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 createPipelineStages(
                     device,
                     vku::Shader {
-                        std::apply(LIFT(shader_selector::mask_depth_vert), getVertexShaderVariants()),
+                        std::apply(LIFT(shader_selector::mask_node_index_vert), getVertexShaderVariants()),
                         vk::ShaderStageFlagBits::eVertex,
                         vku::unsafeAddress(vk::SpecializationInfo {
                             SpecializationMap<VertexShaderSpecializationData>::value,
@@ -113,7 +113,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         }),
                     },
                     vku::Shader {
-                        std::apply(LIFT(shader_selector::mask_depth_frag), getFragmentShaderVariants()),
+                        std::apply(LIFT(shader_selector::mask_node_index_frag), getFragmentShaderVariants()),
                         vk::ShaderStageFlagBits::eFragment,
                         vku::unsafeAddress(vk::SpecializationInfo {
                             SpecializationMap<FragmentShaderSpecializationData>::value,

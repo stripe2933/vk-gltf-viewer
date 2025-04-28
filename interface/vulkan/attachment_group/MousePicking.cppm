@@ -2,14 +2,14 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.ag.DepthPrepass;
+export module vk_gltf_viewer:vulkan.ag.MousePicking;
 
 export import vku;
 export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::ag {
-    export struct DepthPrepass final : vku::AttachmentGroup {
-        DepthPrepass(
+    export struct MousePicking final : vku::AttachmentGroup {
+        MousePicking(
             const Gpu &gpu LIFETIMEBOUND,
             const vk::Extent2D &extent
         ) : AttachmentGroup { extent } {

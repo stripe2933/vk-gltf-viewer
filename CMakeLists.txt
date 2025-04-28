@@ -176,8 +176,8 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
         interface/math/Plane.cppm
-        interface/shader_selector/mask_depth_frag.cppm
-        interface/shader_selector/mask_depth_vert.cppm
+        interface/shader_selector/mask_node_index_frag.cppm
+        interface/shader_selector/mask_node_index_vert.cppm
         interface/shader_selector/mask_jump_flood_seed_frag.cppm
         interface/shader_selector/mask_jump_flood_seed_vert.cppm
         interface/shader_selector/mask_multi_node_mouse_picking_frag.cppm
@@ -185,7 +185,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/shader_selector/primitive_vert.cppm
         interface/shader_selector/unlit_primitive_frag.cppm
         interface/shader_selector/unlit_primitive_vert.cppm
-        interface/vulkan/attachment_group/DepthPrepass.cppm
+        interface/vulkan/attachment_group/MousePicking.cppm
         interface/vulkan/attachment_group/JumpFloodSeed.cppm
         interface/vulkan/attachment_group/SceneOpaque.cppm
         interface/vulkan/attachment_group/SceneWeightedBlended.cppm
@@ -213,7 +213,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/imgui/UserData.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
-        interface/vulkan/pipeline/DepthRenderer.cppm
+        interface/vulkan/pipeline/NodeIndexRenderer.cppm
         interface/vulkan/pipeline/JumpFloodComputer.cppm
         interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
         interface/vulkan/pipeline/MousePickingRenderer.cppm
@@ -310,13 +310,13 @@ target_link_shaders(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
         shaders/cubemap_tone_mapping.frag
-        shaders/depth.frag
-        shaders/depth.vert
         shaders/jump_flood_seed.frag
         shaders/jump_flood_seed.vert
         shaders/jump_flood.comp
         shaders/mouse_picking.frag
         shaders/multi_node_mouse_picking.frag
+        shaders/node_index.frag
+        shaders/node_index.vert
         shaders/outline.frag
         shaders/screen_quad.vert
         shaders/skybox.frag
@@ -327,11 +327,11 @@ target_link_shaders(vk-gltf-viewer PRIVATE
 target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
-        shaders/mask_depth.vert
-        shaders/mask_depth.frag
-        shaders/mask_multi_node_mouse_picking.frag
-        shaders/mask_jump_flood_seed.vert
         shaders/mask_jump_flood_seed.frag
+        shaders/mask_jump_flood_seed.vert
+        shaders/mask_multi_node_mouse_picking.frag
+        shaders/mask_node_index.frag
+        shaders/mask_node_index.vert
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ALPHA_ATTRIBUTE"
     MACRO_VALUES
         "0 0" "0 1"

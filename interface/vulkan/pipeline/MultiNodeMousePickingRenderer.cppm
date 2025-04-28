@@ -3,8 +3,8 @@ export module vk_gltf_viewer:vulkan.pipeline.MultiNodeMousePickingRenderer;
 import std;
 import vku;
 export import :helpers.vulkan;
-import :shader.depth_vert;
-import :shader_selector.mask_depth_vert;
+import :shader.node_index_vert;
+import :shader_selector.mask_node_index_vert;
 import :shader.multi_node_mouse_picking_frag;
 import :shader_selector.mask_multi_node_mouse_picking_frag;
 export import :vulkan.pl.MultiNodeMousePicking;
@@ -32,7 +32,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     createPipelineStages(
                         device,
                         vku::Shader {
-                            shader::depth_vert,
+                            shader::node_index_vert,
                             vk::ShaderStageFlagBits::eVertex,
                             vku::unsafeAddress(vk::SpecializationInfo {
                                 SpecializationMap<VertexShaderSpecializationData>::value,
@@ -106,7 +106,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     createPipelineStages(
                         device,
                         vku::Shader {
-                            std::apply(LIFT(shader_selector::mask_depth_vert), getVertexShaderVariants()),
+                            std::apply(LIFT(shader_selector::mask_node_index_vert), getVertexShaderVariants()),
                             vk::ShaderStageFlagBits::eVertex,
                             vku::unsafeAddress(vk::SpecializationInfo {
                                 SpecializationMap<VertexShaderSpecializationData>::value,

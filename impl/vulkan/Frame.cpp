@@ -14,7 +14,7 @@ import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.optional;
 import :helpers.ranges;
-import :vulkan.ag.DepthPrepass;
+import :vulkan.ag.MousePicking;
 import :vulkan.buffer.IndirectDrawCommands;
 import :vulkan.shader_type.Accessor;
 
@@ -153,7 +153,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
         sharedData.gpu.device.updateDescriptorSets({
-            mousePickingSet.getWriteOne<0>({ {}, *passthruResources->depthPrepassAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal }),
+            mousePickingSet.getWriteOne<0>({ {}, *passthruResources->mousePickingAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal }),
             hoveringNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
             selectedNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->selectedNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
         }, {});
@@ -277,7 +277,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         return result;
     };
 
-    const auto depthPrepassCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
+    const auto mousePickingCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
                 return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
@@ -290,7 +290,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         if (primitive.materialIndex) {
             const fastgltf::Material& material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
-                result.pipeline = sharedData.getMaskDepthRenderer({
+                result.pipeline = sharedData.getMaskNodeIndexRenderer({
                     .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
@@ -306,7 +306,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                 });
             }
             else {
-                result.pipeline = sharedData.getDepthRenderer({
+                result.pipeline = sharedData.getNodeIndexRenderer({
                     .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
@@ -316,7 +316,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else {
-            result.pipeline = sharedData.getDepthRenderer({
+            result.pipeline = sharedData.getNodeIndexRenderer({
                 .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
@@ -463,7 +463,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             renderingNodes.emplace(
                 task.gltf->renderingNodes.indices,
                 buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, criteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter),
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, depthPrepassCriteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter),
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, mousePickingCriteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter),
                 buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, multiNodeMousePickingCriteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter));
         }
 
@@ -497,7 +497,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
                 commandBufferCullingFunc(buffer);
             }
-            for (auto &buffer : renderingNodes->depthPrepassIndirectDrawCommandBuffers | std::views::values) {
+            for (auto &buffer : renderingNodes->mousePickingIndirectDrawCommandBuffers | std::views::values) {
                 commandBufferCullingFunc(buffer);
             }
             for (auto &buffer : renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers | std::views::values) {
@@ -508,7 +508,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
                 buffer.resetDrawCount();
             }
-            for (auto &buffer : renderingNodes->depthPrepassIndirectDrawCommandBuffers | std::views::values) {
+            for (auto &buffer : renderingNodes->mousePickingIndirectDrawCommandBuffers | std::views::values) {
                 buffer.resetDrawCount();
             }
             for (auto &buffer : renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers | std::views::values) {
@@ -581,7 +581,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
     graphicsCommandPool.reset();
     computeCommandPool.reset();
 
-    // Depth prepass and jump flood seed image calculation pass.
+    // Jump flood image seeding & mouse picking pass.
     {
         scenePrepassCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
         recordScenePrepassCommands(scenePrepassCommandBuffer);
@@ -771,7 +771,7 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodR
         1, 2, // arrayLevels=0 for ping image, arrayLevels=1 for pong image.
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eColorAttachment /* write from DepthRenderer */
+        vk::ImageUsageFlagBits::eColorAttachment /* write from JumpFloodSeedRenderer */
             | vk::ImageUsageFlagBits::eStorage /* used as ping pong image in JumpFloodComputer */
             | vk::ImageUsageFlagBits::eSampled /* read in OutlineRenderer */,
         gpu.queueFamilies.uniqueIndices.size() == 1 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
@@ -788,15 +788,15 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
 ) : extent { extent },
     hoveringNodeOutlineJumpFloodResources { sharedData.gpu, extent },
     selectedNodeOutlineJumpFloodResources { sharedData.gpu, extent },
-    depthPrepassAttachmentGroup { sharedData.gpu, extent },
+    mousePickingAttachmentGroup { sharedData.gpu, extent },
     hoveringNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, hoveringNodeOutlineJumpFloodResources.image },
     selectedNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, selectedNodeOutlineJumpFloodResources.image },
     mousePickingFramebuffer { sharedData.gpu.device, vk::FramebufferCreateInfo {
         {},
         *sharedData.mousePickingRenderPass,
         vku::unsafeProxy({
-            *depthPrepassAttachmentGroup.getColorAttachment(0).view,
-            *depthPrepassAttachmentGroup.depthStencilAttachment->view,
+            *mousePickingAttachmentGroup.getColorAttachment(0).view,
+            *mousePickingAttachmentGroup.depthStencilAttachment->view,
         }),
         extent.width, extent.height, 1,
     } }{
@@ -822,7 +822,7 @@ void vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutT
         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
         {}, {}, {},
         {
-            layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, depthPrepassAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
+            layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, mousePickingAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
             layoutTransitionBarrier(vk::ImageLayout::eGeneral, hoveringNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
             layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, hoveringNodeJumpFloodSeedAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
             layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
@@ -877,7 +877,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             {}, vk::AccessFlagBits::eColorAttachmentWrite,
             {}, vk::ImageLayout::eColorAttachmentOptimal,
             vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-            passthruResources->depthPrepassAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
+            passthruResources->mousePickingAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
         });
     }
 
@@ -992,7 +992,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             }, vk::SubpassContents::eInline);
 
             // Subpass 1: draw node index to the 1x1 pixel (which lies at the right below the cursor).
-            drawPrimitives(renderingNodes->depthPrepassIndirectDrawCommandBuffers);
+            drawPrimitives(renderingNodes->mousePickingIndirectDrawCommandBuffers);
 
             cb.nextSubpass(vk::SubpassContents::eInline);
 

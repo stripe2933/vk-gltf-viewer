@@ -15,7 +15,7 @@ export import :gltf.OrderedPrimitives;
 import :helpers.optional;
 import :math.extended_arithmetic;
 export import :math.Frustum;
-import :vulkan.ag.DepthPrepass;
+import :vulkan.ag.MousePicking;
 import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.SceneOpaque;
 import :vulkan.ag.SceneWeightedBlended;
@@ -303,7 +303,7 @@ namespace vk_gltf_viewer::vulkan {
             JumpFloodResources selectedNodeOutlineJumpFloodResources;
 
             // Attachment groups.
-            ag::DepthPrepass depthPrepassAttachmentGroup;
+            ag::MousePicking mousePickingAttachmentGroup;
             ag::JumpFloodSeed hoveringNodeJumpFloodSeedAttachmentGroup;
             ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 
@@ -318,7 +318,7 @@ namespace vk_gltf_viewer::vulkan {
         struct RenderingNodes {
             std::unordered_set<std::uint16_t> indices;
             std::map<CommandSeparationCriteria, buffer::IndirectDrawCommands> indirectDrawCommandBuffers;
-            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> depthPrepassIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> mousePickingIndirectDrawCommandBuffers;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> multiNodeMousePickingIndirectDrawCommandBuffers;
         };
 
