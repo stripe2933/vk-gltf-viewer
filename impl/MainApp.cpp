@@ -1574,12 +1574,6 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         sphericalHarmonicCoefficients,
         appState.imageBasedLightingProperties->diffuseIrradiance.sphericalHarmonicCoefficients.begin());
 
-    if (skyboxResources){
-        // Since a descriptor set allocated using ImGui_ImplVulkan_AddTexture cannot be updated, it has to be freed
-        // and re-allocated (which done in below).
-        ImGui_ImplVulkan_RemoveTexture(skyboxResources->imGuiEqmapTextureDescriptorSet);
-    }
-
     // Emplace the results into skyboxResources and imageBasedLightingResources.
     vk::raii::ImageView reducedEqmapImageView { gpu.device, reducedEqmapImage.getViewCreateInfo() };
     const vk::DescriptorSet imGuiEqmapImageDescriptorSet = ImGui_ImplVulkan_AddTexture(
