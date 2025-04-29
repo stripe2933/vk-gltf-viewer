@@ -226,13 +226,13 @@ namespace vk_gltf_viewer::vulkan {
 
         [[nodiscard]] vk::Pipeline getMultiNodeMousePickingRenderer(const MultiNodeMousePickingRendererSpecialization &specialization) const {
             return ranges::try_emplace_if_not_exists(multiNodeMousePickingPipelines, specialization, [&]() {
-                return specialization.createPipeline(gpu.device, multiNodeMousePickingPipelineLayout);
+                return specialization.createPipeline(gpu, multiNodeMousePickingPipelineLayout);
             }).first->second;
         }
 
         [[nodiscard]] vk::Pipeline getMaskMultiNodeMousePickingRenderer(const MaskMultiNodeMousePickingRendererSpecialization &specialization) const {
             return ranges::try_emplace_if_not_exists(maskMultiNodeMousePickingPipelines, specialization, [&]() {
-                return specialization.createPipeline(gpu.device, multiNodeMousePickingPipelineLayout);
+                return specialization.createPipeline(gpu, multiNodeMousePickingPipelineLayout);
             }).first->second;
         }
 

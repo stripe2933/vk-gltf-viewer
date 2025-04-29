@@ -1054,7 +1054,18 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             };
 
             cb.setScissor(0, rect);
-            cb.beginRenderingKHR(vk::RenderingInfo { {}, rect, 1 });
+            cb.beginRenderingKHR(vk::RenderingInfo {
+                {},
+                rect,
+                1,
+                0,
+                vk::ArrayProxyNoTemporaries<const vk::RenderingAttachmentInfo>{},
+                sharedData.gpu.workaround.attachmentLessRenderPass ? vku::unsafeAddress(vk::RenderingAttachmentInfo {
+                    *passthruResources->mousePickingAttachmentGroup.depthStencilAttachment->view, vk::ImageLayout::eDepthAttachmentOptimal,
+                    {}, {}, {},
+                    vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+                }) : nullptr,
+            });
             drawPrimitives(renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers);
             cb.endRenderingKHR();
 

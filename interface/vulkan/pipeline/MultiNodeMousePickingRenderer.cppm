@@ -7,6 +7,7 @@ import :shader.node_index_vert;
 import :shader_selector.mask_node_index_vert;
 import :shader.multi_node_mouse_picking_frag;
 import :shader_selector.mask_multi_node_mouse_picking_frag;
+export import :vulkan.Gpu;
 export import :vulkan.pl.MultiNodeMousePicking;
 import :vulkan.specialization_constants.SpecializationMap;
 
@@ -24,13 +25,13 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         [[nodiscard]] bool operator==(const MultiNodeMousePickingRendererSpecialization&) const = default;
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
-            const vk::raii::Device &device,
+            const Gpu &gpu,
             const pl::MultiNodeMousePicking &pipelineLayout
         ) const {
-            return { device, nullptr, vk::StructureChain {
+            return { gpu.device, nullptr, vk::StructureChain {
                 vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
-                        device,
+                        gpu.device,
                         vku::Shader {
                             shader::node_index_vert,
                             vk::ShaderStageFlagBits::eVertex,
@@ -40,7 +41,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             }),
                         },
                         vku::Shader { shader::multi_node_mouse_picking_frag, vk::ShaderStageFlagBits::eFragment }).get(),
-                    *pipelineLayout)
+                    // See doc about Gpu::Workaround::attachmentLessRenderPass.
+                    *pipelineLayout, 0, gpu.workaround.attachmentLessRenderPass)
                     .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
                         {},
                         [this]() {
@@ -69,7 +71,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             vk::DynamicState::ePrimitiveTopology,
                         }),
                     })),
-                vk::PipelineRenderingCreateInfo{},
+                vk::PipelineRenderingCreateInfo {
+                    {},
+                    {},
+                    gpu.workaround.attachmentLessRenderPass ? vk::Format::eD32Sfloat : vk::Format::eUndefined,
+                },
             }.get() };
         }
 
@@ -98,13 +104,13 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         [[nodiscard]] bool operator==(const MaskMultiNodeMousePickingRendererSpecialization&) const = default;
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
-            const vk::raii::Device &device,
+            const Gpu &gpu,
             const pl::MultiNodeMousePicking &pipelineLayout
         ) const {
-            return { device, nullptr, vk::StructureChain {
+            return { gpu.device, nullptr, vk::StructureChain {
                 vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
-                        device,
+                        gpu.device,
                         vku::Shader {
                             std::apply(LIFT(shader_selector::mask_node_index_vert), getVertexShaderVariants()),
                             vk::ShaderStageFlagBits::eVertex,
@@ -121,7 +127,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                                 vku::unsafeProxy(getFragmentShaderSpecializationData()),
                             }),
                         }).get(),
-                    *pipelineLayout)
+                    // See doc about Gpu::Workaround::attachmentLessRenderPass.
+                    *pipelineLayout, 0, gpu.workaround.attachmentLessRenderPass)
                     .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
                         {},
                         [this]() {
@@ -150,7 +157,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             vk::DynamicState::ePrimitiveTopology,
                         }),
                     })),
-                vk::PipelineRenderingCreateInfo{},
+                vk::PipelineRenderingCreateInfo {
+                    {},
+                    {},
+                    gpu.workaround.attachmentLessRenderPass ? vk::Format::eD32Sfloat : vk::Format::eUndefined,
+                },
             }.get() };
         }
 
