@@ -1,46 +1,48 @@
-export module vk_gltf_viewer:vulkan.pipeline.DepthRenderer;
+export module vk_gltf_viewer:vulkan.pipeline.MultiNodeMousePickingRenderer;
 
 import std;
 import vku;
 export import :helpers.vulkan;
-import :shader.depth_vert;
-import :shader.depth_frag;
-import :shader_selector.mask_depth_vert;
-import :shader_selector.mask_depth_frag;
-export import :vulkan.pl.PrimitiveNoShading;
+import :shader.node_index_vert;
+import :shader_selector.mask_node_index_vert;
+import :shader.multi_node_mouse_picking_frag;
+import :shader_selector.mask_multi_node_mouse_picking_frag;
+export import :vulkan.Gpu;
+export import :vulkan.pl.MultiNodeMousePicking;
 import :vulkan.specialization_constants.SpecializationMap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export class DepthRendererSpecialization {
+    export class MultiNodeMousePickingRendererSpecialization {
     public:
         TopologyClass topologyClass;
         std::uint8_t positionComponentType = 0;
         std::uint32_t positionMorphTargetWeightCount = 0;
         std::uint32_t skinAttributeCount = 0;
 
-        [[nodiscard]] bool operator==(const DepthRendererSpecialization&) const = default;
+        [[nodiscard]] bool operator==(const MultiNodeMousePickingRendererSpecialization&) const = default;
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
-            const vk::raii::Device &device,
-            const pl::PrimitiveNoShading &pipelineLayout
+            const Gpu &gpu,
+            const pl::MultiNodeMousePicking &pipelineLayout
         ) const {
-            return { device, nullptr, vk::StructureChain {
+            return { gpu.device, nullptr, vk::StructureChain {
                 vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
-                        device,
+                        gpu.device,
                         vku::Shader {
-                            shader::depth_vert,
+                            shader::node_index_vert,
                             vk::ShaderStageFlagBits::eVertex,
                             vku::unsafeAddress(vk::SpecializationInfo {
                                 SpecializationMap<VertexShaderSpecializationData>::value,
                                 vku::unsafeProxy(getVertexShaderSpecializationData()),
                             }),
                         },
-                        vku::Shader { shader::depth_frag, vk::ShaderStageFlagBits::eFragment }).get(),
-                    *pipelineLayout, 1, true)
+                        vku::Shader { shader::multi_node_mouse_picking_frag, vk::ShaderStageFlagBits::eFragment }).get(),
+                    // See doc about Gpu::Workaround::attachmentLessRenderPass.
+                    *pipelineLayout, 0, gpu.workaround.attachmentLessRenderPass)
                     .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
                         {},
                         [this]() {
@@ -53,9 +55,13 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             std::unreachable();
                         }(),
                     }))
-                    .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
+                    .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                         {},
-                        true, true, vk::CompareOp::eGreater, // Use reverse Z.
+                        false, false,
+                        vk::PolygonMode::eFill,
+                        vk::CullModeFlagBits::eNone, {},
+                        false, false, false, false,
+                        1.f,
                     }))
                     .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                         {},
@@ -63,14 +69,13 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             vk::DynamicState::eViewport,
                             vk::DynamicState::eScissor,
                             vk::DynamicState::ePrimitiveTopology,
-                            vk::DynamicState::eCullMode,
                         }),
                     })),
                 vk::PipelineRenderingCreateInfo {
                     {},
-                    vku::unsafeProxy(vk::Format::eR16Uint),
-                    vk::Format::eD32Sfloat,
-                }
+                    {},
+                    gpu.workaround.attachmentLessRenderPass ? vk::Format::eD32Sfloat : vk::Format::eUndefined,
+                },
             }.get() };
         }
 
@@ -86,7 +91,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         }
     };
 
-    export class MaskDepthRendererSpecialization {
+    export class MaskMultiNodeMousePickingRendererSpecialization {
     public:
         TopologyClass topologyClass;
         std::uint8_t positionComponentType;
@@ -96,18 +101,18 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         std::uint32_t skinAttributeCount = 0;
         bool baseColorTextureTransform = false;
 
-        [[nodiscard]] bool operator==(const MaskDepthRendererSpecialization&) const = default;
+        [[nodiscard]] bool operator==(const MaskMultiNodeMousePickingRendererSpecialization&) const = default;
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
-            const vk::raii::Device &device,
-            const pl::PrimitiveNoShading &pipelineLayout
+            const Gpu &gpu,
+            const pl::MultiNodeMousePicking &pipelineLayout
         ) const {
-            return { device, nullptr, vk::StructureChain {
+            return { gpu.device, nullptr, vk::StructureChain {
                 vku::getDefaultGraphicsPipelineCreateInfo(
                     createPipelineStages(
-                        device,
+                        gpu.device,
                         vku::Shader {
-                            std::apply(LIFT(shader_selector::mask_depth_vert), getVertexShaderVariants()),
+                            std::apply(LIFT(shader_selector::mask_node_index_vert), getVertexShaderVariants()),
                             vk::ShaderStageFlagBits::eVertex,
                             vku::unsafeAddress(vk::SpecializationInfo {
                                 SpecializationMap<VertexShaderSpecializationData>::value,
@@ -115,14 +120,15 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             }),
                         },
                         vku::Shader {
-                            std::apply(LIFT(shader_selector::mask_depth_frag), getFragmentShaderVariants()),
+                            std::apply(LIFT(shader_selector::mask_multi_node_mouse_picking_frag), getFragmentShaderVariants()),
                             vk::ShaderStageFlagBits::eFragment,
                             vku::unsafeAddress(vk::SpecializationInfo {
                                 SpecializationMap<FragmentShaderSpecializationData>::value,
                                 vku::unsafeProxy(getFragmentShaderSpecializationData()),
                             }),
                         }).get(),
-                    *pipelineLayout, 1, true)
+                    // See doc about Gpu::Workaround::attachmentLessRenderPass.
+                    *pipelineLayout, 0, gpu.workaround.attachmentLessRenderPass)
                     .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
                         {},
                         [this]() {
@@ -135,9 +141,13 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             std::unreachable();
                         }(),
                     }))
-                    .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
+                    .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                         {},
-                        true, true, vk::CompareOp::eGreater, // Use reverse Z.
+                        false, false,
+                        vk::PolygonMode::eFill,
+                        vk::CullModeFlagBits::eNone, {},
+                        false, false, false, false,
+                        1.f,
                     }))
                     .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                         {},
@@ -145,14 +155,13 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             vk::DynamicState::eViewport,
                             vk::DynamicState::eScissor,
                             vk::DynamicState::ePrimitiveTopology,
-                            vk::DynamicState::eCullMode,
                         }),
                     })),
                 vk::PipelineRenderingCreateInfo {
                     {},
-                    vku::unsafeProxy(vk::Format::eR16Uint),
-                    vk::Format::eD32Sfloat,
-                }
+                    {},
+                    gpu.workaround.attachmentLessRenderPass ? vk::Format::eD32Sfloat : vk::Format::eUndefined,
+                },
             }.get() };
         }
 

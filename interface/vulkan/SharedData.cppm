@@ -27,14 +27,17 @@ export import :vulkan.buffer.Primitives;
 export import :vulkan.buffer.SkinJointIndices;
 import :vulkan.buffer.StagingBufferStorage;
 export import :vulkan.Gpu;
-export import :vulkan.pipeline.DepthRenderer;
 export import :vulkan.pipeline.JumpFloodComputer;
 export import :vulkan.pipeline.JumpFloodSeedRenderer;
+export import :vulkan.pipeline.MousePickingRenderer;
+export import :vulkan.pipeline.MultiNodeMousePickingRenderer;
+export import :vulkan.pipeline.NodeIndexRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
 export import :vulkan.pipeline.PrimitiveRenderer;
 export import :vulkan.pipeline.SkyboxRenderer;
 export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
+export import :vulkan.rp.MousePicking;
 export import :vulkan.rp.Scene;
 export import :vulkan.sampler.Samplers;
 export import :vulkan.texture.Fallback;
@@ -124,12 +127,15 @@ namespace vk_gltf_viewer::vulkan {
         // Descriptor set layouts.
         dsl::Asset assetDescriptorSetLayout;
         dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout;
+        dsl::MultiNodeMousePicking multiNodeMousePickingDescriptorSetLayout;
         dsl::Skybox skyboxDescriptorSetLayout;
 
         // Render passes.
+        rp::MousePicking mousePickingRenderPass;
         rp::Scene sceneRenderPass;
 
         // Pipeline layouts.
+        pl::MultiNodeMousePicking multiNodeMousePickingPipelineLayout;
         pl::Primitive primitivePipelineLayout;
         pl::PrimitiveNoShading primitiveNoShadingPipelineLayout;
 
@@ -139,6 +145,7 @@ namespace vk_gltf_viewer::vulkan {
 
         // Primitive unrelated pipelines.
         JumpFloodComputer jumpFloodComputer;
+        MousePickingRenderer mousePickingRenderer;
         OutlineRenderer outlineRenderer;
         SkyboxRenderer skyboxRenderer;
         WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
@@ -181,11 +188,15 @@ namespace vk_gltf_viewer::vulkan {
                 }
             }() }
             , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
+            , multiNodeMousePickingDescriptorSetLayout { gpu.device }
             , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
+            , mousePickingRenderPass { gpu.device }
             , sceneRenderPass { gpu.device }
+            , multiNodeMousePickingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) }
             , primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
             , primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout }
             , jumpFloodComputer { gpu.device }
+            , mousePickingRenderer { gpu.device, mousePickingRenderPass }
             , outlineRenderer { gpu.device }
             , skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices }
             , weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass }
@@ -201,15 +212,27 @@ namespace vk_gltf_viewer::vulkan {
         // Pipeline selectors.
         // --------------------
 
-        [[nodiscard]] vk::Pipeline getDepthRenderer(const DepthRendererSpecialization &specialization) const {
-            return ranges::try_emplace_if_not_exists(depthPipelines, specialization, [&]() {
-                return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
+        [[nodiscard]] vk::Pipeline getNodeIndexRenderer(const NodeIndexRendererSpecialization &specialization) const {
+            return ranges::try_emplace_if_not_exists(nodeIndexPipelines, specialization, [&]() {
+                return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass);
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getMaskDepthRenderer(const MaskDepthRendererSpecialization &specialization) const {
-            return ranges::try_emplace_if_not_exists(maskDepthPipelines, specialization, [&]() {
-                return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
+        [[nodiscard]] vk::Pipeline getMaskNodeIndexRenderer(const MaskNodeIndexRendererSpecialization &specialization) const {
+            return ranges::try_emplace_if_not_exists(maskNodeIndexPipelines, specialization, [&]() {
+                return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass);
+            }).first->second;
+        }
+
+        [[nodiscard]] vk::Pipeline getMultiNodeMousePickingRenderer(const MultiNodeMousePickingRendererSpecialization &specialization) const {
+            return ranges::try_emplace_if_not_exists(multiNodeMousePickingPipelines, specialization, [&]() {
+                return specialization.createPipeline(gpu, multiNodeMousePickingPipelineLayout);
+            }).first->second;
+        }
+
+        [[nodiscard]] vk::Pipeline getMaskMultiNodeMousePickingRenderer(const MaskMultiNodeMousePickingRendererSpecialization &specialization) const {
+            return ranges::try_emplace_if_not_exists(maskMultiNodeMousePickingPipelines, specialization, [&]() {
+                return specialization.createPipeline(gpu, multiNodeMousePickingPipelineLayout);
             }).first->second;
         }
 
@@ -267,14 +290,17 @@ namespace vk_gltf_viewer::vulkan {
             gltfAsset.emplace(asset, directory, orderedPrimitives, gpu, fallbackTexture, adapter);
             if (!gpu.supportVariableDescriptorCount && assetDescriptorSetLayout.descriptorCounts[6] != textureCount) {
                 // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
-                depthPipelines.clear();
-                maskDepthPipelines.clear();
+                nodeIndexPipelines.clear();
+                maskNodeIndexPipelines.clear();
+                multiNodeMousePickingPipelines.clear();
+                maskMultiNodeMousePickingPipelines.clear();
                 jumpFloodSeedPipelines.clear();
                 maskJumpFloodSeedPipelines.clear();
                 primitivePipelines.clear();
                 unlitPrimitivePipelines.clear();
 
                 assetDescriptorSetLayout = { gpu, textureCount };
+                multiNodeMousePickingPipelineLayout = { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) };
                 primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
                 primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
             }
@@ -286,8 +312,10 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         // glTF primitive rendering pipelines.
-        mutable std::unordered_map<DepthRendererSpecialization, vk::raii::Pipeline, AggregateHasher> depthPipelines;
-        mutable std::unordered_map<MaskDepthRendererSpecialization, vk::raii::Pipeline, AggregateHasher> maskDepthPipelines;
+        mutable std::unordered_map<NodeIndexRendererSpecialization, vk::raii::Pipeline, AggregateHasher> nodeIndexPipelines;
+        mutable std::unordered_map<MaskNodeIndexRendererSpecialization, vk::raii::Pipeline, AggregateHasher> maskNodeIndexPipelines;
+        mutable std::unordered_map<MultiNodeMousePickingRendererSpecialization, vk::raii::Pipeline, AggregateHasher> multiNodeMousePickingPipelines;
+        mutable std::unordered_map<MaskMultiNodeMousePickingRendererSpecialization, vk::raii::Pipeline, AggregateHasher> maskMultiNodeMousePickingPipelines;
         mutable std::unordered_map<JumpFloodSeedRendererSpecialization, vk::raii::Pipeline, AggregateHasher> jumpFloodSeedPipelines;
         mutable std::unordered_map<MaskJumpFloodSeedRendererSpecialization, vk::raii::Pipeline, AggregateHasher> maskJumpFloodSeedPipelines;
         mutable std::unordered_map<PrimitiveRendererSpecialization, vk::raii::Pipeline, AggregateHasher> primitivePipelines;

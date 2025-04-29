@@ -30,6 +30,15 @@ namespace vk_gltf_viewer::vulkan {
 
     export class Gpu {
     public:
+        struct Workaround {
+            /**
+             * @brief <tt>true</tt> if attachment-less render pass is not supported, <tt>false</tt> otherwise.
+             *
+             * Reported crash in MoltenVK and Intel GPU driver.
+             */
+            bool attachmentLessRenderPass;
+        };
+
         vk::raii::PhysicalDevice physicalDevice;
         QueueFamilies queueFamilies;
         vk::raii::Device device = createDevice();
@@ -46,6 +55,8 @@ namespace vk_gltf_viewer::vulkan {
         bool supportVariableDescriptorCount;
         bool supportR8SrgbImageFormat;
         bool supportR8G8SrgbImageFormat;
+
+        Workaround workaround;
 
         Gpu(const vk::raii::Instance &instance LIFETIMEBOUND, vk::SurfaceKHR surface);
         ~Gpu();

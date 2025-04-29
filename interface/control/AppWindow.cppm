@@ -23,6 +23,10 @@ namespace vk_gltf_viewer::control {
                 static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
                     ->pTasks->emplace(std::in_place_type<task::WindowKey>, key, scancode, action, mods);
             });
+            glfwSetCursorPosCallback(window, [](GLFWwindow *window, double x, double y) {
+                static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
+                    ->pTasks->emplace(std::in_place_type<task::WindowCursorPos>, glm::dvec2 { x, y });
+            });
             glfwSetMouseButtonCallback(window, [](GLFWwindow *window, int button, int action, int mods) {
                 static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
                     ->pTasks->emplace(std::in_place_type<task::WindowMouseButton>, button, action, mods);

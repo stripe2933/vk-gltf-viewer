@@ -95,6 +95,7 @@ The extensions and feature used in this application are quite common in the mode
     - `multiDrawIndirect`
     - `shaderStorageImageWriteWithoutFormat`
     - `independentBlend` (Weighted Blended OIT)
+    - `fragmentStoresAndAtomics`
   - `VkPhysicalDeviceVulkan11Features`
     - `shaderDrawParameters` (use `gl_BaseInstance` for primitive index)
     - `storageBuffer16BitAccess`

@@ -99,6 +99,7 @@ namespace ImGui {
     export using ImGui::EndTabItem;
     export using ImGui::EndTable;
     export using ImGui::EndTooltip;
+    export using ImGui::GetBackgroundDrawList;
     export using ImGui::GetContentRegionAvail;
     export using ImGui::GetColorU32;
     export using ImGui::GetCursorPosX;

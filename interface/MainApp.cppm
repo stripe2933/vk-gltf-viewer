@@ -127,6 +127,7 @@ namespace vk_gltf_viewer {
 
         control::AppWindow window { instance };
         std::optional<glm::dvec2> lastMouseDownPosition;
+        bool drawSelectionRectangle = false;
 
         vulkan::Gpu gpu { instance, window.getSurface() };
 

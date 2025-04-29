@@ -216,6 +216,23 @@ void vk_gltf_viewer::MainApp::run() {
             else {
                 imguiTaskCollector.imguizmo(appState.camera);
             }
+
+            if (drawSelectionRectangle) {
+                const glm::dvec2 cursorPos = window.getCursorPos();
+                ImRect region {
+                    ImVec2 { static_cast<float>(lastMouseDownPosition->x), static_cast<float>(lastMouseDownPosition->y) },
+                    ImVec2 { static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) },
+                };
+                if (region.Min.x > region.Max.x) {
+                    std::swap(region.Min.x, region.Max.x);
+                }
+                if (region.Min.y > region.Max.y) {
+                    std::swap(region.Min.y, region.Max.y);
+                }
+
+                ImGui::GetBackgroundDrawList()->AddRectFilled(region.Min, region.Max, ImGui::GetColorU32({ 1.f, 1.f, 1.f, 0.2f }));
+                ImGui::GetBackgroundDrawList()->AddRect(region.Min, region.Max, ImGui::GetColorU32({ 1.f, 1.f, 1.f, 1.f }));
+            }
         }
 
         // Wait for previous frame execution to end.
@@ -250,10 +267,21 @@ void vk_gltf_viewer::MainApp::run() {
                         }
                     }
                 },
+                [&](const control::task::WindowCursorPos &task) {
+                    if (lastMouseDownPosition && distance2(*lastMouseDownPosition, task.position) >= 4.0) {
+                        drawSelectionRectangle = true;
+                    }
+                },
                 [&](const control::task::WindowMouseButton &task) {
                     const bool leftMouseButtonPressed = task.button == GLFW_MOUSE_BUTTON_LEFT && task.action == GLFW_RELEASE && lastMouseDownPosition;
+                    bool selectionRectanglePopped = false;
                     if (leftMouseButtonPressed) {
                         lastMouseDownPosition = std::nullopt;
+
+                        if (drawSelectionRectangle) {
+                            drawSelectionRectangle = false;
+                            selectionRectanglePopped = true;
+                        }
                     }
 
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
@@ -263,10 +291,10 @@ void vk_gltf_viewer::MainApp::run() {
                     }
                     else if (leftMouseButtonPressed && appState.gltfAsset) {
                         if (appState.gltfAsset->hoveringNodeIndex) {
-                            tasks.emplace(std::in_place_type<control::task::SelectNode>, *appState.gltfAsset->hoveringNodeIndex, task.mods == GLFW_MOD_CONTROL);
+                            tasks.emplace(std::in_place_type<control::task::SelectNode>, *appState.gltfAsset->hoveringNodeIndex, ImGui::GetIO().KeyCtrl);
                             global::shouldNodeInSceneHierarchyScrolledToBeVisible = true;
                         }
-                        else {
+                        else if (!selectionRectanglePopped) {
                             appState.gltfAsset->selectedNodeIndices.clear();
                         }
                     }
@@ -641,15 +669,44 @@ void vk_gltf_viewer::MainApp::run() {
             .frustum = value_if(appState.useFrustumCulling, [this]() {
                 return appState.camera.getFrustum();
             }),
-            .cursorPosFromPassthruRectTopLeft = [&]() -> std::optional<vk::Offset2D> {
-                const glm::vec2 cursorPos = window.getCursorPos();
-                if (passthruRect.Contains({ cursorPos.x, cursorPos.y }) && !ImGui::GetIO().WantCaptureMouse) {
-                    return vk::Offset2D {
+            .mousePickingInput = [&]() -> std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
+                const glm::dvec2 cursorPos = window.getCursorPos();
+                if (drawSelectionRectangle) {
+                    ImRect selectionRect {
+                        { static_cast<float>(lastMouseDownPosition->x), static_cast<float>(lastMouseDownPosition->y) },
+                        { static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) },
+                    };
+                    if (selectionRect.Min.x > selectionRect.Max.x) {
+                        std::swap(selectionRect.Min.x, selectionRect.Max.x);
+                    }
+                    if (selectionRect.Min.y > selectionRect.Max.y) {
+                        std::swap(selectionRect.Min.y, selectionRect.Max.y);
+                    }
+
+                    selectionRect.ClipWith(passthruRect);
+
+                    return vk::Rect2D {
+                        {
+                            static_cast<std::int32_t>(framebufferScale.x * (selectionRect.Min.x - passthruRect.Min.x)),
+                            static_cast<std::int32_t>(framebufferScale.y * (selectionRect.Min.y - passthruRect.Min.y)),
+                        },
+                        {
+                            static_cast<std::uint32_t>(framebufferScale.x * selectionRect.GetWidth()),
+                            static_cast<std::uint32_t>(framebufferScale.y * selectionRect.GetHeight()),
+                        },
+                    };
+                }
+                else if (passthruRect.Contains({ static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) }) && !ImGui::GetIO().WantCaptureMouse) {
+                    // Note: be aware of implicit vk::Offset2D -> vk::Rect2D promotion!
+                    return std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
+                        std::in_place_type<vk::Offset2D>,
                         static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - passthruRect.Min.x)),
                         static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - passthruRect.Min.y)),
                     };
                 }
-                return std::nullopt;
+                else {
+                    return std::monostate{};
+                }
             }(),
             .gltf = gltf.transform([&](Gltf &gltf) {
                 assert(appState.gltfAsset && "Synchronization error: gltfAsset is not set in AppState.");
@@ -681,9 +738,22 @@ void vk_gltf_viewer::MainApp::run() {
 
 		if (frameFeedbackResultValid[frameIndex]) {
             // Feedback the update result into this.
-            if (appState.gltfAsset) {
-                appState.gltfAsset->hoveringNodeIndex = updateResult.hoveringNodeIndex;
-            }
+		    if (auto *indices = get_if<std::vector<std::uint16_t>>(&updateResult.mousePickingResult)) {
+		        assert(appState.gltfAsset);
+		        if (ImGui::GetIO().KeyCtrl) {
+		            appState.gltfAsset->selectedNodeIndices.insert_range(*indices);
+		        }
+		        else {
+		            appState.gltfAsset->selectedNodeIndices = { std::from_range, *indices };
+		        }
+		    }
+		    else if (auto *index = get_if<std::uint16_t>(&updateResult.mousePickingResult)) {
+		        assert(appState.gltfAsset);
+                appState.gltfAsset->hoveringNodeIndex = *index;
+		    }
+		    else if (appState.gltfAsset) {
+                appState.gltfAsset->hoveringNodeIndex.reset();
+		    }
 		}
         else {
 			frameFeedbackResultValid[frameIndex] = true;

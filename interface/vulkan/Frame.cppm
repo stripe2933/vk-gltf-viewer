@@ -13,8 +13,9 @@ import std;
 export import :gltf.NodeWorldTransforms;
 export import :gltf.OrderedPrimitives;
 import :helpers.optional;
+import :math.extended_arithmetic;
 export import :math.Frustum;
-import :vulkan.ag.DepthPrepass;
+import :vulkan.ag.MousePicking;
 import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.SceneOpaque;
 import :vulkan.ag.SceneWeightedBlended;
@@ -74,6 +75,8 @@ namespace vk_gltf_viewer::vulkan {
             buffer::Nodes nodeBuffer;
             std::optional<buffer::MorphTargetWeights> morphTargetWeightBuffer;
 
+            vku::MappedBuffer mousePickingResultBuffer;
+
             // Used only if GPU does not support variable descriptor count.
             std::optional<vk::raii::DescriptorPool> descriptorPool;
 
@@ -106,6 +109,11 @@ namespace vk_gltf_viewer::vulkan {
                 morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount.back() != 0, [&]() {
                     return buffer::MorphTargetWeights { asset, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gpu };
                 }) },
+                mousePickingResultBuffer { sharedData.gpu.allocator, vk::BufferCreateInfo {
+                    {},
+                    sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(asset.nodes.size(), 32U),
+                    vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+                }, vku::allocation::hostRead },
                 descriptorPool { value_if(!sharedData.gpu.supportVariableDescriptorCount, [&]() {
                     return vk::raii::DescriptorPool {
                         sharedData.gpu.device,
@@ -158,9 +166,13 @@ namespace vk_gltf_viewer::vulkan {
             std::optional<math::Frustum> frustum;
 
             /**
-             * @brief Cursor position from passthru rect's top left. <tt>std::nullopt</tt> if cursor is outside the passthru rect.
+             * @brief Cursor position or selection rectangle for handling mouse picking.
+             *
+             * - If mouse picking has to be done inside the selection rectangle, passthrough rectangle aligned, framebuffer-scale <tt>vk::Rect2D</tt> used.
+             * - If mouse picking has to be done under the current cursor, passthrough rectangle aligned <tt>vk::Offset2D</tt> used.
+             * - Otherwise, <tt>std::monostate</tt> used.
              */
-            std::optional<vk::Offset2D> cursorPosFromPassthruRectTopLeft;
+            std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
 
             /**
              * @brief Information of glTF to be rendered. <tt>std::nullopt</tt> if no glTF scene to be rendered.
@@ -180,7 +192,7 @@ namespace vk_gltf_viewer::vulkan {
             /**
              * @brief Node index of the current pointing mesh. <tt>std::nullopt</tt> if there is no mesh under the cursor.
              */
-            std::optional<std::uint16_t> hoveringNodeIndex;
+            std::variant<std::monostate, std::uint16_t, std::vector<std::uint16_t>> mousePickingResult;
         };
 
         // --------------------
@@ -245,12 +257,17 @@ namespace vk_gltf_viewer::vulkan {
                 std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*inner.descriptorPool.value(), std::tie(sharedData.assetDescriptorSetLayout));
             }
 
+            const vk::DescriptorBufferInfo mousePickingResultBufferDescriptorInfo{ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) };
+            const vk::DescriptorBufferInfo multiNodeMousePickingResultBufferDescriptorInfo{ inner.mousePickingResultBuffer, 0, vk::WholeSize };
+
             std::vector<vk::DescriptorImageInfo> imageInfos;
             imageInfos.reserve(asset.textures.size() + 1);
             imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
             imageInfos.append_range(sharedData.gltfAsset->textures.descriptorInfos);
 
-            boost::container::static_vector<vk::WriteDescriptorSet, dsl::Asset::bindingCount> descriptorWrites {
+            boost::container::static_vector<vk::WriteDescriptorSet, 2 + dsl::Asset::bindingCount> descriptorWrites {
+                mousePickingSet.getWrite<1>(mousePickingResultBufferDescriptorInfo),
+                multiNodeMousePickingSet.getWrite<0>(multiNodeMousePickingResultBufferDescriptorInfo),
                 assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<1>(inner.nodeBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<5>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
@@ -286,11 +303,13 @@ namespace vk_gltf_viewer::vulkan {
             JumpFloodResources selectedNodeOutlineJumpFloodResources;
 
             // Attachment groups.
-            ag::DepthPrepass depthPrepassAttachmentGroup;
+            ag::MousePicking mousePickingAttachmentGroup;
             ag::JumpFloodSeed hoveringNodeJumpFloodSeedAttachmentGroup;
             ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 
-            PassthruResources(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
+            vk::raii::Framebuffer mousePickingFramebuffer;
+
+            PassthruResources(const SharedData &sharedData LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
 
         private:
             void recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const;
@@ -299,7 +318,8 @@ namespace vk_gltf_viewer::vulkan {
         struct RenderingNodes {
             std::unordered_set<std::uint16_t> indices;
             std::map<CommandSeparationCriteria, buffer::IndirectDrawCommands> indirectDrawCommandBuffers;
-            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> depthPrepassIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> mousePickingIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> multiNodeMousePickingIndirectDrawCommandBuffers;
         };
 
         struct SelectedNodes {
@@ -317,7 +337,6 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         // Buffer, image and image views.
-        vku::MappedBuffer hoveringNodeIndexBuffer;
         std::optional<PassthruResources> passthruResources;
 
         // Attachment groups.
@@ -333,6 +352,8 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::CommandPool graphicsCommandPool;
 
         // Descriptor sets.
+        vku::DescriptorSet<MousePickingRenderer::DescriptorSetLayout> mousePickingSet;
+        vku::DescriptorSet<dsl::MultiNodeMousePicking> multiNodeMousePickingSet;
         vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> hoveringNodeJumpFloodSet;
         vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> selectedNodeJumpFloodSet;
         vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSet;
@@ -357,7 +378,7 @@ namespace vk_gltf_viewer::vulkan {
         glm::mat4 projectionViewMatrix;
         glm::vec3 viewPosition;
         glm::mat4 translationlessProjectionViewMatrix;
-        std::optional<vk::Offset2D> cursorPosFromPassthruRectTopLeft;
+        std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;

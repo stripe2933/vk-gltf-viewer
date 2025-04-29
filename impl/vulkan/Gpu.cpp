@@ -30,7 +30,8 @@ constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatur
     .setShaderInt16(true)
     .setMultiDrawIndirect(true)
     .setShaderStorageImageWriteWithoutFormat(true)
-    .setIndependentBlend(true);
+    .setIndependentBlend(true)
+    .setFragmentStoresAndAtomics(true);
 
 vk_gltf_viewer::vulkan::QueueFamilies::QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface) {
     const std::vector queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
@@ -76,16 +77,21 @@ vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::Surface
     , queueFamilies { physicalDevice, surface }
     , allocator { createAllocator(instance) } {
     // Retrieve physical device properties.
-    const vk::StructureChain physicalDeviceProperties = physicalDevice.getProperties2<
+    const auto [props2, subgroupProps, descriptorIndexingProps] = physicalDevice.getProperties2<
         vk::PhysicalDeviceProperties2,
         vk::PhysicalDeviceSubgroupProperties,
         vk::PhysicalDeviceDescriptorIndexingProperties>();
-    subgroupSize = physicalDeviceProperties.get<vk::PhysicalDeviceSubgroupProperties>().subgroupSize;
-    maxPerStageDescriptorUpdateAfterBindSamplers = physicalDeviceProperties.get<vk::PhysicalDeviceDescriptorIndexingProperties>().maxPerStageDescriptorUpdateAfterBindSamplers;
+    subgroupSize = subgroupProps.subgroupSize;
+    maxPerStageDescriptorUpdateAfterBindSamplers = descriptorIndexingProps.maxPerStageDescriptorUpdateAfterBindSamplers;
 
 	// Retrieve physical device memory properties.
 	const vk::PhysicalDeviceMemoryProperties memoryProperties = physicalDevice.getMemoryProperties();
     isUmaDevice = memoryProperties.memoryHeapCount == 1;
+
+    // Some vendor-specific workarounds.
+    if (ranges::one_of(props2.properties.vendorID, { 0x8086 /* Intel */, 0x106b /* MoltenVK */ })) {
+        workaround.attachmentLessRenderPass = true;
+    }
 }
 
 vk_gltf_viewer::vulkan::Gpu::~Gpu() {
@@ -140,6 +146,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !features.multiDrawIndirect ||
             !features.shaderStorageImageWriteWithoutFormat ||
             !features.independentBlend ||
+            !features.fragmentStoresAndAtomics ||
             !vulkan11Features.shaderDrawParameters ||
             !vulkan11Features.storageBuffer16BitAccess ||
             !vulkan11Features.uniformAndStorageBuffer16BitAccess ||
