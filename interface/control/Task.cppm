@@ -12,7 +12,7 @@ namespace vk_gltf_viewer::control {
         struct WindowScroll { glm::dvec2 offset; };
         struct WindowTrackpadZoom { double scale; };
         struct WindowTrackpadRotate { double angle; };
-        struct WindowDrop { std::span<const char* const> paths; };
+        struct WindowDrop { std::vector<std::filesystem::path> paths; };
 
         struct ChangePassthruRect { ImRect newRect; };
         struct LoadGltf { std::filesystem::path path; };

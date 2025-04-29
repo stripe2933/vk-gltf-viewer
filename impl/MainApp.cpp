@@ -338,7 +338,7 @@ void vk_gltf_viewer::MainApp::run() {
                         #endif
                     };
 
-                    const std::filesystem::path path = task.paths[0];
+                    const std::filesystem::path &path = task.paths[0];
                     if (std::filesystem::is_directory(path)) {
                         // If directory contains glTF file, load it.
                         for (const std::filesystem::path &childPath : std::filesystem::directory_iterator { path }) {

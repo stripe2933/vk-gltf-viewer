@@ -45,7 +45,7 @@ namespace vk_gltf_viewer::control {
             });
             glfwSetDropCallback(window, [](GLFWwindow *window, int count, const char **paths) {
                 static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
-                    ->pTasks->emplace(std::in_place_type<task::WindowDrop>, std::span { paths, static_cast<std::size_t>(count) });
+                    ->pTasks->emplace(std::in_place_type<task::WindowDrop>, std::vector<std::filesystem::path> { std::from_range, std::span { paths, static_cast<std::size_t>(count) } });
             });
         }
 
