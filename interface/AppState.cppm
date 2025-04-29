@@ -41,8 +41,8 @@ namespace vk_gltf_viewer {
             fastgltf::Asset &asset;
             std::variant<std::vector<std::optional<bool>>, std::vector<bool>> nodeVisibilities { std::in_place_index<0>, asset.nodes.size(), true };
 
-            std::unordered_set<std::uint16_t> selectedNodeIndices;
-            std::optional<std::uint16_t> hoveringNodeIndex;
+            std::unordered_set<std::size_t> selectedNodeIndices;
+            std::optional<std::size_t> hoveringNodeIndex;
 
             explicit GltfAsset(fastgltf::Asset &asset) noexcept
                 : asset { asset } { }
@@ -65,7 +65,7 @@ namespace vk_gltf_viewer {
              * @note Since the result only contains node which is visible, nodes without mesh are excluded regardless of
              * its corresponding <tt>nodeVisibilities</tt> is <tt>true</tt>.
              */
-            [[nodiscard]] std::unordered_set<std::uint16_t> getVisibleNodeIndices() const noexcept;
+            [[nodiscard]] std::unordered_set<std::size_t> getVisibleNodeIndices() const noexcept;
 
         private:
             std::size_t sceneIndex = asset.defaultScene.value_or(0);

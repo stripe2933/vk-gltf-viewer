@@ -121,7 +121,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             if (!gltfAsset) return;
 
             const std::span packedBits = gltfAsset->mousePickingResultBuffer.asRange<const std::uint32_t>();
-            std::vector<std::uint16_t> indices;
+            std::vector<std::size_t> &indices = result.mousePickingResult.emplace<std::vector<std::size_t>>();
             for (std::size_t nodeIndex = 0; nodeIndex < task.gltf->asset.nodes.size(); ++nodeIndex) {
                 const std::uint32_t accessBlock = packedBits[nodeIndex / 32];
                 const std::uint32_t bitmask = 1U << (nodeIndex % 32);
@@ -129,15 +129,13 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                     indices.push_back(nodeIndex);
                 }
             }
-
-            result.mousePickingResult = std::move(indices);
         },
         [&](const vk::Offset2D&) {
             if (!gltfAsset) return;
 
             const std::uint16_t hoveringNodeIndex = gltfAsset->mousePickingResultBuffer.asValue<const std::uint32_t>();
             if (hoveringNodeIndex != NO_INDEX) {
-                result.mousePickingResult = hoveringNodeIndex;
+                result.mousePickingResult.emplace<std::size_t>(hoveringNodeIndex);
             }
         },
         [](std::monostate) { }
@@ -424,7 +422,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     };
 
     const auto drawCommandGetter = [&](
-        std::uint16_t nodeIndex,
+        std::size_t nodeIndex,
         const fastgltf::Primitive &primitive
     ) -> std::variant<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand> {
         // Get the accessor which determine the draw count.
@@ -446,6 +444,12 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         }
 
         const std::size_t primitiveIndex = task.gltf->orderedPrimitives.getIndex(primitive);
+
+        // To embed the node and primitive indices into 32-bit unsigned integer, both must be in range of 16-bit unsigned integer.
+        if (!std::in_range<std::uint16_t>(nodeIndex) || !std::in_range<std::uint16_t>(primitiveIndex)) {
+            throw std::runtime_error { "Requirement violation: nodeIndex <= 65535 && primitiveIndex <= 65535" };
+        }
+
         const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveIndex);
         if (primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor) {
             const auto [_, firstIndex] = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive);
@@ -549,7 +553,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             if (task.gltf->regenerateDrawCommands ||
                 hoveringNode->index != task.gltf->hoveringNode->index) {
                 hoveringNode->index = task.gltf->hoveringNode->index;
-                hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, { task.gltf->hoveringNode->index }, drawCommandGetter);
+                hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, std::views::single(task.gltf->hoveringNode->index), drawCommandGetter);
             }
             hoveringNode->outlineColor = task.gltf->hoveringNode->outlineColor;
             hoveringNode->outlineThickness = task.gltf->hoveringNode->outlineThickness;
@@ -557,7 +561,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         else {
             hoveringNode.emplace(
                 task.gltf->hoveringNode->index,
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, { task.gltf->hoveringNode->index }, drawCommandGetter),
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, std::views::single(task.gltf->hoveringNode->index), drawCommandGetter),
                 task.gltf->hoveringNode->outlineColor,
                 task.gltf->hoveringNode->outlineThickness);
         }

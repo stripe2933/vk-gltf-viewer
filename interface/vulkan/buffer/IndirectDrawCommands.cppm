@@ -113,12 +113,12 @@ namespace vk_gltf_viewer::vulkan::buffer {
         const fastgltf::Asset &asset,
         vma::Allocator allocator,
         const CriteriaGetter &criteriaGetter,
-        const std::unordered_set<std::uint16_t> &nodeIndices,
-        concepts::signature_of<std::variant<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand>(std::uint16_t, const fastgltf::Primitive&)> auto const &drawCommandGetter
+        std::ranges::input_range auto const &nodeIndices,
+        concepts::signature_of<std::variant<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand>(std::size_t, const fastgltf::Primitive&)> auto const &drawCommandGetter
     ) {
         std::map<Criteria, std::variant<std::vector<vk::DrawIndirectCommand>, std::vector<vk::DrawIndexedIndirectCommand>>> commandGroups;
 
-        for (std::uint16_t nodeIndex : nodeIndices) {
+        for (std::size_t nodeIndex : nodeIndices) {
             const fastgltf::Node &node = asset.nodes[nodeIndex];
             if (!node.meshIndex) {
                 continue;

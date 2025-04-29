@@ -653,7 +653,7 @@ void vk_gltf_viewer::MainApp::run() {
                     .renderingNodes = {
                         .indices = appState.gltfAsset->getVisibleNodeIndices(),
                     },
-                    .hoveringNode = transform([&](std::uint16_t index, const AppState::Outline &outline) {
+                    .hoveringNode = transform([&](std::size_t index, const AppState::Outline &outline) {
                         return vulkan::Frame::ExecutionTask::Gltf::HoveringNode {
                             index, outline.color, outline.thickness,
                         };
@@ -673,7 +673,7 @@ void vk_gltf_viewer::MainApp::run() {
 
 		if (frameFeedbackResultValid[frameIndex]) {
             // Feedback the update result into this.
-		    if (auto *indices = get_if<std::vector<std::uint16_t>>(&updateResult.mousePickingResult)) {
+		    if (auto *indices = get_if<std::vector<std::size_t>>(&updateResult.mousePickingResult)) {
 		        assert(appState.gltfAsset);
 		        if (ImGui::GetIO().KeyCtrl) {
 		            appState.gltfAsset->selectedNodeIndices.insert_range(*indices);
@@ -682,7 +682,7 @@ void vk_gltf_viewer::MainApp::run() {
 		            appState.gltfAsset->selectedNodeIndices = { std::from_range, *indices };
 		        }
 		    }
-		    else if (auto *index = get_if<std::uint16_t>(&updateResult.mousePickingResult)) {
+		    else if (auto *index = get_if<std::size_t>(&updateResult.mousePickingResult)) {
 		        assert(appState.gltfAsset);
                 appState.gltfAsset->hoveringNodeIndex = *index;
 		    }

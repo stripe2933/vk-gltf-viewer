@@ -935,8 +935,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
     fastgltf::Asset &asset,
     std::size_t sceneIndex,
     std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities,
-    const std::optional<std::uint16_t> &hoveringNodeIndex,
-    const std::unordered_set<std::uint16_t> &selectedNodeIndices
+    const std::optional<std::size_t> &hoveringNodeIndex,
+    const std::unordered_set<std::size_t> &selectedNodeIndices
 ) {
     if (ImGui::Begin("Scene Hierarchy")) {
         if (ImGui::BeginCombo("Scene", nonempty_or(asset.scenes[sceneIndex].name, [&]() { return tempStringBuffer.write("<Unnamed scene {}>", sceneIndex).view(); }).c_str())) {
@@ -1126,7 +1126,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
     fastgltf::Asset &asset,
-    const std::unordered_set<std::uint16_t> &selectedNodeIndices
+    const std::unordered_set<std::size_t> &selectedNodeIndices
 ) {
     if (ImGui::Begin("Node Inspector")) {
         if (selectedNodeIndices.empty()) {

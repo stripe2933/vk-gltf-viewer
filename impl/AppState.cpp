@@ -18,7 +18,7 @@ void vk_gltf_viewer::AppState::GltfAsset::setScene(std::size_t sceneIndex) noexc
     hoveringNodeIndex.reset();
 }
 
-std::unordered_set<std::uint16_t> vk_gltf_viewer::AppState::GltfAsset::getVisibleNodeIndices() const noexcept {
+std::unordered_set<std::size_t> vk_gltf_viewer::AppState::GltfAsset::getVisibleNodeIndices() const noexcept {
     return visit(multilambda {
         [this](std::span<const std::optional<bool>> tristateVisibilities) {
             return tristateVisibilities
@@ -27,17 +27,17 @@ std::unordered_set<std::uint16_t> vk_gltf_viewer::AppState::GltfAsset::getVisibl
                     return visibility.value_or(true) && asset.nodes[nodeIndex].meshIndex.has_value();
                 }))
                 | std::views::keys
-                | std::views::transform([](std::size_t nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
+                | std::views::transform([](auto nodeIndex) { return static_cast<std::size_t>(nodeIndex); })
                 | std::ranges::to<std::unordered_set>();
         },
         [this](const std::vector<bool> &visibilities) {
             return visibilities
                 | ranges::views::enumerate
-                | std::views::filter(decomposer([this](std::size_t nodeIndex, bool visibility) {
+                | std::views::filter(decomposer([this](auto nodeIndex, bool visibility) {
                     return visibility && asset.nodes[nodeIndex].meshIndex.has_value();
                 }))
                 | std::views::keys
-                | std::views::transform([](std::size_t nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
+                | std::views::transform([](auto nodeIndex) { return static_cast<std::size_t>(nodeIndex); })
                 | std::ranges::to<std::unordered_set>();
         }
     }, nodeVisibilities);

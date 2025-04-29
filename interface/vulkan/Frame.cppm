@@ -126,17 +126,17 @@ namespace vk_gltf_viewer::vulkan {
         struct ExecutionTask {
             struct Gltf {
                 struct RenderingNodes {
-                    std::unordered_set<std::uint16_t> indices;
+                    std::unordered_set<std::size_t> indices;
                 };
 
                 struct HoveringNode {
-                    std::uint16_t index;
+                    std::size_t index;
                     glm::vec4 outlineColor;
                     float outlineThickness;
                 };
 
                 struct SelectedNodes {
-                    const std::unordered_set<std::uint16_t>& indices;
+                    const std::unordered_set<std::size_t>& indices;
                     glm::vec4 outlineColor;
                     float outlineThickness;
                 };
@@ -192,7 +192,7 @@ namespace vk_gltf_viewer::vulkan {
             /**
              * @brief Node index of the current pointing mesh. <tt>std::nullopt</tt> if there is no mesh under the cursor.
              */
-            std::variant<std::monostate, std::uint16_t, std::vector<std::uint16_t>> mousePickingResult;
+            std::variant<std::monostate, std::size_t, std::vector<std::size_t>> mousePickingResult;
         };
 
         // --------------------
@@ -316,21 +316,21 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         struct RenderingNodes {
-            std::unordered_set<std::uint16_t> indices;
+            std::unordered_set<std::size_t> indices;
             std::map<CommandSeparationCriteria, buffer::IndirectDrawCommands> indirectDrawCommandBuffers;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> mousePickingIndirectDrawCommandBuffers;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> multiNodeMousePickingIndirectDrawCommandBuffers;
         };
 
         struct SelectedNodes {
-            std::unordered_set<std::uint16_t> indices;
+            std::unordered_set<std::size_t> indices;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
 
         struct HoveringNode {
-            std::uint16_t index;
+            std::size_t index;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
             glm::vec4 outlineColor;
             float outlineThickness;

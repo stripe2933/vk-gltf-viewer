@@ -28,8 +28,8 @@ namespace vk_gltf_viewer::control {
         void assetTextures(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures, const gltf::TextureUsage &textureUsage);
         void materialEditor(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures);
         void materialVariants(const fastgltf::Asset &asset);
-        void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities, const std::optional<std::uint16_t> &hoveringNodeIndex, const std::unordered_set<std::uint16_t> &selectedNodeIndices);
-        void nodeInspector(fastgltf::Asset &asset, const std::unordered_set<std::uint16_t> &selectedNodeIndices);
+        void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities, const std::optional<std::size_t> &hoveringNodeIndex, const std::unordered_set<std::size_t> &selectedNodeIndices);
+        void nodeInspector(fastgltf::Asset &asset, const std::unordered_set<std::size_t> &selectedNodeIndices);
         void background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureID eqmapTextureImGuiDescriptorSet);
         void inputControl(Camera &camera, bool& automaticNearFarPlaneAdjustment, bool &useFrustumCulling, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline);
