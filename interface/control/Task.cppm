@@ -24,7 +24,6 @@ namespace vk_gltf_viewer::control {
         struct SelectNode { std::uint16_t nodeIndex; bool combine; };
         struct HoverNodeFromSceneHierarchy { std::uint16_t nodeIndex; };
         struct NodeLocalTransformChanged { std::size_t nodeIndex; };
-        struct SelectedNodeWorldTransformChanged{};
         struct TightenNearFarPlane { };
         struct CameraViewChanged { };
         struct MaterialPropertyChanged {
@@ -76,7 +75,6 @@ namespace vk_gltf_viewer::control {
         task::SelectNode,
         task::HoverNodeFromSceneHierarchy,
         task::NodeLocalTransformChanged,
-        task::SelectedNodeWorldTransformChanged,
         task::TightenNearFarPlane,
         task::CameraViewChanged,
         task::MaterialPropertyChanged,

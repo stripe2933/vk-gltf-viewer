@@ -211,7 +211,7 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline);
             if (appState.gltfAsset && appState.gltfAsset->selectedNodeIndices.size() == 1) {
                 const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
-                imguiTaskCollector.imguizmo(appState.camera, gltf->nodeWorldTransforms[selectedNodeIndex], appState.imGuizmoOperation);
+                imguiTaskCollector.imguizmo(appState.camera, appState.gltfAsset->asset, selectedNodeIndex, gltf->nodeWorldTransforms[selectedNodeIndex], appState.imGuizmoOperation);
             }
             else {
                 imguiTaskCollector.imguizmo(appState.camera);
@@ -440,71 +440,6 @@ void vk_gltf_viewer::MainApp::run() {
                                 nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
                         }
                         frame.gltfAsset->nodeBuffer.update(nodeIndex, gltf->nodeWorldTransforms);
-                    };
-                    updateNodeTransformTask(frame);
-                    deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
-
-                    // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
-                    if (appState.automaticNearFarPlaneAdjustment) {
-                        const auto &[center, radius]
-                            = gltf->sceneMiniball
-                            = gltf::algorithm::getMiniball(gltf->asset, gltf->scene, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
-                        appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
-                    }
-                },
-                [&](control::task::SelectedNodeWorldTransformChanged) {
-                    const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
-                    const fastgltf::math::fmat4x4 &selectedNodeWorldTransform = gltf->nodeWorldTransforms[selectedNodeIndex];
-
-                    // Re-calculate the node local transform.
-                    //
-                    // glTF specification:
-                    // The global transformation matrix of a node is the product of the global transformation matrix of
-                    // its parent node and its own local transformation matrix. When the node has no parent node, its
-                    // global transformation matrix is identical to its local transformation matrix.
-                    //
-                    // (node world transform matrix) = (parent node world transform matrix) * (node local transform matrix).
-                    // => (node local transform matrix) = (parent node world transform matrix)^-1 * (node world transform matrix).
-
-                    // TODO: replace this function with fastgltf provided if it exported.
-                    static constexpr auto affineInverse = []<typename T>(const fastgltf::math::mat<T, 4, 4>& m) noexcept {
-                        const auto inv = inverse(fastgltf::math::mat<T, 3, 3>(m));
-                        const auto l = -inv * fastgltf::math::vec<T, 3>(m.col(3));
-                        return fastgltf::math::mat<T, 4, 4>(
-                            fastgltf::math::vec<T, 4>(inv.col(0).x(), inv.col(0).y(), inv.col(0).z(), 0.f),
-                            fastgltf::math::vec<T, 4>(inv.col(1).x(), inv.col(1).y(), inv.col(1).z(), 0.f),
-                            fastgltf::math::vec<T, 4>(inv.col(2).x(), inv.col(2).y(), inv.col(2).z(), 0.f),
-                            fastgltf::math::vec<T, 4>(l.x(), l.y(), l.z(), 1.f));
-                    };
-
-                    visit(fastgltf::visitor {
-                        [&](fastgltf::math::fmat4x4 &transformMatrix) {
-                            if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy.parentNodeIndices[selectedNodeIndex]) {
-                                transformMatrix = affineInverse(gltf->nodeWorldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
-                            }
-                            else {
-                                transformMatrix = selectedNodeWorldTransform;
-                            }
-                        },
-                        [&](fastgltf::TRS &trs) {
-                            if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy.parentNodeIndices[selectedNodeIndex]) {
-                                const fastgltf::math::fmat4x4 transformMatrix = affineInverse(gltf->nodeWorldTransforms[*parentNodeIndex]) * selectedNodeWorldTransform;
-                                decomposeTransformMatrix(transformMatrix, trs.scale, trs.rotation, trs.translation);
-                            }
-                            else {
-                                decomposeTransformMatrix(selectedNodeWorldTransform, trs.scale, trs.rotation, trs.translation);
-                            }
-                        },
-                    }, gltf->asset.nodes[selectedNodeIndex].transform);
-
-                    // Update the current and its descendant nodes' world transforms for both host and GPU side data.
-                    gltf->nodeWorldTransforms.update(selectedNodeIndex, selectedNodeWorldTransform);
-                    auto updateNodeTransformTask = [this, selectedNodeIndex](vulkan::Frame &frame) {
-                        if (frame.gltfAsset->instancedNodeWorldTransformBuffer) {
-                            frame.gltfAsset->instancedNodeWorldTransformBuffer->update(
-                                selectedNodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
-                        }
-                        frame.gltfAsset->nodeBuffer.update(selectedNodeIndex, gltf->nodeWorldTransforms);
                     };
                     updateNodeTransformTask(frame);
                     deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));

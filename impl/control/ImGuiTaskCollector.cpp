@@ -1467,16 +1467,41 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Camera &camera) {
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
     Camera &camera,
-    fastgltf::math::fmat4x4 &selectedNodeWorldTransform,
+    fastgltf::Asset &asset,
+    std::size_t selectedNodeIndex,
+    const fastgltf::math::fmat4x4 &selectedNodeWorldTransform,
     ImGuizmo::OPERATION operation
 ) {
     // Set ImGuizmo rect.
     ImGuizmo::BeginFrame();
     ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
 
-    fastgltf::math::fmat4x4 deltaMatrix;
-    if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, selectedNodeWorldTransform.data(), deltaMatrix.data())) {
-        tasks.emplace(std::in_place_type<task::SelectedNodeWorldTransformChanged>);
+    fastgltf::math::fmat4x4 newWorldTransform = selectedNodeWorldTransform;
+    if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
+        constexpr auto affineInverse = [](const fastgltf::math::fmat4x4 &m) noexcept {
+            const fastgltf::math::fmat3x3 inv = inverse(fastgltf::math::fmat3x3 { m });
+            const fastgltf::math::fvec3 l = -inv * fastgltf::math::fvec3 { m.col(3) };
+            return fastgltf::math::fmat4x4 {
+                fastgltf::math::fvec4 { inv.col(0).x(), inv.col(0).y(), inv.col(0).z(), 0.f },
+                fastgltf::math::fvec4 { inv.col(1).x(), inv.col(1).y(), inv.col(1).z(), 0.f },
+                fastgltf::math::fvec4 { inv.col(2).x(), inv.col(2).y(), inv.col(2).z(), 0.f },
+                fastgltf::math::fvec4 { l.x(), l.y(), l.z(), 1.f },
+            };
+        };
+        const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(selectedNodeWorldTransform) * newWorldTransform;
+
+        visit(fastgltf::visitor {
+            [&](fastgltf::math::fmat4x4 &transformMatrix) {
+                transformMatrix = transformMatrix * deltaMatrix;
+            },
+            [&](fastgltf::TRS &trs) {
+                fastgltf::math::fmat4x4 transformMatrix = toMatrix(trs);
+                transformMatrix = transformMatrix * deltaMatrix;
+                decomposeTransformMatrix(transformMatrix, trs.scale, trs.rotation, trs.translation);
+            },
+        }, asset.nodes[selectedNodeIndex].transform);
+
+        tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
     }
 
     constexpr ImVec2 size { 64.f, 64.f };

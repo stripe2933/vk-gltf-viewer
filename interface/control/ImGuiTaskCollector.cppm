@@ -34,7 +34,7 @@ namespace vk_gltf_viewer::control {
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureID eqmapTextureImGuiDescriptorSet);
         void inputControl(Camera &camera, bool& automaticNearFarPlaneAdjustment, bool &useFrustumCulling, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline);
         void imguizmo(Camera &camera);
-        void imguizmo(Camera &camera, fastgltf::math::fmat4x4 &selectedNodeWorldTransform, ImGuizmo::OPERATION operation);
+        void imguizmo(Camera &camera, fastgltf::Asset &asset, std::size_t selectedNodeIndex, const fastgltf::math::fmat4x4 &selectedNodeWorldTransform, ImGuizmo::OPERATION operation);
 
     private:
         std::queue<Task> &tasks;
