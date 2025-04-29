@@ -26,6 +26,7 @@ constexpr std::array optionalExtensions {
 };
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
+    .setDrawIndirectFirstInstance(true)
     .setSamplerAnisotropy(true)
     .setShaderInt16(true)
     .setMultiDrawIndirect(true)
@@ -130,7 +131,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
         }
 
         // Check physical device feature availability.
-        const vk::StructureChain availableFeatures
+        const auto [features2, vulkan11Features, vulkan12Features, dynamicRenderingFeatures, synchronization2Features, extendedDynamicStateFeatures]
             = physicalDevice.getFeatures2<
                 vk::PhysicalDeviceFeatures2,
                 vk::PhysicalDeviceVulkan11Features,
@@ -138,15 +139,13 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
                 vk::PhysicalDeviceDynamicRenderingFeatures,
                 vk::PhysicalDeviceSynchronization2Features,
                 vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
-        const vk::PhysicalDeviceFeatures &features = availableFeatures.get<vk::PhysicalDeviceFeatures2>().features;
-        const vk::PhysicalDeviceVulkan11Features &vulkan11Features = availableFeatures.get<vk::PhysicalDeviceVulkan11Features>();
-        const vk::PhysicalDeviceVulkan12Features &vulkan12Features = availableFeatures.get<vk::PhysicalDeviceVulkan12Features>();
-        if (!features.samplerAnisotropy ||
-            !features.shaderInt16 ||
-            !features.multiDrawIndirect ||
-            !features.shaderStorageImageWriteWithoutFormat ||
-            !features.independentBlend ||
-            !features.fragmentStoresAndAtomics ||
+        if (!features2.features.drawIndirectFirstInstance ||
+            !features2.features.samplerAnisotropy ||
+            !features2.features.shaderInt16 ||
+            !features2.features.multiDrawIndirect ||
+            !features2.features.shaderStorageImageWriteWithoutFormat ||
+            !features2.features.independentBlend ||
+            !features2.features.fragmentStoresAndAtomics ||
             !vulkan11Features.shaderDrawParameters ||
             !vulkan11Features.storageBuffer16BitAccess ||
             !vulkan11Features.uniformAndStorageBuffer16BitAccess ||
@@ -161,9 +160,9 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !vulkan12Features.scalarBlockLayout ||
             !vulkan12Features.timelineSemaphore ||
             !vulkan12Features.shaderInt8 ||
-            !availableFeatures.get<vk::PhysicalDeviceDynamicRenderingFeatures>().dynamicRendering ||
-            !availableFeatures.get<vk::PhysicalDeviceSynchronization2Features>().synchronization2 ||
-            !availableFeatures.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().extendedDynamicState) {
+            !dynamicRenderingFeatures.dynamicRendering ||
+            !synchronization2Features.synchronization2 ||
+            !extendedDynamicStateFeatures.extendedDynamicState) {
             return 0U;
         }
 
