@@ -40,6 +40,7 @@ import :control.AppWindow;
 import :global;
 import :gltf.algorithm.miniball;
 import :gltf.algorithm.misc;
+import :gltf.algorithm.traversal;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
 import :helpers.concepts;
@@ -189,18 +190,18 @@ void vk_gltf_viewer::MainApp::run() {
             NFD_GetNativeWindowFromGLFWWindow(window, &windowHandle);
 
             imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths(), windowHandle);
-            if (auto &gltfAsset = appState.gltfAsset) {
-                imguiTaskCollector.assetInspector(gltfAsset->asset, gltf->directory);
-                imguiTaskCollector.assetTextures(gltfAsset->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures, gltf->textureUsage);
-                imguiTaskCollector.materialEditor(gltfAsset->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures);
-                if (!gltfAsset->asset.materialVariants.empty()) {
-                    imguiTaskCollector.materialVariants(gltfAsset->asset);
+            if (gltf) {
+                imguiTaskCollector.assetInspector(gltf->asset, gltf->directory);
+                imguiTaskCollector.assetTextures(gltf->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures, gltf->textureUsage);
+                imguiTaskCollector.materialEditor(gltf->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures);
+                if (!gltf->asset.materialVariants.empty()) {
+                    imguiTaskCollector.materialVariants(gltf->asset);
                 }
-                imguiTaskCollector.sceneHierarchy(gltfAsset->asset, gltfAsset->getSceneIndex(), gltf->renderingNodes, gltfAsset->hoveringNodeIndex, gltfAsset->selectedNodeIndices);
-                imguiTaskCollector.nodeInspector(gltfAsset->asset, gltfAsset->selectedNodeIndices);
+                imguiTaskCollector.sceneHierarchy(gltf->asset, gltf->sceneIndex, gltf->renderingNodes, gltf->hoveringNode, gltf->selectedNodes);
+                imguiTaskCollector.nodeInspector(gltf->asset, gltf->selectedNodes);
 
-                if (!gltfAsset->asset.animations.empty()) {
-                    imguiTaskCollector.animations(gltfAsset->asset, gltf->animationEnabled);
+                if (!gltf->asset.animations.empty()) {
+                    imguiTaskCollector.animations(gltf->asset, gltf->animationEnabled);
                 }
             }
             if (const auto &iblInfo = appState.imageBasedLightingProperties) {
@@ -208,9 +209,9 @@ void vk_gltf_viewer::MainApp::run() {
             }
             imguiTaskCollector.background(appState.canSelectSkyboxBackground, appState.background);
             imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline);
-            if (appState.gltfAsset && appState.gltfAsset->selectedNodeIndices.size() == 1) {
-                const std::size_t selectedNodeIndex = *appState.gltfAsset->selectedNodeIndices.begin();
-                imguiTaskCollector.imguizmo(appState.camera, appState.gltfAsset->asset, selectedNodeIndex, gltf->nodeWorldTransforms[selectedNodeIndex], appState.imGuizmoOperation);
+            if (gltf && gltf->selectedNodes.size() == 1) {
+                const std::size_t selectedNodeIndex = *gltf->selectedNodes.begin();
+                imguiTaskCollector.imguizmo(appState.camera, gltf->asset, selectedNodeIndex, gltf->nodeWorldTransforms[selectedNodeIndex], appState.imGuizmoOperation);
             }
             else {
                 imguiTaskCollector.imguizmo(appState.camera);
@@ -252,7 +253,7 @@ void vk_gltf_viewer::MainApp::run() {
                 [this](const control::task::WindowKey &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureKeyboard) return;
 
-                    if (task.action == GLFW_PRESS && appState.canManipulateImGuizmo()) {
+                    if (task.action == GLFW_PRESS && gltf && gltf->selectedNodes.size() == 1) {
                         switch (task.key) {
                             case GLFW_KEY_T:
                                 appState.imGuizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
@@ -288,13 +289,29 @@ void vk_gltf_viewer::MainApp::run() {
                     if (task.button == GLFW_MOUSE_BUTTON_LEFT && task.action == GLFW_PRESS) {
                         lastMouseDownPosition = window.getCursorPos();
                     }
-                    else if (leftMouseButtonPressed && appState.gltfAsset) {
-                        if (appState.gltfAsset->hoveringNodeIndex) {
-                            tasks.emplace(std::in_place_type<control::task::SelectNode>, *appState.gltfAsset->hoveringNodeIndex, ImGui::GetIO().KeyCtrl);
+                    else if (leftMouseButtonPressed && gltf && !selectionRectanglePopped) {
+                        if (gltf->hoveringNode) {
+                            if (ImGui::GetIO().KeyCtrl) {
+                                // Toggle the hovering node's selection.
+                                if (auto it = gltf->selectedNodes.find(*gltf->hoveringNode); it != gltf->selectedNodes.end()) {
+                                    gltf->selectedNodes.erase(it);
+                                }
+                                else {
+                                    gltf->selectedNodes.emplace_hint(it, *gltf->hoveringNode);
+                                }
+                                tasks.emplace(std::in_place_type<control::task::NodeSelectionChanged>);
+                            }
+                            else if (gltf->selectedNodes.size() != 1 || (*gltf->hoveringNode != *gltf->selectedNodes.begin())) {
+                                // Unless there's only 1 selected node and is the same as the hovering node, change selection
+                                // to the hovering node.
+                                gltf->selectedNodes = { *gltf->hoveringNode };
+                                tasks.emplace(std::in_place_type<control::task::NodeSelectionChanged>);
+                            }
                             global::shouldNodeInSceneHierarchyScrolledToBeVisible = true;
                         }
-                        else if (!selectionRectanglePopped) {
-                            appState.gltfAsset->selectedNodeIndices.clear();
+                        else {
+                            gltf->selectedNodes.clear();
+                            tasks.emplace(std::in_place_type<control::task::NodeSelectionChanged>);
                         }
                     }
                 },
@@ -382,9 +399,6 @@ void vk_gltf_viewer::MainApp::run() {
                     nodeWorldTransformUpdateTask(frame);
                     deferredFrameUpdateTasks.push_back(std::move(nodeWorldTransformUpdateTask));
 
-                    // Update AppState.
-                    appState.gltfAsset->setScene(task.newSceneIndex);
-
                     // Adjust the camera based on the scene enclosing sphere.
                     const auto &[center, radius] = gltf->sceneMiniball;
                     const float distance = radius / std::sin(appState.camera.fov / 2.f);
@@ -399,19 +413,16 @@ void vk_gltf_viewer::MainApp::run() {
                     // TODO: instead of calculate all draw commands, update only changed stuffs based on task.nodeIndex.
                     regenerateDrawCommands.fill(true);
                 },
-                [this](const control::task::SelectNode &task) {
-                    if (!task.combine) {
-                        appState.gltfAsset->selectedNodeIndices.clear();
-                    }
-                    appState.gltfAsset->selectedNodeIndices.emplace(task.nodeIndex);
-
+                [this](control::task::NodeSelectionChanged) {
+                    assert(gltf);
                     // If selected nodes have a single material, show it in the Material Editor window.
-                    if (auto materialIndex = gltf::algorithm::getUniqueMaterialIndex(gltf->asset, appState.gltfAsset->selectedNodeIndices)) {
+                    if (auto materialIndex = gltf::algorithm::getUniqueMaterialIndex(gltf->asset, gltf->selectedNodes)) {
                         control::ImGuiTaskCollector::selectedMaterialIndex = *materialIndex;;
                     }
                 },
                 [this](const control::task::HoverNodeFromSceneHierarchy &task) {
-                    appState.gltfAsset->hoveringNodeIndex.emplace(task.nodeIndex);
+                    assert(gltf);
+                    gltf->hoveringNode.emplace(task.nodeIndex);
                 },
                 [&](const control::task::NodeLocalTransformChanged &task) {
                     fastgltf::math::fmat4x4 baseMatrix { 1.f };
@@ -436,7 +447,7 @@ void vk_gltf_viewer::MainApp::run() {
                     if (appState.automaticNearFarPlaneAdjustment) {
                         const auto &[center, radius]
                             = gltf->sceneMiniball
-                            = gltf::algorithm::getMiniball(gltf->asset, gltf->scene, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                            = gltf::algorithm::getMiniball(gltf->asset, gltf->asset.scenes[gltf->sceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
                 },
@@ -566,7 +577,7 @@ void vk_gltf_viewer::MainApp::run() {
                     if (appState.automaticNearFarPlaneAdjustment) {
                         const auto &[center, radius]
                             = gltf->sceneMiniball
-                            = gltf::algorithm::getMiniball(gltf->asset, gltf->scene, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                            = gltf::algorithm::getMiniball(gltf->asset, gltf->asset.scenes[gltf->sceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
                         appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
                     }
                 },
@@ -632,7 +643,6 @@ void vk_gltf_viewer::MainApp::run() {
                 }
             }(),
             .gltf = gltf.transform([&](Gltf &gltf) {
-                assert(appState.gltfAsset && "Synchronization error: gltfAsset is not set in AppState.");
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .asset = gltf.asset,
                     .orderedPrimitives = gltf.orderedPrimitives,
@@ -645,10 +655,10 @@ void vk_gltf_viewer::MainApp::run() {
                         return vulkan::Frame::ExecutionTask::Gltf::HoveringNode {
                             index, outline.color, outline.thickness,
                         };
-                    }, appState.gltfAsset->hoveringNodeIndex, appState.hoveringNodeOutline.to_optional()),
-                    .selectedNodes = value_if(!appState.gltfAsset->selectedNodeIndices.empty() && appState.selectedNodeOutline.has_value(), [&]() {
+                    }, gltf.hoveringNode, appState.hoveringNodeOutline.to_optional()),
+                    .selectedNodes = value_if(!gltf.selectedNodes.empty() && appState.selectedNodeOutline.has_value(), [&]() {
                         return vulkan::Frame::ExecutionTask::Gltf::SelectedNodes {
-                            appState.gltfAsset->selectedNodeIndices,
+                            gltf.selectedNodes,
                             appState.selectedNodeOutline->color,
                             appState.selectedNodeOutline->thickness,
                         };
@@ -662,20 +672,20 @@ void vk_gltf_viewer::MainApp::run() {
 		if (frameFeedbackResultValid[frameIndex]) {
             // Feedback the update result into this.
 		    if (auto *indices = get_if<std::vector<std::size_t>>(&updateResult.mousePickingResult)) {
-		        assert(appState.gltfAsset);
+		        assert(gltf);
 		        if (ImGui::GetIO().KeyCtrl) {
-		            appState.gltfAsset->selectedNodeIndices.insert_range(*indices);
+		            gltf->selectedNodes.insert_range(*indices);
 		        }
 		        else {
-		            appState.gltfAsset->selectedNodeIndices = { std::from_range, *indices };
+		            gltf->selectedNodes = { std::from_range, *indices };
 		        }
 		    }
 		    else if (auto *index = get_if<std::size_t>(&updateResult.mousePickingResult)) {
-		        assert(appState.gltfAsset);
-                appState.gltfAsset->hoveringNodeIndex = *index;
+		        assert(gltf);
+                gltf->hoveringNode = *index;
 		    }
-		    else if (appState.gltfAsset) {
-                appState.gltfAsset->hoveringNodeIndex.reset();
+		    else if (gltf) {
+                gltf->hoveringNode.reset();
 		    }
 		}
         else {
@@ -812,23 +822,26 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
         return gltf::Animation { asset, animation, assetExternalBuffers };
     }) }
     , animationEnabled { std::vector(asset.animations.size(), false) }
-    , nodeWorldTransforms { asset, scene }
-    , sceneInverseHierarchy { asset, scene } {
-    gltf::algorithm::traverseScene(asset, scene, [this](std::size_t nodeIndex) noexcept {
+    , sceneIndex { asset.defaultScene.value_or(0) }
+    , nodeWorldTransforms { asset, asset.scenes[sceneIndex] }
+    , sceneInverseHierarchy { asset, asset.scenes[sceneIndex] } {
+    gltf::algorithm::traverseScene(asset, asset.scenes[sceneIndex], [this](std::size_t nodeIndex) noexcept {
         renderingNodes.emplace(nodeIndex);
     });
-    sceneMiniball = gltf::algorithm::getMiniball(asset, scene, nodeWorldTransforms, assetExternalBuffers);
+    sceneMiniball = gltf::algorithm::getMiniball(asset, asset.scenes[sceneIndex], nodeWorldTransforms, assetExternalBuffers);
 }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
-    scene = asset.scenes[sceneIndex];
-    nodeWorldTransforms.update(scene);
-    sceneInverseHierarchy = { asset, scene };
+    this->sceneIndex = sceneIndex;
+    nodeWorldTransforms.update(asset.scenes[sceneIndex]);
+    sceneInverseHierarchy = { asset, asset.scenes[sceneIndex] };
     renderingNodes.clear();
-    gltf::algorithm::traverseScene(asset, scene, [this](std::size_t nodeIndex) noexcept {
+    gltf::algorithm::traverseScene(asset, asset.scenes[sceneIndex], [this](std::size_t nodeIndex) noexcept {
         renderingNodes.emplace(nodeIndex);
     });
-    sceneMiniball = gltf::algorithm::getMiniball(asset, scene, nodeWorldTransforms, assetExternalBuffers);
+    selectedNodes.clear();
+    hoveringNode.reset();
+    sceneMiniball = gltf::algorithm::getMiniball(asset, asset.scenes[sceneIndex], nodeWorldTransforms, assetExternalBuffers);
 }
 
 vk_gltf_viewer::MainApp::SkyboxResources::~SkyboxResources() {
@@ -987,7 +1000,6 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     window.setTitle(PATH_C_STR(path.filename()));
 
     // Update AppState.
-    appState.gltfAsset.emplace(gltf->asset);
     appState.pushRecentGltfPath(path);
 
     // Adjust the camera based on the scene enclosing sphere.
@@ -1008,7 +1020,6 @@ void vk_gltf_viewer::MainApp::closeGltf() {
     }
     sharedData.gltfAsset.reset();
     gltf.reset();
-    appState.gltfAsset.reset();
 
     window.setTitle("Vulkan glTF Viewer");
 }

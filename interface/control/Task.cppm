@@ -20,7 +20,7 @@ namespace vk_gltf_viewer::control {
         struct LoadEqmap { std::filesystem::path path; };
         struct ChangeScene { std::size_t newSceneIndex; };
         struct NodeVisibilityChanged { std::size_t nodeIndex; };
-        struct SelectNode { std::size_t nodeIndex; bool combine; };
+        struct NodeSelectionChanged { };
         struct HoverNodeFromSceneHierarchy { std::size_t nodeIndex; };
         struct NodeLocalTransformChanged { std::size_t nodeIndex; };
         struct TightenNearFarPlane { };
@@ -70,7 +70,7 @@ namespace vk_gltf_viewer::control {
         task::LoadEqmap,
         task::ChangeScene,
         task::NodeVisibilityChanged,
-        task::SelectNode,
+        task::NodeSelectionChanged,
         task::HoverNodeFromSceneHierarchy,
         task::NodeLocalTransformChanged,
         task::TightenNearFarPlane,

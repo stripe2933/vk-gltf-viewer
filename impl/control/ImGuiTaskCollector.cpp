@@ -937,7 +937,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
     std::size_t sceneIndex,
     std::unordered_set<std::size_t> &visibleNodes,
     const std::optional<std::size_t> &hoveringNodeIndex,
-    const std::unordered_set<std::size_t> &selectedNodeIndices
+    std::unordered_set<std::size_t> &selectedNodeIndices
 ) {
     if (ImGui::Begin("Scene Hierarchy")) {
         if (ImGui::BeginCombo("Scene", nonempty_or(asset.scenes[sceneIndex].name, [&]() { return tempStringBuffer.write("<Unnamed scene {}>", sceneIndex).view(); }).c_str())) {
@@ -1010,17 +1010,41 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
                     return ImGui::TreeNodeEx(tempStringBuffer.view().c_str(), flags);
                 }, nodeIndex == hoveringNodeIndex);
-                if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && !isNodeSelected) {
-                    tasks.emplace(std::in_place_type<task::SelectNode>, nodeIndex, ImGui::GetIO().KeyCtrl);
+
+                // Handle clicking tree node.
+                if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
+                    if (ImGui::GetIO().KeyCtrl) {
+                        // Toggle the selection.
+                        if (isNodeSelected) {
+                            selectedNodeIndices.erase(nodeIndex);
+                        }
+                        else {
+                            selectedNodeIndices.emplace(nodeIndex);
+                        }
+                        tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
+                    }
+                    else if (selectedNodeIndices.size() != 1 || nodeIndex != *selectedNodeIndices.begin()) {
+                        selectedNodeIndices = { nodeIndex };
+                        tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
+                    }
                 }
+
+                // Handle hovering tree node.
                 if (ImGui::IsItemHovered() && nodeIndex != hoveringNodeIndex) {
                     tasks.emplace(std::in_place_type<task::HoverNodeFromSceneHierarchy>, nodeIndex);
                 }
+
+                // Open context menu when right-click the tree node.
                 if (ImGui::BeginPopupContextItem()) {
                     if (ImGui::Selectable("Select it and its descendants")) {
+                        bool selectionChanged = false;
                         gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
-                            tasks.emplace(std::in_place_type<task::SelectNode>, nodeIndex, true);
+                            selectionChanged |= selectedNodeIndices.emplace(nodeIndex).second;
                         });
+
+                        if (selectionChanged) {
+                            tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
+                        }
                     }
                     if (ImGui::Selectable("Make it and its descendants visible")) {
                         gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {

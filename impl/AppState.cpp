@@ -3,12 +3,6 @@ import :AppState;
 
 import std;
 
-void vk_gltf_viewer::AppState::GltfAsset::setScene(std::size_t sceneIndex) noexcept {
-    this->sceneIndex = sceneIndex;
-    selectedNodeIndices.clear();
-    hoveringNodeIndex.reset();
-}
-
 vk_gltf_viewer::AppState::AppState() noexcept
     : camera {
         glm::vec3 { 0.f, 0.f, 5.f }, normalize(glm::vec3 { 0.f, 0.f, -1.f }), glm::vec3 { 0.f, 1.f, 0.f },
