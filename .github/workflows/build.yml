@@ -53,18 +53,6 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         run: sudo apt-get install ninja-build libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev glslc
 
-      - name: Setup vcpkg (macOS)
-        if: ${{ runner.os == 'macOS' }}
-        run: |
-          git clone https://github.com/microsoft/vcpkg.git --depth 1
-          cd vcpkg && ./bootstrap-vcpkg.sh
-          echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
-          echo "${{ github.workspace }}/vcpkg" >> $GITHUB_PATH
-
-      - name: Setup vcpkg (Linux)
-        if: ${{ runner.os == 'Linux' }}
-        run: echo ${VCPKG_INSTALLATION_ROOT} >> GITHUB_PATH
-
       - name: Enable Developer Command Prompt (Windows)
         if: ${{ runner.os == 'Windows' }}
         uses: ilammy/msvc-dev-cmd@v1
