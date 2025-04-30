@@ -47,11 +47,11 @@ jobs:
 
       - name: Install build dependencies (macOS)
         if: ${{ runner.os == 'macOS' }}
-        run: brew install llvm ninja autoconf automake libtool nasm shaderc molten-vk
+        run: brew install llvm autoconf automake libtool nasm shaderc molten-vk
 
       - name: Install build dependencies (Linux)
         if: ${{ runner.os == 'Linux' }}
-        run: sudo apt-get install ninja-build libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev glslc
+        run: sudo apt-get install libc++-dev libc++abi-dev xorg-dev libltdl-dev glslc
 
       - name: Enable Developer Command Prompt (Windows)
         if: ${{ runner.os == 'Windows' }}
