@@ -126,7 +126,7 @@ namespace vk_gltf_viewer::vulkan {
         struct ExecutionTask {
             struct Gltf {
                 struct RenderingNodes {
-                    std::unordered_set<std::size_t> indices;
+                    const std::unordered_set<std::size_t> &indices;
                 };
 
                 struct HoveringNode {

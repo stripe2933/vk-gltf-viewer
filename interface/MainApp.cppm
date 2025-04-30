@@ -92,6 +92,8 @@ namespace vk_gltf_viewer {
             gltf::NodeWorldTransforms nodeWorldTransforms;
             gltf::ds::SceneInverseHierarchy sceneInverseHierarchy;
 
+            std::unordered_set<std::size_t> renderingNodes;
+
 			/**
 			 * @brief Smallest enclosing sphere of all meshes (a.k.a. miniball) in the scene.
              * 

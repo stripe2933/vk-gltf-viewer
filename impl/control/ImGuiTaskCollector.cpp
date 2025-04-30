@@ -934,7 +934,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(const fastglt
 void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
     fastgltf::Asset &asset,
     std::size_t sceneIndex,
-    std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities,
+    std::unordered_set<std::size_t> &visibleNodes,
     const std::optional<std::size_t> &hoveringNodeIndex,
     const std::unordered_set<std::size_t> &selectedNodeIndices
 ) {
@@ -957,17 +957,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
         ImGui::SameLine();
         ImGui::HelperMarker("(?)", "If all nested nodes have only one child, they will be shown as a single node (with combined name).");
-
-        if (bool tristateVisibility = holds_alternative<std::vector<std::optional<bool>>>(visibilities);
-            ImGui::Checkbox("Use tristate visibility", &tristateVisibility)) {
-            tasks.emplace(std::in_place_type<task::ChangeNodeVisibilityType>);
-        }
-        ImGui::SameLine();
-        ImGui::HelperMarker(
-            "(?)",
-            "If all children of a node are visible, the node will be checked. "
-            "If all children are hidden, the node will be unchecked. "
-            "If some children are visible and some are hidden, the node will be in an indeterminate state.");
 
         // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& is passed (but it is unnecessary). Remove the parameter when fixed.
         const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
@@ -999,7 +988,26 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                     if (node.children.empty()) flags |= ImGuiTreeNodeFlags_Bullet | ImGuiTreeNodeFlags_Leaf;
 
                     ImGui::AlignTextToFramePadding();
-                    return ImGui::TreeNodeEx("##treenode", flags);
+
+                    tempStringBuffer.clear();
+                    const auto appendNodeLabel = [&](std::size_t nodeIndex) {
+                        const fastgltf::Node &node = asset.nodes[nodeIndex];
+
+                        if (std::string_view name = node.name; name.empty()) {
+                            tempStringBuffer.append("<Unnamed node {}>", nodeIndex);
+                        }
+                        else {
+                            tempStringBuffer.append(name);
+                        }
+                    };
+                    for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
+                        appendNodeLabel(ancestorNodeIndex);
+                        tempStringBuffer.append(" / ");
+                    }
+                    appendNodeLabel(nodeIndex);
+                    tempStringBuffer.append("##treenode");
+
+                    return ImGui::TreeNodeEx(tempStringBuffer.view().c_str(), flags);
                 }, nodeIndex == hoveringNodeIndex);
                 if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && !isNodeSelected) {
                     tasks.emplace(std::in_place_type<task::SelectNode>, nodeIndex, ImGui::GetIO().KeyCtrl);
@@ -1015,59 +1023,23 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 }
 
                 // --------------------
-                // Hierarchy checkbox.
-                // --------------------
-
-                if (auto pVisibilities = get_if<std::vector<std::optional<bool>>>(&visibilities)) {
-                    ImGui::SameLine();
-                    if (ImGui::CheckboxTristate("##hierarchy-checkbox", (*pVisibilities)[nodeIndex])) {
-                        tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
-                    }
-                }
-
-                // --------------------
-                // Node name.
-                // --------------------
-
-                tempStringBuffer.clear();
-                const auto appendNodeLabel = [&](std::size_t nodeIndex) {
-                    const fastgltf::Node &node = asset.nodes[nodeIndex];
-
-                    if (std::string_view name = node.name; name.empty()) {
-                        tempStringBuffer.append("<Unnamed node {}>", nodeIndex);
-                    }
-                    else {
-                        tempStringBuffer.append(name);
-                    }
-                };
-                for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
-                    appendNodeLabel(ancestorNodeIndex);
-                    tempStringBuffer.append(" / ");
-                }
-                appendNodeLabel(nodeIndex);
-
-                ImGui::SameLine();
-                ImGui::TextUnformatted(tempStringBuffer.view());
-
-                // --------------------
                 // Node mesh.
                 // --------------------
 
                 if (node.meshIndex) {
                     ImGui::TableSetColumnIndex(1);
-                    const bool visibilityChanged = visit(multilambda {
-                        [&](std::span<std::optional<bool>> visibilities) {
-                            return ImGui::CheckboxTristate("##visibility", visibilities[nodeIndex]);
-                        },
-                        [&](std::vector<bool> &visibilities) {
-                            bool visible = visibilities[nodeIndex];
-                            if (ImGui::Checkbox("##visibility", &visible)) {
-                                visibilities[nodeIndex].flip();
-                            }
-                            return visible;
-                        },
-                    }, visibilities);
-                    if (visibilityChanged)  {
+
+                    const auto it = visibleNodes.find(nodeIndex);
+                    if (bool visible = it != visibleNodes.end(); ImGui::Checkbox("##visibility", &visible)) {
+                        if (visible) {
+                            // Invisible -> visible.
+                            visibleNodes.emplace_hint(it, nodeIndex);
+                        }
+                        else {
+                            // Visible -> invisible.
+                            visibleNodes.erase(it);
+                        }
+
                         tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                     }
                 }

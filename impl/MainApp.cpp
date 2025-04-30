@@ -47,7 +47,6 @@ import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.optional;
 import :helpers.ranges;
-import :helpers.tristate;
 import :imgui.TaskCollector;
 import :vulkan.Frame;
 import :vulkan.imgui.UserData;
@@ -197,7 +196,7 @@ void vk_gltf_viewer::MainApp::run() {
                 if (!gltfAsset->asset.materialVariants.empty()) {
                     imguiTaskCollector.materialVariants(gltfAsset->asset);
                 }
-                imguiTaskCollector.sceneHierarchy(gltfAsset->asset, gltfAsset->getSceneIndex(), gltfAsset->nodeVisibilities, gltfAsset->hoveringNodeIndex, gltfAsset->selectedNodeIndices);
+                imguiTaskCollector.sceneHierarchy(gltfAsset->asset, gltfAsset->getSceneIndex(), gltf->renderingNodes, gltfAsset->hoveringNodeIndex, gltfAsset->selectedNodeIndices);
                 imguiTaskCollector.nodeInspector(gltfAsset->asset, gltfAsset->selectedNodeIndices);
 
                 if (!gltfAsset->asset.animations.empty()) {
@@ -396,20 +395,9 @@ void vk_gltf_viewer::MainApp::run() {
 
                     regenerateDrawCommands.fill(true);
                 },
-                [this](control::task::ChangeNodeVisibilityType) {
-                    appState.gltfAsset->switchNodeVisibilityType();
-                },
-                [this](control::task::NodeVisibilityChanged task) {
-                    if (auto *pVisibilities = get_if<std::vector<std::optional<bool>>>(&appState.gltfAsset->nodeVisibilities)) {
-                        // If using tristate node visibility, visibility has to be propagated to both its descendants and ancestors.
-                        tristate::propagateTopDown(
-                            [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
-                            task.nodeIndex, *pVisibilities);
-                        tristate::propagateBottomUp(
-                            LIFT(gltf->sceneInverseHierarchy.parentNodeIndices.operator[]),
-                            [&](auto i) -> decltype(auto) { return gltf->asset.nodes[i].children; },
-                            task.nodeIndex, *pVisibilities);
-                    }
+                [&](control::task::NodeVisibilityChanged task) {
+                    // TODO: instead of calculate all draw commands, update only changed stuffs based on task.nodeIndex.
+                    regenerateDrawCommands.fill(true);
                 },
                 [this](const control::task::SelectNode &task) {
                     if (!task.combine) {
@@ -651,7 +639,7 @@ void vk_gltf_viewer::MainApp::run() {
                     .nodeWorldTransforms = gltf.nodeWorldTransforms,
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
                     .renderingNodes = {
-                        .indices = appState.gltfAsset->getVisibleNodeIndices(),
+                        .indices = gltf.renderingNodes,
                     },
                     .hoveringNode = transform([&](std::size_t index, const AppState::Outline &outline) {
                         return vulkan::Frame::ExecutionTask::Gltf::HoveringNode {
@@ -826,6 +814,9 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     , animationEnabled { std::vector(asset.animations.size(), false) }
     , nodeWorldTransforms { asset, scene }
     , sceneInverseHierarchy { asset, scene } {
+    gltf::algorithm::traverseScene(asset, scene, [this](std::size_t nodeIndex) noexcept {
+        renderingNodes.emplace(nodeIndex);
+    });
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, nodeWorldTransforms, assetExternalBuffers);
 }
 
@@ -833,6 +824,10 @@ void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     scene = asset.scenes[sceneIndex];
     nodeWorldTransforms.update(scene);
     sceneInverseHierarchy = { asset, scene };
+    renderingNodes.clear();
+    gltf::algorithm::traverseScene(asset, scene, [this](std::size_t nodeIndex) noexcept {
+        renderingNodes.emplace(nodeIndex);
+    });
     sceneMiniball = gltf::algorithm::getMiniball(asset, scene, nodeWorldTransforms, assetExternalBuffers);
 }
 

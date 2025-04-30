@@ -39,7 +39,6 @@ namespace vk_gltf_viewer {
         class GltfAsset {
         public:
             fastgltf::Asset &asset;
-            std::variant<std::vector<std::optional<bool>>, std::vector<bool>> nodeVisibilities { std::in_place_index<0>, asset.nodes.size(), true };
 
             std::unordered_set<std::size_t> selectedNodeIndices;
             std::optional<std::size_t> hoveringNodeIndex;
@@ -50,22 +49,6 @@ namespace vk_gltf_viewer {
             [[nodiscard]] std::size_t getSceneIndex() const noexcept { return sceneIndex; }
             [[nodiscard]] fastgltf::Scene& getScene() const noexcept { return asset.scenes[sceneIndex]; }
             void setScene(std::size_t _sceneIndex) noexcept;
-
-            /**
-             * @brief Switch node visibility type between tristate and binary.
-             *
-             * If the current visibility type is tristate, it will be switched to binary. All binary visibilities will be remained, and indeterminate visibilities will be set to <tt>true</tt>.
-             * If the current visibility type is binary, it will be switched to tristate. All visibilities will be set to <tt>true</tt>.
-             */
-            void switchNodeVisibilityType();
-
-            /**
-             * From <tt>nodeVisibilities</tt>, get the unique indices of the visible nodes.
-             * @return <tt>std::unordered_set</tt> of the visible node indices.
-             * @note Since the result only contains node which is visible, nodes without mesh are excluded regardless of
-             * its corresponding <tt>nodeVisibilities</tt> is <tt>true</tt>.
-             */
-            [[nodiscard]] std::unordered_set<std::size_t> getVisibleNodeIndices() const noexcept;
 
         private:
             std::size_t sceneIndex = asset.defaultScene.value_or(0);
