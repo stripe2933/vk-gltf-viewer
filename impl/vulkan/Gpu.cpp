@@ -21,7 +21,7 @@ constexpr std::array requiredExtensions {
 
 constexpr std::array optionalExtensions {
     vk::KHRSwapchainMutableFormatExtensionName,
-    vk::EXTIndexTypeUint8ExtensionName,
+    vk::KHRIndexTypeUint8ExtensionName,
     vk::AMDShaderImageLoadStoreLodExtensionName,
 };
 
