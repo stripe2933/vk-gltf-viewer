@@ -343,7 +343,7 @@ void vk_gltf_viewer::MainApp::run() {
                         // If directory contains glTF file, load it.
                         for (const std::filesystem::path &childPath : std::filesystem::directory_iterator { path }) {
                             if (ranges::one_of(childPath.extension(), { ".gltf", ".glb" })) {
-                                tasks.emplace(std::in_place_type<control::task::LoadGltf>, path);
+                                tasks.emplace(std::in_place_type<control::task::LoadGltf>, childPath);
                                 return;
                             }
                         }
