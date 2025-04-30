@@ -70,6 +70,7 @@ namespace ImGui {
     export using ImGui::BeginMainMenuBar;
     export using ImGui::BeginMenu;
     export using ImGui::BeginPopup;
+    export using ImGui::BeginPopupContextItem;
     export using ImGui::BeginPopupModal;
     export using ImGui::BeginTabBar;
     export using ImGui::BeginTabItem;

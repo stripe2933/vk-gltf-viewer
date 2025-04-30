@@ -15,6 +15,7 @@ import imgui.internal;
 import imgui.math;
 import ImGuizmo;
 import :global;
+import :gltf.algorithm.traversal;
 import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.formatter.ByteSize;
@@ -1014,6 +1015,48 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 }
                 if (ImGui::IsItemHovered() && nodeIndex != hoveringNodeIndex) {
                     tasks.emplace(std::in_place_type<task::HoverNodeFromSceneHierarchy>, nodeIndex);
+                }
+                if (ImGui::BeginPopupContextItem()) {
+                    if (ImGui::Selectable("Select it and its descendants")) {
+                        gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                            tasks.emplace(std::in_place_type<task::SelectNode>, nodeIndex, true);
+                        });
+                    }
+                    if (ImGui::Selectable("Make it and its descendants visible")) {
+                        gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                            if (!asset.nodes[nodeIndex].meshIndex) return;
+
+                            if (auto it = visibleNodes.find(nodeIndex); it == visibleNodes.end()) {
+                                visibleNodes.emplace_hint(it, nodeIndex);
+                                tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                            }
+                        });
+                    }
+                    if (ImGui::Selectable("Make it and its descendants invisible")) {
+                        gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                            if (!asset.nodes[nodeIndex].meshIndex) return;
+
+                            if (auto it = visibleNodes.find(nodeIndex); it != visibleNodes.end()) {
+                                visibleNodes.erase(it);
+                                tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                            }
+                        });
+                    }
+                    if (ImGui::Selectable("Toggle it and its descendants' visibilities")) {
+                        gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                            if (!asset.nodes[nodeIndex].meshIndex) return;
+
+                            if (auto it = visibleNodes.find(nodeIndex); it != visibleNodes.end()) {
+                                visibleNodes.erase(it);
+                            }
+                            else {
+                                visibleNodes.emplace_hint(it, nodeIndex);
+                            }
+                            tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                        });
+                    }
+
+                    ImGui::EndPopup();
                 }
 
                 if (global::shouldNodeInSceneHierarchyScrolledToBeVisible &&
