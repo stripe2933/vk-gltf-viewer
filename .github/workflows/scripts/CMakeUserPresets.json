@@ -7,6 +7,9 @@
       "hidden": true,
       "cacheVariables": {
         "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON"
+      },
+      "environment": {
+        "VCPKG_ROOT": "$env{VCPKG_INSTALLATION_ROOT}"
       }
     },
     {
@@ -46,9 +49,6 @@
         "CMAKE_CXX_FLAGS": "-stdlib=libc++ -Wno-deprecated-declarations",
         "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++ -lc++abi",
         "VCPKG_TARGET_TRIPLET": "x64-linux-clang-release"
-      },
-      "environment": {
-        "VCPKG_ROOT": "$env{VCPKG_INSTALLATION_ROOT}"
       }
     },
     {
