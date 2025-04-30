@@ -21,11 +21,12 @@ constexpr std::array requiredExtensions {
 
 constexpr std::array optionalExtensions {
     vk::KHRSwapchainMutableFormatExtensionName,
-    vk::EXTIndexTypeUint8ExtensionName,
+    vk::KHRIndexTypeUint8ExtensionName,
     vk::AMDShaderImageLoadStoreLodExtensionName,
 };
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
+    .setDrawIndirectFirstInstance(true)
     .setSamplerAnisotropy(true)
     .setShaderInt16(true)
     .setMultiDrawIndirect(true)
@@ -130,7 +131,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
         }
 
         // Check physical device feature availability.
-        const vk::StructureChain availableFeatures
+        const auto [features2, vulkan11Features, vulkan12Features, dynamicRenderingFeatures, synchronization2Features, extendedDynamicStateFeatures]
             = physicalDevice.getFeatures2<
                 vk::PhysicalDeviceFeatures2,
                 vk::PhysicalDeviceVulkan11Features,
@@ -138,15 +139,13 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
                 vk::PhysicalDeviceDynamicRenderingFeatures,
                 vk::PhysicalDeviceSynchronization2Features,
                 vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
-        const vk::PhysicalDeviceFeatures &features = availableFeatures.get<vk::PhysicalDeviceFeatures2>().features;
-        const vk::PhysicalDeviceVulkan11Features &vulkan11Features = availableFeatures.get<vk::PhysicalDeviceVulkan11Features>();
-        const vk::PhysicalDeviceVulkan12Features &vulkan12Features = availableFeatures.get<vk::PhysicalDeviceVulkan12Features>();
-        if (!features.samplerAnisotropy ||
-            !features.shaderInt16 ||
-            !features.multiDrawIndirect ||
-            !features.shaderStorageImageWriteWithoutFormat ||
-            !features.independentBlend ||
-            !features.fragmentStoresAndAtomics ||
+        if (!features2.features.drawIndirectFirstInstance ||
+            !features2.features.samplerAnisotropy ||
+            !features2.features.shaderInt16 ||
+            !features2.features.multiDrawIndirect ||
+            !features2.features.shaderStorageImageWriteWithoutFormat ||
+            !features2.features.independentBlend ||
+            !features2.features.fragmentStoresAndAtomics ||
             !vulkan11Features.shaderDrawParameters ||
             !vulkan11Features.storageBuffer16BitAccess ||
             !vulkan11Features.uniformAndStorageBuffer16BitAccess ||
@@ -161,9 +160,9 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !vulkan12Features.scalarBlockLayout ||
             !vulkan12Features.timelineSemaphore ||
             !vulkan12Features.shaderInt8 ||
-            !availableFeatures.get<vk::PhysicalDeviceDynamicRenderingFeatures>().dynamicRendering ||
-            !availableFeatures.get<vk::PhysicalDeviceSynchronization2Features>().synchronization2 ||
-            !availableFeatures.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().extendedDynamicState) {
+            !dynamicRenderingFeatures.dynamicRendering ||
+            !synchronization2Features.synchronization2 ||
+            !extendedDynamicStateFeatures.extendedDynamicState) {
             return 0U;
         }
 
@@ -216,21 +215,25 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     supportShaderImageLoadStoreLod = availableExtensionNames.contains(vk::AMDShaderImageLoadStoreLodExtensionName);
 
     // Set optional features if available.
-    const vk::StructureChain availableFeatures
-        = physicalDevice.getFeatures2<
-            vk::PhysicalDeviceFeatures2,
-            vk::PhysicalDeviceVulkan12Features,
-            vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
+    const auto [_, vulkan12Features, indexTypeUint8Features] = physicalDevice.getFeatures2<
+        vk::PhysicalDeviceFeatures2,
+        vk::PhysicalDeviceVulkan12Features,
+        vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
 
-    supportDrawIndirectCount = availableFeatures.template get<vk::PhysicalDeviceVulkan12Features>().drawIndirectCount;
-    supportUint8Index = availableFeatures.template get<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>().indexTypeUint8;
+    supportDrawIndirectCount = vulkan12Features.drawIndirectCount;
 #if __APPLE__
+    // MoltenVK supports VK_KHR_index_type_uint8 from v1.3.0 by dynamically generating 16-bit indices from 8-bit indices
+    // using Metal compute command encoder, therefore it breaks the render pass and has performance defect. Since the
+    // application already has CPU index conversion path, disable it.
+    supportUint8Index = false;
+
     // MoltenVK with Metal Argument Buffer does not work with variable descriptor count.
     // Tracked issue: https://github.com/KhronosGroup/MoltenVK/issues/2343
     // TODO: Remove this workaround when the issue is fixed.
     supportVariableDescriptorCount = false;
 #else
-    supportVariableDescriptorCount = availableFeatures.template get<vk::PhysicalDeviceVulkan12Features>().descriptorBindingVariableDescriptorCount;
+    supportUint8Index = indexTypeUint8Features.indexTypeUint8;
+    supportVariableDescriptorCount = vulkan12Features.descriptorBindingVariableDescriptorCount;
 #endif
 
     constexpr vk::FormatFeatureFlags requiredFormatFeatureFlags

@@ -338,7 +338,7 @@ void vk_gltf_viewer::MainApp::run() {
                         #endif
                     };
 
-                    const std::filesystem::path path = task.paths[0];
+                    const std::filesystem::path &path = task.paths[0];
                     if (std::filesystem::is_directory(path)) {
                         // If directory contains glTF file, load it.
                         for (const std::filesystem::path &childPath : std::filesystem::directory_iterator { path }) {
@@ -1139,8 +1139,8 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         // After this scope, data will be automatically freed.
     }();
 
-    std::uint32_t eqmapImageMipLevels = 0;
-    for (std::uint32_t mipWidth = eqmapImageExtent.width; mipWidth > 512; mipWidth >>= 1, ++eqmapImageMipLevels);
+    std::uint32_t eqmapImageMipLevels = 1;
+    for (std::uint32_t mipWidth = eqmapImageExtent.width >> 1; mipWidth > 512; mipWidth >>= 1, ++eqmapImageMipLevels);
 
     const vku::AllocatedImage eqmapImage { gpu.allocator, vk::ImageCreateInfo {
         {},
@@ -1165,13 +1165,14 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
     } };
 
+    const std::uint32_t cubemapSize = std::bit_floor(eqmapImageExtent.height / 2);
     vku::AllocatedImage cubemapImage { gpu.allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
         vk::ImageType::e2D,
         // Use non-sRGB format as sRGB format is usually not compatible with storage image.
         eqmapImageFormat == vk::Format::eR8G8B8A8Srgb ? vk::Format::eR8G8B8A8Unorm : eqmapImageFormat,
-        vk::Extent3D { 1024, 1024, 1 },
-        vku::Image::maxMipLevels(1024), 6,
+        vk::Extent3D { cubemapSize, cubemapSize, 1 },
+        vku::Image::maxMipLevels(cubemapSize), 6,
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
         cubemap::CubemapComputer::requiredCubemapImageUsageFlags
@@ -1188,7 +1189,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         .useShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod,
     } };
 
-    constexpr std::uint32_t prefilteredmapSize = 256;
+    const std::uint32_t prefilteredmapSize = std::min(cubemapSize, 256U);
     vku::AllocatedImage prefilteredmapImage { gpu.allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
         vk::ImageType::e2D,
@@ -1547,7 +1548,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     }, ~0ULL);
 
     const std::span<glm::vec3> sphericalHarmonicCoefficients = sphericalHarmonicsBuffer.asRange<glm::vec3>();
-    for (float multiplier = 4.f * std::numbers::pi_v<float> / (cubemapImage.extent.width * cubemapImage.extent.width * 6.f);
+    for (float multiplier = 4.f * std::numbers::pi_v<float> / (cubemapSize * cubemapSize * 6.f);
         glm::vec3 &v : sphericalHarmonicCoefficients) {
         v *= multiplier;
     }
@@ -1561,10 +1562,10 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             .dimension = { eqmapImage.extent.width, eqmapImage.extent.height },
         },
         .cubemap = {
-            .size = cubemapImage.extent.width,
+            .size = cubemapSize,
         },
         .prefilteredmap = {
-            .size = prefilteredmapImage.extent.width,
+            .size = prefilteredmapSize,
             .roughnessLevels = prefilteredmapImage.mipLevels,
             .sampleCount = 1024,
         }
@@ -1572,12 +1573,6 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     std::ranges::copy(
         sphericalHarmonicCoefficients,
         appState.imageBasedLightingProperties->diffuseIrradiance.sphericalHarmonicCoefficients.begin());
-
-    if (skyboxResources){
-        // Since a descriptor set allocated using ImGui_ImplVulkan_AddTexture cannot be updated, it has to be freed
-        // and re-allocated (which done in below).
-        ImGui_ImplVulkan_RemoveTexture(skyboxResources->imGuiEqmapTextureDescriptorSet);
-    }
 
     // Emplace the results into skyboxResources and imageBasedLightingResources.
     vk::raii::ImageView reducedEqmapImageView { gpu.device, reducedEqmapImage.getViewCreateInfo() };

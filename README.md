@@ -90,6 +90,7 @@ The extensions and feature used in this application are quite common in the mode
   - (optional) `VK_AMD_shader_image_load_store_lod` (can replace the descriptor indexing based cubemap mipmapping and prefilteredmap generation[^2])
 - Device Features
   - `VkPhysicalDeviceFeatures`
+    - `drawIndirectFirstInstance`
     - `samplerAnistropy`
     - `shaderInt16`
     - `multiDrawIndirect`
