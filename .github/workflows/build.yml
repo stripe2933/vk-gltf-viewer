@@ -8,6 +8,10 @@ on:
       - '!LICENSE.txt'
       - '!docs/**'
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -61,7 +65,15 @@ jobs:
         if: ${{ runner.os == 'macOS' }}
         run: sed -i '' 's|libc++.modules.json|../../c++/libc++.modules.json|g' /opt/homebrew/opt/cmake/share/cmake/Modules/Compiler/Clang-CXX-CXXImportStd.cmake # https://gitlab.kitware.com/cmake/cmake/-/issues/25965#note_1523575
 
+      - uses: TAServers/vcpkg-cache@v3
+        id: vcpkg-cache
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Configure
+        env:
+          VCPKG_FEATURE_FLAGS: "binarycaching"
+          VCPKG_BINARY_SOURCES: "clear;files,${{ steps.vcpkg-cache.outputs.path }},readwrite"
         run: |
           vcpkg add port cgal ktx openexr
           mv .github/workflows/scripts/* .
