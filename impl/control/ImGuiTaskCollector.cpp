@@ -1043,7 +1043,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
                 // Handle hovering tree node.
                 if (ImGui::IsItemHovered() && nodeIndex != hoveringNodeIndex) {
-                    tasks.emplace(std::in_place_type<task::HoverNodeFromSceneHierarchy>, nodeIndex);
+                    tasks.emplace(std::in_place_type<task::HoverNodeFromGui>, nodeIndex);
                 }
 
                 // Open context menu when right-click the tree node.
@@ -1215,7 +1215,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
     fastgltf::Asset &asset,
-    const std::unordered_set<std::size_t> &selectedNodeIndices
+    std::unordered_set<std::size_t> &selectedNodeIndices
 ) {
     if (ImGui::Begin("Node Inspector")) {
         if (selectedNodeIndices.empty()) {
@@ -1395,6 +1395,31 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
         }
         else {
             ImGui::TextUnformatted("Multiple nodes are selected."sv);
+
+            ImGui::BeginListBox("##candidates");
+
+            // TODO: avoid calculation?
+            std::vector sortedIndices { std::from_range, selectedNodeIndices };
+            std::ranges::sort(sortedIndices);
+
+            for (std::size_t nodeIndex : sortedIndices) {
+                bool selected = false;
+                ImGui::WithID(nodeIndex, [&]() {
+                    selected = ImGui::Selectable(nonempty_or(asset.nodes[nodeIndex].name, [&]() {
+                        return tempStringBuffer.write("<Unnamed node {}>", nodeIndex).view();
+                    }).c_str());
+                });
+
+                if (ImGui::IsItemHovered()) {
+                    tasks.emplace(std::in_place_type<task::HoverNodeFromGui>, nodeIndex);
+                }
+
+                if (selected) {
+                    selectedNodeIndices = { nodeIndex };
+                    break;
+                }
+            }
+            ImGui::EndListBox();
         }
     }
     ImGui::End();

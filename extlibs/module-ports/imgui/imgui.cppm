@@ -67,6 +67,7 @@ namespace ImGui {
     export using ImGui::BeginDisabled;
     export using ImGui::BeginItemTooltip;
     export using ImGui::BeginGroup;
+    export using ImGui::BeginListBox;
     export using ImGui::BeginMainMenuBar;
     export using ImGui::BeginMenu;
     export using ImGui::BeginPopup;
@@ -93,6 +94,7 @@ namespace ImGui {
     export using ImGui::EndCombo;
     export using ImGui::EndDisabled;
     export using ImGui::EndGroup;
+    export using ImGui::EndListBox;
     export using ImGui::EndMainMenuBar;
     export using ImGui::EndMenu;
     export using ImGui::EndPopup;

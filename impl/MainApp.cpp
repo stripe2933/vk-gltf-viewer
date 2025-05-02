@@ -420,7 +420,7 @@ void vk_gltf_viewer::MainApp::run() {
                         control::ImGuiTaskCollector::selectedMaterialIndex = *materialIndex;;
                     }
                 },
-                [this](const control::task::HoverNodeFromSceneHierarchy &task) {
+                [this](const control::task::HoverNodeFromGui &task) {
                     assert(gltf);
                     gltf->hoveringNode.emplace(task.nodeIndex);
                 },

@@ -29,7 +29,7 @@ namespace vk_gltf_viewer::control {
         void materialEditor(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures);
         void materialVariants(const fastgltf::Asset &asset);
         void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, std::vector<bool> &nodeVisibilities, const std::optional<std::size_t> &hoveringNodeIndex, std::unordered_set<std::size_t> &selectedNodeIndices);
-        void nodeInspector(fastgltf::Asset &asset, const std::unordered_set<std::size_t> &selectedNodeIndices);
+        void nodeInspector(fastgltf::Asset &asset, std::unordered_set<std::size_t> &selectedNodeIndices);
         void background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureID eqmapTextureImGuiDescriptorSet);
         void inputControl(Camera &camera, bool& automaticNearFarPlaneAdjustment, bool &useFrustumCulling, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline);
