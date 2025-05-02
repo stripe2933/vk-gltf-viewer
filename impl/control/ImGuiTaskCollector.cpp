@@ -957,14 +957,16 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
         static bool mergeSingleChildNodes = true;
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
         ImGui::SameLine();
-        ImGui::HelperMarker("(?)", "If a node has only single child and does not represent any mesh, light or camera, it will be combined to its child node and slash-separated name will be shown instead.");
+        ImGui::HelperMarker("(?)", "If a node has only single child and both are not representing any mesh, light or camera, they will be combined and slash-separated name will be shown instead.");
 
         // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& is passed (but it is unnecessary). Remove the parameter when fixed.
         const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
             std::vector<std::size_t> ancestorNodeIndices;
             if (mergeSingleChildNodes) {
                 for (const fastgltf::Node *node = &asset.nodes[nodeIndex];
-                    node->children.size() == 1 && !(node->cameraIndex || node->lightIndex || node->meshIndex);
+                    node->children.size() == 1
+                        && !node->cameraIndex && !node->lightIndex && !node->meshIndex
+                        && !asset.nodes[node->children[0]].cameraIndex && !asset.nodes[node->children[0]].lightIndex && !asset.nodes[node->children[0]].meshIndex;
                     nodeIndex = node->children[0], node = &asset.nodes[nodeIndex]) {
                     ancestorNodeIndices.push_back(nodeIndex);
                 }
