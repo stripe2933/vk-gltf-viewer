@@ -37,7 +37,6 @@ import :helpers.TempStringBuffer;
 using namespace std::string_view_literals;
 
 std::optional<std::size_t> vk_gltf_viewer::control::ImGuiTaskCollector::selectedMaterialIndex = std::nullopt;
-bool mergeSingleChildNodes = true;
 int boundFpPrecision = 2;
 
 /**
@@ -955,17 +954,19 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
         ImGui::InputTextWithHint("Name", "<empty>", &asset.scenes[sceneIndex].name);
 
+        static bool mergeSingleChildNodes = true;
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
         ImGui::SameLine();
-        ImGui::HelperMarker("(?)", "If all nested nodes have only one child, they will be shown as a single node (with combined name).");
+        ImGui::HelperMarker("(?)", "If a node has only single child and does not represent any mesh, light or camera, it will be combined to its child node and slash-separated name will be shown instead.");
 
         // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& is passed (but it is unnecessary). Remove the parameter when fixed.
         const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
             std::vector<std::size_t> ancestorNodeIndices;
             if (mergeSingleChildNodes) {
-                while (asset.nodes[nodeIndex].children.size() == 1) {
+                for (const fastgltf::Node *node = &asset.nodes[nodeIndex];
+                    node->children.size() == 1 && !(node->cameraIndex || node->lightIndex || node->meshIndex);
+                    nodeIndex = node->children[0], node = &asset.nodes[nodeIndex]) {
                     ancestorNodeIndices.push_back(nodeIndex);
-                    nodeIndex = asset.nodes[nodeIndex].children[0];
                 }
             }
 
@@ -981,7 +982,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 // TreeNode.
                 // --------------------
 
-                bool isNodeSelected = selectedNodeIndices.contains(nodeIndex);
+                bool isNodeSelected = std::ranges::all_of(ancestorNodeIndices, LIFT(selectedNodeIndices.contains)) && selectedNodeIndices.contains(nodeIndex);
                 const bool isTreeNodeOpen = ImGui::WithStyleColor(ImGuiCol_Header, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive), [&]() {
                     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap;
                     if (nodeIndex == hoveringNodeIndex) flags |= ImGuiTreeNodeFlags_Framed;
@@ -1016,16 +1017,24 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                     if (ImGui::GetIO().KeyCtrl) {
                         // Toggle the selection.
                         if (isNodeSelected) {
+                            for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
+                                selectedNodeIndices.erase(ancestorNodeIndex);
+                            }
                             selectedNodeIndices.erase(nodeIndex);
+                            isNodeSelected = false;
                         }
                         else {
+                            for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
+                                selectedNodeIndices.emplace(ancestorNodeIndex);
+                            }
                             selectedNodeIndices.emplace(nodeIndex);
+                            isNodeSelected = true;
                         }
-                        isNodeSelected = !isNodeSelected;
                         tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
                     }
-                    else if (selectedNodeIndices.size() != 1 || nodeIndex != *selectedNodeIndices.begin()) {
-                        selectedNodeIndices = { nodeIndex };
+                    else {
+                        selectedNodeIndices = { std::from_range, ancestorNodeIndices };
+                        selectedNodeIndices.emplace(nodeIndex);
                         tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
                     }
                 }
@@ -1041,7 +1050,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                     ImGui::WithDisabled([&]() {
                         if (ImGui::Selectable("Select from here")) {
                             selectedNodeIndices.clear();
-                            gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                            gltf::algorithm::traverseNode(asset, ancestorNodeIndices.empty() ? nodeIndex : ancestorNodeIndices[0], [&](std::size_t nodeIndex) {
                                 selectedNodeIndices.emplace(nodeIndex);
                             });
 
