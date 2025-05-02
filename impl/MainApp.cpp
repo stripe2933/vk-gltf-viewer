@@ -197,7 +197,7 @@ void vk_gltf_viewer::MainApp::run() {
                 if (!gltf->asset.materialVariants.empty()) {
                     imguiTaskCollector.materialVariants(gltf->asset);
                 }
-                imguiTaskCollector.sceneHierarchy(gltf->asset, gltf->sceneIndex, gltf->renderingNodes, gltf->hoveringNode, gltf->selectedNodes);
+                imguiTaskCollector.sceneHierarchy(gltf->asset, gltf->sceneIndex, gltf->nodeVisibilities, gltf->hoveringNode, gltf->selectedNodes);
                 imguiTaskCollector.nodeInspector(gltf->asset, gltf->selectedNodes);
 
                 if (!gltf->asset.animations.empty()) {
@@ -648,9 +648,7 @@ void vk_gltf_viewer::MainApp::run() {
                     .orderedPrimitives = gltf.orderedPrimitives,
                     .nodeWorldTransforms = gltf.nodeWorldTransforms,
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
-                    .renderingNodes = {
-                        .indices = gltf.renderingNodes,
-                    },
+                    .nodeVisibilities = gltf.nodeVisibilities,
                     .hoveringNode = transform([&](std::size_t index, const AppState::Outline &outline) {
                         return vulkan::Frame::ExecutionTask::Gltf::HoveringNode {
                             index, outline.color, outline.thickness,
@@ -824,9 +822,10 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     , animationEnabled { std::vector(asset.animations.size(), false) }
     , sceneIndex { asset.defaultScene.value_or(0) }
     , nodeWorldTransforms { asset, asset.scenes[sceneIndex] }
-    , sceneInverseHierarchy { asset, asset.scenes[sceneIndex] } {
+    , sceneInverseHierarchy { asset, asset.scenes[sceneIndex] }
+    , nodeVisibilities { std::vector(asset.nodes.size(), false) } {
     gltf::algorithm::traverseScene(asset, asset.scenes[sceneIndex], [this](std::size_t nodeIndex) noexcept {
-        renderingNodes.emplace(nodeIndex);
+        nodeVisibilities[nodeIndex] = true;
     });
     sceneMiniball = gltf::algorithm::getMiniball(asset, asset.scenes[sceneIndex], nodeWorldTransforms, assetExternalBuffers);
 }
@@ -835,9 +834,9 @@ void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     this->sceneIndex = sceneIndex;
     nodeWorldTransforms.update(asset.scenes[sceneIndex]);
     sceneInverseHierarchy = { asset, asset.scenes[sceneIndex] };
-    renderingNodes.clear();
+    std::ranges::fill(nodeVisibilities, false);
     gltf::algorithm::traverseScene(asset, asset.scenes[sceneIndex], [this](std::size_t nodeIndex) noexcept {
-        renderingNodes.emplace(nodeIndex);
+        nodeVisibilities[nodeIndex] = true;
     });
     selectedNodes.clear();
     hoveringNode.reset();

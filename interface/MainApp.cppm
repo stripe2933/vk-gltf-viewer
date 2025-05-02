@@ -86,7 +86,7 @@ namespace vk_gltf_viewer {
             gltf::NodeWorldTransforms nodeWorldTransforms;
             gltf::ds::SceneInverseHierarchy sceneInverseHierarchy;
 
-            std::unordered_set<std::size_t> renderingNodes;
+            std::vector<bool> nodeVisibilities;
             std::unordered_set<std::size_t> selectedNodes;
             std::optional<std::size_t> hoveringNode;
 

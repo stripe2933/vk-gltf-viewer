@@ -125,10 +125,6 @@ namespace vk_gltf_viewer::vulkan {
 
         struct ExecutionTask {
             struct Gltf {
-                struct RenderingNodes {
-                    const std::unordered_set<std::size_t> &indices;
-                };
-
                 struct HoveringNode {
                     std::size_t index;
                     glm::vec4 outlineColor;
@@ -146,7 +142,7 @@ namespace vk_gltf_viewer::vulkan {
                 const gltf::NodeWorldTransforms &nodeWorldTransforms;
 
                 bool regenerateDrawCommands;
-                RenderingNodes renderingNodes;
+                const std::vector<bool> &nodeVisibilities;
                 std::optional<HoveringNode> hoveringNode;
                 std::optional<SelectedNodes> selectedNodes;
             };
@@ -316,7 +312,6 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         struct RenderingNodes {
-            std::unordered_set<std::size_t> indices;
             std::map<CommandSeparationCriteria, buffer::IndirectDrawCommands> indirectDrawCommandBuffers;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> mousePickingIndirectDrawCommandBuffers;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> multiNodeMousePickingIndirectDrawCommandBuffers;

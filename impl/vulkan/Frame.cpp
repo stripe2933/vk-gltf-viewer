@@ -18,6 +18,9 @@ import :vulkan.ag.MousePicking;
 import :vulkan.buffer.IndirectDrawCommands;
 import :vulkan.shader_type.Accessor;
 
+#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
+#define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+
 constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
 
 [[nodiscard]] constexpr vk::PrimitiveTopology getPrimitiveTopology(fastgltf::PrimitiveType type) noexcept {
@@ -460,15 +463,19 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         }
     };
 
-    if (task.gltf && !task.gltf->renderingNodes.indices.empty()) {
-        if (!renderingNodes ||
-            task.gltf->regenerateDrawCommands ||
-            renderingNodes->indices != task.gltf->renderingNodes.indices) {
+    if (task.gltf) {
+        if (!renderingNodes || task.gltf->regenerateDrawCommands) {
+            const std::vector<std::size_t> visibleNodeIndices
+                = task.gltf->nodeVisibilities
+                | ranges::views::enumerate
+                | std::views::filter(LIFT(get<1>)) // Filter only if visibility bit is 1.
+                | std::views::keys
+                | std::views::transform([](auto index) { return static_cast<std::size_t>(index); })
+                | std::ranges::to<std::vector>();
             renderingNodes.emplace(
-                task.gltf->renderingNodes.indices,
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, criteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter),
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, mousePickingCriteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter),
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, multiNodeMousePickingCriteriaGetter, task.gltf->renderingNodes.indices, drawCommandGetter));
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, criteriaGetter, visibleNodeIndices, drawCommandGetter),
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, mousePickingCriteriaGetter, visibleNodeIndices, drawCommandGetter),
+                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, multiNodeMousePickingCriteriaGetter, visibleNodeIndices, drawCommandGetter));
         }
 
         if (task.frustum) {

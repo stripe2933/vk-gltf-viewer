@@ -935,7 +935,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(const fastglt
 void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
     fastgltf::Asset &asset,
     std::size_t sceneIndex,
-    std::unordered_set<std::size_t> &visibleNodes,
+    std::vector<bool> &nodeVisibilities,
     const std::optional<std::size_t> &hoveringNodeIndex,
     std::unordered_set<std::size_t> &selectedNodeIndices
 ) {
@@ -1037,8 +1037,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
                 // Open context menu when right-click the tree node.
                 if (ImGui::BeginPopupContextItem()) {
-                    const bool isNodeVisible = visibleNodes.contains(nodeIndex);
-
                     // If the current node is the only selected node, and it is leaf, it is guaranteed that the selection will be not changed.
                     ImGui::WithDisabled([&]() {
                         if (ImGui::Selectable("Select from here")) {
@@ -1055,13 +1053,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                         ImGui::Separator();
 
                         // If node is the only selected node, visibility can be determined in a constant time.
-                        const std::optional<bool> determinedVisibility = value_if(selectedNodeIndices.size() == 1, isNodeVisible);
+                        const std::optional<bool> determinedVisibility = value_if<bool>(selectedNodeIndices.size() == 1, nodeVisibilities[nodeIndex]);
 
                         // If visibility is hidden or cannot be determined, show the menu.
                         if (!determinedVisibility.value_or(false) && ImGui::Selectable("Make all selected nodes visible")) {
                             for (std::size_t nodeIndex : selectedNodeIndices) {
-                                if (auto it = visibleNodes.find(nodeIndex); it == visibleNodes.end()) {
-                                    visibleNodes.emplace_hint(it, nodeIndex);
+                                if (auto v = nodeVisibilities[nodeIndex]; !v) {
+                                    v = true;
                                     tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                                 }
                             }
@@ -1070,8 +1068,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                         // If visibility is visible or cannot be determined, show the menu.
                         if (determinedVisibility.value_or(true) && ImGui::Selectable("Make all selected nodes invisible")) {
                             for (std::size_t nodeIndex : selectedNodeIndices) {
-                                if (auto it = visibleNodes.find(nodeIndex); it != visibleNodes.end()) {
-                                    visibleNodes.erase(it);
+                                if (auto v = nodeVisibilities[nodeIndex]) {
+                                    v = false;
                                     tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                                 }
                             }
@@ -1079,12 +1077,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
                         if (!determinedVisibility && ImGui::Selectable("Toggle all selected node visibility")) {
                             for (std::size_t nodeIndex : selectedNodeIndices) {
-                                if (auto it = visibleNodes.find(nodeIndex); it != visibleNodes.end()) {
-                                    visibleNodes.erase(it);
-                                }
-                                else {
-                                    visibleNodes.emplace_hint(it, nodeIndex);
-                                }
+                                nodeVisibilities[nodeIndex].flip();
                                 tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                             }
                         }
@@ -1093,15 +1086,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                         ImGui::Separator();
 
                         // If node is leaf, it and its descendants' visibility can be determined in a constant time.
-                        const std::optional<bool> determinedVisibility = value_if(node.children.empty(), isNodeVisible);
+                        const std::optional<bool> determinedVisibility = value_if<bool>(node.children.empty(), nodeVisibilities[nodeIndex]);
 
                         // If visibility is hidden or cannot be determined, show the menu.
                         if (!determinedVisibility.value_or(false) && ImGui::Selectable("Make visible from here")) {
                             gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
                                 if (!asset.nodes[nodeIndex].meshIndex) return;
 
-                                if (auto it = visibleNodes.find(nodeIndex); it == visibleNodes.end()) {
-                                    visibleNodes.emplace_hint(it, nodeIndex);
+                                if (auto v = nodeVisibilities[nodeIndex]; !v) {
+                                    v = true;
                                     tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                                 }
                             });
@@ -1112,8 +1105,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                             gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
                                 if (!asset.nodes[nodeIndex].meshIndex) return;
 
-                                if (auto it = visibleNodes.find(nodeIndex); it != visibleNodes.end()) {
-                                    visibleNodes.erase(it);
+                                if (auto v = nodeVisibilities[nodeIndex]) {
+                                    v = false;
                                     tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                                 }
                             });
@@ -1123,12 +1116,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                             gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
                                 if (!asset.nodes[nodeIndex].meshIndex) return;
 
-                                if (auto it = visibleNodes.find(nodeIndex); it != visibleNodes.end()) {
-                                    visibleNodes.erase(it);
-                                }
-                                else {
-                                    visibleNodes.emplace_hint(it, nodeIndex);
-                                }
+                                nodeVisibilities[nodeIndex].flip();
                                 tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                             });
                         }
@@ -1150,17 +1138,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 if (node.meshIndex) {
                     ImGui::TableSetColumnIndex(1);
 
-                    const auto it = visibleNodes.find(nodeIndex);
-                    if (bool visible = it != visibleNodes.end(); ImGui::Checkbox("##visibility", &visible)) {
-                        if (visible) {
-                            // Invisible -> visible.
-                            visibleNodes.emplace_hint(it, nodeIndex);
-                        }
-                        else {
-                            // Visible -> invisible.
-                            visibleNodes.erase(it);
-                        }
-
+                    if (bool visible = nodeVisibilities[nodeIndex]; ImGui::Checkbox("##visibility", &visible)) {
+                        nodeVisibilities[nodeIndex].flip();
                         tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                     }
                 }
