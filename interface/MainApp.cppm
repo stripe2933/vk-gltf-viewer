@@ -9,7 +9,7 @@ import :gltf.data_structure.MaterialVariantsMapping;
 import :gltf.data_structure.SceneInverseHierarchy;
 import :gltf.StateCachedNodeVisibilityStructure;
 import :gltf.NodeWorldTransforms;
-import :gltf.TextureUsage;
+import :gltf.TextureUsages;
 import :helpers.fastgltf;
 import :imgui.UserData;
 import :vulkan.dsl.Asset;
@@ -68,7 +68,7 @@ namespace vk_gltf_viewer {
              */
             gltf::ds::MaterialVariantsMapping materialVariantsMapping { asset };
 
-            gltf::TextureUsage textureUsage { asset };
+            gltf::TextureUsages textureUsages { asset };
 
             /**
 			 * @brief External buffers that are not embedded in the glTF file, such like .bin files.

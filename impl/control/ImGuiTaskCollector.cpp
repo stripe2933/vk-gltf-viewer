@@ -335,7 +335,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetSamplers(std::span<fastgl
 void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
     fastgltf::Asset &asset,
     const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures,
-    const gltf::TextureUsage &textureUsage
+    const gltf::TextureUsages &textureUsages
 ) {
     if (ImGui::Begin("Textures")) {
         static std::optional<std::size_t> textureIndex = std::nullopt;
@@ -392,10 +392,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
 
                 ImGui::SeparatorText("Texture used by:");
 
-                ImGui::TableWithVirtualization<false>(
+                ImGui::Table<false>(
                     "",
                     ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable,
-                    textureUsage.getUsages(*textureIndex),
+                    textureUsages[*textureIndex],
                     ImGui::ColumnInfo { "Material", decomposer([&](std::size_t materialIndex, auto) {
                         ImGui::WithID(materialIndex, [&]() {
                             if (ImGui::TextLink(nonempty_or(asset.materials[materialIndex].name, [&] { return tempStringBuffer.write("Unnamed material {}", materialIndex).view(); }).c_str())) {
@@ -404,7 +404,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
                             }
                         });
                     }), ImGuiTableColumnFlags_WidthFixed },
-                    ImGui::ColumnInfo { "Type", decomposer([](auto, Flags<gltf::TextureUsage::Type> type) {
+                    ImGui::ColumnInfo { "Type", decomposer([](auto, Flags<gltf::TextureUsage> type) {
                         ImGui::TextUnformatted(tempStringBuffer.write("{::s}", type).view());
                     }), ImGuiTableColumnFlags_WidthStretch });
             });
@@ -711,10 +711,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::SameLine();
                 ImGui::HelperMarker("(overridden)", "This value is overridden by KHR_texture_transform extension.");
             };
-            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, gltf::TextureUsage::Type textureUsageType) -> void {
+            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, gltf::TextureUsage usage) -> void {
                 const auto [enabledProp, changeProp] = [&]() -> std::array<task::MaterialPropertyChanged::Property, 2> {
                     using enum task::MaterialPropertyChanged::Property;
-                    switch (textureUsageType) {
+                    switch (usage) {
                         case gltf::TextureUsage::BaseColor:
                             return { BaseColorTextureTransformEnabled, BaseColorTextureTransform };
                         case gltf::TextureUsage::MetallicRoughness:

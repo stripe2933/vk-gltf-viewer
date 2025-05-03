@@ -148,7 +148,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/StateCachedNodeVisibilityStructure.cppm
         interface/gltf/NodeWorldTransforms.cppm
         interface/gltf/OrderedPrimitives.cppm
-        interface/gltf/TextureUsage.cppm
+        interface/gltf/TextureUsages.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/algorithm.cppm
         interface/helpers/concepts.cppm

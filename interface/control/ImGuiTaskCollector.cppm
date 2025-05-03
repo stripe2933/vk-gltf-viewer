@@ -11,7 +11,7 @@ export import ImGuizmo;
 export import :AppState;
 export import :control.Task;
 export import :gltf.StateCachedNodeVisibilityStructure;
-export import :gltf.TextureUsage;
+export import :gltf.TextureUsages;
 export import :helpers.full_optional;
 export import :imgui.ColorSpaceAndUsageCorrectedTextures;
 
@@ -26,7 +26,7 @@ namespace vk_gltf_viewer::control {
         void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
         void animations(const fastgltf::Asset &asset, std::vector<bool> &animationEnabled);
         void assetInspector(fastgltf::Asset &asset, const std::filesystem::path &assetDir);
-        void assetTextures(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures, const gltf::TextureUsage &textureUsage);
+        void assetTextures(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures, const gltf::TextureUsages &textureUsages);
         void materialEditor(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures);
         void materialVariants(const fastgltf::Asset &asset);
         void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, gltf::StateCachedNodeVisibilityStructure &nodeVisibilities, const std::optional<std::size_t> &hoveringNodeIndex, std::unordered_set<std::size_t> &selectedNodeIndices);
