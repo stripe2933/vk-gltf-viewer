@@ -162,7 +162,7 @@ void vk_gltf_viewer::MainApp::run() {
         // Collect task from animation system.
         if (gltf) {
             std::vector<std::size_t> transformedNodes, morphedNodes;
-            for (const auto &[animation, enabled] : std::views::zip(gltf->animations, gltf->animationEnabled)) {
+            for (const auto &[animation, enabled] : std::views::zip(gltf->animations, *gltf->animationEnabled)) {
                 if (!enabled) continue;
                 animation.update(glfwGetTime(), back_inserter(transformedNodes), back_inserter(morphedNodes), gltf->assetExternalBuffers);
             }
@@ -199,7 +199,7 @@ void vk_gltf_viewer::MainApp::run() {
                     imguiTaskCollector.materialVariants(gltf->asset);
                 }
                 imguiTaskCollector.sceneHierarchy(gltf->asset, gltf->sceneIndex, gltf->nodeVisibilities, gltf->hoveringNode, gltf->selectedNodes);
-                imguiTaskCollector.nodeInspector(gltf->asset, gltf->animationEnabled, gltf->nodeAnimationUsages, gltf->selectedNodes);
+                imguiTaskCollector.nodeInspector(gltf->asset, *gltf->animationEnabled, gltf->nodeAnimationUsages, gltf->selectedNodes);
 
                 if (!gltf->asset.animations.empty()) {
                     imguiTaskCollector.animations(gltf->asset, gltf->animationEnabled);
@@ -820,7 +820,7 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     , animations { std::from_range, asset.animations | std::views::transform([&](const fastgltf::Animation &animation) {
         return gltf::Animation { asset, animation, assetExternalBuffers };
     }) }
-    , animationEnabled { std::vector(asset.animations.size(), false) }
+    , animationEnabled { std::make_shared<std::vector<bool>>(asset.animations.size(), false) }
     , nodeAnimationUsages { asset }
     , sceneIndex { asset.defaultScene.value_or(0) }
     , nodeWorldTransforms { asset, asset.scenes[sceneIndex] }

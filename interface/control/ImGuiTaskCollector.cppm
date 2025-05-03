@@ -25,7 +25,7 @@ namespace vk_gltf_viewer::control {
         ~ImGuiTaskCollector();
 
         void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
-        void animations(const fastgltf::Asset &asset, std::vector<bool> &animationEnabled);
+        void animations(const fastgltf::Asset &asset, std::shared_ptr<std::vector<bool>> animationEnabled);
         void assetInspector(fastgltf::Asset &asset, const std::filesystem::path &assetDir);
         void assetTextures(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures, const gltf::TextureUsages &textureUsages);
         void materialEditor(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures);

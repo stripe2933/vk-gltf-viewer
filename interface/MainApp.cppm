@@ -81,7 +81,7 @@ namespace vk_gltf_viewer {
             gltf::OrderedPrimitives orderedPrimitives;
 
             std::vector<gltf::Animation> animations;
-            std::vector<bool> animationEnabled;
+            std::shared_ptr<std::vector<bool>> animationEnabled;
             gltf::NodeAnimationUsages nodeAnimationUsages;
 
             std::size_t sceneIndex;

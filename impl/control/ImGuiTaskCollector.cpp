@@ -22,6 +22,7 @@ import :helpers.formatter.ByteSize;
 import :helpers.functional;
 import :helpers.imgui;
 import :helpers.optional;
+import :helpers.PairHasher;
 import :helpers.ranges;
 import :helpers.TempStringBuffer;
 
@@ -604,13 +605,136 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
     }
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Asset &asset, std::vector<bool> &animationEnabled) {
-    if (ImGui::Begin("Animation")) {
-        for (auto &&[animation, enabled] : std::views::zip(asset.animations, animationEnabled)) {
-            bool enabledBool = enabled;
-            if (ImGui::Checkbox(nonempty_or(animation.name, []() -> cpp_util::cstring_view { return "<Unnamed animation>"; }).c_str(), &enabledBool)) {
-                enabled = enabledBool;
+void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Asset &asset, std::shared_ptr<std::vector<bool>> animationEnabled) {
+    struct AnimationCollisionDialogData {
+        std::shared_ptr<std::vector<bool>> animationEnabled;
+        std::size_t animationIndexToEnable;
+        std::map<std::size_t /* animation index */, std::map<std::size_t /* node index */, Flags<gltf::NodeAnimationUsage>>> collisions;
+
+        void apply() {
+            for (std::size_t collidingAnimationIndex : collisions | std::views::keys) {
+                (*animationEnabled)[collidingAnimationIndex] = false;
             }
+            (*animationEnabled)[animationIndexToEnable] = true;
+        }
+    };
+    static std::optional<AnimationCollisionDialogData> animationCollisionDialogData = std::nullopt;
+
+    static bool resolveCollisionAutomatically = false;
+
+    if (ImGui::Begin("Animation")) {
+        for (std::size_t animationIndex : ranges::views::upto(asset.animations.size())) {
+            const fastgltf::Animation &animation = asset.animations[animationIndex];
+            bool enabled = (*animationEnabled)[animationIndex];
+            if (ImGui::Checkbox(nonempty_or(animation.name, [&]() -> cpp_util::cstring_view {
+                return tempStringBuffer.write("<Unnamed animation {}>", animationIndex).view();
+            }).c_str(), &enabled)) {
+                // Retrieve what node and path will be used by this animation.
+                std::unordered_set<std::pair<std::size_t, fastgltf::AnimationPath>, PairHasher> usedNodesAndPaths;
+                for (const fastgltf::AnimationChannel &channel : animation.channels) {
+                    if (channel.nodeIndex) {
+                        usedNodesAndPaths.emplace(*channel.nodeIndex, channel.path);
+                    }
+                }
+
+                auto otherRunningAnimationIndices
+                    = *animationEnabled
+                    | ranges::views::enumerate
+                    | std::views::filter(decomposer([&](auto i, bool enabled) {
+                        return enabled && (i != animationIndex);
+                    }))
+                    | std::views::keys
+                    | std::views::transform([](auto x) { return static_cast<std::size_t>(x); });
+                for (std::size_t candidateAnimationIndex : otherRunningAnimationIndices) {
+                    const fastgltf::Animation &candidateAnimation = asset.animations[candidateAnimationIndex];
+                    for (const fastgltf::AnimationChannel &channel : candidateAnimation.channels) {
+                        if (!channel.nodeIndex) continue;
+
+                        if (usedNodesAndPaths.contains({ *channel.nodeIndex, channel.path })) {
+                            [&]() -> AnimationCollisionDialogData& {
+                                if (animationCollisionDialogData) {
+                                    return *animationCollisionDialogData;
+                                }
+                                else {
+                                    return animationCollisionDialogData.emplace(animationEnabled, animationIndex);
+                                }
+                            }().collisions[candidateAnimationIndex][*channel.nodeIndex] |= gltf::convert(channel.path);
+                        }
+                    }
+                }
+
+                if (animationCollisionDialogData) {
+                    if (resolveCollisionAutomatically) {
+                        animationCollisionDialogData->apply();
+                        animationCollisionDialogData.reset();
+                    }
+                    else {
+                        ImGui::OpenPopup("Animation Collision Detected");
+                    }
+                }
+                else {
+                    (*animationEnabled)[animationIndex] = enabled;
+                }
+            }
+        }
+
+        // Center the modal window.
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2 { 0.5f, 0.5f });
+
+        if (ImGui::BeginPopupModal("Animation Collision Detected", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::TextUnformatted("The animation you're trying to enable is colliding by other enabled animations.");
+
+            const auto closeDialog = []() {
+                animationCollisionDialogData.reset();
+                ImGui::CloseCurrentPopup();
+            };
+
+            assert(animationCollisionDialogData);
+
+            // If dialog is opened and user changed the asset (by drag-and-drop the asset file), the dialog's data
+            // and the asset what the execution flow processes is different, make consistency problem. It can be avoided
+            // by checking these two pointers are same.
+            if (animationCollisionDialogData->animationEnabled == animationEnabled) {
+                for (const auto &[collidingAnimationIndex, collisionList] : animationCollisionDialogData->collisions) {
+                    if (ImGui::TreeNode(nonempty_or(asset.animations[collidingAnimationIndex].name, [&]() -> cpp_util::cstring_view {
+                        return tempStringBuffer.write("<Unnamed animation {}>", collidingAnimationIndex).view();
+                    }).c_str())) {
+                        ImGui::Table<false>(
+                            "animation-collision-table",
+                            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg,
+                            collisionList,
+                            ImGui::ColumnInfo { "Node", decomposer([](std::size_t nodeIndex, auto) {
+                                ImGui::Text("%zu", nodeIndex);
+                            }) },
+                            ImGui::ColumnInfo { "Path", decomposer([](auto, Flags<gltf::NodeAnimationUsage> usage) {
+                                ImGui::TextUnformatted(tempStringBuffer.write("{::s}", usage).view());
+                            }) });
+                        ImGui::TreePop();
+                    }
+                }
+
+                ImGui::TextUnformatted("Would you like to disable these animations?");
+
+                ImGui::Separator();
+
+                ImGui::Checkbox("Don't ask me and resolve automatically", &resolveCollisionAutomatically);
+
+                if (ImGui::Button("Yes")) {
+                    animationCollisionDialogData->apply();
+                    closeDialog();
+                }
+                ImGui::SetItemDefaultFocus();
+                ImGui::SameLine();
+                if (ImGui::Button("No")) {
+                    closeDialog();
+                }
+            }
+            else {
+                // Asset is reloaded. Dialog shouldn't maintain its opened state.
+                closeDialog();
+            }
+
+            ImGui::EndPopup();
         }
     }
     ImGui::End();

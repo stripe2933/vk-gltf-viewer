@@ -163,6 +163,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/imgui/table.cppm
         interface/helpers/io.cppm
         interface/helpers/optional.cppm
+        interface/helpers/PairHasher.cppm
         interface/helpers/ranges/mod.cppm
         interface/helpers/ranges/concat.cppm
         interface/helpers/ranges/contains.cppm
