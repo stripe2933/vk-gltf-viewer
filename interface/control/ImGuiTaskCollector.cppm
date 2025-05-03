@@ -10,6 +10,7 @@ import imgui.internal;
 export import ImGuizmo;
 export import :AppState;
 export import :control.Task;
+export import :gltf.StateCachedNodeVisibilityStructure;
 export import :gltf.TextureUsage;
 export import :helpers.full_optional;
 export import :imgui.ColorSpaceAndUsageCorrectedTextures;
@@ -28,13 +29,13 @@ namespace vk_gltf_viewer::control {
         void assetTextures(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures, const gltf::TextureUsage &textureUsage);
         void materialEditor(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures);
         void materialVariants(const fastgltf::Asset &asset);
-        void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities, const std::optional<std::uint16_t> &hoveringNodeIndex, const std::unordered_set<std::uint16_t> &selectedNodeIndices);
-        void nodeInspector(fastgltf::Asset &asset, const std::unordered_set<std::uint16_t> &selectedNodeIndices);
+        void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, gltf::StateCachedNodeVisibilityStructure &nodeVisibilities, const std::optional<std::size_t> &hoveringNodeIndex, std::unordered_set<std::size_t> &selectedNodeIndices);
+        void nodeInspector(fastgltf::Asset &asset, std::unordered_set<std::size_t> &selectedNodeIndices);
         void background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureID eqmapTextureImGuiDescriptorSet);
         void inputControl(Camera &camera, bool& automaticNearFarPlaneAdjustment, bool &useFrustumCulling, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline);
         void imguizmo(Camera &camera);
-        void imguizmo(Camera &camera, fastgltf::math::fmat4x4 &selectedNodeWorldTransform, ImGuizmo::OPERATION operation);
+        void imguizmo(Camera &camera, fastgltf::Asset &asset, std::size_t selectedNodeIndex, const fastgltf::math::fmat4x4 &selectedNodeWorldTransform, ImGuizmo::OPERATION operation);
 
     private:
         std::queue<Task> &tasks;

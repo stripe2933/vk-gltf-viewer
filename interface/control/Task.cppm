@@ -19,12 +19,10 @@ namespace vk_gltf_viewer::control {
         struct CloseGltf { };
         struct LoadEqmap { std::filesystem::path path; };
         struct ChangeScene { std::size_t newSceneIndex; };
-        struct ChangeNodeVisibilityType { };
         struct NodeVisibilityChanged { std::size_t nodeIndex; };
-        struct SelectNode { std::uint16_t nodeIndex; bool combine; };
-        struct HoverNodeFromSceneHierarchy { std::uint16_t nodeIndex; };
+        struct NodeSelectionChanged { };
+        struct HoverNodeFromGui { std::size_t nodeIndex; };
         struct NodeLocalTransformChanged { std::size_t nodeIndex; };
-        struct SelectedNodeWorldTransformChanged{};
         struct TightenNearFarPlane { };
         struct CameraViewChanged { };
         struct MaterialPropertyChanged {
@@ -71,12 +69,10 @@ namespace vk_gltf_viewer::control {
         task::CloseGltf,
         task::LoadEqmap,
         task::ChangeScene,
-        task::ChangeNodeVisibilityType,
         task::NodeVisibilityChanged,
-        task::SelectNode,
-        task::HoverNodeFromSceneHierarchy,
+        task::NodeSelectionChanged,
+        task::HoverNodeFromGui,
         task::NodeLocalTransformChanged,
-        task::SelectedNodeWorldTransformChanged,
         task::TightenNearFarPlane,
         task::CameraViewChanged,
         task::MaterialPropertyChanged,

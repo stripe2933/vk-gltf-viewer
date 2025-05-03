@@ -7,6 +7,7 @@ import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
 import :gltf.data_structure.MaterialVariantsMapping;
 import :gltf.data_structure.SceneInverseHierarchy;
+import :gltf.StateCachedNodeVisibilityStructure;
 import :gltf.NodeWorldTransforms;
 import :gltf.TextureUsage;
 import :helpers.fastgltf;
@@ -81,16 +82,14 @@ namespace vk_gltf_viewer {
             std::vector<gltf::Animation> animations;
             std::vector<bool> animationEnabled;
 
-            /**
-             * @brief The glTF scene that is currently used by.
-             *
-             * This could be changed, but direct assignment is forbidden (because changing this field requires the additional
-             * modification of <tt>sceneGpuBuffers</tt> and <tt>sceneMiniball</tt>). Use <tt>setScene</tt> for the purpose.
-             */
-            std::reference_wrapper<fastgltf::Scene> scene { asset.scenes[asset.defaultScene.value_or(0)] };
+            std::size_t sceneIndex;
 
             gltf::NodeWorldTransforms nodeWorldTransforms;
-            gltf::ds::SceneInverseHierarchy sceneInverseHierarchy;
+            std::shared_ptr<gltf::ds::SceneInverseHierarchy> sceneInverseHierarchy;
+
+            gltf::StateCachedNodeVisibilityStructure nodeVisibilities;
+            std::unordered_set<std::size_t> selectedNodes;
+            std::optional<std::size_t> hoveringNode;
 
 			/**
 			 * @brief Smallest enclosing sphere of all meshes (a.k.a. miniball) in the scene.

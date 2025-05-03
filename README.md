@@ -30,7 +30,7 @@ Blazingly fast[^1] Vulkan glTF viewer.
 - File loading using platform-native file dialog.
 - Pixel perfect node selection and transformation using [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo).
 - Arbitrary sized outline rendering using [Jump Flooding Algorithm](https://en.wikipedia.org/wiki/Jump_flooding_algorithm).
-- Conditionally render a node with three-state visibility in scene hierarchy tree.
+- Adjust node visibility in scene hierarchy tree.
 - GUI for used asset resources (buffers, images, samplers, etc.) list with docking support.
 
 ## Performance

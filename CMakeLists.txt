@@ -145,6 +145,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/data_structure/NodeInstanceCountExclusiveScanWithCount.cppm
         interface/gltf/data_structure/SceneInverseHierarchy.cppm
         interface/gltf/data_structure/TargetWeightCountExclusiveScanWithCount.cppm
+        interface/gltf/StateCachedNodeVisibilityStructure.cppm
         interface/gltf/NodeWorldTransforms.cppm
         interface/gltf/OrderedPrimitives.cppm
         interface/gltf/TextureUsage.cppm
@@ -166,7 +167,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/ranges/contains.cppm
         interface/helpers/span.cppm
         interface/helpers/TempStringBuffer.cppm
-        interface/helpers/tristate.cppm
         interface/helpers/type_map.cppm
         interface/helpers/type_variant.cppm
         interface/helpers/vulkan.cppm

@@ -50,23 +50,6 @@ namespace ImGui {
         return InputTextWithHint(label.c_str(), hint.c_str(), str->data(), str->capacity() + 1, flags, chainCallback, &chainedUserData);
     }
 
-    export bool CheckboxTristate(cpp_util::cstring_view label, std::optional<bool> &tristate) {
-        bool ret;
-        if (tristate) {
-            if (bool b = *tristate; (ret = Checkbox(label.c_str(), &b))) {
-                *tristate = b;
-            }
-        }
-        else {
-            PushItemFlag(ImGuiItemFlags_MixedValue, true);
-            if (bool b = false; (ret = Checkbox(label.c_str(), &b))) {
-                tristate.emplace(true);
-            }
-            PopItemFlag();
-        }
-        return ret;
-    }
-
     // https://github.com/ocornut/imgui/pull/6526
     export bool SmallCheckbox(cpp_util::cstring_view label, bool* v) {
         ImGuiStyle &style = GetStyle();

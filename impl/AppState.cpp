@@ -2,47 +2,6 @@ module vk_gltf_viewer;
 import :AppState;
 
 import std;
-import :gltf.algorithm.traversal;
-import :helpers.functional;
-import :helpers.ranges;
-
-void vk_gltf_viewer::AppState::GltfAsset::setScene(std::size_t sceneIndex) noexcept {
-    this->sceneIndex = sceneIndex;
-    visit([this](auto &visibilities) {
-        std::ranges::fill(visibilities, false);
-        gltf::algorithm::traverseScene(asset, getScene(), [&](std::size_t nodeIndex) {
-           visibilities[nodeIndex] = true;
-        });
-    }, nodeVisibilities);
-    selectedNodeIndices.clear();
-    hoveringNodeIndex.reset();
-}
-
-std::unordered_set<std::uint16_t> vk_gltf_viewer::AppState::GltfAsset::getVisibleNodeIndices() const noexcept {
-    return visit(multilambda {
-        [this](std::span<const std::optional<bool>> tristateVisibilities) {
-            return tristateVisibilities
-                | ranges::views::enumerate
-                | std::views::filter(decomposer([this](auto nodeIndex, const std::optional<bool> &visibility) {
-                    return visibility.value_or(true) && asset.nodes[nodeIndex].meshIndex.has_value();
-                }))
-                | std::views::keys
-                | std::views::transform([](std::size_t nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
-                | std::ranges::to<std::unordered_set>();
-        },
-        [this](const std::vector<bool> &visibilities) {
-            return visibilities
-                | ranges::views::enumerate
-                | std::views::filter(decomposer([this](std::size_t nodeIndex, bool visibility) {
-                    return visibility && asset.nodes[nodeIndex].meshIndex.has_value();
-                }))
-                | std::views::keys
-                | std::views::transform([](std::size_t nodeIndex) { return static_cast<std::uint16_t>(nodeIndex); })
-                | std::ranges::to<std::unordered_set>();
-        }
-    }, nodeVisibilities);
-}
-
 
 vk_gltf_viewer::AppState::AppState() noexcept
     : camera {
@@ -87,25 +46,6 @@ vk_gltf_viewer::AppState::~AppState() {
             file << absolute(path).string() << '\n';
         }
     }
-}
-
-void vk_gltf_viewer::AppState::GltfAsset::switchNodeVisibilityType() {
-    visit(multilambda {
-        [this](std::span<const std::optional<bool>> visibilities) {
-            // Note: std::vector<bool> must be constructed and move-assigned to nodeVisibilities.
-            // If it is generated in-place, nodeVisibilities will be created while reading visibilities span, which
-            // already has corrupted value by overwritten data.
-            nodeVisibilities = std::vector<bool> {
-                std::from_range,
-                visibilities | std::views::transform([](const std::optional<bool> &visibility) {
-                    return visibility.value_or(true);
-                })
-            };
-        },
-        [this](const std::vector<bool> &visibilities) {
-            nodeVisibilities.emplace<std::vector<std::optional<bool>>>(visibilities.size(), true);
-        },
-    }, nodeVisibilities);
 }
 
 void vk_gltf_viewer::AppState::pushRecentGltfPath(const std::filesystem::path &path) {

@@ -15,6 +15,7 @@ import imgui.internal;
 import imgui.math;
 import ImGuizmo;
 import :global;
+import :gltf.algorithm.traversal;
 import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.formatter.ByteSize;
@@ -36,7 +37,6 @@ import :helpers.TempStringBuffer;
 using namespace std::string_view_literals;
 
 std::optional<std::size_t> vk_gltf_viewer::control::ImGuiTaskCollector::selectedMaterialIndex = std::nullopt;
-bool mergeSingleChildNodes = true;
 int boundFpPrecision = 2;
 
 /**
@@ -934,9 +934,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(const fastglt
 void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
     fastgltf::Asset &asset,
     std::size_t sceneIndex,
-    std::variant<std::vector<std::optional<bool>>, std::vector<bool>> &visibilities,
-    const std::optional<std::uint16_t> &hoveringNodeIndex,
-    const std::unordered_set<std::uint16_t> &selectedNodeIndices
+    gltf::StateCachedNodeVisibilityStructure &nodeVisibility,
+    const std::optional<std::size_t> &hoveringNodeIndex,
+    std::unordered_set<std::size_t> &selectedNodeIndices
 ) {
     if (ImGui::Begin("Scene Hierarchy")) {
         if (ImGui::BeginCombo("Scene", nonempty_or(asset.scenes[sceneIndex].name, [&]() { return tempStringBuffer.write("<Unnamed scene {}>", sceneIndex).view(); }).c_str())) {
@@ -954,28 +954,21 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
         ImGui::InputTextWithHint("Name", "<empty>", &asset.scenes[sceneIndex].name);
 
+        static bool mergeSingleChildNodes = true;
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
         ImGui::SameLine();
-        ImGui::HelperMarker("(?)", "If all nested nodes have only one child, they will be shown as a single node (with combined name).");
-
-        if (bool tristateVisibility = holds_alternative<std::vector<std::optional<bool>>>(visibilities);
-            ImGui::Checkbox("Use tristate visibility", &tristateVisibility)) {
-            tasks.emplace(std::in_place_type<task::ChangeNodeVisibilityType>);
-        }
-        ImGui::SameLine();
-        ImGui::HelperMarker(
-            "(?)",
-            "If all children of a node are visible, the node will be checked. "
-            "If all children are hidden, the node will be unchecked. "
-            "If some children are visible and some are hidden, the node will be in an indeterminate state.");
+        ImGui::HelperMarker("(?)", "If a node has only single child and both are not representing any mesh, light or camera, they will be combined and slash-separated name will be shown instead.");
 
         // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& is passed (but it is unnecessary). Remove the parameter when fixed.
         const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
             std::vector<std::size_t> ancestorNodeIndices;
             if (mergeSingleChildNodes) {
-                while (asset.nodes[nodeIndex].children.size() == 1) {
+                for (const fastgltf::Node *node = &asset.nodes[nodeIndex];
+                    node->children.size() == 1
+                        && !node->cameraIndex && !node->lightIndex && !node->meshIndex
+                        && !asset.nodes[node->children[0]].cameraIndex && !asset.nodes[node->children[0]].lightIndex && !asset.nodes[node->children[0]].meshIndex;
+                    nodeIndex = node->children[0], node = &asset.nodes[nodeIndex]) {
                     ancestorNodeIndices.push_back(nodeIndex);
-                    nodeIndex = asset.nodes[nodeIndex].children[0];
                 }
             }
 
@@ -991,7 +984,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 // TreeNode.
                 // --------------------
 
-                const bool isNodeSelected = selectedNodeIndices.contains(nodeIndex);
+                bool isNodeSelected = std::ranges::all_of(ancestorNodeIndices, LIFT(selectedNodeIndices.contains)) && selectedNodeIndices.contains(nodeIndex);
                 const bool isTreeNodeOpen = ImGui::WithStyleColor(ImGuiCol_Header, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive), [&]() {
                     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap;
                     if (nodeIndex == hoveringNodeIndex) flags |= ImGuiTreeNodeFlags_Framed;
@@ -999,13 +992,149 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                     if (node.children.empty()) flags |= ImGuiTreeNodeFlags_Bullet | ImGuiTreeNodeFlags_Leaf;
 
                     ImGui::AlignTextToFramePadding();
-                    return ImGui::TreeNodeEx("##treenode", flags);
+
+                    tempStringBuffer.clear();
+                    const auto appendNodeLabel = [&](std::size_t nodeIndex) {
+                        const fastgltf::Node &node = asset.nodes[nodeIndex];
+
+                        if (std::string_view name = node.name; name.empty()) {
+                            tempStringBuffer.append("<Unnamed node {}>", nodeIndex);
+                        }
+                        else {
+                            tempStringBuffer.append(name);
+                        }
+                    };
+                    for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
+                        appendNodeLabel(ancestorNodeIndex);
+                        tempStringBuffer.append(" / ");
+                    }
+                    appendNodeLabel(nodeIndex);
+                    tempStringBuffer.append("##treenode");
+
+                    return ImGui::TreeNodeEx(tempStringBuffer.view().c_str(), flags);
                 }, nodeIndex == hoveringNodeIndex);
-                if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() && !isNodeSelected) {
-                    tasks.emplace(std::in_place_type<task::SelectNode>, nodeIndex, ImGui::GetIO().KeyCtrl);
+
+                // Handle clicking tree node.
+                if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
+                    if (ImGui::GetIO().KeyCtrl) {
+                        // Toggle the selection.
+                        if (isNodeSelected) {
+                            for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
+                                selectedNodeIndices.erase(ancestorNodeIndex);
+                            }
+                            selectedNodeIndices.erase(nodeIndex);
+                            isNodeSelected = false;
+                        }
+                        else {
+                            for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
+                                selectedNodeIndices.emplace(ancestorNodeIndex);
+                            }
+                            selectedNodeIndices.emplace(nodeIndex);
+                            isNodeSelected = true;
+                        }
+                        tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
+                    }
+                    else {
+                        selectedNodeIndices = { std::from_range, ancestorNodeIndices };
+                        selectedNodeIndices.emplace(nodeIndex);
+                        tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
+                    }
                 }
+
+                // Handle hovering tree node.
                 if (ImGui::IsItemHovered() && nodeIndex != hoveringNodeIndex) {
-                    tasks.emplace(std::in_place_type<task::HoverNodeFromSceneHierarchy>, nodeIndex);
+                    tasks.emplace(std::in_place_type<task::HoverNodeFromGui>, nodeIndex);
+                }
+
+                // Open context menu when right-click the tree node.
+                if (ImGui::BeginPopupContextItem()) {
+                    // If the current node is the only selected node, and it is leaf, it is guaranteed that the selection will be not changed.
+                    ImGui::WithDisabled([&]() {
+                        if (ImGui::Selectable("Select from here")) {
+                            selectedNodeIndices.clear();
+                            gltf::algorithm::traverseNode(asset, ancestorNodeIndices.empty() ? nodeIndex : ancestorNodeIndices[0], [&](std::size_t nodeIndex) {
+                                selectedNodeIndices.emplace(nodeIndex);
+                            });
+
+                            tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
+                        }
+                    }, selectedNodeIndices.size() == 1 && isNodeSelected && node.children.empty());
+
+                    if (isNodeSelected) {
+                        ImGui::Separator();
+
+                        // If node is the only selected node, visibility can be determined in a constant time.
+                        const std::optional<bool> determinedVisibility = value_if<bool>(selectedNodeIndices.size() == 1, nodeVisibility.getVisibility(nodeIndex));
+
+                        // If visibility is hidden or cannot be determined, show the menu.
+                        if (!determinedVisibility.value_or(false) && ImGui::Selectable("Make all selected nodes visible")) {
+                            for (std::size_t nodeIndex : selectedNodeIndices) {
+                                if (!asset.nodes[nodeIndex].meshIndex) continue;
+
+                                if (!nodeVisibility.getVisibility(nodeIndex)) {
+                                    nodeVisibility.setVisibility(nodeIndex, true);
+                                    tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                                }
+                            }
+                        }
+
+                        // If visibility is visible or cannot be determined, show the menu.
+                        if (determinedVisibility.value_or(true) && ImGui::Selectable("Make all selected nodes invisible")) {
+                            for (std::size_t nodeIndex : selectedNodeIndices) {
+                                if (!asset.nodes[nodeIndex].meshIndex) continue;
+
+                                if (nodeVisibility.getVisibility(nodeIndex)) {
+                                    nodeVisibility.setVisibility(nodeIndex, false);
+                                    tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                                }
+                            }
+                        }
+
+                        if (!determinedVisibility && ImGui::Selectable("Toggle all selected node visibility")) {
+                            for (std::size_t nodeIndex : selectedNodeIndices) {
+                                if (!asset.nodes[nodeIndex].meshIndex) continue;
+
+                                nodeVisibility.flipVisibility(nodeIndex);
+                                tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                            }
+                        }
+                    }
+                    else if (auto state = nodeVisibility.getState(nodeIndex); state != gltf::StateCachedNodeVisibilityStructure::State::Indeterminate) {
+                        ImGui::Separator();
+
+                        if (state != gltf::StateCachedNodeVisibilityStructure::State::AllVisible && ImGui::Selectable("Make visible from here")) {
+                            gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                                if (!asset.nodes[nodeIndex].meshIndex) return;
+
+                                if (!nodeVisibility.getVisibility(nodeIndex)) {
+                                    nodeVisibility.setVisibility(nodeIndex, true);
+                                    tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                                }
+                            });
+                        }
+
+                        if (state != gltf::StateCachedNodeVisibilityStructure::State::AllInvisible && ImGui::Selectable("Make invisible from here")) {
+                            gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                                if (!asset.nodes[nodeIndex].meshIndex) return;
+
+                                if (nodeVisibility.getVisibility(nodeIndex)) {
+                                    nodeVisibility.setVisibility(nodeIndex, false);
+                                    tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                                }
+                            });
+                        }
+
+                        if (state == gltf::StateCachedNodeVisibilityStructure::State::Intermediate && ImGui::Selectable("Toggle visibility from here")) {
+                            gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                                if (!asset.nodes[nodeIndex].meshIndex) return;
+
+                                nodeVisibility.flipVisibility(nodeIndex);
+                                tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                            });
+                        }
+                    }
+
+                    ImGui::EndPopup();
                 }
 
                 if (global::shouldNodeInSceneHierarchyScrolledToBeVisible &&
@@ -1015,59 +1144,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                 }
 
                 // --------------------
-                // Hierarchy checkbox.
-                // --------------------
-
-                if (auto pVisibilities = get_if<std::vector<std::optional<bool>>>(&visibilities)) {
-                    ImGui::SameLine();
-                    if (ImGui::CheckboxTristate("##hierarchy-checkbox", (*pVisibilities)[nodeIndex])) {
-                        tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
-                    }
-                }
-
-                // --------------------
-                // Node name.
-                // --------------------
-
-                tempStringBuffer.clear();
-                const auto appendNodeLabel = [&](std::size_t nodeIndex) {
-                    const fastgltf::Node &node = asset.nodes[nodeIndex];
-
-                    if (std::string_view name = node.name; name.empty()) {
-                        tempStringBuffer.append("<Unnamed node {}>", nodeIndex);
-                    }
-                    else {
-                        tempStringBuffer.append(name);
-                    }
-                };
-                for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
-                    appendNodeLabel(ancestorNodeIndex);
-                    tempStringBuffer.append(" / ");
-                }
-                appendNodeLabel(nodeIndex);
-
-                ImGui::SameLine();
-                ImGui::TextUnformatted(tempStringBuffer.view());
-
-                // --------------------
                 // Node mesh.
                 // --------------------
 
                 if (node.meshIndex) {
                     ImGui::TableSetColumnIndex(1);
-                    const bool visibilityChanged = visit(multilambda {
-                        [&](std::span<std::optional<bool>> visibilities) {
-                            return ImGui::CheckboxTristate("##visibility", visibilities[nodeIndex]);
-                        },
-                        [&](std::vector<bool> &visibilities) {
-                            bool visible = visibilities[nodeIndex];
-                            if (ImGui::Checkbox("##visibility", &visible)) {
-                                visibilities[nodeIndex].flip();
-                            }
-                            return visible;
-                        },
-                    }, visibilities);
-                    if (visibilityChanged)  {
+
+                    if (bool visible = nodeVisibility.getVisibility(nodeIndex); ImGui::Checkbox("##visibility", &visible)) {
+                        nodeVisibility.flipVisibility(nodeIndex);
                         tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                     }
                 }
@@ -1126,7 +1210,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
     fastgltf::Asset &asset,
-    const std::unordered_set<std::uint16_t> &selectedNodeIndices
+    std::unordered_set<std::size_t> &selectedNodeIndices
 ) {
     if (ImGui::Begin("Node Inspector")) {
         if (selectedNodeIndices.empty()) {
@@ -1306,6 +1390,31 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
         }
         else {
             ImGui::TextUnformatted("Multiple nodes are selected."sv);
+
+            ImGui::BeginListBox("##candidates");
+
+            // TODO: avoid calculation?
+            std::vector sortedIndices { std::from_range, selectedNodeIndices };
+            std::ranges::sort(sortedIndices);
+
+            for (std::size_t nodeIndex : sortedIndices) {
+                bool selected = false;
+                ImGui::WithID(nodeIndex, [&]() {
+                    selected = ImGui::Selectable(nonempty_or(asset.nodes[nodeIndex].name, [&]() {
+                        return tempStringBuffer.write("<Unnamed node {}>", nodeIndex).view();
+                    }).c_str());
+                });
+
+                if (ImGui::IsItemHovered()) {
+                    tasks.emplace(std::in_place_type<task::HoverNodeFromGui>, nodeIndex);
+                }
+
+                if (selected) {
+                    selectedNodeIndices = { nodeIndex };
+                    break;
+                }
+            }
+            ImGui::EndListBox();
         }
     }
     ImGui::End();
@@ -1467,16 +1576,41 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Camera &camera) {
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
     Camera &camera,
-    fastgltf::math::fmat4x4 &selectedNodeWorldTransform,
+    fastgltf::Asset &asset,
+    std::size_t selectedNodeIndex,
+    const fastgltf::math::fmat4x4 &selectedNodeWorldTransform,
     ImGuizmo::OPERATION operation
 ) {
     // Set ImGuizmo rect.
     ImGuizmo::BeginFrame();
     ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
 
-    fastgltf::math::fmat4x4 deltaMatrix;
-    if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, selectedNodeWorldTransform.data(), deltaMatrix.data())) {
-        tasks.emplace(std::in_place_type<task::SelectedNodeWorldTransformChanged>);
+    fastgltf::math::fmat4x4 newWorldTransform = selectedNodeWorldTransform;
+    if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
+        constexpr auto affineInverse = [](const fastgltf::math::fmat4x4 &m) noexcept {
+            const fastgltf::math::fmat3x3 inv = inverse(fastgltf::math::fmat3x3 { m });
+            const fastgltf::math::fvec3 l = -inv * fastgltf::math::fvec3 { m.col(3) };
+            return fastgltf::math::fmat4x4 {
+                fastgltf::math::fvec4 { inv.col(0).x(), inv.col(0).y(), inv.col(0).z(), 0.f },
+                fastgltf::math::fvec4 { inv.col(1).x(), inv.col(1).y(), inv.col(1).z(), 0.f },
+                fastgltf::math::fvec4 { inv.col(2).x(), inv.col(2).y(), inv.col(2).z(), 0.f },
+                fastgltf::math::fvec4 { l.x(), l.y(), l.z(), 1.f },
+            };
+        };
+        const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(selectedNodeWorldTransform) * newWorldTransform;
+
+        visit(fastgltf::visitor {
+            [&](fastgltf::math::fmat4x4 &transformMatrix) {
+                transformMatrix = transformMatrix * deltaMatrix;
+            },
+            [&](fastgltf::TRS &trs) {
+                fastgltf::math::fmat4x4 transformMatrix = toMatrix(trs);
+                transformMatrix = transformMatrix * deltaMatrix;
+                decomposeTransformMatrix(transformMatrix, trs.scale, trs.rotation, trs.translation);
+            },
+        }, asset.nodes[selectedNodeIndex].transform);
+
+        tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
     }
 
     constexpr ImVec2 size { 64.f, 64.f };
