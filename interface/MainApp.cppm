@@ -8,6 +8,7 @@ import :gltf.AssetExternalBuffers;
 import :gltf.data_structure.MaterialVariantsMapping;
 import :gltf.data_structure.SceneInverseHierarchy;
 import :gltf.StateCachedNodeVisibilityStructure;
+import :gltf.NodeAnimationUsages;
 import :gltf.NodeWorldTransforms;
 import :gltf.TextureUsages;
 import :helpers.fastgltf;
@@ -81,6 +82,7 @@ namespace vk_gltf_viewer {
 
             std::vector<gltf::Animation> animations;
             std::vector<bool> animationEnabled;
+            gltf::NodeAnimationUsages nodeAnimationUsages;
 
             std::size_t sceneIndex;
 

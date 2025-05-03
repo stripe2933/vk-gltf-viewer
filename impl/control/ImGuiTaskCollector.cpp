@@ -1210,6 +1210,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
     fastgltf::Asset &asset,
+    const std::vector<bool> &animationEnabled,
+    const gltf::NodeAnimationUsages &nodeAnimationUsages,
     std::unordered_set<std::size_t> &selectedNodeIndices
 ) {
     if (ImGui::Begin("Node Inspector")) {
@@ -1223,24 +1225,46 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
             ImGui::SeparatorText("Transform");
 
-            if (bool isTrs = holds_alternative<fastgltf::TRS>(node.transform); ImGui::BeginCombo("Local transform", isTrs ? "TRS" : "Transform Matrix")) {
-                if (ImGui::Selectable("TRS", isTrs) && !isTrs) {
-                    fastgltf::TRS trs;
-                    decomposeTransformMatrix(get<fastgltf::math::fmat4x4>(node.transform), trs.scale, trs.rotation, trs.translation);
-                    node.transform = trs;
+            bool isTransformUsedInAnimation = false;
+            Flags<gltf::NodeAnimationUsage> nodeAnimationUsage{};
+            for (const auto &[animationIndex, usage] : nodeAnimationUsages[selectedNodeIndex]) {
+                if (usage | (gltf::NodeAnimationUsage::Translation | gltf::NodeAnimationUsage::Rotation | gltf::NodeAnimationUsage::Scale)) {
+                    isTransformUsedInAnimation = true;
                 }
-                if (ImGui::Selectable("Transform Matrix", !isTrs) && isTrs) {
-                    const auto &trs = get<fastgltf::TRS>(node.transform);
-                    node.transform.emplace<fastgltf::math::fmat4x4>(toMatrix(trs));
+                if (animationEnabled[animationIndex]) {
+                    nodeAnimationUsage |= usage;
                 }
-                ImGui::EndCombo();
             }
+
+            // Using transform matrix is prohibited when node transform is used in animation as TRS.
+            ImGui::WithDisabled([&]() {
+                if (bool isTrs = holds_alternative<fastgltf::TRS>(node.transform); ImGui::BeginCombo("Local transform", isTrs ? "TRS" : "Transform Matrix")) {
+                    if (ImGui::Selectable("TRS", isTrs) && !isTrs) {
+                        fastgltf::TRS trs;
+                        decomposeTransformMatrix(get<fastgltf::math::fmat4x4>(node.transform), trs.scale, trs.rotation, trs.translation);
+                        node.transform = trs;
+                    }
+                    if (ImGui::Selectable("Transform Matrix", !isTrs) && isTrs) {
+                        const auto &trs = get<fastgltf::TRS>(node.transform);
+                        node.transform.emplace<fastgltf::math::fmat4x4>(toMatrix(trs));
+                    }
+                    ImGui::EndCombo();
+                }
+            }, isTransformUsedInAnimation);
+
+            // If node TRS transform is used by an animation now, it cannot be modified by GUI.
             std::visit(fastgltf::visitor {
                 [&](fastgltf::TRS &trs) {
-                    // | operator cannot be chained, because of the short circuit evaluation.
-                    bool transformChanged = ImGui::DragFloat3("Translation", trs.translation.data());
-                    transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.value_ptr());
-                    transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
+                    bool transformChanged = false;
+                    ImGui::WithDisabled([&]() {
+                        transformChanged |= ImGui::DragFloat3("Translation", trs.translation.data());
+                    }, nodeAnimationUsage & gltf::NodeAnimationUsage::Translation);
+                    ImGui::WithDisabled([&]() {
+                        transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.value_ptr());
+                    }, nodeAnimationUsage & gltf::NodeAnimationUsage::Rotation);
+                    ImGui::WithDisabled([&]() {
+                        transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
+                    }, nodeAnimationUsage & gltf::NodeAnimationUsage::Scale);
 
                     if (transformChanged) {
                         tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
@@ -1270,11 +1294,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
             if (const std::span morphTargetWeights = getTargetWeights(node, asset); !morphTargetWeights.empty()) {
                 ImGui::SeparatorText("Morph Target Weights");
 
-                for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
-                    if (ImGui::DragFloat(tempStringBuffer.write("Weight {}", i).view().c_str(), &weight, 0.01f)) {
-                        tasks.emplace(std::in_place_type<task::MorphTargetWeightChanged>, selectedNodeIndex, i, 1);
+                // If node weights are used by an animation now, they cannot be modified by GUI.
+                ImGui::WithDisabled([&]() {
+                    for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
+                        if (ImGui::DragFloat(tempStringBuffer.write("Weight {}", i).view().c_str(), &weight, 0.01f)) {
+                            tasks.emplace(std::in_place_type<task::MorphTargetWeightChanged>, selectedNodeIndex, i, 1);
+                        }
                     }
-                }
+                }, nodeAnimationUsage & gltf::NodeAnimationUsage::Weights);
             }
 
             if (ImGui::BeginTabBar("node-tab-bar")) {
