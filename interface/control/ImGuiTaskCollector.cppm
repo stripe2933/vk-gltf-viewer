@@ -10,6 +10,7 @@ import imgui.internal;
 export import ImGuizmo;
 export import :AppState;
 export import :control.Task;
+export import :gltf.StateCachedNodeVisibilityStructure;
 export import :gltf.TextureUsage;
 export import :helpers.full_optional;
 export import :imgui.ColorSpaceAndUsageCorrectedTextures;
@@ -28,7 +29,7 @@ namespace vk_gltf_viewer::control {
         void assetTextures(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures, const gltf::TextureUsage &textureUsage);
         void materialEditor(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures);
         void materialVariants(const fastgltf::Asset &asset);
-        void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, std::vector<bool> &nodeVisibilities, const std::optional<std::size_t> &hoveringNodeIndex, std::unordered_set<std::size_t> &selectedNodeIndices);
+        void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, gltf::StateCachedNodeVisibilityStructure &nodeVisibilities, const std::optional<std::size_t> &hoveringNodeIndex, std::unordered_set<std::size_t> &selectedNodeIndices);
         void nodeInspector(fastgltf::Asset &asset, std::unordered_set<std::size_t> &selectedNodeIndices);
         void background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureID eqmapTextureImGuiDescriptorSet);

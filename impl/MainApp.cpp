@@ -43,6 +43,7 @@ import :gltf.algorithm.misc;
 import :gltf.algorithm.traversal;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
+import :gltf.data_structure.SceneInverseHierarchy;
 import :helpers.concepts;
 import :helpers.fastgltf;
 import :helpers.functional;
@@ -426,7 +427,7 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [&](const control::task::NodeLocalTransformChanged &task) {
                     fastgltf::math::fmat4x4 baseMatrix { 1.f };
-                    if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy.parentNodeIndices[task.nodeIndex]) {
+                    if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy->parentNodeIndices[task.nodeIndex]) {
                         baseMatrix = gltf->nodeWorldTransforms[*parentNodeIndex];
                     }
                     const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(gltf->asset.nodes[task.nodeIndex], baseMatrix);
@@ -648,7 +649,7 @@ void vk_gltf_viewer::MainApp::run() {
                     .orderedPrimitives = gltf.orderedPrimitives,
                     .nodeWorldTransforms = gltf.nodeWorldTransforms,
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
-                    .nodeVisibilities = gltf.nodeVisibilities,
+                    .nodeVisibilities = gltf.nodeVisibilities.getVisibilities(),
                     .hoveringNode = transform([&](std::size_t index, const AppState::Outline &outline) {
                         return vulkan::Frame::ExecutionTask::Gltf::HoveringNode {
                             index, outline.color, outline.thickness,
@@ -822,22 +823,16 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     , animationEnabled { std::vector(asset.animations.size(), false) }
     , sceneIndex { asset.defaultScene.value_or(0) }
     , nodeWorldTransforms { asset, asset.scenes[sceneIndex] }
-    , sceneInverseHierarchy { asset, asset.scenes[sceneIndex] }
-    , nodeVisibilities { std::vector(asset.nodes.size(), false) } {
-    gltf::algorithm::traverseScene(asset, asset.scenes[sceneIndex], [this](std::size_t nodeIndex) noexcept {
-        nodeVisibilities[nodeIndex] = true;
-    });
+    , sceneInverseHierarchy { std::make_shared<gltf::ds::SceneInverseHierarchy>(asset, asset.scenes[sceneIndex]) }
+    , nodeVisibilities { asset, asset.scenes[sceneIndex], sceneInverseHierarchy } {
     sceneMiniball = gltf::algorithm::getMiniball(asset, asset.scenes[sceneIndex], nodeWorldTransforms, assetExternalBuffers);
 }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     this->sceneIndex = sceneIndex;
     nodeWorldTransforms.update(asset.scenes[sceneIndex]);
-    sceneInverseHierarchy = { asset, asset.scenes[sceneIndex] };
-    std::ranges::fill(nodeVisibilities, false);
-    gltf::algorithm::traverseScene(asset, asset.scenes[sceneIndex], [this](std::size_t nodeIndex) noexcept {
-        nodeVisibilities[nodeIndex] = true;
-    });
+    sceneInverseHierarchy = std::make_shared<gltf::ds::SceneInverseHierarchy>(asset, asset.scenes[sceneIndex]);
+    nodeVisibilities.setScene(asset.scenes[sceneIndex], sceneInverseHierarchy);
     selectedNodes.clear();
     hoveringNode.reset();
     sceneMiniball = gltf::algorithm::getMiniball(asset, asset.scenes[sceneIndex], nodeWorldTransforms, assetExternalBuffers);
