@@ -602,6 +602,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
             }
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Setting")) {
+            ImGui::MenuItem("Automatically resolve animation collision", nullptr, &static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->resolveAnimationCollisionAutomatically);
+            ImGui::EndMenu();
+        }
         ImGui::EndMainMenuBar();
     }
 }
