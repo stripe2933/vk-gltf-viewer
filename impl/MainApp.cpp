@@ -51,7 +51,7 @@ import :helpers.optional;
 import :helpers.ranges;
 import :imgui.TaskCollector;
 import :vulkan.Frame;
-import :vulkan.imgui.UserData;
+import :vulkan.imgui.PlatformResource;
 import :vulkan.mipmap;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
@@ -799,13 +799,14 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
     };
     ImGui_ImplVulkan_Init(&initInfo);
 
-    userData = std::make_unique<vulkan::imgui::UserData>(gpu);
-    io.UserData = userData.get();
+    userData.platformResource = std::make_unique<vulkan::imgui::PlatformResource>(gpu);
+    io.UserData = &userData;
+    userData.registerSettingHandler();
 }
 
 vk_gltf_viewer::MainApp::ImGuiContext::~ImGuiContext() {
-    // Since userData is instantiated under ImGui_ImplVulkan context, it must be destroyed before shutdown ImGui_ImplVulkan.
-    userData.reset();
+    // Since userData.platformResource is instantiated under ImGui_ImplVulkan context, it must be destroyed before shutdown ImGui_ImplVulkan.
+    userData.platformResource.reset();
 
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();

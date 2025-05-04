@@ -38,7 +38,7 @@ namespace vk_gltf_viewer {
         static constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
 
         struct ImGuiContext {
-            std::unique_ptr<imgui::UserData> userData;
+            imgui::UserData userData;
 
             ImGuiContext(const control::AppWindow &window, vk::Instance instance, const vulkan::Gpu &gpu);
             ~ImGuiContext();

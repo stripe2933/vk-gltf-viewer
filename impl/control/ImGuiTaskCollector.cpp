@@ -25,6 +25,7 @@ import :helpers.optional;
 import :helpers.PairHasher;
 import :helpers.ranges;
 import :helpers.TempStringBuffer;
+import :imgui.UserData;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
@@ -620,8 +621,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Ass
     };
     static std::optional<AnimationCollisionDialogData> animationCollisionDialogData = std::nullopt;
 
-    static bool resolveCollisionAutomatically = false;
-
     if (ImGui::Begin("Animation")) {
         for (std::size_t animationIndex : ranges::views::upto(asset.animations.size())) {
             const fastgltf::Animation &animation = asset.animations[animationIndex];
@@ -664,7 +663,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Ass
                 }
 
                 if (animationCollisionDialogData) {
-                    if (resolveCollisionAutomatically) {
+                    if (static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->resolveAnimationCollisionAutomatically) {
                         animationCollisionDialogData->apply();
                         animationCollisionDialogData.reset();
                     }
@@ -717,7 +716,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Ass
 
                 ImGui::Separator();
 
-                ImGui::Checkbox("Don't ask me and resolve automatically", &resolveCollisionAutomatically);
+                ImGui::Checkbox("Don't ask me and resolve automatically", &static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->resolveAnimationCollisionAutomatically);
 
                 if (ImGui::Button("Yes")) {
                     animationCollisionDialogData->apply();

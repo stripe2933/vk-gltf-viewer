@@ -8,8 +8,11 @@ export import imgui;
 
 export using ::ImGuiInputTextFlags_CallbackResize;
 export using ::ImGuiItemFlags_MixedValue;
+export using ::ImGuiSettingsHandler;
+export using ::ImGuiTextBuffer;
 export using ::ImGuiTreeNodeFlags_DrawTreeLines;
 export using ::ImGuiWindow;
+export using ::ImHashStr;
 export using ::ImRect;
 #ifdef IMGUI_HAS_DOCK
 export using ::ImGuiDir_Left;
@@ -19,6 +22,7 @@ export using ::ImGuiDir_Down;
 #endif
 
 namespace ImGui {
+    export using ImGui::AddSettingsHandler;
     export using ImGui::ButtonBehavior;
     export using ImGui::FindWindowByName;
     export using ImGui::FocusWindow;

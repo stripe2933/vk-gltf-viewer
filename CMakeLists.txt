@@ -212,7 +212,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/Frame.cppm
         interface/vulkan/Gpu.cppm
         interface/vulkan/image/Images.cppm
-        interface/vulkan/imgui/UserData.cppm
+        interface/vulkan/imgui/PlatformResource.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
         interface/vulkan/pipeline/NodeIndexRenderer.cppm
