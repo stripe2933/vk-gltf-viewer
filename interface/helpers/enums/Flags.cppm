@@ -63,7 +63,7 @@ public:
     constexpr Flags &operator&=(const Flags &rhs) noexcept { mask &= rhs.mask; return *this; }
     constexpr Flags &operator^=(const Flags &rhs) noexcept { mask ^= rhs.mask; return *this; }
 
-    [[nodiscard]] explicit constexpr operator bool() const noexcept { return !!mask; }
+    [[nodiscard]] constexpr operator bool() const noexcept { return !!mask; }
     [[nodiscard]] explicit constexpr operator MaskType() const noexcept { return mask; }
 
 private:

@@ -10,8 +10,9 @@ import imgui.internal;
 export import ImGuizmo;
 export import :AppState;
 export import :control.Task;
+export import :gltf.NodeAnimationUsages;
 export import :gltf.StateCachedNodeVisibilityStructure;
-export import :gltf.TextureUsage;
+export import :gltf.TextureUsages;
 export import :helpers.full_optional;
 export import :imgui.ColorSpaceAndUsageCorrectedTextures;
 
@@ -24,13 +25,13 @@ namespace vk_gltf_viewer::control {
         ~ImGuiTaskCollector();
 
         void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
-        void animations(const fastgltf::Asset &asset, std::vector<bool> &animationEnabled);
+        void animations(const fastgltf::Asset &asset, std::shared_ptr<std::vector<bool>> animationEnabled);
         void assetInspector(fastgltf::Asset &asset, const std::filesystem::path &assetDir);
-        void assetTextures(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures, const gltf::TextureUsage &textureUsage);
+        void assetTextures(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures, const gltf::TextureUsages &textureUsages);
         void materialEditor(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures);
         void materialVariants(const fastgltf::Asset &asset);
         void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, gltf::StateCachedNodeVisibilityStructure &nodeVisibilities, const std::optional<std::size_t> &hoveringNodeIndex, std::unordered_set<std::size_t> &selectedNodeIndices);
-        void nodeInspector(fastgltf::Asset &asset, std::unordered_set<std::size_t> &selectedNodeIndices);
+        void nodeInspector(fastgltf::Asset &asset, const std::vector<bool> &animationEnabled, const gltf::NodeAnimationUsages &nodeAnimationUsages, std::unordered_set<std::size_t> &selectedNodeIndices);
         void background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureID eqmapTextureImGuiDescriptorSet);
         void inputControl(Camera &camera, bool& automaticNearFarPlaneAdjustment, bool &useFrustumCulling, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline);

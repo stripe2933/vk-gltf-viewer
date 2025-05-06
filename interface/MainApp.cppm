@@ -8,8 +8,9 @@ import :gltf.AssetExternalBuffers;
 import :gltf.data_structure.MaterialVariantsMapping;
 import :gltf.data_structure.SceneInverseHierarchy;
 import :gltf.StateCachedNodeVisibilityStructure;
+import :gltf.NodeAnimationUsages;
 import :gltf.NodeWorldTransforms;
-import :gltf.TextureUsage;
+import :gltf.TextureUsages;
 import :helpers.fastgltf;
 import :imgui.UserData;
 import :vulkan.dsl.Asset;
@@ -37,7 +38,7 @@ namespace vk_gltf_viewer {
         static constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
 
         struct ImGuiContext {
-            std::unique_ptr<imgui::UserData> userData;
+            imgui::UserData userData;
 
             ImGuiContext(const control::AppWindow &window, vk::Instance instance, const vulkan::Gpu &gpu);
             ~ImGuiContext();
@@ -68,7 +69,7 @@ namespace vk_gltf_viewer {
              */
             gltf::ds::MaterialVariantsMapping materialVariantsMapping { asset };
 
-            gltf::TextureUsage textureUsage { asset };
+            gltf::TextureUsages textureUsages { asset };
 
             /**
 			 * @brief External buffers that are not embedded in the glTF file, such like .bin files.
@@ -80,7 +81,8 @@ namespace vk_gltf_viewer {
             gltf::OrderedPrimitives orderedPrimitives;
 
             std::vector<gltf::Animation> animations;
-            std::vector<bool> animationEnabled;
+            std::shared_ptr<std::vector<bool>> animationEnabled;
+            gltf::NodeAnimationUsages nodeAnimationUsages;
 
             std::size_t sceneIndex;
 

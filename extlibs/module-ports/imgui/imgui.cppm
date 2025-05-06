@@ -13,6 +13,7 @@ export using ::ImGuiCol_ButtonActive;
 export using ::ImGuiCol_ButtonHovered;
 export using ::ImGuiCol_Header;
 export using ::ImGuiCol_HeaderActive;
+export using ::ImGuiCond_Appearing;
 export using ::ImGuiContext;
 export using ::ImGuiInputTextCallback;
 export using ::ImGuiInputTextCallbackData;
@@ -79,6 +80,7 @@ namespace ImGui {
     export using ImGui::Button;
     export using ImGui::CalcItemWidth;
     export using ImGui::Checkbox;
+    export using ImGui::CloseCurrentPopup;
     export using ImGui::CollapsingHeader;
     export using ImGui::ColorEdit4;
     export using ImGui::ColorPicker3;
@@ -110,6 +112,7 @@ namespace ImGui {
     export using ImGui::GetDrawData;
     export using ImGui::GetIO;
     export using ImGui::GetItemRectMax;
+    export using ImGui::GetMainViewport;
     export using ImGui::GetStyle;
     export using ImGui::GetStyleColorVec4;
     export using ImGui::GetTextLineHeight;
@@ -144,6 +147,7 @@ namespace ImGui {
     export using ImGui::SetItemDefaultFocus;
     export using ImGui::SetNextItemAllowOverlap;
     export using ImGui::SetNextItemWidth;
+    export using ImGui::SetNextWindowPos;
     export using ImGui::TableHeadersRow;
     export using ImGui::TableNextRow;
     export using ImGui::TableSetColumnIndex;
@@ -154,6 +158,7 @@ namespace ImGui {
     export using ImGui::TextLink;
     export using ImGui::TextLinkOpenURL;
     export using ImGui::TextUnformatted;
+    export using ImGui::TreeNode;
     export using ImGui::TreeNodeEx;
     export using ImGui::TreePop;
 

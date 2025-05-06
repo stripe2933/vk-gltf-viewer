@@ -145,10 +145,11 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/data_structure/NodeInstanceCountExclusiveScanWithCount.cppm
         interface/gltf/data_structure/SceneInverseHierarchy.cppm
         interface/gltf/data_structure/TargetWeightCountExclusiveScanWithCount.cppm
+        interface/gltf/NodeAnimationUsages.cppm
         interface/gltf/StateCachedNodeVisibilityStructure.cppm
         interface/gltf/NodeWorldTransforms.cppm
         interface/gltf/OrderedPrimitives.cppm
-        interface/gltf/TextureUsage.cppm
+        interface/gltf/TextureUsages.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/algorithm.cppm
         interface/helpers/concepts.cppm
@@ -162,6 +163,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/imgui/table.cppm
         interface/helpers/io.cppm
         interface/helpers/optional.cppm
+        interface/helpers/PairHasher.cppm
         interface/helpers/ranges/mod.cppm
         interface/helpers/ranges/concat.cppm
         interface/helpers/ranges/contains.cppm
@@ -210,7 +212,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/Frame.cppm
         interface/vulkan/Gpu.cppm
         interface/vulkan/image/Images.cppm
-        interface/vulkan/imgui/UserData.cppm
+        interface/vulkan/imgui/PlatformResource.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
         interface/vulkan/pipeline/NodeIndexRenderer.cppm

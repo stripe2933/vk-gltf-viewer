@@ -22,8 +22,10 @@ import :helpers.formatter.ByteSize;
 import :helpers.functional;
 import :helpers.imgui;
 import :helpers.optional;
+import :helpers.PairHasher;
 import :helpers.ranges;
 import :helpers.TempStringBuffer;
+import :imgui.UserData;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
@@ -335,7 +337,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetSamplers(std::span<fastgl
 void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
     fastgltf::Asset &asset,
     const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures,
-    const gltf::TextureUsage &textureUsage
+    const gltf::TextureUsages &textureUsages
 ) {
     if (ImGui::Begin("Textures")) {
         static std::optional<std::size_t> textureIndex = std::nullopt;
@@ -392,10 +394,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
 
                 ImGui::SeparatorText("Texture used by:");
 
-                ImGui::TableWithVirtualization<false>(
+                ImGui::Table<false>(
                     "",
                     ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable,
-                    textureUsage.getUsages(*textureIndex),
+                    textureUsages[*textureIndex],
                     ImGui::ColumnInfo { "Material", decomposer([&](std::size_t materialIndex, auto) {
                         ImGui::WithID(materialIndex, [&]() {
                             if (ImGui::TextLink(nonempty_or(asset.materials[materialIndex].name, [&] { return tempStringBuffer.write("Unnamed material {}", materialIndex).view(); }).c_str())) {
@@ -404,7 +406,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
                             }
                         });
                     }), ImGuiTableColumnFlags_WidthFixed },
-                    ImGui::ColumnInfo { "Type", decomposer([](auto, Flags<gltf::TextureUsage::Type> type) {
+                    ImGui::ColumnInfo { "Type", decomposer([](auto, Flags<gltf::TextureUsage> type) {
                         ImGui::TextUnformatted(tempStringBuffer.write("{::s}", type).view());
                     }), ImGuiTableColumnFlags_WidthStretch });
             });
@@ -600,17 +602,142 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
             }
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Setting")) {
+            ImGui::MenuItem("Automatically resolve animation collision", nullptr, &static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->resolveAnimationCollisionAutomatically);
+            ImGui::EndMenu();
+        }
         ImGui::EndMainMenuBar();
     }
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Asset &asset, std::vector<bool> &animationEnabled) {
-    if (ImGui::Begin("Animation")) {
-        for (auto &&[animation, enabled] : std::views::zip(asset.animations, animationEnabled)) {
-            bool enabledBool = enabled;
-            if (ImGui::Checkbox(nonempty_or(animation.name, []() -> cpp_util::cstring_view { return "<Unnamed animation>"; }).c_str(), &enabledBool)) {
-                enabled = enabledBool;
+void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Asset &asset, std::shared_ptr<std::vector<bool>> animationEnabled) {
+    struct AnimationCollisionDialogData {
+        std::shared_ptr<std::vector<bool>> animationEnabled;
+        std::size_t animationIndexToEnable;
+        std::map<std::size_t /* animation index */, std::map<std::size_t /* node index */, Flags<gltf::NodeAnimationUsage>>> collisions;
+
+        void apply() {
+            for (std::size_t collidingAnimationIndex : collisions | std::views::keys) {
+                (*animationEnabled)[collidingAnimationIndex] = false;
             }
+            (*animationEnabled)[animationIndexToEnable] = true;
+        }
+    };
+    static std::optional<AnimationCollisionDialogData> animationCollisionDialogData = std::nullopt;
+
+    if (ImGui::Begin("Animation")) {
+        for (std::size_t animationIndex : ranges::views::upto(asset.animations.size())) {
+            const fastgltf::Animation &animation = asset.animations[animationIndex];
+            bool enabled = (*animationEnabled)[animationIndex];
+            if (ImGui::Checkbox(nonempty_or(animation.name, [&]() -> cpp_util::cstring_view {
+                return tempStringBuffer.write("<Unnamed animation {}>", animationIndex).view();
+            }).c_str(), &enabled)) {
+                // Retrieve what node and path will be used by this animation.
+                std::unordered_set<std::pair<std::size_t, fastgltf::AnimationPath>, PairHasher> usedNodesAndPaths;
+                for (const fastgltf::AnimationChannel &channel : animation.channels) {
+                    if (channel.nodeIndex) {
+                        usedNodesAndPaths.emplace(*channel.nodeIndex, channel.path);
+                    }
+                }
+
+                auto otherRunningAnimationIndices
+                    = *animationEnabled
+                    | ranges::views::enumerate
+                    | std::views::filter(decomposer([&](auto i, bool enabled) {
+                        return enabled && (i != animationIndex);
+                    }))
+                    | std::views::keys
+                    | std::views::transform([](auto x) { return static_cast<std::size_t>(x); });
+                for (std::size_t candidateAnimationIndex : otherRunningAnimationIndices) {
+                    const fastgltf::Animation &candidateAnimation = asset.animations[candidateAnimationIndex];
+                    for (const fastgltf::AnimationChannel &channel : candidateAnimation.channels) {
+                        if (!channel.nodeIndex) continue;
+
+                        if (usedNodesAndPaths.contains({ *channel.nodeIndex, channel.path })) {
+                            [&]() -> AnimationCollisionDialogData& {
+                                if (animationCollisionDialogData) {
+                                    return *animationCollisionDialogData;
+                                }
+                                else {
+                                    return animationCollisionDialogData.emplace(animationEnabled, animationIndex);
+                                }
+                            }().collisions[candidateAnimationIndex][*channel.nodeIndex] |= gltf::convert(channel.path);
+                        }
+                    }
+                }
+
+                if (animationCollisionDialogData) {
+                    if (static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->resolveAnimationCollisionAutomatically) {
+                        animationCollisionDialogData->apply();
+                        animationCollisionDialogData.reset();
+                    }
+                    else {
+                        ImGui::OpenPopup("Animation Collision Detected");
+                    }
+                }
+                else {
+                    (*animationEnabled)[animationIndex] = enabled;
+                }
+            }
+        }
+
+        // Center the modal window.
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2 { 0.5f, 0.5f });
+
+        if (ImGui::BeginPopupModal("Animation Collision Detected", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::TextUnformatted("The animation you're trying to enable is colliding by other enabled animations.");
+
+            const auto closeDialog = []() {
+                animationCollisionDialogData.reset();
+                ImGui::CloseCurrentPopup();
+            };
+
+            assert(animationCollisionDialogData);
+
+            // If dialog is opened and user changed the asset (by drag-and-drop the asset file), the dialog's data
+            // and the asset what the execution flow processes is different, make consistency problem. It can be avoided
+            // by checking these two pointers are same.
+            if (animationCollisionDialogData->animationEnabled == animationEnabled) {
+                for (const auto &[collidingAnimationIndex, collisionList] : animationCollisionDialogData->collisions) {
+                    if (ImGui::TreeNode(nonempty_or(asset.animations[collidingAnimationIndex].name, [&]() -> cpp_util::cstring_view {
+                        return tempStringBuffer.write("<Unnamed animation {}>", collidingAnimationIndex).view();
+                    }).c_str())) {
+                        ImGui::Table<false>(
+                            "animation-collision-table",
+                            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg,
+                            collisionList,
+                            ImGui::ColumnInfo { "Node", decomposer([](std::size_t nodeIndex, auto) {
+                                ImGui::Text("%zu", nodeIndex);
+                            }) },
+                            ImGui::ColumnInfo { "Path", decomposer([](auto, Flags<gltf::NodeAnimationUsage> usage) {
+                                ImGui::TextUnformatted(tempStringBuffer.write("{::s}", usage).view());
+                            }) });
+                        ImGui::TreePop();
+                    }
+                }
+
+                ImGui::TextUnformatted("Would you like to disable these animations?");
+
+                ImGui::Separator();
+
+                ImGui::Checkbox("Don't ask me and resolve automatically", &static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->resolveAnimationCollisionAutomatically);
+
+                if (ImGui::Button("Yes")) {
+                    animationCollisionDialogData->apply();
+                    closeDialog();
+                }
+                ImGui::SetItemDefaultFocus();
+                ImGui::SameLine();
+                if (ImGui::Button("No")) {
+                    closeDialog();
+                }
+            }
+            else {
+                // Asset is reloaded. Dialog shouldn't maintain its opened state.
+                closeDialog();
+            }
+
+            ImGui::EndPopup();
         }
     }
     ImGui::End();
@@ -711,10 +838,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::SameLine();
                 ImGui::HelperMarker("(overridden)", "This value is overridden by KHR_texture_transform extension.");
             };
-            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, gltf::TextureUsage::Type textureUsageType) -> void {
+            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, gltf::TextureUsage usage) -> void {
                 const auto [enabledProp, changeProp] = [&]() -> std::array<task::MaterialPropertyChanged::Property, 2> {
                     using enum task::MaterialPropertyChanged::Property;
-                    switch (textureUsageType) {
+                    switch (usage) {
                         case gltf::TextureUsage::BaseColor:
                             return { BaseColorTextureTransformEnabled, BaseColorTextureTransform };
                         case gltf::TextureUsage::MetallicRoughness:
@@ -1210,6 +1337,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
     fastgltf::Asset &asset,
+    const std::vector<bool> &animationEnabled,
+    const gltf::NodeAnimationUsages &nodeAnimationUsages,
     std::unordered_set<std::size_t> &selectedNodeIndices
 ) {
     if (ImGui::Begin("Node Inspector")) {
@@ -1223,24 +1352,46 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
             ImGui::SeparatorText("Transform");
 
-            if (bool isTrs = holds_alternative<fastgltf::TRS>(node.transform); ImGui::BeginCombo("Local transform", isTrs ? "TRS" : "Transform Matrix")) {
-                if (ImGui::Selectable("TRS", isTrs) && !isTrs) {
-                    fastgltf::TRS trs;
-                    decomposeTransformMatrix(get<fastgltf::math::fmat4x4>(node.transform), trs.scale, trs.rotation, trs.translation);
-                    node.transform = trs;
+            bool isTransformUsedInAnimation = false;
+            Flags<gltf::NodeAnimationUsage> nodeAnimationUsage{};
+            for (const auto &[animationIndex, usage] : nodeAnimationUsages[selectedNodeIndex]) {
+                if (usage | (gltf::NodeAnimationUsage::Translation | gltf::NodeAnimationUsage::Rotation | gltf::NodeAnimationUsage::Scale)) {
+                    isTransformUsedInAnimation = true;
                 }
-                if (ImGui::Selectable("Transform Matrix", !isTrs) && isTrs) {
-                    const auto &trs = get<fastgltf::TRS>(node.transform);
-                    node.transform.emplace<fastgltf::math::fmat4x4>(toMatrix(trs));
+                if (animationEnabled[animationIndex]) {
+                    nodeAnimationUsage |= usage;
                 }
-                ImGui::EndCombo();
             }
+
+            // Using transform matrix is prohibited when node transform is used in animation as TRS.
+            ImGui::WithDisabled([&]() {
+                if (bool isTrs = holds_alternative<fastgltf::TRS>(node.transform); ImGui::BeginCombo("Local transform", isTrs ? "TRS" : "Transform Matrix")) {
+                    if (ImGui::Selectable("TRS", isTrs) && !isTrs) {
+                        fastgltf::TRS trs;
+                        decomposeTransformMatrix(get<fastgltf::math::fmat4x4>(node.transform), trs.scale, trs.rotation, trs.translation);
+                        node.transform = trs;
+                    }
+                    if (ImGui::Selectable("Transform Matrix", !isTrs) && isTrs) {
+                        const auto &trs = get<fastgltf::TRS>(node.transform);
+                        node.transform.emplace<fastgltf::math::fmat4x4>(toMatrix(trs));
+                    }
+                    ImGui::EndCombo();
+                }
+            }, isTransformUsedInAnimation);
+
+            // If node TRS transform is used by an animation now, it cannot be modified by GUI.
             std::visit(fastgltf::visitor {
                 [&](fastgltf::TRS &trs) {
-                    // | operator cannot be chained, because of the short circuit evaluation.
-                    bool transformChanged = ImGui::DragFloat3("Translation", trs.translation.data());
-                    transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.value_ptr());
-                    transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
+                    bool transformChanged = false;
+                    ImGui::WithDisabled([&]() {
+                        transformChanged |= ImGui::DragFloat3("Translation", trs.translation.data());
+                    }, nodeAnimationUsage & gltf::NodeAnimationUsage::Translation);
+                    ImGui::WithDisabled([&]() {
+                        transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.value_ptr());
+                    }, nodeAnimationUsage & gltf::NodeAnimationUsage::Rotation);
+                    ImGui::WithDisabled([&]() {
+                        transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
+                    }, nodeAnimationUsage & gltf::NodeAnimationUsage::Scale);
 
                     if (transformChanged) {
                         tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
@@ -1270,11 +1421,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
             if (const std::span morphTargetWeights = getTargetWeights(node, asset); !morphTargetWeights.empty()) {
                 ImGui::SeparatorText("Morph Target Weights");
 
-                for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
-                    if (ImGui::DragFloat(tempStringBuffer.write("Weight {}", i).view().c_str(), &weight, 0.01f)) {
-                        tasks.emplace(std::in_place_type<task::MorphTargetWeightChanged>, selectedNodeIndex, i, 1);
+                // If node weights are used by an animation now, they cannot be modified by GUI.
+                ImGui::WithDisabled([&]() {
+                    for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
+                        if (ImGui::DragFloat(tempStringBuffer.write("Weight {}", i).view().c_str(), &weight, 0.01f)) {
+                            tasks.emplace(std::in_place_type<task::MorphTargetWeightChanged>, selectedNodeIndex, i, 1);
+                        }
                     }
-                }
+                }, nodeAnimationUsage & gltf::NodeAnimationUsage::Weights);
             }
 
             if (ImGui::BeginTabBar("node-tab-bar")) {

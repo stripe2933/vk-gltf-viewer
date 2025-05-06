@@ -51,7 +51,7 @@ import :helpers.optional;
 import :helpers.ranges;
 import :imgui.TaskCollector;
 import :vulkan.Frame;
-import :vulkan.imgui.UserData;
+import :vulkan.imgui.PlatformResource;
 import :vulkan.mipmap;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
@@ -162,7 +162,7 @@ void vk_gltf_viewer::MainApp::run() {
         // Collect task from animation system.
         if (gltf) {
             std::vector<std::size_t> transformedNodes, morphedNodes;
-            for (const auto &[animation, enabled] : std::views::zip(gltf->animations, gltf->animationEnabled)) {
+            for (const auto &[animation, enabled] : std::views::zip(gltf->animations, *gltf->animationEnabled)) {
                 if (!enabled) continue;
                 animation.update(glfwGetTime(), back_inserter(transformedNodes), back_inserter(morphedNodes), gltf->assetExternalBuffers);
             }
@@ -193,13 +193,13 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths(), windowHandle);
             if (gltf) {
                 imguiTaskCollector.assetInspector(gltf->asset, gltf->directory);
-                imguiTaskCollector.assetTextures(gltf->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures, gltf->textureUsage);
+                imguiTaskCollector.assetTextures(gltf->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures, gltf->textureUsages);
                 imguiTaskCollector.materialEditor(gltf->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures);
                 if (!gltf->asset.materialVariants.empty()) {
                     imguiTaskCollector.materialVariants(gltf->asset);
                 }
                 imguiTaskCollector.sceneHierarchy(gltf->asset, gltf->sceneIndex, gltf->nodeVisibilities, gltf->hoveringNode, gltf->selectedNodes);
-                imguiTaskCollector.nodeInspector(gltf->asset, gltf->selectedNodes);
+                imguiTaskCollector.nodeInspector(gltf->asset, *gltf->animationEnabled, gltf->nodeAnimationUsages, gltf->selectedNodes);
 
                 if (!gltf->asset.animations.empty()) {
                     imguiTaskCollector.animations(gltf->asset, gltf->animationEnabled);
@@ -799,13 +799,14 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
     };
     ImGui_ImplVulkan_Init(&initInfo);
 
-    userData = std::make_unique<vulkan::imgui::UserData>(gpu);
-    io.UserData = userData.get();
+    userData.platformResource = std::make_unique<vulkan::imgui::PlatformResource>(gpu);
+    io.UserData = &userData;
+    userData.registerSettingHandler();
 }
 
 vk_gltf_viewer::MainApp::ImGuiContext::~ImGuiContext() {
-    // Since userData is instantiated under ImGui_ImplVulkan context, it must be destroyed before shutdown ImGui_ImplVulkan.
-    userData.reset();
+    // Since userData.platformResource is instantiated under ImGui_ImplVulkan context, it must be destroyed before shutdown ImGui_ImplVulkan.
+    userData.platformResource.reset();
 
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -820,7 +821,8 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     , animations { std::from_range, asset.animations | std::views::transform([&](const fastgltf::Animation &animation) {
         return gltf::Animation { asset, animation, assetExternalBuffers };
     }) }
-    , animationEnabled { std::vector(asset.animations.size(), false) }
+    , animationEnabled { std::make_shared<std::vector<bool>>(asset.animations.size(), false) }
+    , nodeAnimationUsages { asset }
     , sceneIndex { asset.defaultScene.value_or(0) }
     , nodeWorldTransforms { asset, asset.scenes[sceneIndex] }
     , sceneInverseHierarchy { std::make_shared<gltf::ds::SceneInverseHierarchy>(asset, asset.scenes[sceneIndex]) }
