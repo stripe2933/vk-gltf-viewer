@@ -25,7 +25,8 @@ struct Material {
     mat3x2 normalTextureTransform;
     mat3x2 occlusionTextureTransform;
     mat3x2 emissiveTextureTransform;
-    vec2 padding1;
+    float ior;
+    float padding1;
 }; // 192 bytes.
 
 // --------------------

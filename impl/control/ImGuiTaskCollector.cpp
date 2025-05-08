@@ -1033,6 +1033,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                     }, material.unlit);
                 }
             });
+
+            if (ImGui::CollapsingHeader("KHR_materials_ior")) {
+                ImGui::WithDisabled([&]() {
+                    if (ImGui::DragFloat("Index of Refraction", &material.ior, 1e-2f, 1.f, std::numeric_limits<float>::max())) {
+                        notifyPropertyChanged(task::MaterialPropertyChanged::Ior);
+                    }
+                }, material.unlit);
+            }
         }
     }
     ImGui::End();

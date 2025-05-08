@@ -47,6 +47,7 @@ namespace vk_gltf_viewer::control {
                 OcclusionTextureTransform,
                 OcclusionTextureTransformEnabled,
                 Unlit,
+                Ior,
             };
 
             std::size_t materialIndex;

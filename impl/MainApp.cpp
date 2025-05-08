@@ -551,6 +551,12 @@ void vk_gltf_viewer::MainApp::run() {
                                 changedMaterial.pbrData.roughnessFactor,
                                 sharedDataUpdateCommandBuffer);
                             break;
+                        case Property::Ior:
+                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::ior>(
+                                task.materialIndex,
+                                changedMaterial.ior,
+                                sharedDataUpdateCommandBuffer);
+                            break;
                     }
                 },
                 [&](const control::task::SelectMaterialVariants &task) {
