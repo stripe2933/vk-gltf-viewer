@@ -7,9 +7,9 @@ module;
 export module ibl:BrdfmapRenderer;
 
 import std;
+import ibl.shader.brdfmap_frag;
+import ibl.shader.screen_quad_vert;
 export import vku;
-import :shader.brdfmap_frag;
-import :shader.screen_quad_vert;
 
 namespace ibl {
     export class BrdfmapRenderer {

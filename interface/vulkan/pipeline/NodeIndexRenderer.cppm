@@ -1,18 +1,17 @@
 export module vk_gltf_viewer:vulkan.pipeline.NodeIndexRenderer;
 
 import std;
+
+import vk_gltf_viewer.helpers;
+import vk_gltf_viewer.shader.mask_node_index_frag;
+import vk_gltf_viewer.shader.mask_node_index_vert;
+import vk_gltf_viewer.shader.node_index_frag;
+import vk_gltf_viewer.shader.node_index_vert;
 import vku;
 export import :helpers.vulkan;
-import :shader.node_index_frag;
-import :shader.node_index_vert;
-import :shader_selector.mask_node_index_frag;
-import :shader_selector.mask_node_index_vert;
 export import :vulkan.pl.PrimitiveNoShading;
 export import :vulkan.rp.MousePicking;
 import :vulkan.specialization_constants.SpecializationMap;
-
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class NodeIndexRendererSpecialization {
@@ -105,20 +104,22 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 createPipelineStages(
                     device,
                     vku::Shader {
-                        std::apply(LIFT(shader_selector::mask_node_index_vert), getVertexShaderVariants()),
+                        shader::mask_node_index_vert,
                         vk::ShaderStageFlagBits::eVertex,
                         vku::unsafeAddress(vk::SpecializationInfo {
                             SpecializationMap<VertexShaderSpecializationData>::value,
                             vku::unsafeProxy(getVertexShaderSpecializationData()),
                         }),
+                        std::format("main_{:n:}", join<'_'>(getVertexShaderVariants())).c_str(),
                     },
                     vku::Shader {
-                        std::apply(LIFT(shader_selector::mask_node_index_frag), getFragmentShaderVariants()),
+                        shader::mask_node_index_frag,
                         vk::ShaderStageFlagBits::eFragment,
                         vku::unsafeAddress(vk::SpecializationInfo {
                             SpecializationMap<FragmentShaderSpecializationData>::value,
                             vku::unsafeProxy(getFragmentShaderSpecializationData()),
                         }),
+                        std::format("main_{:n:}", join<'_'>(getFragmentShaderVariants())).c_str(),
                     }).get(),
                 *pipelineLayout, 1, true)
                 .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {

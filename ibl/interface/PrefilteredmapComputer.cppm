@@ -7,8 +7,8 @@ module;
 export module ibl:PrefilteredmapComputer;
 
 import std;
+import ibl.shader.prefilteredmap_comp;
 export import vku;
-import :shader.prefilteredmap_comp;
 
 namespace ibl {
     export class PrefilteredmapComputer {
@@ -140,9 +140,7 @@ namespace ibl {
                 createPipelineStages(
                     device,
                     vku::Shader {
-                        config.useShaderImageLoadStoreLod
-                            ? std::span<const std::uint32_t> { shader::prefilteredmap_comp<1> }
-                            : std::span<const std::uint32_t> { shader::prefilteredmap_comp<0> },
+                        shader::prefilteredmap_comp,
                         vk::ShaderStageFlagBits::eCompute,
                         vku::unsafeAddress(vk::SpecializationInfo {
                             // TODO: use vku::SpecializationMap when available.
@@ -151,6 +149,7 @@ namespace ibl {
                             }),
                             vk::ArrayProxyNoTemporaries<const SpecializationConstants> { config.specializationConstants },
                         }),
+                        std::format("main_{}", config.useShaderImageLoadStoreLod ? 1 : 0).c_str(),
                     }).get()[0],
                 *pipelineLayout,
             } };

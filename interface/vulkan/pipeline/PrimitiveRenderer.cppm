@@ -9,17 +9,15 @@ export module vk_gltf_viewer:vulkan.pipeline.PrimitiveRenderer;
 
 import std;
 export import fastgltf;
+import vk_gltf_viewer.helpers;
+import vk_gltf_viewer.shader.primitive_frag;
+import vk_gltf_viewer.shader.primitive_vert;
 import vku;
 import :helpers.ranges;
 export import :helpers.vulkan;
-import :shader_selector.primitive_vert;
-import :shader_selector.primitive_frag;
 export import :vulkan.pl.Primitive;
 export import :vulkan.rp.Scene;
 import :vulkan.specialization_constants.SpecializationMap;
-
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class PrimitiveRendererSpecialization {
@@ -62,17 +60,21 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 vk::ArrayProxyNoTemporaries<const FragmentShaderSpecializationData> { fragmentShaderSpecializationData },
             };
 
+            const std::string vertexShaderEntrypoint = std::format("main_{:n:}", join<'_'>(getVertexShaderVariants()));
+            const std::string fragmentShaderEntrypoint = std::format("main_{:n:}", join<'_'>(getFragmentShaderVariants()));
             const vku::RefHolder pipelineStages = createPipelineStages(
                 device,
                 vku::Shader {
-                    std::apply(LIFT(shader_selector::primitive_vert), getVertexShaderVariants()),
+                    shader::primitive_vert,
                     vk::ShaderStageFlagBits::eVertex,
                     &vertexShaderSpecializationInfo,
+                    vertexShaderEntrypoint.c_str(),
                 },
                 vku::Shader {
-                    std::apply(LIFT(shader_selector::primitive_frag), getFragmentShaderVariants()),
+                    shader::primitive_frag,
                     vk::ShaderStageFlagBits::eFragment,
                     &fragmentShaderSpecializationInfo,
+                    fragmentShaderEntrypoint.c_str(),
                 });
 
             const vk::PipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo {

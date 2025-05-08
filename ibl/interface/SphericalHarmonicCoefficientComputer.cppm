@@ -7,9 +7,9 @@ module;
 export module ibl:SphericalHarmonicCoefficientComputer;
 
 import std;
+import ibl.shader.spherical_harmonic_coefficient_buffer_to_buffer_comp;
+import ibl.shader.spherical_harmonic_coefficient_image_to_buffer_comp;
 export import vku;
-import :shader.spherical_harmonic_coefficient_image_to_buffer_comp;
-import :shader.spherical_harmonic_coefficient_buffer_to_buffer_comp;
 
 [[nodiscard]] constexpr std::uint32_t square(std::uint32_t num) noexcept {
     return num * num;

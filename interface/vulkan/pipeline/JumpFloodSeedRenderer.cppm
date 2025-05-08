@@ -1,17 +1,15 @@
 export module vk_gltf_viewer:vulkan.pipeline.JumpFloodSeedRenderer;
 
 import std;
+import vk_gltf_viewer.helpers;
+import vk_gltf_viewer.shader.jump_flood_seed_vert;
+import vk_gltf_viewer.shader.jump_flood_seed_frag;
+import vk_gltf_viewer.shader.mask_jump_flood_seed_frag;
+import vk_gltf_viewer.shader.mask_jump_flood_seed_vert;
 import vku;
 export import :helpers.vulkan;
-import :shader.jump_flood_seed_vert;
-import :shader.jump_flood_seed_frag;
-import :shader_selector.mask_jump_flood_seed_vert;
-import :shader_selector.mask_jump_flood_seed_frag;
 export import :vulkan.pl.PrimitiveNoShading;
 import :vulkan.specialization_constants.SpecializationMap;
-
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class JumpFloodSeedRendererSpecialization {
@@ -107,20 +105,22 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     createPipelineStages(
                         device,
                         vku::Shader {
-                            std::apply(LIFT(shader_selector::mask_jump_flood_seed_vert), getVertexShaderVariants()),
+                            shader::mask_jump_flood_seed_vert,
                             vk::ShaderStageFlagBits::eVertex,
                             vku::unsafeAddress(vk::SpecializationInfo {
                                 SpecializationMap<VertexShaderSpecializationData>::value,
                                 vku::unsafeProxy(getVertexShaderSpecializationData()),
                             }),
+                            std::format("main_{:n:}", join<'_'>(getVertexShaderVariants())).c_str(),
                         },
                         vku::Shader {
-                            std::apply(LIFT(shader_selector::mask_jump_flood_seed_frag), getFragmentShaderVariants()),
+                            shader::mask_jump_flood_seed_frag,
                             vk::ShaderStageFlagBits::eFragment,
                             vku::unsafeAddress(vk::SpecializationInfo {
                                 SpecializationMap<FragmentShaderSpecializationData>::value,
                                 vku::unsafeProxy(getFragmentShaderSpecializationData()),
                             }),
+                            std::format("main_{:n:}", join<'_'>(getFragmentShaderVariants())).c_str(),
                         }).get(),
                     *pipelineLayout, 1, true)
                     .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {

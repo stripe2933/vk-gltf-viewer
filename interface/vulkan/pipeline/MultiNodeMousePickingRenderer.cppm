@@ -1,18 +1,16 @@
 export module vk_gltf_viewer:vulkan.pipeline.MultiNodeMousePickingRenderer;
 
 import std;
+import vk_gltf_viewer.helpers;
+import vk_gltf_viewer.shader.mask_multi_node_mouse_picking_frag;
+import vk_gltf_viewer.shader.mask_node_index_vert;
+import vk_gltf_viewer.shader.multi_node_mouse_picking_frag;
+import vk_gltf_viewer.shader.node_index_vert;
 import vku;
 export import :helpers.vulkan;
-import :shader.node_index_vert;
-import :shader_selector.mask_node_index_vert;
-import :shader.multi_node_mouse_picking_frag;
-import :shader_selector.mask_multi_node_mouse_picking_frag;
 export import :vulkan.Gpu;
 export import :vulkan.pl.MultiNodeMousePicking;
 import :vulkan.specialization_constants.SpecializationMap;
-
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class MultiNodeMousePickingRendererSpecialization {
@@ -112,20 +110,22 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     createPipelineStages(
                         gpu.device,
                         vku::Shader {
-                            std::apply(LIFT(shader_selector::mask_node_index_vert), getVertexShaderVariants()),
+                            shader::mask_node_index_vert,
                             vk::ShaderStageFlagBits::eVertex,
                             vku::unsafeAddress(vk::SpecializationInfo {
                                 SpecializationMap<VertexShaderSpecializationData>::value,
                                 vku::unsafeProxy(getVertexShaderSpecializationData()),
                             }),
+                            std::format("main_{:n:}", join<'_'>(getVertexShaderVariants())).c_str(),
                         },
                         vku::Shader {
-                            std::apply(LIFT(shader_selector::mask_multi_node_mouse_picking_frag), getFragmentShaderVariants()),
+                            shader::mask_multi_node_mouse_picking_frag,
                             vk::ShaderStageFlagBits::eFragment,
                             vku::unsafeAddress(vk::SpecializationInfo {
                                 SpecializationMap<FragmentShaderSpecializationData>::value,
                                 vku::unsafeProxy(getFragmentShaderSpecializationData()),
                             }),
+                            std::format("main_{:n:}", join<'_'>(getFragmentShaderVariants())).c_str(),
                         }).get(),
                     // See doc about Gpu::Workaround::attachmentLessRenderPass.
                     *pipelineLayout, 0, gpu.workaround.attachmentLessRenderPass)

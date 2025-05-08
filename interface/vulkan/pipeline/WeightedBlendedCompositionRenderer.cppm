@@ -5,9 +5,9 @@ module;
 export module vk_gltf_viewer:vulkan.pipeline.WeightedBlendedCompositionRenderer;
 
 import vku;
+import vk_gltf_viewer.shader.screen_quad_vert;
+import vk_gltf_viewer.shader.weighted_blended_composition_frag;
 export import vulkan_hpp;
-import :shader.screen_quad_vert;
-import :shader.weighted_blended_composition_frag;
 export import :vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {

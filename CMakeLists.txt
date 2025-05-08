@@ -162,6 +162,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/imgui/mod.cppm
         interface/helpers/imgui/table.cppm
         interface/helpers/io.cppm
+        interface/helpers/join.cppm
         interface/helpers/optional.cppm
         interface/helpers/PairHasher.cppm
         interface/helpers/ranges/mod.cppm
@@ -178,15 +179,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
         interface/math/Plane.cppm
-        interface/shader_selector/mask_node_index_frag.cppm
-        interface/shader_selector/mask_node_index_vert.cppm
-        interface/shader_selector/mask_jump_flood_seed_frag.cppm
-        interface/shader_selector/mask_jump_flood_seed_vert.cppm
-        interface/shader_selector/mask_multi_node_mouse_picking_frag.cppm
-        interface/shader_selector/primitive_frag.cppm
-        interface/shader_selector/primitive_vert.cppm
-        interface/shader_selector/unlit_primitive_frag.cppm
-        interface/shader_selector/unlit_primitive_vert.cppm
         interface/vulkan/attachment_group/MousePicking.cppm
         interface/vulkan/attachment_group/JumpFloodSeed.cppm
         interface/vulkan/attachment_group/SceneOpaque.cppm

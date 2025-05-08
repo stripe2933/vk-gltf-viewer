@@ -5,8 +5,8 @@ module;
 export module cubemap:CubemapComputer;
 
 import std;
+import cubemap.shader.cubemap_comp;
 export import vku;
-import :shader.cubemap_comp;
 
 namespace cubemap {
     /**

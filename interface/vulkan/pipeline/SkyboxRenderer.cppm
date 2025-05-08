@@ -8,8 +8,8 @@ export module vk_gltf_viewer:vulkan.pipeline.SkyboxRenderer;
 
 import std;
 export import glm;
-import :shader.skybox_frag;
-import :shader.skybox_vert;
+import vk_gltf_viewer.shader.skybox_frag;
+import vk_gltf_viewer.shader.skybox_vert;
 export import :vulkan.buffer.CubeIndices;
 export import :vulkan.dsl.Skybox;
 export import :vulkan.rp.Scene;

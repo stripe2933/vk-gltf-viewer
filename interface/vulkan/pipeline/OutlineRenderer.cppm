@@ -6,9 +6,9 @@ export module vk_gltf_viewer:vulkan.pipeline.OutlineRenderer;
 
 import std;
 export import glm;
+import vk_gltf_viewer.shader.outline_frag;
+import vk_gltf_viewer.shader.screen_quad_vert;
 export import vku;
-import :shader.screen_quad_vert;
-import :shader.outline_frag;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct OutlineRenderer {

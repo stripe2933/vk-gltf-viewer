@@ -5,8 +5,8 @@ module;
 export module cubemap:SubgroupMipmapComputer;
 
 import std;
+import cubemap.shader.subgroup_mipmap_comp;
 export import vku;
-import :shader.subgroup_mipmap_comp;
 
 namespace cubemap {
     export class SubgroupMipmapComputer {
@@ -167,9 +167,7 @@ namespace cubemap {
                 createPipelineStages(
                     device,
                     vku::Shader {
-                        config.useShaderImageLoadStoreLod
-                            ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<1> }
-                            : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<0> },
+                        shader::subgroup_mipmap_comp,
                         vk::ShaderStageFlagBits::eCompute,
                         vku::unsafeAddress(vk::SpecializationInfo {
                             vku::unsafeProxy(vk::SpecializationMapEntry {
@@ -177,6 +175,7 @@ namespace cubemap {
                             }),
                             vk::ArrayProxyNoTemporaries<const std::uint32_t> { config.subgroupSize },
                         }),
+                        std::format("main_{}", config.useShaderImageLoadStoreLod ? 1 : 0).c_str()
                     }).get()[0],
                 *pipelineLayout,
             } };
