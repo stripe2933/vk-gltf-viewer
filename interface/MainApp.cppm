@@ -7,9 +7,10 @@ import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
 import :gltf.data_structure.MaterialVariantsMapping;
 import :gltf.data_structure.SceneInverseHierarchy;
-import :gltf.StateCachedNodeVisibilityStructure;
 import :gltf.NodeAnimationUsages;
 import :gltf.NodeWorldTransforms;
+import :gltf.SceneNodeLevels;
+import :gltf.StateCachedNodeVisibilityStructure;
 import :gltf.TextureUsages;
 import :helpers.fastgltf;
 import :imgui.UserData;
@@ -89,6 +90,7 @@ namespace vk_gltf_viewer {
 
             gltf::NodeWorldTransforms nodeWorldTransforms;
             std::shared_ptr<gltf::ds::SceneInverseHierarchy> sceneInverseHierarchy;
+            gltf::SceneNodeLevels sceneNodeLevels;
 
             gltf::StateCachedNodeVisibilityStructure nodeVisibilities;
             std::unordered_set<std::size_t> selectedNodes;

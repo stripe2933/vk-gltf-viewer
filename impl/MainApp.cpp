@@ -159,17 +159,16 @@ void vk_gltf_viewer::MainApp::run() {
 
         std::queue<control::Task> tasks;
 
+        std::vector<std::size_t> transformedNodes;
+
         // Collect task from animation system.
         if (gltf) {
-            std::vector<std::size_t> transformedNodes, morphedNodes;
+            std::vector<std::size_t> morphedNodes;
             for (const auto &[animation, enabled] : std::views::zip(gltf->animations, *gltf->animationEnabled)) {
                 if (!enabled) continue;
                 animation.update(glfwGetTime(), back_inserter(transformedNodes), back_inserter(morphedNodes), gltf->assetExternalBuffers);
             }
 
-            for (std::size_t nodeIndex : transformedNodes) {
-                tasks.emplace(std::in_place_type<control::task::NodeLocalTransformChanged>, nodeIndex);
-            }
             for (std::size_t nodeIndex : morphedNodes) {
                 const std::size_t targetWeightCount = getTargetWeightCount(gltf->asset.nodes[nodeIndex], gltf->asset);
                 tasks.emplace(std::in_place_type<control::task::MorphTargetWeightChanged>, nodeIndex, 0, targetWeightCount);
@@ -244,6 +243,8 @@ void vk_gltf_viewer::MainApp::run() {
             task(frame);
         }
         deferredFrameUpdateTasks.clear();
+
+        bool recalculateSceneMiniball = false;
 
         graphicsCommandPool.reset();
         sharedDataUpdateCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
@@ -426,31 +427,7 @@ void vk_gltf_viewer::MainApp::run() {
                     gltf->hoveringNode.emplace(task.nodeIndex);
                 },
                 [&](const control::task::NodeLocalTransformChanged &task) {
-                    fastgltf::math::fmat4x4 baseMatrix { 1.f };
-                    if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy->parentNodeIndices[task.nodeIndex]) {
-                        baseMatrix = gltf->nodeWorldTransforms[*parentNodeIndex];
-                    }
-                    const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(gltf->asset.nodes[task.nodeIndex], baseMatrix);
-
-                    // Update the current and its descendant nodes' world transforms for both host and GPU side data.
-                    gltf->nodeWorldTransforms.update(task.nodeIndex, nodeWorldTransform);
-                    auto updateNodeTransformTask = [this, nodeIndex = task.nodeIndex](vulkan::Frame &frame) {
-                        if (frame.gltfAsset->instancedNodeWorldTransformBuffer) {
-                            frame.gltfAsset->instancedNodeWorldTransformBuffer->update(
-                                nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
-                        }
-                        frame.gltfAsset->nodeBuffer.update(nodeIndex, gltf->nodeWorldTransforms);
-                    };
-                    updateNodeTransformTask(frame);
-                    deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
-
-                    // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
-                    if (appState.automaticNearFarPlaneAdjustment) {
-                        const auto &[center, radius]
-                            = gltf->sceneMiniball
-                            = gltf::algorithm::getMiniball(gltf->asset, gltf->asset.scenes[gltf->sceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
-                        appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
-                    }
+                    transformedNodes.push_back(task.nodeIndex);
                 },
                 [this](control::task::TightenNearFarPlane) {
                     if (gltf) {
@@ -580,15 +557,69 @@ void vk_gltf_viewer::MainApp::run() {
                     updateTargetWeightTask(frame);
                     deferredFrameUpdateTasks.push_back(std::move(updateTargetWeightTask));
 
-                    // Scene enclosing sphere would be changed. Adjust the camera's near/far plane if necessary.
-                    if (appState.automaticNearFarPlaneAdjustment) {
-                        const auto &[center, radius]
-                            = gltf->sceneMiniball
-                            = gltf::algorithm::getMiniball(gltf->asset, gltf->asset.scenes[gltf->sceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
-                        appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
-                    }
+                    recalculateSceneMiniball = true;
                 },
             }, tasks.front());
+        }
+
+        if (!transformedNodes.empty()) {
+            std::vector visited(gltf->asset.nodes.size(), false);
+
+            // Remove duplicates in transformedNodes.
+            std::ranges::sort(transformedNodes);
+            const auto [begin, end] = std::ranges::unique(transformedNodes);
+            transformedNodes.erase(begin, end);
+
+            // Sort transformedNodes by their node level in the scene.
+            std::ranges::sort(transformedNodes, {}, LIFT(gltf->sceneNodeLevels.operator[]));
+
+            for (std::size_t nodeIndex : transformedNodes) {
+                // If node is marked as visited, its world transform is already updated by its ancestor node. Skipping it.
+                if (visited[nodeIndex]) continue;
+
+                // TODO.CXX26: std::optional<const fastgltf::math::fmat4x4&> can ditch the unnecessary copying.
+                fastgltf::math::fmat4x4 baseMatrix { 1.f };
+                if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy->parentNodeIndices[nodeIndex]) {
+                    baseMatrix = gltf->nodeWorldTransforms[*parentNodeIndex];
+                }
+                const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(gltf->asset.nodes[nodeIndex], baseMatrix);
+
+                // Update the current and its descendant nodes' world transforms for both host and GPU side data.
+                gltf->nodeWorldTransforms.update(nodeIndex, nodeWorldTransform);
+                auto updateNodeTransformTask = [this, nodeIndex](vulkan::Frame &frame) {
+                    if (frame.gltfAsset->instancedNodeWorldTransformBuffer) {
+                        frame.gltfAsset->instancedNodeWorldTransformBuffer->update(
+                            nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    }
+                    frame.gltfAsset->nodeBuffer.update(nodeIndex, gltf->nodeWorldTransforms);
+                };
+                updateNodeTransformTask(frame);
+                deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
+
+                // Mark current and its descendant nodes as visited.
+                gltf::algorithm::traverseNode(gltf->asset, nodeIndex, [&](std::size_t nodeIndex) noexcept {
+                    if (visited[nodeIndex]) {
+                        // If node is already visited, its descendants must be visited too. Therefore, continuing traversal
+                        // is unnecessary.
+                        return false;
+                    }
+                    else {
+                        visited[nodeIndex] = true;
+                        return true;
+                    }
+                });
+            }
+
+            recalculateSceneMiniball = true;
+        }
+
+        if (recalculateSceneMiniball) {
+            gltf->sceneMiniball = gltf::algorithm::getMiniball(
+                gltf->asset, gltf->asset.scenes[gltf->sceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+        }
+        if (gltf && appState.automaticNearFarPlaneAdjustment) {
+            const auto &[center, radius] = gltf->sceneMiniball;
+            appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
         }
 
         if (hasUpdateData) {
@@ -832,6 +863,7 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     , sceneIndex { asset.defaultScene.value_or(0) }
     , nodeWorldTransforms { asset, asset.scenes[sceneIndex] }
     , sceneInverseHierarchy { std::make_shared<gltf::ds::SceneInverseHierarchy>(asset, asset.scenes[sceneIndex]) }
+    , sceneNodeLevels { asset, asset.scenes[sceneIndex] }
     , nodeVisibilities { asset, asset.scenes[sceneIndex], sceneInverseHierarchy } {
     sceneMiniball = gltf::algorithm::getMiniball(asset, asset.scenes[sceneIndex], nodeWorldTransforms, assetExternalBuffers);
 }
@@ -840,6 +872,7 @@ void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     this->sceneIndex = sceneIndex;
     nodeWorldTransforms.update(asset.scenes[sceneIndex]);
     sceneInverseHierarchy = std::make_shared<gltf::ds::SceneInverseHierarchy>(asset, asset.scenes[sceneIndex]);
+    sceneNodeLevels = { asset, asset.scenes[sceneIndex] };
     nodeVisibilities.setScene(asset.scenes[sceneIndex], sceneInverseHierarchy);
     selectedNodes.clear();
     hoveringNode.reset();
