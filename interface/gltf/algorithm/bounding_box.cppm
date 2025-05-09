@@ -13,13 +13,13 @@ namespace vk_gltf_viewer::gltf::algorithm {
     /**
      * @brief Get min/max points of \p primitive's bounding box.
      *
-     * @tparam T Floating point type for calculate position, default: <tt>double</tt>.
+     * @tparam T Floating point type for calculate position.
      * @param primtiive primitive to get the bounding box corner points.
      * @param node Node that owns \p primitive.
      * @param asset Asset that owns \p node.
      * @return Array of (min, max) of the bounding box.
      */
-    export template <std::floating_point T = double>
+    export template <std::floating_point T>
     [[nodiscard]] std::array<fastgltf::math::vec<T, 3>, 2> getBoundingBoxMinMax(
         const fastgltf::Primitive &primitive,
         const fastgltf::Node &node,
@@ -105,21 +105,21 @@ namespace vk_gltf_viewer::gltf::algorithm {
      * @param asset Asset that owns \p node.
      * @return Array of 8 corner points of the bounding box.
      */
-    export
-    [[nodiscard]] std::array<fastgltf::math::dvec3, 8> getBoundingBoxCornerPoints(
+    export template <std::floating_point T>
+    [[nodiscard]] std::array<fastgltf::math::vec<T, 3>, 8> getBoundingBoxCornerPoints(
         const fastgltf::Primitive &primitive,
         const fastgltf::Node &node,
         const fastgltf::Asset &asset
     ) {
-        const auto [min, max] = getBoundingBoxMinMax(primitive, node, asset);
+        const auto [min, max] = getBoundingBoxMinMax<T>(primitive, node, asset);
         return {
             min,
-            fastgltf::math::dvec3 { min[0], min[1], max[2] },
-            fastgltf::math::dvec3 { min[0], max[1], min[2] },
-            fastgltf::math::dvec3 { min[0], max[1], max[2] },
-            fastgltf::math::dvec3 { max[0], min[1], min[2] },
-            fastgltf::math::dvec3 { max[0], min[1], max[2] },
-            fastgltf::math::dvec3 { max[0], max[1], min[2] },
+            { min[0], min[1], max[2] },
+            { min[0], max[1], min[2] },
+            { min[0], max[1], max[2] },
+            { max[0], min[1], min[2] },
+            { max[0], min[1], max[2] },
+            { max[0], max[1], min[2] },
             max,
         };
     }

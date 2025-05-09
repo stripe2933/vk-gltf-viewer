@@ -23,8 +23,6 @@ namespace vk_gltf_viewer::control {
         struct NodeSelectionChanged { };
         struct HoverNodeFromGui { std::size_t nodeIndex; };
         struct NodeLocalTransformChanged { std::size_t nodeIndex; };
-        struct TightenNearFarPlane { };
-        struct CameraViewChanged { };
         struct MaterialPropertyChanged {
             enum Property {
                 AlphaCutoff,
@@ -74,8 +72,6 @@ namespace vk_gltf_viewer::control {
         task::NodeSelectionChanged,
         task::HoverNodeFromGui,
         task::NodeLocalTransformChanged,
-        task::TightenNearFarPlane,
-        task::CameraViewChanged,
         task::MaterialPropertyChanged,
         task::SelectMaterialVariants,
         task::MorphTargetWeightChanged>;

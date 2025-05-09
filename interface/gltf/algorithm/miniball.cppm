@@ -26,7 +26,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
      * @return The pair of the miniball's center and radius.
      */
     export template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
-    [[nodiscard]] std::pair<fastgltf::math::dvec3, double> getMiniball(
+    [[nodiscard]] std::pair<fastgltf::math::fvec3, float> getMiniball(
         const fastgltf::Asset &asset,
         const fastgltf::Scene &scene,
         const NodeWorldTransforms &nodeWorldTransforms,
@@ -34,11 +34,11 @@ namespace vk_gltf_viewer::gltf::algorithm {
     ) {
 #ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
         // See https://doc.cgal.org/latest/Bounding_volumes/index.html for the original code.
-        using Traits = CGAL::Min_sphere_of_points_d_traits_3<CGAL::Simple_cartesian<double>, double>;
+        using Traits = CGAL::Min_sphere_of_points_d_traits_3<CGAL::Simple_cartesian<float>, float>;
         std::vector<Traits::Point> meshBoundingBoxPoints;
 #else
-        fastgltf::math::dvec3 min(std::numeric_limits<double>::max());
-        fastgltf::math::dvec3 max(std::numeric_limits<double>::lowest());
+        fastgltf::math::fvec3 min(std::numeric_limits<float>::max());
+        fastgltf::math::fvec3 max(std::numeric_limits<float>::lowest());
 #endif
 
         traverseScene(asset, scene, [&](std::size_t nodeIndex) {
@@ -49,10 +49,10 @@ namespace vk_gltf_viewer::gltf::algorithm {
             }
 
             const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-            const auto collectTransformedBoundingBoxPoints = [&](const fastgltf::math::dmat4x4 &worldTransform) {
+            const auto collectTransformedBoundingBoxPoints = [&](const fastgltf::math::fmat4x4 &worldTransform) {
                 for (const fastgltf::Primitive &primitive : mesh.primitives) {
-                    for (const fastgltf::math::dvec3 &point : getBoundingBoxCornerPoints(primitive, node, asset)) {
-                        const fastgltf::math::dvec3 transformedPoint { worldTransform * fastgltf::math::dvec4 { point.x(), point.y(), point.z(), 1.0 } };
+                    for (const fastgltf::math::fvec3 &point : getBoundingBoxCornerPoints<float>(primitive, node, asset)) {
+                        const fastgltf::math::fvec3 transformedPoint { worldTransform * fastgltf::math::fvec4 { point.x(), point.y(), point.z(), 1.0 } };
 
 #ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
                         meshBoundingBoxPoints.emplace_back(transformedPoint.x(), transformedPoint.y(), transformedPoint.z());
@@ -66,11 +66,11 @@ namespace vk_gltf_viewer::gltf::algorithm {
 
             const fastgltf::math::fmat4x4 &worldTransform = nodeWorldTransforms[nodeIndex];
             if (node.instancingAttributes.empty()) {
-                collectTransformedBoundingBoxPoints(cast<double>(worldTransform));
+                collectTransformedBoundingBoxPoints(worldTransform);
             }
             else {
                 for (const fastgltf::math::fmat4x4 &instanceTransform : getInstanceTransforms(asset, nodeIndex, adapter)) {
-                    collectTransformedBoundingBoxPoints(cast<double>(worldTransform * instanceTransform));
+                    collectTransformedBoundingBoxPoints(worldTransform * instanceTransform);
                 }
             }
         });
@@ -78,11 +78,11 @@ namespace vk_gltf_viewer::gltf::algorithm {
 #ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
         CGAL::Min_sphere_of_spheres_d<Traits> ms { meshBoundingBoxPoints.begin(), meshBoundingBoxPoints.end() };
 
-        fastgltf::math::dvec3 center;
+        fastgltf::math::fvec3 center;
         std::copy(ms.center_cartesian_begin(), ms.center_cartesian_end(), center.data());
         return { center, ms.radius() };
 #else
-        const fastgltf::math::dvec3 halfDisplacement = (max - min) / 2.0;
+        const fastgltf::math::fvec3 halfDisplacement = (max - min) / 2.f;
         return { min + halfDisplacement, fastgltf::math::length(halfDisplacement) };
 #endif
     }

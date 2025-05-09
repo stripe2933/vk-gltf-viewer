@@ -1,15 +1,17 @@
 export module vk_gltf_viewer:MainApp;
 
 import std;
+import vk_gltf_viewer.helpers;
 import :AppState;
 import :control.AppWindow;
 import :gltf.Animation;
 import :gltf.AssetExternalBuffers;
 import :gltf.data_structure.MaterialVariantsMapping;
 import :gltf.data_structure.SceneInverseHierarchy;
-import :gltf.StateCachedNodeVisibilityStructure;
 import :gltf.NodeAnimationUsages;
 import :gltf.NodeWorldTransforms;
+import :gltf.SceneNodeLevels;
+import :gltf.StateCachedNodeVisibilityStructure;
 import :gltf.TextureUsages;
 import :helpers.fastgltf;
 import :imgui.UserData;
@@ -89,6 +91,7 @@ namespace vk_gltf_viewer {
 
             gltf::NodeWorldTransforms nodeWorldTransforms;
             std::shared_ptr<gltf::ds::SceneInverseHierarchy> sceneInverseHierarchy;
+            gltf::SceneNodeLevels sceneNodeLevels;
 
             gltf::StateCachedNodeVisibilityStructure nodeVisibilities;
             std::unordered_set<std::size_t> selectedNodes;
@@ -99,7 +102,7 @@ namespace vk_gltf_viewer {
              * 
 			 * The first of the pair is the center, and the second is the radius of the miniball.
 			 */
-            std::pair<fastgltf::math::dvec3, double> sceneMiniball;
+            Lazy<std::pair<fastgltf::math::fvec3, float>> sceneMiniball;
 
             Gltf(fastgltf::Parser &parser, const std::filesystem::path &path);
 

@@ -1660,28 +1660,19 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
 ) {
     if (ImGui::Begin("Input control")){
         if (ImGui::CollapsingHeader("Camera")) {
-            bool cameraViewChanged = false;
-            cameraViewChanged |= ImGui::DragFloat3("Position", value_ptr(camera.position), 0.1f);
+            ImGui::DragFloat3("Position", value_ptr(camera.position), 0.1f);
             if (ImGui::DragFloat3("Direction", value_ptr(camera.direction), 0.1f, -1.f, 1.f)) {
                 camera.direction = normalize(camera.direction);
-                cameraViewChanged = true;
             }
             if (ImGui::DragFloat3("Up", value_ptr(camera.up), 0.1f, -1.f, 1.f)) {
                 camera.up = normalize(camera.up);
-                cameraViewChanged = true;
-            }
-
-            if (cameraViewChanged) {
-                tasks.emplace(std::in_place_type<task::CameraViewChanged>);
             }
 
             if (float fovInDegree = glm::degrees(camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
                 camera.fov = glm::radians(fovInDegree);
             }
 
-            if (ImGui::Checkbox("Automatic Near/Far Adjustment", &automaticNearFarPlaneAdjustment) && automaticNearFarPlaneAdjustment) {
-                tasks.emplace(std::in_place_type<task::TightenNearFarPlane>);
-            }
+            ImGui::Checkbox("Automatic Near/Far Adjustment", &automaticNearFarPlaneAdjustment);
             ImGui::SameLine();
             ImGui::HelperMarker("(?)", "Near/Far plane will be automatically tightened to fit the scene bounding box.");
 
@@ -1731,8 +1722,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Camera &camera) {
         const glm::mat4 inverseView = inverse(newView);
         camera.position = inverseView[3];
         camera.direction = -inverseView[2];
-
-        tasks.emplace(std::in_place_type<task::CameraViewChanged>);
     }
 }
 
@@ -1784,7 +1773,5 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
         const glm::mat4 inverseView = inverse(newView);
         camera.position = inverseView[3];
         camera.direction = -inverseView[2];
-
-        tasks.emplace(std::in_place_type<task::CameraViewChanged>);
     }
 }
