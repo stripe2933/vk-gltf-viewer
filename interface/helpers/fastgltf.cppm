@@ -409,22 +409,6 @@ namespace fastgltf {
 
 namespace math {
     /**
-     * @brief Convert matrix of type \tp U to matrix of type \tp T.
-     * @tparam T The destination matrix type.
-     * @tparam U The source matrix type.
-     * @tparam N The number of columns.
-     * @tparam M The number of rows.
-     * @param m The source matrix.
-     * @return The converted matrix of type \tp T.
-     */
-    export template <typename T, typename U, std::size_t N, std::size_t M>
-    [[nodiscard]] mat<T, N, M> cast(const mat<U, N, M> &m) noexcept {
-        return INDEX_SEQ(Is, M, {
-            return mat<T, N, M> { vec<T, N> { m[Is] }... };
-        });
-    }
-
-    /**
      * @brief Get component-wise minimum of two vectors.
      * @tparam T Vector component type.
      * @tparam N Number of vector components.

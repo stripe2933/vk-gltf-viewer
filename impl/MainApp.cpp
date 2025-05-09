@@ -398,7 +398,7 @@ void vk_gltf_viewer::MainApp::run() {
                     // Adjust the camera based on the scene enclosing sphere.
                     const auto &[center, radius] = gltf->sceneMiniball.get();
                     const float distance = radius / std::sin(appState.camera.fov / 2.f);
-                    appState.camera.position = glm::make_vec3(center.data()) - glm::dvec3 { distance * normalize(appState.camera.direction) };
+                    appState.camera.position = glm::make_vec3(center.data()) - distance * normalize(appState.camera.direction);
                     appState.camera.zMin = distance - radius;
                     appState.camera.zMax = distance + radius;
                     appState.camera.targetDistance = distance;
@@ -1018,7 +1018,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius] = gltf->sceneMiniball.get();
     const float distance = radius / std::sin(appState.camera.fov / 2.f);
-    appState.camera.position = glm::make_vec3(center.data()) - glm::dvec3 { distance * normalize(appState.camera.direction) };
+    appState.camera.position = glm::make_vec3(center.data()) - distance * normalize(appState.camera.direction);
     appState.camera.zMin = distance - radius;
     appState.camera.zMax = distance + radius;
     appState.camera.targetDistance = distance;
