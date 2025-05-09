@@ -205,7 +205,10 @@ void main(){
     }
     vec3 R = reflect(-V, N);
 
-    vec3 F0 = mix(vec3(0.04), baseColor.rgb, metallic);
+    float dielectric_f0 = (MATERIAL.ior - 1.0) / (MATERIAL.ior + 1.0);
+    dielectric_f0 = dielectric_f0 * dielectric_f0;
+
+    vec3 F0 = mix(vec3(dielectric_f0), baseColor.rgb, metallic);
     float maxNdotV = max(NdotV, 0.0);
     vec3 F = fresnelSchlickRoughness(maxNdotV, F0, roughness);
 

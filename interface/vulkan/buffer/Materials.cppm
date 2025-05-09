@@ -95,6 +95,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     .roughnessFactor = material.pbrData.roughnessFactor,
                     .emissiveFactor = glm::gtc::make_vec3(material.emissiveFactor.data()),
                     .alphaCutOff = material.alphaCutoff,
+                    .ior = material.ior,
                 };
 
                 if (const auto& baseColorTexture = material.pbrData.baseColorTexture) {

@@ -32,7 +32,8 @@ namespace vk_gltf_viewer::vulkan::shader_type {
         glm::mat3x2 normalTextureTransform;
         glm::mat3x2 occlusionTextureTransform;
         glm::mat3x2 emissiveTextureTransform;
-        char padding1[8];
+        float ior = 1.5;
+        char padding1[4];
     };
 
     static_assert(sizeof(Material) == 192);
