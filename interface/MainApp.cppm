@@ -1,6 +1,7 @@
 export module vk_gltf_viewer:MainApp;
 
 import std;
+import vk_gltf_viewer.helpers;
 import :AppState;
 import :control.AppWindow;
 import :gltf.Animation;
@@ -101,7 +102,7 @@ namespace vk_gltf_viewer {
              * 
 			 * The first of the pair is the center, and the second is the radius of the miniball.
 			 */
-            std::pair<fastgltf::math::dvec3, double> sceneMiniball;
+            Lazy<std::pair<fastgltf::math::dvec3, double>> sceneMiniball;
 
             Gltf(fastgltf::Parser &parser, const std::filesystem::path &path);
 

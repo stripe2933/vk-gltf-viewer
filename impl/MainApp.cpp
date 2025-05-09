@@ -244,8 +244,6 @@ void vk_gltf_viewer::MainApp::run() {
         }
         deferredFrameUpdateTasks.clear();
 
-        bool recalculateSceneMiniball = false;
-
         graphicsCommandPool.reset();
         sharedDataUpdateCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
@@ -329,8 +327,6 @@ void vk_gltf_viewer::MainApp::run() {
                     const glm::vec3 displacementToTarget = appState.camera.direction * appState.camera.targetDistance;
                     appState.camera.targetDistance *= factor;
                     appState.camera.position += (1.f - factor) * displacementToTarget;
-
-                    tasks.emplace(std::in_place_type<control::task::CameraViewChanged>);
                 },
                 [&](const control::task::WindowTrackpadRotate &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
@@ -340,8 +336,6 @@ void vk_gltf_viewer::MainApp::run() {
                     const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
                     appState.camera.direction = glm::mat3 { rotation } * appState.camera.direction;
                     appState.camera.position = target - appState.camera.direction * appState.camera.targetDistance;
-
-                    tasks.emplace(std::in_place_type<control::task::CameraViewChanged>);
                 },
                 [&](const control::task::WindowDrop &task) {
                     if (task.paths.empty()) return;
@@ -402,7 +396,7 @@ void vk_gltf_viewer::MainApp::run() {
                     deferredFrameUpdateTasks.push_back(std::move(nodeWorldTransformUpdateTask));
 
                     // Adjust the camera based on the scene enclosing sphere.
-                    const auto &[center, radius] = gltf->sceneMiniball;
+                    const auto &[center, radius] = gltf->sceneMiniball.get();
                     const float distance = radius / std::sin(appState.camera.fov / 2.f);
                     appState.camera.position = glm::make_vec3(center.data()) - glm::dvec3 { distance * normalize(appState.camera.direction) };
                     appState.camera.zMin = distance - radius;
@@ -428,19 +422,6 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [&](const control::task::NodeLocalTransformChanged &task) {
                     transformedNodes.push_back(task.nodeIndex);
-                },
-                [this](control::task::TightenNearFarPlane) {
-                    if (gltf) {
-                        const auto &[center, radius] = gltf->sceneMiniball;
-                        appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
-                    }
-                },
-                [this](control::task::CameraViewChanged) {
-                    if (appState.automaticNearFarPlaneAdjustment && gltf) {
-                        // Tighten near/far plane based on the scene enclosing sphere.
-                        const auto &[center, radius] = gltf->sceneMiniball;
-                        appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
-                    }
                 },
                 [&](const control::task::MaterialPropertyChanged &task) {
                     const fastgltf::Material &changedMaterial = gltf->asset.materials[task.materialIndex];
@@ -557,7 +538,7 @@ void vk_gltf_viewer::MainApp::run() {
                     updateTargetWeightTask(frame);
                     deferredFrameUpdateTasks.push_back(std::move(updateTargetWeightTask));
 
-                    recalculateSceneMiniball = true;
+                    gltf->sceneMiniball.invalidate();
                 },
             }, tasks.front());
         }
@@ -610,15 +591,11 @@ void vk_gltf_viewer::MainApp::run() {
                 });
             }
 
-            recalculateSceneMiniball = true;
+            gltf->sceneMiniball.invalidate();
         }
 
-        if (recalculateSceneMiniball) {
-            gltf->sceneMiniball = gltf::algorithm::getMiniball(
-                gltf->asset, gltf->asset.scenes[gltf->sceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
-        }
         if (gltf && appState.automaticNearFarPlaneAdjustment) {
-            const auto &[center, radius] = gltf->sceneMiniball;
+            const auto &[center, radius] = gltf->sceneMiniball.get();
             appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
         }
 
@@ -864,19 +841,20 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     , nodeWorldTransforms { asset, asset.scenes[sceneIndex] }
     , sceneInverseHierarchy { std::make_shared<gltf::ds::SceneInverseHierarchy>(asset, asset.scenes[sceneIndex]) }
     , sceneNodeLevels { asset, asset.scenes[sceneIndex] }
-    , nodeVisibilities { asset, asset.scenes[sceneIndex], sceneInverseHierarchy } {
-    sceneMiniball = gltf::algorithm::getMiniball(asset, asset.scenes[sceneIndex], nodeWorldTransforms, assetExternalBuffers);
-}
+    , nodeVisibilities { asset, asset.scenes[sceneIndex], sceneInverseHierarchy }
+    , sceneMiniball { [this]() {
+        return gltf::algorithm::getMiniball(asset, asset.scenes[sceneIndex], nodeWorldTransforms, assetExternalBuffers);
+    } } { }
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     this->sceneIndex = sceneIndex;
     nodeWorldTransforms.update(asset.scenes[sceneIndex]);
     sceneInverseHierarchy = std::make_shared<gltf::ds::SceneInverseHierarchy>(asset, asset.scenes[sceneIndex]);
     sceneNodeLevels = { asset, asset.scenes[sceneIndex] };
+    sceneMiniball.invalidate();
     nodeVisibilities.setScene(asset.scenes[sceneIndex], sceneInverseHierarchy);
     selectedNodes.clear();
     hoveringNode.reset();
-    sceneMiniball = gltf::algorithm::getMiniball(asset, asset.scenes[sceneIndex], nodeWorldTransforms, assetExternalBuffers);
 }
 
 vk_gltf_viewer::MainApp::SkyboxResources::~SkyboxResources() {
@@ -1038,7 +1016,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     appState.pushRecentGltfPath(path);
 
     // Adjust the camera based on the scene enclosing sphere.
-    const auto &[center, radius] = gltf->sceneMiniball;
+    const auto &[center, radius] = gltf->sceneMiniball.get();
     const float distance = radius / std::sin(appState.camera.fov / 2.f);
     appState.camera.position = glm::make_vec3(center.data()) - glm::dvec3 { distance * normalize(appState.camera.direction) };
     appState.camera.zMin = distance - radius;

@@ -151,6 +151,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/NodeWorldTransforms.cppm
         interface/gltf/OrderedPrimitives.cppm
         interface/gltf/TextureUsages.cppm
+        interface/helpers/mod.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/algorithm.cppm
         interface/helpers/concepts.cppm
@@ -163,6 +164,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/imgui/mod.cppm
         interface/helpers/imgui/table.cppm
         interface/helpers/io.cppm
+        interface/helpers/Lazy.cppm
         interface/helpers/optional.cppm
         interface/helpers/PairHasher.cppm
         interface/helpers/ranges/mod.cppm
