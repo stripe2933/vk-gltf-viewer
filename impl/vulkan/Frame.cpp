@@ -127,7 +127,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     projectionViewMatrix = task.camera.projection * task.camera.view;
     viewPosition = inverse(task.camera.view)[3];
     translationlessProjectionViewMatrix = task.camera.projection * glm::mat4 { glm::mat3 { task.camera.view } };
-    passthruRect = task.passthruRect;
+    passthruOffset = task.passthruRect.offset;
     mousePickingInput = task.mousePickingInput;
 
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
@@ -680,17 +680,41 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
     {
         compositionCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-        // Change swapchain image layout from PresentSrcKHR to TransferDstOptimal.
+        if (selectedNodes || hoveringNode) {
+            recordNodeOutlineCompositionCommands(compositionCommandBuffer, hoveringNodeJumpFloodForward, selectedNodeJumpFloodForward);
+
+            // Make sure the outline composition is done before rendering ImGui.
+            compositionCommandBuffer.pipelineBarrier(
+                vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                {},
+                vk::MemoryBarrier {
+                    vk::AccessFlagBits::eColorAttachmentWrite,
+                    vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
+                },
+                {}, {});
+        }
+
         compositionCommandBuffer.pipelineBarrier(
             vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer,
             {}, {}, {},
-            vk::ImageMemoryBarrier {
-                {}, vk::AccessFlagBits::eTransferWrite,
-                vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eTransferDstOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
-            });
+            vku::unsafeProxy({
+                // Change composited image layout from ColorAttachmentOptimal to TransferSrcOptimal.
+                vk::ImageMemoryBarrier {
+                    vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
+                    vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
+                },
+                // Change swapchain image layout from PresentSrcKHR to TransferDstOptimal.
+                vk::ImageMemoryBarrier {
+                    {}, vk::AccessFlagBits::eTransferWrite,
+                    vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eTransferDstOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
+                },
+            }));
 
+        // Copy from composited image to swapchain image.
         compositionCommandBuffer.copyImage(
             passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).image, vk::ImageLayout::eTransferSrcOptimal,
             sharedData.swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal,
@@ -698,7 +722,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
                 { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
                 { 0, 0, 0 },
                 { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-                vk::Offset3D { passthruRect.offset, 0 },
+                vk::Offset3D { passthruOffset, 0 },
                 vk::Extent3D { passthruResources->extent, 1 },
             });
 
@@ -712,20 +736,6 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                 sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
             });
-
-        if (selectedNodes || hoveringNode) {
-            recordNodeOutlineCompositionCommands(compositionCommandBuffer, hoveringNodeJumpFloodForward, selectedNodeJumpFloodForward, swapchainImageIndex);
-
-            // Make sure the outline composition is done before rendering ImGui.
-            compositionCommandBuffer.pipelineBarrier(
-                vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                {},
-                vk::MemoryBarrier {
-                    vk::AccessFlagBits::eColorAttachmentWrite,
-                    vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
-                },
-                {}, {});
-        }
 
         recordImGuiCompositionCommands(compositionCommandBuffer, swapchainImageIndex);
 
@@ -754,7 +764,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
             vku::unsafeProxy({ *swapchainImageAcquireSema, *sceneRenderingFinishSema, *jumpFloodFinishSema }),
             vku::unsafeProxy<vk::PipelineStageFlags>({
                 vk::PipelineStageFlagBits::eTransfer,
-                vk::PipelineStageFlagBits::eTransfer,
+                vk::PipelineStageFlagBits::eColorAttachmentOutput,
                 vk::PipelineStageFlagBits::eFragmentShader,
             }),
             compositionCommandBuffer,
@@ -1207,8 +1217,7 @@ void vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer c
 void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
     vk::CommandBuffer cb,
     std::optional<bool> hoveringNodeJumpFloodForward,
-    std::optional<bool> selectedNodeJumpFloodForward,
-    std::uint32_t swapchainImageIndex
+    std::optional<bool> selectedNodeJumpFloodForward
 ) const {
     boost::container::static_vector<vk::ImageMemoryBarrier, 2> memoryBarriers;
     // Change jump flood image layouts to ShaderReadOnlyOptimal.
@@ -1237,33 +1246,31 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
     }
 
     // Set viewport and scissor.
-    const vk::Viewport passthruViewport {
-        // Use negative viewport.
-        static_cast<float>(passthruRect.offset.x), static_cast<float>(passthruRect.offset.y + passthruRect.extent.height),
-        static_cast<float>(passthruRect.extent.width), -static_cast<float>(passthruRect.extent.height),
-        0.f, 1.f,
-    };
-    cb.setViewport(0, passthruViewport);
-    cb.setScissor(0, passthruRect);
+    cb.setViewport(0, vku::toViewport(passthruResources->extent));
+    cb.setScissor(0, vk::Rect2D { { 0, 0 }, passthruResources->extent });
 
-    cb.beginRenderingKHR(sharedData.swapchainAttachmentGroup.getRenderingInfo(
-        vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
-        swapchainImageIndex));
+    cb.beginRenderingKHR(vk::RenderingInfo {
+        {},
+        { { 0, 0 }, passthruResources->extent },
+        1,
+        0,
+        vku::unsafeProxy(vk::RenderingAttachmentInfo {
+            *passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).view,
+            vk::ImageLayout::eColorAttachmentOptimal,
+            {}, {}, {},
+            vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore,
+        }),
+    });
 
     // Draw hovering/selected node outline if exists.
-    bool pipelineBound = false;
     if (selectedNodes) {
-        if (!pipelineBound) {
-            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderer.pipeline);
-            pipelineBound = true;
-        }
+        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderer.pipeline);
         cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderer.pipelineLayout, 0,
             selectedNodeOutlineSet, {});
         cb.pushConstants<OutlineRenderer::PushConstant>(
             *sharedData.outlineRenderer.pipelineLayout, vk::ShaderStageFlagBits::eFragment,
             0, OutlineRenderer::PushConstant {
                 .outlineColor = selectedNodes->outlineColor,
-                .passthruOffset = { passthruRect.offset.x, passthruRect.offset.y },
                 .outlineThickness = selectedNodes->outlineThickness,
             });
         cb.draw(3, 1, 0, 0);
@@ -1272,10 +1279,8 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
         if (selectedNodes) {
             // TODO: pipeline barrier required.
         }
-
-        if (!pipelineBound) {
+        else {
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderer.pipeline);
-            pipelineBound = true;
         }
 
         cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderer.pipelineLayout, 0,
@@ -1284,7 +1289,6 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
             *sharedData.outlineRenderer.pipelineLayout, vk::ShaderStageFlagBits::eFragment,
             0, OutlineRenderer::PushConstant {
                 .outlineColor = hoveringNode->outlineColor,
-                .passthruOffset = { passthruRect.offset.x, passthruRect.offset.y },
                 .outlineThickness = hoveringNode->outlineThickness,
             });
         cb.draw(3, 1, 0, 0);

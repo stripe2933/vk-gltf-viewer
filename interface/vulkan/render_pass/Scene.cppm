@@ -30,7 +30,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::Format::eB8G8R8A8Srgb, vk::SampleCountFlagBits::e1,
                         vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
                         {}, {},
-                        {}, vk::ImageLayout::eTransferSrcOptimal,
+                        {}, vk::ImageLayout::eColorAttachmentOptimal,
                     },
                     // Depth image.
                     vk::AttachmentDescription {

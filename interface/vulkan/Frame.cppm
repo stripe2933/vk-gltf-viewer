@@ -356,7 +356,7 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::Semaphore jumpFloodFinishSema;
         vk::raii::Fence inFlightFence;
 
-        vk::Rect2D passthruRect;
+        vk::Offset2D passthruOffset;
         glm::mat4 projectionViewMatrix;
         glm::vec3 viewPosition;
         glm::mat4 translationlessProjectionViewMatrix;
@@ -374,7 +374,7 @@ namespace vk_gltf_viewer::vulkan {
         void recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const;
         bool recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const;
         void recordSkyboxDrawCommands(vk::CommandBuffer cb) const;
-        void recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward, std::uint32_t swapchainImageIndex) const;
+        void recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward) const;
         void recordImGuiCompositionCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex) const;
     };
 }
