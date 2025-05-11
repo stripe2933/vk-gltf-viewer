@@ -45,9 +45,6 @@ constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
 
 vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
     : sharedData { sharedData }
-    , sceneOpaqueAttachmentGroup { sharedData.gpu, sharedData.swapchainExtent, sharedData.swapchainImages }
-    , sceneWeightedBlendedAttachmentGroup { sharedData.gpu, sharedData.swapchainExtent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image }
-    , framebuffers { createFramebuffers() }
     , descriptorPool { createDescriptorPool() }
     , computeCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.compute } }
     , graphicsCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.graphicsPresent } }
@@ -57,13 +54,6 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
     , compositionFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
     , jumpFloodFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
     , inFlightFence { sharedData.gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } } {
-    // Change initial attachment layouts.
-    const vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
-    vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-        recordSwapchainExtentDependentImageLayoutTransitionCommands(cb);
-    }, *fence);
-    std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
-
     // Allocate descriptor sets.
     std::tie(mousePickingSet, multiNodeMousePickingSet, hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet)
         = allocateDescriptorSets(*descriptorPool, std::tie(
@@ -74,14 +64,6 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
             sharedData.outlineRenderer.descriptorSetLayout,
             sharedData.outlineRenderer.descriptorSetLayout,
             sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout));
-
-    // Update descriptor set.
-    sharedData.gpu.device.updateDescriptorSets(
-        weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
-            vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal },
-            vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view, vk::ImageLayout::eShaderReadOnlyOptimal },
-        })),
-        {});
 
     // Allocate per-frame command buffers.
     std::tie(jumpFloodCommandBuffer) = vku::allocateCommandBuffers<1>(*sharedData.gpu.device, *computeCommandPool);
@@ -95,28 +77,6 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     // --------------------
     // Update CPU resources.
     // --------------------
-
-    if (task.handleSwapchainResize) {
-        // Attachment images that have to be matched to the swapchain extent must be recreated.
-        sceneOpaqueAttachmentGroup = { sharedData.gpu, sharedData.swapchainExtent, sharedData.swapchainImages };
-        sceneWeightedBlendedAttachmentGroup = { sharedData.gpu, sharedData.swapchainExtent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image };
-        framebuffers = createFramebuffers();
-
-        sharedData.gpu.device.updateDescriptorSets(
-            weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
-                vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal },
-                vk::DescriptorImageInfo { {}, *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view, vk::ImageLayout::eShaderReadOnlyOptimal },
-            })),
-            {});
-
-        // Change initial attachment layouts.
-        // TODO: can this operation be non-blocking?
-        const vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
-        vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-            recordSwapchainExtentDependentImageLayoutTransitionCommands(cb);
-        }, *fence);
-        std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
-    }
 
     // Retrieve the mouse picking result from the buffer.
     visit(multilambda {
@@ -157,6 +117,10 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             mousePickingSet.getWriteOne<0>({ {}, *passthruResources->mousePickingAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal }),
             hoveringNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
             selectedNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->selectedNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
+            weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
+                vk::DescriptorImageInfo { {}, *passthruResources->sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal },
+                vk::DescriptorImageInfo { {}, *passthruResources->sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view, vk::ImageLayout::eShaderReadOnlyOptimal },
+            })),
         }, {});
     }
 
@@ -657,14 +621,17 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
     {
         sceneRenderingCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
+        sceneRenderingCommandBuffer.setViewport(0, vku::toViewport(passthruResources->extent, true));
+        sceneRenderingCommandBuffer.setScissor(0, vk::Rect2D { { 0, 0 }, passthruResources->extent });
+
         vk::ClearColorValue backgroundColor { 0.f, 0.f, 0.f, 0.f };
         if (auto *clearColor = get_if<glm::vec3>(&background)) {
             backgroundColor.setFloat32({ clearColor->x, clearColor->y, clearColor->z, 1.f });
         }
         sceneRenderingCommandBuffer.beginRenderPass({
             *sharedData.sceneRenderPass,
-            *framebuffers[swapchainImageIndex],
-            vk::Rect2D { { 0, 0 }, sharedData.swapchainExtent },
+            *passthruResources->sceneFramebuffer,
+            vk::Rect2D { { 0, 0 }, passthruResources->extent },
             vku::unsafeProxy<vk::ClearValue>({
                 backgroundColor,
                 vk::ClearColorValue{},
@@ -675,15 +642,6 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
                 vk::ClearColorValue{},
             }),
         }, vk::SubpassContents::eInline);
-
-        const vk::Viewport passthruViewport {
-            // Use negative viewport.
-            static_cast<float>(passthruRect.offset.x), static_cast<float>(passthruRect.offset.y + passthruRect.extent.height),
-            static_cast<float>(passthruRect.extent.width), -static_cast<float>(passthruRect.extent.height),
-            0.f, 1.f,
-        };
-        sceneRenderingCommandBuffer.setViewport(0, passthruViewport);
-        sceneRenderingCommandBuffer.setScissor(0, passthruRect);
 
         if (renderingNodes) {
             recordSceneOpaqueMeshDrawCommands(sceneRenderingCommandBuffer);
@@ -722,6 +680,39 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
     {
         compositionCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
+        // Change swapchain image layout from PresentSrcKHR to TransferDstOptimal.
+        compositionCommandBuffer.pipelineBarrier(
+            vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer,
+            {}, {}, {},
+            vk::ImageMemoryBarrier {
+                {}, vk::AccessFlagBits::eTransferWrite,
+                vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eTransferDstOptimal,
+                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
+            });
+
+        compositionCommandBuffer.copyImage(
+            passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).image, vk::ImageLayout::eTransferSrcOptimal,
+            sharedData.swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal,
+            vk::ImageCopy {
+                { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+                { 0, 0, 0 },
+                { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+                vk::Offset3D { passthruRect.offset, 0 },
+                vk::Extent3D { passthruResources->extent, 1 },
+            });
+
+        // Change swapchain image layout from TransferDstOptimal to ColorAttachmentOptimal.
+        compositionCommandBuffer.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+            {}, {}, {},
+            vk::ImageMemoryBarrier {
+                vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
+                vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
+            });
+
         if (selectedNodes || hoveringNode) {
             recordNodeOutlineCompositionCommands(compositionCommandBuffer, hoveringNodeJumpFloodForward, selectedNodeJumpFloodForward, swapchainImageIndex);
 
@@ -754,16 +745,17 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
 
     sharedData.gpu.queues.graphicsPresent.submit({
         vk::SubmitInfo {
-            *swapchainImageAcquireSema,
-            vku::unsafeProxy(vk::Flags { vk::PipelineStageFlagBits::eColorAttachmentOutput }),
+            {},
+            {},
             sceneRenderingCommandBuffer,
             *sceneRenderingFinishSema,
         },
         vk::SubmitInfo {
-            vku::unsafeProxy({ *sceneRenderingFinishSema, *jumpFloodFinishSema }),
-            vku::unsafeProxy({
-                vk::Flags { vk::PipelineStageFlagBits::eFragmentShader },
-                vk::Flags { vk::PipelineStageFlagBits::eFragmentShader },
+            vku::unsafeProxy({ *swapchainImageAcquireSema, *sceneRenderingFinishSema, *jumpFloodFinishSema }),
+            vku::unsafeProxy<vk::PipelineStageFlags>({
+                vk::PipelineStageFlagBits::eTransfer,
+                vk::PipelineStageFlagBits::eTransfer,
+                vk::PipelineStageFlagBits::eFragmentShader,
             }),
             compositionCommandBuffer,
             *compositionFinishSema,
@@ -797,11 +789,7 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
     const vk::Extent2D &extent,
     vk::CommandBuffer graphicsCommandBuffer
 ) : extent { extent },
-    hoveringNodeOutlineJumpFloodResources { sharedData.gpu, extent },
-    selectedNodeOutlineJumpFloodResources { sharedData.gpu, extent },
     mousePickingAttachmentGroup { sharedData.gpu, extent },
-    hoveringNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, hoveringNodeOutlineJumpFloodResources.image },
-    selectedNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, selectedNodeOutlineJumpFloodResources.image },
     mousePickingFramebuffer { sharedData.gpu.device, vk::FramebufferCreateInfo {
         {},
         *sharedData.mousePickingRenderPass,
@@ -810,13 +798,27 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
             *mousePickingAttachmentGroup.depthStencilAttachment->view,
         }),
         extent.width, extent.height, 1,
-    } }{
-    recordInitialImageLayoutTransitionCommands(graphicsCommandBuffer);
-}
-
-void vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutTransitionCommands(
-    vk::CommandBuffer graphicsCommandBuffer
-) const {
+    } },
+    hoveringNodeOutlineJumpFloodResources { sharedData.gpu, extent },
+    hoveringNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, hoveringNodeOutlineJumpFloodResources.image },
+    selectedNodeOutlineJumpFloodResources { sharedData.gpu, extent },
+    selectedNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, selectedNodeOutlineJumpFloodResources.image },
+    sceneOpaqueAttachmentGroup { sharedData.gpu, extent },
+    sceneWeightedBlendedAttachmentGroup { sharedData.gpu, extent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image },
+    sceneFramebuffer { sharedData.gpu.device, vk::FramebufferCreateInfo {
+        {},
+        *sharedData.sceneRenderPass,
+        vku::unsafeProxy({
+            *sceneOpaqueAttachmentGroup.getColorAttachment(0).multisampleView,
+            *sceneOpaqueAttachmentGroup.getColorAttachment(0).view,
+            *sceneOpaqueAttachmentGroup.depthStencilAttachment->view,
+            *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).multisampleView,
+            *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view,
+            *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).multisampleView,
+            *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view,
+        }),
+        extent.width, extent.height, 1,
+    } } {
     constexpr auto layoutTransitionBarrier = [](
         vk::ImageLayout newLayout,
         vk::Image image,
@@ -839,29 +841,6 @@ void vk_gltf_viewer::vulkan::Frame::PassthruResources::recordInitialImageLayoutT
             layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
             layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, selectedNodeJumpFloodSeedAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
         });
-}
-
-std::vector<vk::raii::Framebuffer> vk_gltf_viewer::vulkan::Frame::createFramebuffers() const {
-    return sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).views
-        | std::views::transform([this](vk::ImageView swapchainImageView) {
-            return vk::raii::Framebuffer { sharedData.gpu.device, vk::FramebufferCreateInfo {
-                {},
-                *sharedData.sceneRenderPass,
-                vku::unsafeProxy({
-                    *sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).multisampleView,
-                    swapchainImageView,
-                    *sceneOpaqueAttachmentGroup.depthStencilAttachment->view,
-                    *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).multisampleView,
-                    *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view,
-                    *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).multisampleView,
-                    *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view,
-                }),
-                sharedData.swapchainExtent.width,
-                sharedData.swapchainExtent.height,
-                1,
-            } };
-        })
-        | std::ranges::to<std::vector>();
 }
 
 vk::raii::DescriptorPool vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const {
@@ -1318,8 +1297,7 @@ void vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
     vk::CommandBuffer cb,
     std::uint32_t swapchainImageIndex
 ) const {
-    // Start dynamic rendering with B8G8R8A8_UNORM format.
-    cb.beginRenderingKHR(visit_as<const ag::Swapchain&>(sharedData.imGuiSwapchainAttachmentGroup).getRenderingInfo(
+    cb.beginRenderingKHR(sharedData.imGuiAttachmentGroup.getRenderingInfo(
         vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
         swapchainImageIndex));
 
@@ -1329,50 +1307,4 @@ void vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
     }
 
     cb.endRenderingKHR();
-}
-
-void vk_gltf_viewer::vulkan::Frame::recordSwapchainExtentDependentImageLayoutTransitionCommands(
-    vk::CommandBuffer graphicsCommandBuffer
-) const {
-    graphicsCommandBuffer.pipelineBarrier(
-        vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-        {}, {}, {},
-        {
-            vk::ImageMemoryBarrier {
-                {}, {},
-                {}, vk::ImageLayout::eColorAttachmentOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sceneOpaqueAttachmentGroup.getSwapchainAttachment(0).multisampleImage, vku::fullSubresourceRange(),
-            },
-            vk::ImageMemoryBarrier {
-                {}, {},
-                {}, vk::ImageLayout::eDepthAttachmentOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sceneOpaqueAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth),
-            },
-            vk::ImageMemoryBarrier {
-                {}, {},
-                {}, vk::ImageLayout::eColorAttachmentOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).multisampleImage, vku::fullSubresourceRange(),
-            },
-            vk::ImageMemoryBarrier {
-                {}, {},
-                {}, vk::ImageLayout::eShaderReadOnlyOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
-            },
-            vk::ImageMemoryBarrier {
-                {}, {},
-                {}, vk::ImageLayout::eColorAttachmentOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).multisampleImage, vku::fullSubresourceRange(),
-            },
-            vk::ImageMemoryBarrier {
-                {}, {},
-                {}, vk::ImageLayout::eShaderReadOnlyOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).image, vku::fullSubresourceRange(),
-            },
-        });
 }
