@@ -6,9 +6,9 @@ export module vk_gltf_viewer:vulkan.pipeline.CubemapToneMappingRenderer;
 
 import std;
 export import glm;
-export import vku;
 import :shader.screen_quad_vert;
 import :shader.cubemap_tone_mapping_frag;
+export import :vulkan.Gpu;
 export import :vulkan.rp.CubemapToneMapping;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -27,18 +27,23 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::Pipeline pipeline;
 
         CubemapToneMappingRenderer(
-            const vk::raii::Device &device LIFETIMEBOUND,
+            const Gpu &gpu LIFETIMEBOUND,
             const rp::CubemapToneMapping &renderPass LIFETIMEBOUND
-        ) : descriptorSetLayout { device },
-            pipelineLayout { device, vk::PipelineLayoutCreateInfo {
+        ) : descriptorSetLayout { gpu.device },
+            pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
                 {},
                 *descriptorSetLayout,
             } },
-            pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
+            pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(
-                    device,
+                    gpu.device,
                     vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
-                    vku::Shader { shader::cubemap_tone_mapping_frag, vk::ShaderStageFlagBits::eFragment }).get(),
+                    vku::Shader {
+                        gpu.supportShaderTrinaryMinMax
+                            ? std::span<const std::uint32_t> { shader::cubemap_tone_mapping_frag<1> }
+                            : std::span<const std::uint32_t> { shader::cubemap_tone_mapping_frag<0> },
+                        vk::ShaderStageFlagBits::eFragment,
+                    }).get(),
                 *pipelineLayout, 1)
                 .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                     {},

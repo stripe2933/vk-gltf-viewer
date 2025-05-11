@@ -14,8 +14,6 @@
 
 #define HAS_VARIADIC_IN !FRAGMENT_SHADER_GENERATED_TBN || TEXCOORD_COUNT >= 1 || HAS_COLOR_ATTRIBUTE
 
-const vec3 REC_709_LUMA = vec3(0.2126, 0.7152, 0.0722);
-
 layout (constant_id = 0) const uint PACKED_TEXTURE_TRANSFORMS = 0; // [FALSE, FALSE, FALSE, FALSE, FALSE]
 
 layout (location = 0) in vec3 inPosition;
@@ -225,9 +223,8 @@ void main(){
 
     vec3 color = (kD * diffuse + specular) * occlusion + emissive;
 
-    // Tone mapping using REC.709 luma.
-    float colorLuminance = dot(color, REC_709_LUMA);
-    vec3 correctedColor = color / (1.0 + colorLuminance);
+    // Tone mapping.
+    vec3 correctedColor = color / (1.0 + max(max(color.r, color.g), color.b));
 
     writeOutput(vec4(correctedColor, baseColor.a));
 }
