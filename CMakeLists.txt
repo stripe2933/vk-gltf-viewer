@@ -327,7 +327,6 @@ target_link_shaders(vk-gltf-viewer PRIVATE
         shaders/screen_quad.vert
         shaders/skybox.frag
         shaders/skybox.vert
-        shaders/weighted_blended_composition.frag
 )
 
 target_link_shader_variants(vk-gltf-viewer PRIVATE
@@ -385,4 +384,10 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
     MACRO_VALUES
         "0 0 0" "0 0 1" "0 0 2" "0 1 0" "0 1 1" "0 1 2"
         "1 0 0" "1 0 1" "1 0 2" "1 1 0" "1 1 1" "1 1 2"
+)
+target_link_shader_variants(vk-gltf-viewer PRIVATE
+    TARGET_ENV vulkan1.2
+    FILES shaders/weighted_blended_composition.frag
+    MACRO_NAMES "AMD_SHADER_TRINARY_MINMAX"
+    MACRO_VALUES 0 1
 )
