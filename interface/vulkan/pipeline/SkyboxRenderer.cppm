@@ -27,7 +27,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         SkyboxRenderer(
             const vk::raii::Device &device LIFETIMEBOUND,
             const dsl::Skybox &descriptorSetLayout LIFETIMEBOUND,
-            bool isCubemapImageToneMapped,
             const rp::Scene &sceneRenderPass LIFETIMEBOUND,
             const buffer::CubeIndices &cubeIndices LIFETIMEBOUND
         ) : pipelineLayout { device, vk::PipelineLayoutCreateInfo {
@@ -42,14 +41,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                 createPipelineStages(
                     device,
                     vku::Shader { shader::skybox_vert, vk::ShaderStageFlagBits::eVertex },
-                    vku::Shader {
-                        shader::skybox_frag,
-                        vk::ShaderStageFlagBits::eFragment,
-                        vku::unsafeAddress(vk::SpecializationInfo {
-                            vku::unsafeProxy(vk::SpecializationMapEntry { 0, 0, sizeof(vk::Bool32) }),
-                            vku::unsafeProxy<vk::Bool32>(isCubemapImageToneMapped),
-                        }),
-                    }).get(),
+                    vku::Shader { shader::skybox_frag, vk::ShaderStageFlagBits::eFragment }).get(),
                 *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
                 .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                     {},

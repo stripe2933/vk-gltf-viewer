@@ -1183,7 +1183,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     // Generate Tone-mapped cubemap.
     const vulkan::rp::CubemapToneMapping cubemapToneMappingRenderPass { gpu.device };
-    const vulkan::CubemapToneMappingRenderer cubemapToneMappingRenderer { gpu.device, cubemapToneMappingRenderPass };
+    const vulkan::CubemapToneMappingRenderer cubemapToneMappingRenderer { gpu, cubemapToneMappingRenderPass };
 
     vku::AllocatedImage toneMappedCubemapImage { gpu.allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
