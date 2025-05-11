@@ -52,6 +52,7 @@ namespace vk_gltf_viewer::vulkan {
         std::uint32_t subgroupSize;
         std::uint32_t maxPerStageDescriptorUpdateAfterBindSamplers;
         bool supportShaderImageLoadStoreLod;
+        bool supportShaderTrinaryMinMax;
         bool supportVariableDescriptorCount;
         bool supportR8SrgbImageFormat;
         bool supportR8G8SrgbImageFormat;

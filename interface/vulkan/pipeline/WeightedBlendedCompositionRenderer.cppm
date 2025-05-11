@@ -4,10 +4,11 @@ module;
 
 export module vk_gltf_viewer:vulkan.pipeline.WeightedBlendedCompositionRenderer;
 
+import std;
 import vku;
-export import vulkan_hpp;
 import :shader.screen_quad_vert;
 import :shader.weighted_blended_composition_frag;
+export import :vulkan.Gpu;
 export import :vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -30,18 +31,23 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::Pipeline pipeline;
 
         WeightedBlendedCompositionRenderer(
-            const vk::raii::Device &device LIFETIMEBOUND,
+            const Gpu &gpu LIFETIMEBOUND,
             const rp::Scene &sceneRenderPass LIFETIMEBOUND
-        ) : descriptorSetLayout { device },
-            pipelineLayout { device, vk::PipelineLayoutCreateInfo {
+        ) : descriptorSetLayout { gpu.device },
+            pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
                 {},
                 *descriptorSetLayout
             } },
-            pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
+            pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
                 createPipelineStages(
-                    device,
+                    gpu.device,
                     vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
-                    vku::Shader { shader::weighted_blended_composition_frag, vk::ShaderStageFlagBits::eFragment }).get(),
+                    vku::Shader {
+                        gpu.supportShaderTrinaryMinMax
+                            ? std::span<const std::uint32_t> { shader::weighted_blended_composition_frag<1> }
+                            : std::span<const std::uint32_t> { shader::weighted_blended_composition_frag<0> },
+                        vk::ShaderStageFlagBits::eFragment,
+                    }).get(),
                 *pipelineLayout, 1)
                 .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                     {},

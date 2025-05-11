@@ -1,4 +1,7 @@
 #version 450
+#if AMD_SHADER_TRINARY_MINMAX == 1
+#extension GL_AMD_shader_trinary_minmax : enable
+#endif
 
 const float EPSILON = 1e-5f;
 
@@ -15,8 +18,12 @@ bool isApproximatelyEqual(float a, float b) {
     return abs(a - b) <= (abs(a) < abs(b) ? abs(b) : abs(a)) * EPSILON;
 }
 
-float max3(vec3 v) {
+float trinaryMax(vec3 v) {
+#if AMD_SHADER_TRINARY_MINMAX == 1
+    return max3(v.x, v.y, v.z);
+#else
     return max(max(v.x, v.y), v.z);
+#endif
 }
 
 void main(){
@@ -26,7 +33,7 @@ void main(){
     }
 
     vec4 accumulation = subpassLoad(inputAccumulation);
-    if (isinf(max3(abs(accumulation.rgb)))) {
+    if (isinf(trinaryMax(abs(accumulation.rgb)))) {
         accumulation.rgb = accumulation.aaa;
     }
 

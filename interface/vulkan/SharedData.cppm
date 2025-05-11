@@ -197,7 +197,7 @@ namespace vk_gltf_viewer::vulkan {
             , mousePickingRenderer { gpu.device, mousePickingRenderPass }
             , outlineRenderer { gpu.device }
             , skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices }
-            , weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass }
+            , weightedBlendedCompositionRenderer { gpu, sceneRenderPass }
             , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
             , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
             , fallbackTexture { gpu }{
