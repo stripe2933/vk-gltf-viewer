@@ -10,15 +10,12 @@ export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::ag {
     export struct SceneOpaque final : vku::MultisampleAttachmentGroup {
-        SceneOpaque(
-            const Gpu &gpu LIFETIMEBOUND,
-            const vk::Extent2D &extent,
-            std::span<const vk::Image> swapchainImages
-        ) : MultisampleAttachmentGroup { extent, vk::SampleCountFlagBits::e4 } {
-            addSwapchainAttachment(
+        SceneOpaque(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent)
+            : MultisampleAttachmentGroup { extent, vk::SampleCountFlagBits::e4 } {
+            addColorAttachment(
                 gpu.device,
                 storeImage(createColorImage(gpu.allocator, vk::Format::eB8G8R8A8Srgb)),
-                swapchainImages);
+                storeImage(createResolveImage(gpu.allocator, vk::Format::eB8G8R8A8Srgb, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc)));
             setDepthStencilAttachment(
                 gpu.device,
                 storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat

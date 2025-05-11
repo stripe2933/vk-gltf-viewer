@@ -140,8 +140,6 @@ void vk_gltf_viewer::MainApp::run() {
     static_assert(FRAMES_IN_FLIGHT == 2, "Frames ≥ 3 needs different update deferring mechanism.");
     std::vector<std::function<void(vulkan::Frame&)>> deferredFrameUpdateTasks;
 
-    // Booleans that indicates frame at the corresponding index should handle swapchain resizing.
-    std::array<bool, FRAMES_IN_FLIGHT> shouldHandleSwapchainResize{};
     std::array<bool, FRAMES_IN_FLIGHT> regenerateDrawCommands{};
 
     // Currently frame feedback result contains which node is in hovered state, which is only valid
@@ -679,7 +677,6 @@ void vk_gltf_viewer::MainApp::run() {
                 };
             }),
             .solidBackground = appState.background.to_optional(),
-            .handleSwapchainResize = std::exchange(shouldHandleSwapchainResize[frameIndex], false),
         });
 
 		if (frameFeedbackResultValid[frameIndex]) {
@@ -912,7 +909,7 @@ vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR
             vk::ColorSpaceKHR::eSrgbNonlinear,
             swapchainExtent,
             1,
-            vk::ImageUsageFlagBits::eColorAttachment,
+            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment,
             {}, {},
             surfaceCapabilities.currentTransform,
             vk::CompositeAlphaFlagBitsKHR::eOpaque,

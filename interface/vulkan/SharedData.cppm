@@ -154,9 +154,7 @@ namespace vk_gltf_viewer::vulkan {
         // Attachment groups.
         // --------------------
 
-        ag::Swapchain swapchainAttachmentGroup;
-        // If GPU does not support mutable swapchain format, it will be the reference of swapchainAttachmentGroup.
-        std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> imGuiSwapchainAttachmentGroup;
+        ag::ImGui imGuiAttachmentGroup;
 
         // Descriptor pools.
         vk::raii::DescriptorPool descriptorPool;
@@ -200,8 +198,7 @@ namespace vk_gltf_viewer::vulkan {
             , outlineRenderer { gpu.device }
             , skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, true, sceneRenderPass, cubeIndices }
             , weightedBlendedCompositionRenderer { gpu.device, sceneRenderPass }
-            , swapchainAttachmentGroup { gpu, swapchainExtent, swapchainImages }
-            , imGuiSwapchainAttachmentGroup { getImGuiSwapchainAttachmentGroup() }
+            , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
             , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
             , fallbackTexture { gpu }{
             std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet) = vku::allocateDescriptorSets(
@@ -269,8 +266,7 @@ namespace vk_gltf_viewer::vulkan {
             swapchainExtent = newSwapchainExtent;
             swapchainImages = newSwapchainImages;
 
-            swapchainAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
-            imGuiSwapchainAttachmentGroup = getImGuiSwapchainAttachmentGroup();
+            imGuiAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
         }
 
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
@@ -320,14 +316,5 @@ namespace vk_gltf_viewer::vulkan {
         mutable std::unordered_map<MaskJumpFloodSeedRendererSpecialization, vk::raii::Pipeline, AggregateHasher> maskJumpFloodSeedPipelines;
         mutable std::unordered_map<PrimitiveRendererSpecialization, vk::raii::Pipeline, AggregateHasher> primitivePipelines;
         mutable std::unordered_map<UnlitPrimitiveRendererSpecialization, vk::raii::Pipeline, AggregateHasher> unlitPrimitivePipelines;
-
-        [[nodiscard]] std::variant<ag::Swapchain, std::reference_wrapper<ag::Swapchain>> getImGuiSwapchainAttachmentGroup() {
-            if (gpu.supportSwapchainMutableFormat) {
-                return decltype(imGuiSwapchainAttachmentGroup) { std::in_place_index<0>, gpu, swapchainExtent, swapchainImages, vk::Format::eB8G8R8A8Unorm };
-            }
-            else {
-                return decltype(imGuiSwapchainAttachmentGroup) { std::in_place_index<1>, swapchainAttachmentGroup };
-            }
-        }
     };
 }

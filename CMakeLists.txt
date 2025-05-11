@@ -194,7 +194,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/attachment_group/JumpFloodSeed.cppm
         interface/vulkan/attachment_group/SceneOpaque.cppm
         interface/vulkan/attachment_group/SceneWeightedBlended.cppm
-        interface/vulkan/attachment_group/Swapchain.cppm
+        interface/vulkan/attachment_group/ImGui.cppm
         interface/vulkan/buffer/mod.cppm
         interface/vulkan/buffer/CombinedIndices.cppm
         interface/vulkan/buffer/CubeIndices.cppm

@@ -175,13 +175,6 @@ namespace vk_gltf_viewer::vulkan {
              */
             std::optional<Gltf> gltf;
             std::optional<glm::vec3> solidBackground; // If this is nullopt, use SharedData::SkyboxDescriptorSet instead.
-
-            /**
-             * @brief Indication whether the frame should handle swapchain resizing.
-             *
-             * This MUST be <tt>true</tt> if previous frame's execution result (obtained by <tt>Frame::execute()</tt>) is <tt>false</tt>.
-             */
-            bool handleSwapchainResize;
         };
 
         struct UpdateResult {
@@ -282,8 +275,7 @@ namespace vk_gltf_viewer::vulkan {
         }
 
     private:
-        class PassthruResources {
-        public:
+        struct PassthruResources {
             struct JumpFloodResources {
                 vku::AllocatedImage image;
                 vk::raii::ImageView imageView;
@@ -295,20 +287,22 @@ namespace vk_gltf_viewer::vulkan {
 
             vk::Extent2D extent;
 
-            JumpFloodResources hoveringNodeOutlineJumpFloodResources;
-            JumpFloodResources selectedNodeOutlineJumpFloodResources;
-
-            // Attachment groups.
+            // Mouse picking.
             ag::MousePicking mousePickingAttachmentGroup;
-            ag::JumpFloodSeed hoveringNodeJumpFloodSeedAttachmentGroup;
-            ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
-
             vk::raii::Framebuffer mousePickingFramebuffer;
 
-            PassthruResources(const SharedData &sharedData LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
+            // Outline calculation using JFA.
+            JumpFloodResources hoveringNodeOutlineJumpFloodResources;
+            ag::JumpFloodSeed hoveringNodeJumpFloodSeedAttachmentGroup;
+            JumpFloodResources selectedNodeOutlineJumpFloodResources;
+            ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 
-        private:
-            void recordInitialImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const;
+            // Scene rendering.
+            ag::SceneOpaque sceneOpaqueAttachmentGroup;
+            ag::SceneWeightedBlended sceneWeightedBlendedAttachmentGroup;
+            vk::raii::Framebuffer sceneFramebuffer;
+
+            PassthruResources(const SharedData &sharedData LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
         };
 
         struct RenderingNodes {
@@ -333,13 +327,6 @@ namespace vk_gltf_viewer::vulkan {
 
         // Buffer, image and image views.
         std::optional<PassthruResources> passthruResources;
-
-        // Attachment groups.
-        ag::SceneOpaque sceneOpaqueAttachmentGroup;
-        ag::SceneWeightedBlended sceneWeightedBlendedAttachmentGroup;
-
-        // Framebuffers.
-        std::vector<vk::raii::Framebuffer> framebuffers;
 
         // Descriptor/command pools.
         vk::raii::DescriptorPool descriptorPool;
@@ -379,7 +366,6 @@ namespace vk_gltf_viewer::vulkan {
         std::optional<HoveringNode> hoveringNode;
         std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
 
-        [[nodiscard]] std::vector<vk::raii::Framebuffer> createFramebuffers() const;
         [[nodiscard]] vk::raii::DescriptorPool createDescriptorPool() const;
 
         void recordScenePrepassCommands(vk::CommandBuffer cb) const;
@@ -390,7 +376,5 @@ namespace vk_gltf_viewer::vulkan {
         void recordSkyboxDrawCommands(vk::CommandBuffer cb) const;
         void recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward, std::uint32_t swapchainImageIndex) const;
         void recordImGuiCompositionCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex) const;
-
-        void recordSwapchainExtentDependentImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const;
     };
 }
