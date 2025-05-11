@@ -315,7 +315,6 @@ endif()
 target_link_shaders(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
-        shaders/cubemap_tone_mapping.frag
         shaders/jump_flood_seed.frag
         shaders/jump_flood_seed.vert
         shaders/jump_flood.comp
@@ -387,7 +386,9 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
 )
 target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
-    FILES shaders/weighted_blended_composition.frag
+    FILES
+        shaders/cubemap_tone_mapping.frag
+        shaders/weighted_blended_composition.frag
     MACRO_NAMES "AMD_SHADER_TRINARY_MINMAX"
     MACRO_VALUES 0 1
 )
