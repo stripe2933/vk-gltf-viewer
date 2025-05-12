@@ -30,7 +30,8 @@ namespace vk_gltf_viewer {
 
     private:
         static constexpr fastgltf::Extensions SUPPORTED_EXTENSIONS
-            = fastgltf::Extensions::KHR_materials_ior
+            = fastgltf::Extensions::KHR_materials_emissive_strength
+            | fastgltf::Extensions::KHR_materials_ior
             | fastgltf::Extensions::KHR_materials_unlit
             | fastgltf::Extensions::KHR_materials_variants
             | fastgltf::Extensions::KHR_mesh_quantization

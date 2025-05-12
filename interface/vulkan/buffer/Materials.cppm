@@ -93,7 +93,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
                     .metallicFactor = material.pbrData.metallicFactor,
                     .roughnessFactor = material.pbrData.roughnessFactor,
-                    .emissiveFactor = glm::gtc::make_vec3(material.emissiveFactor.data()),
+                    .emissive = material.emissiveStrength * glm::gtc::make_vec3(material.emissiveFactor.data()),
                     .alphaCutOff = material.alphaCutoff,
                     .ior = material.ior,
                 };

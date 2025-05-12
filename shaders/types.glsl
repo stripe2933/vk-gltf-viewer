@@ -18,7 +18,7 @@ struct Material {
     float roughnessFactor;
     float normalScale;
     float occlusionStrength;
-    vec3 emissiveFactor;
+    vec3 emissive;
     float alphaCutoff;
     mat3x2 baseColorTextureTransform;
     mat3x2 metallicRoughnessTextureTransform;

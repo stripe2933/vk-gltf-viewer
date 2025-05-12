@@ -25,7 +25,7 @@ namespace vk_gltf_viewer::vulkan::shader_type {
         float roughnessFactor = 1.f;
         float normalScale = 1.f;
         float occlusionStrength = 1.f;
-        glm::vec3 emissiveFactor = { 0.f, 0.f, 0.f };
+        glm::vec3 emissive = { 0.f, 0.f, 0.f }; // emissiveStrength * emissiveFactor
         float alphaCutOff;
         glm::mat3x2 baseColorTextureTransform;
         glm::mat3x2 metallicRoughnessTextureTransform;
@@ -39,6 +39,6 @@ namespace vk_gltf_viewer::vulkan::shader_type {
     static_assert(sizeof(Material) == 192);
     static_assert(offsetof(Material, baseColorTextureIndex) == 6);
     static_assert(offsetof(Material, baseColorFactor) == 16);
-    static_assert(offsetof(Material, emissiveFactor) == 48);
+    static_assert(offsetof(Material, emissive) == 48);
     static_assert(offsetof(Material, baseColorTextureTransform) == 64);
 }
