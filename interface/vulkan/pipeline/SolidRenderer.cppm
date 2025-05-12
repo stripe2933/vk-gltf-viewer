@@ -57,7 +57,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     }),
                 }))
                 .setRenderPass(*sceneRenderPass)
-                .setSubpass(2),
+                .setSubpass(4),
             } { }
     };
 }

@@ -16,7 +16,7 @@ namespace vk_gltf_viewer::vulkan::rp {
             : RenderPass { device, vk::RenderPassCreateInfo {
                 {},
                 vku::unsafeProxy({
-                    // Opaque MSAA color attachment.
+                    // (0) Opaque MSAA color attachment.
                     vk::AttachmentDescription {
                         {},
                         vk::Format::eB8G8R8A8Srgb, vk::SampleCountFlagBits::e4,
@@ -24,7 +24,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         {}, {},
                         {}, vk::ImageLayout::eColorAttachmentOptimal,
                     },
-                    // Opaque MSAA resolve attachment (=result image)
+                    // (1) Opaque MSAA resolve attachment (=result image)
                     vk::AttachmentDescription {
                         {},
                         vk::Format::eB8G8R8A8Srgb, vk::SampleCountFlagBits::e1,
@@ -32,7 +32,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         {}, {},
                         {}, vk::ImageLayout::eColorAttachmentOptimal,
                     },
-                    // Depth image.
+                    // (2) Depth image.
                     vk::AttachmentDescription {
                         {},
                         vk::Format::eD32Sfloat, vk::SampleCountFlagBits::e4,
@@ -40,7 +40,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         {}, {},
                         {}, vk::ImageLayout::eDepthStencilAttachmentOptimal,
                     },
-                    // Accumulation color image.
+                    // (3) Accumulation color image.
                     vk::AttachmentDescription {
                         {},
                         vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e4,
@@ -48,7 +48,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         {}, {},
                         {}, vk::ImageLayout::eColorAttachmentOptimal,
                     },
-                    // Accumulation resolve image.
+                    // (4) Accumulation resolve image.
                     vk::AttachmentDescription {
                         {},
                         vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e1,
@@ -56,7 +56,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         {}, {},
                         {}, vk::ImageLayout::eShaderReadOnlyOptimal,
                     },
-                    // Revealage color image.
+                    // (5) Revealage color image.
                     vk::AttachmentDescription {
                         {},
                         vk::Format::eR16Unorm, vk::SampleCountFlagBits::e4,
@@ -64,13 +64,21 @@ namespace vk_gltf_viewer::vulkan::rp {
                         {}, {},
                         {}, vk::ImageLayout::eColorAttachmentOptimal,
                     },
-                    // Revealage resolve image.
+                    // (6) Revealage resolve image.
                     vk::AttachmentDescription {
                         {},
                         vk::Format::eR16Unorm, vk::SampleCountFlagBits::e1,
                         vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eNone,
                         {}, {},
                         {}, vk::ImageLayout::eShaderReadOnlyOptimal,
+                    },
+                    // (7) Inverse tone mapping image.
+                    vk::AttachmentDescription {
+                        {},
+                        vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e1,
+                        vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
+                        {}, {},
+                        {}, vk::ImageLayout::eGeneral,
                     },
                 }),
                 vku::unsafeProxy({
@@ -108,6 +116,22 @@ namespace vk_gltf_viewer::vulkan::rp {
                         }),
                         vku::unsafeProxy(vk::AttachmentReference { 1, vk::ImageLayout::eColorAttachmentOptimal }),
                     },
+                    // Inverse tone mapping pass.
+                    vk::SubpassDescription {
+                        {},
+                        vk::PipelineBindPoint::eGraphics,
+                        vku::unsafeProxy({
+                            vk::AttachmentReference { 1, vk::ImageLayout::eShaderReadOnlyOptimal },
+                        }),
+                        vku::unsafeProxy(vk::AttachmentReference { 7, vk::ImageLayout::eColorAttachmentOptimal }),
+                    },
+                    // Background composition pass.
+                    vk::SubpassDescription {
+                        {},
+                        vk::PipelineBindPoint::eGraphics,
+                        {},
+                        vku::unsafeProxy(vk::AttachmentReference { 1, vk::ImageLayout::eColorAttachmentOptimal }),
+                    },
                 }),
                 vku::unsafeProxy({
                     // Dependency between opaque pass and weighted blended pass:
@@ -131,11 +155,19 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader,
                         vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eInputAttachmentRead,
                     },
+                    // Dependency between WBOIT composition pass and inverse tone mapping pass:
+                    // Color attachment must be written before it is read as input attachment
                     vk::SubpassDependency {
-                        2, 2,
-                        vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                        vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
-                        vk::DependencyFlagBits::eByRegion,
+                        2, 3,
+                        vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader,
+                        vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eInputAttachmentRead,
+                    },
+                    // Dependency between inverse tone mapping pass and background composition pass:
+                    // Input attachment reading must be finished before its layout is transited to ColorAttachmentOptimal.
+                    vk::SubpassDependency {
+                        3, 4,
+                        vk::PipelineStageFlagBits::eFragmentShader, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                        vk::AccessFlagBits::eInputAttachmentRead, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
                     },
                 }),
             } } { }
