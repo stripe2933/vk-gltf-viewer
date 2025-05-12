@@ -464,10 +464,10 @@ void vk_gltf_viewer::MainApp::run() {
                                 getTextureTransform(*changedMaterial.pbrData.baseColorTexture->transform),
                                 sharedDataUpdateCommandBuffer);
                             break;
-                        case Property::EmissiveFactor:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::emissiveFactor>(
+                        case Property::Emissive:
+                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::emissive>(
                                 task.materialIndex,
-                                glm::make_vec3(changedMaterial.emissiveFactor.data()),
+                                changedMaterial.emissiveStrength * glm::make_vec3(changedMaterial.emissiveFactor.data()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::EmissiveTextureTransform:

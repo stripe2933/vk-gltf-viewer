@@ -33,7 +33,7 @@ namespace vk_gltf_viewer::control {
                 BaseColorTextureTransform,
                 BaseColorTextureTransformEnabled,
                 DoubleSided,
-                EmissiveFactor,
+                Emissive,
                 EmissiveTextureTransform,
                 EmissiveTextureTransformEnabled,
                 MetallicFactor,

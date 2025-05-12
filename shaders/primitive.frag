@@ -185,7 +185,7 @@ void main(){
     occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[uint(MATERIAL.occlusionTextureIndex)], occlusionTexcoord).r - 1.0);
 #endif
 
-    vec3 emissive = MATERIAL.emissiveFactor;
+    vec3 emissive = MATERIAL.emissive;
 #if TEXCOORD_COUNT >= 1
     vec2 emissiveTexcoord = getTexcoord(MATERIAL.emissiveTexcoordIndex);
     if ((PACKED_TEXTURE_TRANSFORMS & 16U) == 16U) {

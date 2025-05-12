@@ -19,6 +19,7 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - Multiple scenes.
   - Binary format (`.glb`).
 - Support glTF 2.0 extensions:
+  - [`KHR_materials_emissive_strength`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_emissive_strength)
   - [`KHR_materials_ior`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_ior)
   - [`KHR_materials_unlit`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_unlit) for lighting independent material shading
   - [`KHR_materials_variants`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_variants)
