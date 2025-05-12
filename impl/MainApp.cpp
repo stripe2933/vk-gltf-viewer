@@ -136,7 +136,7 @@ vk_gltf_viewer::MainApp::MainApp()
 
 void vk_gltf_viewer::MainApp::run() {
     std::array<vk::raii::Fence, FRAMES_IN_FLIGHT> frameInFlightFences = ARRAY_OF(FRAMES_IN_FLIGHT, vk::raii::Fence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } });
-    
+
     // When using multiple frames in flight, updating resources in a frame while it’s still being used by the GPU can
     // lead to data hazards. Since resource updates occur when one of the frames is fenced, that frame can be updated
     // safely, but the others cannot.
@@ -688,6 +688,7 @@ void vk_gltf_viewer::MainApp::run() {
                 };
             }),
             .solidBackground = appState.background.to_optional(),
+            .bloomIntensity = 0.04f,
         });
 
 		if (frameFeedbackResultValid[frameIndex]) {

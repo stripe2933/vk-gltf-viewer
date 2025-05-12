@@ -15,7 +15,12 @@ namespace vk_gltf_viewer::vulkan::ag {
             addColorAttachment(
                 gpu.device,
                 storeImage(createColorImage(gpu.allocator, vk::Format::eB8G8R8A8Srgb)),
-                storeImage(createResolveImage(gpu.allocator, vk::Format::eB8G8R8A8Srgb, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc)));
+                storeImage(createResolveImage(
+                    gpu.allocator,
+                    vk::Format::eB8G8R8A8Srgb,
+                    vk::ImageUsageFlagBits::eColorAttachment
+                        | vk::ImageUsageFlagBits::eInputAttachment // input in InverseToneMappingRenderer, feedback loop in BloomApplyRenderer
+                        | vk::ImageUsageFlagBits::eTransferSrc /* copied to the swapchain image */)));
             setDepthStencilAttachment(
                 gpu.device,
                 storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat

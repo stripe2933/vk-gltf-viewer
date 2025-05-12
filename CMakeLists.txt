@@ -219,6 +219,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/imgui/PlatformResource.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
+        interface/vulkan/pipeline/InverseToneMappingRenderer.cppm
         interface/vulkan/pipeline/NodeIndexRenderer.cppm
         interface/vulkan/pipeline/JumpFloodComputer.cppm
         interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
@@ -390,6 +391,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
         shaders/cubemap_tone_mapping.frag
+        shaders/inverse_tone_mapping.frag
         shaders/weighted_blended_composition.frag
     MACRO_NAMES "AMD_SHADER_TRINARY_MINMAX"
     MACRO_VALUES 0 1
