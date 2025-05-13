@@ -63,7 +63,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     vku::unsafeProxy(vk::PipelineColorBlendAttachmentState {
                         true,
                         vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
-                        vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
+                        vk::BlendFactor::eOne, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
                         vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
                     }),
                     { 1.f, 1.f, 1.f, 1.f },
