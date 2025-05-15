@@ -49,11 +49,8 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
     , computeCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.compute } }
     , graphicsCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.graphicsPresent } }
     , scenePrepassFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
-    , swapchainImageAcquireSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
     , sceneRenderingFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
-    , compositionFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
-    , jumpFloodFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
-    , inFlightFence { sharedData.gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } } {
+    , jumpFloodFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} } {
     // Allocate descriptor sets.
     std::tie(mousePickingSet, multiNodeMousePickingSet, hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet)
         = allocateDescriptorSets(*descriptorPool, std::tie(
@@ -551,7 +548,12 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     return result;
 }
 
-void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapchainImageIndex) const {
+void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
+    std::uint32_t swapchainImageIndex,
+    vk::Semaphore swapchainImageAcquireSemaphore,
+    vk::Semaphore swapchainImageReadySemaphore,
+    vk::Fence inFlightFence
+) const {
     // Record commands.
     graphicsCommandPool.reset();
     computeCommandPool.reset();
@@ -761,16 +763,16 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(std::uint32_t swapch
             *sceneRenderingFinishSema,
         },
         vk::SubmitInfo {
-            vku::unsafeProxy({ *swapchainImageAcquireSema, *sceneRenderingFinishSema, *jumpFloodFinishSema }),
+            vku::unsafeProxy({ swapchainImageAcquireSemaphore, *sceneRenderingFinishSema, *jumpFloodFinishSema }),
             vku::unsafeProxy<vk::PipelineStageFlags>({
                 vk::PipelineStageFlagBits::eTransfer,
                 vk::PipelineStageFlagBits::eColorAttachmentOutput,
                 vk::PipelineStageFlagBits::eFragmentShader,
             }),
             compositionCommandBuffer,
-            *compositionFinishSema,
+            swapchainImageReadySemaphore,
         },
-    }, *inFlightFence);
+    }, inFlightFence);
 }
 
 vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodResources(

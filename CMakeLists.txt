@@ -131,6 +131,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/control/Camera.cppm
         interface/control/ImGuiTaskCollector.cppm
         interface/control/Task.cppm
+        interface/data_structure/ImmutableRing.cppm
         interface/global.cppm
         interface/gltf/algorithm/bounding_box.cppm
         interface/gltf/algorithm/MikktSpaceInterface.cppm
