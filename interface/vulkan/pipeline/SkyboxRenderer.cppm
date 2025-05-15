@@ -42,7 +42,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     device,
                     vku::Shader { shader::skybox_vert, vk::ShaderStageFlagBits::eVertex },
                     vku::Shader { shader::skybox_frag, vk::ShaderStageFlagBits::eFragment }).get(),
-                *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
+                *pipelineLayout, 1)
                 .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                     {},
                     false, false,
@@ -51,12 +51,19 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     {}, {}, {}, {},
                     1.f,
                 }))
-                .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
+                .setPColorBlendState(vku::unsafeAddress(vk::PipelineColorBlendStateCreateInfo {
                     {},
-                    true, false, vk::CompareOp::eEqual,
+                    false, {},
+                    vku::unsafeProxy(vk::PipelineColorBlendAttachmentState {
+                        true,
+                        // Inverse alpha blending (src and dst are swapped) with premultiplied alpha
+                        vk::BlendFactor::eOneMinusDstAlpha, vk::BlendFactor::eOne, vk::BlendOp::eAdd,
+                        vk::BlendFactor::eOneMinusDstAlpha, vk::BlendFactor::eOne, vk::BlendOp::eAdd,
+                        vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+                    }),
                 }))
                 .setRenderPass(*sceneRenderPass)
-                .setSubpass(0),
+                .setSubpass(2),
             },
             cubeIndices { cubeIndices } { }
 

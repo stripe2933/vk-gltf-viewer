@@ -648,9 +648,6 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
         if (renderingNodes) {
             recordSceneOpaqueMeshDrawCommands(sceneRenderingCommandBuffer);
         }
-        if (holds_alternative<vku::DescriptorSet<dsl::Skybox>>(background)) {
-            recordSkyboxDrawCommands(sceneRenderingCommandBuffer);
-        }
 
         // Render meshes whose AlphaMode=Blend.
         sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
@@ -671,6 +668,18 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
                 sharedData.weightedBlendedCompositionRenderer.pipelineLayout,
                 0, weightedBlendedCompositionSet, {});
             sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
+
+            sceneRenderingCommandBuffer.pipelineBarrier(
+                vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                vk::DependencyFlagBits::eByRegion,
+                vk::MemoryBarrier {
+                    vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
+                },
+                {}, {});
+        }
+
+        if (holds_alternative<vku::DescriptorSet<dsl::Skybox>>(background)) {
+            recordSkyboxDrawCommands(sceneRenderingCommandBuffer);
         }
 
         sceneRenderingCommandBuffer.endRenderPass();

@@ -117,19 +117,25 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::PipelineStageFlagBits::eLateFragmentTests, vk::PipelineStageFlagBits::eEarlyFragmentTests,
                         vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::AccessFlagBits::eDepthStencilAttachmentRead,
                     },
-                    // Dependency between opaque pass and swapchain full-quad pass:
+                    // Dependency between opaque pass and WBOIT composition pass:
                     // Color attachments must be written before full-quad pass writes them.
                     vk::SubpassDependency {
                         0, 2,
                         vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
                         vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentRead,
                     },
-                    // Dependency between weighted blend pass and swapchain full-quad pass:
-                    // Color attachments must be written before full-quad pass reads them.
+                    // Dependency between blend pass and WBOIT composition pass:
+                    // Color attachments must be written before they are read as input attachments
                     vk::SubpassDependency {
                         1, 2,
                         vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader,
                         vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eInputAttachmentRead,
+                    },
+                    vk::SubpassDependency {
+                        2, 2,
+                        vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                        vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
+                        vk::DependencyFlagBits::eByRegion,
                     },
                 }),
             } } { }
