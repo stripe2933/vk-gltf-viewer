@@ -61,6 +61,7 @@ namespace vk_gltf_viewer::vulkan {
         bool supportSwapchainMutableFormat;
         bool supportDrawIndirectCount;
         bool supportUint8Index;
+        bool supportAttachmentFeedbackLoopLayout;
         std::uint32_t subgroupSize;
         std::uint32_t maxPerStageDescriptorUpdateAfterBindSamplers;
         bool supportShaderImageLoadStoreLod;

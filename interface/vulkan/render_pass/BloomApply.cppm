@@ -7,13 +7,12 @@ export module vk_gltf_viewer:vulkan.rp.BloomApply;
 #ifdef _MSC_VER
 import std;
 #endif
-export import vulkan_hpp;
-import vku;
+export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::rp {
     export struct BloomApply : vk::raii::RenderPass {
-        explicit BloomApply(const vk::raii::Device &device LIFETIMEBOUND)
-            : RenderPass { device, vk::RenderPassCreateInfo {
+        explicit BloomApply(const Gpu &gpu LIFETIMEBOUND)
+            : RenderPass { gpu.device, vk::RenderPassCreateInfo {
                 {},
                 vku::unsafeProxy({
                     // Result image.
@@ -37,10 +36,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                     {},
                     vk::PipelineBindPoint::eGraphics,
                     vku::unsafeProxy({
-                        // The result image will be both used for input attachment and color attachment, therefore its layout
-                        // must be GENERAL.
-                        // TODO: utilize VK_EXT_attachment_feedback_loop_layout and set the layout as ATTACHMENT_FEEDBACK_LOOP_OPTIMAL_EXT.
-                        vk::AttachmentReference { 0, vk::ImageLayout::eGeneral },
+                        vk::AttachmentReference { 0, gpu.supportAttachmentFeedbackLoopLayout ? vk::ImageLayout::eAttachmentFeedbackLoopOptimalEXT : vk::ImageLayout::eGeneral },
                         vk::AttachmentReference { 1, vk::ImageLayout::eShaderReadOnlyOptimal },
                     }),
                     vku::unsafeProxy(vk::AttachmentReference { 0, vk::ImageLayout::eGeneral }),

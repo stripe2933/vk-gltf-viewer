@@ -197,7 +197,7 @@ namespace vk_gltf_viewer::vulkan {
             , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
             , mousePickingRenderPass { gpu.device }
             , sceneRenderPass { gpu }
-            , bloomApplyRenderPass { gpu.device }
+            , bloomApplyRenderPass { gpu }
             , multiNodeMousePickingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) }
             , primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
             , primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout }
