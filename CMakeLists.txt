@@ -47,6 +47,7 @@ find_package(OpenEXR CONFIG)
 
 include(cmake/CompileShader.cmake)
 
+add_subdirectory(bloom)
 add_subdirectory(cubemap)
 add_subdirectory(ibl)
 
@@ -218,6 +219,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/image/Images.cppm
         interface/vulkan/imgui/PlatformResource.cppm
         interface/vulkan/mipmap.cppm
+        interface/vulkan/pipeline/BloomApplyRenderer.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
         interface/vulkan/pipeline/InverseToneMappingRenderer.cppm
         interface/vulkan/pipeline/NodeIndexRenderer.cppm
@@ -233,6 +235,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline_layout/MultiNodeMousePicking.cppm
         interface/vulkan/pipeline_layout/Primitive.cppm
         interface/vulkan/pipeline_layout/PrimitiveNoShading.cppm
+        interface/vulkan/render_pass/BloomApply.cppm
         interface/vulkan/render_pass/CubemapToneMapping.cppm
         interface/vulkan/render_pass/MousePicking.cppm
         interface/vulkan/render_pass/Scene.cppm
@@ -252,6 +255,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/trait/PostTransferObject.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
+    bloom
     Boost::container
     Boost::container_hash
     BS_thread_pool::module
@@ -388,6 +392,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
 target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
+        shaders/bloom_apply.frag
         shaders/cubemap_tone_mapping.frag
         shaders/inverse_tone_mapping.frag
         shaders/weighted_blended_composition.frag
