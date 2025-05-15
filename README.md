@@ -88,6 +88,7 @@ The extensions and feature used in this application are quite common in the mode
   - `VK_KHR_push_descriptor`
   - `VK_KHR_swapchain`
   - (optional) `VK_KHR_swapchain_mutable_format` (proper ImGui gamma correction, UI color will lose the color if the extension not presented)
+  - (optional) `VK_EXT_attachment_feedback_loop_layout` (optimized bloom composition)
   - (optional) `VK_EXT_index_type_uint8` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
   - (optional) `VK_AMD_shader_image_load_store_lod` (can replace the descriptor indexing based cubemap mipmapping and prefilteredmap generation[^2])
 - Device Features
@@ -120,6 +121,7 @@ The extensions and feature used in this application are quite common in the mode
   - `VkPhysicalDeviceSynchronization2Features`
   - `VkPhysicalDeviceExtendedDynamicStateFeaturesEXT`
   - (optional) `VkPhysicalDeviceIndexTypeUint8FeaturesEXT` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
+  - (optional) `VkPhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT`
 - Device Limits
   - Subgroup size must be at least 16.
   - Sampler anisotropy must support 16x.
