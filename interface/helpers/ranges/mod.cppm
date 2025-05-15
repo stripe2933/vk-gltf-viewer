@@ -185,5 +185,12 @@ namespace views {
             return FWD(r) | this->operator()(FWD(f));
         }
     } value_transform;
+
+    export template <std::invocable G>
+    [[nodiscard]] constexpr auto generate_n(std::size_t n, G &&gen) noexcept(std::is_nothrow_move_constructible_v<G>) {
+        return upto(n) | std::views::transform([gen = FWD(gen)](auto) noexcept(std::is_nothrow_invocable_v<G>) {
+            return std::invoke(gen);
+        });
+    }
 }
 }

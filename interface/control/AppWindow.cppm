@@ -47,6 +47,14 @@ namespace vk_gltf_viewer::control {
                 static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
                     ->pTasks->emplace(std::in_place_type<task::WindowDrop>, std::vector<std::filesystem::path> { std::from_range, std::span { paths, static_cast<std::size_t>(count) } });
             });
+            glfwSetWindowSizeCallback(window, [](GLFWwindow *window, int width, int height) {
+                static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
+                    ->pTasks->emplace(std::in_place_type<task::WindowSize>, glm::ivec2 { width, height });
+            });
+            glfwSetWindowContentScaleCallback(window, [](GLFWwindow *window, float xscale, float yscale) {
+                static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
+                    ->pTasks->emplace(std::in_place_type<task::WindowContentScale>, glm::vec2 { xscale, yscale });
+            });
         }
 
         ~AppWindow() {

@@ -193,32 +193,14 @@ namespace vk_gltf_viewer::vulkan {
 
         explicit Frame(const SharedData &sharedData LIFETIMEBOUND);
 
-        /**
-         * @brief Wait for the previous frame execution to finish.
-         *
-         * This function is blocking.
-         * You should call this function before mutating the frame GPU resources for avoiding synchronization error.
-         */
-        void waitForPreviousExecution() const {
-            std::ignore = sharedData.gpu.device.waitForFences(*inFlightFence, true, ~0ULL); // TODO: failure handling
-            sharedData.gpu.device.resetFences(*inFlightFence);
-        }
-
         UpdateResult update(const ExecutionTask &task);
 
-        void recordCommandsAndSubmit(std::uint32_t swapchainImageIndex) const;
-
-        /**
-         * @brief Frame exclusive semaphore that have to be signaled when the swapchain image is acquired.
-         * @return The semaphore.
-         */
-        [[nodiscard]] vk::Semaphore getSwapchainImageAcquireSemaphore() const noexcept { return *swapchainImageAcquireSema; }
-
-        /**
-         * @brief Frame exclusive semaphore that will to be signaled when the swapchain image is rendered and ready to be presented.
-         * @return The semaphore.
-         */
-        [[nodiscard]] vk::Semaphore getSwapchainImageReadySemaphore() const noexcept { return *compositionFinishSema; }
+        void recordCommandsAndSubmit(
+            std::uint32_t swapchainImageIndex,
+            vk::Semaphore swapchainImageAcquireSemaphore,
+            vk::Semaphore swapchainImageReadySemaphore,
+            vk::Fence inFlightFence = nullptr
+        ) const;
 
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         void changeAsset(
@@ -350,11 +332,8 @@ namespace vk_gltf_viewer::vulkan {
 
         // Synchronization stuffs.
         vk::raii::Semaphore scenePrepassFinishSema;
-        vk::raii::Semaphore swapchainImageAcquireSema;
         vk::raii::Semaphore sceneRenderingFinishSema;
-        vk::raii::Semaphore compositionFinishSema;
         vk::raii::Semaphore jumpFloodFinishSema;
-        vk::raii::Fence inFlightFence;
 
         vk::Offset2D passthruOffset;
         glm::mat4 projectionViewMatrix;

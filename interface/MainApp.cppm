@@ -1,6 +1,7 @@
 export module vk_gltf_viewer:MainApp;
 
 import std;
+import vk_gltf_viewer.data_structure.ImmutableRing;
 import vk_gltf_viewer.helpers;
 import :AppState;
 import :control.AppWindow;
@@ -146,6 +147,24 @@ namespace vk_gltf_viewer {
         vk::raii::SwapchainKHR swapchain = createSwapchain();
         std::vector<vk::Image> swapchainImages = swapchain.getImages();
 
+        /**
+         * @brief Semaphores that will be signaled when swapchain images are acquired, i.e. the images are ready to be used for rendering.
+         *
+         * Semaphores in the container is NOT 1-to-1 mapped to swapchain images. Instead, non-pending semaphore can be
+         * retrieved on-demand by calling <tt>current()</tt> from the container. After the retrieved semaphore is being
+         * pending state, <tt>advance()</tt> must be called to make the next swapchain image acquirement use the fresh
+         * semaphore.
+         */
+        ds::ImmutableRing<vk::raii::Semaphore> swapchainImageAcquireSemaphores;
+
+        /**
+         * @brief Semaphores that will be signaled when their corresponding swapchain images are ready to be presented, i.e. all rendering is done in the image.
+         *
+         * These semaphores are 1-to-1 mapped to swapchain images and the semaphore of the same index should be used for
+         * presenting the corresponding swapchain image.
+         */
+        std::vector<vk::raii::Semaphore> swapchainImageReadySemaphores;
+
         // --------------------
         // glTF resources.
         // --------------------
@@ -186,6 +205,7 @@ namespace vk_gltf_viewer {
             return { static_cast<std::uint32_t>(framebufferSize.x), static_cast<std::uint32_t>(framebufferSize.y) };
         }
 
+        void handleSwapchainResize();
         void recordSwapchainImageLayoutTransitionCommands(vk::CommandBuffer cb) const;
     };
 }

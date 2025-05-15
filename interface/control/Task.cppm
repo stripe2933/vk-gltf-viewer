@@ -13,6 +13,8 @@ namespace vk_gltf_viewer::control {
         struct WindowTrackpadZoom { double scale; };
         struct WindowTrackpadRotate { double angle; };
         struct WindowDrop { std::vector<std::filesystem::path> paths; };
+        struct WindowSize { glm::ivec2 size; };
+        struct WindowContentScale { glm::vec2 scale; };
 
         struct ChangePassthruRect { ImRect newRect; };
         struct LoadGltf { std::filesystem::path path; };
@@ -63,6 +65,8 @@ namespace vk_gltf_viewer::control {
         task::WindowTrackpadZoom,
         task::WindowTrackpadRotate,
         task::WindowDrop,
+        task::WindowSize,
+        task::WindowContentScale,
         task::ChangePassthruRect,
         task::LoadGltf,
         task::CloseGltf,
