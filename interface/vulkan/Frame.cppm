@@ -290,7 +290,9 @@ namespace vk_gltf_viewer::vulkan {
             vk::raii::ImageView bloomImageView;
             std::vector<vk::raii::ImageView> bloomMipImageViews;
 
+            // Framebuffers.
             vk::raii::Framebuffer sceneFramebuffer;
+            vk::raii::Framebuffer bloomApplyFramebuffer;
 
             PassthruResources(const SharedData &sharedData LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
         };
@@ -332,6 +334,8 @@ namespace vk_gltf_viewer::vulkan {
         vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSet;
         vku::DescriptorSet<WeightedBlendedCompositionRenderer::DescriptorSetLayout> weightedBlendedCompositionSet;
         vku::DescriptorSet<InverseToneMappingRenderer::DescriptorSetLayout> inverseToneMappingSet;
+        vku::DescriptorSet<bloom::BloomComputer::DescriptorSetLayout> bloomSet;
+        vku::DescriptorSet<BloomApplyRenderer::DescriptorSetLayout> bloomApplySet;
 
         // Command buffers.
         vk::CommandBuffer scenePrepassCommandBuffer;
