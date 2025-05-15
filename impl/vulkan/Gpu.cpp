@@ -23,6 +23,7 @@ constexpr std::array optionalExtensions {
     vk::KHRSwapchainMutableFormatExtensionName,
     vk::KHRIndexTypeUint8ExtensionName,
     vk::AMDShaderImageLoadStoreLodExtensionName,
+    vk::EXTAttachmentFeedbackLoopLayoutExtensionName,
 };
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
@@ -214,6 +215,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     supportSwapchainMutableFormat = availableExtensionNames.contains(vk::KHRSwapchainMutableFormatExtensionName);
     supportShaderImageLoadStoreLod = availableExtensionNames.contains(vk::AMDShaderImageLoadStoreLodExtensionName);
     supportShaderTrinaryMinMax = availableExtensionNames.contains(vk::AMDShaderTrinaryMinmaxExtensionName);
+    supportAttachmentFeedbackLoopLayout = availableExtensionNames.contains(vk::EXTAttachmentFeedbackLoopLayoutExtensionName);
 
     // Set optional features if available.
     const auto [_, vulkan12Features, indexTypeUint8Features] = physicalDevice.getFeatures2<
@@ -276,6 +278,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
         vk::PhysicalDeviceSynchronization2Features { true },
         vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true },
         vk::PhysicalDeviceIndexTypeUint8FeaturesKHR { supportUint8Index },
+        vk::PhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT { supportAttachmentFeedbackLoopLayout },
 #if __APPLE__
         vk::PhysicalDevicePortabilitySubsetFeaturesKHR{}
             .setTriangleFans(true)
@@ -286,6 +289,9 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     // Unlink unsupported features.
     if (!supportUint8Index) {
         createInfo.template unlink<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
+    }
+    if (!supportAttachmentFeedbackLoopLayout) {
+        createInfo.template unlink<vk::PhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT>();
     }
 
     vk::raii::Device device { physicalDevice, createInfo.get() };
