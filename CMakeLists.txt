@@ -227,6 +227,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/OutlineRenderer.cppm
         interface/vulkan/pipeline/PrimitiveRenderer.cppm
         interface/vulkan/pipeline/SkyboxRenderer.cppm
+        interface/vulkan/pipeline/SolidRenderer.cppm
         interface/vulkan/pipeline/UnlitPrimitiveRenderer.cppm
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderer.cppm
         interface/vulkan/pipeline_layout/MultiNodeMousePicking.cppm
@@ -326,6 +327,7 @@ target_link_shaders(vk-gltf-viewer PRIVATE
         shaders/screen_quad.vert
         shaders/skybox.frag
         shaders/skybox.vert
+        shaders/solid.frag
 )
 
 target_link_shader_variants(vk-gltf-viewer PRIVATE

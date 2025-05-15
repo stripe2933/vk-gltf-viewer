@@ -626,16 +626,12 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
         sceneRenderingCommandBuffer.setViewport(0, vku::toViewport(passthruResources->extent, true));
         sceneRenderingCommandBuffer.setScissor(0, vk::Rect2D { { 0, 0 }, passthruResources->extent });
 
-        vk::ClearColorValue backgroundColor { 0.f, 0.f, 0.f, 0.f };
-        if (auto *clearColor = get_if<glm::vec3>(&background)) {
-            backgroundColor.setFloat32({ clearColor->x, clearColor->y, clearColor->z, 1.f });
-        }
         sceneRenderingCommandBuffer.beginRenderPass({
             *sharedData.sceneRenderPass,
             *passthruResources->sceneFramebuffer,
             vk::Rect2D { { 0, 0 }, passthruResources->extent },
             vku::unsafeProxy<vk::ClearValue>({
-                backgroundColor,
+                vk::ClearColorValue{},
                 vk::ClearColorValue{},
                 vk::ClearDepthStencilValue { 0.f, 0 },
                 vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
@@ -678,9 +674,16 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
                 {}, {});
         }
 
-        if (holds_alternative<vku::DescriptorSet<dsl::Skybox>>(background)) {
-            recordSkyboxDrawCommands(sceneRenderingCommandBuffer);
-        }
+        visit(multilambda {
+            [this](vku::DescriptorSet<dsl::Skybox> skyboxDescriptorSet) {
+                sharedData.skyboxRenderer.draw(sceneRenderingCommandBuffer, skyboxDescriptorSet, { translationlessProjectionViewMatrix });
+            },
+            [this](const glm::vec3 &color) {
+                sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.solidRenderer.pipeline);
+                sceneRenderingCommandBuffer.pushConstants<glm::vec4>(*sharedData.solidRenderer.pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, glm::vec4 { color, 1.f });
+                sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
+            },
+        }, background);
 
         sceneRenderingCommandBuffer.endRenderPass();
 
@@ -1218,11 +1221,6 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
     }
 
     return hasBlendMesh;
-}
-
-void vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer cb) const {
-    assert(holds_alternative<vku::DescriptorSet<dsl::Skybox>>(background) && "recordSkyboxDrawCommand called, but background is not set to the proper skybox descriptor set.");
-    sharedData.skyboxRenderer.draw(cb, get<vku::DescriptorSet<dsl::Skybox>>(background), { translationlessProjectionViewMatrix });
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(

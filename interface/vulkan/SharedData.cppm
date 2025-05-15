@@ -35,6 +35,7 @@ export import :vulkan.pipeline.NodeIndexRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
 export import :vulkan.pipeline.PrimitiveRenderer;
 export import :vulkan.pipeline.SkyboxRenderer;
+export import :vulkan.pipeline.SolidRenderer;
 export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
 export import :vulkan.rp.MousePicking;
@@ -148,6 +149,7 @@ namespace vk_gltf_viewer::vulkan {
         MousePickingRenderer mousePickingRenderer;
         OutlineRenderer outlineRenderer;
         SkyboxRenderer skyboxRenderer;
+        SolidRenderer solidRenderer;
         WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
 
         // --------------------
@@ -197,6 +199,7 @@ namespace vk_gltf_viewer::vulkan {
             , mousePickingRenderer { gpu.device, mousePickingRenderPass }
             , outlineRenderer { gpu.device }
             , skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, sceneRenderPass, cubeIndices }
+            , solidRenderer { gpu.device, sceneRenderPass }
             , weightedBlendedCompositionRenderer { gpu, sceneRenderPass }
             , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
             , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
