@@ -1706,6 +1706,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
                 ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(selectedNodeOutline->color));
             }, !showSelectedNodeOutline);
         }
+
+        if (ImGui::CollapsingHeader("Bloom")) {
+            bool bloom = global::bloomIntensity.has_value();
+            if (ImGui::Checkbox("Enable bloom", &bloom)) {
+                global::bloomIntensity.set_active(bloom);
+            }
+
+            ImGui::WithDisabled([&]() {
+                ImGui::DragFloat("Intensity", &global::bloomIntensity.raw(), 1e-2f, 0.f, 0.1f);
+            }, !bloom);
+        }
     }
     ImGui::End();
 }

@@ -65,6 +65,8 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
 
+using namespace std::string_view_literals;
+
 [[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept;
 
 vk_gltf_viewer::MainApp::MainApp()
@@ -688,7 +690,7 @@ void vk_gltf_viewer::MainApp::run() {
                 };
             }),
             .solidBackground = appState.background.to_optional(),
-            .bloomIntensity = 0.04f,
+            .bloomIntensity = global::bloomIntensity.to_optional().value_or(0.f),
         });
 
 		if (frameFeedbackResultValid[frameIndex]) {
@@ -1023,6 +1025,8 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 
     // Update AppState.
     appState.pushRecentGltfPath(path);
+
+    global::bloomIntensity.set_active(std::ranges::contains(gltf->asset.extensionsUsed, "KHR_materials_emissive_strength"sv));
 
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius] = gltf->sceneMiniball.get();

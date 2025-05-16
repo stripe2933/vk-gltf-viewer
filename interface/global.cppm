@@ -1,5 +1,7 @@
 export module vk_gltf_viewer:global;
 
+export import :helpers.full_optional;
+
 namespace vk_gltf_viewer::global {
     /**
      * When a node is selected from the renderer, the selected node needed to be visible in the "Scene Hierarchy" window.
@@ -8,4 +10,6 @@ namespace vk_gltf_viewer::global {
      * <tt>ImGui::ScrollToItem()</tt> have to set this to <tt>false</tt>.
      */
     export bool shouldNodeInSceneHierarchyScrolledToBeVisible = false;
+
+    export full_optional<float> bloomIntensity = 0.04f;
 }

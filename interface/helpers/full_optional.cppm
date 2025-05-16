@@ -30,10 +30,16 @@ public:
         if (_active) return value;
         throw std::bad_optional_access{};
     }
+
     [[nodiscard]] T &get() {
         if (_active) return value;
         throw std::bad_optional_access{};
     }
+
+    [[nodiscard]] T &raw() & noexcept { return value; }
+    [[nodiscard]] const T &raw() const & noexcept { return value; }
+    [[nodiscard]] T &&raw() && noexcept { return value; }
+    [[nodiscard]] const T &&raw() const && noexcept { return value; }
 
     auto reset() -> void {
         _active = false;
