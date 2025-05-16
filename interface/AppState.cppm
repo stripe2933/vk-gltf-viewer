@@ -41,7 +41,7 @@ namespace vk_gltf_viewer {
         full_optional<Outline> hoveringNodeOutline { std::in_place, 2.f, glm::vec4 { 1.f, 0.5f, 0.2f, 1.f } };
         full_optional<Outline> selectedNodeOutline { std::in_place, 2.f, glm::vec4 { 0.f, 1.f, 0.2f, 1.f } };
         bool canSelectSkyboxBackground = false; // TODO: bad design... this and background should be handled in a single field.
-        full_optional<glm::vec3> background { std::in_place, 0.f, 0.f, 0.f }; // nullopt -> use cubemap from the given equirectangular map image.
+        full_optional<glm::vec4> background { std::in_place, 0.f, 0.f, 0.f, 1.f }; // nullopt -> use cubemap from the given equirectangular map image.
         std::optional<ImageBasedLighting> imageBasedLightingProperties;
         ImGuizmo::OPERATION imGuizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
 

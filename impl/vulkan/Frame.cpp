@@ -539,7 +539,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     }
 
     if (task.solidBackground) {
-        background.emplace<glm::vec3>(*task.solidBackground);
+        background.emplace<glm::vec4>(*task.solidBackground);
     }
     else {
         background.emplace<vku::DescriptorSet<dsl::Skybox>>(sharedData.skyboxDescriptorSet);
@@ -678,9 +678,9 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
             [this](vku::DescriptorSet<dsl::Skybox> skyboxDescriptorSet) {
                 sharedData.skyboxRenderer.draw(sceneRenderingCommandBuffer, skyboxDescriptorSet, { translationlessProjectionViewMatrix });
             },
-            [this](const glm::vec3 &color) {
+            [this](const glm::vec4 &color) {
                 sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.solidRenderer.pipeline);
-                sceneRenderingCommandBuffer.pushConstants<glm::vec4>(*sharedData.solidRenderer.pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, glm::vec4 { color, 1.f });
+                sceneRenderingCommandBuffer.pushConstants<glm::vec4>(*sharedData.solidRenderer.pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, color);
                 sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
             },
         }, background);

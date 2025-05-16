@@ -84,6 +84,7 @@ namespace ImGui {
     export using ImGui::CollapsingHeader;
     export using ImGui::ColorEdit4;
     export using ImGui::ColorPicker3;
+    export using ImGui::ColorPicker4;
     export using ImGui::Combo;
     export using ImGui::CreateContext;
     export using ImGui::DestroyContext;

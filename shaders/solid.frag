@@ -7,5 +7,7 @@ layout (push_constant) uniform PushConstant {
 } pc;
 
 void main() {
-    outColor = pc.color;
+    // As inverse alpha blending (src and dst color is swapped) does not support the pre-multiplying alpha via
+    // VkPipelineColorBlendAttachmentState, it has to be done manually.
+    outColor = vec4(pc.color.rgb * pc.color.a, pc.color.a);
 }

@@ -174,7 +174,7 @@ namespace vk_gltf_viewer::vulkan {
              * @brief Information of glTF to be rendered. <tt>std::nullopt</tt> if no glTF scene to be rendered.
              */
             std::optional<Gltf> gltf;
-            std::optional<glm::vec3> solidBackground; // If this is nullopt, use SharedData::SkyboxDescriptorSet instead.
+            std::optional<glm::vec4> solidBackground; // If this is nullopt, use SharedData::SkyboxDescriptorSet instead.
         };
 
         struct UpdateResult {
@@ -343,7 +343,7 @@ namespace vk_gltf_viewer::vulkan {
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
-        std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
+        std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec4> background;
 
         [[nodiscard]] vk::raii::DescriptorPool createDescriptorPool() const;
 

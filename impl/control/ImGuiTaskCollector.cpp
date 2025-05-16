@@ -1586,7 +1586,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::background(
     bool canSelectSkyboxBackground,
-    full_optional<glm::vec3> &solidBackground
+    full_optional<glm::vec4> &solidBackground
 ) {
     if (ImGui::Begin("Background")) {
         const bool useSolidBackground = solidBackground.has_value();
@@ -1601,7 +1601,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::background(
             solidBackground.set_active(true);
         }
         ImGui::WithDisabled([&]() {
-            ImGui::ColorPicker3("Color", value_ptr(*solidBackground));
+            ImGui::ColorPicker4("Color", value_ptr(*solidBackground));
         }, !useSolidBackground);
     }
     ImGui::End();
