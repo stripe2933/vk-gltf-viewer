@@ -32,12 +32,12 @@ namespace vk_gltf_viewer::vulkan::rp {
                         {}, {},
                         {}, vk::ImageLayout::eColorAttachmentOptimal,
                     },
-                    // Depth image.
+                    // Depth/stencil image.
                     vk::AttachmentDescription {
                         {},
-                        vk::Format::eD32Sfloat, vk::SampleCountFlagBits::e4,
+                        vk::Format::eD32SfloatS8Uint, vk::SampleCountFlagBits::e4,
                         vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
-                        {}, {},
+                        vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                         {}, vk::ImageLayout::eDepthStencilAttachmentOptimal,
                     },
                     // Accumulation color image.
