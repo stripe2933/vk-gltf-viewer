@@ -153,6 +153,9 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                 return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
+            // By default, the default primitive doesn't have a material and therefore isn't unlit. Dynamic stencil
+            // reference state has to be used, and its reference value is 0.
+            .stencilReference = 0U,
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
@@ -184,6 +187,9 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                     .baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform,
                     .alphaMode = material.alphaMode,
                 });
+
+                // Disable stencil reference dynamic state when using unlit rendering pipeline.
+                result.stencilReference.reset();
             }
             else {
                 result.pipeline = sharedData.getPrimitiveRenderer({
@@ -221,6 +227,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                     .emissiveTextureTransform = material.emissiveTexture && material.emissiveTexture->transform,
                     .alphaMode = material.alphaMode,
                 });
+                result.stencilReference.emplace(material.emissiveStrength > 1.f ? 1U : 0U);
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
@@ -234,6 +241,9 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                 .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
             });
+
+            // Disable stencil reference dynamic state when using unlit rendering pipeline.
+            result.stencilReference.reset();
         }
         else {
             result.pipeline = sharedData.getPrimitiveRenderer({
@@ -655,11 +665,12 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
                 vk::ClearColorValue{},
                 vk::ClearColorValue{},
                 vk::ClearDepthStencilValue { 0.f, 0 },
+                vk::ClearDepthStencilValue{},
                 vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
                 vk::ClearColorValue{},
                 vk::ClearColorValue { 1.f, 0.f, 0.f, 0.f },
                 vk::ClearColorValue{},
-                vk::ClearColorValue{},
+                vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
             }),
         }, vk::SubpassContents::eInline);
 
@@ -948,6 +959,7 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
             *sceneOpaqueAttachmentGroup.getColorAttachment(0).multisampleView,
             *sceneOpaqueAttachmentGroup.getColorAttachment(0).view,
             *sceneOpaqueAttachmentGroup.depthStencilAttachment->view,
+            *sceneOpaqueAttachmentGroup.stencilResolveImageView,
             *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).multisampleView,
             *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view,
             *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).multisampleView,
@@ -1262,6 +1274,7 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
     struct {
         vk::Pipeline pipeline{};
         std::optional<vk::PrimitiveTopology> primitiveTopology{};
+        std::optional<std::uint32_t> stencilReference{};
         std::optional<vk::CullModeFlagBits> cullMode{};
         std::optional<vk::IndexType> indexType;
 
@@ -1290,6 +1303,17 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
             cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
         }
 
+        if (criteria.stencilReference) {
+            if (resourceBindingState.stencilReference != *criteria.stencilReference) {
+                cb.setStencilReference(vk::StencilFaceFlagBits::eFrontAndBack, resourceBindingState.stencilReference.emplace(*criteria.stencilReference));
+            }
+        }
+        else {
+            // If a pipeline which does not uses stencil reference dynamic state had been bound to the command buffer,
+            // the recorded command buffer's stencil reference value is invalidated.
+            resourceBindingState.stencilReference.reset();
+        }
+
         if (resourceBindingState.cullMode != criteria.cullMode) {
             cb.setCullModeEXT(resourceBindingState.cullMode.emplace(criteria.cullMode));
         }
@@ -1308,6 +1332,7 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
     struct {
         vk::Pipeline pipeline{};
         std::optional<vk::PrimitiveTopology> primitiveTopology{};
+        std::optional<std::uint32_t> stencilReference{};
         std::optional<vk::IndexType> indexType;
 
         // Blend(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
@@ -1326,6 +1351,17 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
 
         if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
             cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+        }
+
+        if (criteria.stencilReference) {
+            if (resourceBindingState.stencilReference != *criteria.stencilReference) {
+                cb.setStencilReference(vk::StencilFaceFlagBits::eFrontAndBack, resourceBindingState.stencilReference.emplace(*criteria.stencilReference));
+            }
+        }
+        else {
+            // If a pipeline which does not uses stencil reference dynamic state had been bound to the command buffer,
+            // the recorded command buffer's stencil reference value is invalidated.
+            resourceBindingState.stencilReference.reset();
         }
 
         if (!resourceBindingState.descriptorBound) {

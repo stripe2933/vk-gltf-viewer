@@ -37,6 +37,18 @@ namespace vk_gltf_viewer::vulkan {
              * Reported crash in MoltenVK and Intel GPU driver.
              */
             bool attachmentLessRenderPass;
+
+            /**
+             * @brief <tt>true</tt> If different format for multisampled depth/stencil attachment image and
+             * its resolve image is not supported, <tt>false</tt> otherwise.
+             * 
+             * For example, it is valid that resolving only stencil component of D32_SFLOAT_S8_UINT attachment
+             * image into S8_UINT (as the latter have a stencil component with the same number of bits and
+             * numeric format) in Vulkan, but some implementation does not support it.
+             * 
+             * Reported in MoltenVK.
+             */
+            bool depthStencilResolveDifferentFormat;
         };
 
         vk::raii::PhysicalDevice physicalDevice;
@@ -57,6 +69,7 @@ namespace vk_gltf_viewer::vulkan {
         bool supportVariableDescriptorCount;
         bool supportR8SrgbImageFormat;
         bool supportR8G8SrgbImageFormat;
+        bool supportS8UintDepthStencilAttachment;
 
         Workaround workaround;
 

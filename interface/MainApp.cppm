@@ -77,6 +77,13 @@ namespace vk_gltf_viewer {
             gltf::TextureUsages textureUsages { asset };
 
             /**
+             * @brief Indices of glTF asset materials whose emissive strength is greater than 1.0.
+             *
+             * This is used for determine whether enable renderer's bloom effect or not (by checking this container is empty).
+             */
+            std::unordered_set<std::size_t> bloomMaterials;
+
+            /**
 			 * @brief External buffers that are not embedded in the glTF file, such like .bin files.
              * 
              * If you specified <tt>fastgltf::Options::LoadExternalBuffers</tt>, this should be omitted.

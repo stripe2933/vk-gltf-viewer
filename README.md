@@ -111,6 +111,7 @@ The extensions and feature used in this application are quite common in the mode
     - `descriptorBindingSampledImageUpdateAfterBind`
     - `descriptorBindingPartiallyBound`
     - `runtimeDescriptorArray`
+    - `separateDepthStencilLayouts`
     - `storageBuffer8BitAccess`
     - `scalarBlockLayout`
     - `timelineSemaphore`

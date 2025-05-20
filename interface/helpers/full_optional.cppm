@@ -50,6 +50,16 @@ public:
 
     [[nodiscard]] auto to_optional() const noexcept -> std::optional<T> { return _active ? std::make_optional(value) : std::nullopt; }
 
+    template <typename U = std::remove_cv_t<T>>
+    [[nodiscard]] constexpr T value_or(U &&default_value) const & {
+        return _active ? value : FWD(default_value);
+    }
+
+    template <typename U = std::remove_cv_t<T>>
+    [[nodiscard]] constexpr T value_or(U &&default_value) && {
+        return _active ? value : FWD(default_value);
+    }
+
 private:
     T value{};
     bool _active{};

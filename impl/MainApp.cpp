@@ -466,6 +466,22 @@ void vk_gltf_viewer::MainApp::run() {
                                 getTextureTransform(*changedMaterial.pbrData.baseColorTexture->transform),
                                 sharedDataUpdateCommandBuffer);
                             break;
+                        case Property::EmissiveStrength: {
+                            const auto it = gltf->bloomMaterials.find(task.materialIndex);
+                            const bool useBloom = gltf->asset.materials[task.materialIndex].emissiveStrength > 1.f;
+
+                            // Material emissive strength is changed to 1.
+                            if (it != gltf->bloomMaterials.end() && !useBloom) {
+                                gltf->bloomMaterials.erase(it);
+                                regenerateDrawCommands.fill(true);
+                            }
+                            // Material emissive strength is changed from 1.
+                            else if (it == gltf->bloomMaterials.end() && useBloom) {
+                                gltf->bloomMaterials.emplace_hint(it, task.materialIndex);
+                                regenerateDrawCommands.fill(true);
+                            }
+                            [[fallthrough]]; // materialBuffer also needs to be updated.
+                        }
                         case Property::Emissive:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::emissive>(
                                 task.materialIndex,
@@ -690,7 +706,11 @@ void vk_gltf_viewer::MainApp::run() {
                 };
             }),
             .solidBackground = appState.background.to_optional(),
-            .bloomIntensity = global::bloomIntensity.to_optional().value_or(0.f),
+            .bloomIntensity = [&]() {
+                // Do not enable the bloom if there is no material of emissive strength > 1.0.
+                if (!gltf || gltf->bloomMaterials.empty()) return 0.f;
+                return global::bloomIntensity.value_or(0.f);
+            }(),
         });
 
 		if (frameFeedbackResultValid[frameIndex]) {
@@ -842,6 +862,15 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     : dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) }
     , directory { path.parent_path() }
     , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
+    , bloomMaterials {
+        std::from_range,
+        asset.materials
+            | ranges::views::enumerate
+            | std::views::filter(decomposer([](auto, const fastgltf::Material &material) {
+                return material.emissiveStrength > 1.f;
+            }))
+            | std::views::keys
+    }
     , orderedPrimitives { asset }
     , animations { std::from_range, asset.animations | std::views::transform([&](const fastgltf::Animation &animation) {
         return gltf::Animation { asset, animation, assetExternalBuffers };
@@ -1026,7 +1055,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // Update AppState.
     appState.pushRecentGltfPath(path);
 
-    global::bloomIntensity.set_active(std::ranges::contains(gltf->asset.extensionsUsed, "KHR_materials_emissive_strength"sv));
+    global::bloomIntensity.set_active(!gltf->bloomMaterials.empty());
 
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius] = gltf->sceneMiniball.get();

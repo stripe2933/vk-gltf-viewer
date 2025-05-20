@@ -42,6 +42,7 @@ struct CommandSeparationCriteria {
     vk::Pipeline pipeline;
     std::optional<vk::IndexType> indexType;
     vk::PrimitiveTopology primitiveTopology;
+    std::optional<std::uint32_t> stencilReference;
     vk::CullModeFlagBits cullMode;
 
     [[nodiscard]] std::strong_ordering operator<=>(const CommandSeparationCriteria&) const noexcept = default;

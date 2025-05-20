@@ -1014,10 +1014,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                         }
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                             ImGui::WithGroup([&]() {
-                                bool emissiveChanged = ImGui::DragFloat3("Factor", material.emissiveFactor.data(), 0.01f, 0.f, 1.f);
-                                emissiveChanged |= ImGui::DragFloat("Emissive Strength", &material.emissiveStrength, 1.f, 1.f, std::numeric_limits<float>::max());
-                                if (emissiveChanged) {
+                                if (ImGui::DragFloat3("Factor", material.emissiveFactor.data(), 0.01f, 0.f, 1.f)) {
                                     notifyPropertyChanged(task::MaterialPropertyChanged::Emissive);
+                                }
+                                if (ImGui::DragFloat("Emissive Strength", &material.emissiveStrength, 1.f, 1.f, std::numeric_limits<float>::max())) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::EmissiveStrength);
                                 }
                                 if (textureInfo) {
                                     ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);

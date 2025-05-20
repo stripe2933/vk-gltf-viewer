@@ -40,7 +40,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                             : std::span<const std::uint32_t> { shader::inverse_tone_mapping_frag<0> },
                         vk::ShaderStageFlagBits::eFragment,
                     }).get(),
-                *pipelineLayout, 1)
+                *pipelineLayout, 1, true)
                 .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                     {},
                     false, false,
@@ -48,6 +48,15 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     vk::CullModeFlagBits::eNone, {},
                     {}, {}, {}, {},
                     1.f,
+                }))
+                // Only stencil test passed fragment's (which indicates the fragment's corresponding material's emissive
+                // strength > 1.0) subpass input will be inverse tone mapped.
+                .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
+                    {},
+                    false, false, {}, false,
+                    true,
+                    vk::StencilOpState { vk::StencilOp::eKeep, vk::StencilOp::eKeep, {}, vk::CompareOp::eEqual, ~0U, {}, 1U },
+                    vk::StencilOpState { vk::StencilOp::eKeep, vk::StencilOp::eKeep, {}, vk::CompareOp::eEqual, ~0U, {}, 1U },
                 }))
                 .setRenderPass(*renderPass)
                 .setSubpass(3),
