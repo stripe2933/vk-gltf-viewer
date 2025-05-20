@@ -688,6 +688,7 @@ void vk_gltf_viewer::MainApp::run() {
                 };
             }),
             .solidBackground = appState.background.to_optional(),
+            .bloomIntensity = 0.04f,
         });
 
 		if (frameFeedbackResultValid[frameIndex]) {

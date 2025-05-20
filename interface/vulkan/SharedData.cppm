@@ -27,6 +27,7 @@ export import :vulkan.buffer.Primitives;
 export import :vulkan.buffer.SkinJointIndices;
 import :vulkan.buffer.StagingBufferStorage;
 export import :vulkan.Gpu;
+export import :vulkan.pipeline.InverseToneMappingRenderer;
 export import :vulkan.pipeline.JumpFloodComputer;
 export import :vulkan.pipeline.JumpFloodSeedRenderer;
 export import :vulkan.pipeline.MousePickingRenderer;
@@ -149,6 +150,7 @@ namespace vk_gltf_viewer::vulkan {
         OutlineRenderer outlineRenderer;
         SkyboxRenderer skyboxRenderer;
         WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
+        InverseToneMappingRenderer inverseToneMappingRenderer;
 
         // --------------------
         // Attachment groups.
@@ -189,7 +191,7 @@ namespace vk_gltf_viewer::vulkan {
             , multiNodeMousePickingDescriptorSetLayout { gpu.device }
             , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
             , mousePickingRenderPass { gpu.device }
-            , sceneRenderPass { gpu.device }
+            , sceneRenderPass { gpu }
             , multiNodeMousePickingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) }
             , primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
             , primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout }
@@ -198,6 +200,7 @@ namespace vk_gltf_viewer::vulkan {
             , outlineRenderer { gpu.device }
             , skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, sceneRenderPass, cubeIndices }
             , weightedBlendedCompositionRenderer { gpu, sceneRenderPass }
+            , inverseToneMappingRenderer { gpu, sceneRenderPass }
             , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
             , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
             , fallbackTexture { gpu }{

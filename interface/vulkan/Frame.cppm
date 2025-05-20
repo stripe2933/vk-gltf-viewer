@@ -176,6 +176,8 @@ namespace vk_gltf_viewer::vulkan {
              */
             std::optional<Gltf> gltf;
             std::optional<glm::vec3> solidBackground; // If this is nullopt, use SharedData::SkyboxDescriptorSet instead.
+
+            float bloomIntensity;
         };
 
         struct UpdateResult {
@@ -283,6 +285,12 @@ namespace vk_gltf_viewer::vulkan {
             // Scene rendering.
             ag::SceneOpaque sceneOpaqueAttachmentGroup;
             ag::SceneWeightedBlended sceneWeightedBlendedAttachmentGroup;
+
+            // Bloom.
+            vku::AllocatedImage bloomImage;
+            vk::raii::ImageView bloomImageView;
+            std::vector<vk::raii::ImageView> bloomMipImageViews;
+
             vk::raii::Framebuffer sceneFramebuffer;
 
             PassthruResources(const SharedData &sharedData LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
@@ -324,6 +332,7 @@ namespace vk_gltf_viewer::vulkan {
         vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSet;
         vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSet;
         vku::DescriptorSet<WeightedBlendedCompositionRenderer::DescriptorSetLayout> weightedBlendedCompositionSet;
+        vku::DescriptorSet<InverseToneMappingRenderer::DescriptorSetLayout> inverseToneMappingSet;
 
         // Command buffers.
         vk::CommandBuffer scenePrepassCommandBuffer;
@@ -345,6 +354,7 @@ namespace vk_gltf_viewer::vulkan {
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
         std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
+        float bloomIntensity;
 
         [[nodiscard]] vk::raii::DescriptorPool createDescriptorPool() const;
 

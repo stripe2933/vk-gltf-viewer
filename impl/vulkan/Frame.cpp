@@ -52,7 +52,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
     , sceneRenderingFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
     , jumpFloodFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} } {
     // Allocate descriptor sets.
-    std::tie(mousePickingSet, multiNodeMousePickingSet, hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet)
+    std::tie(mousePickingSet, multiNodeMousePickingSet, hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet, inverseToneMappingSet)
         = allocateDescriptorSets(*descriptorPool, std::tie(
             sharedData.mousePickingRenderer.descriptorSetLayout,
             sharedData.multiNodeMousePickingDescriptorSetLayout,
@@ -60,7 +60,8 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
             sharedData.jumpFloodComputer.descriptorSetLayout,
             sharedData.outlineRenderer.descriptorSetLayout,
             sharedData.outlineRenderer.descriptorSetLayout,
-            sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout));
+            sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout,
+            sharedData.inverseToneMappingRenderer.descriptorSetLayout));
 
     // Allocate per-frame command buffers.
     std::tie(jumpFloodCommandBuffer) = vku::allocateCommandBuffers<1>(*sharedData.gpu.device, *computeCommandPool);
@@ -118,6 +119,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                 vk::DescriptorImageInfo { {}, *passthruResources->sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal },
                 vk::DescriptorImageInfo { {}, *passthruResources->sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view, vk::ImageLayout::eShaderReadOnlyOptimal },
             })),
+            inverseToneMappingSet.getWriteOne<0>({ {}, *passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal }),
         }, {});
     }
 
@@ -555,6 +557,8 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         background.emplace<vku::DescriptorSet<dsl::Skybox>>(sharedData.skyboxDescriptorSet);
     }
 
+    bloomIntensity = task.bloomIntensity;
+
     return result;
 }
 
@@ -648,10 +652,12 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
                 backgroundColor,
                 vk::ClearColorValue{},
                 vk::ClearDepthStencilValue { 0.f, 0 },
+                vk::ClearDepthStencilValue{},
                 vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
                 vk::ClearColorValue{},
                 vk::ClearColorValue { 1.f, 0.f, 0.f, 0.f },
                 vk::ClearColorValue{},
+                vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
             }),
         }, vk::SubpassContents::eInline);
 
@@ -680,6 +686,15 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
                 vk::PipelineBindPoint::eGraphics,
                 sharedData.weightedBlendedCompositionRenderer.pipelineLayout,
                 0, weightedBlendedCompositionSet, {});
+            sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
+        }
+
+        sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
+
+        // Inverse tone-map the result image to bloomImage[mipLevel=0] when bloom is enabled.
+        if (bloomIntensity > 0.f) {
+            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingRenderer.pipeline);
+            sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingRenderer.pipelineLayout, 0, inverseToneMappingSet, {});
             sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
         }
 
@@ -827,6 +842,32 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
     selectedNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, selectedNodeOutlineJumpFloodResources.image },
     sceneOpaqueAttachmentGroup { sharedData.gpu, extent },
     sceneWeightedBlendedAttachmentGroup { sharedData.gpu, extent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image },
+    bloomImage { sharedData.gpu.allocator, vk::ImageCreateInfo {
+        {},
+        vk::ImageType::e2D,
+        vk::Format::eR16G16B16A16Sfloat,
+        vk::Extent3D { extent, 1 },
+        vku::Image::maxMipLevels(extent), 1,
+        vk::SampleCountFlagBits::e1,
+        vk::ImageTiling::eOptimal,
+        vk::ImageUsageFlagBits::eColorAttachment // written in InverseToneMappingRenderer,
+    } },
+    bloomImageView { sharedData.gpu.device, bloomImage.getViewCreateInfo() },
+    bloomMipImageViews { [&]() {
+        std::vector<vk::raii::ImageView> result;
+        result.emplace_back(sharedData.gpu.device, bloomImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }));
+
+        if (!sharedData.gpu.supportShaderImageLoadStoreLod) {
+            result.append_range(
+                bloomImage.getMipViewCreateInfos()
+                | std::views::drop(1)
+                | std::views::transform([&](const vk::ImageViewCreateInfo& createInfo) {
+                    return vk::raii::ImageView{ sharedData.gpu.device, createInfo };
+                }));
+        }
+
+        return result;
+    }() },
     sceneFramebuffer { sharedData.gpu.device, vk::FramebufferCreateInfo {
         {},
         *sharedData.sceneRenderPass,
@@ -834,10 +875,12 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
             *sceneOpaqueAttachmentGroup.getColorAttachment(0).multisampleView,
             *sceneOpaqueAttachmentGroup.getColorAttachment(0).view,
             *sceneOpaqueAttachmentGroup.depthStencilAttachment->view,
+            *sceneOpaqueAttachmentGroup.stencilResolveImageView,
             *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).multisampleView,
             *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view,
             *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).multisampleView,
             *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view,
+            *bloomMipImageViews[0],
         }),
         extent.width, extent.height, 1,
     } } {
@@ -870,7 +913,8 @@ vk::raii::DescriptorPool vk_gltf_viewer::vulkan::Frame::createDescriptorPool() c
         = sharedData.mousePickingRenderer.descriptorSetLayout.getPoolSize()
         + sharedData.multiNodeMousePickingDescriptorSetLayout.getPoolSize()
         + 2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout)
-        + sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize();
+        + sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize()
+        + sharedData.inverseToneMappingRenderer.descriptorSetLayout.getPoolSize();
     vk::DescriptorPoolCreateFlags flags{};
     if (sharedData.gpu.supportVariableDescriptorCount) {
         poolSizes += sharedData.assetDescriptorSetLayout.getPoolSize();
