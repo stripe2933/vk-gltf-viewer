@@ -23,6 +23,7 @@ constexpr std::array optionalExtensions {
     vk::KHRSwapchainMutableFormatExtensionName,
     vk::KHRIndexTypeUint8ExtensionName,
     vk::AMDShaderImageLoadStoreLodExtensionName,
+    vk::EXTAttachmentFeedbackLoopLayoutExtensionName,
 };
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
@@ -90,8 +91,14 @@ vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::Surface
     isUmaDevice = memoryProperties.memoryHeapCount == 1;
 
     // Some vendor-specific workarounds.
-    if (ranges::one_of(props2.properties.vendorID, { 0x8086 /* Intel */, 0x106b /* MoltenVK */ })) {
-        workaround.attachmentLessRenderPass = true;
+    switch (props2.properties.vendorID) {
+        case 0x8086: // Intel
+            workaround.attachmentLessRenderPass = true;
+            break;
+        case 0x106bb: // MoltenVK
+            workaround.attachmentLessRenderPass = true;
+            workaround.depthStencilResolveDifferentFormat = true;
+            break;
     }
 }
 
@@ -156,6 +163,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !vulkan12Features.descriptorBindingVariableDescriptorCount ||
             !vulkan12Features.descriptorBindingPartiallyBound ||
             !vulkan12Features.runtimeDescriptorArray ||
+            !vulkan12Features.separateDepthStencilLayouts ||
             !vulkan12Features.storageBuffer8BitAccess ||
             !vulkan12Features.scalarBlockLayout ||
             !vulkan12Features.timelineSemaphore ||
@@ -214,6 +222,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     supportSwapchainMutableFormat = availableExtensionNames.contains(vk::KHRSwapchainMutableFormatExtensionName);
     supportShaderImageLoadStoreLod = availableExtensionNames.contains(vk::AMDShaderImageLoadStoreLodExtensionName);
     supportShaderTrinaryMinMax = availableExtensionNames.contains(vk::AMDShaderTrinaryMinmaxExtensionName);
+    supportAttachmentFeedbackLoopLayout = availableExtensionNames.contains(vk::EXTAttachmentFeedbackLoopLayoutExtensionName);
 
     // Set optional features if available.
     const auto [_, vulkan12Features, indexTypeUint8Features] = physicalDevice.getFeatures2<
@@ -245,6 +254,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
         | vk::FormatFeatureFlagBits::eSampledImage;
     supportR8SrgbImageFormat = vku::contains(physicalDevice.getFormatProperties(vk::Format::eR8Srgb).optimalTilingFeatures, requiredFormatFeatureFlags);
     supportR8G8SrgbImageFormat = vku::contains(physicalDevice.getFormatProperties(vk::Format::eR8G8Srgb).optimalTilingFeatures, requiredFormatFeatureFlags);
+    supportS8UintDepthStencilAttachment = vku::contains(physicalDevice.getFormatProperties(vk::Format::eS8Uint).optimalTilingFeatures, vk::FormatFeatureFlagBits::eDepthStencilAttachment);
 
 	const vku::RefHolder queueCreateInfos = Queues::getCreateInfos(physicalDevice, queueFamilies);
     vk::StructureChain createInfo {
@@ -267,6 +277,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
             .setDescriptorBindingVariableDescriptorCount(supportVariableDescriptorCount)
             .setDescriptorBindingPartiallyBound(true)
             .setRuntimeDescriptorArray(true)
+            .setSeparateDepthStencilLayouts(true)
             .setStorageBuffer8BitAccess(true)
             .setScalarBlockLayout(true)
             .setTimelineSemaphore(true)
@@ -276,6 +287,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
         vk::PhysicalDeviceSynchronization2Features { true },
         vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true },
         vk::PhysicalDeviceIndexTypeUint8FeaturesKHR { supportUint8Index },
+        vk::PhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT { supportAttachmentFeedbackLoopLayout },
 #if __APPLE__
         vk::PhysicalDevicePortabilitySubsetFeaturesKHR{}
             .setTriangleFans(true)
@@ -286,6 +298,9 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     // Unlink unsupported features.
     if (!supportUint8Index) {
         createInfo.template unlink<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
+    }
+    if (!supportAttachmentFeedbackLoopLayout) {
+        createInfo.template unlink<vk::PhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT>();
     }
 
     vk::raii::Device device { physicalDevice, createInfo.get() };

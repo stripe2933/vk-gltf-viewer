@@ -95,7 +95,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         .setPInputAssemblyState(&inputAssemblyStateCreateInfo)
                         .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                             {},
-                            true, true, vk::CompareOp::eGreater, // Use reverse Z.
+                            true, true, vk::CompareOp::eGreater /* use reverse Z */, false,
+                            // Write stencil value as 1 if material is emissive.
+                            true,
+                            vk::StencilOpState { {}, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
+                            vk::StencilOpState { {}, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
                         }))
                         .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                             {},
@@ -103,6 +107,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                                 vk::DynamicState::eViewport,
                                 vk::DynamicState::eScissor,
                                 vk::DynamicState::ePrimitiveTopology,
+                                vk::DynamicState::eStencilReference,
                                 vk::DynamicState::eCullMode,
                             }),
                         }))
@@ -115,7 +120,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         .setPInputAssemblyState(&inputAssemblyStateCreateInfo)
                         .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                             {},
-                            true, true, vk::CompareOp::eGreater, // Use reverse Z.
+                            true, true, vk::CompareOp::eGreater /* use reverse Z */, false,
+                            // Write stencil value as 1 if material is emissive.
+                            true,
+                            vk::StencilOpState { {}, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
+                            vk::StencilOpState { {}, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
                         }))
                         .setPMultisampleState(vku::unsafeAddress(vk::PipelineMultisampleStateCreateInfo {
                             {},
@@ -129,6 +138,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                                 vk::DynamicState::eViewport,
                                 vk::DynamicState::eScissor,
                                 vk::DynamicState::ePrimitiveTopology,
+                                vk::DynamicState::eStencilReference,
                                 vk::DynamicState::eCullMode,
                             }),
                         }))
@@ -151,7 +161,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                             {},
                             // Translucent objects shouldn't interfere with the pre-rendered depth buffer. Use reverse Z.
-                            true, false, vk::CompareOp::eGreater,
+                            true, false, vk::CompareOp::eGreater, false,
+                            // Write stencil value as 1 if material is emissive.
+                            true,
+                            vk::StencilOpState { {}, vk::StencilOp::eReplace, {}, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
+                            vk::StencilOpState { {}, vk::StencilOp::eReplace, {}, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
                         }))
                         .setPColorBlendState(vku::unsafeAddress(vk::PipelineColorBlendStateCreateInfo {
                             {},
@@ -178,6 +192,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                                 vk::DynamicState::eViewport,
                                 vk::DynamicState::eScissor,
                                 vk::DynamicState::ePrimitiveTopology,
+                                vk::DynamicState::eStencilReference,
                             }),
                         }))
                         .setRenderPass(*sceneRenderPass)

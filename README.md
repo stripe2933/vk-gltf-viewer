@@ -19,6 +19,7 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - Multiple scenes.
   - Binary format (`.glb`).
 - Support glTF 2.0 extensions:
+  - [`KHR_materials_emissive_strength`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_emissive_strength)
   - [`KHR_materials_ior`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_ior)
   - [`KHR_materials_unlit`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_unlit) for lighting independent material shading
   - [`KHR_materials_variants`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_variants)
@@ -87,6 +88,7 @@ The extensions and feature used in this application are quite common in the mode
   - `VK_KHR_push_descriptor`
   - `VK_KHR_swapchain`
   - (optional) `VK_KHR_swapchain_mutable_format` (proper ImGui gamma correction, UI color will lose the color if the extension not presented)
+  - (optional) `VK_EXT_attachment_feedback_loop_layout` (optimized bloom composition)
   - (optional) `VK_EXT_index_type_uint8` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
   - (optional) `VK_AMD_shader_image_load_store_lod` (can replace the descriptor indexing based cubemap mipmapping and prefilteredmap generation[^2])
 - Device Features
@@ -109,6 +111,7 @@ The extensions and feature used in this application are quite common in the mode
     - `descriptorBindingSampledImageUpdateAfterBind`
     - `descriptorBindingPartiallyBound`
     - `runtimeDescriptorArray`
+    - `separateDepthStencilLayouts`
     - `storageBuffer8BitAccess`
     - `scalarBlockLayout`
     - `timelineSemaphore`
@@ -119,6 +122,7 @@ The extensions and feature used in this application are quite common in the mode
   - `VkPhysicalDeviceSynchronization2Features`
   - `VkPhysicalDeviceExtendedDynamicStateFeaturesEXT`
   - (optional) `VkPhysicalDeviceIndexTypeUint8FeaturesEXT` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
+  - (optional) `VkPhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT`
 - Device Limits
   - Subgroup size must be at least 16.
   - Sampler anisotropy must support 16x.

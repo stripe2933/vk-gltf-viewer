@@ -30,7 +30,8 @@ namespace vk_gltf_viewer {
 
     private:
         static constexpr fastgltf::Extensions SUPPORTED_EXTENSIONS
-            = fastgltf::Extensions::KHR_materials_ior
+            = fastgltf::Extensions::KHR_materials_emissive_strength
+            | fastgltf::Extensions::KHR_materials_ior
             | fastgltf::Extensions::KHR_materials_unlit
             | fastgltf::Extensions::KHR_materials_variants
             | fastgltf::Extensions::KHR_mesh_quantization
@@ -74,6 +75,13 @@ namespace vk_gltf_viewer {
             gltf::ds::MaterialVariantsMapping materialVariantsMapping { asset };
 
             gltf::TextureUsages textureUsages { asset };
+
+            /**
+             * @brief Indices of glTF asset materials whose emissive strength is greater than 1.0.
+             *
+             * This is used for determine whether enable renderer's bloom effect or not (by checking this container is empty).
+             */
+            std::unordered_set<std::size_t> bloomMaterials;
 
             /**
 			 * @brief External buffers that are not embedded in the glTF file, such like .bin files.

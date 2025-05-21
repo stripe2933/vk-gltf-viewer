@@ -1015,7 +1015,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                             ImGui::WithGroup([&]() {
                                 if (ImGui::DragFloat3("Factor", material.emissiveFactor.data(), 0.01f, 0.f, 1.f)) {
-                                    notifyPropertyChanged(task::MaterialPropertyChanged::EmissiveFactor);
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::Emissive);
+                                }
+                                if (ImGui::DragFloat("Emissive Strength", &material.emissiveStrength, 1.f, 1.f, std::numeric_limits<float>::max())) {
+                                    notifyPropertyChanged(task::MaterialPropertyChanged::EmissiveStrength);
                                 }
                                 if (textureInfo) {
                                     ImGui::LabelText("Texture Index", "%zu", textureInfo->textureIndex);
@@ -1703,6 +1706,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
                 ImGui::DragFloat("Thickness##selectedNodeOutline", &selectedNodeOutline->thickness, 1.f, 1.f, 1.f);
                 ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(selectedNodeOutline->color));
             }, !showSelectedNodeOutline);
+        }
+
+        if (ImGui::CollapsingHeader("Bloom")) {
+            bool bloom = global::bloomIntensity.has_value();
+            if (ImGui::Checkbox("Enable bloom", &bloom)) {
+                global::bloomIntensity.set_active(bloom);
+            }
+
+            ImGui::WithDisabled([&]() {
+                ImGui::DragFloat("Intensity", &global::bloomIntensity.raw(), 1e-2f, 0.f, 0.1f);
+            }, !bloom);
         }
     }
     ImGui::End();

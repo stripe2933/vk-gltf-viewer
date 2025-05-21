@@ -8,6 +8,7 @@ module;
 export module vk_gltf_viewer:vulkan.SharedData;
 
 import std;
+export import bloom;
 export import fastgltf;
 import imgui.vulkan;
 export import vku;
@@ -27,6 +28,8 @@ export import :vulkan.buffer.Primitives;
 export import :vulkan.buffer.SkinJointIndices;
 import :vulkan.buffer.StagingBufferStorage;
 export import :vulkan.Gpu;
+export import :vulkan.pipeline.BloomApplyRenderer;
+export import :vulkan.pipeline.InverseToneMappingRenderer;
 export import :vulkan.pipeline.JumpFloodComputer;
 export import :vulkan.pipeline.JumpFloodSeedRenderer;
 export import :vulkan.pipeline.MousePickingRenderer;
@@ -133,6 +136,7 @@ namespace vk_gltf_viewer::vulkan {
         // Render passes.
         rp::MousePicking mousePickingRenderPass;
         rp::Scene sceneRenderPass;
+        rp::BloomApply bloomApplyRenderPass;
 
         // Pipeline layouts.
         pl::MultiNodeMousePicking multiNodeMousePickingPipelineLayout;
@@ -149,6 +153,9 @@ namespace vk_gltf_viewer::vulkan {
         OutlineRenderer outlineRenderer;
         SkyboxRenderer skyboxRenderer;
         WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
+        InverseToneMappingRenderer inverseToneMappingRenderer;
+        bloom::BloomComputer bloomComputer;
+        BloomApplyRenderer bloomApplyRenderer;
 
         // --------------------
         // Attachment groups.
@@ -189,7 +196,8 @@ namespace vk_gltf_viewer::vulkan {
             , multiNodeMousePickingDescriptorSetLayout { gpu.device }
             , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
             , mousePickingRenderPass { gpu.device }
-            , sceneRenderPass { gpu.device }
+            , sceneRenderPass { gpu }
+            , bloomApplyRenderPass { gpu }
             , multiNodeMousePickingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) }
             , primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
             , primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout }
@@ -198,6 +206,9 @@ namespace vk_gltf_viewer::vulkan {
             , outlineRenderer { gpu.device }
             , skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, sceneRenderPass, cubeIndices }
             , weightedBlendedCompositionRenderer { gpu, sceneRenderPass }
+            , inverseToneMappingRenderer { gpu, sceneRenderPass }
+            , bloomComputer { gpu.device, { .useAMDShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod } }
+            , bloomApplyRenderer { gpu, bloomApplyRenderPass }
             , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
             , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
             , fallbackTexture { gpu }{

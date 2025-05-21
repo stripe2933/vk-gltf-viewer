@@ -1,0 +1,58 @@
+#version 450
+#if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
+#extension GL_AMD_shader_image_load_store_lod : enable
+#else
+#extension GL_EXT_nonuniform_qualifier : require
+#endif
+
+layout (set = 0, binding = 0) uniform sampler2D inputSampler;
+layout (set = 0, binding = 1) uniform writeonly image2D outputImages[];
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+layout (push_constant, std430) uniform PushConstants {
+    int srcMipLevel;
+    int dstMipLevel;
+} pc;
+
+void main(){
+#if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
+    ivec2 outputImageSize = max(imageSize(outputImages[0]) >> pc.dstMipLevel, ivec2(1));
+#else
+    ivec2 outputImageSize = imageSize(outputImages[pc.dstMipLevel]);
+#endif
+    if (gl_GlobalInvocationID.x >= outputImageSize.x || gl_GlobalInvocationID.y >= outputImageSize.y) {
+        return;
+    }
+
+    vec2 texcoord = (gl_GlobalInvocationID.xy + 0.5) / vec2(outputImageSize);
+    vec2 inputTexelSize = 1.0 / textureSize(inputSampler, pc.srcMipLevel);
+
+    // Take 9 samples around current texel:
+    // a - b - c
+    // d - e - f
+    // g - h - i
+    // === ('e' is the current texel) ===
+    vec4 a = textureLod(inputSampler, texcoord + vec2(-1,  1) * inputTexelSize, pc.srcMipLevel);
+    vec4 b = textureLod(inputSampler, texcoord + vec2( 0,  1) * inputTexelSize, pc.srcMipLevel);
+    vec4 c = textureLod(inputSampler, texcoord + vec2( 1,  1) * inputTexelSize, pc.srcMipLevel);
+
+    vec4 d = textureLod(inputSampler, texcoord + vec2(-1,  0) * inputTexelSize, pc.srcMipLevel);
+    vec4 e = textureLod(inputSampler, texcoord + vec2( 0,  0) * inputTexelSize, pc.srcMipLevel);
+    vec4 f = textureLod(inputSampler, texcoord + vec2( 1,  0) * inputTexelSize, pc.srcMipLevel);
+
+    vec4 g = textureLod(inputSampler, texcoord + vec2(-1, -1) * inputTexelSize, pc.srcMipLevel);
+    vec4 h = textureLod(inputSampler, texcoord + vec2( 0, -1) * inputTexelSize, pc.srcMipLevel);
+    vec4 i = textureLod(inputSampler, texcoord + vec2( 1, -1) * inputTexelSize, pc.srcMipLevel);
+
+    // Apply weighted distribution, by using a 3x3 tent filter:
+    //  1   | 1 2 1 |
+    // -- * | 2 4 2 |
+    // 16   | 1 2 1 |
+    vec4 upsample = texelFetch(inputSampler, ivec2(gl_GlobalInvocationID.xy), pc.dstMipLevel) + (e * 4.0 + (b + d + f + h) * 2.0 + (a + c + g + i)) / 16.0;
+#if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
+    imageStoreLodAMD(outputImages[0], ivec2(gl_GlobalInvocationID.xy), pc.dstMipLevel, upsample);
+#else
+    imageStore(outputImages[pc.dstMipLevel], ivec2(gl_GlobalInvocationID.xy), upsample);
+#endif
+}
