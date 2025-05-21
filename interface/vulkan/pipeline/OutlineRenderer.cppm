@@ -25,7 +25,6 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         struct PushConstant {
             glm::vec4 outlineColor;
-            glm::i32vec2 passthruOffset;
             float outlineThickness;
         };
 

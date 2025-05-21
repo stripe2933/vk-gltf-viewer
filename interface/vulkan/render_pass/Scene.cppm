@@ -22,15 +22,15 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::Format::eB8G8R8A8Srgb, vk::SampleCountFlagBits::e4,
                         vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                         {}, {},
-                        vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+                        {}, vk::ImageLayout::eColorAttachmentOptimal,
                     },
-                    // Opaque MSAA resolve attachment (= swapchain image)
+                    // Opaque MSAA resolve attachment (=result image)
                     vk::AttachmentDescription {
                         {},
                         vk::Format::eB8G8R8A8Srgb, vk::SampleCountFlagBits::e1,
                         vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
                         {}, {},
-                        vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
+                        {}, vk::ImageLayout::eColorAttachmentOptimal,
                     },
                     // Depth image.
                     vk::AttachmentDescription {
@@ -38,7 +38,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::Format::eD32Sfloat, vk::SampleCountFlagBits::e4,
                         vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                         {}, {},
-                        vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                        {}, vk::ImageLayout::eDepthStencilAttachmentOptimal,
                     },
                     // Accumulation color image.
                     vk::AttachmentDescription {
@@ -46,7 +46,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e4,
                         vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                         {}, {},
-                        vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+                        {}, vk::ImageLayout::eColorAttachmentOptimal,
                     },
                     // Accumulation resolve image.
                     vk::AttachmentDescription {
@@ -54,7 +54,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e1,
                         vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eNone,
                         {}, {},
-                        vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                        {}, vk::ImageLayout::eShaderReadOnlyOptimal,
                     },
                     // Revealage color image.
                     vk::AttachmentDescription {
@@ -62,7 +62,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::Format::eR16Unorm, vk::SampleCountFlagBits::e4,
                         vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                         {}, {},
-                        vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+                        {}, vk::ImageLayout::eColorAttachmentOptimal,
                     },
                     // Revealage resolve image.
                     vk::AttachmentDescription {
@@ -70,7 +70,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::Format::eR16Unorm, vk::SampleCountFlagBits::e1,
                         vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eNone,
                         {}, {},
-                        vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                        {}, vk::ImageLayout::eShaderReadOnlyOptimal,
                     },
                 }),
                 vku::unsafeProxy({
@@ -110,13 +110,6 @@ namespace vk_gltf_viewer::vulkan::rp {
                     },
                 }),
                 vku::unsafeProxy({
-                    // Dependency between beginning of the render pass and opaque pass:
-                    // Swapchain image acquirement must be finished before opaque pass writes it.
-                    vk::SubpassDependency {
-                        vk::SubpassExternal, 0,
-                        vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                        {}, vk::AccessFlagBits::eColorAttachmentWrite,
-                    },
                     // Dependency between opaque pass and weighted blended pass:
                     // Since weighted blended uses the result of depth attachment from opaque pass, it must be finished before weighted blended pass.
                     vk::SubpassDependency {

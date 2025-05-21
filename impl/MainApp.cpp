@@ -57,6 +57,8 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+#define INDEX_SEQ(Is, N, ...) [&]<auto ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
+#define ARRAY_OF(N, ...) INDEX_SEQ(Is, N, { return std::array { ((void)Is, __VA_ARGS__)... }; })
 #ifdef _WIN32
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
@@ -65,7 +67,9 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 
 [[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept;
 
-vk_gltf_viewer::MainApp::MainApp() {
+vk_gltf_viewer::MainApp::MainApp()
+    : swapchainImageAcquireSemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) }
+    , swapchainImageReadySemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) } {
     const ibl::BrdfmapRenderer brdfmapRenderer { gpu.device, brdfmapImage, {} };
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
@@ -131,6 +135,8 @@ vk_gltf_viewer::MainApp::MainApp() {
 }
 
 void vk_gltf_viewer::MainApp::run() {
+    std::array<vk::raii::Fence, FRAMES_IN_FLIGHT> frameInFlightFences = ARRAY_OF(FRAMES_IN_FLIGHT, vk::raii::Fence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } });
+    
     // When using multiple frames in flight, updating resources in a frame while it’s still being used by the GPU can
     // lead to data hazards. Since resource updates occur when one of the frames is fenced, that frame can be updated
     // safely, but the others cannot.
@@ -140,8 +146,6 @@ void vk_gltf_viewer::MainApp::run() {
     static_assert(FRAMES_IN_FLIGHT == 2, "Frames ≥ 3 needs different update deferring mechanism.");
     std::vector<std::function<void(vulkan::Frame&)>> deferredFrameUpdateTasks;
 
-    // Booleans that indicates frame at the corresponding index should handle swapchain resizing.
-    std::array<bool, FRAMES_IN_FLIGHT> shouldHandleSwapchainResize{};
     std::array<bool, FRAMES_IN_FLIGHT> regenerateDrawCommands{};
 
     // Currently frame feedback result contains which node is in hovered state, which is only valid
@@ -235,9 +239,11 @@ void vk_gltf_viewer::MainApp::run() {
             }
         }
 
-        // Wait for previous frame execution to end.
         vulkan::Frame &frame = frames[frameIndex];
-        frame.waitForPreviousExecution();
+        vk::Fence inFlightFence = frameInFlightFences[frameIndex];
+
+        // Wait for previous frame execution to end.
+        std::ignore = gpu.device.waitForFences(inFlightFence, true, ~0ULL);
 
         for (const auto &task : deferredFrameUpdateTasks) {
             task(frame);
@@ -366,6 +372,9 @@ void vk_gltf_viewer::MainApp::run() {
                     else if (std::ranges::contains(supportedSkyboxExtensions, extension)) {
                         tasks.emplace(std::in_place_type<control::task::LoadEqmap>, path);
                     }
+                },
+                [this](concepts::one_of<control::task::WindowSize, control::task::WindowContentScale> auto const &task) {
+                    handleSwapchainResize();
                 },
                 [this](const control::task::ChangePassthruRect &task) {
                     appState.camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
@@ -679,7 +688,6 @@ void vk_gltf_viewer::MainApp::run() {
                 };
             }),
             .solidBackground = appState.background.to_optional(),
-            .handleSwapchainResize = std::exchange(shouldHandleSwapchainResize[frameIndex], false),
         });
 
 		if (frameFeedbackResultValid[frameIndex]) {
@@ -707,16 +715,37 @@ void vk_gltf_viewer::MainApp::run() {
 
         try {
             // Acquire the next swapchain image.
-            // Note: ignoring vk::Result is okay because it would be handled by the outer try-catch block.
+#if __APPLE__
+            const auto [result, swapchainImageIndex] = (*gpu.device).acquireNextImageKHR(
+                *swapchain, ~0ULL, *swapchainImageAcquireSemaphores.current());
+
+            // MoltenVK does not allow presenting suboptimal swapchain image.
+            // Issue tracked: https://github.com/KhronosGroup/MoltenVK/issues/2542
+            if (result == vk::Result::eSuboptimalKHR) {
+                // Here the swapchain image acquire semaphore is being pending state (since vkAcquireNextImageKHR result
+                // is successful), but it will be not used for vkQueuePresentKHR. Therefore, the next swapchain image
+                // acquirement must not use the same semaphore.
+                swapchainImageAcquireSemaphores.advance();
+                throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
+            }
+#else
             const std::uint32_t swapchainImageIndex = (*gpu.device).acquireNextImageKHR(
-                *swapchain, ~0ULL, frame.getSwapchainImageAcquireSemaphore()).value;
+                *swapchain, ~0ULL, *swapchainImageAcquireSemaphores.current()).value;
+#endif
 
             // Execute frame.
-            frame.recordCommandsAndSubmit(swapchainImageIndex);
+            gpu.device.resetFences(inFlightFence);
+            frame.recordCommandsAndSubmit(
+                swapchainImageIndex,
+                *swapchainImageAcquireSemaphores.current(),
+                swapchainImageReadySemaphores[swapchainImageIndex],
+                inFlightFence);
+
+            swapchainImageAcquireSemaphores.advance();
 
             // Present the rendered swapchain image to swapchain.
             if (gpu.queues.graphicsPresent.presentKHR({
-                vku::unsafeProxy(frame.getSwapchainImageReadySemaphore()),
+                *swapchainImageReadySemaphores[swapchainImageIndex],
                 *swapchain,
                 swapchainImageIndex,
             }) == vk::Result::eSuboptimalKHR) {
@@ -726,28 +755,7 @@ void vk_gltf_viewer::MainApp::run() {
             }
         }
         catch (const vk::OutOfDateKHRError&) {
-            gpu.device.waitIdle();
-
-            // Make process idle state if window is minimized.
-            while (!glfwWindowShouldClose(window) && (swapchainExtent = getSwapchainExtent()) == vk::Extent2D{}) {
-                std::this_thread::yield();
-            }
-
-            // Update swapchain.
-            swapchain = createSwapchain(*swapchain);
-            swapchainImages = swapchain.getImages();
-
-            // Change swapchain image layout.
-            const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
-            const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-            vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-                recordSwapchainImageLayoutTransitionCommands(cb);
-            }, *fence);
-            std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
-
-            // Update frame shared data and frames.
-            sharedData.handleSwapchainResize(swapchainExtent, swapchainImages);
-            shouldHandleSwapchainResize.fill(true);
+            handleSwapchainResize();
         }
     }
     gpu.device.waitIdle();
@@ -912,7 +920,7 @@ vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR
             vk::ColorSpaceKHR::eSrgbNonlinear,
             swapchainExtent,
             1,
-            vk::ImageUsageFlagBits::eColorAttachment,
+            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment,
             {}, {},
             surfaceCapabilities.currentTransform,
             vk::CompositeAlphaFlagBitsKHR::eOpaque,
@@ -1558,6 +1566,32 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     // Update AppState.
     appState.pushRecentSkyboxPath(eqmapPath);
+}
+
+void vk_gltf_viewer::MainApp::handleSwapchainResize() {
+    gpu.device.waitIdle();
+
+    // Make process idle state if window is minimized.
+    while (!glfwWindowShouldClose(window) && (swapchainExtent = getSwapchainExtent()) == vk::Extent2D{}) {
+        std::this_thread::yield();
+    }
+
+    // Update swapchain.
+    swapchain = createSwapchain(*swapchain);
+    swapchainImages = swapchain.getImages();
+    swapchainImageAcquireSemaphores = { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) };
+    swapchainImageReadySemaphores = { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) };
+
+    // Change swapchain image layout.
+    const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+    const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+    vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+        recordSwapchainImageLayoutTransitionCommands(cb);
+    }, *fence);
+    std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
+
+    // Update frame shared data and frames.
+    sharedData.handleSwapchainResize(swapchainExtent, swapchainImages);
 }
 
 void vk_gltf_viewer::MainApp::recordSwapchainImageLayoutTransitionCommands(vk::CommandBuffer cb) const {
