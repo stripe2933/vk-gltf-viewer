@@ -213,6 +213,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
 
     supportSwapchainMutableFormat = availableExtensionNames.contains(vk::KHRSwapchainMutableFormatExtensionName);
     supportShaderImageLoadStoreLod = availableExtensionNames.contains(vk::AMDShaderImageLoadStoreLodExtensionName);
+    supportShaderTrinaryMinMax = availableExtensionNames.contains(vk::AMDShaderTrinaryMinmaxExtensionName);
 
     // Set optional features if available.
     const auto [_, vulkan12Features, indexTypeUint8Features] = physicalDevice.getFeatures2<
