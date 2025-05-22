@@ -44,8 +44,8 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         run: sudo apt-get install libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev
 
-      - name: Enable Developer Command Prompt (Windows)
-        if: ${{ runner.os == 'Windows' }}
+      - name: Enable Developer Command Prompt (Windows + MSVC)
+        if: ${{ runner.os == 'Windows' && matrix.compiler == 'msvc' }}
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Workaround for CMake bug that cannot find __CMAKE::CXX23 target when using homebrew libc++ (macOS)
