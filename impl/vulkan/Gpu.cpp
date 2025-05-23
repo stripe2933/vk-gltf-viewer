@@ -95,7 +95,7 @@ vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::Surface
         case 0x8086: // Intel
             workaround.attachmentLessRenderPass = true;
             break;
-        case 0x106bb: // MoltenVK
+        case 0x106B: // MoltenVK
             workaround.attachmentLessRenderPass = true;
             workaround.depthStencilResolveDifferentFormat = true;
             break;
