@@ -69,7 +69,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
             });
 
             // Primitives whose type is LINE_LOOP.
-            auto lineLoopPrimitives = indexedPrimitives | std::views::filter([](const fastgltf::Primitive &primitive) {
+            auto lineLoopPrimitives = primitives | std::views::filter([](const fastgltf::Primitive &primitive) {
                 // As GL_LINE_LOOP does not supported in Vulkan natively, it should be emulated as line strip, with
                 // additional first vertex at the end, using indexed draw.
                 return primitive.type == fastgltf::PrimitiveType::LineLoop;
