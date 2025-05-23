@@ -56,26 +56,28 @@ namespace vk_gltf_viewer::vulkan::texture {
                     {}, {}, {},
                     vk::ImageMemoryBarrier {
                         {}, vk::AccessFlagBits::eTransferWrite,
-                        {}, vk::ImageLayout::eTransferDstOptimal,
+                        {}, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal),
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                         image, vku::fullSubresourceRange(),
                     });
 
-                cb.copyBufferToImage(stagingBuffer, image, vk::ImageLayout::eTransferDstOptimal, vk::BufferImageCopy {
+                cb.copyBufferToImage(stagingBuffer, image, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal), vk::BufferImageCopy {
                     0, 0, 0,
                     { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
                     {}, image.extent,
                 });
 
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        vk::AccessFlagBits::eTransferWrite, {},
-                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        image, vku::fullSubresourceRange(),
-                    });
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+                    cb.pipelineBarrier(
+                        vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+                        {}, {}, {},
+                        vk::ImageMemoryBarrier {
+                            vk::AccessFlagBits::eTransferWrite, {},
+                            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                            image, vku::fullSubresourceRange(),
+                        });
+                }
             }, *fence);
             std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL);
         }

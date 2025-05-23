@@ -14,7 +14,7 @@ namespace ibl {
     export class PrefilteredmapComputer {
     public:
         struct SpecializationConstants {
-            std::uint32_t samples = 1024;
+            std::uint32_t samples;
         };
 
         struct Config {
@@ -28,6 +28,14 @@ namespace ibl {
              * storage image, and can reduce the descriptor binding count.
              */
             bool useShaderImageLoadStoreLod;
+
+            /**
+             * @brief Use <tt>vk::ImageLayout::eGeneral</tt> layout for input cubemap image during sampling.
+             *
+             * If this is <tt>false</tt>, the input cubemap image layout will be supposed to
+             * <tt>vk::ImageLayout::eShaderReadOnlyOptimal</tt> during compute shader dispatch.
+             */
+            bool useGeneralImageLayout;
 
             SpecializationConstants specializationConstants;
         };
@@ -72,7 +80,7 @@ namespace ibl {
             computeCommandBuffer.pushDescriptorSetKHR(
                 vk::PipelineBindPoint::eCompute, *pipelineLayout,
                 0, {
-                    decltype(descriptorSetLayout)::getWriteOne<0>({ {}, *cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                    decltype(descriptorSetLayout)::getWriteOne<0>({ {}, *cubemapImageView, config.useGeneralImageLayout ? vk::ImageLayout::eGeneral : vk::ImageLayout::eShaderReadOnlyOptimal }),
                     decltype(descriptorSetLayout)::getWrite<1>(vku::unsafeProxy(prefilteredmapMipImageViews
                         | std::views::transform([](vk::ImageView view) {
                             return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };

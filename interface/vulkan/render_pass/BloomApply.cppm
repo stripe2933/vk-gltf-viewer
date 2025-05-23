@@ -21,7 +21,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::Format::eB8G8R8A8Srgb, vk::SampleCountFlagBits::e1,
                         vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore,
                         {}, {},
-                        vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+                        gpu.workaround.generalOr(vk::ImageLayout::eColorAttachmentOptimal), gpu.workaround.generalOr(vk::ImageLayout::eColorAttachmentOptimal),
                     },
                     // Bloom image.
                     vk::AttachmentDescription {
@@ -29,7 +29,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e1,
                         vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eDontCare,
                         {}, {},
-                        vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                        gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal), gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal),
                     },
                 }),
                 vku::unsafeProxy(vk::SubpassDescription {
@@ -37,7 +37,7 @@ namespace vk_gltf_viewer::vulkan::rp {
                     vk::PipelineBindPoint::eGraphics,
                     vku::unsafeProxy({
                         vk::AttachmentReference { 0, gpu.supportAttachmentFeedbackLoopLayout ? vk::ImageLayout::eAttachmentFeedbackLoopOptimalEXT : vk::ImageLayout::eGeneral },
-                        vk::AttachmentReference { 1, vk::ImageLayout::eShaderReadOnlyOptimal },
+                        vk::AttachmentReference { 1, gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal) },
                     }),
                     vku::unsafeProxy(vk::AttachmentReference { 0, vk::ImageLayout::eGeneral }),
                 }),

@@ -146,6 +146,9 @@ namespace vk_gltf_viewer::vulkan::image {
                                 vk::SampleCountFlagBits::e1,
                                 vk::ImageTiling::eOptimal,
                                 vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
+                                gpu.workaround.noImageLayoutAndQueueFamilyOwnership && gpu.queueFamilies.uniqueIndices.size() > 1
+                                    ? vk::SharingMode::eConcurrent : vk::SharingMode::eExclusive,
+                                gpu.queueFamilies.uniqueIndices,
                             },
                             vk::ImageFormatListCreateInfo { viewFormats },
                         };
@@ -410,21 +413,21 @@ namespace vk_gltf_viewer::vulkan::image {
                     *this
                         | std::views::values
                         | std::views::elements<0>
-                        | std::views::transform([](vk::Image image) {
+                        | std::views::transform([&](vk::Image image) {
                             return vk::ImageMemoryBarrier {
                                 {}, vk::AccessFlagBits::eTransferWrite,
-                                {}, vk::ImageLayout::eTransferDstOptimal,
+                                {}, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal),
                                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                                 image, vku::fullSubresourceRange(),
                             };
                         })
                         | std::ranges::to<std::vector>());
                 for (const auto &[buffer, image, copyRegion] : copyInfos) {
-                    cb.copyBufferToImage(buffer, image, vk::ImageLayout::eTransferDstOptimal, copyRegion);
+                    cb.copyBufferToImage(buffer, image, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal), copyRegion);
                 }
 
                 // Release the queue family ownerships of the images (if required).
-                if (!empty() && gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
+                if (!empty() && !gpu.workaround.noImageLayoutAndQueueFamilyOwnership && gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
                     cb.pipelineBarrier(
                         vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllCommands,
                         {}, {}, {},
@@ -467,52 +470,56 @@ namespace vk_gltf_viewer::vulkan::image {
             const vk::raii::Fence graphicsFence { gpu.device, vk::FenceCreateInfo{} };
             vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
                 // Change image layouts and acquire resource queue family ownerships (optionally).
-                cb.pipelineBarrier2KHR({
-                    {}, {}, {},
-                    vku::unsafeProxy(*this | std::views::transform(decomposer([&](std::size_t imageIndex, const auto &tuple) {
-                        const vku::Image &image = get<0>(tuple);
-                        // See previous TRANSFER -> GRAPHICS queue family ownership release code to get insight.
-                        if (imageIndicesToGenerateMipmap.contains(imageIndex)) {
-                            return vk::ImageMemoryBarrier2 {
-                                {}, {},
-                                vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
-                                vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-                                gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-                                image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-                            };
-                        }
-                        else {
-                            return vk::ImageMemoryBarrier2 {
-                                {}, {},
-                                {}, {},
-                                vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                                gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-                                image, vku::fullSubresourceRange(),
-                            };
-                        }
-                    }))
-                    | std::ranges::to<std::vector>())
-                });
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+                    cb.pipelineBarrier2KHR({
+                        {}, {}, {},
+                        vku::unsafeProxy(*this | std::views::transform(decomposer([&](std::size_t imageIndex, const auto &tuple) {
+                            const vku::Image &image = get<0>(tuple);
+                            // See previous TRANSFER -> GRAPHICS queue family ownership release code to get insight.
+                            if (imageIndicesToGenerateMipmap.contains(imageIndex)) {
+                                return vk::ImageMemoryBarrier2 {
+                                    {}, {},
+                                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+                                    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                                    gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
+                                    image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                                };
+                            }
+                            else {
+                                return vk::ImageMemoryBarrier2 {
+                                    {}, {},
+                                    {}, {},
+                                    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                                    gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
+                                    image, vku::fullSubresourceRange(),
+                                };
+                            }
+                        }))
+                        | std::ranges::to<std::vector>())
+                    });
+                }
 
                 if (imageIndicesToGenerateMipmap.empty()) return;
 
                 recordBatchedMipmapGenerationCommand(cb, imageIndicesToGenerateMipmap | std::views::transform([this](std::size_t imageIndex) -> decltype(auto) {
                     return get<0>(at(imageIndex));
-                }));
+                }), gpu.workaround.noImageLayoutAndQueueFamilyOwnership);
 
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-                    {}, {}, {},
-                    imageIndicesToGenerateMipmap
-                        | std::views::transform([this](std::size_t imageIndex) {
-                            return vk::ImageMemoryBarrier {
-                                vk::AccessFlagBits::eTransferWrite, {},
-                                {}, vk::ImageLayout::eShaderReadOnlyOptimal,
-                                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                                get<0>(at(imageIndex)), vku::fullSubresourceRange(),
-                            };
-                        })
-                        | std::ranges::to<std::vector>());
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+                    cb.pipelineBarrier(
+                        vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+                        {}, {}, {},
+                        imageIndicesToGenerateMipmap
+                            | std::views::transform([this](std::size_t imageIndex) {
+                                return vk::ImageMemoryBarrier {
+                                    vk::AccessFlagBits::eTransferWrite, {},
+                                    {}, vk::ImageLayout::eShaderReadOnlyOptimal,
+                                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                                    get<0>(at(imageIndex)), vku::fullSubresourceRange(),
+                                };
+                            })
+                            | std::ranges::to<std::vector>());
+                }
             }, *graphicsFence);
             std::ignore = gpu.device.waitForFences(*graphicsFence, true, ~0ULL); // TODO: failure handling
         }

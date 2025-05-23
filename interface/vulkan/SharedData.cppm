@@ -102,8 +102,11 @@ namespace vk_gltf_viewer::vulkan {
 
                 imGuiTextureDescriptorSets
                     = textures.descriptorInfos
-                    | std::views::transform([](const vk::DescriptorImageInfo &descriptorInfo) -> vk::DescriptorSet {
-                        return ImGui_ImplVulkan_AddTexture(descriptorInfo.sampler, descriptorInfo.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    | std::views::transform([&](const vk::DescriptorImageInfo &descriptorInfo) -> vk::DescriptorSet {
+                        return ImGui_ImplVulkan_AddTexture(
+                            descriptorInfo.sampler,
+                            descriptorInfo.imageView,
+                            gpu.workaround.noImageLayoutAndQueueFamilyOwnership ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                     })
                     | std::ranges::to<std::vector>();
             }
@@ -195,7 +198,7 @@ namespace vk_gltf_viewer::vulkan {
             , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
             , multiNodeMousePickingDescriptorSetLayout { gpu.device }
             , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
-            , mousePickingRenderPass { gpu.device }
+            , mousePickingRenderPass { gpu }
             , sceneRenderPass { gpu }
             , bloomApplyRenderPass { gpu }
             , multiNodeMousePickingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) }

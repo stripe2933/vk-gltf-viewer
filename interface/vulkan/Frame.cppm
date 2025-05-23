@@ -236,7 +236,7 @@ namespace vk_gltf_viewer::vulkan {
 
             std::vector<vk::DescriptorImageInfo> imageInfos;
             imageInfos.reserve(asset.textures.size() + 1);
-            imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+            imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, sharedData.gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal));
             imageInfos.append_range(sharedData.gltfAsset->textures.descriptorInfos);
 
             boost::container::static_vector<vk::WriteDescriptorSet, 2 + dsl::Asset::bindingCount> descriptorWrites {

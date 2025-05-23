@@ -7,13 +7,12 @@ export module vk_gltf_viewer:vulkan.rp.CubemapToneMapping;
 #ifdef _MSC_VER
 import std;
 #endif
-import vku;
-export import vulkan_hpp;
+export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::rp {
     export struct CubemapToneMapping final : vk::raii::RenderPass {
-        explicit CubemapToneMapping(const vk::raii::Device &device LIFETIMEBOUND)
-            : RenderPass { device, vk::StructureChain {
+        explicit CubemapToneMapping(const Gpu &gpu LIFETIMEBOUND)
+            : RenderPass { gpu.device, vk::StructureChain {
                 vk::RenderPassCreateInfo {
                     {},
                     vku::unsafeProxy(vk::AttachmentDescription {
@@ -21,13 +20,13 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::Format::eB8G8R8A8Srgb, vk::SampleCountFlagBits::e1,
                         vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
                         {}, {},
-                        {}, vk::ImageLayout::eShaderReadOnlyOptimal,
+                        {}, gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal),
                     }),
                     vku::unsafeProxy(vk::SubpassDescription {
                         {},
                         vk::PipelineBindPoint::eGraphics,
                         {},
-                        vku::unsafeProxy(vk::AttachmentReference { 0, vk::ImageLayout::eColorAttachmentOptimal }),
+                        vku::unsafeProxy(vk::AttachmentReference { 0, gpu.workaround.generalOr(vk::ImageLayout::eColorAttachmentOptimal) }),
                     }),
                 },
                 vk::RenderPassMultiviewCreateInfo {

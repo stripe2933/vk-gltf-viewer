@@ -25,6 +25,9 @@ namespace vk_gltf_viewer::vulkan::texture {
             const Textures &textures LIFETIMEBOUND,
             const Gpu &gpu LIFETIMEBOUND
         ) {
+            const VkImageLayout imageLayout = gpu.workaround.noImageLayoutAndQueueFamilyOwnership
+                ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
             textureDescriptorSets
                 = asset.textures
                 | ranges::views::enumerate
@@ -53,7 +56,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                             image.getViewCreateInfo().setFormat(convertSrgb(image.format)).setComponents(components));
                     }
 
-                    return ImGui_ImplVulkan_AddTexture(sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    return ImGui_ImplVulkan_AddTexture(sampler, imageView, imageLayout);
                 }))
                 | std::ranges::to<std::vector>();
 
@@ -78,7 +81,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                             *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
                                 .setFormat(colorSpaceCompatibleFormat)
                                 .setComponents({ vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eOne })),
-                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                            imageLayout);
 
                         // Roughness.
                         get<1>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
@@ -86,7 +89,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                             *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
                                 .setFormat(colorSpaceCompatibleFormat)
                                 .setComponents({ vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eOne })),
-                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                            imageLayout);
                     }
                 }
 
@@ -108,7 +111,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                                 *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
                                     .setFormat(colorSpaceCompatibleFormat)
                                     .setComponents({ {}, {}, {}, vk::ComponentSwizzle::eOne })),
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                                imageLayout);
                         }
                     }();
                 }
@@ -131,7 +134,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                                 *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
                                     .setFormat(colorSpaceCompatibleFormat)
                                     .setComponents({ vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne })),
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                                imageLayout);
                         }
                     }();
                 }
@@ -168,7 +171,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                             return ImGui_ImplVulkan_AddTexture(
                                 textures.descriptorInfos[textureInfo->textureIndex].sampler,
                                 *imageViews.emplace_back(gpu.device, image.getViewCreateInfo().setFormat(colorSpaceCompatibleFormat).setComponents(components)),
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                                imageLayout);
                         }
                     }();
                 }

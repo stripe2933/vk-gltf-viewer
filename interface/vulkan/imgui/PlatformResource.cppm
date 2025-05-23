@@ -19,7 +19,9 @@ namespace vk_gltf_viewer::vulkan::imgui {
         explicit PlatformResource(const Gpu &gpu LIFETIMEBOUND)
             : checkerboardTexture { gpu } {
             checkerboardTextureID = vku::toUint64<vk::DescriptorSet>(ImGui_ImplVulkan_AddTexture(
-                *checkerboardTexture.sampler, *checkerboardTexture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+                *checkerboardTexture.sampler,
+                *checkerboardTexture.imageView,
+                gpu.workaround.noImageLayoutAndQueueFamilyOwnership ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
         }
 
         ~PlatformResource() override {

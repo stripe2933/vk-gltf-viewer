@@ -7,13 +7,12 @@ export module vk_gltf_viewer:vulkan.rp.MousePicking;
 #ifdef _MSC_VER
 import std;
 #endif
-export import vulkan_hpp;
-import vku;
+export import :vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::rp {
     export struct MousePicking : vk::raii::RenderPass {
-        explicit MousePicking(const vk::raii::Device &device LIFETIMEBOUND)
-            : RenderPass { device, vk::RenderPassCreateInfo {
+        explicit MousePicking(const Gpu &gpu LIFETIMEBOUND)
+            : RenderPass { gpu.device, vk::RenderPassCreateInfo {
                 {},
                 vku::unsafeProxy({
                     vk::AttachmentDescription {
@@ -21,14 +20,14 @@ namespace vk_gltf_viewer::vulkan::rp {
                         vk::Format::eR16Uint, vk::SampleCountFlagBits::e1,
                         vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                         {}, {},
-                        {}, vk::ImageLayout::eColorAttachmentOptimal,
+                        {}, gpu.workaround.generalOr(vk::ImageLayout::eColorAttachmentOptimal),
                     },
                     vk::AttachmentDescription {
                         {},
                         vk::Format::eD32Sfloat, vk::SampleCountFlagBits::e1,
                         vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                         {}, {},
-                        {}, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                        {}, gpu.workaround.generalOr(vk::ImageLayout::eDepthStencilAttachmentOptimal),
                     },
                 }),
                 vku::unsafeProxy({
@@ -36,14 +35,14 @@ namespace vk_gltf_viewer::vulkan::rp {
                         {},
                         vk::PipelineBindPoint::eGraphics,
                         {},
-                        vku::unsafeProxy(vk::AttachmentReference { 0, vk::ImageLayout::eColorAttachmentOptimal }),
+                        vku::unsafeProxy(vk::AttachmentReference { 0, gpu.workaround.generalOr(vk::ImageLayout::eColorAttachmentOptimal) }),
                         {},
-                        vku::unsafeAddress(vk::AttachmentReference { 1, vk::ImageLayout::eDepthStencilAttachmentOptimal }),
+                        vku::unsafeAddress(vk::AttachmentReference { 1, gpu.workaround.generalOr(vk::ImageLayout::eDepthStencilAttachmentOptimal) }),
                     },
                     vk::SubpassDescription {
                         {},
                         vk::PipelineBindPoint::eGraphics,
-                        vku::unsafeProxy(vk::AttachmentReference { 0, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                        vku::unsafeProxy(vk::AttachmentReference { 0, gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal) }),
                     },
                 }),
                 vku::unsafeProxy(vk::SubpassDependency {

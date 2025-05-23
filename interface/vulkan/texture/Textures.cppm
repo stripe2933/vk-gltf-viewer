@@ -29,7 +29,7 @@ namespace vk_gltf_viewer::vulkan::texture {
                         .transform([&](std::size_t samplerIndex) { return *samplers[samplerIndex]; })
                         .value_or(*fallbackTexture.sampler),
                     *get<1>(images.at(getPreferredImageIndex(texture))),
-                    vk::ImageLayout::eShaderReadOnlyOptimal,
+                    gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal),
                 };
             }) } { }
     };

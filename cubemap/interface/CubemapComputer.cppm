@@ -14,6 +14,16 @@ namespace cubemap {
      */
     export class CubemapComputer {
     public:
+        struct Config {
+            /**
+             * @brief Use <tt>vk::ImageLayout::eGeneral</tt> layout for input equirectangular map image during sampling.
+             *
+             * If this is <tt>false</tt>, the input equirectangular map image layout will be supposed to
+             * <tt>vk::ImageLayout::eShaderReadOnlyOptimal</tt> during compute shader dispatch.
+             */
+            bool useGeneralImageLayout;
+        };
+
         /**
          * @brief Required image usage flags for equirectangular map image.
          */
@@ -28,7 +38,10 @@ namespace cubemap {
             const vk::raii::Device &device LIFETIMEBOUND,
             const vku::Image &eqmapImage LIFETIMEBOUND,
             vk::Sampler eqmapSampler LIFETIMEBOUND,
-            const vku::Image &cubemapImage LIFETIMEBOUND
+            const vku::Image &cubemapImage LIFETIMEBOUND,
+            const Config &config = {
+                .useGeneralImageLayout = false
+            }
         ) : device { device },
             cubemapImage { cubemapImage },
             descriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
@@ -49,7 +62,8 @@ namespace cubemap {
                 *pipelineLayout,
             } },
             eqmapImageView { device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
-            cubemapImageView { device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::eCube) } { }
+            cubemapImageView { device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::eCube) },
+            config { config } { }
 
         void setEqmapImage(const vku::Image &eqmapImage LIFETIME_CAPTURE_BY(this)) {
             eqmapImageView = { device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) };
@@ -67,7 +81,7 @@ namespace cubemap {
             computeCommandBuffer.pushDescriptorSetKHR(
                 vk::PipelineBindPoint::eCompute, *pipelineLayout,
                 0, {
-                    decltype(descriptorSetLayout)::getWriteOne<0>({ {}, *eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                    decltype(descriptorSetLayout)::getWriteOne<0>({ {}, *eqmapImageView, config.useGeneralImageLayout ? vk::ImageLayout::eGeneral : vk::ImageLayout::eShaderReadOnlyOptimal }),
                     decltype(descriptorSetLayout)::getWriteOne<1>({ {}, *cubemapImageView, vk::ImageLayout::eGeneral }),
                 }, *d);
             computeCommandBuffer.dispatch(cubemapImage.get().extent.width / 16U, cubemapImage.get().extent.height / 16U, 6, *d);
@@ -82,5 +96,7 @@ namespace cubemap {
         vk::raii::Pipeline pipeline;
         vk::raii::ImageView eqmapImageView;
         vk::raii::ImageView cubemapImageView;
+
+        Config config;
     };
 }

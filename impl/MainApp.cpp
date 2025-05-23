@@ -2,6 +2,7 @@ module;
 
 #include <cassert>
 
+#include <boost/container/static_vector.hpp>
 #include <GLFW/glfw3.h>
 #include <IconsFontAwesome4.h>
 #ifdef _WIN32
@@ -80,31 +81,33 @@ vk_gltf_viewer::MainApp::MainApp()
             {}, {}, {},
             vk::ImageMemoryBarrier {
                 {}, vk::AccessFlagBits::eTransferWrite,
-                {}, vk::ImageLayout::eTransferDstOptimal,
+                {}, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal),
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                 imageBasedLightingResources.prefilteredmapImage, vku::fullSubresourceRange(),
             });
         cb.clearColorImage(
-            imageBasedLightingResources.prefilteredmapImage, vk::ImageLayout::eTransferDstOptimal,
+            imageBasedLightingResources.prefilteredmapImage, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal),
             vk::ClearColorValue { 1.f, 1.f, 1.f, 0.f },
             vku::fullSubresourceRange());
-        cb.pipelineBarrier(
-            vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-            {}, {}, {},
-            vk::ImageMemoryBarrier {
-                vk::AccessFlagBits::eTransferWrite, {},
-                vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                imageBasedLightingResources.prefilteredmapImage, vku::fullSubresourceRange(),
-            });
+        if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+            cb.pipelineBarrier(
+                vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+                {}, {}, {},
+                vk::ImageMemoryBarrier {
+                    vk::AccessFlagBits::eTransferWrite, {},
+                    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    imageBasedLightingResources.prefilteredmapImage, vku::fullSubresourceRange(),
+                });
+        }
 
-        // Change brdfmapImage layout to GENERAL.
+        // Change brdfmapImage layout to COLOR_ATTACHMENT_OPTIMAL.
         cb.pipelineBarrier(
             vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
             {}, {}, {},
             vk::ImageMemoryBarrier {
                 {}, vk::AccessFlagBits::eColorAttachmentWrite,
-                {}, vk::ImageLayout::eColorAttachmentOptimal,
+                {}, gpu.workaround.generalOr(vk::ImageLayout::eColorAttachmentOptimal),
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                 brdfmapImage, vku::fullSubresourceRange(),
             });
@@ -113,15 +116,17 @@ vk_gltf_viewer::MainApp::MainApp()
         brdfmapRenderer.recordCommands(cb);
 
         // brdfmapImage will be used as sampled image.
-        cb.pipelineBarrier(
-            vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
-            {}, {}, {},
-            vk::ImageMemoryBarrier {
-                vk::AccessFlagBits::eColorAttachmentWrite, {},
-                vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                brdfmapImage, vku::fullSubresourceRange(),
-            });
+        if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+            cb.pipelineBarrier(
+                vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
+                {}, {}, {},
+                vk::ImageMemoryBarrier {
+                    vk::AccessFlagBits::eColorAttachmentWrite, {},
+                    vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    brdfmapImage, vku::fullSubresourceRange(),
+                });
+        }
 
         recordSwapchainImageLayoutTransitionCommands(cb);
     }, *fence);
@@ -129,8 +134,8 @@ vk_gltf_viewer::MainApp::MainApp()
 
     gpu.device.updateDescriptorSets({
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal) }),
+        sharedData.imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal) }),
     }, {});
 }
 
@@ -1153,6 +1158,9 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled /* cubemap generation */ | vk::ImageUsageFlagBits::eTransferSrc /* mipmap generation */,
+        gpu.workaround.noImageLayoutAndQueueFamilyOwnership && gpu.queueFamilies.uniqueIndices.size() > 1
+            ? vk::SharingMode::eConcurrent : vk::SharingMode::eExclusive,
+        gpu.queueFamilies.uniqueIndices,
     } };
 
     const vk::Extent3D reducedEqmapImageExtent = eqmapImage.mipExtent(eqmapImage.mipLevels - 1);
@@ -1181,11 +1189,16 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             | cubemap::SubgroupMipmapComputer::requiredImageUsageFlags
             | ibl::PrefilteredmapComputer::requiredCubemapImageUsageFlags
             | vk::ImageUsageFlagBits::eSampled,
+        gpu.workaround.noImageLayoutAndQueueFamilyOwnership && gpu.queueFamilies.uniqueIndices.size() > 1
+            ? vk::SharingMode::eConcurrent : vk::SharingMode::eExclusive,
+        gpu.queueFamilies.uniqueIndices,
     } };
 
     const vk::raii::Sampler eqmapSampler { gpu.device, vk::SamplerCreateInfo { {}, vk::Filter::eLinear, vk::Filter::eLinear }.setMaxLod(vk::LodClampNone) };
 
-    const cubemap::CubemapComputer cubemapComputer { gpu.device, eqmapImage, eqmapSampler, cubemapImage };
+    const cubemap::CubemapComputer cubemapComputer { gpu.device, eqmapImage, eqmapSampler, cubemapImage, {
+        .useGeneralImageLayout = gpu.workaround.noImageLayoutAndQueueFamilyOwnership,
+    } };
     const cubemap::SubgroupMipmapComputer subgroupMipmapComputer { gpu.device, cubemapImage, {
         .subgroupSize = gpu.subgroupSize,
         .useShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod,
@@ -1201,14 +1214,21 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
         ibl::PrefilteredmapComputer::requiredPrefilteredmapImageUsageFlags | vk::ImageUsageFlagBits::eSampled,
+        gpu.workaround.noImageLayoutAndQueueFamilyOwnership && gpu.queueFamilies.uniqueIndices.size() > 1
+            ? vk::SharingMode::eConcurrent : vk::SharingMode::eExclusive,
+        gpu.queueFamilies.uniqueIndices,
     } };
     vku::MappedBuffer sphericalHarmonicsBuffer { gpu.allocator, vk::BufferCreateInfo {
         {},
         ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferSize,
         ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferUsageFlags | vk::BufferUsageFlagBits::eUniformBuffer,
+        gpu.workaround.noImageLayoutAndQueueFamilyOwnership && gpu.queueFamilies.uniqueIndices.size() > 1
+            ? vk::SharingMode::eConcurrent : vk::SharingMode::eExclusive,
+        gpu.queueFamilies.uniqueIndices,
     }, vku::allocation::hostRead };
 
     const ibl::SphericalHarmonicCoefficientComputer sphericalHarmonicCoefficientComputer { gpu.device, gpu.allocator, cubemapImage, sphericalHarmonicsBuffer, {
+        .useGeneralImageLayout = gpu.workaround.noImageLayoutAndQueueFamilyOwnership,
         .sampleMipLevel = 0,
         .specializationConstants = {
             .subgroupSize = gpu.subgroupSize,
@@ -1216,13 +1236,14 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     } };
     const ibl::PrefilteredmapComputer prefilteredmapComputer { gpu.device, cubemapImage, prefilteredmapImage, {
         .useShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod,
+        .useGeneralImageLayout = gpu.workaround.noImageLayoutAndQueueFamilyOwnership,
         .specializationConstants = {
             .samples = 1024,
         },
     } };
 
     // Generate Tone-mapped cubemap.
-    const vulkan::rp::CubemapToneMapping cubemapToneMappingRenderPass { gpu.device };
+    const vulkan::rp::CubemapToneMapping cubemapToneMappingRenderPass { gpu };
     const vulkan::CubemapToneMappingRenderer cubemapToneMappingRenderer { gpu, cubemapToneMappingRenderPass };
 
     vku::AllocatedImage toneMappedCubemapImage { gpu.allocator, vk::ImageCreateInfo {
@@ -1279,14 +1300,14 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                     {}, {}, {},
                     vk::ImageMemoryBarrier {
                         {}, vk::AccessFlagBits::eTransferWrite,
-                        {}, vk::ImageLayout::eTransferDstOptimal,
+                        {}, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal),
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                         eqmapImage, vku::fullSubresourceRange(),
                     });
 
                 cb.copyBufferToImage(
                     eqmapStagingBuffer,
-                    eqmapImage, vk::ImageLayout::eTransferDstOptimal,
+                    eqmapImage, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal),
                     vk::BufferImageCopy {
                         0, {}, {},
                         { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
@@ -1294,20 +1315,22 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                         eqmapImage.extent,
                     });
 
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        vk::AccessFlagBits::eTransferWrite, {},
-                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-                        gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-                        eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-                    });
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+                    cb.pipelineBarrier(
+                        vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+                        {}, {}, {},
+                        vk::ImageMemoryBarrier {
+                            vk::AccessFlagBits::eTransferWrite, {},
+                            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                            gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
+                            eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                        });
+                }
             }, *transferCommandPool, gpu.queues.transfer }),
         std::forward_as_tuple(
             // Generate eqmapImage mipmaps and blit its last mip level image to reducedEqmapImage.
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
-                if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership && gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
                     cb.pipelineBarrier(
                         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
                         {}, {}, {},
@@ -1320,32 +1343,39 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 }
 
                 // Generate eqmapImage mipmaps.
-                vulkan::recordMipmapGenerationCommand(cb, eqmapImage);
+                vulkan::recordMipmapGenerationCommand(cb, eqmapImage, gpu.workaround.noImageLayoutAndQueueFamilyOwnership);
 
-                cb.pipelineBarrier2KHR({
-                    {}, {}, {},
-                    vku::unsafeProxy({
-                        vk::ImageMemoryBarrier2 {
-                            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-                            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
-                            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                            eqmapImage, { vk::ImageAspectFlagBits::eColor, eqmapImage.mipLevels - 1, 1, 0, 1 },
-                        },
-                        vk::ImageMemoryBarrier2 {
-                            {}, {},
-                            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-                            {}, vk::ImageLayout::eTransferDstOptimal,
-                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                            reducedEqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-                        },
-                    }),
-                });
+                std::optional<vk::MemoryBarrier2> memoryBarrier;
+                boost::container::static_vector<vk::ImageMemoryBarrier2, 2> imageMemoryBarriers {
+                    vk::ImageMemoryBarrier2 {
+                        {}, {},
+                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+                        {}, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal),
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        reducedEqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                    },
+                };
+
+                if (gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+                    memoryBarrier.emplace(
+                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead);
+                }
+                else {
+                    imageMemoryBarriers.push_back({
+                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
+                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        eqmapImage, { vk::ImageAspectFlagBits::eColor, eqmapImage.mipLevels - 1, 1, 0, 1 },
+                    });
+                }
+                cb.pipelineBarrier2KHR({ {}, vku::unsafeProxy(to_range(memoryBarrier)), {}, imageMemoryBarriers });
 
                 // Blit from eqmapImage[level=-1] to reducedEqmapImage[level=0], whose extents are the same.
                 cb.blitImage(
-                    eqmapImage, vk::ImageLayout::eTransferSrcOptimal,
-                    reducedEqmapImage, vk::ImageLayout::eTransferDstOptimal,
+                    eqmapImage, gpu.workaround.generalOr(vk::ImageLayout::eTransferSrcOptimal),
+                    reducedEqmapImage, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal),
                     vk::ImageBlit {
                         { vk::ImageAspectFlagBits::eColor, eqmapImage.mipLevels - 1, 0, 1 },
                         { vk::Offset3D{}, vku::toOffset3D(eqmapImage.mipExtent(eqmapImage.mipLevels - 1)) },
@@ -1355,54 +1385,60 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                     vk::Filter::eLinear);
 
                 // eqmapImage[level=0] will be used as sampled image (other mip levels will not be used).
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        vk::AccessFlagBits::eTransferRead, {},
-                        vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                        gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
-                        eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-                    });
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+                    cb.pipelineBarrier(
+                        vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+                        {}, {}, {},
+                        vk::ImageMemoryBarrier {
+                            vk::AccessFlagBits::eTransferRead, {},
+                            vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                            gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
+                            eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                        });
+                }
             }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent }),
         std::forward_as_tuple(
             // Generate reducedEqmapImage mipmaps.
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
+                boost::container::static_vector<vk::ImageMemoryBarrier, 2> imageMemoryBarriers {
+                    vk::ImageMemoryBarrier {
+                        {}, vk::AccessFlagBits::eTransferWrite,
+                        {}, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal),
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        reducedEqmapImage, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingMipLevels, 0, 1 },
+                    },
+                };
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+                    imageMemoryBarriers.push_back({
+                        {}, vk::AccessFlagBits::eTransferRead,
+                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        reducedEqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                    });
+                }
                 cb.pipelineBarrier(
                     vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-                    {}, {}, {},
-                    {
-                        vk::ImageMemoryBarrier {
-                            {}, vk::AccessFlagBits::eTransferRead,
-                            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                            reducedEqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-                        },
-                        vk::ImageMemoryBarrier {
-                            {}, vk::AccessFlagBits::eTransferWrite,
-                            {}, vk::ImageLayout::eTransferDstOptimal,
-                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                            reducedEqmapImage, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingMipLevels, 0, 1 },
-                        },
-                    });
+                    {}, {}, {}, imageMemoryBarriers);
 
                 // Generate reducedEqmapImage mipmaps.
-                vulkan::recordMipmapGenerationCommand(cb, reducedEqmapImage);
+                vulkan::recordMipmapGenerationCommand(cb, reducedEqmapImage, gpu.workaround.noImageLayoutAndQueueFamilyOwnership);
 
                 // reducedEqmapImage will be used as sampled image.
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        vk::AccessFlagBits::eTransferWrite, {},
-                        {}, vk::ImageLayout::eShaderReadOnlyOptimal,
-                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        reducedEqmapImage, vku::fullSubresourceRange(),
-                    });
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+                    cb.pipelineBarrier(
+                        vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+                        {}, {}, {},
+                        vk::ImageMemoryBarrier {
+                            vk::AccessFlagBits::eTransferWrite, {},
+                            {}, vk::ImageLayout::eShaderReadOnlyOptimal,
+                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                            reducedEqmapImage, vku::fullSubresourceRange(),
+                        });
+                }
             }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent/*, 4*/ },
             // Generate cubemap with mipmaps from eqmapImage, and generate IBL resources from the cubemap.
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
-                if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership && gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
                     // Do queue family ownership transfer from graphicsPresent to compute, if required.
                     cb.pipelineBarrier(
                         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eComputeShader,
@@ -1438,27 +1474,35 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 // Generate cubemapImage mipmaps.
                 subgroupMipmapComputer.recordCommands(cb);
 
-                cb.pipelineBarrier2KHR({
-                    {}, {}, {},
-                    vku::unsafeProxy({
-                        // cubemapImage : General -> ShaderReadOnlyOptimal.
-                        vk::ImageMemoryBarrier2 {
-                            vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageRead | vk::AccessFlagBits2::eShaderStorageWrite,
-                            vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderSampledRead,
-                            vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
-                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                            cubemapImage, vku::fullSubresourceRange(),
-                        },
-                        // prefilteredmapImage: Undefined -> ShaderReadOnlyOptimal.
-                        vk::ImageMemoryBarrier2 {
-                            {}, {},
-                            vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageWrite,
-                            {}, vk::ImageLayout::eGeneral, 
-                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                            prefilteredmapImage, vku::fullSubresourceRange(),
-                        },
-                    }),
-                });
+                std::optional<vk::MemoryBarrier2> memoryBarrier;
+                boost::container::static_vector<vk::ImageMemoryBarrier2, 2> imageMemoryBarriers {
+                    // prefilteredmapImage: Undefined -> ShaderReadOnlyOptimal.
+                    vk::ImageMemoryBarrier2 {
+                        {}, {},
+                        vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageWrite,
+                        {}, vk::ImageLayout::eGeneral,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        prefilteredmapImage, vku::fullSubresourceRange(),
+                    },
+                };
+
+                if (gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+                    memoryBarrier.emplace(
+                        vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageRead | vk::AccessFlagBits2::eShaderStorageWrite,
+                        vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderSampledRead);
+                }
+                else {
+                    // cubemapImage : General -> ShaderReadOnlyOptimal.
+                    imageMemoryBarriers.push_back({
+                        vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageRead | vk::AccessFlagBits2::eShaderStorageWrite,
+                        vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderSampledRead,
+                        vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        cubemapImage, vku::fullSubresourceRange(),
+                    });
+                }
+
+                cb.pipelineBarrier2KHR({ {}, vku::unsafeProxy(to_range(memoryBarrier)), {}, imageMemoryBarriers });
 
                 // Generate prefiltered map.
                 prefilteredmapComputer.recordCommands(cb);
@@ -1466,37 +1510,39 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 // Reduce spherical harmonic coefficients.
                 sphericalHarmonicCoefficientComputer.recordCommands(cb);
 
-                cb.pipelineBarrier2KHR({
-                    {}, {},
-                    vku::unsafeProxy(vk::BufferMemoryBarrier2 {
-                        vk::PipelineStageFlagBits2::eCopy, vk::AccessFlagBits2::eTransferWrite,
-                        vk::PipelineStageFlagBits2::eAllCommands, {},
-                        gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-                        sphericalHarmonicsBuffer, 0, vk::WholeSize,
-                    }),
-                    vku::unsafeProxy({
-                        vk::ImageMemoryBarrier2 {
-                            vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderSampledRead,
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+                    cb.pipelineBarrier2KHR({
+                        {}, {},
+                        vku::unsafeProxy(vk::BufferMemoryBarrier2 {
+                            vk::PipelineStageFlagBits2::eCopy, vk::AccessFlagBits2::eTransferWrite,
                             vk::PipelineStageFlagBits2::eAllCommands, {},
-                            {}, {},
                             gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-                            cubemapImage, vku::fullSubresourceRange(),
-                        },
-                        vk::ImageMemoryBarrier2 {
-                            vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageWrite,
-                            vk::PipelineStageFlagBits2::eAllCommands, {},
-                            vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
-                            gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
-                            prefilteredmapImage, vku::fullSubresourceRange(),
-                        },
-                    }),
-                });
+                            sphericalHarmonicsBuffer, 0, vk::WholeSize,
+                        }),
+                        vku::unsafeProxy({
+                            vk::ImageMemoryBarrier2 {
+                                vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderSampledRead,
+                                vk::PipelineStageFlagBits2::eAllCommands, {},
+                                {}, {},
+                                gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+                                cubemapImage, vku::fullSubresourceRange(),
+                            },
+                            vk::ImageMemoryBarrier2 {
+                                vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageWrite,
+                                vk::PipelineStageFlagBits2::eAllCommands, {},
+                                vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+                                gpu.queueFamilies.compute, gpu.queueFamilies.graphicsPresent,
+                                prefilteredmapImage, vku::fullSubresourceRange(),
+                            },
+                        }),
+                    });
+                }
             }, visit_as<vk::CommandPool>(computeCommandPool), gpu.queues.compute }),
         std::forward_as_tuple(
             // Acquire resources' queue family ownership from compute to graphicsPresent (if necessary), and create tone
             // mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=cubemapImage).
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
-                if (gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership && gpu.queueFamilies.compute != gpu.queueFamilies.graphicsPresent) {
                     cb.pipelineBarrier2KHR({
                         {}, {},
                         vku::unsafeProxy(vk::BufferMemoryBarrier2 {
@@ -1535,7 +1581,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 cb.pushDescriptorSetKHR(
                     vk::PipelineBindPoint::eGraphics,
                     *cubemapToneMappingRenderer.pipelineLayout,
-                    0, vulkan::CubemapToneMappingRenderer::DescriptorSetLayout::getWriteOne<0>({ {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal }));
+                    0, vulkan::CubemapToneMappingRenderer::DescriptorSetLayout::getWriteOne<0>({ {}, *cubemapImageArrayView, gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal) }));
                 cb.setViewport(0, vku::unsafeProxy(vku::toViewport(vku::toExtent2D(toneMappedCubemapImage.extent))));
                 cb.setScissor(0, vku::unsafeProxy(vk::Rect2D { { 0, 0 }, vku::toExtent2D(toneMappedCubemapImage.extent) }));
                 cb.draw(3, 1, 0, 0);
@@ -1581,7 +1627,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     const vk::DescriptorSet imGuiEqmapImageDescriptorSet = ImGui_ImplVulkan_AddTexture(
         *reducedEqmapSampler,
         *reducedEqmapImageView,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        gpu.workaround.noImageLayoutAndQueueFamilyOwnership ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     vk::raii::ImageView toneMappedCubemapImageView { gpu.device, toneMappedCubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
     skyboxResources.emplace(
         std::move(reducedEqmapImage),
@@ -1600,8 +1646,8 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     // Update the related descriptor sets.
     gpu.device.updateDescriptorSets({
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-        sharedData.skyboxDescriptorSet.getWriteOne<0>({ {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal) }),
+        sharedData.skyboxDescriptorSet.getWriteOne<0>({ {}, *skyboxResources->cubemapImageView, gpu.workaround.generalOr(vk::ImageLayout::eShaderReadOnlyOptimal) }),
     }, {});
 
     // Update AppState.
@@ -1639,13 +1685,13 @@ void vk_gltf_viewer::MainApp::recordSwapchainImageLayoutTransitionCommands(vk::C
         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
         {}, {}, {},
         swapchainImages
-        | std::views::transform([](vk::Image swapchainImage) {
-            return vk::ImageMemoryBarrier {
-                {}, {},
-                {}, vk::ImageLayout::ePresentSrcKHR,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                swapchainImage, vku::fullSubresourceRange(),
-            };
-        })
-        | std::ranges::to<std::vector>());
+            | std::views::transform([](vk::Image swapchainImage) {
+                return vk::ImageMemoryBarrier {
+                    {}, {},
+                    {}, vk::ImageLayout::ePresentSrcKHR,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    swapchainImage, vku::fullSubresourceRange(),
+                };
+            })
+            | std::ranges::to<std::vector>());
 }

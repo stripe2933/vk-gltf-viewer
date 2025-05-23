@@ -33,7 +33,7 @@ namespace vk_gltf_viewer::vulkan::texture {
          */
         vk::raii::Sampler sampler;
 
-        explicit Fallback(const vulkan::Gpu &gpu LIFETIMEBOUND)
+        explicit Fallback(const Gpu &gpu LIFETIMEBOUND)
             : image { gpu.allocator, vk::ImageCreateInfo {
                 {},
                 vk::ImageType::e2D,
@@ -57,29 +57,32 @@ namespace vk_gltf_viewer::vulkan::texture {
             // Clear image as white.
             const vk::raii::CommandPool commandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
             const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-            vku::executeSingleCommand(*gpu.device, *commandPool, gpu.queues.graphicsPresent, [this](vk::CommandBuffer cb) {
+            vku::executeSingleCommand(*gpu.device, *commandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
                 cb.pipelineBarrier(
                     vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
                     {}, {}, {},
                     vk::ImageMemoryBarrier {
                         {}, vk::AccessFlagBits::eTransferWrite,
-                        {}, vk::ImageLayout::eTransferDstOptimal,
+                        {}, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal),
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                         image, vku::fullSubresourceRange(),
                     });
                 cb.clearColorImage(
-                    image, vk::ImageLayout::eTransferDstOptimal,
+                    image, gpu.workaround.generalOr(vk::ImageLayout::eTransferDstOptimal),
                     vk::ClearColorValue { 1.f, 1.f, 1.f, 1.f },
                     vku::fullSubresourceRange());
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        vk::AccessFlagBits::eTransferWrite, {},
-                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        image, vku::fullSubresourceRange(),
-                    });
+
+                if (!gpu.workaround.noImageLayoutAndQueueFamilyOwnership) {
+                    cb.pipelineBarrier(
+                        vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+                        {}, {}, {},
+                        vk::ImageMemoryBarrier {
+                            vk::AccessFlagBits::eTransferWrite, {},
+                            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                            image, vku::fullSubresourceRange(),
+                        });
+                }
             }, *fence);
             // Wait for the command to be executed.
             std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling

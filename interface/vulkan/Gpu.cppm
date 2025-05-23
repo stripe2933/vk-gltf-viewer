@@ -49,6 +49,19 @@ namespace vk_gltf_viewer::vulkan {
              * Reported in MoltenVK.
              */
             bool depthStencilResolveDifferentFormat;
+
+            /**
+             * @brief <tt>true</tt> if driver does not consider image layout (therefore using <tt>vk::ImageLayout::eGeneral</tt>
+             * is always preferred) and queue family ownership transfer, <tt>false</tt> otherwise.
+             *
+             * NVIDIA Vulkan driver and MoltenVK have advantages for don't doing image layout transition during pipeline
+             * barrier and queue family ownership transfer, as they are actually no-op in the driver side.
+             */
+            bool noImageLayoutAndQueueFamilyOwnership = false;
+
+            [[nodiscard]] vk::ImageLayout generalOr(vk::ImageLayout layout) const noexcept {
+                return noImageLayoutAndQueueFamilyOwnership ? vk::ImageLayout::eGeneral : layout;
+            }
         };
 
         vk::raii::PhysicalDevice physicalDevice;

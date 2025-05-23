@@ -23,10 +23,18 @@ namespace ibl {
     export class SphericalHarmonicCoefficientComputer {
     public:
         struct SpecializationConstants {
-            std::uint32_t subgroupSize = 32;
+            std::uint32_t subgroupSize;
         };
 
         struct Config {
+            /**
+             * @brief Use <tt>vk::ImageLayout::eGeneral</tt> layout for input cubemap image during sampling.
+             *
+             * If this is <tt>false</tt>, the input cubemap image layout will be supposed to
+             * <tt>vk::ImageLayout::eShaderReadOnlyOptimal</tt> during compute shader dispatch.
+             */
+            bool useGeneralImageLayout;
+
             std::uint32_t sampleMipLevel;
             SpecializationConstants specializationConstants;
         };
@@ -137,7 +145,7 @@ namespace ibl {
             computeCommandBuffer.pushDescriptorSetKHR(
                 vk::PipelineBindPoint::eCompute, *imageToBufferPipelineLayout,
                 0, {
-                    decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteOne<0>({ {}, cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+                    decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteOne<0>({ {}, cubemapImageView, config.useGeneralImageLayout ? vk::ImageLayout::eGeneral : vk::ImageLayout::eShaderReadOnlyOptimal }),
                     decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteOne<1>({ reductionBuffer, 0, sizeof(float[27]) * square(dispatchCountXY) }),
                 }, *d);
             computeCommandBuffer.dispatch(dispatchCountXY, dispatchCountXY, 1, *d);

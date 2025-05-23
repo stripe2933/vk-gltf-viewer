@@ -92,13 +92,21 @@ vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::Surface
 
     // Some vendor-specific workarounds.
     switch (props2.properties.vendorID) {
+        case 0x10DE: // NVIDIA
+            workaround.noImageLayoutAndQueueFamilyOwnership = true;
+            break;
         case 0x8086: // Intel
             workaround.attachmentLessRenderPass = true;
             break;
-        case 0x106bb: // MoltenVK
+        case 0x106B: // MoltenVK
             workaround.attachmentLessRenderPass = true;
             workaround.depthStencilResolveDifferentFormat = true;
+            workaround.noImageLayoutAndQueueFamilyOwnership = true;
             break;
+    }
+
+    if (workaround.noImageLayoutAndQueueFamilyOwnership) {
+        supportAttachmentFeedbackLoopLayout = false;
     }
 }
 
