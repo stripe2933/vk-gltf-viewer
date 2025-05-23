@@ -69,6 +69,8 @@ jobs:
         run: |
           mono `vcpkg fetch nuget | tail -n 1` sources add -Source "${{ env.FEED_URL }}" -Name GitHubPackages -UserName "stripe2933" -Password "${{ secrets.GH_PACKAGES_TOKEN }}"
           mono `vcpkg fetch nuget | tail -n 1` setapikey "${{ secrets.GH_PACKAGES_TOKEN }}" -Source "${{ env.FEED_URL }}"
+        # It is reported that ubuntu-24.04-arm fails when executing "vcpkg fetch nuget". Can be workarounded by continuing the error.
+        continue-on-error: true
 
       - name: Configure
         run: |
