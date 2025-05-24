@@ -25,6 +25,14 @@ namespace vk_gltf_viewer::control {
         struct NodeSelectionChanged { };
         struct HoverNodeFromGui { std::size_t nodeIndex; };
         struct NodeLocalTransformChanged { std::size_t nodeIndex; };
+
+        /**
+         * @brief Unlike <tt>NodeLocalTransformChanged</tt> struct, the transformation of the node indexed by
+         * <tt>nodeIndex</tt> is not affected to its descendants' world transforms; only the immediate descendants local
+         * transforms will be changed to match their original world transform.
+         */
+        struct NodeWorldTransformChanged { std::size_t nodeIndex; };
+
         struct MaterialPropertyChanged {
             enum Property {
                 AlphaCutoff,
@@ -77,6 +85,7 @@ namespace vk_gltf_viewer::control {
         task::NodeSelectionChanged,
         task::HoverNodeFromGui,
         task::NodeLocalTransformChanged,
+        task::NodeWorldTransformChanged,
         task::MaterialPropertyChanged,
         task::SelectMaterialVariants,
         task::MorphTargetWeightChanged>;

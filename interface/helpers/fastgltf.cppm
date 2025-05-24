@@ -7,6 +7,7 @@ import :helpers.optional;
 import :helpers.type_map;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
+#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define DEFINE_FORMATTER(Type) \
     export template <> \
     struct std::formatter<Type> : formatter<string_view> { \
@@ -152,6 +153,30 @@ namespace fastgltf {
     export
     [[nodiscard]] math::fmat4x4 toMatrix(const TRS &trs, const math::fmat4x4 &matrix = math::fmat4x4 { 1.f }) noexcept {
         return scale(rotate(translate(matrix, trs.translation), trs.rotation), trs.scale);
+    }
+
+    /**
+     * @brief Invoke \p f with non-const reference of \p node's 4x4 local transform matrix.
+     *
+     * If <tt>node.transform</tt> is:
+     * - <tt>fastgltf::math::fmat4x4</tt>, \p f is directly invoked with the matrix.
+     * - <tt>fastgltf::TRS</tt>, it is first converted to 4x4 matrix, \p f invoked, then restored to <tt>fastgltf::TRS</tt> when changed.
+     *
+     * @param node Node whose transform will be used.
+     * @param f Function to invoke.
+     */
+    export template <std::invocable<math::fmat4x4&> F>
+    void updateTransform(Node &node, F &&f) noexcept(std::is_nothrow_invocable_v<F, math::fmat4x4&>) {
+        visit(visitor {
+            [&](TRS &trs) {
+                math::fmat4x4 matrix = toMatrix(trs);
+                std::invoke(FWD(f), matrix);
+                decomposeTransformMatrix(matrix, trs.scale, trs.rotation, trs.translation);
+            },
+            [&](math::fmat4x4 &matrix) {
+                std::invoke(FWD(f), matrix);
+            },
+        }, node.transform);
     }
 
     /**
@@ -439,6 +464,35 @@ namespace math {
         });
         return lhs;
     }
+
+    // fastgltf::math::affineInverse is not exported in fastgltf module, but MSVC pretends it to be.
+    // TODO: remove the workaround when fixed.
+#ifndef _MSC_VER
+    /**
+     * @brief Get inverse of \p m, assuming it is Affine.
+     *
+     * The statement "a matrix is Affine" means the matrix can be obtained by applying a finite count of translation,
+     * rotation or scale transformation to the identity matrix.
+     *
+     * Since glTF mandates a node's local transformation matrix to be Affine, so does its world transformation matrix,
+     * this function can be used for get their inverse matrices with relatively cheap cost.
+     *
+     * @tparam T Matrix type.
+     * @param m Affine matrix.
+     * @return Inverse of \p m.
+     */
+    export template <typename T>
+    [[nodiscard]] constexpr mat<T, 4, 4> affineInverse(const mat<T, 4, 4> &m) noexcept {
+        const mat<T, 3, 3> inv = inverse(mat<T, 3, 3> { m });
+        const vec<T, 3> l = -inv * vec<T, 3> { m.col(3) };
+        return mat<T, 4, 4> {
+            vec<T, 4> { inv.col(0).x(), inv.col(0).y(), inv.col(0).z(), 0 },
+            vec<T, 4> { inv.col(1).x(), inv.col(1).y(), inv.col(1).z(), 0 },
+            vec<T, 4> { inv.col(2).x(), inv.col(2).y(), inv.col(2).z(), 0 },
+            vec<T, 4> { l.x(), l.y(), l.z(), 1 },
+        };
+    }
+#endif
 }
 }
 

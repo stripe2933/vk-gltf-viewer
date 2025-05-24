@@ -213,9 +213,8 @@ void vk_gltf_viewer::MainApp::run() {
             }
             imguiTaskCollector.background(appState.canSelectSkyboxBackground, appState.background);
             imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline);
-            if (gltf && gltf->selectedNodes.size() == 1) {
-                const std::size_t selectedNodeIndex = *gltf->selectedNodes.begin();
-                imguiTaskCollector.imguizmo(appState.camera, gltf->asset, selectedNodeIndex, gltf->nodeWorldTransforms[selectedNodeIndex], appState.imGuizmoOperation, gltf->animations, *gltf->animationEnabled);
+            if (gltf) {
+                imguiTaskCollector.imguizmo(appState.camera, gltf->asset, gltf->selectedNodes, gltf->nodeWorldTransforms, appState.imGuizmoOperation, gltf->animations, *gltf->animationEnabled);
             }
             else {
                 imguiTaskCollector.imguizmo(appState.camera);
@@ -259,7 +258,7 @@ void vk_gltf_viewer::MainApp::run() {
                 [this](const control::task::WindowKey &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureKeyboard) return;
 
-                    if (task.action == GLFW_PRESS && gltf && gltf->selectedNodes.size() == 1) {
+                    if (task.action == GLFW_PRESS && gltf && !gltf->selectedNodes.empty()) {
                         switch (task.key) {
                             case GLFW_KEY_T:
                                 appState.imGuizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
@@ -432,6 +431,19 @@ void vk_gltf_viewer::MainApp::run() {
                 [&](const control::task::NodeLocalTransformChanged &task) {
                     transformedNodes.push_back(task.nodeIndex);
                 },
+                [&](const control::task::NodeWorldTransformChanged &task) {
+                    auto updateNodeTransformTask = [this, nodeIndex = task.nodeIndex](vulkan::Frame &frame) {
+                        if (frame.gltfAsset->instancedNodeWorldTransformBuffer) {
+                            frame.gltfAsset->instancedNodeWorldTransformBuffer->update(
+                                nodeIndex, gltf->nodeWorldTransforms[nodeIndex], gltf->assetExternalBuffers);
+                        }
+                        frame.gltfAsset->nodeBuffer.update(nodeIndex, gltf->nodeWorldTransforms[nodeIndex]);
+                    };
+                    updateNodeTransformTask(frame);
+                    deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
+
+                    gltf->sceneMiniball.invalidate();
+                },
                 [&](const control::task::MaterialPropertyChanged &task) {
                     const fastgltf::Material &changedMaterial = gltf->asset.materials[task.materialIndex];
                     switch (task.property) {
@@ -590,30 +602,28 @@ void vk_gltf_viewer::MainApp::run() {
                 }
                 const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(gltf->asset.nodes[nodeIndex], baseMatrix);
 
-                // Update the current and its descendant nodes' world transforms for both host and GPU side data.
-                gltf->nodeWorldTransforms.update(nodeIndex, nodeWorldTransform);
+                // Update current and descendants world transforms and mark them as visited.
+                gltf::algorithm::traverseNode(gltf->asset, nodeIndex, [&](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) noexcept {
+                    // If node is already visited, its descendants must be visited too. Continuing traversal is redundant.
+                    if (visited[nodeIndex]) {
+                        return false;
+                    }
+
+                    gltf->nodeWorldTransforms[nodeIndex] = worldTransform;
+                    visited[nodeIndex] = true;
+                    return true;
+                }, nodeWorldTransform);
+
+                // Update GPU side world transform data.
                 auto updateNodeTransformTask = [this, nodeIndex](vulkan::Frame &frame) {
                     if (frame.gltfAsset->instancedNodeWorldTransformBuffer) {
-                        frame.gltfAsset->instancedNodeWorldTransformBuffer->update(
+                        frame.gltfAsset->instancedNodeWorldTransformBuffer->updateHierarchical(
                             nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
                     }
-                    frame.gltfAsset->nodeBuffer.update(nodeIndex, gltf->nodeWorldTransforms);
+                    frame.gltfAsset->nodeBuffer.updateHierarchical(nodeIndex, gltf->nodeWorldTransforms);
                 };
                 updateNodeTransformTask(frame);
                 deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
-
-                // Mark current and its descendant nodes as visited.
-                gltf::algorithm::traverseNode(gltf->asset, nodeIndex, [&](std::size_t nodeIndex) noexcept {
-                    if (visited[nodeIndex]) {
-                        // If node is already visited, its descendants must be visited too. Therefore, continuing traversal
-                        // is unnecessary.
-                        return false;
-                    }
-                    else {
-                        visited[nodeIndex] = true;
-                        return true;
-                    }
-                });
             }
 
             gltf->sceneMiniball.invalidate();
