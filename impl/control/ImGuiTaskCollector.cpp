@@ -1348,8 +1348,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
     fastgltf::Asset &asset,
+    std::span<const gltf::Animation> animations,
     const std::vector<bool> &animationEnabled,
-    const gltf::NodeAnimationUsages &nodeAnimationUsages,
     std::unordered_set<std::size_t> &selectedNodeIndices
 ) {
     if (ImGui::Begin("Node Inspector")) {
@@ -1365,12 +1365,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
             bool isTransformUsedInAnimation = false;
             Flags<gltf::NodeAnimationUsage> nodeAnimationUsage{};
-            for (const auto &[animationIndex, usage] : nodeAnimationUsages[selectedNodeIndex]) {
-                if (usage | (gltf::NodeAnimationUsage::Translation | gltf::NodeAnimationUsage::Rotation | gltf::NodeAnimationUsage::Scale)) {
+            for (const auto &[animationIndex, animation] : animations | ranges::views::enumerate) {
+                if (animation.nodeUsages[selectedNodeIndex] | (gltf::NodeAnimationUsage::Translation | gltf::NodeAnimationUsage::Rotation | gltf::NodeAnimationUsage::Scale)) {
                     isTransformUsedInAnimation = true;
                 }
                 if (animationEnabled[animationIndex]) {
-                    nodeAnimationUsage |= usage;
+                    nodeAnimationUsage |= animation.nodeUsages[selectedNodeIndex];
                 }
             }
 
@@ -1744,11 +1744,26 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
     fastgltf::Asset &asset,
     std::size_t selectedNodeIndex,
     const fastgltf::math::fmat4x4 &selectedNodeWorldTransform,
-    ImGuizmo::OPERATION operation
+    ImGuizmo::OPERATION operation,
+    std::span<const gltf::Animation> animations,
+    const std::vector<bool> &animationEnabled
 ) {
     // Set ImGuizmo rect.
     ImGuizmo::BeginFrame();
     ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
+
+    auto enabledAnimations = animationEnabled
+        | ranges::views::enumerate
+        | std::views::filter(LIFT(get<1>)) // Filter by value.
+        | std::views::keys // Retrieve indices.
+        | std::views::transform(LIFT(animations.operator[])); // Get animation by index.
+
+    const bool enableGizmo = std::ranges::none_of(enabledAnimations, [&](const gltf::Animation &animation) {
+        return (operation == ImGuizmo::OPERATION::TRANSLATE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Translation)) ||
+            (operation == ImGuizmo::OPERATION::ROTATE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Rotation)) ||
+            (operation == ImGuizmo::OPERATION::SCALE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Scale));
+    });
+    ImGuizmo::Enable(enableGizmo);
 
     fastgltf::math::fmat4x4 newWorldTransform = selectedNodeWorldTransform;
     if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
