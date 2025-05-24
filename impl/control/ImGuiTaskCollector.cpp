@@ -1743,8 +1743,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Camera &camera) {
 void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
     Camera &camera,
     fastgltf::Asset &asset,
-    std::size_t selectedNodeIndex,
-    const fastgltf::math::fmat4x4 &selectedNodeWorldTransform,
+    const std::unordered_set<std::size_t> &selectedNodes,
+    std::span<fastgltf::math::fmat4x4> nodeWorldTransforms,
     ImGuizmo::OPERATION operation,
     std::span<const gltf::Animation> animations,
     const std::vector<bool> &animationEnabled
@@ -1759,39 +1759,99 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
         | std::views::keys // Retrieve indices.
         | std::views::transform(LIFT(animations.operator[])); // Get animation by index.
 
-    const bool enableGizmo = std::ranges::none_of(enabledAnimations, [&](const gltf::Animation &animation) {
-        return (operation == ImGuizmo::OPERATION::TRANSLATE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Translation)) ||
-            (operation == ImGuizmo::OPERATION::ROTATE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Rotation)) ||
-            (operation == ImGuizmo::OPERATION::SCALE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Scale));
-    });
-    ImGuizmo::Enable(enableGizmo);
+    if (selectedNodes.size() == 1) {
+        const std::size_t selectedNodeIndex = *selectedNodes.begin();
+        fastgltf::math::fmat4x4 newWorldTransform = nodeWorldTransforms[selectedNodeIndex];
 
-    fastgltf::math::fmat4x4 newWorldTransform = selectedNodeWorldTransform;
-    if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
-        constexpr auto affineInverse = [](const fastgltf::math::fmat4x4 &m) noexcept {
-            const fastgltf::math::fmat3x3 inv = inverse(fastgltf::math::fmat3x3 { m });
-            const fastgltf::math::fvec3 l = -inv * fastgltf::math::fvec3 { m.col(3) };
-            return fastgltf::math::fmat4x4 {
-                fastgltf::math::fvec4 { inv.col(0).x(), inv.col(0).y(), inv.col(0).z(), 0.f },
-                fastgltf::math::fvec4 { inv.col(1).x(), inv.col(1).y(), inv.col(1).z(), 0.f },
-                fastgltf::math::fvec4 { inv.col(2).x(), inv.col(2).y(), inv.col(2).z(), 0.f },
-                fastgltf::math::fvec4 { l.x(), l.y(), l.z(), 1.f },
-            };
-        };
-        const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(selectedNodeWorldTransform) * newWorldTransform;
+        const bool enableGizmo = std::ranges::none_of(enabledAnimations, [&](const gltf::Animation &animation) {
+            return (operation == ImGuizmo::OPERATION::TRANSLATE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Translation)) ||
+                (operation == ImGuizmo::OPERATION::ROTATE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Rotation)) ||
+                (operation == ImGuizmo::OPERATION::SCALE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Scale));
+        });
+        ImGuizmo::Enable(enableGizmo);
 
-        visit(fastgltf::visitor {
-            [&](fastgltf::math::fmat4x4 &transformMatrix) {
+        if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
+            const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(nodeWorldTransforms[selectedNodeIndex]) * newWorldTransform;
+
+            updateTransform(asset.nodes[selectedNodeIndex], [&](fastgltf::math::fmat4x4 &transformMatrix) {
                 transformMatrix = transformMatrix * deltaMatrix;
-            },
-            [&](fastgltf::TRS &trs) {
-                fastgltf::math::fmat4x4 transformMatrix = toMatrix(trs);
-                transformMatrix = transformMatrix * deltaMatrix;
-                decomposeTransformMatrix(transformMatrix, trs.scale, trs.rotation, trs.translation);
-            },
-        }, asset.nodes[selectedNodeIndex].transform);
+            });
 
-        tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
+            tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
+        }
+    }
+    else if (selectedNodes.size() >= 2) {
+        static std::optional<fastgltf::math::fmat4x4> retainedPivotTransformMatrix;
+        if (!retainedPivotTransformMatrix) {
+            // Create a virtual pivot at the center among the selected nodes.
+            fastgltf::math::fvec3 pivot{};
+            for (std::size_t nodeIndex : selectedNodes) {
+                pivot += fastgltf::math::fvec3 { nodeWorldTransforms[nodeIndex].col(3) };
+            }
+            pivot *= 1.f / selectedNodes.size();
+
+            retainedPivotTransformMatrix.emplace(
+                fastgltf::math::fvec4 { 1.f, 0.f, 0.f, 0.f },
+                fastgltf::math::fvec4 { 0.f, 1.f, 0.f, 0.f },
+                fastgltf::math::fvec4 { 0.f, 0.f, 1.f, 0.f },
+                fastgltf::math::fvec4 { pivot.x(), pivot.y(), pivot.z(), 1.f });
+        }
+
+        bool enableGizmo = true;
+        for (const gltf::Animation &animation : enabledAnimations) {
+            for (std::size_t nodeIndex : selectedNodes) {
+                if ((operation == ImGuizmo::OPERATION::TRANSLATE && (animation.nodeUsages[nodeIndex] & gltf::NodeAnimationUsage::Translation)) ||
+                    (operation == ImGuizmo::OPERATION::ROTATE && (animation.nodeUsages[nodeIndex] & gltf::NodeAnimationUsage::Rotation)) ||
+                    (operation == ImGuizmo::OPERATION::SCALE && (animation.nodeUsages[nodeIndex] & gltf::NodeAnimationUsage::Scale))) {
+                    enableGizmo = false;
+                    break;
+                }
+            }
+        }
+        ImGuizmo::Enable(enableGizmo);
+
+        if (fastgltf::math::fmat4x4 deltaMatrix;
+            Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data())) {
+            for (std::size_t nodeIndex : selectedNodes) {
+                const fastgltf::math::fmat4x4 inverseOldWorldTransform = affineInverse(nodeWorldTransforms[nodeIndex]);
+
+                // Update node's world transform by pre-multiplying the delta matrix.
+                nodeWorldTransforms[nodeIndex] = deltaMatrix * nodeWorldTransforms[nodeIndex];
+
+                // Update node's local transform to match the world transform.
+                updateTransform(asset.nodes[nodeIndex], [&](fastgltf::math::fmat4x4 &localTransform) {
+                    // newWorldTransform = oldParentWorldTransform * newLocalTransform
+                    //                   = oldParentWorldTransform * (oldLocalTransform * localTransformDelta)
+                    //                   = oldWorldTransform * localTransformDelta
+                    // Therefore,
+                    //     localTransformDelta = oldWorldTransform^-1 * newWorldTransform, and
+                    //     newLocalTransform = oldLocalTransform * oldWorldTransform^-1 * newWorldTransform
+                    localTransform = localTransform * inverseOldWorldTransform * nodeWorldTransforms[nodeIndex];
+                });
+
+                // The updated node's immediate descendants local transforms also have to be updated to match their
+                // original world transforms.
+                const fastgltf::math::fmat4x4 inverseNewWorldTransform = affineInverse(nodeWorldTransforms[nodeIndex]);
+                for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
+                    // If the currently processing child is also in the selection, its world transform is changed,
+                    // therefore must be processed in the next execution of outer for-loop.
+                    if (selectedNodes.contains(childNodeIndex)) {
+                        continue;
+                    }
+
+                    updateTransform(asset.nodes[childNodeIndex], [&](fastgltf::math::fmat4x4 &localTransform) {
+                        // newWorldTransform = parentWorldTransform * newLocalTransform = oldWorldTransform.
+                        // Therefore, newLocalTransform = parentWorldTransform^-1 * oldWorldTransform
+                        localTransform = inverseNewWorldTransform * nodeWorldTransforms[childNodeIndex];
+                    });
+                }
+
+                tasks.emplace(std::in_place_type<task::NodeWorldTransformChanged>, nodeIndex);
+            }
+        }
+        else if (!ImGuizmo::IsUsing()) {
+            retainedPivotTransformMatrix.reset();
+        }
     }
 
     constexpr ImVec2 size { 64.f, 64.f };
