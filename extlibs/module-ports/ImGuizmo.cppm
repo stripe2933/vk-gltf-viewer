@@ -9,6 +9,7 @@ export import imgui;
 
 namespace ImGuizmo {
     export using ImGuizmo::BeginFrame;
+    export using ImGuizmo::Enable;
     export using ImGuizmo::OPERATION;
     export using ImGuizmo::Manipulate;
     export using ImGuizmo::MODE;

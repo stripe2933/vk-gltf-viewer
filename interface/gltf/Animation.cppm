@@ -5,7 +5,9 @@ module;
 export module vk_gltf_viewer:gltf.Animation;
 
 import std;
+export import cstring_view;
 export import fastgltf;
+export import :helpers.enums.Flags;
 import :helpers.fastgltf;
 import :helpers.ranges;
 
@@ -31,6 +33,38 @@ template <typename T>
 }
 
 namespace vk_gltf_viewer::gltf {
+    export enum class NodeAnimationUsage : std::uint8_t {
+        Translation = 1, /// Node translation is used by an animation.
+        Rotation = 2,    /// Node rotation is used by an animation.
+        Scale = 4,       /// Node scale is used by an animation.
+        Weights = 8,     /// Node target weight is used by an animation.
+    };
+
+    [[nodiscard]] constexpr NodeAnimationUsage convert(fastgltf::AnimationPath path) noexcept {
+        switch (path) {
+            case fastgltf::AnimationPath::Translation:
+                return NodeAnimationUsage::Translation;
+            case fastgltf::AnimationPath::Rotation:
+                return NodeAnimationUsage::Rotation;
+            case fastgltf::AnimationPath::Scale:
+                return NodeAnimationUsage::Scale;
+            case fastgltf::AnimationPath::Weights:
+                return NodeAnimationUsage::Weights;
+        }
+        std::unreachable();
+    }
+
+    export
+    [[nodiscard]] constexpr cpp_util::cstring_view to_string(NodeAnimationUsage usage) noexcept {
+        switch (usage) {
+            case NodeAnimationUsage::Translation: return "Translation";
+            case NodeAnimationUsage::Rotation: return "Rotation";
+            case NodeAnimationUsage::Scale: return "Scale";
+            case NodeAnimationUsage::Weights: return "Weights";
+        }
+        std::unreachable();
+    }
+
     export class Animation {
         std::reference_wrapper<fastgltf::Asset> asset;
         std::reference_wrapper<const fastgltf::Animation> animation;
@@ -41,6 +75,8 @@ namespace vk_gltf_viewer::gltf {
         std::unordered_map<std::size_t, std::vector<float>> inputAccessorData;
 
     public:
+		std::vector<Flags<NodeAnimationUsage>> nodeUsages;
+
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         Animation(
             fastgltf::Asset &asset LIFETIMEBOUND,
@@ -54,6 +90,13 @@ namespace vk_gltf_viewer::gltf {
                     fastgltf::copyFromAccessor<float>(asset, inputAccessor, it->second.data(), adapter);
                 }
             }
+
+        	nodeUsages.resize(asset.nodes.size());
+        	for (const fastgltf::AnimationChannel &channel : animation.channels) {
+        		if (channel.nodeIndex) {
+        			nodeUsages[*channel.nodeIndex] |= convert(channel.path);
+        		}
+        	}
         }
 
         /**
@@ -217,3 +260,20 @@ namespace vk_gltf_viewer::gltf {
 		}
     };
 }
+
+export template <>
+struct std::formatter<vk_gltf_viewer::gltf::NodeAnimationUsage> : formatter<std::string_view> {
+    auto format(vk_gltf_viewer::gltf::NodeAnimationUsage usage, auto &ctx) const {
+        return formatter<std::string_view>::format(to_string(usage), ctx);
+    }
+};
+
+export template <>
+struct FlagTraits<vk_gltf_viewer::gltf::NodeAnimationUsage> {
+    static constexpr bool isBitmask = true;
+    static constexpr Flags<vk_gltf_viewer::gltf::NodeAnimationUsage> allFlags
+        = vk_gltf_viewer::gltf::NodeAnimationUsage::Translation
+        | vk_gltf_viewer::gltf::NodeAnimationUsage::Rotation
+        | vk_gltf_viewer::gltf::NodeAnimationUsage::Scale
+        | vk_gltf_viewer::gltf::NodeAnimationUsage::Weights;
+};

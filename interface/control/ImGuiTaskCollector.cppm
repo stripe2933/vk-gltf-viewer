@@ -10,7 +10,7 @@ import imgui.internal;
 export import ImGuizmo;
 export import :AppState;
 export import :control.Task;
-export import :gltf.NodeAnimationUsages;
+export import :gltf.Animation;
 export import :gltf.StateCachedNodeVisibilityStructure;
 export import :gltf.TextureUsages;
 export import :helpers.full_optional;
@@ -31,12 +31,12 @@ namespace vk_gltf_viewer::control {
         void materialEditor(fastgltf::Asset &asset, const imgui::ColorSpaceAndUsageCorrectedTextures &imGuiTextures);
         void materialVariants(const fastgltf::Asset &asset);
         void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, gltf::StateCachedNodeVisibilityStructure &nodeVisibilities, const std::optional<std::size_t> &hoveringNodeIndex, std::unordered_set<std::size_t> &selectedNodeIndices);
-        void nodeInspector(fastgltf::Asset &asset, const std::vector<bool> &animationEnabled, const gltf::NodeAnimationUsages &nodeAnimationUsages, std::unordered_set<std::size_t> &selectedNodeIndices);
+        void nodeInspector(fastgltf::Asset &asset, std::span<const gltf::Animation> animations, const std::vector<bool> &animationEnabled, std::unordered_set<std::size_t> &selectedNodeIndices);
         void background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureID eqmapTextureImGuiDescriptorSet);
         void inputControl(Camera &camera, bool& automaticNearFarPlaneAdjustment, bool &useFrustumCulling, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline);
         void imguizmo(Camera &camera);
-        void imguizmo(Camera &camera, fastgltf::Asset &asset, std::size_t selectedNodeIndex, const fastgltf::math::fmat4x4 &selectedNodeWorldTransform, ImGuizmo::OPERATION operation);
+        void imguizmo(Camera &camera, fastgltf::Asset &asset, std::size_t selectedNodeIndex, const fastgltf::math::fmat4x4 &selectedNodeWorldTransform, ImGuizmo::OPERATION operation, std::span<const gltf::Animation> animations, const std::vector<bool> &animationEnabled);
 
     private:
         std::queue<Task> &tasks;

@@ -202,7 +202,7 @@ void vk_gltf_viewer::MainApp::run() {
                     imguiTaskCollector.materialVariants(gltf->asset);
                 }
                 imguiTaskCollector.sceneHierarchy(gltf->asset, gltf->sceneIndex, gltf->nodeVisibilities, gltf->hoveringNode, gltf->selectedNodes);
-                imguiTaskCollector.nodeInspector(gltf->asset, *gltf->animationEnabled, gltf->nodeAnimationUsages, gltf->selectedNodes);
+                imguiTaskCollector.nodeInspector(gltf->asset, gltf->animations, *gltf->animationEnabled, gltf->selectedNodes);
 
                 if (!gltf->asset.animations.empty()) {
                     imguiTaskCollector.animations(gltf->asset, gltf->animationEnabled);
@@ -215,7 +215,7 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline);
             if (gltf && gltf->selectedNodes.size() == 1) {
                 const std::size_t selectedNodeIndex = *gltf->selectedNodes.begin();
-                imguiTaskCollector.imguizmo(appState.camera, gltf->asset, selectedNodeIndex, gltf->nodeWorldTransforms[selectedNodeIndex], appState.imGuizmoOperation);
+                imguiTaskCollector.imguizmo(appState.camera, gltf->asset, selectedNodeIndex, gltf->nodeWorldTransforms[selectedNodeIndex], appState.imGuizmoOperation, gltf->animations, *gltf->animationEnabled);
             }
             else {
                 imguiTaskCollector.imguizmo(appState.camera);
@@ -882,7 +882,6 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
         return gltf::Animation { asset, animation, assetExternalBuffers };
     }) }
     , animationEnabled { std::make_shared<std::vector<bool>>(asset.animations.size(), false) }
-    , nodeAnimationUsages { asset }
     , sceneIndex { asset.defaultScene.value_or(0) }
     , nodeWorldTransforms { asset, asset.scenes[sceneIndex] }
     , sceneInverseHierarchy { std::make_shared<gltf::ds::SceneInverseHierarchy>(asset, asset.scenes[sceneIndex]) }
