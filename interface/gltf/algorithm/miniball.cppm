@@ -45,6 +45,9 @@ namespace vk_gltf_viewer::gltf::algorithm {
             const fastgltf::Node &node = asset.nodes[nodeIndex];
             const fastgltf::math::fmat4x4 &worldTransform = nodeWorldTransforms[nodeIndex];
 
+            // Currently bounding box calculation is performed for both skinned and non-skinned meshes. The result of
+            // the former is not exact, completely ignore it will likely lead to a wrong bounding volume.
+            // TODO: use skinned mesh bounding volume calculation if available.
             if (node.meshIndex) {
                 const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
                 const auto collectTransformedBoundingBoxPoints = [&](const fastgltf::math::fmat4x4 &worldTransform) {

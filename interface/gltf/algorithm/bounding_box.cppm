@@ -18,6 +18,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
      * @param node Node that owns \p primitive.
      * @param asset Asset that owns \p node.
      * @return Array of (min, max) of the bounding box.
+     * @note Skinned meshes are not supported, as the bounding box of skinned meshes cannot be determined by the primitive's POSITION accessor min/max values.
      */
     export template <std::floating_point T>
     [[nodiscard]] std::array<fastgltf::math::vec<T, 3>, 2> getBoundingBoxMinMax(
@@ -104,6 +105,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
      * @param node Node that owns \p primitive.
      * @param asset Asset that owns \p node.
      * @return Array of 8 corner points of the bounding box.
+     * @note Skinned meshes are not supported, as the bounding box of skinned meshes cannot be determined by the primitive's POSITION accessor min/max values.
      */
     export template <std::floating_point T>
     [[nodiscard]] std::array<fastgltf::math::vec<T, 3>, 8> getBoundingBoxCornerPoints(
