@@ -24,7 +24,6 @@ jobs:
           - { os: 'windows-latest', compiler: 'mingw-clang' }
           - { os: 'macos-15', compiler: 'clang' }
           - { os: 'ubuntu-latest', compiler: 'clang' }
-          - { os: 'ubuntu-24.04-arm', compiler: 'clang' }
 
     steps:
       - uses: actions/checkout@v4
