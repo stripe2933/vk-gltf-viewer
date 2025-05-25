@@ -8,6 +8,10 @@ on:
       - '!LICENSE.txt'
       - '!docs/**'
 
+env:
+  FEED_URL: "https://nuget.pkg.github.com/stripe2933/index.json"
+  VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/stripe2933/index.json,readwrite"
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -20,7 +24,6 @@ jobs:
           - { os: 'windows-latest', compiler: 'mingw-clang' }
           - { os: 'macos-15', compiler: 'clang' }
           - { os: 'ubuntu-latest', compiler: 'clang' }
-          - { os: 'ubuntu-24.04-arm', compiler: 'clang' }
 
     steps:
       - uses: actions/checkout@v4
@@ -38,11 +41,11 @@ jobs:
 
       - name: Install build dependencies (macOS)
         if: ${{ runner.os == 'macOS' }}
-        run: brew install llvm autoconf automake libtool nasm molten-vk
+        run: brew install llvm mono autoconf automake libtool nasm molten-vk
 
       - name: Install build dependencies (Linux)
         if: ${{ runner.os == 'Linux' }}
-        run: sudo apt-get install libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev
+        run: sudo apt-get install libc++-dev libc++abi-dev mono-devel xorg-dev libtool libltdl-dev
 
       - name: Enable Developer Command Prompt (Windows + MSVC)
         if: ${{ runner.os == 'Windows' && matrix.compiler == 'msvc' }}
@@ -51,6 +54,20 @@ jobs:
       - name: Workaround for CMake bug that cannot find __CMAKE::CXX23 target when using homebrew libc++ (macOS)
         if: ${{ runner.os == 'macOS' }}
         run: sed -i '' 's|libc++.modules.json|../../c++/libc++.modules.json|g' /opt/homebrew/opt/cmake/share/cmake/Modules/Compiler/Clang-CXX-CXXImportStd.cmake # https://gitlab.kitware.com/cmake/cmake/-/issues/25965#note_1523575
+
+      - name: Add NuGet sources (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          .$(vcpkg fetch nuget) sources add -Source "${{ env.FEED_URL }}" -Name GitHubPackages -UserName "stripe2933" -Password "${{ secrets.GH_PACKAGES_TOKEN }}"
+          .$(vcpkg fetch nuget) setapikey "${{ secrets.GH_PACKAGES_TOKEN }}" -Source "${{ env.FEED_URL }}"
+
+      - name: Add NuGet sources (macOS, Linux)
+        if: ${{ runner.os == 'macOS' || runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          mono `vcpkg fetch nuget | tail -n 1` sources add -Source "${{ env.FEED_URL }}" -Name GitHubPackages -UserName "stripe2933" -Password "${{ secrets.GH_PACKAGES_TOKEN }}"
+          mono `vcpkg fetch nuget | tail -n 1` setapikey "${{ secrets.GH_PACKAGES_TOKEN }}" -Source "${{ env.FEED_URL }}"
 
       - name: Configure
         run: |
