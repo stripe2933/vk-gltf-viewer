@@ -65,6 +65,9 @@ namespace vk_gltf_viewer::vulkan {
 
             std::vector<vk::DescriptorSet> imGuiTextureDescriptorSets;
 
+            std::uint32_t maxDrawIndirectCommandCount = 0;
+            std::uint32_t maxDrawIndexedIndirectCommandCount = 0;
+
             template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
             GltfAsset(
                 const fastgltf::Asset &asset,
@@ -106,6 +109,20 @@ namespace vk_gltf_viewer::vulkan {
                         return ImGui_ImplVulkan_AddTexture(descriptorInfo.sampler, descriptorInfo.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                     })
                     | std::ranges::to<std::vector>();
+
+                // Calculate maximum draw command counts.
+                for (const fastgltf::Node &node : asset.nodes) {
+                    if (!node.meshIndex) continue;
+
+                    for (const fastgltf::Primitive &primitive : asset.meshes[*node.meshIndex].primitives) {
+                        if (primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor) {
+                            ++maxDrawIndexedIndirectCommandCount;
+                        }
+                        else {
+                            ++maxDrawIndirectCommandCount;
+                        }
+                    }
+                }
             }
 
             ~GltfAsset() {

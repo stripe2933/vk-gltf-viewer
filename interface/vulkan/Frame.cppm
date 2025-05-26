@@ -18,7 +18,7 @@ import :vulkan.ag.MousePicking;
 import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.SceneOpaque;
 import :vulkan.ag.SceneWeightedBlended;
-import :vulkan.buffer.IndirectDrawCommands;
+import :vulkan.buffer.CombinedDrawIndirectCommands;
 import :vulkan.buffer.InstancedNodeWorldTransforms;
 import :vulkan.buffer.MorphTargetWeights;
 import :vulkan.buffer.Nodes;
@@ -75,6 +75,16 @@ namespace vk_gltf_viewer::vulkan {
             buffer::Nodes nodeBuffer;
             std::optional<buffer::MorphTargetWeights> morphTargetWeightBuffer;
 
+            // --------------------
+            // Draw indirect command buffers.
+            // --------------------
+
+            buffer::CombinedDrawIndirectCommands drawIndirectCommandBuffer;
+            buffer::CombinedDrawIndirectCommands mousePickingDrawIndirectCommandBuffer;
+            buffer::CombinedDrawIndirectCommands multiNodeMousePickingDrawIndirectCommandBuffer;
+            buffer::CombinedDrawIndirectCommands selectedNodeJumpFloodSeedDrawIndirectCommandBuffer;
+            buffer::CombinedDrawIndirectCommands hoveringNodeJumpFloodSeedDrawIndirectCommandBuffer;
+
             vku::MappedBuffer mousePickingResultBuffer;
 
             // Used only if GPU does not support variable descriptor count.
@@ -109,6 +119,11 @@ namespace vk_gltf_viewer::vulkan {
                 morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount.back() != 0, [&]() {
                     return buffer::MorphTargetWeights { asset, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gpu };
                 }) },
+                drawIndirectCommandBuffer { sharedData.gltfAsset->maxDrawIndirectCommandCount, sharedData.gltfAsset->maxDrawIndexedIndirectCommandCount, sharedData.gpu.allocator },
+                mousePickingDrawIndirectCommandBuffer { sharedData.gltfAsset->maxDrawIndirectCommandCount, sharedData.gltfAsset->maxDrawIndexedIndirectCommandCount, sharedData.gpu.allocator },
+                multiNodeMousePickingDrawIndirectCommandBuffer { sharedData.gltfAsset->maxDrawIndirectCommandCount, sharedData.gltfAsset->maxDrawIndexedIndirectCommandCount, sharedData.gpu.allocator },
+                selectedNodeJumpFloodSeedDrawIndirectCommandBuffer { sharedData.gltfAsset->maxDrawIndirectCommandCount, sharedData.gltfAsset->maxDrawIndexedIndirectCommandCount, sharedData.gpu.allocator },
+                hoveringNodeJumpFloodSeedDrawIndirectCommandBuffer { sharedData.gltfAsset->maxDrawIndirectCommandCount, sharedData.gltfAsset->maxDrawIndexedIndirectCommandCount, sharedData.gpu.allocator },
                 mousePickingResultBuffer { sharedData.gpu.allocator, vk::BufferCreateInfo {
                     {},
                     sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(asset.nodes.size(), 32U),
@@ -298,21 +313,21 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         struct RenderingNodes {
-            std::map<CommandSeparationCriteria, buffer::IndirectDrawCommands> indirectDrawCommandBuffers;
-            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> mousePickingIndirectDrawCommandBuffers;
-            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> multiNodeMousePickingIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteria, buffer::CombinedDrawIndirectCommands::Segment> segments;
+            std::map<CommandSeparationCriteriaNoShading, buffer::CombinedDrawIndirectCommands::Segment> mousePickingSegments;
+            std::map<CommandSeparationCriteriaNoShading, buffer::CombinedDrawIndirectCommands::Segment> multiNodeMousePickingSegments;
         };
 
         struct SelectedNodes {
             std::unordered_set<std::size_t> indices;
-            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteriaNoShading, buffer::CombinedDrawIndirectCommands::Segment> segments;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
 
         struct HoveringNode {
             std::size_t index;
-            std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
+            std::map<CommandSeparationCriteriaNoShading, buffer::CombinedDrawIndirectCommands::Segment> segments;
             glm::vec4 outlineColor;
             float outlineThickness;
         };
