@@ -29,6 +29,10 @@ public:
     constexpr full_optional& operator=(const full_optional&) noexcept(std::is_nothrow_copy_assignable_v<T>) = default;
     constexpr full_optional& operator=(full_optional&&) noexcept = default;
 
+    [[nodiscard]] constexpr operator bool() const noexcept {
+        return _active;
+    }
+
     [[nodiscard]] const T &operator*() const noexcept { return value; }
     [[nodiscard]] T &operator*() noexcept { return value; }
 

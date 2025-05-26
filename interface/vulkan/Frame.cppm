@@ -82,6 +82,7 @@ namespace vk_gltf_viewer::vulkan {
             buffer::CombinedDrawIndirectCommands drawIndirectCommandBuffer;
             buffer::CombinedDrawIndirectCommands mousePickingDrawIndirectCommandBuffer;
             buffer::CombinedDrawIndirectCommands multiNodeMousePickingDrawIndirectCommandBuffer;
+            buffer::CombinedDrawIndirectCommands boundingVolumeDrawIndirectCommandBuffer;
             buffer::CombinedDrawIndirectCommands selectedNodeJumpFloodSeedDrawIndirectCommandBuffer;
             buffer::CombinedDrawIndirectCommands hoveringNodeJumpFloodSeedDrawIndirectCommandBuffer;
 
@@ -122,6 +123,7 @@ namespace vk_gltf_viewer::vulkan {
                 drawIndirectCommandBuffer { sharedData.gltfAsset->maxDrawIndirectCommandCount, sharedData.gltfAsset->maxDrawIndexedIndirectCommandCount, sharedData.gpu.allocator },
                 mousePickingDrawIndirectCommandBuffer { sharedData.gltfAsset->maxDrawIndirectCommandCount, sharedData.gltfAsset->maxDrawIndexedIndirectCommandCount, sharedData.gpu.allocator },
                 multiNodeMousePickingDrawIndirectCommandBuffer { sharedData.gltfAsset->maxDrawIndirectCommandCount, sharedData.gltfAsset->maxDrawIndexedIndirectCommandCount, sharedData.gpu.allocator },
+                boundingVolumeDrawIndirectCommandBuffer { 0, sharedData.gltfAsset->maxDrawIndirectCommandCount + sharedData.gltfAsset->maxDrawIndexedIndirectCommandCount, sharedData.gpu.allocator },
                 selectedNodeJumpFloodSeedDrawIndirectCommandBuffer { sharedData.gltfAsset->maxDrawIndirectCommandCount, sharedData.gltfAsset->maxDrawIndexedIndirectCommandCount, sharedData.gpu.allocator },
                 hoveringNodeJumpFloodSeedDrawIndirectCommandBuffer { sharedData.gltfAsset->maxDrawIndirectCommandCount, sharedData.gltfAsset->maxDrawIndexedIndirectCommandCount, sharedData.gpu.allocator },
                 mousePickingResultBuffer { sharedData.gpu.allocator, vk::BufferCreateInfo {
@@ -316,6 +318,7 @@ namespace vk_gltf_viewer::vulkan {
             std::map<CommandSeparationCriteria, buffer::CombinedDrawIndirectCommands::Segment> segments;
             std::map<CommandSeparationCriteriaNoShading, buffer::CombinedDrawIndirectCommands::Segment> mousePickingSegments;
             std::map<CommandSeparationCriteriaNoShading, buffer::CombinedDrawIndirectCommands::Segment> multiNodeMousePickingSegments;
+            buffer::CombinedDrawIndirectCommands::Segment boundingVolumeSegment;
         };
 
         struct SelectedNodes {
@@ -381,6 +384,7 @@ namespace vk_gltf_viewer::vulkan {
         [[nodiscard]] bool recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSet, std::uint32_t initialSampleOffset) const;
         void recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const;
         bool recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const;
+        bool recordSceneBoundingVolumeDrawCommands(vk::CommandBuffer cb) const;
         void recordSkyboxDrawCommands(vk::CommandBuffer cb) const;
         void recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward) const;
         void recordImGuiCompositionCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex) const;

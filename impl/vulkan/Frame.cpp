@@ -8,6 +8,7 @@ import :vulkan.Frame;
 
 import std;
 import imgui.vulkan;
+import :global;
 import :gltf.algorithm.bounding_box;
 import :helpers.concepts;
 import :helpers.fastgltf;
@@ -503,13 +504,29 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             renderingNodes.emplace(
                 gltfAsset->drawIndirectCommandBuffer.fillCommands(task.gltf->asset, visibleNodeIndices, criteriaGetter, drawCommandGetter),
                 gltfAsset->mousePickingDrawIndirectCommandBuffer.fillCommands(task.gltf->asset, visibleNodeIndices, mousePickingCriteriaGetter, drawCommandGetter),
-                gltfAsset->multiNodeMousePickingDrawIndirectCommandBuffer.fillCommands(task.gltf->asset, visibleNodeIndices, multiNodeMousePickingCriteriaGetter, drawCommandGetter));
+                gltfAsset->multiNodeMousePickingDrawIndirectCommandBuffer.fillCommands(task.gltf->asset, visibleNodeIndices, multiNodeMousePickingCriteriaGetter, drawCommandGetter),
+                get<1>(gltfAsset->boundingVolumeDrawIndirectCommandBuffer.fillCommands(
+                    task.gltf->asset,
+                    visibleNodeIndices,
+                    [&](std::size_t nodeIndex, const fastgltf::Primitive &primitive) {
+                        const std::size_t primitiveIndex = task.gltf->orderedPrimitives.getIndex(primitive);
+
+                        // EXT_mesh_gpu_instancing support.
+                        std::uint32_t instanceCount = 1;
+                        if (const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex]; !node.instancingAttributes.empty()) {
+                            instanceCount = task.gltf->asset.accessors[node.instancingAttributes[0].accessorIndex].count;
+                        }
+
+                        const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveIndex);
+                        return vk::DrawIndexedIndirectCommand { 36, instanceCount, 0, 0, firstInstance };
+                    })));
         }
 
         if (task.frustum) {
             std::ranges::for_each(renderingNodes->segments | std::views::values, commandBufferCullingFunc);
             std::ranges::for_each(renderingNodes->mousePickingSegments | std::views::values, commandBufferCullingFunc);
             std::ranges::for_each(renderingNodes->multiNodeMousePickingSegments | std::views::values, commandBufferCullingFunc);
+            commandBufferCullingFunc(renderingNodes->boundingVolumeSegment);
         }
         else {
             for (buffer::CombinedDrawIndirectCommands::Segment &segment : renderingNodes->segments | std::views::values) {
@@ -521,6 +538,16 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             for (buffer::CombinedDrawIndirectCommands::Segment &segment : renderingNodes->multiNodeMousePickingSegments | std::views::values) {
                 segment.resetDrawCount();
             }
+            renderingNodes->boundingVolumeSegment.resetDrawCount();
+        }
+
+        // Adjust the draw count by bounding volume shape.
+        const auto commands = get<std::span<vk::DrawIndexedIndirectCommand>>(renderingNodes->boundingVolumeSegment.getDrawIndirectCommands());
+        if (global::nodeBoundingVolume.holds_alternative<global::BoundingBox>() && commands[0].indexCount == buffer::IcosphereIndices::indexCount) {
+            std::ranges::for_each(commands, [](auto &command) noexcept { command.indexCount = 36; });
+        }
+        else if (global::nodeBoundingVolume.holds_alternative<global::BoundingSphere>() && commands[0].indexCount == 36) {
+            std::ranges::for_each(commands, [](auto &command) noexcept { command.indexCount = buffer::IcosphereIndices::indexCount; });
         }
 
         if (task.gltf->selectedNodes) {
@@ -716,6 +743,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
         bool hasBlendMesh = false;
         if (renderingNodes) {
             hasBlendMesh = recordSceneBlendMeshDrawCommands(sceneRenderingCommandBuffer);
+            hasBlendMesh |= recordSceneBoundingVolumeDrawCommands(sceneRenderingCommandBuffer);
         }
 
         sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
@@ -1381,6 +1409,40 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
     }
 
     return hasBlendMesh;
+}
+
+bool vk_gltf_viewer::vulkan::Frame::recordSceneBoundingVolumeDrawCommands(vk::CommandBuffer cb) const {
+    return global::nodeBoundingVolume.visit(multilambda {
+        [](std::monostate) noexcept {
+            return false;
+        },
+        [&](const global::BoundingBox &boundingBox) {
+            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveBoundingBoxRenderer);
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveBoundingVolumePipelineLayout, 0, assetDescriptorSet, {});
+            sharedData.primitiveBoundingVolumePipelineLayout.pushConstants(cb, {
+                .projectionView = projectionViewMatrix,
+                .color = boundingBox.color,
+                .enlarge = boundingBox.enlarge,
+            });
+            cb.bindIndexBuffer(sharedData.cubeIndices, 0, vk::IndexType::eUint16);
+            renderingNodes->boundingVolumeSegment.recordDrawCommands(cb);
+
+            return true;
+        },
+        [&](const global::BoundingSphere &boundingSphere) {
+            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveBoundingSphereRenderer);
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveBoundingVolumePipelineLayout, 0, assetDescriptorSet, {});
+            sharedData.primitiveBoundingVolumePipelineLayout.pushConstants(cb, {
+                .projectionView = projectionViewMatrix,
+                .color = boundingSphere.color,
+                .enlarge = boundingSphere.enlarge,
+            });
+            cb.bindIndexBuffer(sharedData.icosphereIndices, 0, buffer::IcosphereIndices::indexType);
+            renderingNodes->boundingVolumeSegment.recordDrawCommands(cb);
+
+            return true;
+        },
+    });
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer cb) const {

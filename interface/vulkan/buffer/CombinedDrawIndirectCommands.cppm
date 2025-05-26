@@ -12,6 +12,9 @@ import :helpers.functional;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 
+template <typename T, typename... Ts>
+concept one_of = (std::same_as<T, Ts> || ...);
+
 namespace vk_gltf_viewer::vulkan::buffer {
     /**
      * @brief Vulkan buffer that has capacity of all needed <tt>vk::Draw(Indexed)IndirectCommand</tt> for rendering the
@@ -93,6 +96,51 @@ namespace vk_gltf_viewer::vulkan::buffer {
             }, vku::allocation::hostRead }
             , maxDrawIndirectCommandCount { maxDrawIndirectCommandCount }
             , maxDrawIndexedIndirectCommandCount { maxDrawIndexedIndirectCommandCount } { }
+
+        template <std::invocable<std::size_t, const fastgltf::Primitive&> DrawCommandGetter>
+        std::array<Segment, 2> fillCommands(
+            const fastgltf::Asset &asset,
+            std::ranges::input_range auto &&nodeIndices,
+            DrawCommandGetter &&drawCommandGetter
+        ) {
+            drawIndirectCommandCount = 0;
+            drawIndexedIndirectCommandCount = 0;
+
+            const vk::DeviceSize indexedDrawCommandBytesOffset = maxDrawIndirectCommandCount * sizeof(vk::DrawIndirectCommand);
+            auto drawIndirectCommandIt = asRange<vk::DrawIndirectCommand>().subspan(0, maxDrawIndirectCommandCount).begin();
+            auto drawIndexedIndirectCommandIt = asRange<vk::DrawIndexedIndirectCommand>(indexedDrawCommandBytesOffset).begin();
+
+            const multilambda pushDrawCommand {
+                [&](const vk::DrawIndirectCommand &command) {
+                    *drawIndirectCommandIt++ = command;
+                    ++drawIndirectCommandCount;
+                },
+                [&](const vk::DrawIndexedIndirectCommand &command) {
+                    *drawIndexedIndirectCommandIt++ = command;
+                    ++drawIndexedIndirectCommandCount;
+                },
+            };
+
+            for (std::size_t nodeIndex : FWD(nodeIndices)) {
+                const fastgltf::Node &node = asset.nodes[nodeIndex];
+                if (!node.meshIndex) continue;
+
+                const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+                for (const fastgltf::Primitive &primitive : mesh.primitives) {
+                    if constexpr (one_of<std::invoke_result_t<DrawCommandGetter, std::size_t, const fastgltf::Primitive&>, vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand>) {
+                        pushDrawCommand(std::invoke(drawCommandGetter, nodeIndex, primitive));
+                    }
+                    else {
+                        visit(pushDrawCommand, std::invoke(drawCommandGetter, nodeIndex, primitive));
+                    }
+                }
+            }
+
+            return {
+                Segment { *this, data, 0, false, drawIndirectCommandCount },
+                Segment { *this, data, indexedDrawCommandBytesOffset, true, drawIndexedIndirectCommandCount },
+            };
+        }
 
         template <
             std::invocable<const fastgltf::Primitive&> KeyGetter,

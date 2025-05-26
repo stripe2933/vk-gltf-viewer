@@ -14,6 +14,7 @@ import glm;
 import imgui.internal;
 import imgui.math;
 import ImGuizmo;
+import vk_gltf_viewer.imgui.full_variant;
 import :global;
 import :gltf.algorithm.traversal;
 import :helpers.concepts;
@@ -1717,6 +1718,21 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             ImGui::WithDisabled([&]() {
                 ImGui::DragFloat("Intensity", &global::bloomIntensity.raw(), 1e-2f, 0.f, 0.1f);
             }, !bloom);
+        }
+
+        if (ImGui::CollapsingHeader("Debugger")) {
+            ImGui::Combo("Bounding Volume", global::nodeBoundingVolume, std::array { "None", "Box", "Sphere" });
+            global::nodeBoundingVolume.visit(multilambda {
+                [](std::monostate) noexcept { },
+                [](global::BoundingBox &boundingBox) {
+                    ImGui::ColorEdit4("Color", value_ptr(boundingBox.color));
+                    ImGui::DragFloat("Enlarge", &boundingBox.enlarge, 1e-2f, 0.f, std::numeric_limits<float>::max());
+                },
+                [](global::BoundingSphere &boundingSphere) {
+                    ImGui::ColorEdit4("Color", value_ptr(boundingSphere.color));
+                    ImGui::DragFloat("Enlarge", &boundingSphere.enlarge, 1e-2f, 0.f, std::numeric_limits<float>::max());
+                },
+            });
         }
     }
     ImGui::End();

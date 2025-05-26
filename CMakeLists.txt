@@ -161,6 +161,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/fastgltf.cppm
         interface/helpers/formatter/ByteSize.cppm
         interface/helpers/full_optional.cppm
+        interface/helpers/full_variant.cppm
         interface/helpers/functional.cppm
         interface/helpers/imgui/mod.cppm
         interface/helpers/imgui/table.cppm
@@ -177,6 +178,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/type_variant.cppm
         interface/helpers/vulkan.cppm
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
+        interface/imgui/full_variant.cppm
         interface/imgui/UserData.cppm
         interface/MainApp.cppm
         interface/math/extended_arithmetic.cppm
@@ -200,6 +202,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/buffer/CombinedDrawIndirectCommands.cppm
         interface/vulkan/buffer/CombinedIndices.cppm
         interface/vulkan/buffer/CubeIndices.cppm
+        interface/vulkan/buffer/IcosphereIndices.cppm
         interface/vulkan/buffer/InstancedNodeWorldTransforms.cppm
         interface/vulkan/buffer/InverseBindMatrices.cppm
         interface/vulkan/buffer/Materials.cppm
@@ -228,11 +231,14 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/MultiNodeMousePickingRenderer.cppm
         interface/vulkan/pipeline/OutlineRenderer.cppm
         interface/vulkan/pipeline/PrimitiveRenderer.cppm
+        interface/vulkan/pipeline/PrimitiveBoundingBoxRenderer.cppm
+        interface/vulkan/pipeline/PrimitiveBoundingSphereRenderer.cppm
         interface/vulkan/pipeline/SkyboxRenderer.cppm
         interface/vulkan/pipeline/UnlitPrimitiveRenderer.cppm
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderer.cppm
         interface/vulkan/pipeline_layout/MultiNodeMousePicking.cppm
         interface/vulkan/pipeline_layout/Primitive.cppm
+        interface/vulkan/pipeline_layout/PrimitiveBoundingVolume.cppm
         interface/vulkan/pipeline_layout/PrimitiveNoShading.cppm
         interface/vulkan/render_pass/BloomApply.cppm
         interface/vulkan/render_pass/CubemapToneMapping.cppm
@@ -328,6 +334,9 @@ target_link_shaders(vk-gltf-viewer PRIVATE
         shaders/node_index.vert
         shaders/outline.frag
         shaders/screen_quad.vert
+        shaders/primitive_bounding_box.vert
+        shaders/primitive_bounding_sphere.vert
+        shaders/primitive_bounding_volume.frag
         shaders/skybox.frag
         shaders/skybox.vert
 )

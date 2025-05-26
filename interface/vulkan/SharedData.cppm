@@ -21,6 +21,7 @@ import :helpers.optional;
 import :helpers.ranges;
 export import :vulkan.ag.Swapchain;
 export import :vulkan.buffer.CombinedIndices;
+export import :vulkan.buffer.IcosphereIndices;
 export import :vulkan.buffer.InverseBindMatrices;
 export import :vulkan.buffer.Materials;
 export import :vulkan.buffer.PrimitiveAttributes;
@@ -37,6 +38,8 @@ export import :vulkan.pipeline.MultiNodeMousePickingRenderer;
 export import :vulkan.pipeline.NodeIndexRenderer;
 export import :vulkan.pipeline.OutlineRenderer;
 export import :vulkan.pipeline.PrimitiveRenderer;
+export import :vulkan.pipeline.PrimitiveBoundingBoxRenderer;
+export import :vulkan.pipeline.PrimitiveBoundingSphereRenderer;
 export import :vulkan.pipeline.SkyboxRenderer;
 export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
@@ -141,6 +144,7 @@ namespace vk_gltf_viewer::vulkan {
 
         // Buffer, image and image views and samplers.
         buffer::CubeIndices cubeIndices;
+        buffer::IcosphereIndices icosphereIndices;
         sampler::Cubemap cubemapSampler;
         sampler::BrdfLut brdfLutSampler;
 
@@ -159,6 +163,7 @@ namespace vk_gltf_viewer::vulkan {
         pl::MultiNodeMousePicking multiNodeMousePickingPipelineLayout;
         pl::Primitive primitivePipelineLayout;
         pl::PrimitiveNoShading primitiveNoShadingPipelineLayout;
+        pl::PrimitiveBoundingVolume primitiveBoundingVolumePipelineLayout;
 
         // --------------------
         // Pipelines.
@@ -169,6 +174,8 @@ namespace vk_gltf_viewer::vulkan {
         MousePickingRenderer mousePickingRenderer;
         OutlineRenderer outlineRenderer;
         SkyboxRenderer skyboxRenderer;
+        PrimitiveBoundingBoxRenderer primitiveBoundingBoxRenderer;
+        PrimitiveBoundingSphereRenderer primitiveBoundingSphereRenderer;
         WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
         InverseToneMappingRenderer inverseToneMappingRenderer;
         bloom::BloomComputer bloomComputer;
@@ -199,6 +206,7 @@ namespace vk_gltf_viewer::vulkan {
             , swapchainExtent { swapchainExtent }
             , swapchainImages { swapchainImages }
             , cubeIndices { gpu.allocator }
+            , icosphereIndices { gpu.allocator }
             , cubemapSampler { gpu.device }
             , brdfLutSampler { gpu.device }
             , assetDescriptorSetLayout { [&]() {
@@ -218,10 +226,13 @@ namespace vk_gltf_viewer::vulkan {
             , multiNodeMousePickingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) }
             , primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
             , primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout }
+            , primitiveBoundingVolumePipelineLayout { gpu.device, assetDescriptorSetLayout }
             , jumpFloodComputer { gpu.device }
             , mousePickingRenderer { gpu.device, mousePickingRenderPass }
             , outlineRenderer { gpu.device }
             , skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, sceneRenderPass, cubeIndices }
+            , primitiveBoundingBoxRenderer { gpu.device, primitiveBoundingVolumePipelineLayout, sceneRenderPass }
+            , primitiveBoundingSphereRenderer { gpu.device, primitiveBoundingVolumePipelineLayout, sceneRenderPass }
             , weightedBlendedCompositionRenderer { gpu, sceneRenderPass }
             , inverseToneMappingRenderer { gpu, sceneRenderPass }
             , bloomComputer { gpu.device, { .useAMDShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod } }
@@ -327,6 +338,10 @@ namespace vk_gltf_viewer::vulkan {
                 multiNodeMousePickingPipelineLayout = { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) };
                 primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
                 primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
+                primitiveBoundingVolumePipelineLayout = { gpu.device, assetDescriptorSetLayout };
+
+                primitiveBoundingBoxRenderer = { gpu.device, primitiveBoundingVolumePipelineLayout, sceneRenderPass };
+                primitiveBoundingSphereRenderer = { gpu.device, primitiveBoundingVolumePipelineLayout, sceneRenderPass };
             }
         }
 
