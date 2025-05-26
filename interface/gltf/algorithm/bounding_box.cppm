@@ -9,9 +9,65 @@ export import fastgltf;
 import :helpers.fastgltf;
 import :helpers.functional;
 
+template <std::floating_point T>
+[[nodiscard]] std::array<fastgltf::math::vec<T, 3>, 2> getMinMax(const fastgltf::Accessor &accessor) {
+    constexpr auto fetchVec3 = multilambda {
+        []<typename U>(const std::pmr::vector<U> &v) {
+            assert(v.size() == 3);
+            return fastgltf::math::vec<T, 3> { static_cast<T>(v[0]), static_cast<T>(v[1]), static_cast<T>(v[2]) };
+        },
+        [](const auto&) -> fastgltf::math::vec<T, 3> {
+            throw std::invalid_argument { "Accessor min/max is not number" };
+        },
+    };
+
+    fastgltf::math::vec<T, 3> min = visit(fetchVec3, accessor.min);
+    fastgltf::math::vec<T, 3> max = visit(fetchVec3, accessor.max);
+
+    if (accessor.normalized) {
+        switch (accessor.componentType) {
+            case fastgltf::ComponentType::Byte:
+                min = cwiseMax(min / 127, fastgltf::math::vec<T, 3>(-1));
+                max = cwiseMax(max / 127, fastgltf::math::vec<T, 3>(-1));
+                break;
+            case fastgltf::ComponentType::UnsignedByte:
+                min /= 255;
+                max /= 255;
+                break;
+            case fastgltf::ComponentType::Short:
+                min = cwiseMax(min / 32767, fastgltf::math::vec<T, 3>(-1));
+                max = cwiseMax(max / 32767, fastgltf::math::vec<T, 3>(-1));
+                break;
+            case fastgltf::ComponentType::UnsignedShort:
+                min /= 65535;
+                max /= 65535;
+                break;
+            default:
+                throw std::logic_error { "Normalized accessor must be either BYTE, UNSIGNED_BYTE, SHORT, or UNSIGNED_SHORT" };
+        }
+    }
+    return std::array { min, max };
+}
+
 namespace vk_gltf_viewer::gltf::algorithm {
     /**
      * @brief Get min/max points of \p primitive's bounding box.
+     *
+     * @tparam T Floating point type for calculate position.
+     * @param primtiive primitive to get the bounding box corner points.
+     * @param asset Asset that owns \p node.
+     * @return Array of (min, max) of the bounding box.
+     */
+    export template <std::floating_point T>
+    [[nodiscard]] std::array<fastgltf::math::vec<T, 3>, 2> getBoundingBoxMinMax(
+        const fastgltf::Primitive &primitive,
+        const fastgltf::Asset &asset
+    ) {
+        return getMinMax<T>(asset.accessors[primitive.findAttribute("POSITION")->accessorIndex]);
+    }
+
+    /**
+     * @brief Get min/max points of \p primitive's bounding box, taking into account the morph target weights.
      *
      * @tparam T Floating point type for calculate position.
      * @param primtiive primitive to get the bounding box corner points.
@@ -26,61 +82,20 @@ namespace vk_gltf_viewer::gltf::algorithm {
         const fastgltf::Node &node,
         const fastgltf::Asset &asset
     ) {
-        constexpr auto getAccessorMinMax = [](const fastgltf::Accessor &accessor) {
-            constexpr auto fetchVec3 = multilambda {
-                []<typename U>(const std::pmr::vector<U> &v) {
-                    assert(v.size() == 3);
-                    return fastgltf::math::vec<T, 3> { static_cast<T>(v[0]), static_cast<T>(v[1]), static_cast<T>(v[2]) };
-                },
-                [](const auto&) -> fastgltf::math::vec<T, 3> {
-                    throw std::invalid_argument { "Accessor min/max is not number" };
-                },
-            };
-
-            fastgltf::math::vec<T, 3> min = visit(fetchVec3, accessor.min);
-            fastgltf::math::vec<T, 3> max = visit(fetchVec3, accessor.max);
-
-            if (accessor.normalized) {
-                switch (accessor.componentType) {
-                case fastgltf::ComponentType::Byte:
-                    min = cwiseMax(min / 127, fastgltf::math::vec<T, 3>(-1));
-                    max = cwiseMax(max / 127, fastgltf::math::vec<T, 3>(-1));
-                    break;
-                case fastgltf::ComponentType::UnsignedByte:
-                    min /= 255;
-                    max /= 255;
-                    break;
-                case fastgltf::ComponentType::Short:
-                    min = cwiseMax(min / 32767, fastgltf::math::vec<T, 3>(-1));
-                    max = cwiseMax(max / 32767, fastgltf::math::vec<T, 3>(-1));
-                    break;
-                case fastgltf::ComponentType::UnsignedShort:
-                    min /= 65535;
-                    max /= 65535;
-                    break;
-                default:
-                    throw std::logic_error { "Normalized accessor must be either BYTE, UNSIGNED_BYTE, SHORT, or UNSIGNED_SHORT" };
-                }
-            }
-            return std::array { min, max };
-        };
-
-        const fastgltf::Accessor &accessor = asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];
-        std::array bound = getAccessorMinMax(accessor);
-
+        std::array<fastgltf::math::vec<T, 3>, 2> bound = getBoundingBoxMinMax<T>(primitive, asset);
         for (const auto &[weight, attributes] : std::views::zip(getTargetWeights(node, asset), primitive.targets)) {
             for (const auto &[attributeName, accessorIndex] : attributes) {
                 using namespace std::string_view_literals;
                 if (attributeName == "POSITION"sv) {
                     const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
-                    std::array offset = getAccessorMinMax(accessor);
+                    auto [offsetMin, offsetMax] = getMinMax<T>(accessor);
 
                     // TODO: is this code valid? Need investigation.
                     if (weight < 0) {
-                        std::swap(get<0>(offset), get<1>(offset));
+                        std::swap(offsetMin, offsetMax);
                     }
-                    get<0>(bound) += get<0>(offset) * weight;
-                    get<1>(bound) += get<1>(offset) * weight;
+                    get<0>(bound) += offsetMin * weight;
+                    get<1>(bound) += offsetMax * weight;
 
                     break;
                 }

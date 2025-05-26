@@ -7,6 +7,7 @@ export module vk_gltf_viewer:vulkan.buffer.Primitives;
 
 import std;
 export import fastgltf;
+import :gltf.algorithm.bounding_box;
 import :gltf.OrderedPrimitives;
 import :helpers.concepts;
 import :helpers.fastgltf;
@@ -22,14 +23,73 @@ import :vulkan.trait.PostTransferObject;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     export class Primitives : trait::PostTransferObject {
+        std::variant<vku::AllocatedBuffer, vku::MappedBuffer> buffer;
+        vk::DescriptorBufferInfo descriptorInfo;
+
     public:
         Primitives(
+            const fastgltf::Asset &asset,
             const gltf::OrderedPrimitives &orderedPrimitives,
             const PrimitiveAttributes &primitiveAttributes,
             const Gpu &gpu,
             StagingBufferStorage &stagingBufferStorage
         ) : PostTransferObject { stagingBufferStorage },
-            buffer { createBuffer(orderedPrimitives, primitiveAttributes, gpu.allocator) },
+            buffer { [&]() -> std::variant<vku::AllocatedBuffer, vku::MappedBuffer> {
+                vku::MappedBuffer buffer {
+                    gpu.allocator,
+                    std::from_range, orderedPrimitives | std::views::transform([&](const fastgltf::Primitive *pPrimitive) {
+                        const auto &accessors = primitiveAttributes.getAccessors(*pPrimitive);
+                        const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax<float>(*pPrimitive, asset);
+                        shader_type::Primitive result {
+                            .pPositionBuffer = accessors.positionAccessor.bufferAddress,
+                            .pTexcoordAttributeMappingInfoBuffer = accessors.texcoordAccessorBufferAddress,
+                            .pJointsAttributeMappingInfoBuffer = accessors.jointsAccessorBufferAddress,
+                            .pWeightsAttributeMappingInfoBuffer = accessors.weightsAccessorBufferAddress,
+                            .positionByteStride = accessors.positionAccessor.byteStride,
+                            .materialIndex = to_optional(pPrimitive->materialIndex)
+                                .transform([](auto index) { return static_cast<std::uint32_t>(index) + 1U; })
+                                .value_or(0U),
+                            .min = glm::make_vec3(min.data()),
+                            .max = glm::make_vec3(max.data()),
+                        };
+                        if (!accessors.positionMorphTargetAccessors.empty()) {
+                            result.pPositionMorphTargetAccessorBuffer = accessors.positionMorphTargetAccessorBufferAddress;
+                        }
+                        if (accessors.normalAccessor) {
+                            result.pNormalBuffer = accessors.normalAccessor->bufferAddress;
+                            result.normalByteStride = accessors.normalAccessor->byteStride;
+
+                            if (!accessors.normalMorphTargetAccessors.empty()) {
+                                result.pNormalMorphTargetAccessorBuffer = accessors.normalMorphTargetAccessorBufferAddress;
+                            }
+                        }
+                        if (accessors.tangentAccessor) {
+                            result.pTangentBuffer = accessors.tangentAccessor->bufferAddress;
+                            result.tangentByteStride = accessors.tangentAccessor->byteStride;
+
+                            if (!accessors.tangentMorphTargetAccessors.empty()) {
+                                result.pTangentMorphTargetAccessorBuffer = accessors.tangentMorphTargetAccessorBufferAddress;
+                            }
+                        }
+                        if (accessors.colorAccessor) {
+                            result.pColorBuffer = accessors.colorAccessor->bufferAddress;
+                            result.colorByteStride = accessors.colorAccessor->byteStride;
+                        }
+
+                        return result;
+                    }),
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+                };
+
+                // If staging doesn't have to be done, preserve the mapped state.
+                if (!StagingBufferStorage::needStaging(buffer)) {
+                    return std::variant<vku::AllocatedBuffer, vku::MappedBuffer> { std::in_place_type<vku::MappedBuffer>, std::move(buffer) };
+                }
+
+                vku::AllocatedBuffer unmappedBuffer = std::move(buffer).unmap();
+                stagingBufferStorage.stage(unmappedBuffer, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst);
+                return unmappedBuffer;
+            }() },
             descriptorInfo { visit_as<vk::Buffer>(buffer), 0, vk::WholeSize }{ }
 
         [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept {
@@ -61,68 +121,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     return true;
                 }
             }, buffer);
-        }
-
-    private:
-        std::variant<vku::AllocatedBuffer, vku::MappedBuffer> buffer;
-        vk::DescriptorBufferInfo descriptorInfo;
-
-        [[nodiscard]] std::variant<vku::AllocatedBuffer, vku::MappedBuffer> createBuffer(
-            const gltf::OrderedPrimitives &orderedPrimitives,
-            const PrimitiveAttributes &primitiveAttributes,
-            vma::Allocator allocator
-        ) const {
-            vku::MappedBuffer buffer {
-                allocator,
-                std::from_range, orderedPrimitives | std::views::transform([&](const fastgltf::Primitive *pPrimitive) {
-                    const auto &accessors = primitiveAttributes.getAccessors(*pPrimitive);
-                    shader_type::Primitive result {
-                        .pPositionBuffer = accessors.positionAccessor.bufferAddress,
-                        .pTexcoordAttributeMappingInfoBuffer = accessors.texcoordAccessorBufferAddress,
-                        .pJointsAttributeMappingInfoBuffer = accessors.jointsAccessorBufferAddress,
-                        .pWeightsAttributeMappingInfoBuffer = accessors.weightsAccessorBufferAddress,
-                        .positionByteStride = accessors.positionAccessor.byteStride,
-                        .materialIndex = to_optional(pPrimitive->materialIndex)
-                            .transform([](auto index) { return static_cast<std::uint32_t>(index) + 1U; })
-                            .value_or(0U),
-                    };
-                    if (!accessors.positionMorphTargetAccessors.empty()) {
-                        result.pPositionMorphTargetAccessorBuffer = accessors.positionMorphTargetAccessorBufferAddress;
-                    }
-                    if (accessors.normalAccessor) {
-                        result.pNormalBuffer = accessors.normalAccessor->bufferAddress;
-                        result.normalByteStride = accessors.normalAccessor->byteStride;
-
-                        if (!accessors.normalMorphTargetAccessors.empty()) {
-                            result.pNormalMorphTargetAccessorBuffer = accessors.normalMorphTargetAccessorBufferAddress;
-                        }
-                    }
-                    if (accessors.tangentAccessor) {
-                        result.pTangentBuffer = accessors.tangentAccessor->bufferAddress;
-                        result.tangentByteStride = accessors.tangentAccessor->byteStride;
-
-                        if (!accessors.tangentMorphTargetAccessors.empty()) {
-                            result.pTangentMorphTargetAccessorBuffer = accessors.tangentMorphTargetAccessorBufferAddress;
-                        }
-                    }
-                    if (accessors.colorAccessor) {
-                        result.pColorBuffer = accessors.colorAccessor->bufferAddress;
-                        result.colorByteStride = accessors.colorAccessor->byteStride;
-                    }
-
-                    return result;
-                }),
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
-            };
-
-            // If staging doesn't have to be done, preserve the mapped state.
-            if (!StagingBufferStorage::needStaging(buffer)) {
-                return std::variant<vku::AllocatedBuffer, vku::MappedBuffer> { std::in_place_type<vku::MappedBuffer>, std::move(buffer) };
-            }
-
-            vku::AllocatedBuffer unmappedBuffer = std::move(buffer).unmap();
-            stagingBufferStorage.get().stage(unmappedBuffer, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst);
-            return unmappedBuffer;
         }
     };
 }

@@ -84,7 +84,7 @@ namespace vk_gltf_viewer::vulkan {
                 materialBuffer { asset, gpu.allocator, stagingBufferStorage },
                 combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
                 primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
-                primitiveBuffer { orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
+                primitiveBuffer { asset, orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
                 skinJointIndexAndInverseBindMatrixBuffer { value_if(!asset.skins.empty(), [&]() {
                     return std::pair<buffer::SkinJointIndices, buffer::InverseBindMatrices> {
                         std::piecewise_construct,

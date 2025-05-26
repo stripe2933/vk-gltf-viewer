@@ -31,7 +31,7 @@ layout (location = 2) out VS_VARIADIC_OUT {
 } variadic_out;
 #endif
 
-layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
+layout (set = 0, binding = 0, std430) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
 layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {

@@ -5,6 +5,7 @@ module;
 export module vk_gltf_viewer:vulkan.shader_type.Primitive;
 
 import std;
+export import glm;
 export import vulkan_hpp;
 
 namespace vk_gltf_viewer::vulkan::shader_type {
@@ -24,10 +25,16 @@ namespace vk_gltf_viewer::vulkan::shader_type {
         std::uint8_t tangentByteStride;
         std::uint8_t colorByteStride;
         std::uint32_t materialIndex;
-        std::uint8_t _padding0_[8];
+        char _padding0[8];
+        glm::vec3 min;
+        char _padding1[4];
+        glm::vec3 max;
+        char _padding2[4];
     };
 
-    static_assert(sizeof(Primitive) == 96);
+    static_assert(sizeof(Primitive) == 128);
     static_assert(offsetof(Primitive, positionByteStride) == 80);
     static_assert(offsetof(Primitive, materialIndex) == 84);
+    static_assert(offsetof(Primitive, min) == 96);
+    static_assert(offsetof(Primitive, max) == 112);
 }
