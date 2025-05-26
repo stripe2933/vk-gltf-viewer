@@ -197,9 +197,9 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/attachment_group/SceneWeightedBlended.cppm
         interface/vulkan/attachment_group/ImGui.cppm
         interface/vulkan/buffer/mod.cppm
+        interface/vulkan/buffer/CombinedDrawIndirectCommands.cppm
         interface/vulkan/buffer/CombinedIndices.cppm
         interface/vulkan/buffer/CubeIndices.cppm
-        interface/vulkan/buffer/IndirectDrawCommands.cppm
         interface/vulkan/buffer/InstancedNodeWorldTransforms.cppm
         interface/vulkan/buffer/InverseBindMatrices.cppm
         interface/vulkan/buffer/Materials.cppm
