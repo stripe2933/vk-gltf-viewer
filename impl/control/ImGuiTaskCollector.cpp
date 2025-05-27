@@ -1734,6 +1734,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Camera &camera) {
     ImGuizmo::ViewManipulate(value_ptr(newView), camera.targetDistance, centerNodeRect.Max - size, size, background);
     if (newView != oldView) {
         const glm::mat4 inverseView = inverse(newView);
+        camera.up = inverseView[1];
         camera.position = inverseView[3];
         camera.direction = -inverseView[2];
     }
@@ -1800,6 +1801,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
     ImGuizmo::ViewManipulate(value_ptr(newView), camera.targetDistance, centerNodeRect.Max - size, size, background);
     if (newView != oldView) {
         const glm::mat4 inverseView = inverse(newView);
+        camera.up = inverseView[1];
         camera.position = inverseView[3];
         camera.direction = -inverseView[2];
     }
