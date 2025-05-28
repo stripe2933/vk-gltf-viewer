@@ -177,7 +177,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
 
             if (material.unlit || isPrimitivePointsOrLineWithoutNormal) {
                 result.pipeline = sharedData.getUnlitPrimitiveRenderer({
-                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                    .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
@@ -196,7 +196,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             }
             else {
                 result.pipeline = sharedData.getPrimitiveRenderer({
-                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                    .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .normalComponentType = accessors.normalAccessor.transform([](const shader_type::Accessor &accessor) {
                         return accessor.componentType;
@@ -240,7 +240,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         }
         else if (isPrimitivePointsOrLineWithoutNormal) {
             result.pipeline = sharedData.getUnlitPrimitiveRenderer({
-                .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .colorComponentCountAndType = accessors.colorAccessor.transform([](const auto &info) {
                     return std::pair { info.componentCount, info.componentType };
@@ -254,7 +254,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         }
         else {
             result.pipeline = sharedData.getPrimitiveRenderer({
-                .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                 // TANGENT, TEXCOORD_<i> and their corresponding morph targets are unnecessary as there is no texture.
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .normalComponentType = accessors.normalAccessor.transform([](const shader_type::Accessor &accessor) {
@@ -290,7 +290,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             const fastgltf::Material& material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskNodeIndexRenderer({
-                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                    .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
@@ -306,7 +306,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             }
             else {
                 result.pipeline = sharedData.getNodeIndexRenderer({
-                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                    .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                     .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
@@ -316,7 +316,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         }
         else {
             result.pipeline = sharedData.getNodeIndexRenderer({
-                .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
@@ -339,7 +339,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             const fastgltf::Material& material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskMultiNodeMousePickingRenderer({
-                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                    .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
@@ -355,7 +355,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             }
             else {
                 result.pipeline = sharedData.getMultiNodeMousePickingRenderer({
-                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                    .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                     .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
@@ -364,7 +364,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         }
         else {
             result.pipeline = sharedData.getMultiNodeMousePickingRenderer({
-                .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
@@ -387,7 +387,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskJumpFloodSeedRenderer({
-                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                    .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
                         return accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType;
@@ -403,7 +403,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             }
             else {
                 result.pipeline = sharedData.getJumpFloodSeedRenderer({
-                    .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                    .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                     .positionComponentType = accessors.positionAccessor.componentType,
                     .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                     .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
@@ -413,7 +413,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         }
         else {
             result.pipeline = sharedData.getJumpFloodSeedRenderer({
-                .topologyClass = getTopologyClass(getPrimitiveTopology(primitive.type)),
+                .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                 .positionComponentType = accessors.positionAccessor.componentType,
                 .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),

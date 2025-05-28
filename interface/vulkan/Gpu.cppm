@@ -71,6 +71,7 @@ namespace vk_gltf_viewer::vulkan {
         bool supportR8SrgbImageFormat;
         bool supportR8G8SrgbImageFormat;
         bool supportS8UintDepthStencilAttachment;
+        bool supportDynamicPrimitiveTopologyUnrestricted;
 
         Workaround workaround;
 
