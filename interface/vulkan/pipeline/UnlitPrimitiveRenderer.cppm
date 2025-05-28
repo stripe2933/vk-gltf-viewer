@@ -21,7 +21,7 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class UnlitPrimitiveRendererSpecialization {
     public:
-        TopologyClass topologyClass;
+        std::optional<TopologyClass> topologyClass;
         std::uint8_t positionComponentType;
         std::optional<std::uint8_t> baseColorTexcoordComponentType;
         std::optional<std::pair<std::uint8_t, std::uint8_t>> colorComponentCountAndType;
@@ -64,15 +64,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
             const vk::PipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo {
                 {},
-                [this]() {
-                    switch (topologyClass) {
-                        case TopologyClass::Point: return vk::PrimitiveTopology::ePointList;
-                        case TopologyClass::Line: return vk::PrimitiveTopology::eLineList;
-                        case TopologyClass::Triangle: return vk::PrimitiveTopology::eTriangleList;
-                        case TopologyClass::Patch: return vk::PrimitiveTopology::ePatchList;
-                    }
-                    std::unreachable();
-                }(),
+                topologyClass.transform(getRepresentativePrimitiveTopology).value_or(vk::PrimitiveTopology::eTriangleList),
             };
 
             switch (alphaMode) {

@@ -17,7 +17,7 @@ import :vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class MultiNodeMousePickingRendererSpecialization {
     public:
-        TopologyClass topologyClass;
+        std::optional<TopologyClass> topologyClass;
         std::uint8_t positionComponentType = 0;
         std::uint32_t positionMorphTargetWeightCount = 0;
         std::uint32_t skinAttributeCount = 0;
@@ -45,15 +45,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     *pipelineLayout, 0, gpu.workaround.attachmentLessRenderPass)
                     .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
                         {},
-                        [this]() {
-                            switch (topologyClass) {
-                                case TopologyClass::Point: return vk::PrimitiveTopology::ePointList;
-                                case TopologyClass::Line: return vk::PrimitiveTopology::eLineList;
-                                case TopologyClass::Triangle: return vk::PrimitiveTopology::eTriangleList;
-                                case TopologyClass::Patch: return vk::PrimitiveTopology::ePatchList;
-                            }
-                            std::unreachable();
-                        }(),
+                        topologyClass.transform(getRepresentativePrimitiveTopology).value_or(vk::PrimitiveTopology::eTriangleList),
                     }))
                     .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                         {},
@@ -93,7 +85,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
     export class MaskMultiNodeMousePickingRendererSpecialization {
     public:
-        TopologyClass topologyClass;
+        std::optional<TopologyClass> topologyClass;
         std::uint8_t positionComponentType;
         std::optional<std::uint8_t> baseColorTexcoordComponentType;
         std::optional<std::uint8_t> colorAlphaComponentType;
@@ -131,15 +123,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                     *pipelineLayout, 0, gpu.workaround.attachmentLessRenderPass)
                     .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
                         {},
-                        [this]() {
-                            switch (topologyClass) {
-                                case TopologyClass::Point: return vk::PrimitiveTopology::ePointList;
-                                case TopologyClass::Line: return vk::PrimitiveTopology::eLineList;
-                                case TopologyClass::Triangle: return vk::PrimitiveTopology::eTriangleList;
-                                case TopologyClass::Patch: return vk::PrimitiveTopology::ePatchList;
-                            }
-                            std::unreachable();
-                        }(),
+                        topologyClass.transform(getRepresentativePrimitiveTopology).value_or(vk::PrimitiveTopology::eTriangleList),
                     }))
                     .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                         {},
