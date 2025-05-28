@@ -147,7 +147,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/data_structure/NodeInstanceCountExclusiveScanWithCount.cppm
         interface/gltf/data_structure/SceneInverseHierarchy.cppm
         interface/gltf/data_structure/TargetWeightCountExclusiveScanWithCount.cppm
-        interface/gltf/NodeAnimationUsages.cppm
         interface/gltf/SceneNodeLevels.cppm
         interface/gltf/StateCachedNodeVisibilityStructure.cppm
         interface/gltf/NodeWorldTransforms.cppm

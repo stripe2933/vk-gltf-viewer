@@ -477,11 +477,17 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                     }
 
                     const std::uint16_t nodeIndex = command.firstInstance >> 16U;
+                    const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex];
+
+                    if (node.skinIndex) {
+                        // As primitive POSITION accessor's min/max values are not sufficient to determine the bounding
+                        // volume of a skinned mesh, frustum culling which relies on this must be disabled.
+                        return true;
+                    }
+
                     const std::uint16_t primitiveIndex = command.firstInstance & 0xFFFFU;
                     const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax<float>(
-                        *task.gltf->orderedPrimitives[primitiveIndex],
-                        task.gltf->asset.nodes[nodeIndex],
-                        task.gltf->asset);
+                        *task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
 
                     const fastgltf::math::fmat4x4 &nodeWorldTransform = task.gltf->nodeWorldTransforms[nodeIndex];
                     const fastgltf::math::fvec3 transformedMin { nodeWorldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };

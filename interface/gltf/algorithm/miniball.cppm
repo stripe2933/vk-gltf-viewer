@@ -35,7 +35,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
 #ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
         // See https://doc.cgal.org/latest/Bounding_volumes/index.html for the original code.
         using Traits = CGAL::Min_sphere_of_points_d_traits_3<CGAL::Simple_cartesian<float>, float>;
-        std::vector<Traits::Point> meshBoundingBoxPoints;
+        std::vector<Traits::Point> scenePoints;
 #else
         fastgltf::math::fvec3 min(std::numeric_limits<float>::max());
         fastgltf::math::fvec3 max(std::numeric_limits<float>::lowest());
@@ -43,40 +43,51 @@ namespace vk_gltf_viewer::gltf::algorithm {
 
         traverseScene(asset, scene, [&](std::size_t nodeIndex) {
             const fastgltf::Node &node = asset.nodes[nodeIndex];
-            if (!node.meshIndex) {
-                // Node without mesh is not considered for miniball calculation.
-                return;
-            }
+            const fastgltf::math::fmat4x4 &worldTransform = nodeWorldTransforms[nodeIndex];
 
-            const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
-            const auto collectTransformedBoundingBoxPoints = [&](const fastgltf::math::fmat4x4 &worldTransform) {
-                for (const fastgltf::Primitive &primitive : mesh.primitives) {
-                    for (const fastgltf::math::fvec3 &point : getBoundingBoxCornerPoints<float>(primitive, node, asset)) {
-                        const fastgltf::math::fvec3 transformedPoint { worldTransform * fastgltf::math::fvec4 { point.x(), point.y(), point.z(), 1.0 } };
+            // Currently bounding box calculation is performed for both skinned and non-skinned meshes. The result of
+            // the former is not exact, completely ignore it will likely lead to a wrong bounding volume.
+            // TODO: use skinned mesh bounding volume calculation if available.
+            if (node.meshIndex) {
+                const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
+                const auto collectTransformedBoundingBoxPoints = [&](const fastgltf::math::fmat4x4 &worldTransform) {
+                    for (const fastgltf::Primitive &primitive : mesh.primitives) {
+                        for (const fastgltf::math::fvec3 &point : getBoundingBoxCornerPoints<float>(primitive, node, asset)) {
+                            const fastgltf::math::fvec3 transformedPoint { worldTransform * fastgltf::math::fvec4 { point.x(), point.y(), point.z(), 1.0 } };
 
 #ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
-                        meshBoundingBoxPoints.emplace_back(transformedPoint.x(), transformedPoint.y(), transformedPoint.z());
+                            scenePoints.emplace_back(transformedPoint.x(), transformedPoint.y(), transformedPoint.z());
 #else
-                        min = cwiseMin(min, transformedPoint);
-                        max = cwiseMax(max, transformedPoint);
+                            min = cwiseMin(min, transformedPoint);
+                            max = cwiseMax(max, transformedPoint);
 #endif
+                        }
+                    }
+                };
+
+                if (node.instancingAttributes.empty()) {
+                    collectTransformedBoundingBoxPoints(worldTransform);
+                }
+                else {
+                    for (const fastgltf::math::fmat4x4 &instanceTransform : getInstanceTransforms(asset, nodeIndex, adapter)) {
+                        collectTransformedBoundingBoxPoints(worldTransform * instanceTransform);
                     }
                 }
-            };
-
-            const fastgltf::math::fmat4x4 &worldTransform = nodeWorldTransforms[nodeIndex];
-            if (node.instancingAttributes.empty()) {
-                collectTransformedBoundingBoxPoints(worldTransform);
             }
-            else {
-                for (const fastgltf::math::fmat4x4 &instanceTransform : getInstanceTransforms(asset, nodeIndex, adapter)) {
-                    collectTransformedBoundingBoxPoints(worldTransform * instanceTransform);
-                }
+
+            if (node.lightIndex || node.cameraIndex) {
+                const fastgltf::math::fvec3 position { worldTransform.col(3) };
+#ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
+                scenePoints.emplace_back(position.x(), position.y(), position.z());
+#else
+                min = cwiseMin(min, position);
+                max = cwiseMax(max, position);
+#endif
             }
         });
 
 #ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
-        CGAL::Min_sphere_of_spheres_d<Traits> ms { meshBoundingBoxPoints.begin(), meshBoundingBoxPoints.end() };
+        CGAL::Min_sphere_of_spheres_d<Traits> ms { scenePoints.begin(), scenePoints.end() };
 
         fastgltf::math::fvec3 center;
         std::copy(ms.center_cartesian_begin(), ms.center_cartesian_end(), center.data());

@@ -396,7 +396,7 @@ All shaders are located in the [shaders](/shaders) folder and will be automatica
 - [x] Animations.
 - [x] Skinning
 - [ ] Frustum culling
-  - [x] CPU frustum culling (Note: still experimental; unexpected popped in/out may happened.)
+  - [x] CPU frustum culling
   - [ ] GPU frustum culling
 - [ ] Occlusion culling
 - [ ] Reduce skybox memory usage with BC6H compressed cubemap.
