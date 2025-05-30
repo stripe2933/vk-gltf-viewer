@@ -153,9 +153,10 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                 return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
-            // By default, the default primitive doesn't have a material and therefore isn't unlit. Dynamic stencil
-            // reference state has to be used, and its reference value is 0.
-            .stencilReference = 0U,
+            // By default, the default primitive doesn't have a material and therefore isn't unlit.
+            // If per-fragment stencil export is disabled, dynamic stencil reference state has to be used, and its
+            // reference value is 0.
+            .stencilReference = value_if(!sharedData.gpu.supportShaderStencilExport, 0U),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
@@ -226,8 +227,12 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                     .occlusionTextureTransform = material.occlusionTexture && material.occlusionTexture->transform,
                     .emissiveTextureTransform = material.emissiveTexture && material.emissiveTexture->transform,
                     .alphaMode = material.alphaMode,
+                    .usePerFragmentEmissiveStencilExport = sharedData.gpu.supportShaderStencilExport,
                 });
-                result.stencilReference.emplace(material.emissiveStrength > 1.f ? 1U : 0U);
+
+                if (!sharedData.gpu.supportShaderStencilExport) {
+                    result.stencilReference.emplace(material.emissiveStrength > 1.f ? 1U : 0U);
+                }
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
@@ -263,6 +268,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                 .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
                 .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                .usePerFragmentEmissiveStencilExport = sharedData.gpu.supportShaderStencilExport,
             });
         }
         return result;

@@ -6,6 +6,9 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_scalar_block_layout : require
+#if EXT_SHADER_STENCIL_EXPORT == 1
+#extension GL_ARB_shader_stencil_export : require
+#endif
 
 #define FRAGMENT_SHADER
 #include "indexing.glsl"
@@ -63,7 +66,7 @@ layout (push_constant, std430) uniform PushConstant {
     vec3 viewPosition;
 } pc;
 
-#if ALPHA_MODE == 0 || ALPHA_MODE == 2
+#if (ALPHA_MODE == 0 || ALPHA_MODE == 2) && (EXT_SHADER_STENCIL_EXPORT == 0)
 layout (early_fragment_tests) in;
 #endif
 
@@ -92,6 +95,14 @@ vec3 diffuseIrradiance(vec3 normal){
 
 float geometricMean(vec2 v){
     return sqrt(v.x * v.y);
+}
+
+float trinaryMax(vec3 v) {
+    return max(max(v.x, v.y), v.z);
+}
+
+vec3 tonemap(vec3 color) {
+    return color / (1.0 + trinaryMax(color));
 }
 
 void writeOutput(vec4 color) {
@@ -194,6 +205,10 @@ void main(){
     emissive *= texture(textures[uint(MATERIAL.emissiveTextureIndex)], emissiveTexcoord).rgb;
 #endif
 
+#if EXT_SHADER_STENCIL_EXPORT == 1
+    gl_FragStencilRefARB = trinaryMax(emissive) > 1.0 ? 1 : 0;
+#endif
+
     vec3 V = normalize(pc.viewPosition - inPosition);
     float NdotV = dot(N, V);
     // If normal is not facing the camera, normal have to be flipped.
@@ -223,8 +238,5 @@ void main(){
 
     vec3 color = (kD * diffuse + specular) * occlusion + emissive;
 
-    // Tone mapping.
-    vec3 correctedColor = color / (1.0 + max(max(color.r, color.g), color.b));
-
-    writeOutput(vec4(correctedColor, baseColor.a));
+    writeOutput(vec4(tonemap(color), baseColor.a));
 }
