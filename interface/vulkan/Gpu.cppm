@@ -66,6 +66,7 @@ namespace vk_gltf_viewer::vulkan {
         std::uint32_t maxPerStageDescriptorUpdateAfterBindSamplers;
         bool supportShaderImageLoadStoreLod;
         bool supportShaderTrinaryMinMax;
+        bool supportShaderStencilExport;
         bool supportVariableDescriptorCount;
         bool supportR8SrgbImageFormat;
         bool supportR8G8SrgbImageFormat;

@@ -24,6 +24,7 @@ constexpr std::array optionalExtensions {
     vk::KHRIndexTypeUint8ExtensionName,
     vk::AMDShaderImageLoadStoreLodExtensionName,
     vk::EXTAttachmentFeedbackLoopLayoutExtensionName,
+    vk::EXTShaderStencilExportExtensionName,
 };
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
@@ -223,6 +224,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     supportShaderImageLoadStoreLod = availableExtensionNames.contains(vk::AMDShaderImageLoadStoreLodExtensionName);
     supportShaderTrinaryMinMax = availableExtensionNames.contains(vk::AMDShaderTrinaryMinmaxExtensionName);
     supportAttachmentFeedbackLoopLayout = availableExtensionNames.contains(vk::EXTAttachmentFeedbackLoopLayoutExtensionName);
+    supportShaderStencilExport = availableExtensionNames.contains(vk::EXTShaderStencilExportExtensionName);
 
     // Set optional features if available.
     const auto [_, vulkan12Features, indexTypeUint8Features] = physicalDevice.getFeatures2<

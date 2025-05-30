@@ -42,6 +42,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         bool occlusionTextureTransform = false;
         bool emissiveTextureTransform = false;
         fastgltf::AlphaMode alphaMode;
+        bool usePerFragmentEmissiveStencilExport = false;
 
         [[nodiscard]] bool operator==(const PrimitiveRendererSpecialization&) const noexcept = default;
 
@@ -103,13 +104,18 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         }))
                         .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                             {},
-                            vku::unsafeProxy({
-                                vk::DynamicState::eViewport,
-                                vk::DynamicState::eScissor,
-                                vk::DynamicState::ePrimitiveTopology,
-                                vk::DynamicState::eStencilReference,
-                                vk::DynamicState::eCullMode,
-                            }),
+                            vku::unsafeProxy([&]() {
+                                boost::container::static_vector<vk::DynamicState, 5> result {
+                                    vk::DynamicState::eViewport,
+                                    vk::DynamicState::eScissor,
+                                    vk::DynamicState::ePrimitiveTopology,
+                                    vk::DynamicState::eCullMode,
+                                };
+                                if (!usePerFragmentEmissiveStencilExport) {
+                                    result.push_back(vk::DynamicState::eStencilReference);
+                                }
+                                return result;
+                            }()),
                         }))
                         .setRenderPass(*sceneRenderPass)
                         .setSubpass(0)
@@ -134,13 +140,18 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         }))
                         .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                             {},
-                            vku::unsafeProxy({
-                                vk::DynamicState::eViewport,
-                                vk::DynamicState::eScissor,
-                                vk::DynamicState::ePrimitiveTopology,
-                                vk::DynamicState::eStencilReference,
-                                vk::DynamicState::eCullMode,
-                            }),
+                            vku::unsafeProxy([&]() {
+                                boost::container::static_vector<vk::DynamicState, 5> result {
+                                    vk::DynamicState::eViewport,
+                                    vk::DynamicState::eScissor,
+                                    vk::DynamicState::ePrimitiveTopology,
+                                    vk::DynamicState::eCullMode,
+                                };
+                                if (!usePerFragmentEmissiveStencilExport) {
+                                    result.push_back(vk::DynamicState::eStencilReference);
+                                }
+                                return result;
+                            }()),
                         }))
                         .setRenderPass(*sceneRenderPass)
                         .setSubpass(0)
@@ -188,12 +199,17 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
                         }))
                         .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                             {},
-                            vku::unsafeProxy({
-                                vk::DynamicState::eViewport,
-                                vk::DynamicState::eScissor,
-                                vk::DynamicState::ePrimitiveTopology,
-                                vk::DynamicState::eStencilReference,
-                            }),
+                            vku::unsafeProxy([&]() {
+                                boost::container::static_vector<vk::DynamicState, 4> result {
+                                    vk::DynamicState::eViewport,
+                                    vk::DynamicState::eScissor,
+                                    vk::DynamicState::ePrimitiveTopology,
+                                };
+                                if (!usePerFragmentEmissiveStencilExport) {
+                                    result.push_back(vk::DynamicState::eStencilReference);
+                                }
+                                return result;
+                            }()),
                         }))
                         .setRenderPass(*sceneRenderPass)
                         .setSubpass(1)
@@ -262,12 +278,13 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             return result;
         }
 
-        [[nodiscard]] std::array<int, 4> getFragmentShaderVariants() const noexcept {
+        [[nodiscard]] std::array<int, 5> getFragmentShaderVariants() const noexcept {
             return {
                 static_cast<int>(texcoordComponentTypes.size()),
                 colorComponentCountAndType.has_value(),
                 fragmentShaderGeneratedTBN,
                 static_cast<int>(alphaMode),
+                usePerFragmentEmissiveStencilExport,
             };
         }
 
