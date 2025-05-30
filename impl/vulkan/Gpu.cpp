@@ -24,7 +24,10 @@ constexpr std::array optionalExtensions {
     vk::KHRIndexTypeUint8ExtensionName,
     vk::AMDShaderImageLoadStoreLodExtensionName,
     vk::EXTAttachmentFeedbackLoopLayoutExtensionName,
+#if __APPLE__ != 1
+    // MoltenVK supports VK_EXT_shader_stencil_export extension, but it is not compatible with early fragments test.
     vk::EXTShaderStencilExportExtensionName,
+#endif
 };
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
@@ -224,7 +227,11 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     supportShaderImageLoadStoreLod = availableExtensionNames.contains(vk::AMDShaderImageLoadStoreLodExtensionName);
     supportShaderTrinaryMinMax = availableExtensionNames.contains(vk::AMDShaderTrinaryMinmaxExtensionName);
     supportAttachmentFeedbackLoopLayout = availableExtensionNames.contains(vk::EXTAttachmentFeedbackLoopLayoutExtensionName);
+#if __APPLE__
+    supportShaderStencilExport = false;
+#else
     supportShaderStencilExport = availableExtensionNames.contains(vk::EXTShaderStencilExportExtensionName);
+#endif
 
     // Set optional features if available.
     const auto [_, vulkan12Features, indexTypeUint8Features] = physicalDevice.getFeatures2<
