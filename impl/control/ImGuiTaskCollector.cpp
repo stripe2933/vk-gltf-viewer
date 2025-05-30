@@ -1659,7 +1659,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
     bool &automaticNearFarPlaneAdjustment,
     bool &useFrustumCulling,
     full_optional<AppState::Outline> &hoveringNodeOutline,
-    full_optional<AppState::Outline> &selectedNodeOutline
+    full_optional<AppState::Outline> &selectedNodeOutline,
+    bool canSelectBloomModePerFragment
 ) {
     if (ImGui::Begin("Input control")){
         if (ImGui::CollapsingHeader("Camera")) {
@@ -1709,13 +1710,47 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
         }
 
         if (ImGui::CollapsingHeader("Bloom")) {
-            bool bloom = global::bloomIntensity.has_value();
+            bool bloom = global::bloom.has_value();
             if (ImGui::Checkbox("Enable bloom", &bloom)) {
-                global::bloomIntensity.set_active(bloom);
+                global::bloom.set_active(bloom);
             }
 
             ImGui::WithDisabled([&]() {
-                ImGui::DragFloat("Intensity", &global::bloomIntensity.raw(), 1e-2f, 0.f, 0.1f);
+                const char* const previewValue = []() {
+                    switch (global::bloom.raw().mode) {
+                        case global::Bloom::Mode::PerMaterial: return "Per-Material";
+                        case global::Bloom::Mode::PerFragment: return "Per-Fragment";
+                    }
+                    std::unreachable();
+                }();
+                if (ImGui::BeginCombo("Mode", previewValue)) {
+                    if (ImGui::Selectable("Per-Material", global::bloom->mode == global::Bloom::Mode::PerMaterial) && global::bloom->mode != global::Bloom::Mode::PerMaterial) {
+                        global::bloom->mode = global::Bloom::Mode::PerMaterial;
+                        tasks.emplace(std::in_place_type<task::BloomModeChanged>);
+
+                        ImGui::SetItemDefaultFocus();
+                    }
+
+                    ImGui::WithDisabled([&]() {
+                        if (ImGui::Selectable("Per-Fragment", global::bloom->mode == global::Bloom::Mode::PerFragment) && global::bloom->mode != global::Bloom::Mode::PerFragment) {
+                            global::bloom->mode = global::Bloom::Mode::PerFragment;
+                            tasks.emplace(std::in_place_type<task::BloomModeChanged>);
+
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }, !canSelectBloomModePerFragment);
+                    ImGui::SameLine();
+                    if (canSelectBloomModePerFragment) {
+                        ImGui::HelperMarker("(!)", "Rendering performance may be significantly degraded.");
+                    }
+                    else {
+                        ImGui::HelperMarker("(?)", "Per-Fragment bloom mode is not supported in this device.");
+                    }
+
+                    ImGui::EndCombo();
+                }
+
+                ImGui::DragFloat("Intensity", &global::bloom.raw().intensity, 1e-2f, 0.f, 0.1f);
             }, !bloom);
         }
     }
