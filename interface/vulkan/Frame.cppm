@@ -175,8 +175,6 @@ namespace vk_gltf_viewer::vulkan {
              */
             std::optional<Gltf> gltf;
             std::optional<glm::vec3> solidBackground; // If this is nullopt, use SharedData::SkyboxDescriptorSet instead.
-
-            float bloomIntensity;
         };
 
         struct UpdateResult {
@@ -357,7 +355,6 @@ namespace vk_gltf_viewer::vulkan {
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
         std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
-        float bloomIntensity;
 
         [[nodiscard]] vk::raii::DescriptorPool createDescriptorPool() const;
 

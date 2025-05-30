@@ -64,6 +64,7 @@ namespace vk_gltf_viewer::control {
         };
         struct SelectMaterialVariants { std::size_t variantIndex; };
         struct MorphTargetWeightChanged { std::size_t nodeIndex; std::size_t targetWeightStartIndex; std::size_t targetWeightCount; };
+        struct BloomModeChanged{};
     }
 
     export using Task = std::variant<
@@ -88,5 +89,6 @@ namespace vk_gltf_viewer::control {
         task::NodeWorldTransformChanged,
         task::MaterialPropertyChanged,
         task::SelectMaterialVariants,
-        task::MorphTargetWeightChanged>;
+        task::MorphTargetWeightChanged,
+        task::BloomModeChanged>;
 }

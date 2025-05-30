@@ -212,7 +212,7 @@ void vk_gltf_viewer::MainApp::run() {
                 imguiTaskCollector.imageBasedLighting(*iblInfo, vku::toUint64(skyboxResources->imGuiEqmapTextureDescriptorSet));
             }
             imguiTaskCollector.background(appState.canSelectSkyboxBackground, appState.background);
-            imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline);
+            imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline, gpu.supportShaderStencilExport);
             if (gltf) {
                 imguiTaskCollector.imguizmo(appState.camera, gltf->asset, gltf->selectedNodes, gltf->nodeWorldTransforms, appState.imGuizmoOperation, gltf->animations, *gltf->animationEnabled);
             }
@@ -577,6 +577,10 @@ void vk_gltf_viewer::MainApp::run() {
 
                     gltf->sceneMiniball.invalidate();
                 },
+                [&](control::task::BloomModeChanged) {
+                    // Primitive rendering pipelines have to be recreated to use shader stencil export or not.
+                    regenerateDrawCommands.fill(true);
+                },
             }, tasks.front());
         }
 
@@ -714,11 +718,6 @@ void vk_gltf_viewer::MainApp::run() {
                 };
             }),
             .solidBackground = appState.background.to_optional(),
-            .bloomIntensity = [&]() {
-                // Do not enable the bloom if there is no material of emissive strength > 1.0.
-                if (!gltf || gltf->bloomMaterials.empty()) return 0.f;
-                return global::bloomIntensity.value_or(0.f);
-            }(),
         });
 
 		if (frameFeedbackResultValid[frameIndex]) {
@@ -1070,7 +1069,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // Update AppState.
     appState.pushRecentGltfPath(path);
 
-    global::bloomIntensity.set_active(!gltf->bloomMaterials.empty());
+    global::bloom.set_active(!gltf->bloomMaterials.empty());
 
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius] = gltf->sceneMiniball.get();

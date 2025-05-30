@@ -11,5 +11,15 @@ namespace vk_gltf_viewer::global {
      */
     export bool shouldNodeInSceneHierarchyScrolledToBeVisible = false;
 
-    export full_optional<float> bloomIntensity { unset, 0.04f };
+    struct Bloom {
+        enum class Mode {
+            PerMaterial,
+            PerFragment,
+        };
+
+        Mode mode;
+        float intensity;
+    };
+
+    export full_optional<Bloom> bloom { unset, Bloom::Mode::PerMaterial, 0.04f };
 }

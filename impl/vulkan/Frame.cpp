@@ -8,6 +8,7 @@ import :vulkan.Frame;
 
 import std;
 import imgui.vulkan;
+import :global;
 import :gltf.algorithm.bounding_box;
 import :helpers.concepts;
 import :helpers.fastgltf;
@@ -147,6 +148,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     mousePickingInput = task.mousePickingInput;
 
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
+        const bool usePerFragmentEmissiveStencilExport = global::bloom.raw().mode == global::Bloom::Mode::PerFragment;
         CommandSeparationCriteria result {
             .subpass = 0U,
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
@@ -156,7 +158,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             // By default, the default primitive doesn't have a material and therefore isn't unlit.
             // If per-fragment stencil export is disabled, dynamic stencil reference state has to be used, and its
             // reference value is 0.
-            .stencilReference = value_if(!sharedData.gpu.supportShaderStencilExport, 0U),
+            .stencilReference = value_if(!usePerFragmentEmissiveStencilExport, 0U),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
@@ -227,10 +229,10 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                     .occlusionTextureTransform = material.occlusionTexture && material.occlusionTexture->transform,
                     .emissiveTextureTransform = material.emissiveTexture && material.emissiveTexture->transform,
                     .alphaMode = material.alphaMode,
-                    .usePerFragmentEmissiveStencilExport = sharedData.gpu.supportShaderStencilExport,
+                    .usePerFragmentEmissiveStencilExport = usePerFragmentEmissiveStencilExport,
                 });
 
-                if (!sharedData.gpu.supportShaderStencilExport) {
+                if (!usePerFragmentEmissiveStencilExport) {
                     result.stencilReference.emplace(material.emissiveStrength > 1.f ? 1U : 0U);
                 }
             }
@@ -268,7 +270,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                 .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
                 .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
-                .usePerFragmentEmissiveStencilExport = sharedData.gpu.supportShaderStencilExport,
+                .usePerFragmentEmissiveStencilExport = usePerFragmentEmissiveStencilExport,
             });
         }
         return result;
@@ -586,8 +588,6 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         background.emplace<vku::DescriptorSet<dsl::Skybox>>(sharedData.skyboxDescriptorSet);
     }
 
-    bloomIntensity = task.bloomIntensity;
-
     return result;
 }
 
@@ -721,7 +721,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
         sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
 
         // Inverse tone-map the result image to bloomImage[mipLevel=0] when bloom is enabled.
-        if (bloomIntensity > 0.f) {
+        if (global::bloom) {
             sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingRenderer.pipeline);
             sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingRenderer.pipelineLayout, 0, inverseToneMappingSet, {});
             sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
@@ -729,7 +729,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
 
         sceneRenderingCommandBuffer.endRenderPass();
 
-        if (bloomIntensity > 0.f) {
+        if (global::bloom) {
             sceneRenderingCommandBuffer.pipelineBarrier(
                 vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eComputeShader,
                 {},
@@ -763,7 +763,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
             sceneRenderingCommandBuffer.pushConstants<BloomApplyRenderer::PushConstant>(
                 *sharedData.bloomApplyRenderer.pipelineLayout,
                 vk::ShaderStageFlagBits::eFragment,
-                0, BloomApplyRenderer::PushConstant { .factor = bloomIntensity });
+                0, BloomApplyRenderer::PushConstant { .factor = global::bloom->intensity });
             sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
 
             sceneRenderingCommandBuffer.endRenderPass();
