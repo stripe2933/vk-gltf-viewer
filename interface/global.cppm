@@ -22,4 +22,12 @@ namespace vk_gltf_viewer::global {
     };
 
     export full_optional<Bloom> bloom { unset, Bloom::Mode::PerMaterial, 0.04f };
+
+    export enum class FrustumCullingMode {
+        Off,
+        On,
+        OnWithInstancing,
+    };
+
+    export FrustumCullingMode frustumCullingMode = FrustumCullingMode::OnWithInstancing;
 }
