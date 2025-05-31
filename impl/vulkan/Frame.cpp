@@ -489,6 +489,11 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                             const std::size_t nodeIndex = command.firstInstance >> 16U;
                             const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex];
 
+                            // Node is instanced and frustum culling is disabled for instanced nodes.
+                            if (!node.instancingAttributes.empty() && global::frustumCullingMode != global::FrustumCullingMode::OnWithInstancing) {
+                                return true;
+                            }
+
                             if (node.skinIndex) {
                                 // As primitive POSITION accessor's min/max values are not sufficient to determine the bounding
                                 // volume of a skinned mesh, frustum culling which relies on this must be disabled.
