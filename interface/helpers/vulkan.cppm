@@ -1,8 +1,9 @@
-export module vk_gltf_viewer:helpers.vulkan;
+export module vk_gltf_viewer.helpers.vulkan;
 
 import std;
 export import vulkan_hpp;
-import :helpers.ranges;
+
+import vk_gltf_viewer.helpers.ranges;
 
 export enum class TopologyClass : std::uint8_t {
     Point,

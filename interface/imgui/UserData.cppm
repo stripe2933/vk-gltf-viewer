@@ -2,7 +2,7 @@ module;
 
 #include <cassert>
 
-export module vk_gltf_viewer:imgui.UserData;
+export module vk_gltf_viewer.imgui.UserData;
 
 import std;
 export import imgui;

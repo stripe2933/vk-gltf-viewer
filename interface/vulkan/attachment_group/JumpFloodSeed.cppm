@@ -2,10 +2,11 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.ag.JumpFloodSeed;
+export module vk_gltf_viewer.vulkan.ag.JumpFloodSeed;
 
 export import vku;
-export import :vulkan.Gpu;
+
+export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::ag {
     export struct JumpFloodSeed final : vku::AttachmentGroup {

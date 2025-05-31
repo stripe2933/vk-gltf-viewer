@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:helpers.formatter.ByteSize;
+export module vk_gltf_viewer.helpers.formatter.ByteSize;
 
 import std;
 

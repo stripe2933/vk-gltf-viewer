@@ -2,7 +2,7 @@ module;
 
 #include <version>
 
-export module vk_gltf_viewer:helpers.ranges.contains;
+export module vk_gltf_viewer.helpers.ranges:contains;
 
 import std;
 

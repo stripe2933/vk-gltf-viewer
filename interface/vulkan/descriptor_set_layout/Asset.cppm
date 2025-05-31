@@ -2,10 +2,11 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.dsl.Asset;
+export module vk_gltf_viewer.vulkan.dsl.Asset;
 
 import std;
-export import :vulkan.Gpu;
+
+export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::dsl {
     export struct Asset : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eCombinedImageSampler> {
@@ -68,7 +69,7 @@ namespace vk_gltf_viewer::vulkan::dsl {
          */
         [[nodiscard]] static std::uint32_t maxTextureCount(const Gpu &gpu) noexcept {
             // BRDF LUT texture and prefiltered map texture will acquire two slots, therefore we need to subtract 2.
-            return std::min(gpu.maxPerStageDescriptorUpdateAfterBindSamplers, 128U) - 2U;
+            return std::min(gpu.maxPerStageDescriptorUpdateAfterBindSamplers, 512U) - 2U;
         }
     };
 }

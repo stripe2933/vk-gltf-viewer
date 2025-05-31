@@ -8,16 +8,16 @@ export module vk_gltf_viewer:vulkan.buffer.PrimitiveAttributes;
 import std;
 export import BS.thread_pool;
 import :gltf.algorithm.MikktSpaceInterface;
-export import :gltf.AssetProcessError;
-import :helpers.fastgltf;
-import :helpers.functional;
-import :helpers.ranges;
-import :helpers.type_map;
-import :vulkan.buffer;
-export import :vulkan.buffer.StagingBufferStorage;
-export import :vulkan.Gpu;
-export import :vulkan.shader_type.Accessor;
-import :vulkan.trait.PostTransferObject;
+
+export import vk_gltf_viewer.gltf.AssetProcessError;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.ranges;
+import vk_gltf_viewer.vulkan.buffer;
+export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
+export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.shader_type.Accessor;
+import vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
 /**
  * @brief Parse a number from given \p str.

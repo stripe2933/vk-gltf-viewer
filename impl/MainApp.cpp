@@ -36,24 +36,25 @@ import ibl;
 import imgui.glfw;
 import imgui.vulkan;
 import :AppState;
-import :control.AppWindow;
-import :global;
-import :gltf.algorithm.miniball;
 import :gltf.algorithm.misc;
-import :gltf.algorithm.traversal;
-import :gltf.Animation;
-import :gltf.AssetExternalBuffers;
-import :gltf.data_structure.SceneInverseHierarchy;
-import :helpers.concepts;
-import :helpers.fastgltf;
-import :helpers.functional;
-import :helpers.optional;
-import :helpers.ranges;
 import :imgui.TaskCollector;
 import :vulkan.Frame;
 import :vulkan.imgui.PlatformResource;
-import :vulkan.mipmap;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
+
+import vk_gltf_viewer.control.AppWindow;
+import vk_gltf_viewer.global;
+import vk_gltf_viewer.gltf.algorithm.miniball;
+import vk_gltf_viewer.gltf.AssetExternalBuffers;
+import vk_gltf_viewer.gltf.Animation;
+import vk_gltf_viewer.gltf.algorithm.traversal;
+import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
+import vk_gltf_viewer.helpers.concepts;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.optional;
+import vk_gltf_viewer.helpers.ranges;
+import vk_gltf_viewer.vulkan.mipmap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }

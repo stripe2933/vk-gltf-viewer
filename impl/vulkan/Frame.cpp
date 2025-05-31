@@ -8,17 +8,18 @@ import :vulkan.Frame;
 
 import std;
 import imgui.vulkan;
-import :global;
-import :gltf.algorithm.bounding_box;
-import :helpers.concepts;
-import :helpers.fastgltf;
-import :helpers.functional;
-import :helpers.optional;
-import :helpers.ranges;
-import :math.extended_arithmetic;
-import :vulkan.ag.MousePicking;
-import :vulkan.buffer.IndirectDrawCommands;
-import :vulkan.shader_type.Accessor;
+
+import vk_gltf_viewer.global;
+import vk_gltf_viewer.gltf.algorithm.bounding_box;
+import vk_gltf_viewer.helpers.concepts;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.optional;
+import vk_gltf_viewer.helpers.ranges;
+import vk_gltf_viewer.math.extended_arithmetic;
+import vk_gltf_viewer.vulkan.ag.MousePicking;
+import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
+import vk_gltf_viewer.vulkan.shader_type.Accessor;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }

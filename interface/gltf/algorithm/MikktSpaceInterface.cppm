@@ -6,7 +6,8 @@ export module vk_gltf_viewer:gltf.algorithm.MikktSpaceInterface;
 
 import std;
 export import fastgltf;
-import :helpers.fastgltf;
+
+import vk_gltf_viewer.helpers.fastgltf;
 
 namespace vk_gltf_viewer::gltf::algorithm {
     export template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>

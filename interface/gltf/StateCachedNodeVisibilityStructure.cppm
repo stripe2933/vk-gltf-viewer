@@ -1,10 +1,11 @@
-export module vk_gltf_viewer:gltf.StateCachedNodeVisibilityStructure;
+export module vk_gltf_viewer.gltf.StateCachedNodeVisibilityStructure;
 
 import std;
 export import fastgltf;
-import :gltf.algorithm.traversal;
-import :gltf.data_structure.SceneInverseHierarchy;
-import :helpers.ranges;
+
+import vk_gltf_viewer.gltf.algorithm.traversal;
+import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
+import vk_gltf_viewer.helpers.ranges;
 
 namespace vk_gltf_viewer::gltf {
     /**

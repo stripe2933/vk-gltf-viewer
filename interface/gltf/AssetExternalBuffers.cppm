@@ -1,14 +1,10 @@
-module;
-
-#include <cerrno>
-#include <cstring>
-
-export module vk_gltf_viewer:gltf.AssetExternalBuffers;
+export module vk_gltf_viewer.gltf.AssetExternalBuffers;
 
 import std;
 export import fastgltf;
-export import :gltf.AssetProcessError;
-import :helpers.io;
+
+export import vk_gltf_viewer.gltf.AssetProcessError;
+import vk_gltf_viewer.helpers.io;
 
 namespace vk_gltf_viewer::gltf {
     /**

@@ -2,16 +2,17 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.texture.ImGuiColorSpaceAndUsageCorrectedTextures;
+export module vk_gltf_viewer.vulkan.texture.ImGuiColorSpaceAndUsageCorrectedTextures;
 
 import std;
 export import imgui.vulkan;
-import :helpers.fastgltf;
-import :helpers.functional;
-import :helpers.ranges;
-import :helpers.vulkan;
-export import :imgui.ColorSpaceAndUsageCorrectedTextures;
-export import :vulkan.texture.Textures;
+
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.ranges;
+import vk_gltf_viewer.helpers.vulkan;
+export import vk_gltf_viewer.imgui.ColorSpaceAndUsageCorrectedTextures;
+export import vk_gltf_viewer.vulkan.texture.Textures;
 
 namespace vk_gltf_viewer::vulkan::texture {
     export class ImGuiColorSpaceAndUsageCorrectedTextures final : public imgui::ColorSpaceAndUsageCorrectedTextures {

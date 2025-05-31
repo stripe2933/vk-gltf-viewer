@@ -2,7 +2,7 @@ module;
 
 #include <cassert>
 
-export module vk_gltf_viewer:helpers.span;
+export module vk_gltf_viewer.helpers.span;
 
 import std;
 

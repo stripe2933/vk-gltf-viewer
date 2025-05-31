@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:control.Task;
+export module vk_gltf_viewer.control.Task;
 
 import std;
 export import glm;

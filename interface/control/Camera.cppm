@@ -1,8 +1,9 @@
-export module vk_gltf_viewer:control.Camera;
+export module vk_gltf_viewer.control.Camera;
 
 import std;
 export import glm;
-export import :math.Frustum;
+
+export import vk_gltf_viewer.math.Frustum;
 
 namespace vk_gltf_viewer::control {
     export struct Camera {

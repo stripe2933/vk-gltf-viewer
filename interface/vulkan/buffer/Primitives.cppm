@@ -7,15 +7,16 @@ export module vk_gltf_viewer:vulkan.buffer.Primitives;
 
 import std;
 export import fastgltf;
-import :gltf.OrderedPrimitives;
-import :helpers.concepts;
-import :helpers.fastgltf;
-import :helpers.functional;
 export import :vulkan.buffer.PrimitiveAttributes;
-export import :vulkan.buffer.StagingBufferStorage;
-export import :vulkan.Gpu;
-import :vulkan.shader_type.Primitive;
-import :vulkan.trait.PostTransferObject;
+
+export import vk_gltf_viewer.gltf.OrderedPrimitives;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.concepts;
+import vk_gltf_viewer.helpers.functional;
+export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
+export import vk_gltf_viewer.vulkan.Gpu;
+import vk_gltf_viewer.vulkan.shader_type.Primitive;
+import vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }

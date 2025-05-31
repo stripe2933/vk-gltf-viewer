@@ -4,7 +4,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.Gpu;
+export module vk_gltf_viewer.vulkan.Gpu;
 
 import std;
 export import vku;

@@ -2,12 +2,13 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.dsl.ImageBasedLighting;
+export module vk_gltf_viewer.vulkan.dsl.ImageBasedLighting;
 
 import std;
 import vku;
-export import :vulkan.sampler.BrdfLut;
-export import :vulkan.sampler.Cubemap;
+
+export import vk_gltf_viewer.vulkan.sampler.BrdfLut;
+export import vk_gltf_viewer.vulkan.sampler.Cubemap;
 
 namespace vk_gltf_viewer::vulkan::dsl {
     export struct ImageBasedLighting : vku::DescriptorSetLayout<vk::DescriptorType::eUniformBuffer, vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eCombinedImageSampler> {

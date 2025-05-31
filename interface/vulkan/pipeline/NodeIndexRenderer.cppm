@@ -2,14 +2,15 @@ export module vk_gltf_viewer:vulkan.pipeline.NodeIndexRenderer;
 
 import std;
 import vku;
-export import :helpers.vulkan;
 import :shader.node_index_frag;
 import :shader.node_index_vert;
 import :shader_selector.mask_node_index_frag;
 import :shader_selector.mask_node_index_vert;
-export import :vulkan.pl.PrimitiveNoShading;
-export import :vulkan.rp.MousePicking;
-import :vulkan.specialization_constants.SpecializationMap;
+
+export import vk_gltf_viewer.helpers.vulkan;
+export import vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
+export import vk_gltf_viewer.vulkan.rp.MousePicking;
+import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }

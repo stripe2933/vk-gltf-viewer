@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:vulkan.specialization_constants.SpecializationMap;
+export module vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 import std;
 import reflect;

@@ -9,12 +9,13 @@ export import glm;
 import imgui.internal;
 export import ImGuizmo;
 export import :AppState;
-export import :control.Task;
-export import :gltf.Animation;
-export import :gltf.StateCachedNodeVisibilityStructure;
-export import :gltf.TextureUsages;
-export import :helpers.full_optional;
-export import :imgui.ColorSpaceAndUsageCorrectedTextures;
+
+export import vk_gltf_viewer.control.Task;
+export import vk_gltf_viewer.gltf.Animation;
+export import vk_gltf_viewer.gltf.StateCachedNodeVisibilityStructure;
+export import vk_gltf_viewer.gltf.TextureUsages;
+export import vk_gltf_viewer.helpers.full_optional;
+export import vk_gltf_viewer.imgui.ColorSpaceAndUsageCorrectedTextures;
 
 namespace vk_gltf_viewer::control {
     export class ImGuiTaskCollector {

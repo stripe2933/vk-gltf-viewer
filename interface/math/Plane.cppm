@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:math.Plane;
+export module vk_gltf_viewer.math.Plane;
 
 export import glm;
 

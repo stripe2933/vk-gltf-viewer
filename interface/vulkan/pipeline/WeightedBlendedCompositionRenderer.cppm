@@ -8,8 +8,9 @@ import std;
 import vku;
 import :shader.screen_quad_vert;
 import :shader.weighted_blended_composition_frag;
-export import :vulkan.Gpu;
-export import :vulkan.rp.Scene;
+
+export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct WeightedBlendedCompositionRenderer {

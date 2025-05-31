@@ -9,8 +9,9 @@ export module vk_gltf_viewer:vulkan.pipeline.InverseToneMappingRenderer;
 import std;
 import :shader.screen_quad_vert;
 import :shader.inverse_tone_mapping_frag;
-export import :vulkan.Gpu;
-export import :vulkan.rp.Scene;
+
+export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct InverseToneMappingRenderer {
