@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:helpers.imgui.table;
+export module vk_gltf_viewer.helpers.imgui:table;
 
 import std;
 export import cstring_view;

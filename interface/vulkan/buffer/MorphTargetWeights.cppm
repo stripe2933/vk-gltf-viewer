@@ -2,14 +2,15 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.buffer.MorphTargetWeights;
+export module vk_gltf_viewer.vulkan.buffer.MorphTargetWeights;
 
 import std;
 export import fastgltf;
-export import :gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
-import :helpers.fastgltf;
-import :vulkan.buffer;
-export import :vulkan.Gpu;
+
+export import vk_gltf_viewer.gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.vulkan.buffer;
+export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     export class MorphTargetWeights {

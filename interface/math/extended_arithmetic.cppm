@@ -2,7 +2,7 @@ module;
 
 #include <cassert>
 
-export module vk_gltf_viewer:math.extended_arithmetic;
+export module vk_gltf_viewer.math.extended_arithmetic;
 
 import std;
 

@@ -5,9 +5,10 @@ module;
 export module vk_gltf_viewer:vulkan.pipeline.MousePickingRenderer;
 
 export import vku;
-export import :vulkan.rp.MousePicking;
 import :shader.screen_quad_vert;
 import :shader.mouse_picking_frag;
+
+export import vk_gltf_viewer.vulkan.rp.MousePicking;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct MousePickingRenderer {

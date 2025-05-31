@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.sampler.Cubemap;
+export module vk_gltf_viewer.vulkan.sampler.Cubemap;
 
 #ifdef _MSC_VER
 import std;

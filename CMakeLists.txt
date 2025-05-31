@@ -153,13 +153,11 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/NodeWorldTransforms.cppm
         interface/gltf/OrderedPrimitives.cppm
         interface/gltf/TextureUsages.cppm
-        interface/helpers/mod.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/algorithm.cppm
         interface/helpers/concepts.cppm
-        interface/helpers/enums/FlagTraits.cppm
-        interface/helpers/enums/Flags.cppm
         interface/helpers/fastgltf.cppm
+        interface/helpers/Flags.cppm
         interface/helpers/formatter/ByteSize.cppm
         interface/helpers/full_optional.cppm
         interface/helpers/functional.cppm
@@ -175,7 +173,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/span.cppm
         interface/helpers/TempStringBuffer.cppm
         interface/helpers/type_map.cppm
-        interface/helpers/type_variant.cppm
         interface/helpers/vulkan.cppm
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
         interface/imgui/UserData.cppm

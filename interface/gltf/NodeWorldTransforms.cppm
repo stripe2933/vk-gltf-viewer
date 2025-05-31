@@ -2,11 +2,12 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:gltf.NodeWorldTransforms;
+export module vk_gltf_viewer.gltf.NodeWorldTransforms;
 
 import std;
 export import fastgltf;
-import :gltf.algorithm.traversal;
+
+import vk_gltf_viewer.gltf.algorithm.traversal;
 
 namespace vk_gltf_viewer::gltf {
     export class NodeWorldTransforms : public std::vector<fastgltf::math::fmat4x4> {

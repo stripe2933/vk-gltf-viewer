@@ -2,7 +2,7 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:vulkan.buffer;
+export module vk_gltf_viewer.vulkan.buffer;
 
 import std;
 export import vku;

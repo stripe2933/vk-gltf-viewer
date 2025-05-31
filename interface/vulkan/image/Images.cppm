@@ -6,20 +6,21 @@ module;
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:vulkan.image.Images;
+export module vk_gltf_viewer.vulkan.image.Images;
 
 import std;
 export import BS.thread_pool;
 export import fastgltf;
-export import :gltf.AssetProcessError;
-import :helpers.fastgltf;
-import :helpers.functional;
-import :helpers.io;
-import :helpers.ranges;
-import :helpers.span;
-import :helpers.vulkan;
-export import :vulkan.Gpu;
-import :vulkan.mipmap;
+
+export import vk_gltf_viewer.gltf.AssetProcessError;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.io;
+import vk_gltf_viewer.helpers.ranges;
+import vk_gltf_viewer.helpers.span;
+import vk_gltf_viewer.helpers.vulkan;
+import vk_gltf_viewer.vulkan.mipmap;
+export import vk_gltf_viewer.vulkan.Gpu;
 
 #ifdef _WIN32
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()

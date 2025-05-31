@@ -4,7 +4,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.sampler.Samplers;
+export module vk_gltf_viewer.vulkan.sampler.Samplers;
 
 import std;
 export import fastgltf;

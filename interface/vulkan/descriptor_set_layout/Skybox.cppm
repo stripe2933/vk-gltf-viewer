@@ -2,11 +2,12 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.dsl.Skybox;
+export module vk_gltf_viewer.vulkan.dsl.Skybox;
 
 import std;
 import vku;
-export import :vulkan.sampler.Cubemap;
+
+export import vk_gltf_viewer.vulkan.sampler.Cubemap;
 
 namespace vk_gltf_viewer::vulkan::dsl {
     export struct Skybox : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler> {

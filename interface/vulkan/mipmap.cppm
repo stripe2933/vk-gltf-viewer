@@ -2,11 +2,12 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:vulkan.mipmap;
+export module vk_gltf_viewer.vulkan.mipmap;
 
 import std;
 export import vku;
-import :helpers.ranges;
+
+import vk_gltf_viewer.helpers.ranges;
 
 namespace vk_gltf_viewer::vulkan {
     /**

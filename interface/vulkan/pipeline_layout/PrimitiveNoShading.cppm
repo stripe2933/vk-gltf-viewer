@@ -4,13 +4,14 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.pl.PrimitiveNoShading;
+export module vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
 
 import std;
 export import glm;
 export import vulkan_hpp;
 import vku;
-export import :vulkan.dsl.Asset;
+
+export import vk_gltf_viewer.vulkan.dsl.Asset;
 
 namespace vk_gltf_viewer::vulkan::pl {
     export struct PrimitiveNoShading : vk::raii::PipelineLayout {

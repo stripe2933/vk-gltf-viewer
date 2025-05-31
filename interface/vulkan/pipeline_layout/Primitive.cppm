@@ -4,14 +4,15 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.pl.Primitive;
+export module vk_gltf_viewer.vulkan.pl.Primitive;
 
 import std;
 export import glm;
 export import vulkan_hpp;
 import vku;
-export import :vulkan.dsl.Asset;
-export import :vulkan.dsl.ImageBasedLighting;
+
+export import vk_gltf_viewer.vulkan.dsl.Asset;
+export import vk_gltf_viewer.vulkan.dsl.ImageBasedLighting;
 
 namespace vk_gltf_viewer::vulkan::pl {
     export struct Primitive : vk::raii::PipelineLayout {

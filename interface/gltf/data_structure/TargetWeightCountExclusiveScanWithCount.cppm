@@ -1,9 +1,10 @@
-export module vk_gltf_viewer:gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
+export module vk_gltf_viewer.gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
 
 import std;
 export import fastgltf;
-import :helpers.fastgltf;
-import :helpers.algorithm;
+
+import vk_gltf_viewer.helpers.algorithm;
+import vk_gltf_viewer.helpers.fastgltf;
 
 namespace vk_gltf_viewer::gltf::ds {
     /**

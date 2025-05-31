@@ -1,7 +1,8 @@
-export module vk_gltf_viewer:math.Frustum;
+export module vk_gltf_viewer.math.Frustum;
 
 import std;
-export import :math.Plane;
+
+export import vk_gltf_viewer.math.Plane;
 
 namespace vk_gltf_viewer::math {
     /**

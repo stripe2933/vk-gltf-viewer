@@ -1,14 +1,14 @@
-export module vk_gltf_viewer:vulkan.buffer.InverseBindMatrices;
+export module vk_gltf_viewer.vulkan.buffer.InverseBindMatrices;
 
 import std;
 export import fastgltf;
 import glm; // TODO: use fastgltf::math::fmat4x4 when it gets being trivially copyable.
-export import vk_mem_alloc_hpp;
-import :helpers.fastgltf;
-import :helpers.span;
-import :vulkan.buffer;
-export import :vulkan.buffer.StagingBufferStorage;
-import :vulkan.trait.PostTransferObject;
+
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.span;
+import vk_gltf_viewer.vulkan.buffer;
+export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
+import vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     export class InverseBindMatrices : trait::PostTransferObject {

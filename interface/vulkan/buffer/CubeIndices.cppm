@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:vulkan.buffer.CubeIndices;
+export module vk_gltf_viewer.vulkan.buffer.CubeIndices;
 
 import std;
 export import vku;

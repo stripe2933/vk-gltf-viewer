@@ -2,14 +2,15 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:gltf.Animation;
+export module vk_gltf_viewer.gltf.Animation;
 
 import std;
 export import cstring_view;
 export import fastgltf;
-export import :helpers.enums.Flags;
-import :helpers.fastgltf;
-import :helpers.ranges;
+
+import vk_gltf_viewer.helpers.fastgltf;
+export import vk_gltf_viewer.helpers.Flags;
+import vk_gltf_viewer.helpers.ranges;
 
 /**
  * @brief Sample value using cubic spline interpolation.

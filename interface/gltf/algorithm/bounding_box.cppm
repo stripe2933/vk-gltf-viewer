@@ -2,12 +2,13 @@ module;
 
 #include <cassert>
 
-export module vk_gltf_viewer:gltf.algorithm.bounding_box;
+export module vk_gltf_viewer.gltf.algorithm.bounding_box;
 
 import std;
 export import fastgltf;
-import :helpers.fastgltf;
-import :helpers.functional;
+
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.functional;
 
 namespace vk_gltf_viewer::gltf::algorithm {
     /**

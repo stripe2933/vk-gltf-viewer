@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.rp.MousePicking;
+export module vk_gltf_viewer.vulkan.rp.MousePicking;
 
 #ifdef _MSC_VER
 import std;

@@ -2,13 +2,17 @@ module;
 
 #include <boost/container/static_vector.hpp>
 
-export module vk_gltf_viewer:helpers.enums.Flags;
+export module vk_gltf_viewer.helpers.Flags;
 
 import std;
-export import :helpers.enums.FlagTraits;
 
 export template <typename BitType>
 class Flags;
+
+export template <typename>
+struct FlagTraits {
+    static constexpr bool isBitmask = false;
+};
 
 export template <typename BitType>
 [[nodiscard]] constexpr Flags<BitType> operator&(BitType bit, const Flags<BitType> &flags) noexcept {

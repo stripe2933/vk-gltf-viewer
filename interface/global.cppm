@@ -1,7 +1,7 @@
-export module vk_gltf_viewer:global;
+export module vk_gltf_viewer.global;
 
-export import :control.Camera;
-export import :helpers.full_optional;
+export import vk_gltf_viewer.control.Camera;
+export import vk_gltf_viewer.helpers.full_optional;
 
 namespace vk_gltf_viewer::global {
     /**
@@ -12,7 +12,7 @@ namespace vk_gltf_viewer::global {
      */
     export bool shouldNodeInSceneHierarchyScrolledToBeVisible = false;
 
-    struct Bloom {
+    export struct Bloom {
         enum class Mode {
             PerMaterial,
             PerFragment,
