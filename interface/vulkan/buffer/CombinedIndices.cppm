@@ -4,16 +4,17 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.buffer.CombinedIndices;
+export module vk_gltf_viewer.vulkan.buffer.CombinedIndices;
 
 import std;
 export import fastgltf;
-import :helpers.functional;
-import :helpers.type_map;
-import :vulkan.buffer;
-export import :vulkan.buffer.StagingBufferStorage;
-export import :vulkan.Gpu;
-import :vulkan.trait.PostTransferObject;
+
+import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.type_map;
+import vk_gltf_viewer.vulkan.buffer;
+export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
+import vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
 constexpr type_map indexTypeMap {
     make_type_map_entry<std::uint8_t>(fastgltf::ComponentType::UnsignedByte),

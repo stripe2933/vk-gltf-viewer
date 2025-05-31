@@ -2,11 +2,11 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-module vk_gltf_viewer;
-import :vulkan.Gpu;
+module vk_gltf_viewer.vulkan.Gpu;
 
 import std;
-import :helpers.ranges;
+
+import vk_gltf_viewer.helpers.ranges;
 
 constexpr std::array requiredExtensions {
 #if __APPLE__

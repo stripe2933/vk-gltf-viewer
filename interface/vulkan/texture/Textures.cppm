@@ -1,10 +1,11 @@
-export module vk_gltf_viewer:vulkan.texture.Textures;
+export module vk_gltf_viewer.vulkan.texture.Textures;
 
 import std;
-import :helpers.fastgltf;
-export import :vulkan.image.Images;
-export import :vulkan.sampler.Samplers;
-export import :vulkan.texture.Fallback;
+
+import vk_gltf_viewer.helpers.fastgltf;
+export import vk_gltf_viewer.vulkan.image.Images;
+export import vk_gltf_viewer.vulkan.sampler.Samplers;
+export import vk_gltf_viewer.vulkan.texture.Fallback;
 
 namespace vk_gltf_viewer::vulkan::texture {
     export struct Textures {

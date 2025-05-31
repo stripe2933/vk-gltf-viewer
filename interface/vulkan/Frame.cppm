@@ -10,19 +10,20 @@ module;
 export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
-export import :gltf.OrderedPrimitives;
-import :helpers.optional;
-import :math.extended_arithmetic;
-export import :math.Frustum;
-import :vulkan.ag.MousePicking;
-import :vulkan.ag.JumpFloodSeed;
-import :vulkan.ag.SceneOpaque;
-import :vulkan.ag.SceneWeightedBlended;
-import :vulkan.buffer.IndirectDrawCommands;
-import :vulkan.buffer.InstancedNodeWorldTransforms;
-import :vulkan.buffer.MorphTargetWeights;
-import :vulkan.buffer.Nodes;
 export import :vulkan.SharedData;
+
+export import vk_gltf_viewer.gltf.OrderedPrimitives;
+import vk_gltf_viewer.helpers.optional;
+import vk_gltf_viewer.math.extended_arithmetic;
+export import vk_gltf_viewer.math.Frustum;
+import vk_gltf_viewer.vulkan.ag.JumpFloodSeed;
+import vk_gltf_viewer.vulkan.ag.MousePicking;
+import vk_gltf_viewer.vulkan.ag.SceneOpaque;
+import vk_gltf_viewer.vulkan.ag.SceneWeightedBlended;
+import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
+import vk_gltf_viewer.vulkan.buffer.InstancedNodeWorldTransforms;
+import vk_gltf_viewer.vulkan.buffer.MorphTargetWeights;
+import vk_gltf_viewer.vulkan.buffer.Nodes;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }

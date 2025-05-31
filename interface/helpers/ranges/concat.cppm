@@ -8,7 +8,7 @@ module;
 #include <cassert>
 #include <ranges> // Current implementation requires std::ranges::__details::* stuffs.
 
-export module vk_gltf_viewer:helpers.ranges.concat;
+export module vk_gltf_viewer.helpers.ranges:concat;
 
 import std;
 

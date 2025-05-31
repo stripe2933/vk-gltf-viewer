@@ -4,10 +4,11 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.texture.Fallback;
+export module vk_gltf_viewer.vulkan.texture.Fallback;
 
 import std;
-import :vulkan.Gpu;
+
+export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::texture {
     /**

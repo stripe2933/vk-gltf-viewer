@@ -2,12 +2,13 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:gltf.OrderedPrimitives;
+export module vk_gltf_viewer.gltf.OrderedPrimitives;
 
 import std;
 export import fastgltf;
-import :helpers.functional;
-import :helpers.ranges;
+
+import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.ranges;
 
 namespace vk_gltf_viewer::gltf {
     /**

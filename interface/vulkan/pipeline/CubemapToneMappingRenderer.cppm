@@ -8,8 +8,9 @@ import std;
 export import glm;
 import :shader.screen_quad_vert;
 import :shader.cubemap_tone_mapping_frag;
-export import :vulkan.Gpu;
-export import :vulkan.rp.CubemapToneMapping;
+
+export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.rp.CubemapToneMapping;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class CubemapToneMappingRenderer {

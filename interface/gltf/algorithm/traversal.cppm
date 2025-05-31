@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:gltf.algorithm.traversal;
+export module vk_gltf_viewer.gltf.algorithm.traversal;
 
 import std;
 export import fastgltf;

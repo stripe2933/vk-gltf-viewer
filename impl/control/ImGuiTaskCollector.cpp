@@ -14,18 +14,19 @@ import glm;
 import imgui.internal;
 import imgui.math;
 import ImGuizmo;
-import :global;
-import :gltf.algorithm.traversal;
-import :helpers.concepts;
-import :helpers.fastgltf;
-import :helpers.formatter.ByteSize;
-import :helpers.functional;
-import :helpers.imgui;
-import :helpers.optional;
-import :helpers.PairHasher;
-import :helpers.ranges;
-import :helpers.TempStringBuffer;
-import :imgui.UserData;
+
+import vk_gltf_viewer.global;
+import vk_gltf_viewer.gltf.algorithm.traversal;
+import vk_gltf_viewer.helpers.concepts;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.formatter.ByteSize;
+import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.imgui;
+import vk_gltf_viewer.helpers.optional;
+import vk_gltf_viewer.helpers.PairHasher;
+import vk_gltf_viewer.helpers.ranges;
+import vk_gltf_viewer.helpers.TempStringBuffer;
+import vk_gltf_viewer.imgui.UserData;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }

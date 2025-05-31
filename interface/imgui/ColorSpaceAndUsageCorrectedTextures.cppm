@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:imgui.ColorSpaceAndUsageCorrectedTextures;
+export module vk_gltf_viewer.imgui.ColorSpaceAndUsageCorrectedTextures;
 
 import std;
 export import imgui;

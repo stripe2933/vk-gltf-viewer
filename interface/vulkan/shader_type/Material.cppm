@@ -2,7 +2,7 @@ module;
 
 #include <cstddef>
 
-export module vk_gltf_viewer:vulkan.shader_type.Material;
+export module vk_gltf_viewer.vulkan.shader_type.Material;
 
 import std;
 export import glm;

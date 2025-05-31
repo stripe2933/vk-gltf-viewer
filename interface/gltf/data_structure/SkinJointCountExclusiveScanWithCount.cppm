@@ -1,8 +1,9 @@
-export module vk_gltf_viewer:gltf.data_structure.SkinJointCountExclusiveScanWithCount;
+export module vk_gltf_viewer.gltf.data_structure.SkinJointCountExclusiveScanWithCount;
 
 import std;
 export import fastgltf;
-import :helpers.algorithm;
+
+import vk_gltf_viewer.helpers.algorithm;
 
 namespace vk_gltf_viewer::gltf::ds {
     /**

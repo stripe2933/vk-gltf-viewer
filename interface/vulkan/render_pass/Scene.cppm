@@ -2,12 +2,13 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.rp.Scene;
+export module vk_gltf_viewer.vulkan.rp.Scene;
 
 #ifdef _MSC_VER
 import std;
 #endif
-export import :vulkan.Gpu;
+
+export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::rp {
     export struct Scene final : vk::raii::RenderPass {

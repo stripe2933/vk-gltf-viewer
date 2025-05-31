@@ -2,12 +2,13 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:gltf.data_structure.SceneInverseHierarchy;
+export module vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
 
 import std;
 export import fastgltf;
-import :gltf.algorithm.traversal;
-import :helpers.optional;
+
+import vk_gltf_viewer.gltf.algorithm.traversal;
+import vk_gltf_viewer.helpers.optional;
 
 namespace vk_gltf_viewer::gltf::ds {
     /**

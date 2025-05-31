@@ -7,8 +7,9 @@ export module vk_gltf_viewer:vulkan.pipeline.BloomApplyRenderer;
 import std;
 import :shader.screen_quad_vert;
 import :shader.bloom_apply_frag;
-export import :vulkan.Gpu;
-export import :vulkan.rp.BloomApply;
+
+export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.rp.BloomApply;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class BloomApplyRenderer {

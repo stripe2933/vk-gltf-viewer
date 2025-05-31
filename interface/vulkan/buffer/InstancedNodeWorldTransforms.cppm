@@ -4,18 +4,19 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.buffer.InstancedNodeWorldTransforms;
+export module vk_gltf_viewer.vulkan.buffer.InstancedNodeWorldTransforms;
 
 import std;
 import vku;
 export import vk_mem_alloc_hpp;
 export import vulkan_hpp;
-import :gltf.algorithm.traversal;
-export import :gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
-import :helpers.algorithm;
-import :helpers.fastgltf;
-import :helpers.ranges;
-import :helpers.span;
+
+import vk_gltf_viewer.gltf.algorithm.traversal;
+export import vk_gltf_viewer.gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
+import vk_gltf_viewer.helpers.algorithm;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.ranges;
+import vk_gltf_viewer.helpers.span;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     /**

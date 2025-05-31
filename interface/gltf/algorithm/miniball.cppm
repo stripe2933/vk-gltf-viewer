@@ -6,13 +6,14 @@ module;
 #include <CGAL/Min_sphere_of_spheres_d.h>
 #endif
 
-export module vk_gltf_viewer:gltf.algorithm.miniball;
+export module vk_gltf_viewer.gltf.algorithm.miniball;
 
 import std;
 export import fastgltf;
-import :helpers.fastgltf;
-import :gltf.algorithm.bounding_box;
-import :gltf.algorithm.traversal;
+
+import vk_gltf_viewer.gltf.algorithm.bounding_box;
+import vk_gltf_viewer.gltf.algorithm.traversal;
+import vk_gltf_viewer.helpers.fastgltf;
 
 namespace vk_gltf_viewer::gltf::algorithm {
     /**

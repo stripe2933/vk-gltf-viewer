@@ -1,14 +1,15 @@
-export module vk_gltf_viewer:vulkan.buffer.SkinJointIndices;
+export module vk_gltf_viewer.vulkan.buffer.SkinJointIndices;
 
 import std;
 export import fastgltf;
 export import vk_mem_alloc_hpp;
-export import :gltf.data_structure.SkinJointCountExclusiveScanWithCount;
+
+export import vk_gltf_viewer.gltf.data_structure.SkinJointCountExclusiveScanWithCount;
 #ifdef _MSC_VER
-import :helpers.ranges;
+import vk_gltf_viewer.helpers.ranges;
 #endif
-export import :vulkan.buffer.StagingBufferStorage;
-import :vulkan.trait.PostTransferObject;
+export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
+import vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     export class SkinJointIndices : trait::PostTransferObject {

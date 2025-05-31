@@ -1,10 +1,11 @@
-export module vk_gltf_viewer:gltf.TextureUsages;
+export module vk_gltf_viewer.gltf.TextureUsages;
 
 import std;
 export import cstring_view;
 export import fastgltf;
-export import :helpers.enums.Flags;
-import :helpers.ranges;
+
+export import vk_gltf_viewer.helpers.Flags;
+import vk_gltf_viewer.helpers.ranges;
 
 namespace vk_gltf_viewer::gltf {
     export enum class TextureUsage : std::uint8_t {

@@ -2,13 +2,14 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:vulkan.buffer.IndirectDrawCommands;
+export module vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
 
 import std;
 export import fastgltf;
 export import vku;
-import :helpers.concepts;
-import :helpers.ranges;
+
+import vk_gltf_viewer.helpers.concepts;
+import vk_gltf_viewer.helpers.ranges;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 

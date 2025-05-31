@@ -2,11 +2,12 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:gltf.data_structure.MaterialVariantsMapping;
+export module vk_gltf_viewer.gltf.data_structure.MaterialVariantsMapping;
 
 import std;
 export import fastgltf;
-import :helpers.ranges;
+
+import vk_gltf_viewer.helpers.ranges;
 
 namespace vk_gltf_viewer::gltf::ds {
     /**

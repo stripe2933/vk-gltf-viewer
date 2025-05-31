@@ -2,14 +2,15 @@ module;
 
 #include <cassert>
 
-export module vk_gltf_viewer:helpers.imgui;
+export module vk_gltf_viewer.helpers.imgui;
+export import :table;
 
 import std;
 export import imgui;
 import imgui.internal;
 import imgui.math;
-export import :helpers.imgui.table;
-import :imgui.UserData;
+
+import vk_gltf_viewer.imgui.UserData;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 

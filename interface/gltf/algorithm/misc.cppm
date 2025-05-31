@@ -2,7 +2,8 @@ export module vk_gltf_viewer:gltf.algorithm.misc;
 
 import std;
 export import fastgltf;
-import :helpers.ranges;
+
+import vk_gltf_viewer.helpers.ranges;
 
 namespace vk_gltf_viewer::gltf::algorithm {
     /**

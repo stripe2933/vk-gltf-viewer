@@ -2,7 +2,7 @@ module;
 
 #include <cstddef>
 
-export module vk_gltf_viewer:vulkan.shader_type.Primitive;
+export module vk_gltf_viewer.vulkan.shader_type.Primitive;
 
 import std;
 export import vulkan_hpp;

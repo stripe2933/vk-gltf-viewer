@@ -1,24 +1,25 @@
 export module vk_gltf_viewer:MainApp;
 
 import std;
-import vk_gltf_viewer.data_structure.ImmutableRing;
-import vk_gltf_viewer.helpers;
 import :AppState;
-import :control.AppWindow;
-import :gltf.Animation;
-import :gltf.AssetExternalBuffers;
-import :gltf.data_structure.MaterialVariantsMapping;
-import :gltf.data_structure.SceneInverseHierarchy;
-import :gltf.NodeWorldTransforms;
-import :gltf.SceneNodeLevels;
-import :gltf.StateCachedNodeVisibilityStructure;
-import :gltf.TextureUsages;
-import :helpers.fastgltf;
-import :imgui.UserData;
-import :vulkan.dsl.Asset;
-import :vulkan.dsl.ImageBasedLighting;
-import :vulkan.dsl.Skybox;
 import :vulkan.Frame;
+
+import vk_gltf_viewer.control.AppWindow;
+import vk_gltf_viewer.data_structure.ImmutableRing;
+import vk_gltf_viewer.gltf.Animation;
+import vk_gltf_viewer.gltf.AssetExternalBuffers;
+import vk_gltf_viewer.gltf.data_structure.MaterialVariantsMapping;
+import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
+import vk_gltf_viewer.gltf.NodeWorldTransforms;
+import vk_gltf_viewer.gltf.SceneNodeLevels;
+import vk_gltf_viewer.gltf.StateCachedNodeVisibilityStructure;
+import vk_gltf_viewer.gltf.TextureUsages;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.Lazy;
+import vk_gltf_viewer.imgui.UserData;
+import vk_gltf_viewer.vulkan.dsl.Asset;
+import vk_gltf_viewer.vulkan.dsl.ImageBasedLighting;
+import vk_gltf_viewer.vulkan.dsl.Skybox;
 
 namespace vk_gltf_viewer {
     export class MainApp {

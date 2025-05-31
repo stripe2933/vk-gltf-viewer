@@ -6,20 +6,21 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.buffer.Nodes;
+export module vk_gltf_viewer.vulkan.buffer.Nodes;
 
 import std;
 export import fastgltf;
 import vku;
 export import vk_mem_alloc_hpp;
-import :helpers.fastgltf;
-import :helpers.optional;
-import :helpers.ranges;
-import :gltf.algorithm.traversal;
-export import :gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
-export import :gltf.data_structure.SkinJointCountExclusiveScanWithCount;
-export import :vulkan.buffer.InstancedNodeWorldTransforms;
-import :vulkan.shader_type.Node;
+
+import vk_gltf_viewer.gltf.algorithm.traversal;
+export import vk_gltf_viewer.gltf.data_structure.SkinJointCountExclusiveScanWithCount;
+export import vk_gltf_viewer.gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.optional;
+import vk_gltf_viewer.helpers.ranges;
+export import vk_gltf_viewer.vulkan.buffer.InstancedNodeWorldTransforms;
+import vk_gltf_viewer.vulkan.shader_type.Node;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     export class Nodes {

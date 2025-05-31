@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:gltf.AssetProcessError;
+export module vk_gltf_viewer.gltf.AssetProcessError;
 
 import std;
 export import cstring_view;

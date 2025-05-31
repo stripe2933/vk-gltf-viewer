@@ -2,7 +2,8 @@ export module vk_gltf_viewer:shader_selector.mask_node_index_vert;
 
 import std;
 import :shader.mask_node_index_vert;
-import :helpers.type_map;
+
+import vk_gltf_viewer.helpers.type_map;
 
 namespace vk_gltf_viewer::shader_selector {
     export

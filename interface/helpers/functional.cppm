@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:helpers.functional;
+export module vk_gltf_viewer.helpers.functional;
 
 import std;
 

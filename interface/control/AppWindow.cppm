@@ -5,12 +5,13 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:control.AppWindow;
+export module vk_gltf_viewer.control.AppWindow;
 
 import std;
 export import glm;
 export import vulkan_hpp;
-export import :control.Task;
+
+export import vk_gltf_viewer.control.Task;
 
 namespace vk_gltf_viewer::control {
     export class AppWindow {

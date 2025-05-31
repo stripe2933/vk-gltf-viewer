@@ -1,8 +1,9 @@
-export module vk_gltf_viewer:gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
+export module vk_gltf_viewer.gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
 
 import std;
-import :helpers.algorithm;
 export import fastgltf;
+
+import vk_gltf_viewer.helpers.algorithm;
 
 namespace vk_gltf_viewer::gltf::ds {
     /**

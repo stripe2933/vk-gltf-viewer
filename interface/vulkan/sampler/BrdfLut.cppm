@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.sampler.BrdfLut;
+export module vk_gltf_viewer.vulkan.sampler.BrdfLut;
 
 #ifdef _MSC_VER
 import std;

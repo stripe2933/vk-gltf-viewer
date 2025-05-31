@@ -3,7 +3,8 @@ export module vk_gltf_viewer:AppState;
 import std;
 export import glm;
 export import ImGuizmo;
-export import :helpers.full_optional;
+
+export import vk_gltf_viewer.helpers.full_optional;
 
 namespace vk_gltf_viewer {
     export class AppState {

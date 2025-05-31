@@ -2,19 +2,20 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:vulkan.buffer.Materials;
+export module vk_gltf_viewer.vulkan.buffer.Materials;
 
 import std;
 export import fastgltf;
 import vku;
 export import vk_mem_alloc_hpp;
 export import vulkan_hpp;
-import :helpers.functional;
-import :helpers.optional;
-import :helpers.ranges;
-export import :vulkan.buffer.StagingBufferStorage;
-export import :vulkan.shader_type.Material;
-import :vulkan.trait.PostTransferObject;
+
+import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.optional;
+import vk_gltf_viewer.helpers.ranges;
+export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
+export import vk_gltf_viewer.vulkan.shader_type.Material;
+import vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
 [[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept {
     const float c = std::cos(transform.rotation), s = std::sin(transform.rotation);

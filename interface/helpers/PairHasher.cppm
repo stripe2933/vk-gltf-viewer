@@ -2,7 +2,7 @@ module;
 
 #include <boost/container_hash/hash.hpp>
 
-export module vk_gltf_viewer:helpers.PairHasher;
+export module vk_gltf_viewer.helpers.PairHasher;
 
 import std;
 

@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:helpers.concepts;
+export module vk_gltf_viewer.helpers.concepts;
 
 import std;
 

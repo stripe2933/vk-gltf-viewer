@@ -4,10 +4,11 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.texture.Checkerboard;
+export module vk_gltf_viewer.vulkan.texture.Checkerboard;
 
 import std;
-export import :vulkan.Gpu;
+
+export import vk_gltf_viewer.vulkan.Gpu;
 
 constexpr unsigned char data[] = {
     0x52, 0x52, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x52, 0x52, 0x00, 0x00,

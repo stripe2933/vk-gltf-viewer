@@ -3,7 +3,7 @@ module;
 #include <boost/container/small_vector.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:vulkan.buffer.StagingBufferStorage;
+export module vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
 
 import std;
 export import vku;

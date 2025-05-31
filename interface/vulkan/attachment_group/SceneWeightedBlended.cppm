@@ -2,10 +2,11 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.ag.SceneWeightedBlended;
+export module vk_gltf_viewer.vulkan.ag.SceneWeightedBlended;
 
 export import vku;
-export import :vulkan.Gpu;
+
+export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::ag {
     export struct SceneWeightedBlended final : vku::MultisampleAttachmentGroup {
