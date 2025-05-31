@@ -88,7 +88,6 @@ namespace vk_gltf_viewer::vulkan {
                 const BufferDataAdapter &adapter = {}
             ) : instancedNodeWorldTransformBuffer { value_if(sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount.back() != 0, [&]() {
                     return buffer::InstancedNodeWorldTransforms {
-                        sharedData.gpu.device,
                         sharedData.gpu.allocator,
                         asset,
                         asset.scenes[asset.defaultScene.value_or(0)],
