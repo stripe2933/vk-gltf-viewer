@@ -13,6 +13,7 @@ export import fastgltf;
 import vku;
 export import vk_mem_alloc_hpp;
 import :helpers.fastgltf;
+import :helpers.optional;
 import :helpers.ranges;
 import :gltf.algorithm.traversal;
 export import :gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
@@ -39,6 +40,10 @@ namespace vk_gltf_viewer::vulkan::buffer {
             } },
             descriptorInfo { buffer, 0, vk::WholeSize },
             deviceAddress { device.getBufferAddress({ buffer.buffer }) }{
+            const std::optional<vk::DeviceAddress> instancedNodeWorldTransformBufferAddress = value_if(
+                instancedNodeWorldTransformBuffer,
+                [&]() { return device.getBufferAddress({ *instancedNodeWorldTransformBuffer }); });
+
             const std::span data = buffer.asRange<shader_type::Node>();
             for (const auto &[nodeIndex, node] : asset.nodes | ranges::views::enumerate) {
                 data[nodeIndex] = shader_type::Node {
@@ -48,10 +53,11 @@ namespace vk_gltf_viewer::vulkan::buffer {
                             // Use address of self's worldTransform if no instancing attributes are presented.
                             return deviceAddress + sizeof(shader_type::Node) * nodeIndex + offsetof(shader_type::Node, worldTransform);
                         }
-
-                        // Use address of instanced node world transform buffer if instancing attributes are presented.
-                        return instancedNodeWorldTransformBuffer->getDeviceAddress()
-                            + sizeof(glm::mat4) * instancedNodeWorldTransformBuffer->nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex];
+                        else {
+                            // Use address of instanced node world transform buffer if instancing attributes are presented.
+                            return *instancedNodeWorldTransformBufferAddress
+                                + sizeof(glm::mat4) * instancedNodeWorldTransformBuffer->nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex];
+                        }
                     }(),
                     .morphTargetWeightStartIndex = targetWeightCountExclusiveScan[nodeIndex],
                     .skinJointIndexStartIndex = [&]() {
