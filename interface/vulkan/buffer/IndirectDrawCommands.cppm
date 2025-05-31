@@ -33,8 +33,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 vk::BufferUsageFlagBits::eIndirectBuffer,
             }, vku::allocation::hostRead }
             , indexed { std::same_as<Command, vk::DrawIndexedIndirectCommand> } {
-            asValue<std::uint32_t>() = commands.size();
-            std::ranges::copy(as_bytes(commands), static_cast<std::byte*>(data) + sizeof(std::uint32_t));
+            setDrawCount(commands.size());
+            std::ranges::copy(commands, get<std::span<Command>>(drawIndirectCommands()).begin());
         }
 
         /**
@@ -46,6 +46,19 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
         /**
+         * @brief Set the number of draw commands that should be executed in the buffer.
+         * @param drawCount Number of draw commands to be set.
+         * @throw std::invalid_argument If \p drawCount exceeds the maximum draw count of the buffer.
+         */
+        void setDrawCount(std::uint32_t drawCount) {
+            if (drawCount > maxDrawCount()) {
+                throw std::invalid_argument { "drawCount > maxDrawCount" };
+            }
+
+            asValue<std::uint32_t>() = drawCount;
+        }
+
+        /**
          * @brief Number of the actual draw commands in the buffer.
          * @return Number of draw commands.
          */
@@ -54,22 +67,27 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
         /**
-         * @brief Reorder the indirect draw commands to be in the head whose corresponding predicate returns <tt>true</tt>, and adjust the draw count accordingly.
-         * @tparam F A functor type which determine the partition by take a draw command as an argument.
-         * @param f Predicate to determine the command to be in the head (true) or in the tail (false).
+         * @brief Get draw indirect commands in the buffer, either as <tt>vk::DrawIndirectCommand</tt> or <tt>vk::DrawIndexedIndirectCommand</tt> based on the \p indexed property.
+         * @return A span of draw commands.
          */
-        template <typename F> requires
-            std::predicate<F, const vk::DrawIndirectCommand&> && std::predicate<F, const vk::DrawIndexedIndirectCommand&>
-        void partition(F &&f) noexcept(std::is_nothrow_invocable_v<F>) {
+        [[nodiscard]] std::variant<std::span<const vk::DrawIndirectCommand>, std::span<const vk::DrawIndexedIndirectCommand>> drawIndirectCommands() const noexcept {
             if (indexed) {
-                const std::span commands = asRange<vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
-                const auto tail = std::ranges::partition(commands, FWD(f));
-                asValue<std::uint32_t>() = std::distance(commands.begin(), tail.begin());
+                return asRange<const vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
             }
             else {
-                const std::span commands = asRange<vk::DrawIndirectCommand>(sizeof(std::uint32_t));
-                const auto tail = std::ranges::partition(commands, FWD(f));
-                asValue<std::uint32_t>() = std::distance(commands.begin(), tail.begin());
+                return asRange<const vk::DrawIndirectCommand>(sizeof(std::uint32_t));
+            }
+        }
+
+        /**
+         * @copydoc drawIndirectCommands()
+         */
+        [[nodiscard]] std::variant<std::span<vk::DrawIndirectCommand>, std::span<vk::DrawIndexedIndirectCommand>> drawIndirectCommands() noexcept {
+            if (indexed) {
+                return asRange<vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
+            }
+            else {
+                return asRange<vk::DrawIndirectCommand>(sizeof(std::uint32_t));
             }
         }
 
@@ -77,7 +95,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @brief Reset the draw count to the number of commands in the buffer.
          */
         void resetDrawCount() noexcept {
-            asValue<std::uint32_t>() = maxDrawCount();
+            setDrawCount(maxDrawCount());
         }
 
         /**

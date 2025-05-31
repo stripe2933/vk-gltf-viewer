@@ -462,6 +462,78 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     };
 
     if (task.gltf) {
+        const auto isPrimitiveWithinFrustum = [&](std::size_t nodeIndex, std::size_t primitiveIndex) -> bool {
+            const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex];
+            const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax<float>(
+                *task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
+
+            const auto pred = [&](const fastgltf::math::fmat4x4 &worldTransform) -> bool {
+                const fastgltf::math::fvec3 transformedMin { worldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
+                const fastgltf::math::fvec3 transformedMax { worldTransform * fastgltf::math::fvec4 { max.x(), max.y(), max.z(), 1.f } };
+
+                const fastgltf::math::fvec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
+                const fastgltf::math::fvec3 center = transformedMin + halfDisplacement;
+                const float radius = length(halfDisplacement);
+
+                return task.frustum->isOverlapApprox(glm::make_vec3(center.data()), radius);
+            };
+
+            if (node.instancingAttributes.empty()) {
+                return pred(task.gltf->nodeWorldTransforms[nodeIndex]);
+            }
+            else {
+                // If node is instanced, the node primitive is regarded to be within the frustum if any of its instance
+                // is within the frustum.
+                return std::ranges::any_of(gltfAsset->instancedNodeWorldTransformBuffer->getTransforms(nodeIndex), pred);
+            }
+        };
+
+        std::unordered_map<std::uint32_t /* firstInstance */, std::uint32_t /* instanceCount */> cachedInstanceCounts;
+        const auto commandBufferCullingFunc = [&](buffer::IndirectDrawCommands &indirectDrawCommands) -> void {
+            // Partition the commands based on whether the bounding sphere of the primitive is within the frustum.
+            // - If the bounding sphere is overlapping with the frustum, partitioned left.
+            // - Otherwise, partitioned right.
+            // Then, draw count is set to the size of the left partition.
+            indirectDrawCommands.setDrawCount(visit([&]<concepts::one_of<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand> T>(std::span<T> commands) -> std::size_t {
+                return std::distance(
+                    commands.begin(),
+                    std::ranges::partition(commands, [&](T &command) {
+                        const std::size_t nodeIndex = command.firstInstance >> 16U;
+                        const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex];
+
+                        // Node is instanced and frustum culling is disabled for instanced nodes.
+                        if (!node.instancingAttributes.empty() && global::frustumCullingMode != global::FrustumCullingMode::OnWithInstancing) {
+                            return true;
+                        }
+
+                        if (node.skinIndex) {
+                            // As primitive POSITION accessor's min/max values are not sufficient to determine the bounding
+                            // volume of a skinned mesh, frustum culling which relies on this must be disabled.
+                            return true;
+                        }
+
+                        // First find the pre-calculated instance count.
+                        if (auto it = cachedInstanceCounts.find(command.firstInstance); it == cachedInstanceCounts.end()) {
+                            // No pre-calculated instance count, calculate and store it.
+                            const std::size_t primitiveIndex = command.firstInstance & 0xFFFFU;
+                            if (node.instancingAttributes.empty()) {
+                                command.instanceCount = isPrimitiveWithinFrustum(nodeIndex, primitiveIndex);
+                            }
+                            else {
+                                command.instanceCount = isPrimitiveWithinFrustum(nodeIndex, primitiveIndex)
+                                    ? task.gltf->asset.accessors[node.instancingAttributes.front().accessorIndex].count : 0U;
+                            }
+                            cachedInstanceCounts.emplace_hint(it, command.firstInstance, command.instanceCount);
+                        }
+                        else {
+                            command.instanceCount = it->second;
+                        }
+
+                        return command.instanceCount > 0U;
+                    }).begin());
+            }, indirectDrawCommands.drawIndirectCommands()));
+        };
+
         if (!renderingNodes || task.gltf->regenerateDrawCommands) {
             const std::vector<std::size_t> visibleNodeIndices
                 = task.gltf->nodeVisibilities
@@ -477,107 +549,103 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         }
 
         if (task.frustum) {
-            const auto commandBufferCullingFunc = [&](buffer::IndirectDrawCommands &indirectDrawCommands) -> void {
-                indirectDrawCommands.partition([&](const auto &command) {
-                    if (command.instanceCount > 1) {
-                        // Do not perform frustum culling for instanced mesh.
-                        return true;
-                    }
-
-                    const std::uint16_t nodeIndex = command.firstInstance >> 16U;
-                    const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex];
-
-                    if (node.skinIndex) {
-                        // As primitive POSITION accessor's min/max values are not sufficient to determine the bounding
-                        // volume of a skinned mesh, frustum culling which relies on this must be disabled.
-                        return true;
-                    }
-
-                    const std::uint16_t primitiveIndex = command.firstInstance & 0xFFFFU;
-                    const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax<float>(
-                        *task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
-
-                    const fastgltf::math::fmat4x4 &nodeWorldTransform = task.gltf->nodeWorldTransforms[nodeIndex];
-                    const fastgltf::math::fvec3 transformedMin { nodeWorldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
-                    const fastgltf::math::fvec3 transformedMax { nodeWorldTransform * fastgltf::math::fvec4 { max.x(), max.y(), max.z(), 1.f } };
-
-                    const fastgltf::math::fvec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
-                    const fastgltf::math::fvec3 center = transformedMin + halfDisplacement;
-                    const float radius = length(halfDisplacement);
-
-                    return task.frustum->isOverlapApprox(glm::make_vec3(center.data()), radius);
-                });
-            };
-
-            for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
-                commandBufferCullingFunc(buffer);
-            }
-            for (auto &buffer : renderingNodes->mousePickingIndirectDrawCommandBuffers | std::views::values) {
-                commandBufferCullingFunc(buffer);
-            }
-            for (auto &buffer : renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers | std::views::values) {
-                commandBufferCullingFunc(buffer);
-            }
+            std::ranges::for_each(renderingNodes->indirectDrawCommandBuffers | std::views::values, commandBufferCullingFunc);
+            visit(multilambda {
+                [](std::monostate) noexcept { },
+                [&](const vk::Offset2D&) {
+                    std::ranges::for_each(renderingNodes->mousePickingIndirectDrawCommandBuffers | std::views::values, commandBufferCullingFunc);
+                },
+                [&](const vk::Rect2D&) {
+                    std::ranges::for_each(renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers | std::views::values, commandBufferCullingFunc);
+                },
+            }, task.mousePickingInput);
         }
         else {
             for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
                 buffer.resetDrawCount();
             }
-            for (auto &buffer : renderingNodes->mousePickingIndirectDrawCommandBuffers | std::views::values) {
-                buffer.resetDrawCount();
+            visit(multilambda {
+                [](std::monostate) noexcept { },
+                [&](const vk::Offset2D&) {
+                    for (auto &buffer : renderingNodes->mousePickingIndirectDrawCommandBuffers | std::views::values) {
+                        buffer.resetDrawCount();
+                    }
+                },
+                [&](const vk::Rect2D&) {
+                    for (auto &buffer : renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers | std::views::values) {
+                        buffer.resetDrawCount();
+                    }
+                },
+            }, task.mousePickingInput);
+        }
+
+        if (task.gltf->selectedNodes) {
+            if (selectedNodes) {
+                if (task.gltf->regenerateDrawCommands ||
+                    selectedNodes->indices != task.gltf->selectedNodes->indices) {
+                    selectedNodes->indices = task.gltf->selectedNodes->indices;
+                    selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter);
+                }
+                selectedNodes->outlineColor = task.gltf->selectedNodes->outlineColor;
+                selectedNodes->outlineThickness = task.gltf->selectedNodes->outlineThickness;
             }
-            for (auto &buffer : renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers | std::views::values) {
-                buffer.resetDrawCount();
+            else {
+                selectedNodes.emplace(
+                    task.gltf->selectedNodes->indices,
+                    buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter),
+                    task.gltf->selectedNodes->outlineColor,
+                    task.gltf->selectedNodes->outlineThickness);
             }
+
+            if (task.frustum) {
+                std::ranges::for_each(selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers | std::views::values, commandBufferCullingFunc);
+            }
+            else {
+                for (auto &buffer : selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers | std::views::values) {
+                    buffer.resetDrawCount();
+                }
+            }
+        }
+        else {
+            selectedNodes.reset();
+        }
+
+        if (task.gltf->hoveringNode &&
+            // If selectedNodeIndices == hoveringNodeIndex, hovering node outline doesn't have to be drawn.
+            !(task.gltf->selectedNodes && task.gltf->selectedNodes->indices.size() == 1 && *task.gltf->selectedNodes->indices.begin() == task.gltf->hoveringNode->index)) {
+            if (hoveringNode) {
+                if (task.gltf->regenerateDrawCommands ||
+                    hoveringNode->index != task.gltf->hoveringNode->index) {
+                    hoveringNode->index = task.gltf->hoveringNode->index;
+                    hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, std::views::single(task.gltf->hoveringNode->index), drawCommandGetter);
+                }
+                hoveringNode->outlineColor = task.gltf->hoveringNode->outlineColor;
+                hoveringNode->outlineThickness = task.gltf->hoveringNode->outlineThickness;
+            }
+            else {
+                hoveringNode.emplace(
+                    task.gltf->hoveringNode->index,
+                    buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, std::views::single(task.gltf->hoveringNode->index), drawCommandGetter),
+                    task.gltf->hoveringNode->outlineColor,
+                    task.gltf->hoveringNode->outlineThickness);
+            }
+
+            if (task.frustum) {
+                std::ranges::for_each(hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers | std::views::values, commandBufferCullingFunc);
+            }
+            else {
+                for (auto &buffer : hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers | std::views::values) {
+                    buffer.resetDrawCount();
+                }
+            }
+        }
+        else {
+            hoveringNode.reset();
         }
     }
     else {
         renderingNodes.reset();
-    }
-
-    if (task.gltf && task.gltf->selectedNodes) {
-        if (selectedNodes) {
-            if (task.gltf->regenerateDrawCommands ||
-                selectedNodes->indices != task.gltf->selectedNodes->indices) {
-                selectedNodes->indices = task.gltf->selectedNodes->indices;
-                selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter);
-            }
-            selectedNodes->outlineColor = task.gltf->selectedNodes->outlineColor;
-            selectedNodes->outlineThickness = task.gltf->selectedNodes->outlineThickness;
-        }
-        else {
-            selectedNodes.emplace(
-                task.gltf->selectedNodes->indices,
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter),
-                task.gltf->selectedNodes->outlineColor,
-                task.gltf->selectedNodes->outlineThickness);
-        }
-    }
-    else {
         selectedNodes.reset();
-    }
-
-    if (task.gltf && task.gltf->hoveringNode &&
-        // If selectedNodeIndices == hoveringNodeIndex, hovering node outline doesn't have to be drawn.
-        !(task.gltf->selectedNodes && task.gltf->selectedNodes->indices.size() == 1 && *task.gltf->selectedNodes->indices.begin() == task.gltf->hoveringNode->index)) {
-        if (hoveringNode) {
-            if (task.gltf->regenerateDrawCommands ||
-                hoveringNode->index != task.gltf->hoveringNode->index) {
-                hoveringNode->index = task.gltf->hoveringNode->index;
-                hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, std::views::single(task.gltf->hoveringNode->index), drawCommandGetter);
-            }
-            hoveringNode->outlineColor = task.gltf->hoveringNode->outlineColor;
-            hoveringNode->outlineThickness = task.gltf->hoveringNode->outlineThickness;
-        }
-        else {
-            hoveringNode.emplace(
-                task.gltf->hoveringNode->index,
-                buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, std::views::single(task.gltf->hoveringNode->index), drawCommandGetter),
-                task.gltf->hoveringNode->outlineColor,
-                task.gltf->hoveringNode->outlineThickness);
-        }
-    }
-    else {
         hoveringNode.reset();
     }
 

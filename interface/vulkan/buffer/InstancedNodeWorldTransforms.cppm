@@ -58,12 +58,20 @@ namespace vk_gltf_viewer::vulkan::buffer {
             update(scene, nodeWorldTransforms, adapter);
         }
 
+        /**
+         * @brief Get instanced world transform matrices for a node whose index is \p nodeIndex.
+         * @param nodeIndex Node index.
+         * @return A span of instanced world transform matrices for the node.
+         */
         [[nodiscard]] std::span<const fastgltf::math::fmat4x4> getTransforms(std::size_t nodeIndex) const noexcept {
             const std::size_t offset = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex];
             const std::size_t count = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex + 1] - offset;
             return asRange<const fastgltf::math::fmat4x4>().subspan(offset, count);
         }
 
+        /**
+         * @copydoc getTransforms(std::size_t nodeIndex) const noexcept
+         */
         [[nodiscard]] std::span<fastgltf::math::fmat4x4> getTransforms(std::size_t nodeIndex) noexcept {
             const std::size_t offset = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex];
             const std::size_t count = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex + 1] - offset;

@@ -212,7 +212,7 @@ void vk_gltf_viewer::MainApp::run() {
                 imguiTaskCollector.imageBasedLighting(*iblInfo, vku::toUint64(skyboxResources->imGuiEqmapTextureDescriptorSet));
             }
             imguiTaskCollector.background(appState.canSelectSkyboxBackground, appState.background);
-            imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline, gpu.supportShaderStencilExport);
+            imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.hoveringNodeOutline, appState.selectedNodeOutline, gpu.supportShaderStencilExport);
             if (gltf) {
                 imguiTaskCollector.imguizmo(appState.camera, gltf->asset, gltf->selectedNodes, gltf->nodeWorldTransforms, appState.imGuizmoOperation, gltf->animations, *gltf->animationEnabled);
             }
@@ -654,7 +654,7 @@ void vk_gltf_viewer::MainApp::run() {
                 { static_cast<std::uint32_t>(framebufferScale.x * passthruRect.GetWidth()), static_cast<std::uint32_t>(framebufferScale.y * passthruRect.GetHeight()) },
             },
             .camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
-            .frustum = value_if(appState.useFrustumCulling, [this]() {
+            .frustum = value_if(global::frustumCullingMode != global::FrustumCullingMode::Off, [this]() {
                 return appState.camera.getFrustum();
             }),
             .mousePickingInput = [&]() -> std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
