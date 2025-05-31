@@ -478,35 +478,55 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
 
         if (task.frustum) {
             const auto commandBufferCullingFunc = [&](buffer::IndirectDrawCommands &indirectDrawCommands) -> void {
-                indirectDrawCommands.partition([&](const auto &command) {
-                    if (command.instanceCount > 1) {
-                        // Do not perform frustum culling for instanced mesh.
-                        return true;
-                    }
+                // Partition the commands based on whether the bounding sphere of the primitive is within the frustum.
+                // - If the bounding sphere is overlapping with the frustum, partitioned left.
+                // - Otherwise, partitioned right.
+                // Then, draw count is set to the size of the left partition.
+                indirectDrawCommands.setDrawCount(visit([&]<concepts::one_of<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand> T>(std::span<T> commands) -> std::size_t {
+                    return std::distance(
+                        commands.begin(),
+                        std::ranges::partition(commands, [&](T &command) {
+                            const std::size_t nodeIndex = command.firstInstance >> 16U;
+                            const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex];
 
-                    const std::uint16_t nodeIndex = command.firstInstance >> 16U;
-                    const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex];
+                            if (node.skinIndex) {
+                                // As primitive POSITION accessor's min/max values are not sufficient to determine the bounding
+                                // volume of a skinned mesh, frustum culling which relies on this must be disabled.
+                                return true;
+                            }
 
-                    if (node.skinIndex) {
-                        // As primitive POSITION accessor's min/max values are not sufficient to determine the bounding
-                        // volume of a skinned mesh, frustum culling which relies on this must be disabled.
-                        return true;
-                    }
+                            const std::size_t primitiveIndex = command.firstInstance & 0xFFFFU;
+                            const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax<float>(
+                                *task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
 
-                    const std::uint16_t primitiveIndex = command.firstInstance & 0xFFFFU;
-                    const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax<float>(
-                        *task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
+                            const auto isPrimitiveOverlapWithFrustum = [&](const fastgltf::math::fmat4x4 &worldTransform) -> bool {
+                                const fastgltf::math::fvec3 transformedMin { worldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
+                                const fastgltf::math::fvec3 transformedMax { worldTransform * fastgltf::math::fvec4 { max.x(), max.y(), max.z(), 1.f } };
 
-                    const fastgltf::math::fmat4x4 &nodeWorldTransform = task.gltf->nodeWorldTransforms[nodeIndex];
-                    const fastgltf::math::fvec3 transformedMin { nodeWorldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
-                    const fastgltf::math::fvec3 transformedMax { nodeWorldTransform * fastgltf::math::fvec4 { max.x(), max.y(), max.z(), 1.f } };
+                                const fastgltf::math::fvec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
+                                const fastgltf::math::fvec3 center = transformedMin + halfDisplacement;
+                                const float radius = length(halfDisplacement);
 
-                    const fastgltf::math::fvec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
-                    const fastgltf::math::fvec3 center = transformedMin + halfDisplacement;
-                    const float radius = length(halfDisplacement);
+                                return task.frustum->isOverlapApprox(glm::make_vec3(center.data()), radius);
+                            };
 
-                    return task.frustum->isOverlapApprox(glm::make_vec3(center.data()), radius);
-                });
+                            if (node.instancingAttributes.empty()) {
+                                return isPrimitiveOverlapWithFrustum(task.gltf->nodeWorldTransforms[nodeIndex]);
+                            }
+                            else {
+                                // If the draw command is instanced, the instance world transforms also have to be
+                                // partitioned, as the same manner of bounding sphere overlapping check. Then, command
+                                // instance count is set to the size of the left partition.
+                                std::span instanceWorldTransforms = gltfAsset->instancedNodeWorldTransformBuffer->getTransforms(nodeIndex);
+                                command.instanceCount = std::distance(
+                                    instanceWorldTransforms.begin(),
+                                    std::ranges::partition(instanceWorldTransforms, isPrimitiveOverlapWithFrustum).begin());
+
+                                // If all instances are culled, so does the command.
+                                return command.instanceCount != 0;
+                            }
+                        }).begin());
+                }, indirectDrawCommands.drawIndirectCommands()));
             };
 
             for (auto &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
