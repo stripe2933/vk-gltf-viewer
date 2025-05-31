@@ -1657,7 +1657,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
 void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
     Camera &camera,
     bool &automaticNearFarPlaneAdjustment,
-    bool &useFrustumCulling,
     full_optional<AppState::Outline> &hoveringNodeOutline,
     full_optional<AppState::Outline> &selectedNodeOutline,
     bool canSelectBloomModePerFragment
@@ -1684,9 +1683,23 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
                 ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
             }, automaticNearFarPlaneAdjustment);
 
-            ImGui::Checkbox("Use Frustum Culling", &useFrustumCulling);
-            ImGui::SameLine();
-            ImGui::HelperMarker("(?)", "The primitives outside the camera frustum will be culled.");
+            constexpr auto to_string = [](global::FrustumCullingMode mode) noexcept -> const char* {
+                switch (mode) {
+                    case global::FrustumCullingMode::Off: return "Off";
+                    case global::FrustumCullingMode::On: return "On";
+                    case global::FrustumCullingMode::OnWithInstancing: return "On with instancing";
+                }
+                std::unreachable();
+            };
+            if (ImGui::BeginCombo("Frustum Culling", to_string(global::frustumCullingMode))) {
+                for (auto mode : { global::FrustumCullingMode::Off, global::FrustumCullingMode::On, global::FrustumCullingMode::OnWithInstancing }) {
+                    if (ImGui::Selectable(to_string(mode), global::frustumCullingMode == mode) && global::frustumCullingMode != mode) {
+                        global::frustumCullingMode = mode;
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
         }
 
         if (ImGui::CollapsingHeader("Node selection")) {
