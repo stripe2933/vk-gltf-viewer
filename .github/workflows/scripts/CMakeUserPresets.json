@@ -14,10 +14,7 @@
     },
     {
       "name": "windows-latest-msvc",
-      "inherits": "ci",
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows-release"
-      }
+      "inherits": "ci"
     },
     {
       "name": "windows-latest-mingw-clang",
@@ -27,7 +24,7 @@
         "CMAKE_CXX_COMPILER": "C:/msys64/clang64/bin/clang++.exe",
         "CMAKE_CXX_FLAGS": "-stdlib=libc++",
         "CMAKE_EXE_LINKER_FLAGS": "-static",
-        "VCPKG_TARGET_TRIPLET": "x64-windows-mingw-clang-release"
+        "VCPKG_TARGET_TRIPLET": "x64-windows-mingw-clang"
       }
     },
     {
@@ -36,7 +33,7 @@
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
         "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++",
-        "VCPKG_TARGET_TRIPLET": "arm64-macos-clang-release"
+        "VCPKG_TARGET_TRIPLET": "arm64-macos-clang"
       }
     },
     {
@@ -47,14 +44,69 @@
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
         "CMAKE_CXX_FLAGS": "-stdlib=libc++",
         "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++ -lc++abi",
-        "VCPKG_TARGET_TRIPLET": "x64-linux-clang-release"
+        "VCPKG_TARGET_TRIPLET": "x64-linux-clang"
       }
     },
     {
       "name": "ubuntu-24.04-arm-clang",
       "inherits": "ubuntu-latest-clang",
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "arm64-linux-clang-release"
+        "VCPKG_TARGET_TRIPLET": "arm64-linux-clang"
+      }
+    },
+    {
+      "name": "ci-debug",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build/debug",
+      "hidden": true,
+      "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Debug"
+      },
+      "environment": {
+        "VCPKG_ROOT": "$env{VCPKG_INSTALLATION_ROOT}"
+      }
+    },
+    {
+      "name": "windows-latest-msvc-debug",
+      "inherits": "ci-debug"
+    },
+    {
+      "name": "windows-latest-mingw-clang-debug",
+      "inherits": "ci-debug",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "C:/msys64/clang64/bin/clang.exe",
+        "CMAKE_CXX_COMPILER": "C:/msys64/clang64/bin/clang++.exe",
+        "CMAKE_CXX_FLAGS": "-stdlib=libc++ -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG",
+        "CMAKE_EXE_LINKER_FLAGS": "-static",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-mingw-clang"
+      }
+    },
+    {
+      "name": "macos-15-clang-debug",
+      "inherits": "ci-debug",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
+        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++",
+        "CMAKE_CXX_FLAGS": "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG",
+        "VCPKG_TARGET_TRIPLET": "arm64-macos-clang"
+      }
+    },
+    {
+      "name": "ubuntu-latest-clang-debug",
+      "inherits": "ci-debug",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/usr/bin/clang",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "CMAKE_CXX_FLAGS": "-stdlib=libc++ -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG",
+        "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++ -lc++abi",
+        "VCPKG_TARGET_TRIPLET": "x64-linux-clang"
+      }
+    },
+    {
+      "name": "ubuntu-24.04-arm-clang-debug",
+      "inherits": "ubuntu-latest-clang-debug",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-linux-clang"
       }
     }
   ]

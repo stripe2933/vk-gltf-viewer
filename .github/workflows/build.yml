@@ -87,3 +87,19 @@ jobs:
             build/vk-gltf-viewer.app
             build/vk-gltf-viewer
             build/*.dll
+
+      - name: Configure (Debug)
+        run: cmake --preset=${{ matrix.os }}-${{ matrix.compiler }}-debug
+
+      - name: Build (Debug)
+        run: cmake --build build/debug --config debug
+
+      - name: Upload Binary as Artifact (Debug)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}_${{ runner.arch }}_${{ matrix.compiler }}_Debug
+          path: |
+            build/debug/vk-gltf-viewer.exe
+            build/debug/vk-gltf-viewer.app
+            build/debug/vk-gltf-viewer
+            build/debug/*.dll
