@@ -1,11 +1,4 @@
-if (${Vulkan_glslc_FOUND})
-    message(STATUS "Using Vulkan glslc for shader compilation.")
-
-    # glslc needs to create dependency file in ${CMAKE_CURRENT_BINARY_DIR}/shader_depfile.
-    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shader_depfile)
-elseif (${Vulkan_glslangValidator_FOUND})
-    message(WARNING "Vulkan glslc not found, using glslangValidator for shader compilation instead. Modifying indirectly included files will NOT trigger recompilation.")
-else()
+if (NOT ${Vulkan_glslangValidator_FOUND})
     message(FATAL_ERROR "No shader compiler found.")
 endif ()
 
@@ -36,26 +29,13 @@ function(target_link_shaders TARGET SCOPE)
         # Make output SPIR-V num path.
         set(spirv_num_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.h")
 
-        if (${Vulkan_glslc_FOUND})
-            set(depfile "${CMAKE_CURRENT_BINARY_DIR}/shader_depfile/${filename}.d")
-            add_custom_command(
-                OUTPUT ${spirv_num_filename}
-                COMMAND Vulkan::glslc -MD -MF ${depfile} $<$<CONFIG:Release>:-O> --target-env=${arg_TARGET_ENV} -mfmt=num ${source} -o ${spirv_num_filename}
-                DEPENDS ${source}
-                BYPRODUCTS ${depfile}
-                DEPFILE ${depfile}
-                COMMAND_EXPAND_LISTS
-                VERBATIM
-            )
-        elseif (${Vulkan_glslangValidator_FOUND})
-            add_custom_command(
-                OUTPUT ${spirv_num_filename}
-                COMMAND Vulkan::glslangValidator -V $<$<CONFIG:Release>:-Os> --target-env ${arg_TARGET_ENV} -x ${source} -o ${spirv_num_filename}
-                DEPENDS ${source}
-                COMMAND_EXPAND_LISTS
-                VERBATIM
-            )
-        endif ()
+        add_custom_command(
+            OUTPUT ${spirv_num_filename}
+            COMMAND Vulkan::glslangValidator -V $<IF:$<CONFIG:Release>,-Os,-gVS> --target-env ${arg_TARGET_ENV} -x ${source} -o ${spirv_num_filename}
+            DEPENDS ${source}
+            COMMAND_EXPAND_LISTS
+            VERBATIM
+        )
         list(APPEND spirv_num_filenames ${spirv_num_filename})
 
         # --------------------
@@ -126,28 +106,14 @@ function(target_link_shader_variants TARGET SCOPE)
             list(JOIN macro_values "_" variant_filename)
             set(spirv_num_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}_${variant_filename}.h")
 
-            if (${Vulkan_glslc_FOUND})
-                set(depfile "${CMAKE_CURRENT_BINARY_DIR}/shader_depfile/${filename}_${variant_filename}.d")
-                add_custom_command(
-                    OUTPUT ${spirv_num_filename}
-                    # Compile GLSL to SPIR-V.
-                    COMMAND Vulkan::glslc -MD -MF ${depfile} $<$<CONFIG:Release>:-O> --target-env=${arg_TARGET_ENV} -mfmt=num ${macro_cli_defs} ${source} -o ${spirv_num_filename}
-                    DEPENDS ${source}
-                    BYPRODUCTS ${depfile}
-                    DEPFILE ${depfile}
-                    COMMAND_EXPAND_LISTS
-                    VERBATIM
-                )
-            elseif (${Vulkan_glslangValidator_FOUND})
-                add_custom_command(
-                    OUTPUT ${spirv_num_filename}
-                    # Compile GLSL to SPIR-V.
-                    COMMAND Vulkan::glslangValidator -V $<$<CONFIG:Release>:-Os> --target-env ${arg_TARGET_ENV} -x ${macro_cli_defs} ${source} -o ${spirv_num_filename}
-                    DEPENDS ${source}
-                    COMMAND_EXPAND_LISTS
-                    VERBATIM
-                )
-            endif ()
+            add_custom_command(
+                OUTPUT ${spirv_num_filename}
+                # Compile GLSL to SPIR-V.
+                COMMAND Vulkan::glslangValidator -V $<IF:$<CONFIG:Release>,-Os,-gVS> --target-env ${arg_TARGET_ENV} -x ${macro_cli_defs} ${source} -o ${spirv_num_filename}
+                DEPENDS ${source}
+                COMMAND_EXPAND_LISTS
+                VERBATIM
+            )
 
             # Make value parameter string.
             # e.g., If macro_values=[0, 1], value_params="0, 1".
