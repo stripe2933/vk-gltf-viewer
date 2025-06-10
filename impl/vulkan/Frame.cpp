@@ -487,8 +487,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                         }
 
                         const std::size_t primitiveIndex = command.firstInstance & 0xFFFFU;
-                        const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax<float>(
-                            *task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
+                        const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax(*task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
 
                         const auto isPrimitiveOverlapWithFrustum = [&](const fastgltf::math::fmat4x4 &worldTransform) -> bool {
                             const fastgltf::math::fvec3 transformedMin { worldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
