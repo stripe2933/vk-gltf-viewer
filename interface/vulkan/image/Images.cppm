@@ -497,9 +497,13 @@ namespace vk_gltf_viewer::vulkan::image {
 
                 if (imageIndicesToGenerateMipmap.empty()) return;
 
-                recordBatchedMipmapGenerationCommand(cb, imageIndicesToGenerateMipmap | std::views::transform([this](std::size_t imageIndex) -> decltype(auto) {
-                    return get<0>(at(imageIndex));
-                }));
+                recordBatchedMipmapGenerationCommand(
+                    cb,
+                    imageIndicesToGenerateMipmap
+                        | std::views::transform([this](std::size_t imageIndex) -> const vku::Image* {
+                            return &get<0>(at(imageIndex));
+                        })
+                        | std::ranges::to<std::vector>());
 
                 cb.pipelineBarrier(
                     vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,

@@ -25,59 +25,13 @@ namespace vk_gltf_viewer::vulkan {
     /**
      * Record batched mipmap generation command for \p images to \p cb. It efficiently generates blit commands between mip levels of multiple images and minimize pipeline barriers.
      * @param cb Command buffer to be recorded. This should have graphics capability for blitting.
-     * @param images Images to generate mipmap. Their usage must contain <tt>TransferSrc</tt> and <tt>TransferDst</tt>, and layout must be <tt>TransferSrcOptimal</tt> for base mip level and <tt>TransferDstOptimal</tt> for the remaining mip levels.
+     * @param images Pointers of images to generate mipmap. Their usage must contain <tt>TransferSrc</tt> and <tt>TransferDst</tt>, and layout must be <tt>TransferSrcOptimal</tt> for base mip level and <tt>TransferDstOptimal</tt> for the remaining mip levels.
      * @note The result image layout will be <tt>TransferSrcOptimal</tt> for all mip levels except for the last mip level, which will be <tt>TransferDstOptimal</tt>.
      * @note The last synchronization point will be image memory barrier, whose stage mask is <tt>Transfer</tt> and access mask is <tt>TransferWrite</tt>.
      * @note \p images must be alive until the command buffer is submitted and execution finished.
      * @see recordMipmapGenerationCommand for single image mipmap generation.
      */
-    export template <std::ranges::forward_range R>
-        requires std::derived_from<std::ranges::range_value_t<R>, vku::Image>
-    void recordBatchedMipmapGenerationCommand(vk::CommandBuffer cb, R &&images) {
-        // 1. Sort image by their mip levels in ascending order.
-        std::vector pImages
-            = images
-            | std::views::transform([](const vku::Image &image) { return &image; })
-            | std::ranges::to<std::vector>();
-        std::ranges::sort(pImages, {}, [](const vku::Image *pImage) { return pImage->mipLevels; });
-
-        const std::uint32_t maxMipLevels = pImages.back()->mipLevels;
-        for (std::uint32_t srcLevel = 0, dstLevel = 1; dstLevel < maxMipLevels; ++srcLevel, ++dstLevel) {
-            // Find the images that have the current mip level.
-            auto begin = std::ranges::lower_bound(
-                pImages, dstLevel + 1U, {}, [](const vku::Image *pImage) { return pImage->mipLevels; });
-            const auto targetImages = std::ranges::subrange(begin, pImages.end()) | ranges::views::deref;
-
-            // Blit from srcLevel to dstLevel.
-            for (const vku::Image &image : targetImages) {
-                cb.blitImage(
-                    image, vk::ImageLayout::eTransferSrcOptimal,
-                    image, vk::ImageLayout::eTransferDstOptimal,
-                    vk::ImageBlit {
-                        { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
-                        { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(srcLevel)) },
-                        { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-                        { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(dstLevel)) },
-                    },
-                    vk::Filter::eLinear);
-            }
-
-            // Barrier between each mip level.
-            if (dstLevel != maxMipLevels - 1U) {
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
-                    {}, {}, {},
-                    vku::unsafeProxy(targetImages | std::views::transform([=](vk::Image image) {
-                        return vk::ImageMemoryBarrier {
-                            vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eTransferRead,
-                            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                            image, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 }
-                        };
-                    }) | std::ranges::to<std::vector>()));
-            }
-        }
-    }
+    export void recordBatchedMipmapGenerationCommand(vk::CommandBuffer cb, std::vector<const vku::Image*> images);
 }
 
 #if !defined(__GNUC__) || defined(__clang__)
@@ -109,6 +63,51 @@ void vk_gltf_viewer::vulkan::recordMipmapGenerationCommand(vk::CommandBuffer cb,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                     image, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 }
                 });
+        }
+    }
+}
+
+void vk_gltf_viewer::vulkan::recordBatchedMipmapGenerationCommand(vk::CommandBuffer cb, std::vector<const vku::Image*> images) {
+    // Sort image by their mip levels in ascending order.
+    std::ranges::sort(images, {}, [](const vku::Image *pImage) { return pImage->mipLevels; });
+
+    std::vector<vk::ImageMemoryBarrier> imageMemoryBarriers;
+    imageMemoryBarriers.reserve(images.size());
+
+    const std::uint32_t maxMipLevels = images.back()->mipLevels;
+    for (std::uint32_t srcLevel = 0, dstLevel = 1; dstLevel < maxMipLevels; ++srcLevel, ++dstLevel) {
+        // Find the images that have the current mip level.
+        auto begin = std::ranges::lower_bound(
+            images, dstLevel + 1U, {}, [](const vku::Image *pImage) { return pImage->mipLevels; });
+
+        imageMemoryBarriers.clear();
+        for (const vku::Image &image : std::ranges::subrange(begin, images.end()) | ranges::views::deref) {
+            // Blit from srcLevel to dstLevel.
+            cb.blitImage(
+                image, vk::ImageLayout::eTransferSrcOptimal,
+                image, vk::ImageLayout::eTransferDstOptimal,
+                vk::ImageBlit {
+                    { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
+                    { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(srcLevel)) },
+                    { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
+                    { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(dstLevel)) },
+                },
+                vk::Filter::eLinear);
+
+            // Collect barriers.
+            imageMemoryBarriers.push_back({
+                vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eTransferRead,
+                vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                image, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 }
+            });
+        }
+
+        // Barrier between each mip level.
+        if (dstLevel != maxMipLevels - 1U) {
+            cb.pipelineBarrier(
+                vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
+                {}, {}, {}, imageMemoryBarriers);
         }
     }
 }
