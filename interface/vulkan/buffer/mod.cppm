@@ -22,6 +22,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
      * @param segments Range of data segments. Each segment will be converted to <tt>std::span<const std::byte></tt> if their elements are not <tt>std::byte</tt>.
      * @param usage Usage flags of the result buffer.
      * @return Pair of buffer and each segments' start offsets vector.
+     * @throw vk::InitializationFailedError Result buffer size is zero.
      */
     export template <bool Unmap = false, std::ranges::forward_range R> requires (
         // Each segments must be a sized range.
@@ -43,10 +44,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
             vk::DeviceSize sizeTotal = copyOffsets.back();
             std::exclusive_scan(copyOffsets.begin(), copyOffsets.end(), copyOffsets.begin(), vk::DeviceSize { 0 });
             sizeTotal += copyOffsets.back();
-
-            if (sizeTotal == 0) {
-                throw std::invalid_argument { "No data to write" };
-            }
 
             // Create buffer.
             vku::MappedBuffer buffer { allocator, vk::BufferCreateInfo { {}, sizeTotal, usage } };
