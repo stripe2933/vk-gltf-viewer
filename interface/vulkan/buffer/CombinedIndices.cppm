@@ -117,17 +117,14 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     // If LINE_LOOP primitive does not have an indices accessor, it is emulated with indexed drawing,
                     // whose indices are [0, 1, ..., n, 0] (n is total vertex count).
                     const std::size_t drawCount = asset.accessors[primitive.findAttribute("POSITION")->accessorIndex].count;
-                    const fastgltf::ComponentType componentType = [&]() {
-                        if (gpu.supportUint8Index && drawCount < 256) {
-                            return fastgltf::ComponentType::UnsignedByte;
-                        }
-                        else if (drawCount < 65536) {
-                            return fastgltf::ComponentType::UnsignedShort;
-                        }
-                        else {
-                            return fastgltf::ComponentType::UnsignedInt;
-                        }
-                    }();
+
+                    fastgltf::ComponentType componentType = fastgltf::ComponentType::UnsignedInt;
+                    if (gpu.supportUint8Index && drawCount < 256) {
+                        componentType = fastgltf::ComponentType::UnsignedByte;
+                    }
+                    else if (drawCount < 65536) {
+                        componentType = fastgltf::ComponentType::UnsignedShort;
+                    }
 
                     visit([&]<typename T>(std::type_identity<T>) {
                         const std::size_t dataSize = sizeof(T) * (drawCount + 1); // +1 for 0 at the end

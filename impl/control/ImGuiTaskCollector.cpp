@@ -233,27 +233,27 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetBufferViews(std::span<fas
         "gltf-buffer-views-table",
         ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
         bufferViews,
-        ImGui::ColumnInfo { "Name", [&](std::size_t rowIndex, fastgltf::BufferView &bufferView) {
+        ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::BufferView &bufferView) {
             ImGui::WithID(rowIndex, [&]() {
                 ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
                 ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
             });
         }, ImGuiTableColumnFlags_WidthStretch },
-        ImGui::ColumnInfo { "Buffer", [&](std::size_t i, const fastgltf::BufferView &bufferView) {
+        ImGui::ColumnInfo { "Buffer", [](std::size_t i, const fastgltf::BufferView &bufferView) {
             ImGui::PushID(i);
             if (ImGui::TextLink(tempStringBuffer.write(bufferView.bufferIndex).view().c_str())) {
                 makeWindowVisible("Buffers");
             }
             ImGui::PopID();
         }, ImGuiTableColumnFlags_WidthFixed },
-        ImGui::ColumnInfo { "Range", [&](const fastgltf::BufferView &bufferView) {
+        ImGui::ColumnInfo { "Range", [](const fastgltf::BufferView &bufferView) {
             ImGui::TextUnformatted(tempStringBuffer.write(
                 "[{}, {}]", bufferView.byteOffset, bufferView.byteOffset + bufferView.byteLength));
         }, ImGuiTableColumnFlags_WidthFixed },
-        ImGui::ColumnInfo { "Size", [&](const fastgltf::BufferView &bufferView) {
+        ImGui::ColumnInfo { "Size", [](const fastgltf::BufferView &bufferView) {
             ImGui::TextUnformatted(tempStringBuffer.write(ByteSize(bufferView.byteLength)));
         }, ImGuiTableColumnFlags_WidthFixed },
-        ImGui::ColumnInfo { "Stride", [&](const fastgltf::BufferView &bufferView) {
+        ImGui::ColumnInfo { "Stride", [](const fastgltf::BufferView &bufferView) {
             if (const auto &byteStride = bufferView.byteStride) {
                 ImGui::TextUnformatted(tempStringBuffer.write(*byteStride));
             }
@@ -261,7 +261,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetBufferViews(std::span<fas
                 ImGui::TextDisabled("-");
             }
         }, ImGuiTableColumnFlags_WidthFixed },
-        ImGui::ColumnInfo { "Target", [&](const fastgltf::BufferView &bufferView) {
+        ImGui::ColumnInfo { "Target", [](const fastgltf::BufferView &bufferView) {
             if (const auto &bufferViewTarget = bufferView.target) {
                 ImGui::TextUnformatted(to_string(*bufferViewTarget));
             }
@@ -386,7 +386,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
                     ImGui::LabelText("Sampler Index", "%zu", texture.samplerIndex.value_or(-1));
                 }
                 else {
-                    ImGui::WithLabel("Sampler Index", [&]() {
+                    ImGui::WithLabel("Sampler Index", []() {
                         ImGui::TextDisabled("-");
                         ImGui::SameLine();
                         ImGui::HelperMarker("(?)", "Default sampler will be used.");

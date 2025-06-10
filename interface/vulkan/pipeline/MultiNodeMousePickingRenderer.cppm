@@ -13,7 +13,7 @@ export import vk_gltf_viewer.vulkan.pl.MultiNodeMousePicking;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+#define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class MultiNodeMousePickingRendererSpecialization {
