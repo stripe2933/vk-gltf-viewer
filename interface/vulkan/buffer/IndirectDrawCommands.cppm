@@ -120,7 +120,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
                     return IndirectDrawCommands { allocator, std::span { commands } };
                 }, variant);
             })
-            | std::ranges::to<std::map<Criteria, IndirectDrawCommands, Compare>>();
+            | std::ranges::to<std::map>(Compare{});
     }
 }
 
