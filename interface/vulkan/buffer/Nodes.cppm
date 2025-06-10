@@ -17,7 +17,6 @@ import :helpers.ranges;
 import :gltf.algorithm.traversal;
 export import :gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
 export import :gltf.data_structure.SkinJointCountExclusiveScanWithCount;
-export import :gltf.NodeWorldTransforms;
 export import :vulkan.buffer.InstancedNodeWorldTransforms;
 import :vulkan.shader_type.Node;
 
@@ -28,7 +27,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
             const vk::raii::Device &device LIFETIMEBOUND,
             vma::Allocator allocator LIFETIMEBOUND,
             const fastgltf::Asset &asset LIFETIMEBOUND,
-            const gltf::NodeWorldTransforms &nodeWorldTransforms,
+            std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
             const gltf::ds::TargetWeightCountExclusiveScanWithCount &targetWeightCountExclusiveScan,
             const gltf::ds::SkinJointCountExclusiveScanWithCount &skinJointCountExclusiveScan,
             const InstancedNodeWorldTransforms *instancedNodeWorldTransformBuffer LIFETIMEBOUND = nullptr
@@ -70,11 +69,21 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
         /**
+         * @brief Update the node world transforms at \p nodeIndex.
+         * @param nodeIndex Node index to be started.
+         * @param nodeWorldTransform World transform matrix of the node.
+         */
+        void update(std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
+            shader_type::Node &node = buffer.asRange<shader_type::Node>()[nodeIndex];
+            node.worldTransform = glm::make_mat4(nodeWorldTransform.data());
+        }
+
+        /**
          * @brief Update the node world transforms from given \p nodeIndex, to its descendants.
          * @param nodeIndex Node index to be started.
-         * @param nodeWorldTransforms pre-calculated node world transforms.
+         * @param nodeWorldTransforms Node world transform matrices ordered by node indices in the asset.
          */
-        void update(std::size_t nodeIndex, const gltf::NodeWorldTransforms &nodeWorldTransforms) {
+        void updateHierarchical(std::size_t nodeIndex, std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms) {
             const std::span bufferData = buffer.asRange<shader_type::Node>();
             gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
                 bufferData[nodeIndex].worldTransform = glm::make_mat4(nodeWorldTransforms[nodeIndex].data());
@@ -84,11 +93,11 @@ namespace vk_gltf_viewer::vulkan::buffer {
         /**
          * @brief Update the node world transforms for all nodes in a scene.
          * @param scene Scene to be updated.
-         * @param nodeWorldTransforms pre-calculated node world transforms.
+         * @param nodeWorldTransforms Node world transform matrices that is indexed by node index.
          */
-        void update(const fastgltf::Scene &scene, const gltf::NodeWorldTransforms &nodeWorldTransforms) {
+        void update(const fastgltf::Scene &scene, std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms) {
             for (std::size_t nodeIndex : scene.nodeIndices) {
-                update(nodeIndex, nodeWorldTransforms);
+                updateHierarchical(nodeIndex, nodeWorldTransforms);
             }
         }
 

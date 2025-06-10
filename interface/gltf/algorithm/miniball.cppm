@@ -13,7 +13,6 @@ export import fastgltf;
 import :helpers.fastgltf;
 import :gltf.algorithm.bounding_box;
 import :gltf.algorithm.traversal;
-export import :gltf.NodeWorldTransforms;
 
 namespace vk_gltf_viewer::gltf::algorithm {
     /**
@@ -22,14 +21,14 @@ namespace vk_gltf_viewer::gltf::algorithm {
      * @tparam BufferDataAdapter A functor type that acquires the binary buffer data from a glTF buffer view.
      * @param asset fastgltf Asset.
      * @param scene Scene to be considered. It must be from the same asset.
-     * @param nodeWorldTransforms Pre-calculated world transforms for each node in the scene.
+     * @param nodeWorldTransforms Node world transform matrices ordered by node indices in the asset.
      * @return The pair of the miniball's center and radius.
      */
     export template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
     [[nodiscard]] std::pair<fastgltf::math::fvec3, float> getMiniball(
         const fastgltf::Asset &asset,
         const fastgltf::Scene &scene,
-        const NodeWorldTransforms &nodeWorldTransforms,
+        std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
         const BufferDataAdapter &adapter = {}
     ) {
 #ifdef EXACT_BOUNDING_VOLUME_USING_CGAL

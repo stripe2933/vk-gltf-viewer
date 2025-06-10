@@ -10,7 +10,6 @@ module;
 export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
-export import :gltf.NodeWorldTransforms;
 export import :gltf.OrderedPrimitives;
 import :helpers.optional;
 import :math.extended_arithmetic;
@@ -84,7 +83,7 @@ namespace vk_gltf_viewer::vulkan {
             template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
             GltfAsset(
                 const fastgltf::Asset &asset LIFETIMEBOUND,
-                const gltf::NodeWorldTransforms &nodeWorldTransforms,
+                std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
                 const SharedData &sharedData LIFETIMEBOUND,
                 const BufferDataAdapter &adapter = {}
             ) : instancedNodeWorldTransformBuffer { value_if(sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount.back() != 0, [&]() {
@@ -140,7 +139,7 @@ namespace vk_gltf_viewer::vulkan {
 
                 const fastgltf::Asset &asset;
                 const gltf::OrderedPrimitives &orderedPrimitives;
-                const gltf::NodeWorldTransforms &nodeWorldTransforms;
+                std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms;
 
                 bool regenerateDrawCommands;
                 const std::vector<bool> &nodeVisibilities;
@@ -208,7 +207,7 @@ namespace vk_gltf_viewer::vulkan {
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         void changeAsset(
             const fastgltf::Asset &asset,
-            const gltf::NodeWorldTransforms &nodeWorldTransforms,
+            std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
             const BufferDataAdapter &adapter = {}
         ) {
             const auto &inner = gltfAsset.emplace(asset, nodeWorldTransforms, sharedData, adapter);
