@@ -18,9 +18,6 @@ export import vk_gltf_viewer.vulkan.Gpu;
 import vk_gltf_viewer.vulkan.shader_type.Primitive;
 import vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
-#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
-
 namespace vk_gltf_viewer::vulkan::buffer {
     export class Primitives : trait::PostTransferObject {
     public:

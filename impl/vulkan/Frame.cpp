@@ -593,12 +593,12 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             }
             visit(multilambda {
                 [](std::monostate) noexcept { },
-                [&](const vk::Offset2D&) {
+                [this](const vk::Offset2D&) {
                     for (buffer::IndirectDrawCommands &buffer : renderingNodes->mousePickingIndirectDrawCommandBuffers | std::views::values) {
                         buffer.resetDrawCount();
                     }
                 },
-                [&](const vk::Rect2D&) {
+                [this](const vk::Rect2D&) {
                     for (buffer::IndirectDrawCommands &buffer : renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers | std::views::values) {
                         buffer.resetDrawCount();
                     }
@@ -1120,20 +1120,20 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
     }
 
     // If hovering node's outline have to be rendered, prepare attachment layout transition for jump flood seeding.
-    const auto addJumpFloodSeedImageMemoryBarrier = [&](vk::Image image) {
-        memoryBarriers.push_back({
+    const auto getJumpFloodSeedImageMemoryBarrier = [](vk::Image image) -> vk::ImageMemoryBarrier {
+        return {
             {}, vk::AccessFlagBits::eColorAttachmentWrite,
             {}, vk::ImageLayout::eColorAttachmentOptimal,
             vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
             image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
-        });
+        };
     };
     if (selectedNodes) {
-        addJumpFloodSeedImageMemoryBarrier(passthruResources->selectedNodeOutlineJumpFloodResources.image);
+        memoryBarriers.push_back(getJumpFloodSeedImageMemoryBarrier(passthruResources->selectedNodeOutlineJumpFloodResources.image));
     }
     // Same holds for hovering nodes' outline.
     if (hoveringNode) {
-        addJumpFloodSeedImageMemoryBarrier(passthruResources->hoveringNodeOutlineJumpFloodResources.image);
+        memoryBarriers.push_back(getJumpFloodSeedImageMemoryBarrier(passthruResources->hoveringNodeOutlineJumpFloodResources.image));
     }
 
     // Attachment layout transitions.

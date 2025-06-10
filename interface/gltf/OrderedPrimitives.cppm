@@ -31,13 +31,16 @@ namespace vk_gltf_viewer::gltf {
 module :private;
 #endif
 
+#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
+#define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+
 vk_gltf_viewer::gltf::OrderedPrimitives::OrderedPrimitives(const fastgltf::Asset &asset)
     : vector {
         std::from_range,
         asset.meshes
             | std::views::transform(&fastgltf::Mesh::primitives)
             | std::views::join
-            | ranges::views::addressof,
+            | std::views::transform(LIFT(std::addressof)),
     }
     , indices {
         std::from_range,
