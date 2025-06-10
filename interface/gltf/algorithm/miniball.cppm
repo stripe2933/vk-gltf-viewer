@@ -52,7 +52,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
                 const fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
                 const auto collectTransformedBoundingBoxPoints = [&](const fastgltf::math::fmat4x4 &worldTransform) {
                     for (const fastgltf::Primitive &primitive : mesh.primitives) {
-                        for (const fastgltf::math::fvec3 &point : getBoundingBoxCornerPoints<float>(primitive, node, asset)) {
+                        for (const fastgltf::math::fvec3 &point : getBoundingBoxCornerPoints(primitive, node, asset)) {
                             const fastgltf::math::fvec3 transformedPoint { worldTransform * fastgltf::math::fvec4 { point.x(), point.y(), point.z(), 1.0 } };
 
 #ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
