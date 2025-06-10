@@ -542,7 +542,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                 | ranges::views::enumerate
                 | std::views::filter(LIFT(get<1>)) // Filter only if visibility bit is 1.
                 | std::views::keys
-                | std::views::transform([](auto index) { return static_cast<std::size_t>(index); })
+                | std::views::transform(identity<std::size_t>)
                 | std::ranges::to<std::vector>();
             renderingNodes.emplace(
                 buffer::createIndirectDrawCommandBuffers(task.gltf->asset, sharedData.gpu.allocator, criteriaGetter, visibleNodeIndices, drawCommandGetter),
