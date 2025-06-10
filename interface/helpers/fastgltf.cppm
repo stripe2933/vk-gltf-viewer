@@ -93,13 +93,11 @@ namespace fastgltf {
      * @param accessor Accessor to get the byte region.
      * @param adapter Buffer data adapter.
      * @return Span of bytes.
-     * @throw std::runtime_error If the accessor doesn't have buffer view.
+     * @throw std::bad_optional_access If the accessor doesn't have buffer view.
      */
     export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
     [[nodiscard]] std::span<const std::byte> getByteRegion(const Asset &asset, const Accessor &accessor, const BufferDataAdapter &adapter = {}) {
-        if (!accessor.bufferViewIndex) throw std::runtime_error { "No buffer view in accessor." };
-
-        const BufferView &bufferView = asset.bufferViews[*accessor.bufferViewIndex];
+        const BufferView &bufferView = asset.bufferViews[accessor.bufferViewIndex.value()];
         const std::size_t byteStride = bufferView.byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType));
         return adapter(asset, *accessor.bufferViewIndex).subspan(accessor.byteOffset, byteStride * accessor.count);
     }
@@ -149,19 +147,17 @@ namespace fastgltf {
      * @param nodeIndex Node index to get the instance transforms.
      * @param adapter Buffer data adapter.
      * @return A vector of instance transform matrices.
-     * @throw std::invalid_argument If the node is not instanced.
+     * @throw std::out_of_range If the node is not instanced.
      * @note This function has effect only if \p asset is loaded with EXT_mesh_gpu_instancing extension supporting parser (otherwise, it will return the empty vector).
      */
     export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
     [[nodiscard]] std::vector<math::fmat4x4> getInstanceTransforms(const Asset &asset, std::size_t nodeIndex, const BufferDataAdapter &adapter = {}) {
         const Node &node = asset.nodes[nodeIndex];
-        if (node.instancingAttributes.empty()) {
-            throw std::invalid_argument { "Node is not instanced" };
-        }
 
         // According to the EXT_mesh_gpu_instancing specification, all attribute accessors in a given node must
         // have the same count. Therefore, we can use the count of the first attribute accessor.
-        const std::uint32_t instanceCount = asset.accessors[node.instancingAttributes[0].accessorIndex].count;
+        // std::out_of_range in here means the node is not instanced.
+        const std::uint32_t instanceCount = asset.accessors[node.instancingAttributes.at(0).accessorIndex].count;
         std::vector<math::fmat4x4> result(instanceCount);
 
         if (auto it = node.findInstancingAttribute("TRANSLATION"); it != node.instancingAttributes.end()) {

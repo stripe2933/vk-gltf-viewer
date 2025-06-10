@@ -1,3 +1,7 @@
+module;
+
+#include <cassert>
+
 export module vk_gltf_viewer.gltf.StateCachedNodeVisibilityStructure;
 
 import std;
@@ -53,17 +57,15 @@ namespace vk_gltf_viewer::gltf {
         [[nodiscard]] bool getVisibility(std::size_t nodeIndex) const noexcept;
 
         /**
-         * @brief Set visibility of the node, and propagate the state to its ancestor.
+         * @brief Set visibility of the mesh node, and propagate the state to its ancestor.
          * @param nodeIndex Node index.
          * @param value New visibility value.
-         * @throw std::invalid_argument If the node does not have a mesh.
          */
         void setVisibility(std::size_t nodeIndex, bool value);
 
         /**
-         * @brief Flip the visibility of the node, and propagate the state to its ancestor.
+         * @brief Flip the visibility of the mesh node, and propagate the state to its ancestor.
          * @param nodeIndex Node index.
-         * @throw std::invalid_argument If the node does not have a mesh.
          * @note It internally calls <tt>setVisibility(std::size_t nodeIndex, bool value)</tt>.
          */
         void flipVisibility(std::size_t nodeIndex);
@@ -138,10 +140,7 @@ bool vk_gltf_viewer::gltf::StateCachedNodeVisibilityStructure::getVisibility(std
 }
 
 void vk_gltf_viewer::gltf::StateCachedNodeVisibilityStructure::setVisibility(std::size_t nodeIndex, bool value) {
-    if (!asset.get().nodes[nodeIndex].meshIndex) {
-        throw std::invalid_argument { "Node visibility can only be set for mesh nodes." };
-    }
-
+    assert(asset.get().nodes[nodeIndex].meshIndex);
     visibilities[nodeIndex] = value;
 
     updateState(nodeIndex);
