@@ -20,9 +20,13 @@ namespace vk_gltf_viewer::vulkan::shader_type {
         std::uint8_t byteStride;
         char _padding_[5];
     };
-
-    static_assert(sizeof(Accessor) == 16);
-    static_assert(offsetof(Accessor, componentType) == 8);
-    static_assert(offsetof(Accessor, componentCount) == 9);
-    static_assert(offsetof(Accessor, byteStride) == 10);
 }
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+static_assert(sizeof(vk_gltf_viewer::vulkan::shader_type::Accessor) == 16);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Accessor, componentType) == 8);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Accessor, componentCount) == 9);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Accessor, byteStride) == 10);
