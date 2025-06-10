@@ -22,65 +22,80 @@ namespace vk_gltf_viewer::control {
          */
         float targetDistance;
 
-        [[nodiscard]] glm::mat4 getViewMatrix() const noexcept {
-            return lookAt(position, position + direction, up);
-        }
+        [[nodiscard]] glm::mat4 getViewMatrix() const noexcept;
+        [[nodiscard]] glm::mat4 getProjectionMatrix() const noexcept;
+        [[nodiscard]] glm::mat4 getProjectionMatrixForwardZ() const noexcept;
+        [[nodiscard]] glm::mat4 getProjectionViewMatrix() const noexcept;
+        [[nodiscard]] glm::mat4 getProjectionViewMatrixForwardZ() const noexcept;
+        [[nodiscard]] glm::vec3 getRight() const noexcept;
 
-        [[nodiscard]] glm::mat4 getProjectionMatrix() const noexcept {
-            return glm::perspectiveRH_ZO(fov, aspectRatio, zMax, zMin);
-        }
+        void tightenNearFar(const glm::vec3 &boundingSphereCenter, float boundingSphereRadius) noexcept;
 
-        [[nodiscard]] glm::mat4 getProjectionMatrixForwardZ() const noexcept {
-            return glm::perspectiveRH_ZO(fov, aspectRatio, zMin, zMax);
-        }
+        [[nodiscard]] math::Frustum getFrustum() const;
+    };
+}
 
-        [[nodiscard]] glm::mat4 getProjectionViewMatrix() const noexcept {
-            return getProjectionMatrix() * getViewMatrix();
-        }
+#ifndef __GNUC
+module :private;
+#endif
 
-        [[nodiscard]] glm::mat4 getProjectionViewMatrixForwardZ() const noexcept {
-            return getProjectionMatrixForwardZ() * getViewMatrix();
-        }
+glm::mat4 vk_gltf_viewer::control::Camera::getViewMatrix() const noexcept {
+    return lookAt(position, position + direction, up);
+}
 
-        [[nodiscard]] constexpr glm::vec3 getRight() const noexcept {
-            return cross(direction, up);
-        }
+glm::mat4 vk_gltf_viewer::control::Camera::getProjectionMatrix() const noexcept {
+    return glm::perspectiveRH_ZO(fov, aspectRatio, zMax, zMin);
+}
 
-        void tightenNearFar(const glm::vec3 &boundingSphereCenter, float boundingSphereRadius) noexcept {
-            // Get projection of the displacement vector (from camera position to bounding sphere center) on the direction vector.
-            const glm::vec3 displacement = boundingSphereCenter - position;
-            const float displacementProjectionLength = dot(displacement, direction);
-            const float displacementNearProjectionLength = displacementProjectionLength - boundingSphereRadius;
-            const float displacementFarProjectionLength = displacementProjectionLength + boundingSphereRadius;
-            if (displacementFarProjectionLength <= 0.f) {
-                // The bounding sphere is behind the camera.
-                zMin = 1e-2f;
-                zMax = 1e2f;
-            }
-            else {
-                zMin = std::max(1e-2f, displacementNearProjectionLength);
-                zMax = displacementFarProjectionLength;
-            }
-        }
+glm::mat4 vk_gltf_viewer::control::Camera::getProjectionMatrixForwardZ() const noexcept {
+    return glm::perspectiveRH_ZO(fov, aspectRatio, zMin, zMax);
+}
 
-        [[nodiscard]] math::Frustum getFrustum() const {
-            // Code from LearnOpenGL.
-            // See: https://learnopengl.com/Guest-Articles/2021/Scene/Frustum-Culling.
-            const float halfVSide = zMax * std::tan(fov / 2.f);
-            const float halfHSide = halfVSide * aspectRatio;
-            const glm::vec3 frontMultFar = direction * zMax;
-            const glm::vec3 right = getRight();
-            const glm::vec3 rightMultHalfHSide = right * halfHSide;
-            const glm::vec3 upMultHalfVSide = up * halfVSide;
+glm::mat4 vk_gltf_viewer::control::Camera::getProjectionViewMatrix() const noexcept {
+    return getProjectionMatrix() * getViewMatrix();
+}
 
-            return {
-                math::Plane::from(direction, position + zMin * direction),
-                math::Plane::from(-direction, position + frontMultFar),
-                math::Plane::from(normalize(cross(frontMultFar - rightMultHalfHSide, up)), position),
-                math::Plane::from(normalize(cross(up, frontMultFar + rightMultHalfHSide)), position),
-                math::Plane::from(normalize(cross(frontMultFar + upMultHalfVSide, right)), position),
-                math::Plane::from(normalize(cross(right, frontMultFar - upMultHalfVSide)), position),
-            };
-        }
+glm::mat4 vk_gltf_viewer::control::Camera::getProjectionViewMatrixForwardZ() const noexcept {
+    return getProjectionMatrixForwardZ() * getViewMatrix();
+}
+
+glm::vec3 vk_gltf_viewer::control::Camera::getRight() const noexcept {
+    return cross(direction, up);
+}
+
+void vk_gltf_viewer::control::Camera::tightenNearFar(const glm::vec3 &boundingSphereCenter, float boundingSphereRadius) noexcept {
+    // Get projection of the displacement vector (from camera position to bounding sphere center) on the direction vector.
+    const glm::vec3 displacement = boundingSphereCenter - position;
+    const float displacementProjectionLength = dot(displacement, direction);
+    const float displacementNearProjectionLength = displacementProjectionLength - boundingSphereRadius;
+    const float displacementFarProjectionLength = displacementProjectionLength + boundingSphereRadius;
+    if (displacementFarProjectionLength <= 0.f) {
+        // The bounding sphere is behind the camera.
+        zMin = 1e-2f;
+        zMax = 1e2f;
+    }
+    else {
+        zMin = std::max(1e-2f, displacementNearProjectionLength);
+        zMax = displacementFarProjectionLength;
+    }
+}
+
+vk_gltf_viewer::math::Frustum vk_gltf_viewer::control::Camera::getFrustum() const {
+    // Code from LearnOpenGL.
+    // See: https://learnopengl.com/Guest-Articles/2021/Scene/Frustum-Culling.
+    const float halfVSide = zMax * std::tan(fov / 2.f);
+    const float halfHSide = halfVSide * aspectRatio;
+    const glm::vec3 frontMultFar = direction * zMax;
+    const glm::vec3 right = getRight();
+    const glm::vec3 rightMultHalfHSide = right * halfHSide;
+    const glm::vec3 upMultHalfVSide = up * halfVSide;
+
+    return {
+        math::Plane::from(direction, position + zMin * direction),
+        math::Plane::from(-direction, position + frontMultFar),
+        math::Plane::from(normalize(cross(frontMultFar - rightMultHalfHSide, up)), position),
+        math::Plane::from(normalize(cross(up, frontMultFar + rightMultHalfHSide)), position),
+        math::Plane::from(normalize(cross(frontMultFar + upMultHalfVSide, right)), position),
+        math::Plane::from(normalize(cross(right, frontMultFar - upMultHalfVSide)), position),
     };
 }

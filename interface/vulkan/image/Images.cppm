@@ -519,28 +519,34 @@ namespace vk_gltf_viewer::vulkan::image {
         }
 
     private:
-        [[nodiscard]] static vk::raii::ImageView createImageView(const vk::raii::Device &device, const vku::Image &image) {
-            return { device, vk::ImageViewCreateInfo {
-                {},
-                image,
-                vk::ImageViewType::e2D,
-                image.format,
-                [&]() -> vk::ComponentMapping {
-                    switch (componentCount(image.format)) {
-                    case 1:
-                        // Grayscale: red channel have to be propagated to green/blue channels.
-                        return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne };
-                    case 2:
-                        // Grayscale \w alpha: red channel have to be propagated to green/blue channels, and alpha channel uses given green value.
-                        return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG };
-                    case 4:
-                        // RGB or RGBA.
-                        return {};
-                    }
-                    std::unreachable();
-                }(),
-                vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
-            } };
-        }
+        [[nodiscard]] static vk::raii::ImageView createImageView(const vk::raii::Device &device, const vku::Image &image);
     };
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+vk::raii::ImageView vk_gltf_viewer::vulkan::image::Images::createImageView(const vk::raii::Device &device, const vku::Image &image) {
+    return { device, vk::ImageViewCreateInfo {
+        {},
+        image,
+        vk::ImageViewType::e2D,
+        image.format,
+        [&]() -> vk::ComponentMapping {
+            switch (componentCount(image.format)) {
+            case 1:
+                // Grayscale: red channel have to be propagated to green/blue channels.
+                return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne };
+            case 2:
+                // Grayscale \w alpha: red channel have to be propagated to green/blue channels, and alpha channel uses given green value.
+                return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG };
+            case 4:
+                // RGB or RGBA.
+                return {};
+            }
+            std::unreachable();
+        }(),
+        vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
+    } };
 }

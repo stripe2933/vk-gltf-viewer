@@ -33,9 +33,7 @@ namespace vk_gltf_viewer::math {
          * @param point Point to get the signed distance for.
          * @return Signed distance.
          */
-        [[nodiscard]] constexpr float getSignedDistance(const glm::vec3 &point) const noexcept {
-            return dot(normal, point) + distance;;
-        }
+        [[nodiscard]] float getSignedDistance(const glm::vec3 &point) const noexcept;
 
         /**
          * @brief Create Plane from normal and a point that lying on the plane.
@@ -43,8 +41,18 @@ namespace vk_gltf_viewer::math {
          * @param pointInPlane A point that lying on the plane.
          * @return Plane instance.
          */
-        [[nodiscard]] static constexpr Plane from(const glm::vec3 &normal, const glm::vec3 &pointInPlane) noexcept {
-            return { normal, -dot(normal, pointInPlane) };
-        };
+        [[nodiscard]] static Plane from(const glm::vec3 &normal, const glm::vec3 &pointInPlane) noexcept;
     };
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+float vk_gltf_viewer::math::Plane::getSignedDistance(const glm::vec3 &point) const noexcept {
+    return dot(normal, point) + distance;
+}
+
+vk_gltf_viewer::math::Plane vk_gltf_viewer::math::Plane::from(const glm::vec3 &normal, const glm::vec3 &pointInPlane) noexcept {
+    return { normal, -dot(normal, pointInPlane) };
 }
