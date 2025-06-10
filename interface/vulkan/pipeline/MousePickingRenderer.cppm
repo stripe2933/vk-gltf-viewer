@@ -4,6 +4,9 @@ module;
 
 export module vk_gltf_viewer:vulkan.pipeline.MousePickingRenderer;
 
+#ifdef _MSC_VER
+import std;
+#endif
 export import vku;
 import :shader.screen_quad_vert;
 import :shader.mouse_picking_frag;
