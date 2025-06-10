@@ -4,6 +4,9 @@ module;
 
 export module vk_gltf_viewer.vulkan.ag.JumpFloodSeed;
 
+#ifdef _MSC_VER
+import std;
+#endif
 export import vku;
 
 export import vk_gltf_viewer.vulkan.Gpu;
