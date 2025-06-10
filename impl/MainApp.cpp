@@ -1380,7 +1380,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                         gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
                         eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
                     });
-            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent }),
+            }, visit(identity<vk::CommandPool>, graphicsCommandPool), gpu.queues.graphicsPresent }),
         std::forward_as_tuple(
             // Generate reducedEqmapImage mipmaps.
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
@@ -1415,7 +1415,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                         reducedEqmapImage, vku::fullSubresourceRange(),
                     });
-            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent/*, 4*/ },
+            }, visit(identity<vk::CommandPool>, graphicsCommandPool), gpu.queues.graphicsPresent/*, 4*/ },
             // Generate cubemap with mipmaps from eqmapImage, and generate IBL resources from the cubemap.
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
                 if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
@@ -1507,7 +1507,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                         },
                     }),
                 });
-            }, visit_as<vk::CommandPool>(computeCommandPool), gpu.queues.compute }),
+            }, visit(identity<vk::CommandPool>, computeCommandPool), gpu.queues.compute }),
         std::forward_as_tuple(
             // Acquire resources' queue family ownership from compute to graphicsPresent (if necessary), and create tone
             // mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=cubemapImage).
@@ -1557,7 +1557,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 cb.draw(3, 1, 0, 0);
 
                 cb.endRenderPass();
-            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent }));
+            }, visit(identity<vk::CommandPool>, graphicsCommandPool), gpu.queues.graphicsPresent }));
 
     std::ignore = gpu.device.waitSemaphores({
         {},
