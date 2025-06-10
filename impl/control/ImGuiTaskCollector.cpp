@@ -648,7 +648,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Ass
                         return enabled && (i != animationIndex);
                     }))
                     | std::views::keys
-                    | std::views::transform([](auto x) { return static_cast<std::size_t>(x); });
+                    | std::views::transform(identity<std::size_t>);
                 for (std::size_t candidateAnimationIndex : otherRunningAnimationIndices) {
                     const fastgltf::Animation &candidateAnimation = asset.animations[candidateAnimationIndex];
                     for (const fastgltf::AnimationChannel &channel : candidateAnimation.channels) {

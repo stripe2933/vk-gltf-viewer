@@ -87,7 +87,7 @@ vk_gltf_viewer::vulkan::buffer::Materials::Materials(
     StagingBufferStorage &stagingBufferStorage
 ) : PostTransferObject { stagingBufferStorage },
     buffer { createBuffer(asset, allocator) },
-    descriptorInfo { visit_as<vk::Buffer>(buffer), 0, vk::WholeSize } { }
+    descriptorInfo { visit(identity<vk::Buffer>, buffer), 0, vk::WholeSize } { }
 
 const vk::DescriptorBufferInfo &vk_gltf_viewer::vulkan::buffer::Materials::getDescriptorInfo() const noexcept {
     return descriptorInfo;

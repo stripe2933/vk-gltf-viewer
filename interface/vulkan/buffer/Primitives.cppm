@@ -31,7 +31,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
             StagingBufferStorage &stagingBufferStorage
         ) : PostTransferObject { stagingBufferStorage },
             buffer { createBuffer(orderedPrimitives, primitiveAttributes, gpu.allocator) },
-            descriptorInfo { visit_as<vk::Buffer>(buffer), 0, vk::WholeSize }{ }
+            descriptorInfo { visit(identity<vk::Buffer>, buffer), 0, vk::WholeSize }{ }
 
         [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept {
             return descriptorInfo;
