@@ -11,8 +11,6 @@ export import vku;
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.ranges;
 
-#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
-
 namespace vk_gltf_viewer::vulkan::buffer {
     /**
      * @brief Vulkan buffer that represents indirect draw commands.
@@ -42,86 +40,43 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @brief Number of draw commands that should be executed in the buffer.
          * @return Number of draw commands.
          */
-        [[nodiscard]] std::uint32_t drawCount() const noexcept {
-            return asValue<const std::uint32_t>();
-        }
+        [[nodiscard]] std::uint32_t drawCount() const noexcept;
 
         /**
          * @brief Set the number of draw commands that should be executed in the buffer.
          * @param drawCount Number of draw commands to be set.
          * @throw std::invalid_argument If \p drawCount exceeds the maximum draw count of the buffer.
          */
-        void setDrawCount(std::uint32_t drawCount) {
-            if (drawCount > maxDrawCount()) {
-                throw std::invalid_argument { "drawCount > maxDrawCount" };
-            }
-
-            asValue<std::uint32_t>() = drawCount;
-        }
+        void setDrawCount(std::uint32_t drawCount);
 
         /**
          * @brief Number of the actual draw commands in the buffer.
          * @return Number of draw commands.
          */
-        [[nodiscard]] std::uint32_t maxDrawCount() const noexcept {
-            return (size - sizeof(std::uint32_t)) / (indexed ? sizeof(vk::DrawIndexedIndirectCommand) : sizeof(vk::DrawIndirectCommand));
-        }
+        [[nodiscard]] std::uint32_t maxDrawCount() const noexcept;
 
         /**
          * @brief Get draw indirect commands in the buffer, either as <tt>vk::DrawIndirectCommand</tt> or <tt>vk::DrawIndexedIndirectCommand</tt> based on the \p indexed property.
          * @return A span of draw commands.
          */
-        [[nodiscard]] std::variant<std::span<const vk::DrawIndirectCommand>, std::span<const vk::DrawIndexedIndirectCommand>> drawIndirectCommands() const noexcept {
-            if (indexed) {
-                return asRange<const vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
-            }
-            else {
-                return asRange<const vk::DrawIndirectCommand>(sizeof(std::uint32_t));
-            }
-        }
+        [[nodiscard]] std::variant<std::span<const vk::DrawIndirectCommand>, std::span<const vk::DrawIndexedIndirectCommand>> drawIndirectCommands() const noexcept;
 
         /**
          * @copydoc drawIndirectCommands()
          */
-        [[nodiscard]] std::variant<std::span<vk::DrawIndirectCommand>, std::span<vk::DrawIndexedIndirectCommand>> drawIndirectCommands() noexcept {
-            if (indexed) {
-                return asRange<vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
-            }
-            else {
-                return asRange<vk::DrawIndirectCommand>(sizeof(std::uint32_t));
-            }
-        }
+        [[nodiscard]] std::variant<std::span<vk::DrawIndirectCommand>, std::span<vk::DrawIndexedIndirectCommand>> drawIndirectCommands() noexcept;
 
         /**
          * @brief Reset the draw count to the number of commands in the buffer.
          */
-        void resetDrawCount() noexcept {
-            setDrawCount(maxDrawCount());
-        }
+        void resetDrawCount() noexcept;
 
         /**
          * @brief Record draw command based on \p drawIndirectCount feature availability.
          * @param cb Command buffer to be recorded.
          * @param drawIndirectCount Whether to use <tt>vkCmdDraw(Indexed)IndirectCount</tt> or <tt>vkCmdDraw(Indexed)Indirect</tt>.
          */
-        void recordDrawCommand(vk::CommandBuffer cb, bool drawIndirectCount) const {
-            if (indexed) {
-                if (drawIndirectCount) {
-                    cb.drawIndexedIndirectCount(*this, sizeof(std::uint32_t), *this, 0, maxDrawCount(), sizeof(vk::DrawIndexedIndirectCommand));
-                }
-                else {
-                    cb.drawIndexedIndirect(*this, sizeof(std::uint32_t), drawCount(), sizeof(vk::DrawIndexedIndirectCommand));
-                }
-            }
-            else {
-                if (drawIndirectCount) {
-                    cb.drawIndirectCount(*this, sizeof(std::uint32_t), *this, 0, maxDrawCount(), sizeof(vk::DrawIndirectCommand));
-                }
-                else {
-                    cb.drawIndirect(*this, sizeof(std::uint32_t), drawCount(), sizeof(vk::DrawIndirectCommand));
-                }
-            }
-        }
+        void recordDrawCommand(vk::CommandBuffer cb, bool drawIndirectCount) const;
     };
 
     export template <
@@ -166,5 +121,66 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 }, variant);
             })
             | std::ranges::to<std::map<Criteria, IndirectDrawCommands, Compare>>();
+    }
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+std::uint32_t vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::drawCount() const noexcept {
+    return asValue<const std::uint32_t>();
+}
+
+void vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::setDrawCount(std::uint32_t drawCount) {
+    if (drawCount > maxDrawCount()) {
+        throw std::invalid_argument { "drawCount > maxDrawCount" };
+    }
+
+    asValue<std::uint32_t>() = drawCount;
+}
+
+std::uint32_t vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::maxDrawCount() const noexcept {
+    return (size - sizeof(std::uint32_t)) / (indexed ? sizeof(vk::DrawIndexedIndirectCommand) : sizeof(vk::DrawIndirectCommand));
+}
+
+std::variant<std::span<const vk::DrawIndirectCommand>, std::span<const vk::DrawIndexedIndirectCommand>> vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::drawIndirectCommands() const noexcept {
+    if (indexed) {
+        return asRange<const vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
+    }
+    else {
+        return asRange<const vk::DrawIndirectCommand>(sizeof(std::uint32_t));
+    }
+}
+
+std::variant<std::span<vk::DrawIndirectCommand>, std::span<vk::DrawIndexedIndirectCommand>> vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::drawIndirectCommands() noexcept {
+    if (indexed) {
+        return asRange<vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
+    }
+    else {
+        return asRange<vk::DrawIndirectCommand>(sizeof(std::uint32_t));
+    }
+}
+
+void vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::resetDrawCount() noexcept {
+    setDrawCount(maxDrawCount());
+}
+
+void vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::recordDrawCommand(vk::CommandBuffer cb, bool drawIndirectCount) const {
+    if (indexed) {
+        if (drawIndirectCount) {
+            cb.drawIndexedIndirectCount(*this, sizeof(std::uint32_t), *this, 0, maxDrawCount(), sizeof(vk::DrawIndexedIndirectCommand));
+        }
+        else {
+            cb.drawIndexedIndirect(*this, sizeof(std::uint32_t), drawCount(), sizeof(vk::DrawIndexedIndirectCommand));
+        }
+    }
+    else {
+        if (drawIndirectCount) {
+            cb.drawIndirectCount(*this, sizeof(std::uint32_t), *this, 0, maxDrawCount(), sizeof(vk::DrawIndirectCommand));
+        }
+        else {
+            cb.drawIndirect(*this, sizeof(std::uint32_t), drawCount(), sizeof(vk::DrawIndirectCommand));
+        }
     }
 }

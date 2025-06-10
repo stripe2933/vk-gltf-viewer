@@ -17,38 +17,10 @@ namespace vk_gltf_viewer::gltf {
     };
 
     export struct TextureUsages : std::vector<std::unordered_map<std::size_t, Flags<TextureUsage>>> {
-        explicit TextureUsages(const fastgltf::Asset &asset) {
-            resize(asset.textures.size());
-            for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
-                if (material.pbrData.baseColorTexture) {
-                    operator[](material.pbrData.baseColorTexture->textureIndex)[i] |= TextureUsage::BaseColor;
-                }
-                if (material.pbrData.metallicRoughnessTexture) {
-                    operator[](material.pbrData.metallicRoughnessTexture->textureIndex)[i] |= TextureUsage::MetallicRoughness;
-                }
-                if (material.normalTexture) {
-                    operator[](material.normalTexture->textureIndex)[i] |= TextureUsage::Normal;
-                }
-                if (material.occlusionTexture) {
-                    operator[](material.occlusionTexture->textureIndex)[i] |= TextureUsage::Occlusion;
-                }
-                if (material.emissiveTexture) {
-                    operator[](material.emissiveTexture->textureIndex)[i] |= TextureUsage::Emissive;
-                }
-            }
-        }
+        explicit TextureUsages(const fastgltf::Asset &asset);
     };
 
-    [[nodiscard]] constexpr cpp_util::cstring_view to_string(TextureUsage usage) {
-        switch (usage) {
-            case TextureUsage::BaseColor: return "BaseColor";
-            case TextureUsage::MetallicRoughness: return "MetallicRoughness";
-            case TextureUsage::Normal: return "Normal";
-            case TextureUsage::Occlusion: return "Occlusion";
-            case TextureUsage::Emissive: return "Emissive";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(TextureUsage usage);
 } // namespace vk_gltf_viewer::gltf
 
 export template <>
@@ -68,3 +40,39 @@ struct FlagTraits<vk_gltf_viewer::gltf::TextureUsage> {
         | vk_gltf_viewer::gltf::TextureUsage::Occlusion
         | vk_gltf_viewer::gltf::TextureUsage::Emissive;
 };
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+vk_gltf_viewer::gltf::TextureUsages::TextureUsages(const fastgltf::Asset &asset) {
+    resize(asset.textures.size());
+    for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
+        if (material.pbrData.baseColorTexture) {
+            operator[](material.pbrData.baseColorTexture->textureIndex)[i] |= TextureUsage::BaseColor;
+        }
+        if (material.pbrData.metallicRoughnessTexture) {
+            operator[](material.pbrData.metallicRoughnessTexture->textureIndex)[i] |= TextureUsage::MetallicRoughness;
+        }
+        if (material.normalTexture) {
+            operator[](material.normalTexture->textureIndex)[i] |= TextureUsage::Normal;
+        }
+        if (material.occlusionTexture) {
+            operator[](material.occlusionTexture->textureIndex)[i] |= TextureUsage::Occlusion;
+        }
+        if (material.emissiveTexture) {
+            operator[](material.emissiveTexture->textureIndex)[i] |= TextureUsage::Emissive;
+        }
+    }
+}
+
+cpp_util::cstring_view vk_gltf_viewer::gltf::to_string(TextureUsage usage) {
+    switch (usage) {
+        case TextureUsage::BaseColor: return "BaseColor";
+        case TextureUsage::MetallicRoughness: return "MetallicRoughness";
+        case TextureUsage::Normal: return "Normal";
+        case TextureUsage::Occlusion: return "Occlusion";
+        case TextureUsage::Emissive: return "Emissive";
+    }
+    std::unreachable();
+}

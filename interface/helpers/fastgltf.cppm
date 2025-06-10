@@ -24,126 +24,34 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] auto to_string(PrimitiveType value) noexcept -> cpp_util::cstring_view {
-        switch (value) {
-            case PrimitiveType::Points: return "Points";
-            case PrimitiveType::Lines: return "Lines";
-            case PrimitiveType::LineLoop: return "LineLoop";
-            case PrimitiveType::LineStrip: return "LineStrip";
-            case PrimitiveType::Triangles: return "Triangles";
-            case PrimitiveType::TriangleStrip: return "TriangleStrip";
-            case PrimitiveType::TriangleFan: return "TriangleFan";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(PrimitiveType value) noexcept;
 
     export
-    [[nodiscard]] auto to_string(AccessorType value) noexcept -> cpp_util::cstring_view {
-        switch (value) {
-            case AccessorType::Invalid: return "Invalid";
-            case AccessorType::Scalar: return "Scalar";
-            case AccessorType::Vec2: return "Vec2";
-            case AccessorType::Vec3: return "Vec3";
-            case AccessorType::Vec4: return "Vec4";
-            case AccessorType::Mat2: return "Mat2";
-            case AccessorType::Mat3: return "Mat3";
-            case AccessorType::Mat4: return "Mat4";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(AccessorType value) noexcept;
 
     export
-    [[nodiscard]] auto to_string(ComponentType value) noexcept -> cpp_util::cstring_view {
-        switch (value) {
-            case ComponentType::Byte: return "Byte";
-            case ComponentType::UnsignedByte: return "UnsignedByte";
-            case ComponentType::Short: return "Short";
-            case ComponentType::UnsignedShort: return "UnsignedShort";
-            case ComponentType::UnsignedInt: return "UnsignedInt";
-            case ComponentType::Float: return "Float";
-            case ComponentType::Invalid: return "Invalid";
-            case ComponentType::Int: return "Int";
-            case ComponentType::Double: return "Double";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(ComponentType value) noexcept;
 
     export
-    [[nodiscard]] auto to_string(BufferTarget target) noexcept -> cpp_util::cstring_view {
-        switch (target) {
-            case BufferTarget::ArrayBuffer: return "ArrayBuffer";
-            case BufferTarget::ElementArrayBuffer: return "ElementArrayBuffer";
-            default: return "-";
-        }
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(BufferTarget target) noexcept;
 
     export
-    [[nodiscard]] auto to_string(MimeType mime) noexcept -> cpp_util::cstring_view {
-        switch (mime) {
-            case MimeType::None: return "-";
-            case MimeType::JPEG: return "image/jpeg";
-            case MimeType::PNG: return "image/png";
-            case MimeType::KTX2: return "image/ktx2";
-            case MimeType::GltfBuffer: return "model/gltf-buffer";
-            case MimeType::OctetStream: return "application/octet-stream";
-            case MimeType::DDS: return "image/vnd-ms.dds";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(MimeType mime) noexcept;
 
     export
-    [[nodiscard]] auto to_string(AlphaMode alphaMode) noexcept -> cpp_util::cstring_view {
-        switch (alphaMode) {
-            case AlphaMode::Opaque: return "Opaque";
-            case AlphaMode::Mask: return "Mask";
-            case AlphaMode::Blend: return "Blend";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(AlphaMode alphaMode) noexcept;
 
     export
-    [[nodiscard]] auto to_string(Filter filter) noexcept -> cpp_util::cstring_view {
-        switch (filter) {
-            case Filter::Linear: return "Linear";
-            case Filter::Nearest: return "Nearest";
-            case Filter::LinearMipMapLinear: return "LinearMipMapLinear";
-            case Filter::LinearMipMapNearest: return "LinearMipMapNearest";
-            case Filter::NearestMipMapLinear: return "NearestMipMapLinear";
-            case Filter::NearestMipMapNearest: return "NearestMipMapNearest";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(Filter filter) noexcept;
 
     export
-    [[nodiscard]] auto to_string(Wrap wrap) noexcept -> cpp_util::cstring_view {
-        switch (wrap) {
-            case Wrap::Repeat: return "Repeat";
-            case Wrap::ClampToEdge: return "ClampToEdge";
-            case Wrap::MirroredRepeat: return "MirroredRepeat";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(Wrap wrap) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(AnimationPath path) noexcept {
-        switch (path) {
-            case AnimationPath::Translation: return "translation";
-            case AnimationPath::Rotation: return "rotation";
-            case AnimationPath::Scale: return "scale";
-            case AnimationPath::Weights: return "weights";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(AnimationPath path) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(AnimationInterpolation interpolation) noexcept {
-        switch (interpolation) {
-            case AnimationInterpolation::Linear: return "LINEAR";
-            case AnimationInterpolation::Step: return "STEP";
-            case AnimationInterpolation::CubicSpline: return "CUBICSPLINE";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(AnimationInterpolation interpolation) noexcept;
 
     /**
      * @brief Convert TRS to 4x4 matrix.
@@ -152,9 +60,7 @@ namespace fastgltf {
      * @return 4x4 matrix.
      */
     export
-    [[nodiscard]] math::fmat4x4 toMatrix(const TRS &trs, const math::fmat4x4 &matrix = math::fmat4x4 { 1.f }) noexcept {
-        return scale(rotate(translate(matrix, trs.translation), trs.rotation), trs.scale);
-    }
+    [[nodiscard]] math::fmat4x4 toMatrix(const TRS &trs, const math::fmat4x4 &matrix = math::fmat4x4 { 1.f }) noexcept;
 
     /**
      * @brief Invoke \p f with non-const reference of \p node's 4x4 local transform matrix.
@@ -307,12 +213,7 @@ namespace fastgltf {
      * @return Texture coordinate index.
      */
     export
-    [[nodiscard]] std::size_t getTexcoordIndex(const TextureInfo &textureInfo) noexcept {
-        if (textureInfo.transform && textureInfo.transform->texCoordIndex) {
-            return *textureInfo.transform->texCoordIndex;
-        }
-        return textureInfo.texCoordIndex;
-    }
+    [[nodiscard]] std::size_t getTexcoordIndex(const TextureInfo &textureInfo) noexcept;
 
     /**
      * Get image index from \p texture with preference of GPU compressed texture.
@@ -324,11 +225,7 @@ namespace fastgltf {
      * @return Image index.
      */
     export
-    [[nodiscard]] std::size_t getPreferredImageIndex(const Texture &texture) {
-        return to_optional(texture.basisuImageIndex) // Prefer BasisU compressed image if exists.
-            .or_else([&]() { return to_optional(texture.imageIndex); }) // Otherwise, use regular image.
-            .value();
-    }
+    [[nodiscard]] std::size_t getPreferredImageIndex(const Texture &texture);
 
     /**
      * @brief Create a byte vector that contains the tightly packed accessor data.
@@ -390,25 +287,13 @@ namespace fastgltf {
      * @return <tt>std::span</tt> of \p node 's target weights.
      */
     export
-    [[nodiscard]] std::span<float> getTargetWeights(Node &node, Asset &asset) noexcept {
-        std::span weights = node.weights;
-        if (node.meshIndex) {
-            weights = asset.meshes[*node.meshIndex].weights;
-        }
-        return weights;
-    }
+    [[nodiscard]] std::span<float> getTargetWeights(Node &node, Asset &asset) noexcept;
 
     /**
      * @copydoc getTargetWeights
      */
     export
-    [[nodiscard]] std::span<const float> getTargetWeights(const Node &node, const Asset &asset) noexcept {
-        std::span weights = node.weights;
-        if (node.meshIndex) {
-            weights = asset.meshes[*node.meshIndex].weights;
-        }
-        return weights;
-    }
+    [[nodiscard]] std::span<const float> getTargetWeights(const Node &node, const Asset &asset) noexcept;
 
     /**
      * @brief Get target weight count of \p node, with respecting its mesh target weights existence.
@@ -425,13 +310,7 @@ namespace fastgltf {
      * @return Target weight count.
      */
     export
-    [[nodiscard]] std::size_t getTargetWeightCount(const Node &node, const Asset &asset) noexcept {
-        std::size_t count = node.weights.size();
-        if (node.meshIndex) {
-            count = asset.meshes[*node.meshIndex].weights.size();
-        }
-        return count;
-    }
+    [[nodiscard]] std::size_t getTargetWeightCount(const Node &node, const Asset &asset) noexcept;
 
 namespace math {
     /**
@@ -507,3 +386,160 @@ DEFINE_FORMATTER(fastgltf::Filter);
 DEFINE_FORMATTER(fastgltf::Wrap);
 DEFINE_FORMATTER(fastgltf::AnimationPath);
 DEFINE_FORMATTER(fastgltf::AnimationInterpolation);
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+cpp_util::cstring_view fastgltf::to_string(PrimitiveType value) noexcept {
+    switch (value) {
+        case PrimitiveType::Points: return "Points";
+        case PrimitiveType::Lines: return "Lines";
+        case PrimitiveType::LineLoop: return "LineLoop";
+        case PrimitiveType::LineStrip: return "LineStrip";
+        case PrimitiveType::Triangles: return "Triangles";
+        case PrimitiveType::TriangleStrip: return "TriangleStrip";
+        case PrimitiveType::TriangleFan: return "TriangleFan";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(AccessorType value) noexcept {
+    switch (value) {
+        case AccessorType::Invalid: return "Invalid";
+        case AccessorType::Scalar: return "Scalar";
+        case AccessorType::Vec2: return "Vec2";
+        case AccessorType::Vec3: return "Vec3";
+        case AccessorType::Vec4: return "Vec4";
+        case AccessorType::Mat2: return "Mat2";
+        case AccessorType::Mat3: return "Mat3";
+        case AccessorType::Mat4: return "Mat4";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(ComponentType value) noexcept {
+    switch (value) {
+        case ComponentType::Byte: return "Byte";
+        case ComponentType::UnsignedByte: return "UnsignedByte";
+        case ComponentType::Short: return "Short";
+        case ComponentType::UnsignedShort: return "UnsignedShort";
+        case ComponentType::UnsignedInt: return "UnsignedInt";
+        case ComponentType::Float: return "Float";
+        case ComponentType::Invalid: return "Invalid";
+        case ComponentType::Int: return "Int";
+        case ComponentType::Double: return "Double";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(BufferTarget target) noexcept {
+    switch (target) {
+        case BufferTarget::ArrayBuffer: return "ArrayBuffer";
+        case BufferTarget::ElementArrayBuffer: return "ElementArrayBuffer";
+        default: return "-";
+    }
+}
+
+cpp_util::cstring_view fastgltf::to_string(MimeType mime) noexcept {
+    switch (mime) {
+        case MimeType::None: return "-";
+        case MimeType::JPEG: return "image/jpeg";
+        case MimeType::PNG: return "image/png";
+        case MimeType::KTX2: return "image/ktx2";
+        case MimeType::GltfBuffer: return "model/gltf-buffer";
+        case MimeType::OctetStream: return "application/octet-stream";
+        case MimeType::DDS: return "image/vnd-ms.dds";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(AlphaMode alphaMode) noexcept {
+    switch (alphaMode) {
+        case AlphaMode::Opaque: return "Opaque";
+        case AlphaMode::Mask: return "Mask";
+        case AlphaMode::Blend: return "Blend";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(Filter filter) noexcept {
+    switch (filter) {
+        case Filter::Linear: return "Linear";
+        case Filter::Nearest: return "Nearest";
+        case Filter::LinearMipMapLinear: return "LinearMipMapLinear";
+        case Filter::LinearMipMapNearest: return "LinearMipMapNearest";
+        case Filter::NearestMipMapLinear: return "NearestMipMapLinear";
+        case Filter::NearestMipMapNearest: return "NearestMipMapNearest";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(Wrap wrap) noexcept {
+    switch (wrap) {
+        case Wrap::Repeat: return "Repeat";
+        case Wrap::ClampToEdge: return "ClampToEdge";
+        case Wrap::MirroredRepeat: return "MirroredRepeat";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(AnimationPath path) noexcept {
+    switch (path) {
+        case AnimationPath::Translation: return "translation";
+        case AnimationPath::Rotation: return "rotation";
+        case AnimationPath::Scale: return "scale";
+        case AnimationPath::Weights: return "weights";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(AnimationInterpolation interpolation) noexcept {
+    switch (interpolation) {
+        case AnimationInterpolation::Linear: return "LINEAR";
+        case AnimationInterpolation::Step: return "STEP";
+        case AnimationInterpolation::CubicSpline: return "CUBICSPLINE";
+    }
+    std::unreachable();
+}
+
+fastgltf::math::fmat4x4 fastgltf::toMatrix(const TRS &trs, const math::fmat4x4 &matrix) noexcept {
+    return scale(rotate(translate(matrix, trs.translation), trs.rotation), trs.scale);
+}
+
+std::size_t fastgltf::getTexcoordIndex(const TextureInfo &textureInfo) noexcept {
+    if (textureInfo.transform && textureInfo.transform->texCoordIndex) {
+        return *textureInfo.transform->texCoordIndex;
+    }
+    return textureInfo.texCoordIndex;
+}
+
+std::size_t fastgltf::getPreferredImageIndex(const Texture &texture) {
+    return to_optional(texture.basisuImageIndex) // Prefer BasisU compressed image if exists.
+        .or_else([&]() { return to_optional(texture.imageIndex); }) // Otherwise, use regular image.
+        .value();
+}
+
+std::span<float> fastgltf::getTargetWeights(Node &node, Asset &asset) noexcept {
+    std::span weights = node.weights;
+    if (node.meshIndex) {
+        weights = asset.meshes[*node.meshIndex].weights;
+    }
+    return weights;
+}
+
+std::span<const float> fastgltf::getTargetWeights(const Node &node, const Asset &asset) noexcept {
+    std::span weights = node.weights;
+    if (node.meshIndex) {
+        weights = asset.meshes[*node.meshIndex].weights;
+    }
+    return weights;
+}
+
+std::size_t fastgltf::getTargetWeightCount(const Node &node, const Asset &asset) noexcept {
+    std::size_t count = node.weights.size();
+    if (node.meshIndex) {
+        count = asset.meshes[*node.meshIndex].weights.size();
+    }
+    return count;
+}

@@ -22,33 +22,9 @@ constexpr type_map indexTypeMap {
     make_type_map_entry<std::uint32_t>(fastgltf::ComponentType::UnsignedInt),
 };
 
-[[nodiscard]] constexpr vk::IndexType getIndexType(fastgltf::ComponentType componentType) {
-    switch (componentType) {
-    case fastgltf::ComponentType::UnsignedByte:
-        return vk::IndexType::eUint8KHR;
-    case fastgltf::ComponentType::UnsignedShort:
-        return vk::IndexType::eUint16;
-    case fastgltf::ComponentType::UnsignedInt:
-        return vk::IndexType::eUint32;
-    default:
-        // glTF Specification:
-        // The indices accessor MUST have SCALAR type and an unsigned integer component type.
-        throw std::invalid_argument { "Invalid component type for index buffer." };
-    }
-}
+[[nodiscard]] vk::IndexType getIndexType(fastgltf::ComponentType componentType);
 
-[[nodiscard]] constexpr std::size_t getIndexTypeSize(vk::IndexType indexType) {
-    switch (indexType) {
-    case vk::IndexType::eUint8KHR:
-        return sizeof(std::uint8_t);
-    case vk::IndexType::eUint16:
-        return sizeof(std::uint16_t);
-    case vk::IndexType::eUint32:
-        return sizeof(std::uint32_t);
-    default:
-        throw std::invalid_argument { "Invalid index type." };
-    }
-}
+[[nodiscard]] std::size_t getIndexTypeSize(vk::IndexType indexType);
 
 namespace vk_gltf_viewer::vulkan::buffer {
     export class CombinedIndices : trait::PostTransferObject {
@@ -188,43 +164,81 @@ namespace vk_gltf_viewer::vulkan::buffer {
             })));
         }
 
-        [[nodiscard]] vk::Buffer getIndexBuffer(vk::IndexType indexType) const {
-            return bufferByIndexType.at(indexType);
-        }
+        [[nodiscard]] vk::Buffer getIndexBuffer(vk::IndexType indexType) const;
 
         /**
          * @brief Get the index information of the primitive.
          * @param primitive Primitive to get the index information.
          * @return Pair of index type and first index.
          */
-        [[nodiscard]] std::pair<vk::IndexType, std::uint32_t> getIndexInfo(const fastgltf::Primitive &primitive) const {
-            return indexInfos.at(&primitive);
-        }
+        [[nodiscard]] std::pair<vk::IndexType, std::uint32_t> getIndexInfo(const fastgltf::Primitive &primitive) const;
 
     private:
         std::unordered_map<const fastgltf::Primitive*, std::pair<vk::IndexType, std::uint32_t>> indexInfos;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> bufferByIndexType;
 
-        [[nodiscard]] static bool isAccessorBufferViewCompatibleWithIndexBuffer(
-            const fastgltf::Accessor &accessor,
-            const fastgltf::Asset &asset,
-            const Gpu &gpu
-        ) noexcept {
-            if (accessor.sparse) return false;
-
-            // Accessor without buffer view has to be treated as zeros.
-            if (!accessor.bufferViewIndex) return false;
-
-            // Vulkan does not support interleaved index buffer.
-            if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride) {
-                // Is accessor strided?
-                if (*byteStride != getElementByteSize(accessor.type, accessor.componentType)) return false;
-            }
-
-            // Accessor data is unsigned byte and the device does not support it.
-            if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) return false;
-
-            return true;
-        }
+        [[nodiscard]] static bool isAccessorBufferViewCompatibleWithIndexBuffer(const fastgltf::Accessor &accessor, const fastgltf::Asset &asset, const Gpu &gpu) noexcept;
     };
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+vk::IndexType getIndexType(fastgltf::ComponentType componentType) {
+    switch (componentType) {
+    case fastgltf::ComponentType::UnsignedByte:
+        return vk::IndexType::eUint8KHR;
+    case fastgltf::ComponentType::UnsignedShort:
+        return vk::IndexType::eUint16;
+    case fastgltf::ComponentType::UnsignedInt:
+        return vk::IndexType::eUint32;
+    default:
+        // glTF Specification:
+        // The indices accessor MUST have SCALAR type and an unsigned integer component type.
+        throw std::invalid_argument { "Invalid component type for index buffer." };
+    }
+}
+
+std::size_t getIndexTypeSize(vk::IndexType indexType) {
+    switch (indexType) {
+    case vk::IndexType::eUint8KHR:
+        return sizeof(std::uint8_t);
+    case vk::IndexType::eUint16:
+        return sizeof(std::uint16_t);
+    case vk::IndexType::eUint32:
+        return sizeof(std::uint32_t);
+    default:
+        throw std::invalid_argument { "Invalid index type." };
+    }
+}
+
+vk::Buffer vk_gltf_viewer::vulkan::buffer::CombinedIndices::getIndexBuffer(vk::IndexType indexType) const {
+    return bufferByIndexType.at(indexType);
+}
+
+std::pair<vk::IndexType, std::uint32_t> vk_gltf_viewer::vulkan::buffer::CombinedIndices::getIndexInfo(const fastgltf::Primitive &primitive) const {
+    return indexInfos.at(&primitive);
+}
+
+bool vk_gltf_viewer::vulkan::buffer::CombinedIndices::isAccessorBufferViewCompatibleWithIndexBuffer(
+    const fastgltf::Accessor &accessor,
+    const fastgltf::Asset &asset,
+    const Gpu &gpu
+) noexcept {
+    if (accessor.sparse) return false;
+
+    // Accessor without buffer view has to be treated as zeros.
+    if (!accessor.bufferViewIndex) return false;
+
+    // Vulkan does not support interleaved index buffer.
+    if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride) {
+        // Is accessor strided?
+        if (*byteStride != getElementByteSize(accessor.type, accessor.componentType)) return false;
+    }
+
+    // Accessor data is unsigned byte and the device does not support it.
+    if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) return false;
+
+    return true;
 }

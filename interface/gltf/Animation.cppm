@@ -41,30 +41,11 @@ namespace vk_gltf_viewer::gltf {
         Weights = 8,     /// Node target weight is used by an animation.
     };
 
-    [[nodiscard]] constexpr NodeAnimationUsage convert(fastgltf::AnimationPath path) noexcept {
-        switch (path) {
-            case fastgltf::AnimationPath::Translation:
-                return NodeAnimationUsage::Translation;
-            case fastgltf::AnimationPath::Rotation:
-                return NodeAnimationUsage::Rotation;
-            case fastgltf::AnimationPath::Scale:
-                return NodeAnimationUsage::Scale;
-            case fastgltf::AnimationPath::Weights:
-                return NodeAnimationUsage::Weights;
-        }
-        std::unreachable();
-    }
+	export
+    [[nodiscard]] NodeAnimationUsage convert(fastgltf::AnimationPath path) noexcept;
 
     export
-    [[nodiscard]] constexpr cpp_util::cstring_view to_string(NodeAnimationUsage usage) noexcept {
-        switch (usage) {
-            case NodeAnimationUsage::Translation: return "Translation";
-            case NodeAnimationUsage::Rotation: return "Rotation";
-            case NodeAnimationUsage::Scale: return "Scale";
-            case NodeAnimationUsage::Weights: return "Weights";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(NodeAnimationUsage usage) noexcept;
 
     export class Animation {
         std::reference_wrapper<fastgltf::Asset> asset;
@@ -278,3 +259,31 @@ struct FlagTraits<vk_gltf_viewer::gltf::NodeAnimationUsage> {
         | vk_gltf_viewer::gltf::NodeAnimationUsage::Scale
         | vk_gltf_viewer::gltf::NodeAnimationUsage::Weights;
 };
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+vk_gltf_viewer::gltf::NodeAnimationUsage vk_gltf_viewer::gltf::convert(fastgltf::AnimationPath path) noexcept {
+    switch (path) {
+        case fastgltf::AnimationPath::Translation:
+            return NodeAnimationUsage::Translation;
+        case fastgltf::AnimationPath::Rotation:
+            return NodeAnimationUsage::Rotation;
+        case fastgltf::AnimationPath::Scale:
+            return NodeAnimationUsage::Scale;
+        case fastgltf::AnimationPath::Weights:
+            return NodeAnimationUsage::Weights;
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view vk_gltf_viewer::gltf::to_string(NodeAnimationUsage usage) noexcept {
+    switch (usage) {
+        case NodeAnimationUsage::Translation: return "Translation";
+        case NodeAnimationUsage::Rotation: return "Rotation";
+        case NodeAnimationUsage::Scale: return "Scale";
+        case NodeAnimationUsage::Weights: return "Weights";
+    }
+    std::unreachable();
+}

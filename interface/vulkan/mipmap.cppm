@@ -20,34 +20,7 @@ namespace vk_gltf_viewer::vulkan {
      * @note \p image must be alive until the command buffer is submitted and execution finished.
      * @see recordBatchedMipmapGenerationCommand for batched mipmap generation (efficient implementation for multiple images).
      */
-    export void recordMipmapGenerationCommand(vk::CommandBuffer cb, const vku::Image &image) {
-        for (std::uint32_t srcLevel = 0, dstLevel = 1; dstLevel < image.mipLevels; ++srcLevel, ++dstLevel) {
-            // Blit from srcLevel to dstLevel.
-            cb.blitImage(
-                image, vk::ImageLayout::eTransferSrcOptimal,
-                image, vk::ImageLayout::eTransferDstOptimal,
-                vk::ImageBlit {
-                    { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
-                    { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(srcLevel)) },
-                    { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-                    { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(dstLevel)) },
-                },
-                vk::Filter::eLinear);
-
-            // Barrier between each mip level.
-            if (dstLevel != image.mipLevels - 1U) {
-                cb.pipelineBarrier(
-                    vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
-                    {}, {}, {},
-                    vk::ImageMemoryBarrier {
-                        vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eTransferRead,
-                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        image, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 }
-                    });
-            }
-        }
-    }
+    export void recordMipmapGenerationCommand(vk::CommandBuffer cb, const vku::Image &image);
 
     /**
      * Record batched mipmap generation command for \p images to \p cb. It efficiently generates blit commands between mip levels of multiple images and minimize pipeline barriers.
@@ -103,6 +76,39 @@ namespace vk_gltf_viewer::vulkan {
                         };
                     }) | std::ranges::to<std::vector>()));
             }
+        }
+    }
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+void vk_gltf_viewer::vulkan::recordMipmapGenerationCommand(vk::CommandBuffer cb, const vku::Image &image) {
+    for (std::uint32_t srcLevel = 0, dstLevel = 1; dstLevel < image.mipLevels; ++srcLevel, ++dstLevel) {
+        // Blit from srcLevel to dstLevel.
+        cb.blitImage(
+            image, vk::ImageLayout::eTransferSrcOptimal,
+            image, vk::ImageLayout::eTransferDstOptimal,
+            vk::ImageBlit {
+                { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
+                { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(srcLevel)) },
+                { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
+                { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(dstLevel)) },
+            },
+            vk::Filter::eLinear);
+
+        // Barrier between each mip level.
+        if (dstLevel != image.mipLevels - 1U) {
+            cb.pipelineBarrier(
+                vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
+                {}, {}, {},
+                vk::ImageMemoryBarrier {
+                    vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eTransferRead,
+                    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    image, { vk::ImageAspectFlagBits::eColor, dstLevel, 1, 0, 1 }
+                });
         }
     }
 }

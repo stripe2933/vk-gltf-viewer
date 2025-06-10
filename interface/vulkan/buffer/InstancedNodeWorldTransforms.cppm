@@ -7,16 +7,11 @@ module;
 export module vk_gltf_viewer.vulkan.buffer.InstancedNodeWorldTransforms;
 
 import std;
-import vku;
-export import vk_mem_alloc_hpp;
-export import vulkan_hpp;
+export import vku;
 
 import vk_gltf_viewer.gltf.algorithm.traversal;
 export import vk_gltf_viewer.gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
-import vk_gltf_viewer.helpers.algorithm;
 import vk_gltf_viewer.helpers.fastgltf;
-import vk_gltf_viewer.helpers.ranges;
-import vk_gltf_viewer.helpers.span;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     /**
@@ -64,20 +59,12 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @param nodeIndex Node index.
          * @return A span of instanced world transform matrices for the node.
          */
-        [[nodiscard]] std::span<const fastgltf::math::fmat4x4> getTransforms(std::size_t nodeIndex) const noexcept {
-            const std::size_t offset = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex];
-            const std::size_t count = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex + 1] - offset;
-            return asRange<const fastgltf::math::fmat4x4>().subspan(offset, count);
-        }
+        [[nodiscard]] std::span<const fastgltf::math::fmat4x4> getTransforms(std::size_t nodeIndex) const noexcept;
 
         /**
          * @copydoc getTransforms(std::size_t nodeIndex) const noexcept
          */
-        [[nodiscard]] std::span<fastgltf::math::fmat4x4> getTransforms(std::size_t nodeIndex) noexcept {
-            const std::size_t offset = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex];
-            const std::size_t count = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex + 1] - offset;
-            return asRange<fastgltf::math::fmat4x4>().subspan(offset, count);
-        }
+        [[nodiscard]] std::span<fastgltf::math::fmat4x4> getTransforms(std::size_t nodeIndex) noexcept;
 
         /**
          * @brief Update the node world transform at \p nodeIndex.
@@ -147,4 +134,20 @@ namespace vk_gltf_viewer::vulkan::buffer {
             }
         }
     };
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+std::span<const fastgltf::math::fmat4x4> vk_gltf_viewer::vulkan::buffer::InstancedNodeWorldTransforms::getTransforms(std::size_t nodeIndex) const noexcept {
+    const std::size_t offset = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex];
+    const std::size_t count = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex + 1] - offset;
+    return asRange<const fastgltf::math::fmat4x4>().subspan(offset, count);
+}
+
+std::span<fastgltf::math::fmat4x4> vk_gltf_viewer::vulkan::buffer::InstancedNodeWorldTransforms::getTransforms(std::size_t nodeIndex) noexcept {
+    const std::size_t offset = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex];
+    const std::size_t count = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex + 1] - offset;
+    return asRange<fastgltf::math::fmat4x4>().subspan(offset, count);
 }

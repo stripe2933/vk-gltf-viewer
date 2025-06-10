@@ -66,7 +66,14 @@ import vk_gltf_viewer.vulkan.mipmap;
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
 
-[[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept;
+[[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept {
+    const float c = std::cos(transform.rotation), s = std::sin(transform.rotation);
+    return { // Note: column major. A row in code actually means a column in the matrix.
+        transform.uvScale[0] * c, transform.uvScale[0] * -s,
+        transform.uvScale[1] * s, transform.uvScale[1] * c,
+        transform.uvOffset[0], transform.uvOffset[1],
+    };
+}
 
 vk_gltf_viewer::MainApp::MainApp()
     : swapchainImageAcquireSemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) }
