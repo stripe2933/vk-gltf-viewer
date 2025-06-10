@@ -76,8 +76,8 @@ import vk_gltf_viewer.vulkan.mipmap;
 }
 
 vk_gltf_viewer::MainApp::MainApp()
-    : swapchainImageAcquireSemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) }
-    , swapchainImageReadySemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) } {
+    : swapchainImageAcquireSemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [this]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) }
+    , swapchainImageReadySemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [this]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) } {
     const ibl::BrdfmapRenderer brdfmapRenderer { gpu.device, brdfmapImage, {} };
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
@@ -280,7 +280,7 @@ void vk_gltf_viewer::MainApp::run() {
                         }
                     }
                 },
-                [&](const control::task::WindowCursorPos &task) {
+                [this](const control::task::WindowCursorPos &task) {
                     if (lastMouseDownPosition && distance2(*lastMouseDownPosition, task.position) >= 4.0) {
                         drawSelectionRectangle = true;
                     }
@@ -328,7 +328,7 @@ void vk_gltf_viewer::MainApp::run() {
                         }
                     }
                 },
-                [&](concepts::one_of<control::task::WindowScroll, control::task::WindowTrackpadZoom> auto const &task) {
+                [this](concepts::one_of<control::task::WindowScroll, control::task::WindowTrackpadZoom> auto const &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
                     const double scale = multilambda {
@@ -341,7 +341,7 @@ void vk_gltf_viewer::MainApp::run() {
                     global::camera.targetDistance *= factor;
                     global::camera.position += (1.f - factor) * displacementToTarget;
                 },
-                [&](const control::task::WindowTrackpadRotate &task) {
+                [this](const control::task::WindowTrackpadRotate &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
                     // Rotate the camera around the Y-axis lied on the target point.
@@ -392,10 +392,10 @@ void vk_gltf_viewer::MainApp::run() {
                     regenerateDrawCommands.fill(true);
                     frameFeedbackResultValid.fill(false);
                 },
-                [&](control::task::CloseGltf) {
+                [this](control::task::CloseGltf) {
                     closeGltf();
                 },
-                [&](const control::task::LoadEqmap &task) {
+                [this](const control::task::LoadEqmap &task) {
                     loadEqmap(task.path);
                 },
                 [&](control::task::ChangeScene task) {

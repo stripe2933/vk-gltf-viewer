@@ -160,10 +160,6 @@ namespace views {
         return *FWD(x);
     });
 
-    export CLANG_INLINE constexpr auto addressof = std::views::transform([](const auto &x) {
-        return &x;
-    });
-
     /**
      * A range adaptor object that transform the value underlying sequence's pair-like elements.
      * @example
