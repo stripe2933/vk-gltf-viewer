@@ -462,6 +462,32 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     };
 
     if (task.gltf) {
+        const auto isPrimitiveWithinFrustum = [&](std::size_t nodeIndex, std::size_t primitiveIndex) -> bool {
+            const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex];
+            const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax<float>(
+                *task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
+
+            const auto pred = [&](const fastgltf::math::fmat4x4 &worldTransform) -> bool {
+                const fastgltf::math::fvec3 transformedMin { worldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
+                const fastgltf::math::fvec3 transformedMax { worldTransform * fastgltf::math::fvec4 { max.x(), max.y(), max.z(), 1.f } };
+
+                const fastgltf::math::fvec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
+                const fastgltf::math::fvec3 center = transformedMin + halfDisplacement;
+                const float radius = length(halfDisplacement);
+
+                return task.frustum->isOverlapApprox(glm::make_vec3(center.data()), radius);
+            };
+
+            if (node.instancingAttributes.empty()) {
+                return pred(task.gltf->nodeWorldTransforms[nodeIndex]);
+            }
+            else {
+                // If node is instanced, the node primitive is regarded to be within the frustum if any of its instance
+                // is within the frustum.
+                return std::ranges::any_of(gltfAsset->instancedNodeWorldTransformBuffer->getTransforms(nodeIndex), pred);
+            }
+        };
+
         std::unordered_map<std::uint32_t /* firstInstance */, std::uint32_t /* instanceCount */> cachedInstanceCounts;
         const auto commandBufferCullingFunc = [&](buffer::IndirectDrawCommands &indirectDrawCommands) -> void {
             // Partition the commands based on whether the bounding sphere of the primitive is within the frustum.
@@ -490,26 +516,12 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
                         if (auto it = cachedInstanceCounts.find(command.firstInstance); it == cachedInstanceCounts.end()) {
                             // No pre-calculated instance count, calculate and store it.
                             const std::size_t primitiveIndex = command.firstInstance & 0xFFFFU;
-                            const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax<float>(
-                                *task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
-
-                            const auto isPrimitiveOverlapWithFrustum = [&](const fastgltf::math::fmat4x4 &worldTransform) -> bool {
-                                const fastgltf::math::fvec3 transformedMin { worldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
-                                const fastgltf::math::fvec3 transformedMax { worldTransform * fastgltf::math::fvec4 { max.x(), max.y(), max.z(), 1.f } };
-
-                                const fastgltf::math::fvec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
-                                const fastgltf::math::fvec3 center = transformedMin + halfDisplacement;
-                                const float radius = length(halfDisplacement);
-
-                                return task.frustum->isOverlapApprox(glm::make_vec3(center.data()), radius);
-                            };
-
                             if (node.instancingAttributes.empty()) {
-                                command.instanceCount = isPrimitiveOverlapWithFrustum(task.gltf->nodeWorldTransforms[nodeIndex]);
+                                command.instanceCount = isPrimitiveWithinFrustum(nodeIndex, primitiveIndex);
                             }
                             else {
-                                std::span instanceWorldTransforms = gltfAsset->instancedNodeWorldTransformBuffer->getTransforms(nodeIndex);
-                                command.instanceCount = std::ranges::any_of(instanceWorldTransforms, isPrimitiveOverlapWithFrustum) ? instanceWorldTransforms.size() : 0U;
+                                command.instanceCount = isPrimitiveWithinFrustum(nodeIndex, primitiveIndex)
+                                    ? task.gltf->asset.accessors[node.instancingAttributes.front().accessorIndex].count : 0U;
                             }
                             cachedInstanceCounts.emplace_hint(it, command.firstInstance, command.instanceCount);
                         }
