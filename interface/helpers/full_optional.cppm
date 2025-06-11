@@ -32,6 +32,10 @@ public:
     [[nodiscard]] const T &operator*() const noexcept { return value; }
     [[nodiscard]] T &operator*() noexcept { return value; }
 
+    [[nodiscard]] constexpr operator bool() const noexcept {
+        return _active;
+    }
+
     [[nodiscard]] const T *operator->() const noexcept { return &value; }
     [[nodiscard]] T *operator->() noexcept { return &value; }
 
