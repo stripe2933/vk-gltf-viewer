@@ -1,5 +1,6 @@
 export module vk_gltf_viewer:math.Plane;
 
+import std;
 export import glm;
 
 #ifdef NDEBUG
@@ -46,5 +47,18 @@ namespace vk_gltf_viewer::math {
         [[nodiscard]] static constexpr Plane from(const glm::vec3 &normal, const glm::vec3 &pointInPlane) noexcept {
             return { normal, -dot(normal, pointInPlane) };
         };
+
+        /**
+         * @brief Create Plane from coefficients of the plane equation (ax + by + cz + d = 0).
+         * @param a Coefficient of x.
+         * @param b Coefficient of y.
+         * @param c Coefficient of z.
+         * @param d Coefficient of the constant term.
+         * @return Plane instance.
+         */
+        [[nodiscard]] static constexpr Plane from(float a, float b, float c, float d) noexcept {
+            const float inverseLength = 1.f / std::hypot(a, b, c);
+            return { inverseLength * glm::vec3 { a, b, c }, inverseLength * d };
+        }
     };
 }

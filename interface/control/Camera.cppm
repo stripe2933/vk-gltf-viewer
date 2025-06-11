@@ -63,22 +63,15 @@ namespace vk_gltf_viewer::control {
         }
 
         [[nodiscard]] math::Frustum getFrustum() const {
-            // Code from LearnOpenGL.
-            // See: https://learnopengl.com/Guest-Articles/2021/Scene/Frustum-Culling.
-            const float halfVSide = zMax * std::tan(fov / 2.f);
-            const float halfHSide = halfVSide * aspectRatio;
-            const glm::vec3 frontMultFar = direction * zMax;
-            const glm::vec3 right = getRight();
-            const glm::vec3 rightMultHalfHSide = right * halfHSide;
-            const glm::vec3 upMultHalfVSide = up * halfVSide;
-
+            // Gribb & Hartmann method.
+            const glm::mat4 m = getProjectionViewMatrixForwardZ();
             return {
-                math::Plane::from(direction, position + zMin * direction),
-                math::Plane::from(-direction, position + frontMultFar),
-                math::Plane::from(normalize(cross(frontMultFar - rightMultHalfHSide, up)), position),
-                math::Plane::from(normalize(cross(up, frontMultFar + rightMultHalfHSide)), position),
-                math::Plane::from(normalize(cross(frontMultFar + upMultHalfVSide, right)), position),
-                math::Plane::from(normalize(cross(right, frontMultFar - upMultHalfVSide)), position),
+                math::Plane::from(m[0].w + m[0].z, m[1].w + m[1].z, m[2].w + m[2].z, m[3].w + m[3].z), // Near
+                math::Plane::from(m[0].w - m[0].z, m[1].w - m[1].z, m[2].w - m[2].z, m[3].w - m[3].z), // Far
+                math::Plane::from(m[0].w + m[0].x, m[1].w + m[1].x, m[2].w + m[2].x, m[3].w + m[3].x), // Left
+                math::Plane::from(m[0].w - m[0].x, m[1].w - m[1].x, m[2].w - m[2].x, m[3].w - m[3].x), // Right
+                math::Plane::from(m[0].w - m[0].y, m[1].w - m[1].y, m[2].w - m[2].y, m[3].w - m[3].y), // Top
+                math::Plane::from(m[0].w + m[0].y, m[1].w + m[1].y, m[2].w + m[2].y, m[3].w + m[3].y), // Bottom
             };
         }
     };
