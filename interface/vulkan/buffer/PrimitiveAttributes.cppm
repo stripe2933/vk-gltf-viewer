@@ -215,7 +215,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 auto [buffer, copyOffsets] = createCombinedBuffer<true>(
                     gpu.allocator,
                     attributeBufferViewIndices | std::views::transform([&](std::size_t bufferViewIndex) { return adapter(asset, bufferViewIndex); }),
-                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
+                    vma::MemoryUsage::eAutoPreferHost);
                 if (StagingBufferStorage::needStaging(buffer)) {
                     stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
                 }
@@ -232,7 +233,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 auto [buffer, copyOffsets] = createCombinedBuffer<true>(
                     gpu.allocator,
                     generatedAccessorByteData | std::views::values,
-                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
+                    vma::MemoryUsage::eAutoPreferHost);
                 if (StagingBufferStorage::needStaging(buffer)) {
                     stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
                 }
@@ -367,7 +369,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
             auto [buffer, copyOffsets] = createCombinedBuffer<true>(
                 gpu.allocator,
                 indexedAttributeAccessors | std::views::transform(accessorGetter),
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
+                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
+                vma::MemoryUsage::eAutoPreferHost);
             if (StagingBufferStorage::needStaging(buffer)) {
                 stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
             }
@@ -427,7 +430,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 missingTangentPrimitives | std::views::transform([](const auto &pair) {
                     return as_bytes(std::span { pair.second.tangents });
                 }),
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc);
+                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
+                vma::MemoryUsage::eAutoPreferHost);
             if (StagingBufferStorage::needStaging(buffer)) {
                 stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
             }

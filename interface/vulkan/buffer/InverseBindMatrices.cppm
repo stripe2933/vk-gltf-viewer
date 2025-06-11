@@ -56,7 +56,9 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 }
 
                 vku::AllocatedBuffer result = createCombinedBuffer<true>(
-                    allocator, matrices, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc).first;
+                    allocator, matrices,
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+                    vma::MemoryUsage::eAutoPreferHost).first;
 
                 if (StagingBufferStorage::needStaging(result)) {
                     stagingBufferStorage.stage(result, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer);

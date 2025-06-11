@@ -202,11 +202,18 @@ namespace ibl {
             // Buffer -> Buffer: 256 2nd-order spherical harmonic coefficients sets will be reduced to a single set.
             coefficientSetCount += divCeil(coefficientSetCount, 256);
 
-            return { allocator, vk::BufferCreateInfo {
-                {},
-                sizeof(float[27]) * coefficientSetCount,
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
-            } };
+            return {
+                allocator,
+                vk::BufferCreateInfo {
+                    {},
+                    sizeof(float[27]) * coefficientSetCount,
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+                },
+                vma::AllocationCreateInfo {
+                    {},
+                    vma::MemoryUsage::eAutoPreferDevice,
+                },
+            };
         }
     };
 }
