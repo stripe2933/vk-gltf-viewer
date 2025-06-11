@@ -79,11 +79,18 @@ vk_gltf_viewer::vulkan::buffer::Nodes::Nodes(
     const gltf::ds::SkinJointCountExclusiveScanWithCount &skinJointCountExclusiveScan,
     const InstancedNodeWorldTransforms *instancedNodeWorldTransformBuffer
 ) : asset { asset },
-    buffer { allocator, vk::BufferCreateInfo {
-        {},
-        sizeof(shader_type::Node) * asset.nodes.size(),
-        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-    } },
+    buffer {
+        allocator,
+        vk::BufferCreateInfo {
+            {},
+            sizeof(shader_type::Node) * asset.nodes.size(),
+            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    },
     descriptorInfo { buffer, 0, vk::WholeSize },
     deviceAddress { device.getBufferAddress({ buffer.buffer }) }{
     const std::optional<vk::DeviceAddress> instancedNodeWorldTransformBufferAddress = value_if(

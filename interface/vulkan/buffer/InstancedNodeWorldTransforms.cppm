@@ -44,11 +44,18 @@ namespace vk_gltf_viewer::vulkan::buffer {
             const gltf::ds::NodeInstanceCountExclusiveScanWithCount &nodeInstanceCountExclusiveScanWithCount LIFETIMEBOUND,
             std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
             const BufferDataAdapter &adapter = {}
-        ) : MappedBuffer { allocator, vk::BufferCreateInfo {
-                {},
-                sizeof(fastgltf::math::fmat4x4) * nodeInstanceCountExclusiveScanWithCount.back(),
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-            } },
+        ) : MappedBuffer {
+                allocator,
+                vk::BufferCreateInfo {
+                    {},
+                    sizeof(fastgltf::math::fmat4x4) * nodeInstanceCountExclusiveScanWithCount.back(),
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                },
+                vma::AllocationCreateInfo {
+                    vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+                    vma::MemoryUsage::eAutoPreferDevice,
+                },
+            },
             asset { asset },
             nodeInstanceCountExclusiveScanWithCount { nodeInstanceCountExclusiveScanWithCount } {
             update(scene, nodeWorldTransforms, adapter);

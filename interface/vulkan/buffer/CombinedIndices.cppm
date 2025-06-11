@@ -148,7 +148,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 auto [buffer, copyOffsets] = buffer::createCombinedBuffer<true>(
                     gpu.allocator,
                     primitiveAndIndexBytesPairs | std::views::values,
-                    vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferSrc);
+                    vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+                    vma::MemoryUsage::eAutoPreferHost);
                 if (StagingBufferStorage::needStaging(buffer)) {
                     stagingBufferStorage.stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer);
                 }
