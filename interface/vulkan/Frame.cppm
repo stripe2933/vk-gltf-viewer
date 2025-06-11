@@ -109,11 +109,18 @@ namespace vk_gltf_viewer::vulkan {
                 morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount.back() != 0, [&]() {
                     return buffer::MorphTargetWeights { asset, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gpu };
                 }) },
-                mousePickingResultBuffer { sharedData.gpu.allocator, vk::BufferCreateInfo {
-                    {},
-                    sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(asset.nodes.size(), 32U),
-                    vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-                }, vku::allocation::hostRead },
+                mousePickingResultBuffer {
+                    sharedData.gpu.allocator,
+                    vk::BufferCreateInfo {
+                        {},
+                        sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(asset.nodes.size(), 32U),
+                        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+                    },
+                    vma::AllocationCreateInfo {
+                        vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
+                        vma::MemoryUsage::eAutoPreferDevice,
+                    },
+                },
                 descriptorPool { value_if(!sharedData.gpu.supportVariableDescriptorCount, [&]() {
                     return vk::raii::DescriptorPool {
                         sharedData.gpu.device,

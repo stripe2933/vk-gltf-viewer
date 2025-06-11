@@ -26,11 +26,18 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
         template <concepts::one_of<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand> Command>
         IndirectDrawCommands(vma::Allocator allocator, std::span<const Command> commands)
-            : MappedBuffer { allocator, vk::BufferCreateInfo {
-                {},
-                sizeof(std::uint32_t) /* draw count */ + sizeof(Command) * commands.size(),
-                vk::BufferUsageFlagBits::eIndirectBuffer,
-            }, vku::allocation::hostRead }
+            : MappedBuffer {
+                allocator,
+                vk::BufferCreateInfo {
+                    {},
+                    sizeof(std::uint32_t) /* draw count */ + sizeof(Command) * commands.size(),
+                    vk::BufferUsageFlagBits::eIndirectBuffer,
+                },
+                vma::AllocationCreateInfo {
+                    vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
+                    vma::MemoryUsage::eAutoPreferDevice,
+                },
+            }
             , indexed { std::same_as<Command, vk::DrawIndexedIndirectCommand> } {
             setDrawCount(commands.size());
             std::ranges::copy(commands, get<std::span<Command>>(drawIndirectCommands()).begin());

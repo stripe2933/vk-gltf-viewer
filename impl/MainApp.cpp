@@ -1214,11 +1214,18 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         vk::ImageTiling::eOptimal,
         ibl::PrefilteredmapComputer::requiredPrefilteredmapImageUsageFlags | vk::ImageUsageFlagBits::eSampled,
     } };
-    vku::MappedBuffer sphericalHarmonicsBuffer { gpu.allocator, vk::BufferCreateInfo {
-        {},
-        ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferSize,
-        ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferUsageFlags | vk::BufferUsageFlagBits::eUniformBuffer,
-    }, vku::allocation::hostRead };
+    vku::MappedBuffer sphericalHarmonicsBuffer {
+        gpu.allocator,
+        vk::BufferCreateInfo {
+            {},
+            ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferSize,
+            ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferUsageFlags | vk::BufferUsageFlagBits::eUniformBuffer,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    };
 
     const ibl::SphericalHarmonicCoefficientComputer sphericalHarmonicCoefficientComputer { gpu.device, gpu.allocator, cubemapImage, sphericalHarmonicsBuffer, {
         .sampleMipLevel = 0,
