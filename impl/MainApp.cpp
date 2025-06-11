@@ -990,9 +990,21 @@ vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR
 }
 
 vk_gltf_viewer::MainApp::ImageBasedLightingResources vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const {
-    vku::MappedBuffer sphericalHarmonicsBuffer { gpu.allocator, std::from_range, std::array<glm::vec3, 9> {
-        glm::vec3 { 1.f },
-    }, vk::BufferUsageFlagBits::eUniformBuffer };
+    vku::AllocatedBuffer sphericalHarmonicsBuffer {
+        gpu.allocator,
+        vk::BufferCreateInfo {
+            {},
+            sizeof(glm::vec3) * 9,
+            vk::BufferUsageFlagBits::eUniformBuffer,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    };
+    constexpr glm::vec3 data[9] = { glm::vec3 { 1.f } };
+    gpu.allocator.copyMemoryToAllocation(data, sphericalHarmonicsBuffer.allocation, 0, sizeof(data));
+
     vku::AllocatedImage prefilteredmapImage { gpu.allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
         vk::ImageType::e2D,
@@ -1006,7 +1018,7 @@ vk_gltf_viewer::MainApp::ImageBasedLightingResources vk_gltf_viewer::MainApp::cr
     vk::raii::ImageView prefilteredmapImageView { gpu.device, prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
 
     return {
-        std::move(sphericalHarmonicsBuffer).unmap(),
+        std::move(sphericalHarmonicsBuffer),
         std::move(prefilteredmapImage),
         std::move(prefilteredmapImageView),
     };
@@ -1100,7 +1112,7 @@ void vk_gltf_viewer::MainApp::closeGltf() {
 void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) {
     vk::Extent2D eqmapImageExtent;
     vk::Format eqmapImageFormat;
-    const vku::MappedBuffer eqmapStagingBuffer = [&]() -> vku::MappedBuffer {
+    const vku::AllocatedBuffer eqmapStagingBuffer = [&]() {
         std::unique_ptr<std::byte[]> data; // It should be freed after copying to the staging buffer, therefore declared as unique_ptr.
         const std::filesystem::path extension = eqmapPath.extension();
 #ifdef SUPPORT_EXR_SKYBOX
@@ -1145,11 +1157,21 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             eqmapImageExtent.height = static_cast<std::uint32_t>(height);
         }
 
-        return {
+        vku::AllocatedBuffer result {
             gpu.allocator,
-            std::from_range, std::span { data.get(), blockSize(eqmapImageFormat) * eqmapImageExtent.width * eqmapImageExtent.height },
-            vk::BufferUsageFlagBits::eTransferSrc,
+            vk::BufferCreateInfo {
+                {},
+                blockSize(eqmapImageFormat) * eqmapImageExtent.width * eqmapImageExtent.height,
+                vk::BufferUsageFlagBits::eTransferSrc,
+            },
+            vma::AllocationCreateInfo {
+                vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
+                vma::MemoryUsage::eAutoPreferHost,
+            },
         };
+        gpu.allocator.copyMemoryToAllocation(data.get(), result.allocation, 0, result.size);
+
+        return result;
         // After this scope, data will be automatically freed.
     }();
 

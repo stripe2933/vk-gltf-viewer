@@ -18,8 +18,23 @@ namespace vk_gltf_viewer::vulkan::buffer {
 module :private;
 #endif
 
+constexpr std::uint16_t data[] = {
+    2, 6, 7, 2, 3, 7, 0, 4, 5, 0, 1, 5, 0, 2, 6, 0, 4, 6,
+    1, 3, 7, 1, 5, 7, 0, 2, 3, 0, 1, 3, 4, 6, 7, 4, 5, 7,
+};
+
 vk_gltf_viewer::vulkan::buffer::CubeIndices::CubeIndices(vma::Allocator allocator)
-    : AllocatedBuffer { vku::MappedBuffer { allocator, std::from_range, std::array<std::uint16_t, 36> {
-        2, 6, 7, 2, 3, 7, 0, 4, 5, 0, 1, 5, 0, 2, 6, 0, 4, 6,
-        1, 3, 7, 1, 5, 7, 0, 2, 3, 0, 1, 3, 4, 6, 7, 4, 5, 7,
-    }, vk::BufferUsageFlagBits::eIndexBuffer }.unmap() } { }
+    : AllocatedBuffer {
+        allocator,
+        vk::BufferCreateInfo {
+            {},
+            sizeof(data),
+            vk::BufferUsageFlagBits::eIndexBuffer,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    } {
+    allocator.copyMemoryToAllocation(data, allocation, 0, sizeof(data));
+}
