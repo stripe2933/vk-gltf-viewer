@@ -62,7 +62,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @brief Get instanced world transform matrices for a node whose index is \p nodeIndex.
          * @param nodeIndex Node index.
          * @return A span of instanced world transform matrices for the node.
-         * @note Reordering the transform matrices is valid usage, and therefore <tt>getTransforms(nodeIndex)[instanceIndex]</tt> is not guaranteed to be the same as <tt>getInstanceTransforms(asset, nodeIndex, adapter)[instanceIndex]</tt>.
          */
         [[nodiscard]] std::span<const fastgltf::math::fmat4x4> getTransforms(std::size_t nodeIndex) const noexcept {
             const std::size_t offset = nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex];
