@@ -71,11 +71,11 @@ module :private;
 #endif
 
 void vk_gltf_viewer::vulkan::buffer::StagingBufferStorage::stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage) {
-    vku::AllocatedBuffer deviceLocalBuffer { buffer.allocator, vk::BufferCreateInfo {
-        {},
-        buffer.size,
-        usage,
-    } };
+    vku::AllocatedBuffer deviceLocalBuffer {
+        buffer.allocator,
+        vk::BufferCreateInfo { {}, buffer.size, usage },
+        vma::AllocationCreateInfo { {}, vma::MemoryUsage::eAutoPreferDevice },
+    };
     stagingInfos.emplace_back(
         std::move(buffer),
         deviceLocalBuffer,

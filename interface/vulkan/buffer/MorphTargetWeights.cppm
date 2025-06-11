@@ -42,7 +42,7 @@ vk_gltf_viewer::vulkan::buffer::MorphTargetWeights::MorphTargetWeights(
     const Gpu &gpu
 ) : buffer { createCombinedBuffer(gpu.allocator, asset.nodes | std::views::transform([&](const fastgltf::Node &node) {
         return getTargetWeights(node, asset);
-    }), vk::BufferUsageFlagBits::eStorageBuffer).first },
+    }), vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice).first },
     descriptorInfo { buffer, 0, vk::WholeSize },
     targetWeightCountExclusiveScanWithCount { targetWeightCountExclusiveScanWithCount } { }
 

@@ -21,6 +21,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
      * @param allocator VMA allocator to allocate the buffer.
      * @param segments Range of data segments. Each segment will be converted to <tt>std::span<const std::byte></tt> if their elements are not <tt>std::byte</tt>.
      * @param usage Usage flags of the result buffer.
+     * @param memoryUsage Memory usage preference.
      * @return Pair of buffer and each segments' start offsets vector.
      * @throw vk::InitializationFailedError Result buffer size is zero.
      */
@@ -36,7 +37,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
     [[nodiscard]] auto createCombinedBuffer(
         vma::Allocator allocator,
         R &&segments,
-        vk::BufferUsageFlags usage
+        vk::BufferUsageFlags usage,
+        vma::MemoryUsage memoryUsage
     ) {
         if constexpr (std::same_as<std::ranges::range_value_t<std::ranges::range_value_t<R>>, std::byte>) {
             // Calculate each segments' copy destination offsets.
@@ -46,7 +48,14 @@ namespace vk_gltf_viewer::vulkan::buffer {
             sizeTotal += copyOffsets.back();
 
             // Create buffer.
-            vku::MappedBuffer buffer { allocator, vk::BufferCreateInfo { {}, sizeTotal, usage } };
+            vku::MappedBuffer buffer {
+                allocator,
+                vk::BufferCreateInfo { {}, sizeTotal, usage },
+                vma::AllocationCreateInfo {
+                    vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+                    memoryUsage,
+                },
+            };
 
             // Copy segments to the buffer.
             std::byte *mapped = static_cast<std::byte*>(buffer.data);
@@ -64,7 +73,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
         else {
             // Retry with converting each segments into the std::span<const std::byte>.
             auto byteSegments = segments | std::views::transform([](const auto &segment) { return as_bytes(std::span { segment }); });
-            return createCombinedBuffer<Unmap>(allocator, byteSegments, usage);
+            return createCombinedBuffer<Unmap>(allocator, byteSegments, usage, memoryUsage);
         }
     }
 }
