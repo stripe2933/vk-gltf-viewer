@@ -1655,7 +1655,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
 }
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
-    Camera &camera,
     bool &automaticNearFarPlaneAdjustment,
     full_optional<AppState::Outline> &hoveringNodeOutline,
     full_optional<AppState::Outline> &selectedNodeOutline,
@@ -1663,16 +1662,16 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
 ) {
     if (ImGui::Begin("Input control")){
         if (ImGui::CollapsingHeader("Camera")) {
-            ImGui::DragFloat3("Position", value_ptr(camera.position), 0.1f);
-            if (ImGui::DragFloat3("Direction", value_ptr(camera.direction), 0.1f, -1.f, 1.f)) {
-                camera.direction = normalize(camera.direction);
+            ImGui::DragFloat3("Position", value_ptr(global::camera.position), 0.1f);
+            if (ImGui::DragFloat3("Direction", value_ptr(global::camera.direction), 0.1f, -1.f, 1.f)) {
+                global::camera.direction = normalize(global::camera.direction);
             }
-            if (ImGui::DragFloat3("Up", value_ptr(camera.up), 0.1f, -1.f, 1.f)) {
-                camera.up = normalize(camera.up);
+            if (ImGui::DragFloat3("Up", value_ptr(global::camera.up), 0.1f, -1.f, 1.f)) {
+                global::camera.up = normalize(global::camera.up);
             }
 
-            if (float fovInDegree = glm::degrees(camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
-                camera.fov = glm::radians(fovInDegree);
+            if (float fovInDegree = glm::degrees(global::camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
+                global::camera.fov = glm::radians(fovInDegree);
             }
 
             ImGui::Checkbox("Automatic Near/Far Adjustment", &automaticNearFarPlaneAdjustment);
@@ -1680,7 +1679,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             ImGui::HelperMarker("(?)", "Near/Far plane will be automatically tightened to fit the scene bounding box.");
 
             ImGui::WithDisabled([&]() {
-                ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+                ImGui::DragFloatRange2("Near/Far", &global::camera.zMin, &global::camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
             }, automaticNearFarPlaneAdjustment);
 
             constexpr auto to_string = [](global::FrustumCullingMode mode) noexcept -> const char* {
@@ -1770,26 +1769,25 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
     ImGui::End();
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Camera &camera) {
+void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo() {
     // Set ImGuizmo rect.
     ImGuizmo::BeginFrame();
     ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
 
     constexpr ImVec2 size { 64.f, 64.f };
     constexpr ImU32 background = 0x00000000; // Transparent.
-    const glm::mat4 oldView = camera.getViewMatrix();
+    const glm::mat4 oldView = global::camera.getViewMatrix();
     glm::mat4 newView = oldView;
-    ImGuizmo::ViewManipulate(value_ptr(newView), camera.targetDistance, centerNodeRect.Max - size, size, background);
+    ImGuizmo::ViewManipulate(value_ptr(newView), global::camera.targetDistance, centerNodeRect.Max - size, size, background);
     if (newView != oldView) {
         const glm::mat4 inverseView = inverse(newView);
-        camera.up = inverseView[1];
-        camera.position = inverseView[3];
-        camera.direction = -inverseView[2];
+        global::camera.up = inverseView[1];
+        global::camera.position = inverseView[3];
+        global::camera.direction = -inverseView[2];
     }
 }
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
-    Camera &camera,
     fastgltf::Asset &asset,
     const std::unordered_set<std::size_t> &selectedNodes,
     std::span<fastgltf::math::fmat4x4> nodeWorldTransforms,
@@ -1818,7 +1816,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
         });
         ImGuizmo::Enable(enableGizmo);
 
-        if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
+        if (Manipulate(value_ptr(global::camera.getViewMatrix()), value_ptr(global::camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
             const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(nodeWorldTransforms[selectedNodeIndex]) * newWorldTransform;
 
             updateTransform(asset.nodes[selectedNodeIndex], [&](fastgltf::math::fmat4x4 &transformMatrix) {
@@ -1859,7 +1857,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
         ImGuizmo::Enable(enableGizmo);
 
         if (fastgltf::math::fmat4x4 deltaMatrix;
-            Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data())) {
+            Manipulate(value_ptr(global::camera.getViewMatrix()), value_ptr(global::camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data())) {
             for (std::size_t nodeIndex : selectedNodes) {
                 const fastgltf::math::fmat4x4 inverseOldWorldTransform = affineInverse(nodeWorldTransforms[nodeIndex]);
 
@@ -1904,13 +1902,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
 
     constexpr ImVec2 size { 64.f, 64.f };
     constexpr ImU32 background = 0x00000000; // Transparent.
-    const glm::mat4 oldView = camera.getViewMatrix();
+    const glm::mat4 oldView = global::camera.getViewMatrix();
     glm::mat4 newView = oldView;
-    ImGuizmo::ViewManipulate(value_ptr(newView), camera.targetDistance, centerNodeRect.Max - size, size, background);
+    ImGuizmo::ViewManipulate(value_ptr(newView), global::camera.targetDistance, centerNodeRect.Max - size, size, background);
     if (newView != oldView) {
         const glm::mat4 inverseView = inverse(newView);
-        camera.up = inverseView[1];
-        camera.position = inverseView[3];
-        camera.direction = -inverseView[2];
+        global::camera.up = inverseView[1];
+        global::camera.position = inverseView[3];
+        global::camera.direction = -inverseView[2];
     }
 }

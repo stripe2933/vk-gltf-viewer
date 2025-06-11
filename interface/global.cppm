@@ -1,5 +1,6 @@
 export module vk_gltf_viewer:global;
 
+export import :control.Camera;
 export import :helpers.full_optional;
 
 namespace vk_gltf_viewer::global {
@@ -30,4 +31,10 @@ namespace vk_gltf_viewer::global {
     };
 
     export FrustumCullingMode frustumCullingMode = FrustumCullingMode::OnWithInstancing;
+
+    export control::Camera camera {
+        glm::vec3 { 0.f, 0.f, 5.f }, normalize(glm::vec3 { 0.f, 0.f, -1.f }), glm::vec3 { 0.f, 1.f, 0.f },
+        glm::radians(45.f), 1.f /* will be determined by passthru rect dimension */, 1e-2f, 10.f,
+        5.f,
+    };
 }

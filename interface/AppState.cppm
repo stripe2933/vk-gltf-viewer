@@ -3,7 +3,6 @@ export module vk_gltf_viewer:AppState;
 import std;
 export import glm;
 export import ImGuizmo;
-export import :control.Camera;
 export import :helpers.full_optional;
 
 namespace vk_gltf_viewer {
@@ -35,7 +34,6 @@ namespace vk_gltf_viewer {
             } prefilteredmap;
         };
 
-        control::Camera camera;
         bool automaticNearFarPlaneAdjustment = true;
         full_optional<Outline> hoveringNodeOutline { std::in_place, 2.f, glm::vec4 { 1.f, 0.5f, 0.2f, 1.f } };
         full_optional<Outline> selectedNodeOutline { std::in_place, 2.f, glm::vec4 { 0.f, 1.f, 0.2f, 1.f } };

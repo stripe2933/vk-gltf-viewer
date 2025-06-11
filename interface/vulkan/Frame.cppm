@@ -149,18 +149,6 @@ namespace vk_gltf_viewer::vulkan {
             vk::Rect2D passthruRect;
 
             /**
-             * @brief Camera matrices.
-             */
-            struct { glm::mat4 view, projection; } camera;
-
-            /**
-             * @brief The frustum of the camera, which would be used for frustum culling.
-             *
-             * If <tt>std::nullopt</tt>, frustum culling would be disabled.
-             */
-            std::optional<math::Frustum> frustum;
-
-            /**
              * @brief Cursor position or selection rectangle for handling mouse picking.
              *
              * - If mouse picking has to be done inside the selection rectangle, passthrough rectangle aligned, framebuffer-scale <tt>vk::Rect2D</tt> used.
@@ -298,6 +286,7 @@ namespace vk_gltf_viewer::vulkan {
             std::map<CommandSeparationCriteria, buffer::IndirectDrawCommands> indirectDrawCommandBuffers;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> mousePickingIndirectDrawCommandBuffers;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> multiNodeMousePickingIndirectDrawCommandBuffers;
+            bool startMousePickingRenderPass = true;
         };
 
         struct SelectedNodes {
@@ -347,7 +336,6 @@ namespace vk_gltf_viewer::vulkan {
 
         vk::Offset2D passthruOffset;
         glm::mat4 projectionViewMatrix;
-        glm::vec3 viewPosition;
         glm::mat4 translationlessProjectionViewMatrix;
         std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
         std::optional<RenderingNodes> renderingNodes;
