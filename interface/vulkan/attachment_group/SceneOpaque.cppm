@@ -41,7 +41,12 @@ vk_gltf_viewer::vulkan::ag::SceneOpaque::SceneOpaque(const Gpu &gpu, const vk::E
             vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
         },
 #ifndef __APPLE__
-        vku::allocation::deviceLocalTransient,
+        vma::AllocationCreateInfo {
+            {},
+            vma::MemoryUsage::eAutoPreferDevice,
+            {},
+            vk::MemoryPropertyFlagBits::eLazilyAllocated,
+        }
 #endif
     }
     , stencilResolveImageView { gpu.device, stencilResolveImage.getViewCreateInfo() }{
@@ -61,7 +66,10 @@ vk_gltf_viewer::vulkan::ag::SceneOpaque::SceneOpaque(const Gpu &gpu, const vk::E
 #if __APPLE__
             // MoltenVK bug. Described in https://github.com/stripe2933/vk-deferred/blob/75bf7536f4c9c6af76fe9875853f9e785ca1dfb2/interface/vulkan/attachment_group/GBuffer.cppm#L28.
             , vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
-            vku::allocation::deviceLocal
+            vma::AllocationCreateInfo {
+                {},
+                vma::MemoryUsage::eAutoPreferDevice,
+            }
 #endif
         )));
 }
