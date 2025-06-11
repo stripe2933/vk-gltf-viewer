@@ -109,11 +109,20 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @note This function should be called only once in a GPU device lifetime.
          */
         [[nodiscard]] vk::DeviceAddress getZeroBufferAddress(const Gpu &gpu) {
-            vku::AllocatedBuffer &buffer = internalBuffers.emplace_back(vku::MappedBuffer {
+            constexpr float data[4] = { 0.f, 0.f, 0.f, 0.f };
+            vku::AllocatedBuffer &buffer = internalBuffers.emplace_back(
                 gpu.allocator,
-                std::array { 0.f, 0.f, 0.f, 0.f },
-                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
-            }.unmap());
+                vk::BufferCreateInfo {
+                    {},
+                    sizeof(data),
+                    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
+                },
+                vma::AllocationCreateInfo {
+                    vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
+                    vma::MemoryUsage::eAutoPreferHost,
+                });
+            gpu.allocator.copyMemoryToAllocation(data, buffer.allocation, 0, sizeof(data));
+
             if (StagingBufferStorage::needStaging(buffer)) {
                 stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
             }

@@ -55,12 +55,20 @@ vk_gltf_viewer::vulkan::buffer::SkinJointIndices::SkinJointIndices(
                 combinedJointIndices.begin() + startIndex);
         }
     #endif
-
-        vku::AllocatedBuffer result = vku::MappedBuffer {
+        vku::AllocatedBuffer result {
             allocator,
-            std::from_range, combinedJointIndices,
-            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc
-        }.unmap();
+            vk::BufferCreateInfo {
+                {},
+                sizeof(std::uint32_t) * combinedJointIndices.size(),
+                vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+            },
+            vma::AllocationCreateInfo {
+                vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
+                vma::MemoryUsage::eAutoPreferHost,
+            },
+        };
+        allocator.copyMemoryToAllocation(combinedJointIndices.data(), result.allocation, 0, result.size);
+
         if (StagingBufferStorage::needStaging(result)) {
             stagingBufferStorage.stage(result, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer);
         }
