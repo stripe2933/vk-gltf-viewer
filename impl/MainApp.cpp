@@ -212,12 +212,12 @@ void vk_gltf_viewer::MainApp::run() {
                 imguiTaskCollector.imageBasedLighting(*iblInfo, vku::toUint64(skyboxResources->imGuiEqmapTextureDescriptorSet));
             }
             imguiTaskCollector.background(appState.canSelectSkyboxBackground, appState.background);
-            imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.hoveringNodeOutline, appState.selectedNodeOutline, gpu.supportShaderStencilExport);
+            imguiTaskCollector.inputControl(appState.automaticNearFarPlaneAdjustment, appState.hoveringNodeOutline, appState.selectedNodeOutline, gpu.supportShaderStencilExport);
             if (gltf) {
-                imguiTaskCollector.imguizmo(appState.camera, gltf->asset, gltf->selectedNodes, gltf->nodeWorldTransforms, appState.imGuizmoOperation, gltf->animations, *gltf->animationEnabled);
+                imguiTaskCollector.imguizmo(gltf->asset, gltf->selectedNodes, gltf->nodeWorldTransforms, appState.imGuizmoOperation, gltf->animations, *gltf->animationEnabled);
             }
             else {
-                imguiTaskCollector.imguizmo(appState.camera);
+                imguiTaskCollector.imguizmo();
             }
 
             if (drawSelectionRectangle) {
@@ -329,18 +329,18 @@ void vk_gltf_viewer::MainApp::run() {
                     }(task);
 
                     const float factor = std::powf(1.01f, -scale);
-                    const glm::vec3 displacementToTarget = appState.camera.direction * appState.camera.targetDistance;
-                    appState.camera.targetDistance *= factor;
-                    appState.camera.position += (1.f - factor) * displacementToTarget;
+                    const glm::vec3 displacementToTarget = global::camera.direction * global::camera.targetDistance;
+                    global::camera.targetDistance *= factor;
+                    global::camera.position += (1.f - factor) * displacementToTarget;
                 },
                 [&](const control::task::WindowTrackpadRotate &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
                     // Rotate the camera around the Y-axis lied on the target point.
-                    const glm::vec3 target = appState.camera.position + appState.camera.direction * appState.camera.targetDistance;
+                    const glm::vec3 target = global::camera.position + global::camera.direction * global::camera.targetDistance;
                     const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
-                    appState.camera.direction = glm::mat3 { rotation } * appState.camera.direction;
-                    appState.camera.position = target - appState.camera.direction * appState.camera.targetDistance;
+                    global::camera.direction = glm::mat3 { rotation } * global::camera.direction;
+                    global::camera.position = target - global::camera.direction * global::camera.targetDistance;
                 },
                 [&](const control::task::WindowDrop &task) {
                     if (task.paths.empty()) return;
@@ -376,7 +376,7 @@ void vk_gltf_viewer::MainApp::run() {
                     handleSwapchainResize();
                 },
                 [this](const control::task::ChangePassthruRect &task) {
-                    appState.camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
+                    global::camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
                     passthruRect = task.newRect;
                 },
                 [&](const control::task::LoadGltf &task) {
@@ -405,11 +405,11 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Adjust the camera based on the scene enclosing sphere.
                     const auto &[center, radius] = gltf->sceneMiniball.get();
-                    const float distance = radius / std::sin(appState.camera.fov / 2.f);
-                    appState.camera.position = glm::make_vec3(center.data()) - distance * normalize(appState.camera.direction);
-                    appState.camera.zMin = distance - radius;
-                    appState.camera.zMax = distance + radius;
-                    appState.camera.targetDistance = distance;
+                    const float distance = radius / std::sin(global::camera.fov / 2.f);
+                    global::camera.position = glm::make_vec3(center.data()) - distance * normalize(global::camera.direction);
+                    global::camera.zMin = distance - radius;
+                    global::camera.zMax = distance + radius;
+                    global::camera.targetDistance = distance;
 
                     regenerateDrawCommands.fill(true);
                 },
@@ -635,7 +635,7 @@ void vk_gltf_viewer::MainApp::run() {
 
         if (gltf && appState.automaticNearFarPlaneAdjustment) {
             const auto &[center, radius] = gltf->sceneMiniball.get();
-            appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+            global::camera.tightenNearFar(glm::make_vec3(center.data()), radius);
         }
 
         if (hasUpdateData) {
@@ -653,10 +653,6 @@ void vk_gltf_viewer::MainApp::run() {
                 { static_cast<std::int32_t>(framebufferScale.x * passthruRect.Min.x), static_cast<std::int32_t>(framebufferScale.y * passthruRect.Min.y) },
                 { static_cast<std::uint32_t>(framebufferScale.x * passthruRect.GetWidth()), static_cast<std::uint32_t>(framebufferScale.y * passthruRect.GetHeight()) },
             },
-            .camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
-            .frustum = value_if(global::frustumCullingMode != global::FrustumCullingMode::Off, [this]() {
-                return appState.camera.getFrustum();
-            }),
             .mousePickingInput = [&]() -> std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
                 const glm::dvec2 cursorPos = window.getCursorPos();
                 if (drawSelectionRectangle) {
@@ -1073,11 +1069,11 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius] = gltf->sceneMiniball.get();
-    const float distance = radius / std::sin(appState.camera.fov / 2.f);
-    appState.camera.position = glm::make_vec3(center.data()) - distance * normalize(appState.camera.direction);
-    appState.camera.zMin = distance - radius;
-    appState.camera.zMax = distance + radius;
-    appState.camera.targetDistance = distance;
+    const float distance = radius / std::sin(global::camera.fov / 2.f);
+    global::camera.position = glm::make_vec3(center.data()) - distance * normalize(global::camera.direction);
+    global::camera.zMin = distance - radius;
+    global::camera.zMax = distance + radius;
+    global::camera.targetDistance = distance;
 
     control::ImGuiTaskCollector::selectedMaterialIndex.reset();
 }

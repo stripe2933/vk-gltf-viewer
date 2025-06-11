@@ -74,5 +74,25 @@ namespace vk_gltf_viewer::control {
                 math::Plane::from(m[0].w + m[0].y, m[1].w + m[1].y, m[2].w + m[2].y, m[3].w + m[3].y), // Bottom
             };
         }
+
+        [[nodiscard]] math::Frustum getFrustum(float xmin, float xmax, float ymin, float ymax) const {
+            const float nearWidth = 2.f * zMin * std::tan(fov / 2.f);
+            const float nearHeight = nearWidth * aspectRatio;
+            const glm::mat4 projection = glm::gtc::frustum(
+                nearWidth * (xmin - 0.5f), nearWidth * (xmax - 0.5f),
+                nearHeight * (ymin - 0.5f), nearHeight * (ymax - 0.5f),
+                zMin, zMax);
+
+            // Gribb & Hartmann method.
+            const glm::mat4 m = projection * getViewMatrix();
+            return {
+                math::Plane::from(m[0].w + m[0].z, m[1].w + m[1].z, m[2].w + m[2].z, m[3].w + m[3].z), // Near
+                math::Plane::from(m[0].w - m[0].z, m[1].w - m[1].z, m[2].w - m[2].z, m[3].w - m[3].z), // Far
+                math::Plane::from(m[0].w + m[0].x, m[1].w + m[1].x, m[2].w + m[2].x, m[3].w + m[3].x), // Left
+                math::Plane::from(m[0].w - m[0].x, m[1].w - m[1].x, m[2].w - m[2].x, m[3].w - m[3].x), // Right
+                math::Plane::from(m[0].w - m[0].y, m[1].w - m[1].y, m[2].w - m[2].y, m[3].w - m[3].y), // Top
+                math::Plane::from(m[0].w + m[0].y, m[1].w + m[1].y, m[2].w + m[2].y, m[3].w + m[3].y), // Bottom
+            };
+        }
     };
 }
