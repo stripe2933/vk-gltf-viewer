@@ -121,11 +121,19 @@ namespace vk_gltf_viewer::vulkan::image {
                     // Therefore, I explicitly marked the parameter type of data as stbi_uc*&& (which force the user to
                     // pass it like std::move(data).
                     const auto processNonCompressedImageFromLoadResult = [&](std::uint32_t width, std::uint32_t height, int channels, stbi_uc* &&data) {
-                        vku::MappedBuffer stagingBuffer {
+                        vku::AllocatedBuffer stagingBuffer {
                             gpu.allocator,
-                            std::from_range, std::views::counted(data, width * height * channels),
-                            vk::BufferUsageFlagBits::eTransferSrc,
+                            vk::BufferCreateInfo {
+                                {},
+                                width * height * channels,
+                                vk::BufferUsageFlagBits::eTransferSrc,
+                            },
+                            vma::AllocationCreateInfo {
+                                vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
+                                vma::MemoryUsage::eAutoPreferHost,
+                            },
                         };
+                        gpu.allocator.copyMemoryToAllocation(data, stagingBuffer.allocation, 0, stagingBuffer.size);
 
                         // Now image data copied into stagingBuffer, therefore it should be freed before image
                         // creation to reduce the memory footprint.
@@ -163,7 +171,7 @@ namespace vk_gltf_viewer::vulkan::image {
                         std::scoped_lock lock { mutex };
                         imageIndicesToGenerateMipmap.emplace(imageIndex);
                         copyInfos.emplace_back(
-                            stagingBuffers.emplace_front(std::move(stagingBuffer).unmap()),
+                            stagingBuffers.emplace_front(std::move(stagingBuffer)),
                             image,
                             std::vector {
                                 vk::BufferImageCopy {
@@ -235,11 +243,19 @@ namespace vk_gltf_viewer::vulkan::image {
                             }
                         }
 
-                        vku::MappedBuffer stagingBuffer {
+                        vku::AllocatedBuffer stagingBuffer {
                             gpu.allocator,
-                            std::from_range, std::span { ktxTexture_GetData(ktxTexture(texture)), ktxTexture_GetDataSize(ktxTexture(texture)) },
-                            vk::BufferUsageFlagBits::eTransferSrc,
+                            vk::BufferCreateInfo {
+                                {},
+                                ktxTexture_GetDataSize(ktxTexture(texture)),
+                                vk::BufferUsageFlagBits::eTransferSrc,
+                            },
+                            vma::AllocationCreateInfo {
+                                vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
+                                vma::MemoryUsage::eAutoPreferHost,
+                            },
                         };
+                        gpu.allocator.copyMemoryToAllocation(ktxTexture_GetData(ktxTexture(texture)), stagingBuffer.allocation, 0, stagingBuffer.size);
 
                         std::vector<vk::BufferImageCopy> copyRegions
                             = ranges::views::upto(texture->numLevels)
@@ -296,7 +312,7 @@ namespace vk_gltf_viewer::vulkan::image {
                             imageIndicesToGenerateMipmap.emplace(imageIndex);
                         }
                         copyInfos.emplace_back(
-                            stagingBuffers.emplace_front(std::move(stagingBuffer).unmap()),
+                            stagingBuffers.emplace_front(std::move(stagingBuffer)),
                             image,
                             std::move(copyRegions));
 

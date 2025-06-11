@@ -51,11 +51,19 @@ vk_gltf_viewer::vulkan::texture::Checkerboard::Checkerboard(const Gpu &gpu)
     } }
     , imageView { gpu.device, image.getViewCreateInfo().setComponents({ vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne }) }
     , sampler { gpu.device, vk::SamplerCreateInfo{}.setMaxLod(vk::LodClampNone) } {
-    const vku::MappedBuffer stagingBuffer {
+    vku::AllocatedBuffer stagingBuffer {
         gpu.allocator,
-        std::from_range, std::span { data },
-        vk::BufferUsageFlagBits::eTransferSrc,
+        vk::BufferCreateInfo {
+            {},
+            sizeof(data),
+            vk::BufferUsageFlagBits::eTransferSrc,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
+            vma::MemoryUsage::eAutoPreferHost,
+        },
     };
+    gpu.allocator.copyMemoryToAllocation(data, stagingBuffer.allocation, 0, sizeof(data));
 
     vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
