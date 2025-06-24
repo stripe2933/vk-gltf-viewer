@@ -28,6 +28,7 @@ find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(imguizmo CONFIG REQUIRED)
+find_package(meshoptimizer CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
 find_package(Stb REQUIRED)
@@ -265,6 +266,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     ibl
     imgui::imgui
     imguizmo::imguizmo
+    meshoptimizer::meshoptimizer
     mikktspace::mikktspace
     nfd::nfd
     vku::vku
