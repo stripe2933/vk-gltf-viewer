@@ -25,6 +25,7 @@ constexpr std::array optionalExtensions {
     vk::AMDShaderImageLoadStoreLodExtensionName,
     vk::EXTAttachmentFeedbackLoopLayoutExtensionName,
     vk::EXTShaderStencilExportExtensionName,
+    vk::EXTExtendedDynamicState3ExtensionName,
 };
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
@@ -247,6 +248,13 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     supportUint8Index = indexTypeUint8Features.indexTypeUint8;
     supportVariableDescriptorCount = vulkan12Features.descriptorBindingVariableDescriptorCount;
 #endif
+
+    if (availableExtensionNames.contains(vk::EXTExtendedDynamicStateExtensionName)) {
+        const auto [_, extendedDynamicState3Props] = physicalDevice.getProperties2<
+            vk::PhysicalDeviceProperties2,
+            vk::PhysicalDeviceExtendedDynamicState3PropertiesEXT>();
+        supportDynamicPrimitiveTopologyUnrestricted = extendedDynamicState3Props.dynamicPrimitiveTopologyUnrestricted;
+    }
 
     constexpr vk::FormatFeatureFlags requiredFormatFeatureFlags
         = vk::FormatFeatureFlagBits::eTransferDst

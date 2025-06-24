@@ -92,6 +92,7 @@ The extensions and feature used in this application are quite common in the mode
   - (optional) `VK_EXT_index_type_uint8` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
   - (optional) `VK_EXT_shader_stencil_export` (more plausible bloom effect)
   - (optional) `VK_AMD_shader_image_load_store_lod` (can replace the descriptor indexing based cubemap mipmapping and prefilteredmap generation[^2])
+  - (optional) `VK_EXT_extended_dynamic_state3` (if supported and `VkPhysicalDeviceExtendedDynamicState3PropertiesEXT::dynamicPrimitiveTopologyUnrestricted` is `true`, can reduce the pipeline switch for different primitive topologies)
 - Device Features
   - `VkPhysicalDeviceFeatures`
     - `drawIndirectFirstInstance`
