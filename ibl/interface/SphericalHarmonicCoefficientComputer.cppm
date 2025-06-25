@@ -7,17 +7,10 @@ module;
 export module ibl:SphericalHarmonicCoefficientComputer;
 
 import std;
+import math;
 export import vku;
 import :shader.spherical_harmonic_coefficient_image_to_buffer_comp;
 import :shader.spherical_harmonic_coefficient_buffer_to_buffer_comp;
-
-[[nodiscard]] constexpr std::uint32_t square(std::uint32_t num) noexcept {
-    return num * num;
-}
-
-[[nodiscard]] constexpr std::uint32_t divCeil(std::uint32_t num, std::uint32_t denom) noexcept {
-    return (num / denom) + (num % denom != 0);
-}
 
 namespace ibl {
     export class SphericalHarmonicCoefficientComputer {
@@ -138,7 +131,7 @@ namespace ibl {
                 vk::PipelineBindPoint::eCompute, *imageToBufferPipelineLayout,
                 0, {
                     decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteOne<0>({ {}, cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                    decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteOne<1>({ reductionBuffer, 0, sizeof(float[27]) * square(dispatchCountXY) }),
+                    decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteOne<1>({ reductionBuffer, 0, sizeof(float[27]) * math::square(dispatchCountXY) }),
                 }, *d);
             computeCommandBuffer.dispatch(dispatchCountXY, dispatchCountXY, 1, *d);
 
@@ -152,12 +145,12 @@ namespace ibl {
             // Buffer -> Buffer reduction.
             BufferToBufferPipelinePushConstant pushConstant {
                 .srcOffset = 0,
-                .count = square(dispatchCountXY),
-                .dstOffset = square(dispatchCountXY),
+                .count = math::square(dispatchCountXY),
+                .dstOffset = math::square(dispatchCountXY),
             };
             while (pushConstant.count > 1) {
                 computeCommandBuffer.pushConstants<BufferToBufferPipelinePushConstant>(*bufferToBufferPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant, *d);
-                const std::uint32_t dispatchCount = divCeil(pushConstant.count, 256);
+                const std::uint32_t dispatchCount = math::divCeil<std::uint32_t>(pushConstant.count, 256);
                 computeCommandBuffer.dispatch(dispatchCount, 1, 1, *d);
                 memoryBarrier();
 
@@ -198,9 +191,9 @@ namespace ibl {
 
         [[nodiscard]] vku::AllocatedBuffer createReductionBuffer() const {
             // Image -> Buffer: 32x32 texels will be reduced to a single 2nd-order spherical harmonic coefficients set (sizeof(float[27]).
-            vk::DeviceSize coefficientSetCount = square(getCubemapMipSize() / 32);
+            vk::DeviceSize coefficientSetCount = math::square(getCubemapMipSize() / 32);
             // Buffer -> Buffer: 256 2nd-order spherical harmonic coefficients sets will be reduced to a single set.
-            coefficientSetCount += divCeil(coefficientSetCount, 256);
+            coefficientSetCount += math::divCeil<std::uint32_t>(coefficientSetCount, 256);
 
             return { allocator, vk::BufferCreateInfo {
                 {},

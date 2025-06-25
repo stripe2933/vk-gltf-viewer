@@ -7,8 +7,8 @@ module;
 export module vk_gltf_viewer:vulkan.pipeline.JumpFloodComputer;
 
 import std;
+import math;
 export import vku;
-import :math.extended_arithmetic;
 import :shader.jump_flood_comp;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {

@@ -1,8 +1,7 @@
 export module vk_gltf_viewer:control.Camera;
 
 import std;
-export import glm;
-export import :math.Frustum;
+export import geometry;
 
 namespace vk_gltf_viewer::control {
     export struct Camera {
@@ -62,7 +61,7 @@ namespace vk_gltf_viewer::control {
             }
         }
 
-        [[nodiscard]] math::Frustum getFrustum() const {
+        [[nodiscard]] geometry::Frustum getFrustum() const {
             // Code from LearnOpenGL.
             // See: https://learnopengl.com/Guest-Articles/2021/Scene/Frustum-Culling.
             const float halfVSide = zMax * std::tan(fov / 2.f);
@@ -73,12 +72,12 @@ namespace vk_gltf_viewer::control {
             const glm::vec3 upMultHalfVSide = up * halfVSide;
 
             return {
-                math::Plane::from(direction, position + zMin * direction),
-                math::Plane::from(-direction, position + frontMultFar),
-                math::Plane::from(normalize(cross(frontMultFar - rightMultHalfHSide, up)), position),
-                math::Plane::from(normalize(cross(up, frontMultFar + rightMultHalfHSide)), position),
-                math::Plane::from(normalize(cross(frontMultFar + upMultHalfVSide, right)), position),
-                math::Plane::from(normalize(cross(right, frontMultFar - upMultHalfVSide)), position),
+                geometry::Plane::from(direction, position + zMin * direction),
+                geometry::Plane::from(-direction, position + frontMultFar),
+                geometry::Plane::from(normalize(cross(frontMultFar - rightMultHalfHSide, up)), position),
+                geometry::Plane::from(normalize(cross(up, frontMultFar + rightMultHalfHSide)), position),
+                geometry::Plane::from(normalize(cross(frontMultFar + upMultHalfVSide, right)), position),
+                geometry::Plane::from(normalize(cross(right, frontMultFar - upMultHalfVSide)), position),
             };
         }
     };

@@ -48,6 +48,8 @@ find_package(OpenEXR CONFIG)
 
 include(cmake/CompileShader.cmake)
 
+add_subdirectory(geometry)
+add_subdirectory(math)
 add_subdirectory(bloom)
 add_subdirectory(cubemap)
 add_subdirectory(ibl)
@@ -180,9 +182,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
         interface/imgui/UserData.cppm
         interface/MainApp.cppm
-        interface/math/extended_arithmetic.cppm
-        interface/math/Frustum.cppm
-        interface/math/Plane.cppm
         interface/shader_selector/mask_node_index_frag.cppm
         interface/shader_selector/mask_node_index_vert.cppm
         interface/shader_selector/mask_jump_flood_seed_frag.cppm
@@ -262,10 +261,11 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     cpp_util::cstring_view::module
     cubemap
     fastgltf::module
-    glm::module
+    geometry
     ibl
     imgui::imgui
     imguizmo::imguizmo
+    math
     meshoptimizer::meshoptimizer
     mikktspace::mikktspace
     nfd::nfd

@@ -10,10 +10,10 @@ module;
 export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
+export import geometry;
+import math;
 export import :gltf.OrderedPrimitives;
 import :helpers.optional;
-import :math.extended_arithmetic;
-export import :math.Frustum;
 import :vulkan.ag.MousePicking;
 import :vulkan.ag.JumpFloodSeed;
 import :vulkan.ag.SceneOpaque;
@@ -159,7 +159,7 @@ namespace vk_gltf_viewer::vulkan {
              *
              * If <tt>std::nullopt</tt>, frustum culling would be disabled.
              */
-            std::optional<math::Frustum> frustum;
+            std::optional<geometry::Frustum> frustum;
 
             /**
              * @brief Cursor position or selection rectangle for handling mouse picking.

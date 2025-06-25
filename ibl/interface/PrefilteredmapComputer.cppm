@@ -7,6 +7,7 @@ module;
 export module ibl:PrefilteredmapComputer;
 
 import std;
+import math;
 export import vku;
 import :shader.prefilteredmap_comp;
 
@@ -86,10 +87,7 @@ namespace ibl {
                     .roughness = static_cast<float>(level) / (prefilteredmapImage.get().mipLevels - 1),
                 }, *d);
 
-                constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) noexcept {
-                    return (num / denom) + (num % denom != 0);
-                };
-                const std::uint32_t groupCountXY = divCeil(prefilteredmapImage.get().extent.width >> level, 16U);
+                const std::uint32_t groupCountXY = math::divCeil(prefilteredmapImage.get().extent.width >> level, 16U);
                 computeCommandBuffer.dispatch(groupCountXY, groupCountXY, 6, *d);
             }
 

@@ -8,7 +8,7 @@ target_sources(bloom PUBLIC
         interface/BloomComputer.cppm
 )
 target_compile_features(bloom PUBLIC cxx_std_23)
-target_link_libraries(bloom PUBLIC vku::vku)
+target_link_libraries(bloom PUBLIC math vku::vku)
 set_target_properties(bloom PROPERTIES CXX_MODULE_STD 1)
 
 target_link_shader_variants(bloom PUBLIC

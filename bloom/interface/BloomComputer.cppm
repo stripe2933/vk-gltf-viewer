@@ -5,6 +5,7 @@ module;
 export module bloom:BloomComputer;
 
 import std;
+import math;
 export import vku;
 import :shader.bloom_downsample_comp;
 import :shader.bloom_upsample_comp;
@@ -75,10 +76,6 @@ namespace bloom {
             } } { }
 
         void compute(vk::CommandBuffer computeCommandBuffer, vku::DescriptorSet<DescriptorSetLayout> descriptorSet, const vk::Extent2D &imageExtent, std::uint32_t imageMipLevels) const {
-            constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) noexcept {
-                return (num / denom) + (num % denom != 0);
-            };
-
             const auto *d = device.get().getDispatcher();
             computeCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {}, *d);
 
@@ -91,8 +88,8 @@ namespace bloom {
                     }, *d);
                 const vk::Extent2D mipExtent = vku::Image::mipExtent(imageExtent, dstMipLevel);
                 computeCommandBuffer.dispatch(
-                    divCeil(mipExtent.width, 16U),
-                    divCeil(mipExtent.height, 16U),
+                    math::divCeil(mipExtent.width, 16U),
+                    math::divCeil(mipExtent.height, 16U),
                     1,
                     *d);
 
@@ -112,8 +109,8 @@ namespace bloom {
                     }, *d);
                 const vk::Extent2D mipExtent = vku::Image::mipExtent(imageExtent, srcMipLevel - 1);
                 computeCommandBuffer.dispatch(
-                    divCeil(mipExtent.width, 16U),
-                    divCeil(mipExtent.height, 16U),
+                    math::divCeil(mipExtent.width, 16U),
+                    math::divCeil(mipExtent.height, 16U),
                     1,
                     *d);
 

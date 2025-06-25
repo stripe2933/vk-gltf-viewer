@@ -7,6 +7,7 @@ module vk_gltf_viewer;
 import :vulkan.Frame;
 
 import std;
+import math;
 import imgui.vulkan;
 import :global;
 import :gltf.algorithm.bounding_box;
@@ -15,7 +16,6 @@ import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.optional;
 import :helpers.ranges;
-import :math.extended_arithmetic;
 import :vulkan.ag.MousePicking;
 import :vulkan.buffer.IndirectDrawCommands;
 import :vulkan.shader_type.Accessor;
