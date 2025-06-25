@@ -241,12 +241,7 @@ namespace fastgltf {
     [[nodiscard]] std::vector<std::byte> getAccessorByteData(const Accessor &accessor, const Asset &asset, const BufferDataAdapter &adapter = {}) {
         std::vector<std::byte> data(getElementByteSize(accessor.type, accessor.componentType) * accessor.count);
 
-        constexpr type_map accessorTypeMap {
-            make_type_map_entry<std::integral_constant<int, 1>>(AccessorType::Scalar),
-            make_type_map_entry<std::integral_constant<int, 2>>(AccessorType::Vec2),
-            make_type_map_entry<std::integral_constant<int, 3>>(AccessorType::Vec3),
-            make_type_map_entry<std::integral_constant<int, 4>>(AccessorType::Vec4),
-        };
+        constexpr iota_map<4, 1> componentCountMap;
         constexpr type_map componentTypeMap {
             make_type_map_entry<std::int8_t>(ComponentType::Byte),
             make_type_map_entry<std::uint8_t>(ComponentType::UnsignedByte),
@@ -256,14 +251,10 @@ namespace fastgltf {
             make_type_map_entry<std::uint32_t>(ComponentType::UnsignedInt),
             make_type_map_entry<float>(ComponentType::Float),
         };
-        std::visit([&]<int ComponentCount, typename ComponentType>(std::type_identity<std::integral_constant<int, ComponentCount>>, std::type_identity<ComponentType>) {
-            if constexpr (ComponentCount == 1) {
-                copyFromAccessor<ComponentType>(asset, accessor, data.data(), adapter);
-            }
-            else {
-                copyFromAccessor<math::vec<ComponentType, ComponentCount>>(asset, accessor, data.data(), adapter);
-            }
-        }, accessorTypeMap.get_variant(accessor.type), componentTypeMap.get_variant(accessor.componentType));
+        std::visit([&]<typename ComponentType>(auto ComponentCount, std::type_identity<ComponentType>) {
+            using ElementType = std::conditional_t<ComponentCount == 1, ComponentType, math::vec<ComponentType, ComponentCount>>;
+            copyFromAccessor<ElementType>(asset, accessor, data.data(), adapter);
+        }, componentCountMap.get_variant(getNumComponents(accessor.type)), componentTypeMap.get_variant(accessor.componentType));
 
         return data;
     }
