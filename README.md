@@ -27,6 +27,7 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - [`KHR_texture_basisu`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_texture_basisu) for BC7 GPU compression texture decoding
   - [`KHR_texture_transform`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_texture_transform)
   - [`EXT_mesh_gpu_instancing`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Vendor/EXT_mesh_gpu_instancing) for instancing multiple meshes with the same geometry
+  - [`EXT_meshopt_compression`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Vendor/EXT_meshopt_compression)
 - Use 4x MSAA by default.
 - Support HDR and EXR skybox.
 - File loading using platform-native file dialog.
