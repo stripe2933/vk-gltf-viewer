@@ -26,7 +26,6 @@ void main(){
     }
 
     vec2 texcoord = (gl_GlobalInvocationID.xy + 0.5) / vec2(outputImageSize);
-    vec2 inputTexelSize = 1.0 / textureSize(inputSampler, pc.srcMipLevel);
 
     // Take 13 samples around current texel:
     // a - b - c
@@ -35,22 +34,22 @@ void main(){
     // - l - m -
     // g - h - i
     // === ('e' is the current texel) ===
-    vec4 a = textureLod(inputSampler, texcoord + vec2(-2,  2) * inputTexelSize, pc.srcMipLevel);
-    vec4 b = textureLod(inputSampler, texcoord + vec2( 0,  2) * inputTexelSize, pc.srcMipLevel);
-    vec4 c = textureLod(inputSampler, texcoord + vec2( 2,  2) * inputTexelSize, pc.srcMipLevel);
+    vec4 a = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2(-2,  2));
+    vec4 b = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 0,  2));
+    vec4 c = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 2,  2));
 
-    vec4 d = textureLod(inputSampler, texcoord + vec2(-2,  0) * inputTexelSize, pc.srcMipLevel);
-    vec4 e = textureLod(inputSampler, texcoord + vec2( 0,  0) * inputTexelSize, pc.srcMipLevel);
-    vec4 f = textureLod(inputSampler, texcoord + vec2( 2,  0) * inputTexelSize, pc.srcMipLevel);
+    vec4 d = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2(-2,  0));
+    vec4 e = textureLod(inputSampler, texcoord, pc.srcMipLevel);
+    vec4 f = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 2,  0));
 
-    vec4 g = textureLod(inputSampler, texcoord + vec2(-2, -2) * inputTexelSize, pc.srcMipLevel);
-    vec4 h = textureLod(inputSampler, texcoord + vec2( 0, -2) * inputTexelSize, pc.srcMipLevel);
-    vec4 i = textureLod(inputSampler, texcoord + vec2( 2, -2) * inputTexelSize, pc.srcMipLevel);
+    vec4 g = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2(-2, -2));
+    vec4 h = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 0, -2));
+    vec4 i = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 2, -2));
 
-    vec4 j = textureLod(inputSampler, texcoord + vec2(-1,  1) * inputTexelSize, pc.srcMipLevel);
-    vec4 k = textureLod(inputSampler, texcoord + vec2( 1,  1) * inputTexelSize, pc.srcMipLevel);
-    vec4 l = textureLod(inputSampler, texcoord + vec2(-1, -1) * inputTexelSize, pc.srcMipLevel);
-    vec4 m = textureLod(inputSampler, texcoord + vec2( 1, -1) * inputTexelSize, pc.srcMipLevel);
+    vec4 j = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2(-1,  1));
+    vec4 k = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 1,  1));
+    vec4 l = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2(-1, -1));
+    vec4 m = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 1, -1));
 
     // Apply weighted distribution:
     // 0.5 + 0.125 + 0.125 + 0.125 + 0.125 = 1

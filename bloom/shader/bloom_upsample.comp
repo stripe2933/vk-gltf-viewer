@@ -26,24 +26,23 @@ void main(){
     }
 
     vec2 texcoord = (gl_GlobalInvocationID.xy + 0.5) / vec2(outputImageSize);
-    vec2 inputTexelSize = 1.0 / textureSize(inputSampler, pc.srcMipLevel);
 
     // Take 9 samples around current texel:
     // a - b - c
     // d - e - f
     // g - h - i
     // === ('e' is the current texel) ===
-    vec4 a = textureLod(inputSampler, texcoord + vec2(-1,  1) * inputTexelSize, pc.srcMipLevel);
-    vec4 b = textureLod(inputSampler, texcoord + vec2( 0,  1) * inputTexelSize, pc.srcMipLevel);
-    vec4 c = textureLod(inputSampler, texcoord + vec2( 1,  1) * inputTexelSize, pc.srcMipLevel);
+    vec4 a = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2(-1,  1));
+    vec4 b = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 0,  1));
+    vec4 c = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 1,  1));
 
-    vec4 d = textureLod(inputSampler, texcoord + vec2(-1,  0) * inputTexelSize, pc.srcMipLevel);
-    vec4 e = textureLod(inputSampler, texcoord + vec2( 0,  0) * inputTexelSize, pc.srcMipLevel);
-    vec4 f = textureLod(inputSampler, texcoord + vec2( 1,  0) * inputTexelSize, pc.srcMipLevel);
+    vec4 d = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2(-1,  0));
+    vec4 e = textureLod(inputSampler, texcoord, pc.srcMipLevel);
+    vec4 f = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 1,  0));
 
-    vec4 g = textureLod(inputSampler, texcoord + vec2(-1, -1) * inputTexelSize, pc.srcMipLevel);
-    vec4 h = textureLod(inputSampler, texcoord + vec2( 0, -1) * inputTexelSize, pc.srcMipLevel);
-    vec4 i = textureLod(inputSampler, texcoord + vec2( 1, -1) * inputTexelSize, pc.srcMipLevel);
+    vec4 g = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2(-1, -1));
+    vec4 h = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 0, -1));
+    vec4 i = textureLodOffset(inputSampler, texcoord, pc.srcMipLevel, ivec2( 1, -1));
 
     // Apply weighted distribution, by using a 3x3 tent filter:
     //  1   | 1 2 1 |
