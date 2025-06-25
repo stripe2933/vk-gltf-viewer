@@ -84,15 +84,13 @@ struct type_map : type_map_entry<Vs, K>...{
  */
 export template <auto Stop>
 struct iota_map {
-    explicit iota_map() = default;
-
     /**
      * @brief Get variant of <tt>std::integral_constant<decltype(Stop), Is>...</tt> that is storing the type matching to the given \p key.
      * @param key Key to get the value.
      * @return Variant of <tt>std::integral_constant<decltype(Stop), Is>...</tt>.
      * @throw std::out_of_range If the key is not found.
      */
-    [[nodiscard]] constexpr auto get_variant(decltype(Stop) key) const {
+    [[nodiscard]] static constexpr auto get_variant(decltype(Stop) key) {
         return INTEGER_SEQ(Is, Stop, {
             std::variant<std::integral_constant<decltype(Is), Is>...> result;
             if (!((key == Is ? (result.template emplace<Is>(), true) : false) || ...)) {
