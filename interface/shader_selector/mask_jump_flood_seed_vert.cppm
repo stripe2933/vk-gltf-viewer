@@ -1,8 +1,8 @@
 export module vk_gltf_viewer:shader_selector.mask_jump_flood_seed_vert;
 
 import std;
+import type_map;
 import :shader.mask_jump_flood_seed_vert;
-import :helpers.type_map;
 
 namespace vk_gltf_viewer::shader_selector {
     export

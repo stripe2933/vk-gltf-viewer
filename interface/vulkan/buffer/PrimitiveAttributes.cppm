@@ -7,12 +7,12 @@ export module vk_gltf_viewer:vulkan.buffer.PrimitiveAttributes;
 
 import std;
 export import BS.thread_pool;
+import type_map;
 import :gltf.algorithm.MikktSpaceInterface;
 export import :gltf.AssetProcessError;
 import :helpers.fastgltf;
 import :helpers.functional;
 import :helpers.ranges;
-import :helpers.type_map;
 import :vulkan.buffer;
 export import :vulkan.buffer.StagingBufferStorage;
 export import :vulkan.Gpu;

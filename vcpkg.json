@@ -5,6 +5,7 @@
     "bshoshany-thread-pool",
     "cstring-view",
     "fastgltf",
+    "flag-enum",
     "glfw3",
     "glm",
     {
@@ -20,6 +21,7 @@
     "mikktspace",
     "nativefiledialog-extended",
     "stb",
+    "type-map",
     {
       "name": "vku",
       "features": [

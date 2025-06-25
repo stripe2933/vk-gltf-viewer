@@ -25,6 +25,7 @@ find_package(boost_container_hash CONFIG REQUIRED)
 find_path(BSHOSHANY_THREAD_POOL_INCLUDE_DIRS "BS_thread_pool.hpp")
 find_package(cstring_view CONFIG REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
+find_package(flag_enum CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(imguizmo CONFIG REQUIRED)
@@ -32,6 +33,7 @@ find_package(meshoptimizer CONFIG REQUIRED)
 find_package(mikktspace CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
 find_package(Stb REQUIRED)
+find_package(type_map CONFIG REQUIRED)
 find_package(vku CONFIG REQUIRED)
 
 # --------------------
@@ -159,8 +161,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/AggregateHasher.cppm
         interface/helpers/algorithm.cppm
         interface/helpers/concepts.cppm
-        interface/helpers/enums/FlagTraits.cppm
-        interface/helpers/enums/Flags.cppm
         interface/helpers/fastgltf.cppm
         interface/helpers/formatter/ByteSize.cppm
         interface/helpers/full_optional.cppm
@@ -176,7 +176,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/ranges/contains.cppm
         interface/helpers/span.cppm
         interface/helpers/TempStringBuffer.cppm
-        interface/helpers/type_map.cppm
         interface/helpers/type_variant.cppm
         interface/helpers/vulkan.cppm
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
@@ -261,6 +260,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     cpp_util::cstring_view::module
     cubemap
     fastgltf::module
+    flag_enum::flag_enum
     geometry
     ibl
     imgui::imgui
@@ -269,6 +269,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     meshoptimizer::meshoptimizer
     mikktspace::mikktspace
     nfd::nfd
+    type_map::type_map
     vku::vku
     vk-gltf-viewer::asset
 )

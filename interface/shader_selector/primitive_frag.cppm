@@ -1,8 +1,8 @@
 export module vk_gltf_viewer:shader_selector.primitive_frag;
 
 import std;
+import type_map;
 import :shader.primitive_frag;
-import :helpers.type_map;
 
 namespace vk_gltf_viewer::shader_selector {
     export

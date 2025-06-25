@@ -3,7 +3,7 @@ export module vk_gltf_viewer:gltf.TextureUsages;
 import std;
 export import cstring_view;
 export import fastgltf;
-export import :helpers.enums.Flags;
+export import flag_enum;
 import :helpers.ranges;
 
 namespace vk_gltf_viewer::gltf {

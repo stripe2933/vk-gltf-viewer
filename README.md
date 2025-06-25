@@ -152,6 +152,7 @@ This project depends on:
 - [boost-container-hash](https://www.boost.org/doc/libs/1_87_0/libs/container_hash/doc/html/hash.html)
 - [cstring_view](https://github.com/stripe2933/cstring_view)
 - [fastgltf](https://github.com/spnda/fastgltf)
+- [flag_enum](https://github.com/stripe2933/flag_enum)
 - [GLFW](https://github.com/glfw/glfw)
 - [glm](https://github.com/g-truc/glm)
 - [ImGui](https://github.com/ocornut/imgui)
@@ -160,6 +161,7 @@ This project depends on:
 - [Native File Dialog Extended](https://github.com/btzy/nativefiledialog-extended)
 - [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h)
 - [thread-pool](https://github.com/bshoshany/thread-pool)
+- [type_map](https://github.com/stripe2933/type_map)
 - My own Vulkan-Hpp helper library, [vku](https://github.com/stripe2933/vku/tree/module) (branch `module`), which has the following dependencies:
   - [Vulkan-Hpp](https://github.com/KhronosGroup/Vulkan-Hpp)
   - [VulkanMemoryAllocator-Hpp](https://github.com/YaaZ/VulkanMemoryAllocator-Hpp)

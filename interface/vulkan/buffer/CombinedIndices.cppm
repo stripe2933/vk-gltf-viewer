@@ -8,8 +8,8 @@ export module vk_gltf_viewer:vulkan.buffer.CombinedIndices;
 
 import std;
 export import fastgltf;
+import type_map;
 import :helpers.functional;
-import :helpers.type_map;
 import :vulkan.buffer;
 export import :vulkan.buffer.StagingBufferStorage;
 export import :vulkan.Gpu;
