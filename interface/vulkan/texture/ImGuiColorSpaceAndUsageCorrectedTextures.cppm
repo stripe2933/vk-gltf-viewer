@@ -47,7 +47,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
         | ranges::views::enumerate
         | std::views::transform(decomposer([&](std::size_t textureIndex, const fastgltf::Texture &texture) -> vk::DescriptorSet {
             auto [sampler, imageView, _] = textures.descriptorInfos[textureIndex];
-            const vku::Image &image = get<0>(textures.images.at(getPreferredImageIndex(texture)));
+            const vku::Image &image = textures.images.at(getPreferredImageIndex(texture)).image;
             if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
                 // Image view format is incompatible, need to be regenerated.
                 const vk::ComponentMapping components = [&]() -> vk::ComponentMapping {
@@ -77,7 +77,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
     materialTextureDescriptorSets.resize(asset.materials.size());
     for (const auto &[materialIndex, material] : asset.materials | ranges::views::enumerate) {
         if (const auto &textureInfo = material.pbrData.metallicRoughnessTexture) {
-            const vku::Image &image = get<0>(textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])));
+            const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
             if (componentCount(image.format) == 1) {
                 // Texture is grayscale, channel propagating swizzling is unnecessary.
                 get<0>(materialTextureDescriptorSets[materialIndex]) = textureDescriptorSets[textureInfo->textureIndex];
@@ -109,8 +109,8 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
 
         if (const auto &textureInfo = material.normalTexture) {
             get<2>(materialTextureDescriptorSets[materialIndex]) = [&]() -> vk::DescriptorSet {
-                const auto &[image, _, info] = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex]));
-                if (componentCount(image.format) == 1 || info.alphaChannelPadded) {
+                const auto &[image, _, alphaChannelPadded] = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex]));
+                if (componentCount(image.format) == 1 || alphaChannelPadded) {
                     // Alpha channel is sampled as 1, therefore can use the texture as is.
                     return textureDescriptorSets[textureInfo->textureIndex];
                 }
@@ -132,7 +132,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
 
         if (const auto &textureInfo = material.occlusionTexture) {
             get<3>(materialTextureDescriptorSets[materialIndex]) = [&]() -> vk::DescriptorSet {
-                const vku::Image &image = get<0>(textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])));
+                const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
                 if (componentCount(image.format) == 1) {
                     // Texture is grayscale, channel propagating swizzling is unnecessary.
                     return textureDescriptorSets[textureInfo->textureIndex];
@@ -155,8 +155,8 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
 
         if (const auto &textureInfo = material.emissiveTexture) {
             get<4>(materialTextureDescriptorSets[materialIndex]) = [&]() -> vk::DescriptorSet {
-                const auto &[image, _, info] = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex]));
-                if (componentCount(image.format) == 1 || info.alphaChannelPadded) {
+                const auto &[image, _, alphaChannelPadded] = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex]));
+                if (componentCount(image.format) == 1 || alphaChannelPadded) {
                     // Alpha channel is sampled as 1, therefore can use the texture as is.
                     return textureDescriptorSets[textureInfo->textureIndex];
                 }

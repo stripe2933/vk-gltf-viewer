@@ -30,7 +30,9 @@ export import vk_gltf_viewer.vulkan.Gpu;
 #endif
 
 namespace vk_gltf_viewer::vulkan::image {
-    export struct Info {
+    export struct Image {
+        vku::AllocatedImage image;
+        vk::raii::ImageView view;
         bool alphaChannelPadded;
     };
 
@@ -46,7 +48,7 @@ namespace vk_gltf_viewer::vulkan::image {
      * <tt>std::unordered_map<std::size_t, vku::AllocatedImage></tt> instead of <tt>std::vector<vku::AllocatedImage></tt>
      * (also for <tt>imageViews</tt>).
      */
-    export class Images : public std::unordered_map<std::size_t, std::tuple<vku::AllocatedImage, vk::raii::ImageView, Info>> {
+    export class Images : public std::unordered_map<std::size_t, Image> {
         /**
          * Staging buffers for temporary data transfer. This have to be cleared after the transfer command execution
          * finished.
@@ -123,14 +125,14 @@ vk_gltf_viewer::vulkan::image::Images::Images(
 
         // Copy infos that have to be recorded.
         std::vector<std::tuple<vk::Buffer, vk::Image, std::vector<vk::BufferImageCopy>>> copyInfos;
-        copyInfos.reserve(size());
+        copyInfos.reserve(usedImageIndices.size());
 
         // Mutex for protecting the insertion racing to stagingBuffers, imageIndicesToGenerateMipmap and copyInfos.
         std::mutex mutex;
 
         insert_range(threadPool.submit_sequence(std::size_t{ 0 }, usedImageIndices.size(), [&](std::size_t i) {
             const std::size_t imageIndex = usedImageIndices[i];
-            Info info;
+            bool alphaChannelPadded = false;
 
             // 1. Create images and load data into staging buffers, collect the copy infos.
 
@@ -211,7 +213,7 @@ vk_gltf_viewer::vulkan::image::Images::Images(
                     (channels == 2 && srgbImageIndices.contains(imageIndex) && !gpu.supportR8G8SrgbImageFormat) ||
                     channels == 3) {
                     // Use 4-channel image for best compatibility.
-                    info.alphaChannelPadded = true;
+                    alphaChannelPadded = true;
                     channels = 4;
                 }
 
@@ -233,7 +235,7 @@ vk_gltf_viewer::vulkan::image::Images::Images(
                     (channels == 2 && srgbImageIndices.contains(imageIndex) && !gpu.supportR8G8SrgbImageFormat) ||
                     channels == 3) {
                     // Use 4-channel image for best compatibility.
-                    info.alphaChannelPadded = true;
+                    alphaChannelPadded = true;
                     channels = 4;
                 }
 
@@ -434,7 +436,7 @@ vk_gltf_viewer::vulkan::image::Images::Images(
 
             vk::raii::ImageView imageView = createImageView(gpu.device, image);
 
-            return std::pair { imageIndex, std::tuple { std::move(image), std::move(imageView), info } };
+            return std::pair { imageIndex, Image { std::move(image), std::move(imageView), alphaChannelPadded } };
         }).get() | std::views::as_rvalue);
 
         // 2. Copy image data from staging buffers to images.
@@ -443,13 +445,12 @@ vk_gltf_viewer::vulkan::image::Images::Images(
             {}, {}, {},
             *this
                 | std::views::values
-                | std::views::elements<0>
-                | std::views::transform([](vk::Image image) {
+                | std::views::transform([](const Image &image) {
                     return vk::ImageMemoryBarrier {
                         {}, vk::AccessFlagBits::eTransferWrite,
                         {}, vk::ImageLayout::eTransferDstOptimal,
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        image, vku::fullSubresourceRange(),
+                        image.image, vku::fullSubresourceRange(),
                     };
                 })
                 | std::ranges::to<std::vector>());
@@ -462,8 +463,7 @@ vk_gltf_viewer::vulkan::image::Images::Images(
             cb.pipelineBarrier(
                 vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eAllCommands,
                 {}, {}, {},
-                *this | std::views::transform(decomposer([&](std::size_t imageIndex, const auto &tuple) {
-                    const auto &[image, imageView, info] = tuple;
+                *this | std::views::transform(decomposer([&](std::size_t imageIndex, const Image &image) {
                     if (imageIndicesToGenerateMipmap.contains(imageIndex)) {
                         // Image data is only inside the mipLevel=0, therefore only queue family ownership
                         // about that portion have to be transferred. New layout should be TRANSFER_SRC_OPTIMAL.
@@ -471,7 +471,7 @@ vk_gltf_viewer::vulkan::image::Images::Images(
                             vk::AccessFlagBits::eTransferWrite, {},
                             vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
                             gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-                            image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                            image.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
                         };
                     }
                     else {
@@ -481,7 +481,7 @@ vk_gltf_viewer::vulkan::image::Images::Images(
                             vk::AccessFlagBits::eTransferWrite, {},
                             vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                             gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-                            image, vku::fullSubresourceRange(),
+                            image.image, vku::fullSubresourceRange(),
                         };
                     }
                 }))
@@ -503,8 +503,7 @@ vk_gltf_viewer::vulkan::image::Images::Images(
         // Change image layouts and acquire resource queue family ownerships (optionally).
         cb.pipelineBarrier2KHR({
             {}, {}, {},
-            vku::unsafeProxy(*this | std::views::transform(decomposer([&](std::size_t imageIndex, const auto &tuple) {
-                const vku::Image &image = get<0>(tuple);
+            vku::unsafeProxy(*this | std::views::transform(decomposer([&](std::size_t imageIndex, const Image &image) {
                 // See previous TRANSFER -> GRAPHICS queue family ownership release code to get insight.
                 if (imageIndicesToGenerateMipmap.contains(imageIndex)) {
                     return vk::ImageMemoryBarrier2 {
@@ -512,7 +511,7 @@ vk_gltf_viewer::vulkan::image::Images::Images(
                         vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
                         vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
                         gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-                        image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                        image.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
                     };
                 }
                 else {
@@ -521,7 +520,7 @@ vk_gltf_viewer::vulkan::image::Images::Images(
                         {}, {},
                         vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                         gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent,
-                        image, vku::fullSubresourceRange(),
+                        image.image, vku::fullSubresourceRange(),
                     };
                 }
             }))
@@ -534,7 +533,7 @@ vk_gltf_viewer::vulkan::image::Images::Images(
             cb,
             imageIndicesToGenerateMipmap
                 | std::views::transform([this](std::size_t imageIndex) -> const vku::Image* {
-                    return &get<0>(at(imageIndex));
+                    return &at(imageIndex).image;
                 })
                 | std::ranges::to<std::vector>());
 
@@ -547,7 +546,7 @@ vk_gltf_viewer::vulkan::image::Images::Images(
                         vk::AccessFlagBits::eTransferWrite, {},
                         {}, vk::ImageLayout::eShaderReadOnlyOptimal,
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        get<0>(at(imageIndex)), vku::fullSubresourceRange(),
+                        at(imageIndex).image, vku::fullSubresourceRange(),
                     };
                 })
                 | std::ranges::to<std::vector>());

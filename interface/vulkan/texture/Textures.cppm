@@ -37,13 +37,14 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     BS::thread_pool<> &threadPool,
     const gltf::AssetExternalBuffers &adapter
 ) : samplers { asset, gpu.device },
-    images { asset, directory, gpu, threadPool, adapter },
-    descriptorInfos { std::from_range, asset.textures | std::views::transform([&](const fastgltf::Texture &texture) {
-        return vk::DescriptorImageInfo {
+    images { asset, directory, gpu, threadPool, adapter } {
+    descriptorInfos.reserve(asset.textures.size());
+    for (const fastgltf::Texture &texture : asset.textures) {
+        descriptorInfos.emplace_back(
             to_optional(texture.samplerIndex)
                 .transform([&](std::size_t samplerIndex) { return *samplers[samplerIndex]; })
                 .value_or(*fallbackTexture.sampler),
-            *get<1>(images.at(getPreferredImageIndex(texture))),
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-        };
-    }) } { }
+            *images.at(getPreferredImageIndex(texture)).view,
+            vk::ImageLayout::eShaderReadOnlyOptimal);
+    }
+}
