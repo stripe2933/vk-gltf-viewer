@@ -12,7 +12,6 @@ export import bloom;
 export import fastgltf;
 import imgui.vulkan;
 export import vku;
-export import :vulkan.buffer.PrimitiveAttributes;
 export import :vulkan.buffer.Primitives;
 export import :vulkan.pipeline.BloomApplyRenderer;
 export import :vulkan.pipeline.InverseToneMappingRenderer;
@@ -27,6 +26,7 @@ export import :vulkan.pipeline.SkyboxRenderer;
 export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
 
+export import vk_gltf_viewer.gltf.AssetExternalBuffers;
 export import vk_gltf_viewer.gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
 export import vk_gltf_viewer.gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
 import vk_gltf_viewer.helpers.AggregateHasher;
@@ -37,6 +37,7 @@ export import vk_gltf_viewer.vulkan.ag.ImGui;
 export import vk_gltf_viewer.vulkan.buffer.CombinedIndices;
 export import vk_gltf_viewer.vulkan.buffer.Materials;
 export import vk_gltf_viewer.vulkan.buffer.InverseBindMatrices;
+export import vk_gltf_viewer.vulkan.buffer.PrimitiveAttributes;
 export import vk_gltf_viewer.vulkan.buffer.SkinJointIndices;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.rp.MousePicking;
@@ -62,14 +63,13 @@ namespace vk_gltf_viewer::vulkan {
 
             std::vector<vk::DescriptorSet> imGuiTextureDescriptorSets;
 
-            template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
             GltfAsset(
                 const fastgltf::Asset &asset,
                 const std::filesystem::path &directory,
                 const gltf::OrderedPrimitives &orderedPrimitives,
                 const Gpu &gpu,
                 const texture::Fallback &fallbackTexture,
-                const BufferDataAdapter &adapter = {},
+                const gltf::AssetExternalBuffers &adapter,
                 buffer::StagingBufferStorage stagingBufferStorage = {},
                 BS::thread_pool<> threadPool = {}
             ) : nodeInstanceCountExclusiveScanWithCount { asset },
@@ -277,12 +277,11 @@ namespace vk_gltf_viewer::vulkan {
             imGuiAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
         }
 
-        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         void changeAsset(
             const fastgltf::Asset &asset,
             const std::filesystem::path &directory,
             const gltf::OrderedPrimitives &orderedPrimitives,
-            const BufferDataAdapter &adapter = {}
+            const gltf::AssetExternalBuffers &adapter
         ) {
             // If asset texture count exceeds the available texture count provided by the GPU, throw the error before
             // processing data to avoid unnecessary processing.

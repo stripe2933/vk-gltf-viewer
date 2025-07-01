@@ -81,12 +81,11 @@ namespace vk_gltf_viewer::vulkan {
             // Used only if GPU does not support variable descriptor count.
             std::optional<vk::raii::DescriptorPool> descriptorPool;
 
-            template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
             GltfAsset(
                 const fastgltf::Asset &asset LIFETIMEBOUND,
                 std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
                 const SharedData &sharedData LIFETIMEBOUND,
-                const BufferDataAdapter &adapter = {}
+                const gltf::AssetExternalBuffers &adapter
             ) : instancedNodeWorldTransformBuffer { value_if(sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount.back() != 0, [&]() {
                     return buffer::InstancedNodeWorldTransforms {
                         sharedData.gpu.allocator,
@@ -197,11 +196,10 @@ namespace vk_gltf_viewer::vulkan {
             vk::Fence inFlightFence = nullptr
         ) const;
 
-        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         void changeAsset(
             const fastgltf::Asset &asset,
             std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-            const BufferDataAdapter &adapter = {}
+            const gltf::AssetExternalBuffers &adapter
         ) {
             const auto &inner = gltfAsset.emplace(asset, nodeWorldTransforms, sharedData, adapter);
             if (sharedData.gpu.supportVariableDescriptorCount) {

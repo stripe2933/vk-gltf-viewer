@@ -7,12 +7,12 @@ export module vk_gltf_viewer:vulkan.buffer.Primitives;
 
 import std;
 export import fastgltf;
-export import :vulkan.buffer.PrimitiveAttributes;
 
 export import vk_gltf_viewer.gltf.OrderedPrimitives;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.functional;
+export import vk_gltf_viewer.vulkan.buffer.PrimitiveAttributes;
 export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
 export import vk_gltf_viewer.vulkan.Gpu;
 import vk_gltf_viewer.vulkan.shader_type.Primitive;

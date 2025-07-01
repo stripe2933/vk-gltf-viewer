@@ -45,7 +45,6 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 import vk_gltf_viewer.control.AppWindow;
 import vk_gltf_viewer.global;
 import vk_gltf_viewer.gltf.algorithm.miniball;
-import vk_gltf_viewer.gltf.AssetExternalBuffers;
 import vk_gltf_viewer.gltf.Animation;
 import vk_gltf_viewer.gltf.algorithm.traversal;
 import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
@@ -178,7 +177,7 @@ void vk_gltf_viewer::MainApp::run() {
             std::vector<std::size_t> morphedNodes;
             for (const auto &[animation, enabled] : std::views::zip(gltf->animations, *gltf->animationEnabled)) {
                 if (!enabled) continue;
-                animation.update(glfwGetTime(), back_inserter(transformedNodes), back_inserter(morphedNodes), gltf->assetExternalBuffers);
+                animation.update(glfwGetTime(), transformedNodes, morphedNodes, gltf->assetExternalBuffers);
             }
 
             for (std::size_t nodeIndex : morphedNodes) {

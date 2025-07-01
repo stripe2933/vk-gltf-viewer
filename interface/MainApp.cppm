@@ -7,7 +7,6 @@ import :vulkan.Frame;
 import vk_gltf_viewer.control.AppWindow;
 import vk_gltf_viewer.data_structure.ImmutableRing;
 import vk_gltf_viewer.gltf.Animation;
-import vk_gltf_viewer.gltf.AssetExternalBuffers;
 import vk_gltf_viewer.gltf.data_structure.MaterialVariantsMapping;
 import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
 import vk_gltf_viewer.gltf.NodeWorldTransforms;
