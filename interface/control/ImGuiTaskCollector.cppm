@@ -2,14 +2,14 @@ module;
 
 #include <nfd.hpp>
 
-export module vk_gltf_viewer:imgui.TaskCollector;
+export module vk_gltf_viewer.imgui.TaskCollector;
 
 import std;
 export import glm;
 import imgui.internal;
 export import ImGuizmo;
-export import :AppState;
 
+export import vk_gltf_viewer.AppState;
 export import vk_gltf_viewer.control.Task;
 export import vk_gltf_viewer.gltf.Animation;
 export import vk_gltf_viewer.gltf.StateCachedNodeVisibilityStructure;

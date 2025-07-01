@@ -35,13 +35,10 @@ import cubemap;
 import ibl;
 import imgui.glfw;
 import imgui.vulkan;
-import :AppState;
-import :gltf.algorithm.misc;
-import :imgui.TaskCollector;
 import :vulkan.Frame;
-import :vulkan.imgui.PlatformResource;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
 
+import vk_gltf_viewer.AppState;
 import vk_gltf_viewer.control.AppWindow;
 import vk_gltf_viewer.global;
 import vk_gltf_viewer.gltf.algorithm.miniball;
@@ -52,6 +49,8 @@ import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;
 import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.helpers.ranges;
+import vk_gltf_viewer.imgui.TaskCollector;
+import vk_gltf_viewer.vulkan.imgui.PlatformResource;
 import vk_gltf_viewer.vulkan.mipmap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
@@ -425,9 +424,28 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [this](control::task::NodeSelectionChanged) {
                     assert(gltf);
+
                     // If selected nodes have a single material, show it in the Material Editor window.
-                    if (auto materialIndex = gltf::algorithm::getUniqueMaterialIndex(gltf->asset, gltf->selectedNodes)) {
-                        control::ImGuiTaskCollector::selectedMaterialIndex = *materialIndex;;
+                    std::optional<std::size_t> uniqueMaterialIndex = std::nullopt;
+                    for (std::size_t nodeIndex : gltf->selectedNodes) {
+                        const auto &meshIndex = gltf->asset.nodes[nodeIndex].meshIndex;
+                        if (!meshIndex) continue;
+
+                        for (const fastgltf::Primitive &primitive : gltf->asset.meshes[*meshIndex].primitives) {
+                            if (primitive.materialIndex) {
+                                if (!uniqueMaterialIndex) {
+                                    uniqueMaterialIndex.emplace(*primitive.materialIndex);
+                                }
+                                else if (*uniqueMaterialIndex != *primitive.materialIndex) {
+                                    // The input nodes contain at least 2 materials.
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
+                    if (uniqueMaterialIndex) {
+                        control::ImGuiTaskCollector::selectedMaterialIndex = *uniqueMaterialIndex;
                     }
                 },
                 [this](const control::task::HoverNodeFromGui &task) {

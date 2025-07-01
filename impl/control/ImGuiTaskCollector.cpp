@@ -6,8 +6,7 @@ module;
 #include <IconsFontAwesome4.h>
 #include <nfd.hpp>
 
-module vk_gltf_viewer;
-import :imgui.TaskCollector;
+module vk_gltf_viewer.imgui.TaskCollector;
 
 import std;
 import glm;

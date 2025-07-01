@@ -104,7 +104,6 @@ add_library(vk-gltf-viewer::asset ALIAS vk-gltf-viewer_asset)
 add_executable(vk-gltf-viewer WIN32 MACOSX_BUNDLE
     impl.cpp
     impl/control/ImGuiTaskCollector.cpp
-    impl/AppState.cpp
     impl/MainApp.cpp
     impl/mod.cpp
     impl/vulkan/Frame.cpp
@@ -137,7 +136,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/global.cppm
         interface/gltf/algorithm/MikktSpaceInterface.cppm
         interface/gltf/algorithm/miniball.cppm
-        interface/gltf/algorithm/misc.cppm
         interface/gltf/Animation.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetProcessError.cppm

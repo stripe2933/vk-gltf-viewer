@@ -4,7 +4,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.imgui.PlatformResource;
+export module vk_gltf_viewer.vulkan.imgui.PlatformResource;
 
 import imgui.vulkan;
 
@@ -17,14 +17,20 @@ namespace vk_gltf_viewer::vulkan::imgui {
         texture::Checkerboard checkerboardTexture;
 
     public:
-        explicit PlatformResource(const Gpu &gpu LIFETIMEBOUND)
-            : checkerboardTexture { gpu } {
-            checkerboardTextureID = vku::toUint64<vk::DescriptorSet>(ImGui_ImplVulkan_AddTexture(
-                *checkerboardTexture.sampler, *checkerboardTexture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-        }
-
-        ~PlatformResource() override {
-            ImGui_ImplVulkan_RemoveTexture(reinterpret_cast<vk::DescriptorSet::CType>(checkerboardTextureID));
-        }
+        explicit PlatformResource(const Gpu &gpu LIFETIMEBOUND);
+        ~PlatformResource() override;
     };
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+vk_gltf_viewer::vulkan::imgui::PlatformResource::PlatformResource(const Gpu &gpu): checkerboardTexture { gpu } {
+    checkerboardTextureID = vku::toUint64<vk::DescriptorSet>(ImGui_ImplVulkan_AddTexture(
+        *checkerboardTexture.sampler, *checkerboardTexture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+}
+
+vk_gltf_viewer::vulkan::imgui::PlatformResource::~PlatformResource() {
+    ImGui_ImplVulkan_RemoveTexture(reinterpret_cast<vk::DescriptorSet::CType>(checkerboardTextureID));
 }

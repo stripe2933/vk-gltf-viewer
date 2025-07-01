@@ -1,9 +1,9 @@
 export module vk_gltf_viewer:MainApp;
 
 import std;
-import :AppState;
 import :vulkan.Frame;
 
+import vk_gltf_viewer.AppState;
 import vk_gltf_viewer.control.AppWindow;
 import vk_gltf_viewer.data_structure.ImmutableRing;
 import vk_gltf_viewer.gltf.Animation;
