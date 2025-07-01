@@ -3,7 +3,7 @@ export module vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
 import std;
 export import fastgltf;
 
-import vk_gltf_viewer.gltf.algorithm.traversal;
+import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.optional;
 
 namespace vk_gltf_viewer::gltf::ds {
@@ -29,7 +29,7 @@ vk_gltf_viewer::gltf::ds::SceneInverseHierarchy::SceneInverseHierarchy(
     const fastgltf::Scene &scene
 ) {
     parentNodeIndices.resize(asset.nodes.size());
-    algorithm::traverseScene(asset, scene, [&](std::size_t nodeIndex) {
+    traverseScene(asset, scene, [&](std::size_t nodeIndex) {
         for (std::size_t childIndex : asset.nodes[nodeIndex].children) {
             parentNodeIndices[childIndex].emplace(nodeIndex);
         }

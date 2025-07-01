@@ -7,8 +7,8 @@ export module vk_gltf_viewer.gltf.StateCachedNodeVisibilityStructure;
 import std;
 export import fastgltf;
 
-import vk_gltf_viewer.gltf.algorithm.traversal;
 import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
+import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.ranges;
 
 namespace vk_gltf_viewer::gltf {
@@ -113,7 +113,7 @@ void vk_gltf_viewer::gltf::StateCachedNodeVisibilityStructure::setScene(
     }
 
     std::ranges::fill(visibilities, false);
-    algorithm::traverseScene(asset, scene, [&](std::size_t nodeIndex) noexcept {
+    traverseScene(asset, scene, [&](std::size_t nodeIndex) noexcept {
         visibilities[nodeIndex] = true;
     });
 

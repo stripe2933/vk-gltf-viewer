@@ -10,7 +10,6 @@ import std;
 import imgui.vulkan;
 
 import vk_gltf_viewer.global;
-import vk_gltf_viewer.gltf.algorithm.bounding_box;
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;
@@ -464,8 +463,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     if (task.gltf) {
         const auto isPrimitiveWithinFrustum = [&](std::size_t nodeIndex, std::size_t primitiveIndex, const math::Frustum &frustum) -> bool {
             const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex];
-            const auto [min, max] = gltf::algorithm::getBoundingBoxMinMax(
-                *task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
+            const auto [min, max] = getBoundingBoxMinMax(*task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
 
             const auto pred = [&](const fastgltf::math::fmat4x4 &worldTransform) -> bool {
                 const fastgltf::math::fvec3 transformedMin { worldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };

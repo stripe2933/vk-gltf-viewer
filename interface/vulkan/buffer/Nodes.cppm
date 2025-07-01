@@ -13,7 +13,6 @@ export import fastgltf;
 import vku;
 export import vk_mem_alloc_hpp;
 
-import vk_gltf_viewer.gltf.algorithm.traversal;
 export import vk_gltf_viewer.gltf.data_structure.SkinJointCountExclusiveScanWithCount;
 export import vk_gltf_viewer.gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
 import vk_gltf_viewer.helpers.fastgltf;
@@ -134,7 +133,7 @@ void vk_gltf_viewer::vulkan::buffer::Nodes::update(std::size_t nodeIndex, const 
 
 void vk_gltf_viewer::vulkan::buffer::Nodes::updateHierarchical(std::size_t nodeIndex, std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms) {
     const std::span bufferData = buffer.asRange<shader_type::Node>();
-    gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+    traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
         bufferData[nodeIndex].worldTransform = glm::make_mat4(nodeWorldTransforms[nodeIndex].data());
     });
 }

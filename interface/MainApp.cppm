@@ -7,7 +7,6 @@ import :vulkan.Frame;
 import vk_gltf_viewer.control.AppWindow;
 import vk_gltf_viewer.data_structure.ImmutableRing;
 import vk_gltf_viewer.gltf.Animation;
-import vk_gltf_viewer.gltf.data_structure.MaterialVariantsMapping;
 import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
 import vk_gltf_viewer.gltf.NodeWorldTransforms;
 import vk_gltf_viewer.gltf.SceneNodeLevels;
@@ -69,11 +68,7 @@ namespace vk_gltf_viewer {
              */
             fastgltf::Asset asset;
 
-            /**
-             * @brief Associative data structure for KHR_materials_variants.
-             */
-            gltf::ds::MaterialVariantsMapping materialVariantsMapping { asset };
-
+            std::unordered_map<std::size_t, std::vector<std::pair<fastgltf::Primitive*, std::size_t>>> materialVariantsMapping;
             gltf::TextureUsages textureUsages { asset };
 
             /**

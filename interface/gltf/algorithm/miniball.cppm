@@ -11,8 +11,6 @@ export module vk_gltf_viewer.gltf.algorithm.miniball;
 import std;
 export import fastgltf;
 
-import vk_gltf_viewer.gltf.algorithm.bounding_box;
-import vk_gltf_viewer.gltf.algorithm.traversal;
 export import vk_gltf_viewer.gltf.AssetExternalBuffers;
 import vk_gltf_viewer.helpers.fastgltf;
 

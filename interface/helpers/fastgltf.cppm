@@ -1,3 +1,9 @@
+module;
+
+#include <cassert>
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer.helpers.fastgltf;
 
 import std;
@@ -299,6 +305,129 @@ namespace fastgltf {
     export
     [[nodiscard]] std::size_t getTargetWeightCount(const Node &node, const Asset &asset) noexcept;
 
+    /**
+     * Traverse node's descendants using preorder traversal.
+     * @tparam F Function type that can be executed with node index. If it returns contextually convertible to <tt>bool</tt> type, the return value will be determined as the traversal continuation (<tt>true</tt> -> continue traversal).
+     * @param asset fastgltf Asset.
+     * @param scene Node index to start traversal.
+     * @param f Function that would be invoked with node index.
+     */
+    export template <std::invocable<std::size_t> F>
+    void traverseNode(const Asset &asset, std::size_t nodeIndex, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t>) {
+        [&](this const auto &self, std::size_t nodeIndex) -> void {
+            // If F is predicate, traversal continuation is determined by the return value of f.
+            if constexpr (std::predicate<F, std::size_t>) {
+                // Stop traversal if f returns false.
+                if (!f(nodeIndex)) return;
+            }
+            else {
+                f(nodeIndex);
+            }
+
+            for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
+                self(childNodeIndex);
+            }
+        }(nodeIndex);
+    }
+
+    /**
+     * Traverse node's descendants with accumulated transforms (i.e. world transform) using preorder traversal.
+     * @tparam F Function type that can be executed with node index and <tt>fastgltf::math::fmat4x4</tt>. If it returns contextually convertible to <tt>bool</tt> type, the return value will be determined as the traversal continuation (<tt>true</tt> -> continue traversal).
+     * @param asset fastgltf Asset.
+     * @param nodeIndex Node index to start traversal.
+     * @param f Function that would be invoked with node index and <tt>fastgltf::math::fmat4x4</tt>.
+     * @param initialNodeWorldTransform World transform matrix of the start node.
+     */
+    export template <std::invocable<std::size_t, const math::fmat4x4&> F>
+    void traverseNode(const Asset &asset, std::size_t nodeIndex, const F &f, const math::fmat4x4 &initialNodeWorldTransform) noexcept(std::is_nothrow_invocable_v<F, std::size_t, const math::fmat4x4&>) {
+        [&](this const auto &self, std::size_t nodeIndex, const math::fmat4x4 &worldTransform) -> void {
+            // If F is predicate, traversal continuation is determined by the return value of f.
+            if constexpr (std::predicate<F, std::size_t, const math::fmat4x4&>) {
+                // Stop traversal if f returns false.
+                if (!f(nodeIndex, worldTransform)) return;
+            }
+            else {
+                f(nodeIndex, worldTransform);
+            }
+
+            for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
+                const math::fmat4x4 childNodeWorldTransform = getTransformMatrix(asset.nodes[childNodeIndex], worldTransform);
+                self(childNodeIndex, childNodeWorldTransform);
+            }
+        }(nodeIndex, initialNodeWorldTransform);
+    }
+
+    /**
+     * Traverse \p scene using preorder traversal.
+     * @tparam F Function type that can be executed with node index. If it returns contextually convertible to <tt>bool</tt> type, the return value will be determined as the traversal continuation (<tt>true</tt> -> continue traversal).
+     * @param asset fastgltf Asset.
+     * @param scene fastgltf Scene. This must be originated from \p asset.
+     * @param f Function that would be invoked with node index.
+     */
+    export template <std::invocable<std::size_t> F>
+    void traverseScene(const Asset &asset, const Scene &scene, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t>) {
+        for (std::size_t nodeIndex : scene.nodeIndices) {
+            traverseNode(asset, nodeIndex, f);
+        }
+    }
+
+    /**
+     * Traverse \p scene with accumulated transforms (i.e. world transform) using preorder traversal.
+     * @tparam F Function type that can be executed with node index and <tt>fastgltf::math::fmat4x4</tt>. If it returns contextually convertible to <tt>bool</tt> type, the return value will be determined as the traversal continuation (<tt>true</tt> -> continue traversal).
+     * @param asset fastgltf Asset.
+     * @param scene fastgltf Scene. This must be originated from \p asset.
+     * @param f Function that would be invoked with node index and <tt>fastgltf::math::fmat4x4</tt>.
+     */
+    export template <std::invocable<std::size_t, const math::fmat4x4&> F>
+    void traverseScene(const Asset &asset, const Scene &scene, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t, const math::fmat4x4&>) {
+        for (std::size_t nodeIndex : scene.nodeIndices) {
+            traverseNode(asset, nodeIndex, f, getTransformMatrix(asset.nodes[nodeIndex]));
+        }
+    }
+
+    /**
+     * @brief Get min/max points of \p primitive's bounding box.
+     *
+     * @param primtiive primitive to get the bounding box corner points.
+     * @param node Node that owns \p primitive.
+     * @param asset Asset that owns \p node.
+     * @return Array of (min, max) of the bounding box.
+     * @note Skinned meshes are not supported, as the bounding box of skinned meshes cannot be determined by the primitive's <tt>POSITION</tt> accessor min/max values.
+     */
+    export
+    [[nodiscard]] std::array<math::fvec3, 2> getBoundingBoxMinMax(const Primitive &primitive, const Node &node, const Asset &asset);
+
+    /**
+     * @brief Get 8 corner points of \p primitive's bounding box, which are ordered by:
+     * - (minX, minY, minZ)
+     * - (minX, minY, maxZ)
+     * - (minX, maxY, minZ)
+     * - (minX, maxY, maxZ)
+     * - (maxX, minY, minZ)
+     * - (maxX, minY, maxZ)
+     * - (maxX, maxY, minZ)
+     * - (maxX, maxY, maxZ)
+     *
+     * @param primtiive primitive to get the bounding box corner points.
+     * @param node Node that owns \p primitive.
+     * @param asset Asset that owns \p node.
+     * @return Array of 8 corner points of the bounding box.
+     * @note Skinned meshes are not supported, as the bounding box of skinned meshes cannot be determined by the primitive's <tt>POSITION</tt> accessor min/max values.
+     */
+    export
+    [[nodiscard]] std::array<math::fvec3, 8> getBoundingBoxCornerPoints(const Primitive &primitive, const Node &node, const Asset &asset);
+
+    /**
+     * @brief Create association of (mapping index) -> [(primitive, material index)] for <tt>KHR_materials_variants</tt>.
+     *
+     * <tt>KHR_materials_variants</tt> extension defines the material variants for each primitive. For each variant index, you
+     * can call `at` to get the list of primitives and their material indices that use the corresponding material variant.
+     *
+     * @param asset fastgltf Asset.
+     * @return <tt>std::unordered_map</tt> of (mapping index) -> [(primitive, material index)].
+     */
+    export std::unordered_map<std::size_t, std::vector<std::pair<Primitive*, std::size_t>>> getMaterialVariantsMapping(Asset &asset LIFETIMEBOUND);
+
 namespace math {
     /**
      * @brief Get component-wise minimum of two vectors.
@@ -529,4 +658,95 @@ std::size_t fastgltf::getTargetWeightCount(const Node &node, const Asset &asset)
         count = asset.meshes[*node.meshIndex].weights.size();
     }
     return count;
+}
+
+std::array<fastgltf::math::fvec3, 2> fastgltf::getBoundingBoxMinMax(const Primitive &primitive, const Node &node, const Asset &asset) {
+    constexpr auto getAccessorMinMax = [](const Accessor &accessor) {
+        constexpr auto fetchVec3 = visitor {
+            []<typename U>(const std::pmr::vector<U> &v) {
+                assert(v.size() == 3);
+                return math::fvec3 { static_cast<float>(v[0]), static_cast<float>(v[1]), static_cast<float>(v[2]) };
+            },
+            [](std::monostate) -> math::fvec3 {
+                throw std::invalid_argument { "Accessor min/max is not number" };
+            },
+        };
+
+        math::fvec3 min = visit(fetchVec3, accessor.min);
+        math::fvec3 max = visit(fetchVec3, accessor.max);
+
+        if (accessor.normalized) {
+            switch (accessor.componentType) {
+            case ComponentType::Byte:
+                min = cwiseMax(min / 127, math::fvec3(-1));
+                max = cwiseMax(max / 127, math::fvec3(-1));
+                break;
+            case ComponentType::UnsignedByte:
+                min /= 255;
+                max /= 255;
+                break;
+            case ComponentType::Short:
+                min = cwiseMax(min / 32767, math::fvec3(-1));
+                max = cwiseMax(max / 32767, math::fvec3(-1));
+                break;
+            case ComponentType::UnsignedShort:
+                min /= 65535;
+                max /= 65535;
+                break;
+            default:
+                throw std::logic_error { "Normalized accessor must be either BYTE, UNSIGNED_BYTE, SHORT, or UNSIGNED_SHORT" };
+            }
+        }
+        return std::array { min, max };
+    };
+
+    const Accessor &accessor = asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];
+    std::array bound = getAccessorMinMax(accessor);
+
+    for (const auto &[weight, attributes] : std::views::zip(getTargetWeights(node, asset), primitive.targets)) {
+        for (const auto &[attributeName, accessorIndex] : attributes) {
+            using namespace std::string_view_literals;
+            if (attributeName == "POSITION"sv) {
+                const Accessor &accessor = asset.accessors[accessorIndex];
+                std::array offset = getAccessorMinMax(accessor);
+
+                // TODO: is this code valid? Need investigation.
+                if (weight < 0) {
+                    std::swap(get<0>(offset), get<1>(offset));
+                }
+                get<0>(bound) += get<0>(offset) * weight;
+                get<1>(bound) += get<1>(offset) * weight;
+
+                break;
+            }
+        }
+    }
+
+    return bound;
+}
+
+std::array<fastgltf::math::fvec3, 8> fastgltf::getBoundingBoxCornerPoints(const Primitive &primitive, const Node &node, const Asset &asset) {
+    const auto [min, max] = getBoundingBoxMinMax(primitive, node, asset);
+    return {
+        min,
+        { min[0], min[1], max[2] },
+        { min[0], max[1], min[2] },
+        { min[0], max[1], max[2] },
+        { max[0], min[1], min[2] },
+        { max[0], min[1], max[2] },
+        { max[0], max[1], min[2] },
+        max,
+    };
+}
+
+std::unordered_map<std::size_t, std::vector<std::pair<fastgltf::Primitive*, std::size_t>>> fastgltf::getMaterialVariantsMapping(Asset &asset) {
+    std::unordered_map<std::size_t, std::vector<std::pair<Primitive*, std::size_t>>> result;
+    for (Mesh &mesh : asset.meshes) {
+        for (Primitive &primitive : mesh.primitives) {
+            for (std::size_t i = 0; const auto &mapping : primitive.mappings) {
+                result[i++].emplace_back(&primitive, mapping.value_or(primitive.materialIndex.value()));
+            }
+        }
+    }
+    return result;
 }

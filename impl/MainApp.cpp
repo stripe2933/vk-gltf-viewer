@@ -46,7 +46,6 @@ import vk_gltf_viewer.control.AppWindow;
 import vk_gltf_viewer.global;
 import vk_gltf_viewer.gltf.algorithm.miniball;
 import vk_gltf_viewer.gltf.Animation;
-import vk_gltf_viewer.gltf.algorithm.traversal;
 import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.fastgltf;
@@ -614,7 +613,7 @@ void vk_gltf_viewer::MainApp::run() {
                 const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(gltf->asset.nodes[nodeIndex], baseMatrix);
 
                 // Update current and descendants world transforms and mark them as visited.
-                gltf::algorithm::traverseNode(gltf->asset, nodeIndex, [&](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) noexcept {
+                traverseNode(gltf->asset, nodeIndex, [&](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) noexcept {
                     // If node is already visited, its descendants must be visited too. Continuing traversal is redundant.
                     if (visited[nodeIndex]) {
                         return false;
@@ -872,6 +871,7 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     : dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) }
     , directory { path.parent_path() }
     , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
+    , materialVariantsMapping { getMaterialVariantsMapping(asset) }
     , bloomMaterials { [&]() -> std::unordered_set<std::size_t> {
         using namespace std::string_view_literals;
         if (!ranges::one_of("KHR_materials_emissive_strength"sv, asset.extensionsUsed)) {

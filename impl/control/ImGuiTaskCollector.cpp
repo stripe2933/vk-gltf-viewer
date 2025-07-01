@@ -16,7 +16,6 @@ import imgui.math;
 import ImGuizmo;
 
 import vk_gltf_viewer.global;
-import vk_gltf_viewer.gltf.algorithm.traversal;
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.formatter.ByteSize;
@@ -1191,7 +1190,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                     ImGui::WithDisabled([&]() {
                         if (ImGui::Selectable("Select from here")) {
                             selectedNodeIndices.clear();
-                            gltf::algorithm::traverseNode(asset, ancestorNodeIndices.empty() ? nodeIndex : ancestorNodeIndices[0], [&](std::size_t nodeIndex) {
+                            traverseNode(asset, ancestorNodeIndices.empty() ? nodeIndex : ancestorNodeIndices[0], [&](std::size_t nodeIndex) {
                                 selectedNodeIndices.emplace(nodeIndex);
                             });
 
@@ -1242,7 +1241,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                         ImGui::Separator();
 
                         if (state != gltf::StateCachedNodeVisibilityStructure::State::AllVisible && ImGui::Selectable("Make visible from here")) {
-                            gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                            traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
                                 if (!asset.nodes[nodeIndex].meshIndex) return;
 
                                 if (!nodeVisibility.getVisibility(nodeIndex)) {
@@ -1253,7 +1252,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                         }
 
                         if (state != gltf::StateCachedNodeVisibilityStructure::State::AllInvisible && ImGui::Selectable("Make invisible from here")) {
-                            gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                            traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
                                 if (!asset.nodes[nodeIndex].meshIndex) return;
 
                                 if (nodeVisibility.getVisibility(nodeIndex)) {
@@ -1264,7 +1263,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
                         }
 
                         if (state == gltf::StateCachedNodeVisibilityStructure::State::Intermediate && ImGui::Selectable("Toggle visibility from here")) {
-                            gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                            traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
                                 if (!asset.nodes[nodeIndex].meshIndex) return;
 
                                 nodeVisibility.flipVisibility(nodeIndex);

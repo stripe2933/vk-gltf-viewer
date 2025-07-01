@@ -7,7 +7,7 @@ export module vk_gltf_viewer.gltf.NodeWorldTransforms;
 import std;
 export import fastgltf;
 
-import vk_gltf_viewer.gltf.algorithm.traversal;
+import vk_gltf_viewer.helpers.fastgltf;
 
 namespace vk_gltf_viewer::gltf {
     export class NodeWorldTransforms : public std::vector<fastgltf::math::fmat4x4> {
@@ -37,7 +37,7 @@ vk_gltf_viewer::gltf::NodeWorldTransforms::NodeWorldTransforms(
 }
 
 void vk_gltf_viewer::gltf::NodeWorldTransforms::update(const fastgltf::Scene &scene) {
-    algorithm::traverseScene(asset, scene, [this](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
+    traverseScene(asset, scene, [this](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
         operator[](nodeIndex) = nodeWorldTransform;
     });
 }

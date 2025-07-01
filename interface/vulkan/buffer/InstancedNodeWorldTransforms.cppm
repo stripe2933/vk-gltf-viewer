@@ -9,7 +9,6 @@ export module vk_gltf_viewer.vulkan.buffer.InstancedNodeWorldTransforms;
 import std;
 export import vku;
 
-import vk_gltf_viewer.gltf.algorithm.traversal;
 export import vk_gltf_viewer.gltf.AssetExternalBuffers;
 export import vk_gltf_viewer.gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
 import vk_gltf_viewer.helpers.fastgltf;
@@ -138,7 +137,7 @@ void vk_gltf_viewer::vulkan::buffer::InstancedNodeWorldTransforms::update(std::s
 
 void vk_gltf_viewer::vulkan::buffer::InstancedNodeWorldTransforms::updateHierarchical(std::size_t nodeIndex,
     std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms, const gltf::AssetExternalBuffers &adapter) {
-    gltf::algorithm::traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+    traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
         const fastgltf::Node &node = asset.get().nodes[nodeIndex];
         if (!node.instancingAttributes.empty()) {
             std::ranges::transform(
