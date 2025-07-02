@@ -2,7 +2,7 @@ module;
 
 #include <cstddef>
 
-export module vk_gltf_viewer:vulkan.shader_type.Node;
+export module vk_gltf_viewer.vulkan.shader_type.Node;
 
 import std;
 export import glm;
@@ -15,9 +15,13 @@ namespace vk_gltf_viewer::vulkan::shader_type {
         std::uint32_t morphTargetWeightStartIndex;
         std::uint32_t skinJointIndexStartIndex;
     };
-
-    static_assert(sizeof(Node) == 80);
-    static_assert(offsetof(Node, pInstancedWorldTransforms) == 64);
-    static_assert(offsetof(Node, morphTargetWeightStartIndex) == 72);
-    static_assert(offsetof(Node, skinJointIndexStartIndex) == 76);
 }
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+static_assert(sizeof(vk_gltf_viewer::vulkan::shader_type::Node) == 80);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Node, pInstancedWorldTransforms) == 64);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Node, morphTargetWeightStartIndex) == 72);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Node, skinJointIndexStartIndex) == 76);

@@ -3,7 +3,7 @@ module;
 #include <boost/container/small_vector.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-export module vk_gltf_viewer:vulkan.buffer.StagingBufferStorage;
+export module vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
 
 import std;
 export import vku;
@@ -17,18 +17,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @param usage Usage flags of the device local buffer.
          * @pre \p usage MUST contain <tt>VK_BUFFER_USAGE_TRANSFER_DST_BIT</tt>.
          */
-        void stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage) {
-            vku::AllocatedBuffer deviceLocalBuffer { buffer.allocator, vk::BufferCreateInfo {
-                {},
-                buffer.size,
-                usage,
-            } };
-            stagingInfos.emplace_back(
-                std::move(buffer),
-                deviceLocalBuffer,
-                boost::container::small_vector<vk::BufferCopy, 1> { vk::BufferCopy { 0, 0, deviceLocalBuffer.size } });
-            buffer = std::move(deviceLocalBuffer);
-        }
+        void stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage);
 
         /**
          * @brief Determine if there is a staging task to be done.
@@ -46,9 +35,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
          *
          * @return <tt>true</tt> if there is a staging task to be recorded to command buffer, <tt>false</tt> otherwise.
          */
-        [[nodiscard]] bool hasStagingCommands() const noexcept {
-            return !stagingInfos.empty();
-        }
+        [[nodiscard]] bool hasStagingCommands() const noexcept;
 
         /**
          * @brief Record the staging commands to \p transferCommandBuffer.
@@ -56,11 +43,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @pre \p transferCommandBuffer must be created from <tt>VK_QUEUE_TRANSFER_BIT</tt> capable queue family.
          * @note This will not clear the staging tasks, means that the staging tasks will be recorded again if this method is called multiple times.
          */
-        void recordStagingCommands(vk::CommandBuffer transferCommandBuffer) const noexcept {
-            for (const auto &[stagingBuffer, dstBuffer, copyRegions] : stagingInfos) {
-                transferCommandBuffer.copyBuffer(stagingBuffer, dstBuffer, copyRegions);
-            }
-        }
+        void recordStagingCommands(vk::CommandBuffer transferCommandBuffer) const noexcept;
 
         /**
          * @brief Determine the given \p buffer needs to be staged.
@@ -70,10 +53,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * @param buffer Buffer to be checked.
          * @return <tt>true</tt> if the buffer needs to be staged, <tt>false</tt> otherwise.
          */
-        [[nodiscard]] static bool needStaging(const vku::AllocatedBuffer &buffer) noexcept {
-            const vk::MemoryPropertyFlags memoryPropertyFlags = buffer.allocator.getAllocationMemoryProperties(buffer.allocation);
-            return !vku::contains(memoryPropertyFlags, vk::MemoryPropertyFlagBits::eDeviceLocal);
-        }
+        [[nodiscard]] static bool needStaging(const vku::AllocatedBuffer &buffer) noexcept;
 
     private:
         struct StagingInfo {
@@ -84,4 +64,36 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
         std::vector<StagingInfo> stagingInfos;
     };
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+void vk_gltf_viewer::vulkan::buffer::StagingBufferStorage::stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage) {
+    vku::AllocatedBuffer deviceLocalBuffer {
+        buffer.allocator,
+        vk::BufferCreateInfo { {}, buffer.size, usage },
+        vma::AllocationCreateInfo { {}, vma::MemoryUsage::eAutoPreferDevice },
+    };
+    stagingInfos.emplace_back(
+        std::move(buffer),
+        deviceLocalBuffer,
+        boost::container::small_vector<vk::BufferCopy, 1> { vk::BufferCopy { 0, 0, deviceLocalBuffer.size } });
+    buffer = std::move(deviceLocalBuffer);
+}
+
+bool vk_gltf_viewer::vulkan::buffer::StagingBufferStorage::hasStagingCommands() const noexcept {
+    return !stagingInfos.empty();
+}
+
+void vk_gltf_viewer::vulkan::buffer::StagingBufferStorage::recordStagingCommands(vk::CommandBuffer transferCommandBuffer) const noexcept {
+    for (const auto &[stagingBuffer, dstBuffer, copyRegions] : stagingInfos) {
+        transferCommandBuffer.copyBuffer(stagingBuffer, dstBuffer, copyRegions);
+    }
+}
+
+bool vk_gltf_viewer::vulkan::buffer::StagingBufferStorage::needStaging(const vku::AllocatedBuffer &buffer) noexcept {
+    const vk::MemoryPropertyFlags memoryPropertyFlags = buffer.allocator.getAllocationMemoryProperties(buffer.allocation);
+    return !vku::contains(memoryPropertyFlags, vk::MemoryPropertyFlagBits::eDeviceLocal);
 }

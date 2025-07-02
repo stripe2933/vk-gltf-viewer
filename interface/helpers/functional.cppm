@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:helpers.functional;
+export module vk_gltf_viewer.helpers.functional;
 
 import std;
 
@@ -34,36 +34,7 @@ export template <typename F>
     };
 }
 
-/**
- * Visit \p v as \p T, and return the result.
- * @tparam T Visited type.
- * @tparam Ts Types of \p v's alternatives. These types must be convertible to \p T.
- * @param v Variant to visit.
- * @return Visited value.
- * @example
- * @code
- * visit_as<float>(std::variant<int, float>{ 3 }); // Returns 3.f
- * @endcode
- */
-export template <typename T, typename... Ts>
-    requires (std::convertible_to<const Ts&, T> && ...)
-[[nodiscard]] T visit_as(const std::variant<Ts...> &v) {
-    return std::visit([](T x) -> T { return x; }, v);
-}
-
-/**
- * Visit \p v as \p T, and return the result.
- * @tparam T Visited type.
- * @tparam Ts Types of \p v's alternatives. These types must be convertible to \p T.
- * @param v Variant to visit.
- * @return Visited value.
- * @example
- * @code
- * visit_as<float>(std::variant<int, float>{ 3 }); // Returns 3.f
- * @endcode
- */
-export template <typename T, typename... Ts>
-    requires (std::convertible_to<Ts&, T> && ...)
-[[nodiscard]] T visit_as(std::variant<Ts...> &v) {
-    return std::visit([](T x) -> T { return x; }, v);
+export template <typename T>
+[[nodiscard]] constexpr T identity(T x) noexcept {
+    return x;
 }

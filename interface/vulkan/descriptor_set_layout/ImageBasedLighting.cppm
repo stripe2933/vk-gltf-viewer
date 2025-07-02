@@ -2,12 +2,13 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.dsl.ImageBasedLighting;
+export module vk_gltf_viewer.vulkan.dsl.ImageBasedLighting;
 
 import std;
 import vku;
-export import :vulkan.sampler.BrdfLut;
-export import :vulkan.sampler.Cubemap;
+
+export import vk_gltf_viewer.vulkan.sampler.BrdfLut;
+export import vk_gltf_viewer.vulkan.sampler.Cubemap;
 
 namespace vk_gltf_viewer::vulkan::dsl {
     export struct ImageBasedLighting : vku::DescriptorSetLayout<vk::DescriptorType::eUniformBuffer, vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eCombinedImageSampler> {
@@ -15,12 +16,22 @@ namespace vk_gltf_viewer::vulkan::dsl {
             const vk::raii::Device &device LIFETIMEBOUND,
             const sampler::Cubemap &cubemapSampler LIFETIMEBOUND,
             const sampler::BrdfLut &brdfLutSampler LIFETIMEBOUND
-        ) : DescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
-                {},
-                vku::unsafeProxy(getBindings(
-                    { 1, vk::ShaderStageFlagBits::eFragment },
-                    { 1, vk::ShaderStageFlagBits::eFragment, &*cubemapSampler },
-                    { 1, vk::ShaderStageFlagBits::eFragment, &*brdfLutSampler })),
-            } } { }
+        );
     };
 }
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+vk_gltf_viewer::vulkan::dsl::ImageBasedLighting::ImageBasedLighting(
+    const vk::raii::Device &device,
+    const sampler::Cubemap &cubemapSampler,
+    const sampler::BrdfLut &brdfLutSampler
+) : DescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
+        {},
+        vku::unsafeProxy(getBindings(
+            { 1, vk::ShaderStageFlagBits::eFragment },
+            { 1, vk::ShaderStageFlagBits::eFragment, &*cubemapSampler },
+            { 1, vk::ShaderStageFlagBits::eFragment, &*brdfLutSampler })),
+    } } { }

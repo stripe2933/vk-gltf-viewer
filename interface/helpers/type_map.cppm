@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:helpers.type_map;
+export module vk_gltf_viewer.helpers.type_map;
 
 import std;
 
@@ -61,7 +61,7 @@ struct type_map : type_map_entry<Vs, K>...{
 };
 
 /**
- * @brief Convenience type map for monotonic integer sequence starting from 0.
+ * @brief Convenience type map for monotonic integer sequence starting from <tt>Start</tt> (default by 0).
  *
  * For <tt>type_map</tt> with mapping the runtime integer value to same compile time integer value, use <tt>iota_map</tt>.
  *
@@ -80,22 +80,21 @@ struct type_map : type_map_entry<Vs, K>...{
  * // ./main 0 1 2 -> std::out_of_range (argc > 3)
  * @endcode
  *
- * @tparam Stop The stop value of the iota sequence.
+ * @tparam Count The count value of the iota sequence.
+ * @tparam Start Start value. Default is 0.
  */
-export template <auto Stop>
+export template <auto Count, decltype(Count) Start = 0>
 struct iota_map {
-    explicit iota_map() = default;
-
     /**
-     * @brief Get variant of <tt>std::integral_constant<decltype(Stop), Is>...</tt> that is storing the type matching to the given \p key.
+     * @brief Get variant of <tt>std::integral_constant<decltype(Count), Is>...</tt> that is storing the type matching to the given \p key.
      * @param key Key to get the value.
-     * @return Variant of <tt>std::integral_constant<decltype(Stop), Is>...</tt>.
+     * @return Variant of <tt>std::integral_constant<decltype(Count), Is>...</tt>.
      * @throw std::out_of_range If the key is not found.
      */
-    [[nodiscard]] constexpr auto get_variant(decltype(Stop) key) const {
-        return INTEGER_SEQ(Is, Stop, {
-            std::variant<std::integral_constant<decltype(Is), Is>...> result;
-            if (!((key == Is ? (result.template emplace<Is>(), true) : false) || ...)) {
+    [[nodiscard]] static constexpr auto get_variant(decltype(Start + Count) key) {
+        return INTEGER_SEQ(Is, Count, {
+            std::variant<std::integral_constant<decltype(Start + Is), Start + Is>...> result;
+            if (!((key == Start + Is ? (result.template emplace<Is>(), true) : false) || ...)) {
                 throw std::out_of_range { "iota_map::get_variant" };
             }
             return result;

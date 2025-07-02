@@ -1,8 +1,9 @@
-export module vk_gltf_viewer:helpers.vulkan;
+export module vk_gltf_viewer.helpers.vulkan;
 
 import std;
 export import vulkan_hpp;
-import :helpers.ranges;
+
+import vk_gltf_viewer.helpers.ranges;
 
 export enum class TopologyClass : std::uint8_t {
     Point,
@@ -21,7 +22,44 @@ export enum class TopologyClass : std::uint8_t {
  * @return Topology class.
  */
 export
-[[nodiscard]] TopologyClass getTopologyClass(vk::PrimitiveTopology primitiveTopology) noexcept {
+[[nodiscard]] TopologyClass getTopologyClass(vk::PrimitiveTopology primitiveTopology) noexcept;
+
+/**
+ * @brief Get one of the <tt>vk::PrimitiveTopology</tt> type that is match to the given \p topologyClass.
+ *
+ * This function is useful when you're using dynamic state for primitive topology (VK_EXT_extended_dynamic_state), and
+ * system GPU does not support <tt>VkPhysicalDeviceExtendedDynamicState3PropertiesEXT::dynamicPrimitiveTopologyUnrestricted</tt>.
+ * You can pass the representative primitive topology to the PSO initialization and change the primitive topology dynamically.
+ *
+ * @param topologyClass Topology class.
+ * @return One of the <tt>vk::PrimitiveTopology</tt> type that is match to the given \p topologyClass.
+ * @note Currently its implementation returns XXXList type of primitive topology, but you should not rely on this behavior.
+ */
+export
+[[nodiscard]] vk::PrimitiveTopology getRepresentativePrimitiveTopology(TopologyClass topologyClass) noexcept;
+
+/**
+ * @brief Convert sRGB format to linear format, or vice versa.
+ * @param format Format to convert. Must have the corresponding sRGB toggled format.
+ * @return Corresponding sRGB toggled format.
+ * @throw std::invalid_argument If the given format does not have the corresponding sRGB toggled format.
+ */
+export
+[[nodiscard]] vk::Format convertSrgb(vk::Format format);
+
+/**
+ * @brief Check if \p format is sRGB format.
+ * @param format Format to check.
+ * @return <tt>true</tt> if \p format is sRGB format, <tt>false</tt> otherwise.
+ */
+export
+[[nodiscard]] bool isSrgbFormat(vk::Format format) noexcept;
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+TopologyClass getTopologyClass(vk::PrimitiveTopology primitiveTopology) noexcept {
     switch (primitiveTopology) {
     case vk::PrimitiveTopology::ePointList:
         return TopologyClass::Point;
@@ -42,19 +80,7 @@ export
     std::unreachable();
 }
 
-/**
- * @brief Get one of the <tt>vk::PrimitiveTopology</tt> type that is match to the given \p topologyClass.
- *
- * This function is useful when you're using dynamic state for primitive topology (VK_EXT_extended_dynamic_state), and
- * system GPU does not support <tt>VkPhysicalDeviceExtendedDynamicState3PropertiesEXT::dynamicPrimitiveTopologyUnrestricted</tt>.
- * You can pass the representative primitive topology to the PSO initialization and change the primitive topology dynamically.
- *
- * @param topologyClass Topology class.
- * @return One of the <tt>vk::PrimitiveTopology</tt> type that is match to the given \p topologyClass.
- * @note Currently its implementation returns XXXList type of primitive topology, but you should not rely on this behavior.
- */
-export
-[[nodiscard]] vk::PrimitiveTopology getRepresentativePrimitiveTopology(TopologyClass topologyClass) noexcept {
+vk::PrimitiveTopology getRepresentativePrimitiveTopology(TopologyClass topologyClass) noexcept {
     switch (topologyClass) {
     case TopologyClass::Point:
         return vk::PrimitiveTopology::ePointList;
@@ -68,14 +94,7 @@ export
     std::unreachable();
 }
 
-/**
- * @brief Convert sRGB format to linear format, or vice versa.
- * @param format Format to convert. Must have the corresponding sRGB toggled format.
- * @return Corresponding sRGB toggled format.
- * @throw std::invalid_argument If the given format does not have the corresponding sRGB toggled format.
- */
-export
-[[nodiscard]] vk::Format convertSrgb(vk::Format format) {
+vk::Format convertSrgb(vk::Format format) {
     switch (format) {
         #define BIMAP(x, y) \
             case vk::Format::x: return vk::Format::y; \
@@ -119,13 +138,7 @@ export
     }
 }
 
-/**
- * @brief Check if \p format is sRGB format.
- * @param format Format to check.
- * @return <tt>true</tt> if \p format is sRGB format, <tt>false</tt> otherwise.
- */
-export
-[[nodiscard]] bool isSrgbFormat(vk::Format format) noexcept {
+bool isSrgbFormat(vk::Format format) noexcept {
     return ranges::one_of(format, {
         vk::Format::eR8Srgb, vk::Format::eR8G8Srgb, vk::Format::eR8G8B8Srgb, vk::Format::eB8G8R8Srgb,
         vk::Format::eR8G8B8A8Srgb, vk::Format::eB8G8R8A8Srgb, vk::Format::eA8B8G8R8SrgbPack32,

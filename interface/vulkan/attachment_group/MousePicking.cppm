@@ -2,25 +2,38 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.ag.MousePicking;
+export module vk_gltf_viewer.vulkan.ag.MousePicking;
 
+#ifdef _MSC_VER
+import std;
+#endif
 export import vku;
-export import :vulkan.Gpu;
+
+export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::ag {
     export struct MousePicking final : vku::AttachmentGroup {
-        MousePicking(
-            const Gpu &gpu LIFETIMEBOUND,
-            const vk::Extent2D &extent
-        ) : AttachmentGroup { extent } {
-            addColorAttachment(
-                gpu.device,
-                storeImage(createColorImage(gpu.allocator, vk::Format::eR16Uint,
-                    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment| vk::ImageUsageFlagBits::eTransientAttachment,
-                    vku::allocation::deviceLocalTransient)));
-            setDepthStencilAttachment(
-                gpu.device,
-                storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
-        }
+        MousePicking(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent);
     };
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+vk_gltf_viewer::vulkan::ag::MousePicking::MousePicking(const Gpu &gpu, const vk::Extent2D &extent)
+    : AttachmentGroup { extent } {
+    addColorAttachment(
+        gpu.device,
+        storeImage(createColorImage(gpu.allocator, vk::Format::eR16Uint,
+            vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment| vk::ImageUsageFlagBits::eTransientAttachment,
+            vma::AllocationCreateInfo {
+                {},
+                vma::MemoryUsage::eAutoPreferDevice,
+                {},
+                vk::MemoryPropertyFlagBits::eLazilyAllocated,
+            })));
+    setDepthStencilAttachment(
+        gpu.device,
+        storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
 }

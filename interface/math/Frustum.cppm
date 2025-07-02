@@ -1,7 +1,8 @@
-export module vk_gltf_viewer:math.Frustum;
+export module vk_gltf_viewer.math.Frustum;
 
 import std;
-export import :math.Plane;
+
+export import vk_gltf_viewer.math.Plane;
 
 namespace vk_gltf_viewer::math {
     /**
@@ -26,14 +27,20 @@ namespace vk_gltf_viewer::math {
          * @param radius Radius of the sphere.
          * @return <tt>true</tt> if the sphere is overlapping with the frustum, <tt>false</tt> otherwise.
          */
-        [[nodiscard]] constexpr bool isOverlapApprox(const glm::vec3 &center, float radius) const noexcept {
-            for (const Plane &plane : planes) {
-                if (plane.getSignedDistance(center) < -radius) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
+        [[nodiscard]] bool isOverlapApprox(const glm::vec3 &center, float radius) const noexcept;
     };
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+bool vk_gltf_viewer::math::Frustum::isOverlapApprox(const glm::vec3 &center, float radius) const noexcept {
+    for (const Plane &plane : planes) {
+        if (plane.getSignedDistance(center) < -radius) {
+            return false;
+        }
+    }
+
+    return true;
 }

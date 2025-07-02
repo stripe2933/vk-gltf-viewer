@@ -104,7 +104,6 @@ add_library(vk-gltf-viewer::asset ALIAS vk-gltf-viewer_asset)
 add_executable(vk-gltf-viewer WIN32 MACOSX_BUNDLE
     impl.cpp
     impl/control/ImGuiTaskCollector.cpp
-    impl/AppState.cpp
     impl/MainApp.cpp
     impl/mod.cpp
     impl/vulkan/Frame.cpp
@@ -133,18 +132,13 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/control/Camera.cppm
         interface/control/ImGuiTaskCollector.cppm
         interface/control/Task.cppm
-        interface/data_structure/ImmutableRing.cppm
         interface/global.cppm
-        interface/gltf/algorithm/bounding_box.cppm
         interface/gltf/algorithm/MikktSpaceInterface.cppm
         interface/gltf/algorithm/miniball.cppm
-        interface/gltf/algorithm/misc.cppm
-        interface/gltf/algorithm/traversal.cppm
         interface/gltf/Animation.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetProcessError.cppm
         interface/gltf/data_structure/SkinJointCountExclusiveScanWithCount.cppm
-        interface/gltf/data_structure/MaterialVariantsMapping.cppm
         interface/gltf/data_structure/NodeInstanceCountExclusiveScanWithCount.cppm
         interface/gltf/data_structure/SceneInverseHierarchy.cppm
         interface/gltf/data_structure/TargetWeightCountExclusiveScanWithCount.cppm
@@ -153,13 +147,11 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/NodeWorldTransforms.cppm
         interface/gltf/OrderedPrimitives.cppm
         interface/gltf/TextureUsages.cppm
-        interface/helpers/mod.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/algorithm.cppm
         interface/helpers/concepts.cppm
-        interface/helpers/enums/FlagTraits.cppm
-        interface/helpers/enums/Flags.cppm
         interface/helpers/fastgltf.cppm
+        interface/helpers/Flags.cppm
         interface/helpers/formatter/ByteSize.cppm
         interface/helpers/full_optional.cppm
         interface/helpers/functional.cppm
@@ -175,7 +167,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/span.cppm
         interface/helpers/TempStringBuffer.cppm
         interface/helpers/type_map.cppm
-        interface/helpers/type_variant.cppm
         interface/helpers/vulkan.cppm
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
         interface/imgui/UserData.cppm
@@ -248,6 +239,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/shader_type/Primitive.cppm
         interface/vulkan/SharedData.cppm
         interface/vulkan/specialization_constants/SpecializationMap.cppm
+        interface/vulkan/Swapchain.cppm
         interface/vulkan/texture/Checkerboard.cppm
         interface/vulkan/texture/Fallback.cppm
         interface/vulkan/texture/ImGuiColorSpaceAndUsageCorrectedTextures.cppm

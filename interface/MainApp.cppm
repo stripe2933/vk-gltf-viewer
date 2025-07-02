@@ -1,24 +1,23 @@
 export module vk_gltf_viewer:MainApp;
 
 import std;
-import vk_gltf_viewer.data_structure.ImmutableRing;
-import vk_gltf_viewer.helpers;
-import :AppState;
-import :control.AppWindow;
-import :gltf.Animation;
-import :gltf.AssetExternalBuffers;
-import :gltf.data_structure.MaterialVariantsMapping;
-import :gltf.data_structure.SceneInverseHierarchy;
-import :gltf.NodeWorldTransforms;
-import :gltf.SceneNodeLevels;
-import :gltf.StateCachedNodeVisibilityStructure;
-import :gltf.TextureUsages;
-import :helpers.fastgltf;
-import :imgui.UserData;
-import :vulkan.dsl.Asset;
-import :vulkan.dsl.ImageBasedLighting;
-import :vulkan.dsl.Skybox;
 import :vulkan.Frame;
+
+import vk_gltf_viewer.AppState;
+import vk_gltf_viewer.control.AppWindow;
+import vk_gltf_viewer.gltf.Animation;
+import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
+import vk_gltf_viewer.gltf.NodeWorldTransforms;
+import vk_gltf_viewer.gltf.SceneNodeLevels;
+import vk_gltf_viewer.gltf.StateCachedNodeVisibilityStructure;
+import vk_gltf_viewer.gltf.TextureUsages;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.Lazy;
+import vk_gltf_viewer.imgui.UserData;
+import vk_gltf_viewer.vulkan.dsl.Asset;
+import vk_gltf_viewer.vulkan.dsl.ImageBasedLighting;
+import vk_gltf_viewer.vulkan.dsl.Skybox;
+import vk_gltf_viewer.vulkan.Swapchain;
 
 namespace vk_gltf_viewer {
     export class MainApp {
@@ -69,11 +68,7 @@ namespace vk_gltf_viewer {
              */
             fastgltf::Asset asset;
 
-            /**
-             * @brief Associative data structure for KHR_materials_variants.
-             */
-            gltf::ds::MaterialVariantsMapping materialVariantsMapping { asset };
-
+            std::unordered_map<std::size_t, std::vector<std::pair<fastgltf::Primitive*, std::size_t>>> materialVariantsMapping;
             gltf::TextureUsages textureUsages { asset };
 
             /**
@@ -143,34 +138,9 @@ namespace vk_gltf_viewer {
         bool drawSelectionRectangle = false;
 
         vulkan::Gpu gpu { instance, window.getSurface() };
+        vulkan::Swapchain swapchain;
 
         ImGuiContext imGuiContext { window, *instance, gpu };
-
-        // --------------------
-        // Vulkan swapchain.
-        // --------------------
-
-        vk::Extent2D swapchainExtent = getSwapchainExtent();
-        vk::raii::SwapchainKHR swapchain = createSwapchain();
-        std::vector<vk::Image> swapchainImages = swapchain.getImages();
-
-        /**
-         * @brief Semaphores that will be signaled when swapchain images are acquired, i.e. the images are ready to be used for rendering.
-         *
-         * Semaphores in the container is NOT 1-to-1 mapped to swapchain images. Instead, non-pending semaphore can be
-         * retrieved on-demand by calling <tt>current()</tt> from the container. After the retrieved semaphore is being
-         * pending state, <tt>advance()</tt> must be called to make the next swapchain image acquirement use the fresh
-         * semaphore.
-         */
-        ds::ImmutableRing<vk::raii::Semaphore> swapchainImageAcquireSemaphores;
-
-        /**
-         * @brief Semaphores that will be signaled when their corresponding swapchain images are ready to be presented, i.e. all rendering is done in the image.
-         *
-         * These semaphores are 1-to-1 mapped to swapchain images and the semaphore of the same index should be used for
-         * presenting the corresponding swapchain image.
-         */
-        std::vector<vk::raii::Semaphore> swapchainImageReadySemaphores;
 
         // --------------------
         // glTF resources.
@@ -193,11 +163,10 @@ namespace vk_gltf_viewer {
         // Frames.
         // --------------------
 
-        vulkan::SharedData sharedData { gpu, swapchainExtent, swapchainImages };
-        std::array<vulkan::Frame, FRAMES_IN_FLIGHT> frames{ vulkan::Frame { sharedData }, vulkan::Frame { sharedData } };
+        vulkan::SharedData sharedData;
+        std::array<vulkan::Frame, FRAMES_IN_FLIGHT> frames;
         
         [[nodiscard]] vk::raii::Instance createInstance() const;
-        [[nodiscard]] vk::raii::SwapchainKHR createSwapchain(vk::SwapchainKHR oldSwapchain = {}) const;
 
         [[nodiscard]] ImageBasedLightingResources createDefaultImageBasedLightingResources() const;
         [[nodiscard]] vk::raii::Sampler createEqmapSampler() const;

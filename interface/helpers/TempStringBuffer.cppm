@@ -1,4 +1,4 @@
-export module vk_gltf_viewer:helpers.TempStringBuffer;
+export module vk_gltf_viewer.helpers.TempStringBuffer;
 
 import std;
 export import cstring_view;

@@ -2,16 +2,17 @@ export module vk_gltf_viewer:vulkan.pipeline.JumpFloodSeedRenderer;
 
 import std;
 import vku;
-export import :helpers.vulkan;
 import :shader.jump_flood_seed_vert;
 import :shader.jump_flood_seed_frag;
 import :shader_selector.mask_jump_flood_seed_vert;
 import :shader_selector.mask_jump_flood_seed_frag;
-export import :vulkan.pl.PrimitiveNoShading;
-import :vulkan.specialization_constants.SpecializationMap;
+
+export import vk_gltf_viewer.helpers.vulkan;
+export import vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
+import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+#define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class JumpFloodSeedRendererSpecialization {

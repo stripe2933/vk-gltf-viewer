@@ -7,16 +7,17 @@ export module vk_gltf_viewer:vulkan.pipeline.UnlitPrimitiveRenderer;
 import std;
 export import fastgltf;
 import vku;
-import :helpers.ranges;
-export import :helpers.vulkan;
 import :shader_selector.unlit_primitive_frag;
 import :shader_selector.unlit_primitive_vert;
-export import :vulkan.pl.Primitive;
-export import :vulkan.rp.Scene;
-import :vulkan.specialization_constants.SpecializationMap;
+
+import vk_gltf_viewer.helpers.ranges;
+export import vk_gltf_viewer.helpers.vulkan;
+export import vk_gltf_viewer.vulkan.pl.Primitive;
+export import vk_gltf_viewer.vulkan.rp.Scene;
+import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+#define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class UnlitPrimitiveRendererSpecialization {

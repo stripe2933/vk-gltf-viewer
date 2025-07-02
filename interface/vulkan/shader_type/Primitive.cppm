@@ -2,7 +2,7 @@ module;
 
 #include <cstddef>
 
-export module vk_gltf_viewer:vulkan.shader_type.Primitive;
+export module vk_gltf_viewer.vulkan.shader_type.Primitive;
 
 import std;
 export import vulkan_hpp;
@@ -26,8 +26,12 @@ namespace vk_gltf_viewer::vulkan::shader_type {
         std::uint32_t materialIndex;
         std::uint8_t _padding0_[8];
     };
-
-    static_assert(sizeof(Primitive) == 96);
-    static_assert(offsetof(Primitive, positionByteStride) == 80);
-    static_assert(offsetof(Primitive, materialIndex) == 84);
 }
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+static_assert(sizeof(vk_gltf_viewer::vulkan::shader_type::Primitive) == 96);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Primitive, positionByteStride) == 80);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Primitive, materialIndex) == 84);

@@ -35,25 +35,24 @@ import cubemap;
 import ibl;
 import imgui.glfw;
 import imgui.vulkan;
-import :AppState;
-import :control.AppWindow;
-import :global;
-import :gltf.algorithm.miniball;
-import :gltf.algorithm.misc;
-import :gltf.algorithm.traversal;
-import :gltf.Animation;
-import :gltf.AssetExternalBuffers;
-import :gltf.data_structure.SceneInverseHierarchy;
-import :helpers.concepts;
-import :helpers.fastgltf;
-import :helpers.functional;
-import :helpers.optional;
-import :helpers.ranges;
-import :imgui.TaskCollector;
 import :vulkan.Frame;
-import :vulkan.imgui.PlatformResource;
-import :vulkan.mipmap;
 import :vulkan.pipeline.CubemapToneMappingRenderer;
+
+import vk_gltf_viewer.AppState;
+import vk_gltf_viewer.control.AppWindow;
+import vk_gltf_viewer.global;
+import vk_gltf_viewer.gltf.algorithm.miniball;
+import vk_gltf_viewer.gltf.Animation;
+import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
+import vk_gltf_viewer.helpers.concepts;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.optional;
+import vk_gltf_viewer.helpers.ranges;
+import vk_gltf_viewer.imgui.TaskCollector;
+import vk_gltf_viewer.vulkan.imgui.PlatformResource;
+import vk_gltf_viewer.vulkan.mipmap;
+import vk_gltf_viewer.vulkan.Swapchain;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
@@ -65,11 +64,19 @@ import :vulkan.pipeline.CubemapToneMappingRenderer;
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
 
-[[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept;
+[[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept {
+    const float c = std::cos(transform.rotation), s = std::sin(transform.rotation);
+    return { // Note: column major. A row in code actually means a column in the matrix.
+        transform.uvScale[0] * c, transform.uvScale[0] * -s,
+        transform.uvScale[1] * s, transform.uvScale[1] * c,
+        transform.uvOffset[0], transform.uvOffset[1],
+    };
+}
 
 vk_gltf_viewer::MainApp::MainApp()
-    : swapchainImageAcquireSemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) }
-    , swapchainImageReadySemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) } {
+    : swapchain { gpu, window.getSurface(), getSwapchainExtent(), FRAMES_IN_FLIGHT }
+    , sharedData { gpu, swapchain.extent, swapchain.images }
+    , frames { ARRAY_OF(2, vulkan::Frame { sharedData }) } {
     const ibl::BrdfmapRenderer brdfmapRenderer { gpu.device, brdfmapImage, {} };
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
@@ -170,7 +177,7 @@ void vk_gltf_viewer::MainApp::run() {
             std::vector<std::size_t> morphedNodes;
             for (const auto &[animation, enabled] : std::views::zip(gltf->animations, *gltf->animationEnabled)) {
                 if (!enabled) continue;
-                animation.update(glfwGetTime(), back_inserter(transformedNodes), back_inserter(morphedNodes), gltf->assetExternalBuffers);
+                animation.update(glfwGetTime(), transformedNodes, morphedNodes, gltf->assetExternalBuffers);
             }
 
             for (std::size_t nodeIndex : morphedNodes) {
@@ -212,12 +219,12 @@ void vk_gltf_viewer::MainApp::run() {
                 imguiTaskCollector.imageBasedLighting(*iblInfo, vku::toUint64(skyboxResources->imGuiEqmapTextureDescriptorSet));
             }
             imguiTaskCollector.background(appState.canSelectSkyboxBackground, appState.background);
-            imguiTaskCollector.inputControl(appState.camera, appState.automaticNearFarPlaneAdjustment, appState.useFrustumCulling, appState.hoveringNodeOutline, appState.selectedNodeOutline, gpu.supportShaderStencilExport);
+            imguiTaskCollector.inputControl(appState.automaticNearFarPlaneAdjustment, appState.hoveringNodeOutline, appState.selectedNodeOutline, gpu.supportShaderStencilExport);
             if (gltf) {
-                imguiTaskCollector.imguizmo(appState.camera, gltf->asset, gltf->selectedNodes, gltf->nodeWorldTransforms, appState.imGuizmoOperation, gltf->animations, *gltf->animationEnabled);
+                imguiTaskCollector.imguizmo(gltf->asset, gltf->selectedNodes, gltf->nodeWorldTransforms, appState.imGuizmoOperation, gltf->animations, *gltf->animationEnabled);
             }
             else {
-                imguiTaskCollector.imguizmo(appState.camera);
+                imguiTaskCollector.imguizmo();
             }
 
             if (drawSelectionRectangle) {
@@ -272,7 +279,7 @@ void vk_gltf_viewer::MainApp::run() {
                         }
                     }
                 },
-                [&](const control::task::WindowCursorPos &task) {
+                [this](const control::task::WindowCursorPos &task) {
                     if (lastMouseDownPosition && distance2(*lastMouseDownPosition, task.position) >= 4.0) {
                         drawSelectionRectangle = true;
                     }
@@ -320,7 +327,7 @@ void vk_gltf_viewer::MainApp::run() {
                         }
                     }
                 },
-                [&](concepts::one_of<control::task::WindowScroll, control::task::WindowTrackpadZoom> auto const &task) {
+                [this](concepts::one_of<control::task::WindowScroll, control::task::WindowTrackpadZoom> auto const &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
                     const double scale = multilambda {
@@ -329,18 +336,18 @@ void vk_gltf_viewer::MainApp::run() {
                     }(task);
 
                     const float factor = std::powf(1.01f, -scale);
-                    const glm::vec3 displacementToTarget = appState.camera.direction * appState.camera.targetDistance;
-                    appState.camera.targetDistance *= factor;
-                    appState.camera.position += (1.f - factor) * displacementToTarget;
+                    const glm::vec3 displacementToTarget = global::camera.direction * global::camera.targetDistance;
+                    global::camera.targetDistance *= factor;
+                    global::camera.position += (1.f - factor) * displacementToTarget;
                 },
-                [&](const control::task::WindowTrackpadRotate &task) {
+                [this](const control::task::WindowTrackpadRotate &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
                     // Rotate the camera around the Y-axis lied on the target point.
-                    const glm::vec3 target = appState.camera.position + appState.camera.direction * appState.camera.targetDistance;
+                    const glm::vec3 target = global::camera.position + global::camera.direction * global::camera.targetDistance;
                     const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
-                    appState.camera.direction = glm::mat3 { rotation } * appState.camera.direction;
-                    appState.camera.position = target - appState.camera.direction * appState.camera.targetDistance;
+                    global::camera.direction = glm::mat3 { rotation } * global::camera.direction;
+                    global::camera.position = target - global::camera.direction * global::camera.targetDistance;
                 },
                 [&](const control::task::WindowDrop &task) {
                     if (task.paths.empty()) return;
@@ -376,7 +383,7 @@ void vk_gltf_viewer::MainApp::run() {
                     handleSwapchainResize();
                 },
                 [this](const control::task::ChangePassthruRect &task) {
-                    appState.camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
+                    global::camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
                     passthruRect = task.newRect;
                 },
                 [&](const control::task::LoadGltf &task) {
@@ -384,10 +391,10 @@ void vk_gltf_viewer::MainApp::run() {
                     regenerateDrawCommands.fill(true);
                     frameFeedbackResultValid.fill(false);
                 },
-                [&](control::task::CloseGltf) {
+                [this](control::task::CloseGltf) {
                     closeGltf();
                 },
-                [&](const control::task::LoadEqmap &task) {
+                [this](const control::task::LoadEqmap &task) {
                     loadEqmap(task.path);
                 },
                 [&](control::task::ChangeScene task) {
@@ -405,11 +412,11 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Adjust the camera based on the scene enclosing sphere.
                     const auto &[center, radius] = gltf->sceneMiniball.get();
-                    const float distance = radius / std::sin(appState.camera.fov / 2.f);
-                    appState.camera.position = glm::make_vec3(center.data()) - distance * normalize(appState.camera.direction);
-                    appState.camera.zMin = distance - radius;
-                    appState.camera.zMax = distance + radius;
-                    appState.camera.targetDistance = distance;
+                    const float distance = radius / std::sin(global::camera.fov / 2.f);
+                    global::camera.position = glm::make_vec3(center.data()) - distance * normalize(global::camera.direction);
+                    global::camera.zMin = distance - radius;
+                    global::camera.zMax = distance + radius;
+                    global::camera.targetDistance = distance;
 
                     regenerateDrawCommands.fill(true);
                 },
@@ -419,9 +426,28 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [this](control::task::NodeSelectionChanged) {
                     assert(gltf);
+
                     // If selected nodes have a single material, show it in the Material Editor window.
-                    if (auto materialIndex = gltf::algorithm::getUniqueMaterialIndex(gltf->asset, gltf->selectedNodes)) {
-                        control::ImGuiTaskCollector::selectedMaterialIndex = *materialIndex;;
+                    std::optional<std::size_t> uniqueMaterialIndex = std::nullopt;
+                    for (std::size_t nodeIndex : gltf->selectedNodes) {
+                        const auto &meshIndex = gltf->asset.nodes[nodeIndex].meshIndex;
+                        if (!meshIndex) continue;
+
+                        for (const fastgltf::Primitive &primitive : gltf->asset.meshes[*meshIndex].primitives) {
+                            if (primitive.materialIndex) {
+                                if (!uniqueMaterialIndex) {
+                                    uniqueMaterialIndex.emplace(*primitive.materialIndex);
+                                }
+                                else if (*uniqueMaterialIndex != *primitive.materialIndex) {
+                                    // The input nodes contain at least 2 materials.
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
+                    if (uniqueMaterialIndex) {
+                        control::ImGuiTaskCollector::selectedMaterialIndex = *uniqueMaterialIndex;
                     }
                 },
                 [this](const control::task::HoverNodeFromGui &task) {
@@ -607,7 +633,7 @@ void vk_gltf_viewer::MainApp::run() {
                 const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(gltf->asset.nodes[nodeIndex], baseMatrix);
 
                 // Update current and descendants world transforms and mark them as visited.
-                gltf::algorithm::traverseNode(gltf->asset, nodeIndex, [&](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) noexcept {
+                traverseNode(gltf->asset, nodeIndex, [&](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) noexcept {
                     // If node is already visited, its descendants must be visited too. Continuing traversal is redundant.
                     if (visited[nodeIndex]) {
                         return false;
@@ -635,7 +661,7 @@ void vk_gltf_viewer::MainApp::run() {
 
         if (gltf && appState.automaticNearFarPlaneAdjustment) {
             const auto &[center, radius] = gltf->sceneMiniball.get();
-            appState.camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+            global::camera.tightenNearFar(glm::make_vec3(center.data()), radius);
         }
 
         if (hasUpdateData) {
@@ -653,10 +679,6 @@ void vk_gltf_viewer::MainApp::run() {
                 { static_cast<std::int32_t>(framebufferScale.x * passthruRect.Min.x), static_cast<std::int32_t>(framebufferScale.y * passthruRect.Min.y) },
                 { static_cast<std::uint32_t>(framebufferScale.x * passthruRect.GetWidth()), static_cast<std::uint32_t>(framebufferScale.y * passthruRect.GetHeight()) },
             },
-            .camera = { appState.camera.getViewMatrix(), appState.camera.getProjectionMatrix() },
-            .frustum = value_if(appState.useFrustumCulling, [this]() {
-                return appState.camera.getFrustum();
-            }),
             .mousePickingInput = [&]() -> std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
                 const glm::dvec2 cursorPos = window.getCursorPos();
                 if (drawSelectionRectangle) {
@@ -743,46 +765,46 @@ void vk_gltf_viewer::MainApp::run() {
 			frameFeedbackResultValid[frameIndex] = true;
         }
 
+        // Acquire the next swapchain image.
+        std::uint32_t swapchainImageIndex;
+        vk::Semaphore swapchainImageAcquireSemaphore = *swapchain.imageAcquireSemaphores[frameIndex];
         try {
-            // Acquire the next swapchain image.
-#if __APPLE__
-            const auto [result, swapchainImageIndex] = (*gpu.device).acquireNextImageKHR(
-                *swapchain, ~0ULL, *swapchainImageAcquireSemaphores.current());
+            vk::Result result [[maybe_unused]];
+            std::tie(result, swapchainImageIndex) = (*gpu.device).acquireNextImageKHR(
+                *swapchain.swapchain, ~0ULL, swapchainImageAcquireSemaphore);
 
+        #if __APPLE__
             // MoltenVK does not allow presenting suboptimal swapchain image.
             // Issue tracked: https://github.com/KhronosGroup/MoltenVK/issues/2542
             if (result == vk::Result::eSuboptimalKHR) {
-                // Here the swapchain image acquire semaphore is being pending state (since vkAcquireNextImageKHR result
-                // is successful), but it will be not used for vkQueuePresentKHR. Therefore, the next swapchain image
-                // acquirement must not use the same semaphore.
-                swapchainImageAcquireSemaphores.advance();
                 throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
             }
-#else
-            const std::uint32_t swapchainImageIndex = (*gpu.device).acquireNextImageKHR(
-                *swapchain, ~0ULL, *swapchainImageAcquireSemaphores.current()).value;
-#endif
+        #endif
+        }
+        catch (const vk::OutOfDateKHRError&) {
+            handleSwapchainResize();
+        }
 
-            // Execute frame.
-            gpu.device.resetFences(inFlightFence);
-            frame.recordCommandsAndSubmit(
+        // Execute frame.
+        gpu.device.resetFences(inFlightFence);
+        vk::Semaphore swapchainImageReadySemaphore = *swapchain.imageReadySemaphores[swapchainImageIndex];
+        frame.recordCommandsAndSubmit(swapchainImageIndex, swapchainImageAcquireSemaphore, swapchainImageReadySemaphore, inFlightFence);
+
+        // Present the rendered swapchain image to swapchain.
+        try {
+            const vk::Result result [[maybe_unused]] = gpu.queues.graphicsPresent.presentKHR({
+                swapchainImageReadySemaphore,
+                *swapchain.swapchain,
                 swapchainImageIndex,
-                *swapchainImageAcquireSemaphores.current(),
-                swapchainImageReadySemaphores[swapchainImageIndex],
-                inFlightFence);
+            });
 
-            swapchainImageAcquireSemaphores.advance();
-
-            // Present the rendered swapchain image to swapchain.
-            if (gpu.queues.graphicsPresent.presentKHR({
-                *swapchainImageReadySemaphores[swapchainImageIndex],
-                *swapchain,
-                swapchainImageIndex,
-            }) == vk::Result::eSuboptimalKHR) {
+        #if __APPLE__
+            if (result == vk::Result::eSuboptimalKHR) {
                 // The result codes VK_ERROR_OUT_OF_DATE_KHR and VK_SUBOPTIMAL_KHR have the same meaning when
                 // returned by vkQueuePresentKHR as they do when returned by vkAcquireNextImageKHR.
                 throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
             }
+        #endif
         }
         catch (const vk::OutOfDateKHRError&) {
             handleSwapchainResize();
@@ -869,6 +891,7 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     : dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) }
     , directory { path.parent_path() }
     , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
+    , materialVariantsMapping { getMaterialVariantsMapping(asset) }
     , bloomMaterials { [&]() -> std::unordered_set<std::size_t> {
         using namespace std::string_view_literals;
         if (!ranges::one_of("KHR_materials_emissive_strength"sv, asset.extensionsUsed)) {
@@ -944,51 +967,22 @@ vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {
     return instance;
 }
 
-vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR oldSwapchain) const {
-    const vk::SurfaceKHR surface = window.getSurface();
-    const vk::SurfaceCapabilitiesKHR surfaceCapabilities = gpu.physicalDevice.getSurfaceCapabilitiesKHR(surface);
-    const auto viewFormats = { vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm };
-
-    vk::StructureChain createInfo {
-        vk::SwapchainCreateInfoKHR{
-            gpu.supportSwapchainMutableFormat ? vk::SwapchainCreateFlagBitsKHR::eMutableFormat : vk::SwapchainCreateFlagsKHR{},
-            surface,
-            // The spec says:
-            //
-            //   maxImageCount is the maximum number of images the specified device supports for a swapchain created for
-            //   the surface, and will be either 0, or greater than or equal to minImageCount. A value of 0 means that
-            //   there is no limit on the number of images, though there may be limits related to the total amount of
-            //   memory used by presentable images.
-            //
-            // Therefore, if maxImageCount is zero, it is set to the UINT_MAX and minImageCount + 1 will be used.
-            std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount == 0 ? ~0U : surfaceCapabilities.maxImageCount),
-            vk::Format::eB8G8R8A8Srgb,
-            vk::ColorSpaceKHR::eSrgbNonlinear,
-            swapchainExtent,
-            1,
-            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment,
-            {}, {},
-            surfaceCapabilities.currentTransform,
-            vk::CompositeAlphaFlagBitsKHR::eOpaque,
-            vk::PresentModeKHR::eFifo,
-            true,
-            oldSwapchain,
-        },
-        vk::ImageFormatListCreateInfo {
-            viewFormats,
-        }
-    };
-    if (!gpu.supportSwapchainMutableFormat) {
-        createInfo.unlink<vk::ImageFormatListCreateInfo>();
-    }
-
-    return { gpu.device, createInfo.get() };
-}
-
 vk_gltf_viewer::MainApp::ImageBasedLightingResources vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const {
-    vku::MappedBuffer sphericalHarmonicsBuffer { gpu.allocator, std::from_range, std::array<glm::vec3, 9> {
-        glm::vec3 { 1.f },
-    }, vk::BufferUsageFlagBits::eUniformBuffer };
+    vku::AllocatedBuffer sphericalHarmonicsBuffer {
+        gpu.allocator,
+        vk::BufferCreateInfo {
+            {},
+            sizeof(glm::vec3) * 9,
+            vk::BufferUsageFlagBits::eUniformBuffer,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    };
+    constexpr glm::vec3 data[9] = { glm::vec3 { 1.f } };
+    gpu.allocator.copyMemoryToAllocation(data, sphericalHarmonicsBuffer.allocation, 0, sizeof(data));
+
     vku::AllocatedImage prefilteredmapImage { gpu.allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
         vk::ImageType::e2D,
@@ -1002,7 +996,7 @@ vk_gltf_viewer::MainApp::ImageBasedLightingResources vk_gltf_viewer::MainApp::cr
     vk::raii::ImageView prefilteredmapImageView { gpu.device, prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
 
     return {
-        std::move(sphericalHarmonicsBuffer).unmap(),
+        std::move(sphericalHarmonicsBuffer),
         std::move(prefilteredmapImage),
         std::move(prefilteredmapImageView),
     };
@@ -1073,11 +1067,11 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius] = gltf->sceneMiniball.get();
-    const float distance = radius / std::sin(appState.camera.fov / 2.f);
-    appState.camera.position = glm::make_vec3(center.data()) - distance * normalize(appState.camera.direction);
-    appState.camera.zMin = distance - radius;
-    appState.camera.zMax = distance + radius;
-    appState.camera.targetDistance = distance;
+    const float distance = radius / std::sin(global::camera.fov / 2.f);
+    global::camera.position = glm::make_vec3(center.data()) - distance * normalize(global::camera.direction);
+    global::camera.zMin = distance - radius;
+    global::camera.zMax = distance + radius;
+    global::camera.targetDistance = distance;
 
     control::ImGuiTaskCollector::selectedMaterialIndex.reset();
 }
@@ -1096,7 +1090,7 @@ void vk_gltf_viewer::MainApp::closeGltf() {
 void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) {
     vk::Extent2D eqmapImageExtent;
     vk::Format eqmapImageFormat;
-    const vku::MappedBuffer eqmapStagingBuffer = [&]() -> vku::MappedBuffer {
+    const vku::AllocatedBuffer eqmapStagingBuffer = [&]() {
         std::unique_ptr<std::byte[]> data; // It should be freed after copying to the staging buffer, therefore declared as unique_ptr.
         const std::filesystem::path extension = eqmapPath.extension();
 #ifdef SUPPORT_EXR_SKYBOX
@@ -1141,11 +1135,21 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             eqmapImageExtent.height = static_cast<std::uint32_t>(height);
         }
 
-        return {
+        vku::AllocatedBuffer result {
             gpu.allocator,
-            std::from_range, std::span { data.get(), blockSize(eqmapImageFormat) * eqmapImageExtent.width * eqmapImageExtent.height },
-            vk::BufferUsageFlagBits::eTransferSrc,
+            vk::BufferCreateInfo {
+                {},
+                blockSize(eqmapImageFormat) * eqmapImageExtent.width * eqmapImageExtent.height,
+                vk::BufferUsageFlagBits::eTransferSrc,
+            },
+            vma::AllocationCreateInfo {
+                vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
+                vma::MemoryUsage::eAutoPreferHost,
+            },
         };
+        gpu.allocator.copyMemoryToAllocation(data.get(), result.allocation, 0, result.size);
+
+        return result;
         // After this scope, data will be automatically freed.
     }();
 
@@ -1210,11 +1214,18 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         vk::ImageTiling::eOptimal,
         ibl::PrefilteredmapComputer::requiredPrefilteredmapImageUsageFlags | vk::ImageUsageFlagBits::eSampled,
     } };
-    vku::MappedBuffer sphericalHarmonicsBuffer { gpu.allocator, vk::BufferCreateInfo {
-        {},
-        ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferSize,
-        ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferUsageFlags | vk::BufferUsageFlagBits::eUniformBuffer,
-    }, vku::allocation::hostRead };
+    vku::MappedBuffer sphericalHarmonicsBuffer {
+        gpu.allocator,
+        vk::BufferCreateInfo {
+            {},
+            ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferSize,
+            ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferUsageFlags | vk::BufferUsageFlagBits::eUniformBuffer,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    };
 
     const ibl::SphericalHarmonicCoefficientComputer sphericalHarmonicCoefficientComputer { gpu.device, gpu.allocator, cubemapImage, sphericalHarmonicsBuffer, {
         .sampleMipLevel = 0,
@@ -1372,7 +1383,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                         gpu.queueFamilies.graphicsPresent, gpu.queueFamilies.compute,
                         eqmapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
                     });
-            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent }),
+            }, visit(identity<vk::CommandPool>, graphicsCommandPool), gpu.queues.graphicsPresent }),
         std::forward_as_tuple(
             // Generate reducedEqmapImage mipmaps.
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
@@ -1407,7 +1418,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                         reducedEqmapImage, vku::fullSubresourceRange(),
                     });
-            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent/*, 4*/ },
+            }, visit(identity<vk::CommandPool>, graphicsCommandPool), gpu.queues.graphicsPresent/*, 4*/ },
             // Generate cubemap with mipmaps from eqmapImage, and generate IBL resources from the cubemap.
             vku::ExecutionInfo { [&](vk::CommandBuffer cb) {
                 if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.compute) {
@@ -1499,7 +1510,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                         },
                     }),
                 });
-            }, visit_as<vk::CommandPool>(computeCommandPool), gpu.queues.compute }),
+            }, visit(identity<vk::CommandPool>, computeCommandPool), gpu.queues.compute }),
         std::forward_as_tuple(
             // Acquire resources' queue family ownership from compute to graphicsPresent (if necessary), and create tone
             // mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=cubemapImage).
@@ -1549,7 +1560,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 cb.draw(3, 1, 0, 0);
 
                 cb.endRenderPass();
-            }, visit_as<vk::CommandPool>(graphicsCommandPool), gpu.queues.graphicsPresent }));
+            }, visit(identity<vk::CommandPool>, graphicsCommandPool), gpu.queues.graphicsPresent }));
 
     std::ignore = gpu.device.waitSemaphores({
         {},
@@ -1620,15 +1631,13 @@ void vk_gltf_viewer::MainApp::handleSwapchainResize() {
     gpu.device.waitIdle();
 
     // Make process idle state if window is minimized.
+    vk::Extent2D swapchainExtent;
     while (!glfwWindowShouldClose(window) && (swapchainExtent = getSwapchainExtent()) == vk::Extent2D{}) {
         std::this_thread::yield();
     }
 
     // Update swapchain.
-    swapchain = createSwapchain(*swapchain);
-    swapchainImages = swapchain.getImages();
-    swapchainImageAcquireSemaphores = { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) };
-    swapchainImageReadySemaphores = { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) };
+    swapchain.setExtent(swapchainExtent);
 
     // Change swapchain image layout.
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
@@ -1639,21 +1648,21 @@ void vk_gltf_viewer::MainApp::handleSwapchainResize() {
     std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
     // Update frame shared data and frames.
-    sharedData.handleSwapchainResize(swapchainExtent, swapchainImages);
+    sharedData.handleSwapchainResize(swapchainExtent, swapchain.images);
 }
 
 void vk_gltf_viewer::MainApp::recordSwapchainImageLayoutTransitionCommands(vk::CommandBuffer cb) const {
     cb.pipelineBarrier(
         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
         {}, {}, {},
-        swapchainImages
-        | std::views::transform([](vk::Image swapchainImage) {
-            return vk::ImageMemoryBarrier {
-                {}, {},
-                {}, vk::ImageLayout::ePresentSrcKHR,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                swapchainImage, vku::fullSubresourceRange(),
-            };
-        })
-        | std::ranges::to<std::vector>());
+        swapchain.images
+            | std::views::transform([](vk::Image swapchainImage) {
+                return vk::ImageMemoryBarrier {
+                    {}, {},
+                    {}, vk::ImageLayout::ePresentSrcKHR,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    swapchainImage, vku::fullSubresourceRange(),
+                };
+            })
+            | std::ranges::to<std::vector>());
 }

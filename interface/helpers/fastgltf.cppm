@@ -1,10 +1,17 @@
-export module vk_gltf_viewer:helpers.fastgltf;
+module;
+
+#include <cassert>
+
+#include <lifetimebound.hpp>
+
+export module vk_gltf_viewer.helpers.fastgltf;
 
 import std;
 export import cstring_view;
 export import fastgltf;
-import :helpers.optional;
-import :helpers.type_map;
+
+import vk_gltf_viewer.helpers.optional;
+import vk_gltf_viewer.helpers.type_map;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
@@ -23,126 +30,34 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] auto to_string(PrimitiveType value) noexcept -> cpp_util::cstring_view {
-        switch (value) {
-            case PrimitiveType::Points: return "Points";
-            case PrimitiveType::Lines: return "Lines";
-            case PrimitiveType::LineLoop: return "LineLoop";
-            case PrimitiveType::LineStrip: return "LineStrip";
-            case PrimitiveType::Triangles: return "Triangles";
-            case PrimitiveType::TriangleStrip: return "TriangleStrip";
-            case PrimitiveType::TriangleFan: return "TriangleFan";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(PrimitiveType value) noexcept;
 
     export
-    [[nodiscard]] auto to_string(AccessorType value) noexcept -> cpp_util::cstring_view {
-        switch (value) {
-            case AccessorType::Invalid: return "Invalid";
-            case AccessorType::Scalar: return "Scalar";
-            case AccessorType::Vec2: return "Vec2";
-            case AccessorType::Vec3: return "Vec3";
-            case AccessorType::Vec4: return "Vec4";
-            case AccessorType::Mat2: return "Mat2";
-            case AccessorType::Mat3: return "Mat3";
-            case AccessorType::Mat4: return "Mat4";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(AccessorType value) noexcept;
 
     export
-    [[nodiscard]] auto to_string(ComponentType value) noexcept -> cpp_util::cstring_view {
-        switch (value) {
-            case ComponentType::Byte: return "Byte";
-            case ComponentType::UnsignedByte: return "UnsignedByte";
-            case ComponentType::Short: return "Short";
-            case ComponentType::UnsignedShort: return "UnsignedShort";
-            case ComponentType::UnsignedInt: return "UnsignedInt";
-            case ComponentType::Float: return "Float";
-            case ComponentType::Invalid: return "Invalid";
-            case ComponentType::Int: return "Int";
-            case ComponentType::Double: return "Double";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(ComponentType value) noexcept;
 
     export
-    [[nodiscard]] auto to_string(BufferTarget target) noexcept -> cpp_util::cstring_view {
-        switch (target) {
-            case BufferTarget::ArrayBuffer: return "ArrayBuffer";
-            case BufferTarget::ElementArrayBuffer: return "ElementArrayBuffer";
-            default: return "-";
-        }
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(BufferTarget target) noexcept;
 
     export
-    [[nodiscard]] auto to_string(MimeType mime) noexcept -> cpp_util::cstring_view {
-        switch (mime) {
-            case MimeType::None: return "-";
-            case MimeType::JPEG: return "image/jpeg";
-            case MimeType::PNG: return "image/png";
-            case MimeType::KTX2: return "image/ktx2";
-            case MimeType::GltfBuffer: return "model/gltf-buffer";
-            case MimeType::OctetStream: return "application/octet-stream";
-            case MimeType::DDS: return "image/vnd-ms.dds";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(MimeType mime) noexcept;
 
     export
-    [[nodiscard]] auto to_string(AlphaMode alphaMode) noexcept -> cpp_util::cstring_view {
-        switch (alphaMode) {
-            case AlphaMode::Opaque: return "Opaque";
-            case AlphaMode::Mask: return "Mask";
-            case AlphaMode::Blend: return "Blend";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(AlphaMode alphaMode) noexcept;
 
     export
-    [[nodiscard]] auto to_string(Filter filter) noexcept -> cpp_util::cstring_view {
-        switch (filter) {
-            case Filter::Linear: return "Linear";
-            case Filter::Nearest: return "Nearest";
-            case Filter::LinearMipMapLinear: return "LinearMipMapLinear";
-            case Filter::LinearMipMapNearest: return "LinearMipMapNearest";
-            case Filter::NearestMipMapLinear: return "NearestMipMapLinear";
-            case Filter::NearestMipMapNearest: return "NearestMipMapNearest";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(Filter filter) noexcept;
 
     export
-    [[nodiscard]] auto to_string(Wrap wrap) noexcept -> cpp_util::cstring_view {
-        switch (wrap) {
-            case Wrap::Repeat: return "Repeat";
-            case Wrap::ClampToEdge: return "ClampToEdge";
-            case Wrap::MirroredRepeat: return "MirroredRepeat";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(Wrap wrap) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(AnimationPath path) noexcept {
-        switch (path) {
-            case AnimationPath::Translation: return "translation";
-            case AnimationPath::Rotation: return "rotation";
-            case AnimationPath::Scale: return "scale";
-            case AnimationPath::Weights: return "weights";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(AnimationPath path) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(AnimationInterpolation interpolation) noexcept {
-        switch (interpolation) {
-            case AnimationInterpolation::Linear: return "LINEAR";
-            case AnimationInterpolation::Step: return "STEP";
-            case AnimationInterpolation::CubicSpline: return "CUBICSPLINE";
-        }
-        std::unreachable();
-    }
+    [[nodiscard]] cpp_util::cstring_view to_string(AnimationInterpolation interpolation) noexcept;
 
     /**
      * @brief Convert TRS to 4x4 matrix.
@@ -151,9 +66,7 @@ namespace fastgltf {
      * @return 4x4 matrix.
      */
     export
-    [[nodiscard]] math::fmat4x4 toMatrix(const TRS &trs, const math::fmat4x4 &matrix = math::fmat4x4 { 1.f }) noexcept {
-        return scale(rotate(translate(matrix, trs.translation), trs.rotation), trs.scale);
-    }
+    [[nodiscard]] math::fmat4x4 toMatrix(const TRS &trs, const math::fmat4x4 &matrix = math::fmat4x4 { 1.f }) noexcept;
 
     /**
      * @brief Invoke \p f with non-const reference of \p node's 4x4 local transform matrix.
@@ -186,13 +99,11 @@ namespace fastgltf {
      * @param accessor Accessor to get the byte region.
      * @param adapter Buffer data adapter.
      * @return Span of bytes.
-     * @throw std::runtime_error If the accessor doesn't have buffer view.
+     * @throw std::bad_optional_access If the accessor doesn't have buffer view.
      */
     export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
     [[nodiscard]] std::span<const std::byte> getByteRegion(const Asset &asset, const Accessor &accessor, const BufferDataAdapter &adapter = {}) {
-        if (!accessor.bufferViewIndex) throw std::runtime_error { "No buffer view in accessor." };
-
-        const BufferView &bufferView = asset.bufferViews[*accessor.bufferViewIndex];
+        const BufferView &bufferView = asset.bufferViews[accessor.bufferViewIndex.value()];
         const std::size_t byteStride = bufferView.byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType));
         return adapter(asset, *accessor.bufferViewIndex).subspan(accessor.byteOffset, byteStride * accessor.count);
     }
@@ -242,19 +153,17 @@ namespace fastgltf {
      * @param nodeIndex Node index to get the instance transforms.
      * @param adapter Buffer data adapter.
      * @return A vector of instance transform matrices.
-     * @throw std::invalid_argument If the node is not instanced.
+     * @throw std::out_of_range If the node is not instanced.
      * @note This function has effect only if \p asset is loaded with EXT_mesh_gpu_instancing extension supporting parser (otherwise, it will return the empty vector).
      */
     export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
     [[nodiscard]] std::vector<math::fmat4x4> getInstanceTransforms(const Asset &asset, std::size_t nodeIndex, const BufferDataAdapter &adapter = {}) {
         const Node &node = asset.nodes[nodeIndex];
-        if (node.instancingAttributes.empty()) {
-            throw std::invalid_argument { "Node is not instanced" };
-        }
 
         // According to the EXT_mesh_gpu_instancing specification, all attribute accessors in a given node must
         // have the same count. Therefore, we can use the count of the first attribute accessor.
-        const std::uint32_t instanceCount = asset.accessors[node.instancingAttributes[0].accessorIndex].count;
+        // std::out_of_range in here means the node is not instanced.
+        const std::uint32_t instanceCount = asset.accessors[node.instancingAttributes.at(0).accessorIndex].count;
         std::vector<math::fmat4x4> result(instanceCount);
 
         if (auto it = node.findInstancingAttribute("TRANSLATION"); it != node.instancingAttributes.end()) {
@@ -306,12 +215,7 @@ namespace fastgltf {
      * @return Texture coordinate index.
      */
     export
-    [[nodiscard]] std::size_t getTexcoordIndex(const TextureInfo &textureInfo) noexcept {
-        if (textureInfo.transform && textureInfo.transform->texCoordIndex) {
-            return *textureInfo.transform->texCoordIndex;
-        }
-        return textureInfo.texCoordIndex;
-    }
+    [[nodiscard]] std::size_t getTexcoordIndex(const TextureInfo &textureInfo) noexcept;
 
     /**
      * Get image index from \p texture with preference of GPU compressed texture.
@@ -323,11 +227,7 @@ namespace fastgltf {
      * @return Image index.
      */
     export
-    [[nodiscard]] std::size_t getPreferredImageIndex(const Texture &texture) {
-        return to_optional(texture.basisuImageIndex) // Prefer BasisU compressed image if exists.
-            .or_else([&]() { return to_optional(texture.imageIndex); }) // Otherwise, use regular image.
-            .value();
-    }
+    [[nodiscard]] std::size_t getPreferredImageIndex(const Texture &texture);
 
     /**
      * @brief Create a byte vector that contains the tightly packed accessor data.
@@ -347,12 +247,7 @@ namespace fastgltf {
     [[nodiscard]] std::vector<std::byte> getAccessorByteData(const Accessor &accessor, const Asset &asset, const BufferDataAdapter &adapter = {}) {
         std::vector<std::byte> data(getElementByteSize(accessor.type, accessor.componentType) * accessor.count);
 
-        constexpr type_map accessorTypeMap {
-            make_type_map_entry<std::integral_constant<int, 1>>(AccessorType::Scalar),
-            make_type_map_entry<std::integral_constant<int, 2>>(AccessorType::Vec2),
-            make_type_map_entry<std::integral_constant<int, 3>>(AccessorType::Vec3),
-            make_type_map_entry<std::integral_constant<int, 4>>(AccessorType::Vec4),
-        };
+        constexpr iota_map<4, 1> componentCountMap;
         constexpr type_map componentTypeMap {
             make_type_map_entry<std::int8_t>(ComponentType::Byte),
             make_type_map_entry<std::uint8_t>(ComponentType::UnsignedByte),
@@ -362,14 +257,10 @@ namespace fastgltf {
             make_type_map_entry<std::uint32_t>(ComponentType::UnsignedInt),
             make_type_map_entry<float>(ComponentType::Float),
         };
-        std::visit([&]<int ComponentCount, typename ComponentType>(std::type_identity<std::integral_constant<int, ComponentCount>>, std::type_identity<ComponentType>) {
-            if constexpr (ComponentCount == 1) {
-                copyFromAccessor<ComponentType>(asset, accessor, data.data(), adapter);
-            }
-            else {
-                copyFromAccessor<math::vec<ComponentType, ComponentCount>>(asset, accessor, data.data(), adapter);
-            }
-        }, accessorTypeMap.get_variant(accessor.type), componentTypeMap.get_variant(accessor.componentType));
+        std::visit([&]<typename ComponentType>(auto ComponentCount, std::type_identity<ComponentType>) {
+            using ElementType = std::conditional_t<ComponentCount == 1, ComponentType, math::vec<ComponentType, ComponentCount>>;
+            copyFromAccessor<ElementType>(asset, accessor, data.data(), adapter);
+        }, componentCountMap.get_variant(getNumComponents(accessor.type)), componentTypeMap.get_variant(accessor.componentType));
 
         return data;
     }
@@ -389,25 +280,13 @@ namespace fastgltf {
      * @return <tt>std::span</tt> of \p node 's target weights.
      */
     export
-    [[nodiscard]] std::span<float> getTargetWeights(Node &node, Asset &asset) noexcept {
-        std::span weights = node.weights;
-        if (node.meshIndex) {
-            weights = asset.meshes[*node.meshIndex].weights;
-        }
-        return weights;
-    }
+    [[nodiscard]] std::span<float> getTargetWeights(Node &node, Asset &asset) noexcept;
 
     /**
      * @copydoc getTargetWeights
      */
     export
-    [[nodiscard]] std::span<const float> getTargetWeights(const Node &node, const Asset &asset) noexcept {
-        std::span weights = node.weights;
-        if (node.meshIndex) {
-            weights = asset.meshes[*node.meshIndex].weights;
-        }
-        return weights;
-    }
+    [[nodiscard]] std::span<const float> getTargetWeights(const Node &node, const Asset &asset) noexcept;
 
     /**
      * @brief Get target weight count of \p node, with respecting its mesh target weights existence.
@@ -424,13 +303,130 @@ namespace fastgltf {
      * @return Target weight count.
      */
     export
-    [[nodiscard]] std::size_t getTargetWeightCount(const Node &node, const Asset &asset) noexcept {
-        std::size_t count = node.weights.size();
-        if (node.meshIndex) {
-            count = asset.meshes[*node.meshIndex].weights.size();
-        }
-        return count;
+    [[nodiscard]] std::size_t getTargetWeightCount(const Node &node, const Asset &asset) noexcept;
+
+    /**
+     * Traverse node's descendants using preorder traversal.
+     * @tparam F Function type that can be executed with node index. If it returns contextually convertible to <tt>bool</tt> type, the return value will be determined as the traversal continuation (<tt>true</tt> -> continue traversal).
+     * @param asset fastgltf Asset.
+     * @param scene Node index to start traversal.
+     * @param f Function that would be invoked with node index.
+     */
+    export template <std::invocable<std::size_t> F>
+    void traverseNode(const Asset &asset, std::size_t nodeIndex, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t>) {
+        [&](this const auto &self, std::size_t nodeIndex) -> void {
+            // If F is predicate, traversal continuation is determined by the return value of f.
+            if constexpr (std::predicate<F, std::size_t>) {
+                // Stop traversal if f returns false.
+                if (!f(nodeIndex)) return;
+            }
+            else {
+                f(nodeIndex);
+            }
+
+            for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
+                self(childNodeIndex);
+            }
+        }(nodeIndex);
     }
+
+    /**
+     * Traverse node's descendants with accumulated transforms (i.e. world transform) using preorder traversal.
+     * @tparam F Function type that can be executed with node index and <tt>fastgltf::math::fmat4x4</tt>. If it returns contextually convertible to <tt>bool</tt> type, the return value will be determined as the traversal continuation (<tt>true</tt> -> continue traversal).
+     * @param asset fastgltf Asset.
+     * @param nodeIndex Node index to start traversal.
+     * @param f Function that would be invoked with node index and <tt>fastgltf::math::fmat4x4</tt>.
+     * @param initialNodeWorldTransform World transform matrix of the start node.
+     */
+    export template <std::invocable<std::size_t, const math::fmat4x4&> F>
+    void traverseNode(const Asset &asset, std::size_t nodeIndex, const F &f, const math::fmat4x4 &initialNodeWorldTransform) noexcept(std::is_nothrow_invocable_v<F, std::size_t, const math::fmat4x4&>) {
+        [&](this const auto &self, std::size_t nodeIndex, const math::fmat4x4 &worldTransform) -> void {
+            // If F is predicate, traversal continuation is determined by the return value of f.
+            if constexpr (std::predicate<F, std::size_t, const math::fmat4x4&>) {
+                // Stop traversal if f returns false.
+                if (!f(nodeIndex, worldTransform)) return;
+            }
+            else {
+                f(nodeIndex, worldTransform);
+            }
+
+            for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
+                const math::fmat4x4 childNodeWorldTransform = getTransformMatrix(asset.nodes[childNodeIndex], worldTransform);
+                self(childNodeIndex, childNodeWorldTransform);
+            }
+        }(nodeIndex, initialNodeWorldTransform);
+    }
+
+    /**
+     * Traverse \p scene using preorder traversal.
+     * @tparam F Function type that can be executed with node index. If it returns contextually convertible to <tt>bool</tt> type, the return value will be determined as the traversal continuation (<tt>true</tt> -> continue traversal).
+     * @param asset fastgltf Asset.
+     * @param scene fastgltf Scene. This must be originated from \p asset.
+     * @param f Function that would be invoked with node index.
+     */
+    export template <std::invocable<std::size_t> F>
+    void traverseScene(const Asset &asset, const Scene &scene, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t>) {
+        for (std::size_t nodeIndex : scene.nodeIndices) {
+            traverseNode(asset, nodeIndex, f);
+        }
+    }
+
+    /**
+     * Traverse \p scene with accumulated transforms (i.e. world transform) using preorder traversal.
+     * @tparam F Function type that can be executed with node index and <tt>fastgltf::math::fmat4x4</tt>. If it returns contextually convertible to <tt>bool</tt> type, the return value will be determined as the traversal continuation (<tt>true</tt> -> continue traversal).
+     * @param asset fastgltf Asset.
+     * @param scene fastgltf Scene. This must be originated from \p asset.
+     * @param f Function that would be invoked with node index and <tt>fastgltf::math::fmat4x4</tt>.
+     */
+    export template <std::invocable<std::size_t, const math::fmat4x4&> F>
+    void traverseScene(const Asset &asset, const Scene &scene, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t, const math::fmat4x4&>) {
+        for (std::size_t nodeIndex : scene.nodeIndices) {
+            traverseNode(asset, nodeIndex, f, getTransformMatrix(asset.nodes[nodeIndex]));
+        }
+    }
+
+    /**
+     * @brief Get min/max points of \p primitive's bounding box.
+     *
+     * @param primtiive primitive to get the bounding box corner points.
+     * @param node Node that owns \p primitive.
+     * @param asset Asset that owns \p node.
+     * @return Array of (min, max) of the bounding box.
+     * @note Skinned meshes are not supported, as the bounding box of skinned meshes cannot be determined by the primitive's <tt>POSITION</tt> accessor min/max values.
+     */
+    export
+    [[nodiscard]] std::array<math::fvec3, 2> getBoundingBoxMinMax(const Primitive &primitive, const Node &node, const Asset &asset);
+
+    /**
+     * @brief Get 8 corner points of \p primitive's bounding box, which are ordered by:
+     * - (minX, minY, minZ)
+     * - (minX, minY, maxZ)
+     * - (minX, maxY, minZ)
+     * - (minX, maxY, maxZ)
+     * - (maxX, minY, minZ)
+     * - (maxX, minY, maxZ)
+     * - (maxX, maxY, minZ)
+     * - (maxX, maxY, maxZ)
+     *
+     * @param primtiive primitive to get the bounding box corner points.
+     * @param node Node that owns \p primitive.
+     * @param asset Asset that owns \p node.
+     * @return Array of 8 corner points of the bounding box.
+     * @note Skinned meshes are not supported, as the bounding box of skinned meshes cannot be determined by the primitive's <tt>POSITION</tt> accessor min/max values.
+     */
+    export
+    [[nodiscard]] std::array<math::fvec3, 8> getBoundingBoxCornerPoints(const Primitive &primitive, const Node &node, const Asset &asset);
+
+    /**
+     * @brief Create association of (mapping index) -> [(primitive, material index)] for <tt>KHR_materials_variants</tt>.
+     *
+     * <tt>KHR_materials_variants</tt> extension defines the material variants for each primitive. For each variant index, you
+     * can call `at` to get the list of primitives and their material indices that use the corresponding material variant.
+     *
+     * @param asset fastgltf Asset.
+     * @return <tt>std::unordered_map</tt> of (mapping index) -> [(primitive, material index)].
+     */
+    export std::unordered_map<std::size_t, std::vector<std::pair<Primitive*, std::size_t>>> getMaterialVariantsMapping(Asset &asset LIFETIMEBOUND);
 
 namespace math {
     /**
@@ -506,3 +502,251 @@ DEFINE_FORMATTER(fastgltf::Filter);
 DEFINE_FORMATTER(fastgltf::Wrap);
 DEFINE_FORMATTER(fastgltf::AnimationPath);
 DEFINE_FORMATTER(fastgltf::AnimationInterpolation);
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+cpp_util::cstring_view fastgltf::to_string(PrimitiveType value) noexcept {
+    switch (value) {
+        case PrimitiveType::Points: return "Points";
+        case PrimitiveType::Lines: return "Lines";
+        case PrimitiveType::LineLoop: return "LineLoop";
+        case PrimitiveType::LineStrip: return "LineStrip";
+        case PrimitiveType::Triangles: return "Triangles";
+        case PrimitiveType::TriangleStrip: return "TriangleStrip";
+        case PrimitiveType::TriangleFan: return "TriangleFan";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(AccessorType value) noexcept {
+    switch (value) {
+        case AccessorType::Invalid: return "Invalid";
+        case AccessorType::Scalar: return "Scalar";
+        case AccessorType::Vec2: return "Vec2";
+        case AccessorType::Vec3: return "Vec3";
+        case AccessorType::Vec4: return "Vec4";
+        case AccessorType::Mat2: return "Mat2";
+        case AccessorType::Mat3: return "Mat3";
+        case AccessorType::Mat4: return "Mat4";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(ComponentType value) noexcept {
+    switch (value) {
+        case ComponentType::Byte: return "Byte";
+        case ComponentType::UnsignedByte: return "UnsignedByte";
+        case ComponentType::Short: return "Short";
+        case ComponentType::UnsignedShort: return "UnsignedShort";
+        case ComponentType::UnsignedInt: return "UnsignedInt";
+        case ComponentType::Float: return "Float";
+        case ComponentType::Invalid: return "Invalid";
+        case ComponentType::Int: return "Int";
+        case ComponentType::Double: return "Double";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(BufferTarget target) noexcept {
+    switch (target) {
+        case BufferTarget::ArrayBuffer: return "ArrayBuffer";
+        case BufferTarget::ElementArrayBuffer: return "ElementArrayBuffer";
+        default: return "-";
+    }
+}
+
+cpp_util::cstring_view fastgltf::to_string(MimeType mime) noexcept {
+    switch (mime) {
+        case MimeType::None: return "-";
+        case MimeType::JPEG: return "image/jpeg";
+        case MimeType::PNG: return "image/png";
+        case MimeType::KTX2: return "image/ktx2";
+        case MimeType::GltfBuffer: return "model/gltf-buffer";
+        case MimeType::OctetStream: return "application/octet-stream";
+        case MimeType::DDS: return "image/vnd-ms.dds";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(AlphaMode alphaMode) noexcept {
+    switch (alphaMode) {
+        case AlphaMode::Opaque: return "Opaque";
+        case AlphaMode::Mask: return "Mask";
+        case AlphaMode::Blend: return "Blend";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(Filter filter) noexcept {
+    switch (filter) {
+        case Filter::Linear: return "Linear";
+        case Filter::Nearest: return "Nearest";
+        case Filter::LinearMipMapLinear: return "LinearMipMapLinear";
+        case Filter::LinearMipMapNearest: return "LinearMipMapNearest";
+        case Filter::NearestMipMapLinear: return "NearestMipMapLinear";
+        case Filter::NearestMipMapNearest: return "NearestMipMapNearest";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(Wrap wrap) noexcept {
+    switch (wrap) {
+        case Wrap::Repeat: return "Repeat";
+        case Wrap::ClampToEdge: return "ClampToEdge";
+        case Wrap::MirroredRepeat: return "MirroredRepeat";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(AnimationPath path) noexcept {
+    switch (path) {
+        case AnimationPath::Translation: return "translation";
+        case AnimationPath::Rotation: return "rotation";
+        case AnimationPath::Scale: return "scale";
+        case AnimationPath::Weights: return "weights";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(AnimationInterpolation interpolation) noexcept {
+    switch (interpolation) {
+        case AnimationInterpolation::Linear: return "LINEAR";
+        case AnimationInterpolation::Step: return "STEP";
+        case AnimationInterpolation::CubicSpline: return "CUBICSPLINE";
+    }
+    std::unreachable();
+}
+
+fastgltf::math::fmat4x4 fastgltf::toMatrix(const TRS &trs, const math::fmat4x4 &matrix) noexcept {
+    return scale(rotate(translate(matrix, trs.translation), trs.rotation), trs.scale);
+}
+
+std::size_t fastgltf::getTexcoordIndex(const TextureInfo &textureInfo) noexcept {
+    if (textureInfo.transform && textureInfo.transform->texCoordIndex) {
+        return *textureInfo.transform->texCoordIndex;
+    }
+    return textureInfo.texCoordIndex;
+}
+
+std::size_t fastgltf::getPreferredImageIndex(const Texture &texture) {
+    return to_optional(texture.basisuImageIndex) // Prefer BasisU compressed image if exists.
+        .or_else([&]() { return to_optional(texture.imageIndex); }) // Otherwise, use regular image.
+        .value();
+}
+
+std::span<float> fastgltf::getTargetWeights(Node &node, Asset &asset) noexcept {
+    std::span weights = node.weights;
+    if (node.meshIndex) {
+        weights = asset.meshes[*node.meshIndex].weights;
+    }
+    return weights;
+}
+
+std::span<const float> fastgltf::getTargetWeights(const Node &node, const Asset &asset) noexcept {
+    std::span weights = node.weights;
+    if (node.meshIndex) {
+        weights = asset.meshes[*node.meshIndex].weights;
+    }
+    return weights;
+}
+
+std::size_t fastgltf::getTargetWeightCount(const Node &node, const Asset &asset) noexcept {
+    std::size_t count = node.weights.size();
+    if (node.meshIndex) {
+        count = asset.meshes[*node.meshIndex].weights.size();
+    }
+    return count;
+}
+
+std::array<fastgltf::math::fvec3, 2> fastgltf::getBoundingBoxMinMax(const Primitive &primitive, const Node &node, const Asset &asset) {
+    constexpr auto getAccessorMinMax = [](const Accessor &accessor) {
+        constexpr auto fetchVec3 = visitor {
+            []<typename U>(const std::pmr::vector<U> &v) {
+                assert(v.size() == 3);
+                return math::fvec3 { static_cast<float>(v[0]), static_cast<float>(v[1]), static_cast<float>(v[2]) };
+            },
+            [](std::monostate) -> math::fvec3 {
+                throw std::invalid_argument { "Accessor min/max is not number" };
+            },
+        };
+
+        math::fvec3 min = visit(fetchVec3, accessor.min);
+        math::fvec3 max = visit(fetchVec3, accessor.max);
+
+        if (accessor.normalized) {
+            switch (accessor.componentType) {
+            case ComponentType::Byte:
+                min = cwiseMax(min / 127, math::fvec3(-1));
+                max = cwiseMax(max / 127, math::fvec3(-1));
+                break;
+            case ComponentType::UnsignedByte:
+                min /= 255;
+                max /= 255;
+                break;
+            case ComponentType::Short:
+                min = cwiseMax(min / 32767, math::fvec3(-1));
+                max = cwiseMax(max / 32767, math::fvec3(-1));
+                break;
+            case ComponentType::UnsignedShort:
+                min /= 65535;
+                max /= 65535;
+                break;
+            default:
+                throw std::logic_error { "Normalized accessor must be either BYTE, UNSIGNED_BYTE, SHORT, or UNSIGNED_SHORT" };
+            }
+        }
+        return std::array { min, max };
+    };
+
+    const Accessor &accessor = asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];
+    std::array bound = getAccessorMinMax(accessor);
+
+    for (const auto &[weight, attributes] : std::views::zip(getTargetWeights(node, asset), primitive.targets)) {
+        for (const auto &[attributeName, accessorIndex] : attributes) {
+            using namespace std::string_view_literals;
+            if (attributeName == "POSITION"sv) {
+                const Accessor &accessor = asset.accessors[accessorIndex];
+                std::array offset = getAccessorMinMax(accessor);
+
+                // TODO: is this code valid? Need investigation.
+                if (weight < 0) {
+                    std::swap(get<0>(offset), get<1>(offset));
+                }
+                get<0>(bound) += get<0>(offset) * weight;
+                get<1>(bound) += get<1>(offset) * weight;
+
+                break;
+            }
+        }
+    }
+
+    return bound;
+}
+
+std::array<fastgltf::math::fvec3, 8> fastgltf::getBoundingBoxCornerPoints(const Primitive &primitive, const Node &node, const Asset &asset) {
+    const auto [min, max] = getBoundingBoxMinMax(primitive, node, asset);
+    return {
+        min,
+        { min[0], min[1], max[2] },
+        { min[0], max[1], min[2] },
+        { min[0], max[1], max[2] },
+        { max[0], min[1], min[2] },
+        { max[0], min[1], max[2] },
+        { max[0], max[1], min[2] },
+        max,
+    };
+}
+
+std::unordered_map<std::size_t, std::vector<std::pair<fastgltf::Primitive*, std::size_t>>> fastgltf::getMaterialVariantsMapping(Asset &asset) {
+    std::unordered_map<std::size_t, std::vector<std::pair<Primitive*, std::size_t>>> result;
+    for (Mesh &mesh : asset.meshes) {
+        for (Primitive &primitive : mesh.primitives) {
+            for (std::size_t i = 0; const auto &mapping : primitive.mappings) {
+                result[i++].emplace_back(&primitive, mapping.value_or(primitive.materialIndex.value()));
+            }
+        }
+    }
+    return result;
+}

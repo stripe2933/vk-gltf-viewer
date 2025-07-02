@@ -12,22 +12,6 @@ export import bloom;
 export import fastgltf;
 import imgui.vulkan;
 export import vku;
-export import :gltf.OrderedPrimitives;
-export import :gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
-export import :gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
-import :helpers.AggregateHasher;
-import :helpers.fastgltf;
-import :helpers.optional;
-import :helpers.ranges;
-export import :vulkan.ag.Swapchain;
-export import :vulkan.buffer.CombinedIndices;
-export import :vulkan.buffer.InverseBindMatrices;
-export import :vulkan.buffer.Materials;
-export import :vulkan.buffer.PrimitiveAttributes;
-export import :vulkan.buffer.Primitives;
-export import :vulkan.buffer.SkinJointIndices;
-import :vulkan.buffer.StagingBufferStorage;
-export import :vulkan.Gpu;
 export import :vulkan.pipeline.BloomApplyRenderer;
 export import :vulkan.pipeline.InverseToneMappingRenderer;
 export import :vulkan.pipeline.JumpFloodComputer;
@@ -40,12 +24,26 @@ export import :vulkan.pipeline.PrimitiveRenderer;
 export import :vulkan.pipeline.SkyboxRenderer;
 export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
-export import :vulkan.rp.MousePicking;
-export import :vulkan.rp.Scene;
-export import :vulkan.sampler.Samplers;
-export import :vulkan.texture.Fallback;
-export import :vulkan.texture.ImGuiColorSpaceAndUsageCorrectedTextures;
-export import :vulkan.texture.Textures;
+
+export import vk_gltf_viewer.gltf.AssetExternalBuffers;
+export import vk_gltf_viewer.gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
+export import vk_gltf_viewer.gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
+import vk_gltf_viewer.helpers.AggregateHasher;
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.optional;
+import vk_gltf_viewer.helpers.ranges;
+export import vk_gltf_viewer.vulkan.ag.ImGui;
+export import vk_gltf_viewer.vulkan.buffer.CombinedIndices;
+export import vk_gltf_viewer.vulkan.buffer.Materials;
+export import vk_gltf_viewer.vulkan.buffer.InverseBindMatrices;
+export import vk_gltf_viewer.vulkan.buffer.PrimitiveAttributes;
+export import vk_gltf_viewer.vulkan.buffer.Primitives;
+export import vk_gltf_viewer.vulkan.buffer.SkinJointIndices;
+export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.rp.MousePicking;
+export import vk_gltf_viewer.vulkan.rp.Scene;
+export import vk_gltf_viewer.vulkan.texture.ImGuiColorSpaceAndUsageCorrectedTextures;
+export import vk_gltf_viewer.vulkan.texture.Textures;
 
 namespace vk_gltf_viewer::vulkan {
     export class SharedData {
@@ -65,14 +63,13 @@ namespace vk_gltf_viewer::vulkan {
 
             std::vector<vk::DescriptorSet> imGuiTextureDescriptorSets;
 
-            template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
             GltfAsset(
                 const fastgltf::Asset &asset,
                 const std::filesystem::path &directory,
                 const gltf::OrderedPrimitives &orderedPrimitives,
                 const Gpu &gpu,
                 const texture::Fallback &fallbackTexture,
-                const BufferDataAdapter &adapter = {},
+                const gltf::AssetExternalBuffers &adapter,
                 buffer::StagingBufferStorage stagingBufferStorage = {},
                 BS::thread_pool<> threadPool = {}
             ) : nodeInstanceCountExclusiveScanWithCount { asset },
@@ -280,12 +277,11 @@ namespace vk_gltf_viewer::vulkan {
             imGuiAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
         }
 
-        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         void changeAsset(
             const fastgltf::Asset &asset,
             const std::filesystem::path &directory,
             const gltf::OrderedPrimitives &orderedPrimitives,
-            const BufferDataAdapter &adapter = {}
+            const gltf::AssetExternalBuffers &adapter
         ) {
             // If asset texture count exceeds the available texture count provided by the GPU, throw the error before
             // processing data to avoid unnecessary processing.

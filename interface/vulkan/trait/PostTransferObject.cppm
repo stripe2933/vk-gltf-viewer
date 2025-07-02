@@ -1,7 +1,8 @@
-export module vk_gltf_viewer:vulkan.trait.PostTransferObject;
+export module vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
 import std;
-export import :vulkan.buffer.StagingBufferStorage;
+
+export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
 
 namespace vk_gltf_viewer::vulkan::trait {
     export struct PostTransferObject {

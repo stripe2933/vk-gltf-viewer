@@ -2,7 +2,7 @@ module;
 
 #include <cstddef>
 
-export module vk_gltf_viewer:vulkan.shader_type.Material;
+export module vk_gltf_viewer.vulkan.shader_type.Material;
 
 import std;
 export import glm;
@@ -35,10 +35,14 @@ namespace vk_gltf_viewer::vulkan::shader_type {
         float ior = 1.5;
         char padding1[4];
     };
-
-    static_assert(sizeof(Material) == 192);
-    static_assert(offsetof(Material, baseColorTextureIndex) == 6);
-    static_assert(offsetof(Material, baseColorFactor) == 16);
-    static_assert(offsetof(Material, emissive) == 48);
-    static_assert(offsetof(Material, baseColorTextureTransform) == 64);
 }
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+static_assert(sizeof(vk_gltf_viewer::vulkan::shader_type::Material) == 192);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Material, baseColorTextureIndex) == 6);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Material, baseColorFactor) == 16);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Material, emissive) == 48);
+static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Material, baseColorTextureTransform) == 64);

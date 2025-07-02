@@ -2,22 +2,21 @@ module;
 
 #include <cerrno>
 
-export module vk_gltf_viewer:helpers.io;
+export module vk_gltf_viewer.helpers.io;
 
 import std;
 
 export
-[[nodiscard]] std::vector<std::byte> loadFileAsBinary(const std::filesystem::path &path, std::size_t offset = 0) {
+[[nodiscard]] std::vector<std::byte> loadFileAsBinary(const std::filesystem::path &path, std::size_t offset = 0);
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+std::vector<std::byte> loadFileAsBinary(const std::filesystem::path &path, std::size_t offset) {
     std::ifstream file { path, std::ios::binary };
     if (!file) {
-#if __clang__
-        // Using std::format in Clang causes template instantiation of formatter<wchar_t, const char*>.
-        // TODO: report to Clang developers.
-        using namespace std::string_literals;
-        throw std::runtime_error { "Failed to open file: "s + std::strerror(errno) + " (error code=" + std::to_string(errno) + ")" };
-#else
         throw std::runtime_error { std::format("Failed to open file: {} (error code={})", std::strerror(errno), errno) };
-#endif
     }
 
     file.seekg(0, std::ios::end);

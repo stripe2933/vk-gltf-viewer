@@ -1,13 +1,10 @@
-module;
-
-#include <lifetimebound.hpp>
-
-export module vk_gltf_viewer:gltf.data_structure.SceneInverseHierarchy;
+export module vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
 
 import std;
 export import fastgltf;
-import :gltf.algorithm.traversal;
-import :helpers.optional;
+
+import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.optional;
 
 namespace vk_gltf_viewer::gltf::ds {
     /**
@@ -19,16 +16,22 @@ namespace vk_gltf_viewer::gltf::ds {
          */
         std::vector<std::optional<std::size_t>> parentNodeIndices;
 
-        SceneInverseHierarchy(
-            const fastgltf::Asset &asset LIFETIMEBOUND,
-            const fastgltf::Scene &scene
-        ) {
-            parentNodeIndices.resize(asset.nodes.size());
-            algorithm::traverseScene(asset, scene, [&](std::size_t nodeIndex) {
-                for (std::size_t childIndex : asset.nodes[nodeIndex].children) {
-                    parentNodeIndices[childIndex].emplace(nodeIndex);
-                }
-            });
-        }
+        SceneInverseHierarchy(const fastgltf::Asset &asset, const fastgltf::Scene &scene);
     };
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+vk_gltf_viewer::gltf::ds::SceneInverseHierarchy::SceneInverseHierarchy(
+    const fastgltf::Asset &asset,
+    const fastgltf::Scene &scene
+) {
+    parentNodeIndices.resize(asset.nodes.size());
+    traverseScene(asset, scene, [&](std::size_t nodeIndex) {
+        for (std::size_t childIndex : asset.nodes[nodeIndex].children) {
+            parentNodeIndices[childIndex].emplace(nodeIndex);
+        }
+    });
 }

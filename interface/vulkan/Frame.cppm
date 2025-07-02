@@ -10,19 +10,20 @@ module;
 export module vk_gltf_viewer:vulkan.Frame;
 
 import std;
-export import :gltf.OrderedPrimitives;
-import :helpers.optional;
-import :math.extended_arithmetic;
-export import :math.Frustum;
-import :vulkan.ag.MousePicking;
-import :vulkan.ag.JumpFloodSeed;
-import :vulkan.ag.SceneOpaque;
-import :vulkan.ag.SceneWeightedBlended;
-import :vulkan.buffer.IndirectDrawCommands;
-import :vulkan.buffer.InstancedNodeWorldTransforms;
-import :vulkan.buffer.MorphTargetWeights;
-import :vulkan.buffer.Nodes;
 export import :vulkan.SharedData;
+
+export import vk_gltf_viewer.gltf.OrderedPrimitives;
+import vk_gltf_viewer.helpers.optional;
+import vk_gltf_viewer.math.extended_arithmetic;
+export import vk_gltf_viewer.math.Frustum;
+import vk_gltf_viewer.vulkan.ag.JumpFloodSeed;
+import vk_gltf_viewer.vulkan.ag.MousePicking;
+import vk_gltf_viewer.vulkan.ag.SceneOpaque;
+import vk_gltf_viewer.vulkan.ag.SceneWeightedBlended;
+import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
+import vk_gltf_viewer.vulkan.buffer.InstancedNodeWorldTransforms;
+import vk_gltf_viewer.vulkan.buffer.MorphTargetWeights;
+import vk_gltf_viewer.vulkan.buffer.Nodes;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
@@ -80,15 +81,13 @@ namespace vk_gltf_viewer::vulkan {
             // Used only if GPU does not support variable descriptor count.
             std::optional<vk::raii::DescriptorPool> descriptorPool;
 
-            template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
             GltfAsset(
                 const fastgltf::Asset &asset LIFETIMEBOUND,
                 std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
                 const SharedData &sharedData LIFETIMEBOUND,
-                const BufferDataAdapter &adapter = {}
+                const gltf::AssetExternalBuffers &adapter
             ) : instancedNodeWorldTransformBuffer { value_if(sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount.back() != 0, [&]() {
                     return buffer::InstancedNodeWorldTransforms {
-                        sharedData.gpu.device,
                         sharedData.gpu.allocator,
                         asset,
                         asset.scenes[asset.defaultScene.value_or(0)],
@@ -109,11 +108,18 @@ namespace vk_gltf_viewer::vulkan {
                 morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount.back() != 0, [&]() {
                     return buffer::MorphTargetWeights { asset, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gpu };
                 }) },
-                mousePickingResultBuffer { sharedData.gpu.allocator, vk::BufferCreateInfo {
-                    {},
-                    sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(asset.nodes.size(), 32U),
-                    vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-                }, vku::allocation::hostRead },
+                mousePickingResultBuffer {
+                    sharedData.gpu.allocator,
+                    vk::BufferCreateInfo {
+                        {},
+                        sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(asset.nodes.size(), 32U),
+                        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+                    },
+                    vma::AllocationCreateInfo {
+                        vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
+                        vma::MemoryUsage::eAutoPreferDevice,
+                    },
+                },
                 descriptorPool { value_if(!sharedData.gpu.supportVariableDescriptorCount, [&]() {
                     return vk::raii::DescriptorPool {
                         sharedData.gpu.device,
@@ -148,18 +154,6 @@ namespace vk_gltf_viewer::vulkan {
             };
 
             vk::Rect2D passthruRect;
-
-            /**
-             * @brief Camera matrices.
-             */
-            struct { glm::mat4 view, projection; } camera;
-
-            /**
-             * @brief The frustum of the camera, which would be used for frustum culling.
-             *
-             * If <tt>std::nullopt</tt>, frustum culling would be disabled.
-             */
-            std::optional<math::Frustum> frustum;
 
             /**
              * @brief Cursor position or selection rectangle for handling mouse picking.
@@ -202,11 +196,10 @@ namespace vk_gltf_viewer::vulkan {
             vk::Fence inFlightFence = nullptr
         ) const;
 
-        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         void changeAsset(
             const fastgltf::Asset &asset,
             std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-            const BufferDataAdapter &adapter = {}
+            const gltf::AssetExternalBuffers &adapter
         ) {
             const auto &inner = gltfAsset.emplace(asset, nodeWorldTransforms, sharedData, adapter);
             if (sharedData.gpu.supportVariableDescriptorCount) {
@@ -299,6 +292,7 @@ namespace vk_gltf_viewer::vulkan {
             std::map<CommandSeparationCriteria, buffer::IndirectDrawCommands> indirectDrawCommandBuffers;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> mousePickingIndirectDrawCommandBuffers;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> multiNodeMousePickingIndirectDrawCommandBuffers;
+            bool startMousePickingRenderPass = true;
         };
 
         struct SelectedNodes {
@@ -348,7 +342,6 @@ namespace vk_gltf_viewer::vulkan {
 
         vk::Offset2D passthruOffset;
         glm::mat4 projectionViewMatrix;
-        glm::vec3 viewPosition;
         glm::mat4 translationlessProjectionViewMatrix;
         std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
         std::optional<RenderingNodes> renderingNodes;

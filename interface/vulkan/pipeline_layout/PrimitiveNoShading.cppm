@@ -4,13 +4,14 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.pl.PrimitiveNoShading;
+export module vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
 
 import std;
 export import glm;
 export import vulkan_hpp;
 import vku;
-export import :vulkan.dsl.Asset;
+
+export import vk_gltf_viewer.vulkan.dsl.Asset;
 
 namespace vk_gltf_viewer::vulkan::pl {
     export struct PrimitiveNoShading : vk::raii::PipelineLayout {
@@ -18,20 +19,28 @@ namespace vk_gltf_viewer::vulkan::pl {
             glm::mat4 projectionView;
         };
 
-        PrimitiveNoShading(
-            const vk::raii::Device &device LIFETIMEBOUND,
-            const dsl::Asset& descriptorSetLayout
-        ) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
-                {},
-                *descriptorSetLayout,
-                vku::unsafeProxy(vk::PushConstantRange {
-                    vk::ShaderStageFlagBits::eVertex,
-                    0, sizeof(PushConstant),
-                }),
-            } } { }
+        PrimitiveNoShading(const vk::raii::Device &device LIFETIMEBOUND, const dsl::Asset& descriptorSetLayout);
 
-        void pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const {
-            commandBuffer.pushConstants<PushConstant>(**this, vk::ShaderStageFlagBits::eVertex, 0, pushConstant);
-        }
+        void pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const;
     };
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+vk_gltf_viewer::vulkan::pl::PrimitiveNoShading::PrimitiveNoShading(
+    const vk::raii::Device &device,
+    const dsl::Asset& descriptorSetLayout
+) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
+        {},
+        *descriptorSetLayout,
+        vku::unsafeProxy(vk::PushConstantRange {
+            vk::ShaderStageFlagBits::eVertex,
+            0, sizeof(PushConstant),
+        }),
+    } } { }
+
+void vk_gltf_viewer::vulkan::pl::PrimitiveNoShading::pushConstants(vk::CommandBuffer commandBuffer, const PushConstant &pushConstant) const {
+    commandBuffer.pushConstants<PushConstant>(**this, vk::ShaderStageFlagBits::eVertex, 0, pushConstant);
 }
