@@ -73,7 +73,7 @@ import vk_gltf_viewer.vulkan.mipmap;
 }
 
 vk_gltf_viewer::MainApp::MainApp()
-    : swapchainImageAcquireSemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [this]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) }
+    : swapchainImageAcquireSemaphores { ARRAY_OF(FRAMES_IN_FLIGHT, vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }) }
     , swapchainImageReadySemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [this]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) } {
     const ibl::BrdfmapRenderer brdfmapRenderer { gpu.device, brdfmapImage, {} };
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
@@ -763,46 +763,46 @@ void vk_gltf_viewer::MainApp::run() {
 			frameFeedbackResultValid[frameIndex] = true;
         }
 
+        // Acquire the next swapchain image.
+        std::uint32_t swapchainImageIndex;
+        vk::Semaphore swapchainImageAcquireSemaphore = *swapchainImageAcquireSemaphores[frameIndex];
         try {
-            // Acquire the next swapchain image.
-#if __APPLE__
-            const auto [result, swapchainImageIndex] = (*gpu.device).acquireNextImageKHR(
-                *swapchain, ~0ULL, *swapchainImageAcquireSemaphores.current());
+            vk::Result result [[maybe_unused]];
+            std::tie(result, swapchainImageIndex) = (*gpu.device).acquireNextImageKHR(
+                *swapchain, ~0ULL, swapchainImageAcquireSemaphore);
 
+        #if __APPLE__
             // MoltenVK does not allow presenting suboptimal swapchain image.
             // Issue tracked: https://github.com/KhronosGroup/MoltenVK/issues/2542
             if (result == vk::Result::eSuboptimalKHR) {
-                // Here the swapchain image acquire semaphore is being pending state (since vkAcquireNextImageKHR result
-                // is successful), but it will be not used for vkQueuePresentKHR. Therefore, the next swapchain image
-                // acquirement must not use the same semaphore.
-                swapchainImageAcquireSemaphores.advance();
                 throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
             }
-#else
-            const std::uint32_t swapchainImageIndex = (*gpu.device).acquireNextImageKHR(
-                *swapchain, ~0ULL, *swapchainImageAcquireSemaphores.current()).value;
-#endif
+        #endif
+        }
+        catch (const vk::OutOfDateKHRError&) {
+            handleSwapchainResize();
+        }
 
-            // Execute frame.
-            gpu.device.resetFences(inFlightFence);
-            frame.recordCommandsAndSubmit(
-                swapchainImageIndex,
-                *swapchainImageAcquireSemaphores.current(),
-                swapchainImageReadySemaphores[swapchainImageIndex],
-                inFlightFence);
+        // Execute frame.
+        gpu.device.resetFences(inFlightFence);
+        vk::Semaphore swapchainImageReadySemaphore = *swapchainImageReadySemaphores[swapchainImageIndex];
+        frame.recordCommandsAndSubmit(swapchainImageIndex, swapchainImageAcquireSemaphore, swapchainImageReadySemaphore, inFlightFence);
 
-            swapchainImageAcquireSemaphores.advance();
-
-            // Present the rendered swapchain image to swapchain.
-            if (gpu.queues.graphicsPresent.presentKHR({
-                *swapchainImageReadySemaphores[swapchainImageIndex],
+        // Present the rendered swapchain image to swapchain.
+        try {
+            const vk::Result result [[maybe_unused]] = gpu.queues.graphicsPresent.presentKHR({
+                swapchainImageReadySemaphore,
                 *swapchain,
                 swapchainImageIndex,
-            }) == vk::Result::eSuboptimalKHR) {
+            });
+
+        #if __APPLE__
+            if (result == vk::Result::eSuboptimalKHR) {
                 // The result codes VK_ERROR_OUT_OF_DATE_KHR and VK_SUBOPTIMAL_KHR have the same meaning when
                 // returned by vkQueuePresentKHR as they do when returned by vkAcquireNextImageKHR.
                 throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
             }
+        #endif
         }
         catch (const vk::OutOfDateKHRError&) {
             handleSwapchainResize();
@@ -1677,8 +1677,15 @@ void vk_gltf_viewer::MainApp::handleSwapchainResize() {
     // Update swapchain.
     swapchain = createSwapchain(*swapchain);
     swapchainImages = swapchain.getImages();
-    swapchainImageAcquireSemaphores = { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) };
-    swapchainImageReadySemaphores = { std::from_range, ranges::views::generate_n(swapchainImages.size(), [&]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) };
+
+    constexpr vk::SemaphoreCreateInfo semaphoreCreateInfo{};
+    for (vk::raii::Semaphore &semaphore : swapchainImageAcquireSemaphores) {
+        semaphore = { gpu.device, semaphoreCreateInfo };
+    }
+    swapchainImageReadySemaphores.clear();
+    for (auto _ : ranges::views::upto(swapchainImages.size())) {
+        swapchainImageReadySemaphores.emplace_back(gpu.device, semaphoreCreateInfo);
+    }
 
     // Change swapchain image layout.
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };

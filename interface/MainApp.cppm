@@ -5,7 +5,6 @@ import :vulkan.Frame;
 
 import vk_gltf_viewer.AppState;
 import vk_gltf_viewer.control.AppWindow;
-import vk_gltf_viewer.data_structure.ImmutableRing;
 import vk_gltf_viewer.gltf.Animation;
 import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
 import vk_gltf_viewer.gltf.NodeWorldTransforms;
@@ -148,23 +147,7 @@ namespace vk_gltf_viewer {
         vk::Extent2D swapchainExtent = getSwapchainExtent();
         vk::raii::SwapchainKHR swapchain = createSwapchain();
         std::vector<vk::Image> swapchainImages = swapchain.getImages();
-
-        /**
-         * @brief Semaphores that will be signaled when swapchain images are acquired, i.e. the images are ready to be used for rendering.
-         *
-         * Semaphores in the container is NOT 1-to-1 mapped to swapchain images. Instead, non-pending semaphore can be
-         * retrieved on-demand by calling <tt>current()</tt> from the container. After the retrieved semaphore is being
-         * pending state, <tt>advance()</tt> must be called to make the next swapchain image acquirement use the fresh
-         * semaphore.
-         */
-        ds::ImmutableRing<vk::raii::Semaphore> swapchainImageAcquireSemaphores;
-
-        /**
-         * @brief Semaphores that will be signaled when their corresponding swapchain images are ready to be presented, i.e. all rendering is done in the image.
-         *
-         * These semaphores are 1-to-1 mapped to swapchain images and the semaphore of the same index should be used for
-         * presenting the corresponding swapchain image.
-         */
+        std::array<vk::raii::Semaphore, FRAMES_IN_FLIGHT> swapchainImageAcquireSemaphores;
         std::vector<vk::raii::Semaphore> swapchainImageReadySemaphores;
 
         // --------------------
