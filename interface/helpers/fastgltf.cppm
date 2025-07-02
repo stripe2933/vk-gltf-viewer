@@ -104,8 +104,9 @@ namespace fastgltf {
     export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
     [[nodiscard]] std::span<const std::byte> getByteRegion(const Asset &asset, const Accessor &accessor, const BufferDataAdapter &adapter = {}) {
         const BufferView &bufferView = asset.bufferViews[accessor.bufferViewIndex.value()];
-        const std::size_t byteStride = bufferView.byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType));
-        return adapter(asset, *accessor.bufferViewIndex).subspan(accessor.byteOffset, byteStride * accessor.count);
+        const std::size_t elementByteSize = getElementByteSize(accessor.type, accessor.componentType);
+        const std::size_t byteStride = bufferView.byteStride.value_or(elementByteSize);
+        return adapter(asset, *accessor.bufferViewIndex).subspan(accessor.byteOffset, byteStride * (accessor.count - 1) + elementByteSize);
     }
 
     /**
