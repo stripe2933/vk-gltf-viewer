@@ -220,7 +220,7 @@ std::unordered_map<const fastgltf::Primitive*, vk_gltf_viewer::vulkan::buffer::P
 
             const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
             if (!isAccessorBufferViewCompatibleWithGpuAccessor(accessor)) {
-                generatedAccessorByteData.emplace(attribute.accessorIndex, getAccessorByteData(accessor, asset, adapter));
+                generatedAccessorByteData.emplace(attribute.accessorIndex, getVertexAttributeAccessorByteData(accessor, asset, adapter));
             }
             else if (accessor.bufferViewIndex) {
                 attributeBufferViewIndices.push_back(*accessor.bufferViewIndex);
@@ -241,7 +241,7 @@ std::unordered_map<const fastgltf::Primitive*, vk_gltf_viewer::vulkan::buffer::P
 
                 const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
                 if (!isAccessorBufferViewCompatibleWithGpuAccessor(accessor)) {
-                    generatedAccessorByteData.emplace(accessorIndex, getAccessorByteData(accessor, asset, adapter));
+                    generatedAccessorByteData.emplace(accessorIndex, getVertexAttributeAccessorByteData(accessor, asset, adapter));
                 }
                 else if (accessor.bufferViewIndex) {
                     attributeBufferViewIndices.push_back(*accessor.bufferViewIndex);
@@ -326,6 +326,7 @@ std::unordered_map<const fastgltf::Primitive*, vk_gltf_viewer::vulkan::buffer::P
                 if (auto it = generatedBufferDeviceAddressMappings.find(accessorIndex); it != generatedBufferDeviceAddressMappings.end()) {
                     result.bufferAddress = it->second;
                     result.byteStride = getElementByteSize(accessor.type, accessor.componentType);
+                    result.byteStride = (result.byteStride / 4 + (result.byteStride % 4 != 0)) * 4; // Align to 4 bytes.
                 }
                 else if (accessor.bufferViewIndex) {
                     const std::uint8_t byteStride
