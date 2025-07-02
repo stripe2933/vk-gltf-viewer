@@ -79,7 +79,6 @@ struct Primitive {
     uint8_t tangentByteStride;
     uint8_t colorByteStride;
     uint materialIndex;
-    vec2 _padding0_;
 };
 
 #endif

@@ -14,7 +14,7 @@ layout (constant_id = 0) const uint POSITION_COMPONENT_TYPE = 0;
 layout (constant_id = 1) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
 layout (constant_id = 2) const uint SKIN_ATTRIBUTE_COUNT = 0;
 
-layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
+layout (set = 0, binding = 0, std430) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
 layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {

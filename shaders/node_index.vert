@@ -16,7 +16,7 @@ layout (constant_id = 2) const uint SKIN_ATTRIBUTE_COUNT = 0;
 
 layout (location = 0) flat out uint outNodeIndex;
 
-layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
+layout (set = 0, binding = 0, std430) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
 layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {
