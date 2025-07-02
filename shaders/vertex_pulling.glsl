@@ -5,22 +5,23 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
-layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer Int8Ref { int8_t data; };
+// These two buffer references are only used for reading alpha component of VEC4 COLOR_0 attribute, therefore
+// cannot be aligned to 4 bytes.
 layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer Uint8Ref { uint8_t data; };
-layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer I8Vec2Ref { i8vec2 data; };
-layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec2Ref { u8vec2 data; };
-layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer I8Vec3Ref { i8vec3 data; };
-layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec3Ref { u8vec3 data; };
-layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer I8Vec4Ref { i8vec4 data; };
-layout (std430, buffer_reference, buffer_reference_align = 1) readonly buffer U8Vec4Ref { u8vec4 data; };
-layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer Int16Ref { int16_t data; };
 layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer Uint16Ref { uint16_t data; };
-layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer I16Vec2Ref { i16vec2 data; };
-layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer U16Vec2Ref { u16vec2 data; };
-layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer I16Vec3Ref { i16vec3 data; };
-layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer U16Vec3Ref { u16vec3 data; };
-layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer I16Vec4Ref { i16vec4 data; };
-layout (std430, buffer_reference, buffer_reference_align = 2) readonly buffer U16Vec4Ref { u16vec4 data; };
+
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I8Vec2Ref { i8vec2 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U8Vec2Ref { u8vec2 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I8Vec3Ref { i8vec3 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U8Vec3Ref { u8vec3 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I8Vec4Ref { i8vec4 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U8Vec4Ref { u8vec4 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I16Vec2Ref { i16vec2 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U16Vec2Ref { u16vec2 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I16Vec3Ref { i16vec3 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U16Vec3Ref { u16vec3 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I16Vec4Ref { i16vec4 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U16Vec4Ref { u16vec4 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer FloatRef { float data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec2Ref { vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec3Ref { vec3 data; };
