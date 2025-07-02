@@ -52,6 +52,7 @@ import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.imgui.TaskCollector;
 import vk_gltf_viewer.vulkan.imgui.PlatformResource;
 import vk_gltf_viewer.vulkan.mipmap;
+import vk_gltf_viewer.vulkan.Swapchain;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
@@ -73,8 +74,9 @@ import vk_gltf_viewer.vulkan.mipmap;
 }
 
 vk_gltf_viewer::MainApp::MainApp()
-    : swapchainImageAcquireSemaphores { ARRAY_OF(FRAMES_IN_FLIGHT, vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }) }
-    , swapchainImageReadySemaphores { std::from_range, ranges::views::generate_n(swapchainImages.size(), [this]() { return vk::raii::Semaphore { gpu.device, vk::SemaphoreCreateInfo{} }; }) } {
+    : swapchain { gpu, window.getSurface(), getSwapchainExtent(), FRAMES_IN_FLIGHT }
+    , sharedData { gpu, swapchain.extent, swapchain.images }
+    , frames { ARRAY_OF(2, vulkan::Frame { sharedData }) } {
     const ibl::BrdfmapRenderer brdfmapRenderer { gpu.device, brdfmapImage, {} };
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
@@ -765,11 +767,11 @@ void vk_gltf_viewer::MainApp::run() {
 
         // Acquire the next swapchain image.
         std::uint32_t swapchainImageIndex;
-        vk::Semaphore swapchainImageAcquireSemaphore = *swapchainImageAcquireSemaphores[frameIndex];
+        vk::Semaphore swapchainImageAcquireSemaphore = *swapchain.imageAcquireSemaphores[frameIndex];
         try {
             vk::Result result [[maybe_unused]];
             std::tie(result, swapchainImageIndex) = (*gpu.device).acquireNextImageKHR(
-                *swapchain, ~0ULL, swapchainImageAcquireSemaphore);
+                *swapchain.swapchain, ~0ULL, swapchainImageAcquireSemaphore);
 
         #if __APPLE__
             // MoltenVK does not allow presenting suboptimal swapchain image.
@@ -785,14 +787,14 @@ void vk_gltf_viewer::MainApp::run() {
 
         // Execute frame.
         gpu.device.resetFences(inFlightFence);
-        vk::Semaphore swapchainImageReadySemaphore = *swapchainImageReadySemaphores[swapchainImageIndex];
+        vk::Semaphore swapchainImageReadySemaphore = *swapchain.imageReadySemaphores[swapchainImageIndex];
         frame.recordCommandsAndSubmit(swapchainImageIndex, swapchainImageAcquireSemaphore, swapchainImageReadySemaphore, inFlightFence);
 
         // Present the rendered swapchain image to swapchain.
         try {
             const vk::Result result [[maybe_unused]] = gpu.queues.graphicsPresent.presentKHR({
                 swapchainImageReadySemaphore,
-                *swapchain,
+                *swapchain.swapchain,
                 swapchainImageIndex,
             });
 
@@ -963,47 +965,6 @@ vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {
     } };
     VULKAN_HPP_DEFAULT_DISPATCHER.init(*instance);
     return instance;
-}
-
-vk::raii::SwapchainKHR vk_gltf_viewer::MainApp::createSwapchain(vk::SwapchainKHR oldSwapchain) const {
-    const vk::SurfaceKHR surface = window.getSurface();
-    const vk::SurfaceCapabilitiesKHR surfaceCapabilities = gpu.physicalDevice.getSurfaceCapabilitiesKHR(surface);
-    const auto viewFormats = { vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm };
-
-    vk::StructureChain createInfo {
-        vk::SwapchainCreateInfoKHR{
-            gpu.supportSwapchainMutableFormat ? vk::SwapchainCreateFlagBitsKHR::eMutableFormat : vk::SwapchainCreateFlagsKHR{},
-            surface,
-            // The spec says:
-            //
-            //   maxImageCount is the maximum number of images the specified device supports for a swapchain created for
-            //   the surface, and will be either 0, or greater than or equal to minImageCount. A value of 0 means that
-            //   there is no limit on the number of images, though there may be limits related to the total amount of
-            //   memory used by presentable images.
-            //
-            // Therefore, if maxImageCount is zero, it is set to the UINT_MAX and minImageCount + 1 will be used.
-            std::min(surfaceCapabilities.minImageCount + 1, surfaceCapabilities.maxImageCount == 0 ? ~0U : surfaceCapabilities.maxImageCount),
-            vk::Format::eB8G8R8A8Srgb,
-            vk::ColorSpaceKHR::eSrgbNonlinear,
-            swapchainExtent,
-            1,
-            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment,
-            {}, {},
-            surfaceCapabilities.currentTransform,
-            vk::CompositeAlphaFlagBitsKHR::eOpaque,
-            vk::PresentModeKHR::eFifo,
-            true,
-            oldSwapchain,
-        },
-        vk::ImageFormatListCreateInfo {
-            viewFormats,
-        }
-    };
-    if (!gpu.supportSwapchainMutableFormat) {
-        createInfo.unlink<vk::ImageFormatListCreateInfo>();
-    }
-
-    return { gpu.device, createInfo.get() };
 }
 
 vk_gltf_viewer::MainApp::ImageBasedLightingResources vk_gltf_viewer::MainApp::createDefaultImageBasedLightingResources() const {
@@ -1670,22 +1631,13 @@ void vk_gltf_viewer::MainApp::handleSwapchainResize() {
     gpu.device.waitIdle();
 
     // Make process idle state if window is minimized.
+    vk::Extent2D swapchainExtent;
     while (!glfwWindowShouldClose(window) && (swapchainExtent = getSwapchainExtent()) == vk::Extent2D{}) {
         std::this_thread::yield();
     }
 
     // Update swapchain.
-    swapchain = createSwapchain(*swapchain);
-    swapchainImages = swapchain.getImages();
-
-    constexpr vk::SemaphoreCreateInfo semaphoreCreateInfo{};
-    for (vk::raii::Semaphore &semaphore : swapchainImageAcquireSemaphores) {
-        semaphore = { gpu.device, semaphoreCreateInfo };
-    }
-    swapchainImageReadySemaphores.clear();
-    for (auto _ : ranges::views::upto(swapchainImages.size())) {
-        swapchainImageReadySemaphores.emplace_back(gpu.device, semaphoreCreateInfo);
-    }
+    swapchain.setExtent(swapchainExtent);
 
     // Change swapchain image layout.
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
@@ -1696,21 +1648,21 @@ void vk_gltf_viewer::MainApp::handleSwapchainResize() {
     std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
     // Update frame shared data and frames.
-    sharedData.handleSwapchainResize(swapchainExtent, swapchainImages);
+    sharedData.handleSwapchainResize(swapchainExtent, swapchain.images);
 }
 
 void vk_gltf_viewer::MainApp::recordSwapchainImageLayoutTransitionCommands(vk::CommandBuffer cb) const {
     cb.pipelineBarrier(
         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
         {}, {}, {},
-        swapchainImages
-        | std::views::transform([](vk::Image swapchainImage) {
-            return vk::ImageMemoryBarrier {
-                {}, {},
-                {}, vk::ImageLayout::ePresentSrcKHR,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                swapchainImage, vku::fullSubresourceRange(),
-            };
-        })
-        | std::ranges::to<std::vector>());
+        swapchain.images
+            | std::views::transform([](vk::Image swapchainImage) {
+                return vk::ImageMemoryBarrier {
+                    {}, {},
+                    {}, vk::ImageLayout::ePresentSrcKHR,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    swapchainImage, vku::fullSubresourceRange(),
+                };
+            })
+            | std::ranges::to<std::vector>());
 }

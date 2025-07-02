@@ -239,6 +239,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/shader_type/Primitive.cppm
         interface/vulkan/SharedData.cppm
         interface/vulkan/specialization_constants/SpecializationMap.cppm
+        interface/vulkan/Swapchain.cppm
         interface/vulkan/texture/Checkerboard.cppm
         interface/vulkan/texture/Fallback.cppm
         interface/vulkan/texture/ImGuiColorSpaceAndUsageCorrectedTextures.cppm

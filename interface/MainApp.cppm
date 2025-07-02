@@ -17,6 +17,7 @@ import vk_gltf_viewer.imgui.UserData;
 import vk_gltf_viewer.vulkan.dsl.Asset;
 import vk_gltf_viewer.vulkan.dsl.ImageBasedLighting;
 import vk_gltf_viewer.vulkan.dsl.Skybox;
+import vk_gltf_viewer.vulkan.Swapchain;
 
 namespace vk_gltf_viewer {
     export class MainApp {
@@ -137,18 +138,9 @@ namespace vk_gltf_viewer {
         bool drawSelectionRectangle = false;
 
         vulkan::Gpu gpu { instance, window.getSurface() };
+        vulkan::Swapchain swapchain;
 
         ImGuiContext imGuiContext { window, *instance, gpu };
-
-        // --------------------
-        // Vulkan swapchain.
-        // --------------------
-
-        vk::Extent2D swapchainExtent = getSwapchainExtent();
-        vk::raii::SwapchainKHR swapchain = createSwapchain();
-        std::vector<vk::Image> swapchainImages = swapchain.getImages();
-        std::array<vk::raii::Semaphore, FRAMES_IN_FLIGHT> swapchainImageAcquireSemaphores;
-        std::vector<vk::raii::Semaphore> swapchainImageReadySemaphores;
 
         // --------------------
         // glTF resources.
@@ -171,11 +163,10 @@ namespace vk_gltf_viewer {
         // Frames.
         // --------------------
 
-        vulkan::SharedData sharedData { gpu, swapchainExtent, swapchainImages };
-        std::array<vulkan::Frame, FRAMES_IN_FLIGHT> frames{ vulkan::Frame { sharedData }, vulkan::Frame { sharedData } };
+        vulkan::SharedData sharedData;
+        std::array<vulkan::Frame, FRAMES_IN_FLIGHT> frames;
         
         [[nodiscard]] vk::raii::Instance createInstance() const;
-        [[nodiscard]] vk::raii::SwapchainKHR createSwapchain(vk::SwapchainKHR oldSwapchain = {}) const;
 
         [[nodiscard]] ImageBasedLightingResources createDefaultImageBasedLightingResources() const;
         [[nodiscard]] vk::raii::Sampler createEqmapSampler() const;
