@@ -83,7 +83,7 @@ namespace vk_gltf_viewer::vulkan {
                     return std::pair<buffer::SkinJointIndices, buffer::InverseBindMatrices> {
                         std::piecewise_construct,
                         std::tie(asset, skinJointCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage),
-                        std::tie(asset, gpu.allocator, stagingBufferStorage, adapter),
+                        std::tie(asset, skinJointCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage, adapter),
                     };
                 }) },
                 textures { asset, directory, gpu, fallbackTexture, threadPool, adapter },
@@ -291,7 +291,7 @@ namespace vk_gltf_viewer::vulkan {
             }
 
             gltfAsset.emplace(asset, directory, orderedPrimitives, gpu, fallbackTexture, adapter);
-            if (!gpu.supportVariableDescriptorCount && assetDescriptorSetLayout.descriptorCounts[6] != textureCount) {
+            if (!gpu.supportVariableDescriptorCount && get<3>(assetDescriptorSetLayout.descriptorCounts) != textureCount) {
                 // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
                 nodeIndexPipelines.clear();
                 maskNodeIndexPipelines.clear();

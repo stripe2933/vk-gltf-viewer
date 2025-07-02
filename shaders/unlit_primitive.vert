@@ -3,6 +3,7 @@
 #extension GL_EXT_shader_8bit_storage : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference_uvec2 : require
+#extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 
@@ -38,16 +39,7 @@ layout (set = 1, binding = 0, std430) readonly buffer PrimitiveBuffer {
 layout (set = 1, binding = 1, std430) readonly buffer NodeBuffer {
     Node nodes[];
 };
-layout (set = 1, binding = 2) readonly buffer MorphTargetWeightBuffer {
-    float morphTargetWeights[];
-};
-layout (set = 1, binding = 3, std430) readonly buffer SkinJointIndexBuffer {
-    uint skinJointIndices[];
-};
-layout (set = 1, binding = 4) readonly buffer InverseBindMatrixBuffer {
-    mat4 inverseBindMatrices[];
-};
-layout (set = 1, binding = 5, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 

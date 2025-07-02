@@ -49,6 +49,31 @@ export template <std::invocable F>
 }
 
 /**
+ * @brief Get the address of the value contained in \p opt, or <tt>nullptr</tt> if \p opt is empty.
+ * @tparam T Optional inner type.
+ * @param opt Optional value to get the address of.
+ * @return Address of the value contained in \p opt, or <tt>nullptr</tt> if \p opt is empty.
+ */
+export template <typename T>
+[[nodiscard]] T *value_address(std::optional<T> &opt) noexcept {
+    if (opt) {
+        return std::addressof(*opt);
+    }
+    return nullptr;
+}
+
+/**
+ * @copydoc value_address(std::optional<T>&)
+ */
+export template <typename T>
+[[nodiscard]] const T *value_address(const std::optional<T> &opt) noexcept {
+    if (opt) {
+        return std::addressof(*opt);
+    }
+    return nullptr;
+}
+
+/**
  * @brief If all \p opts... contain values, invokes \p f with the contained values as arguments, and returns an std::optional that contains the result of that invocation; otherwise, returns an empty <tt>std::optional</tt>.
  *
  * This is generalization of <tt>std::optional::transform</tt> with multiple optional values.

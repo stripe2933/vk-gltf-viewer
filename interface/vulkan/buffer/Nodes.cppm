@@ -13,12 +13,13 @@ export import fastgltf;
 import vku;
 export import vk_mem_alloc_hpp;
 
-export import vk_gltf_viewer.gltf.data_structure.SkinJointCountExclusiveScanWithCount;
-export import vk_gltf_viewer.gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.helpers.ranges;
 export import vk_gltf_viewer.vulkan.buffer.InstancedNodeWorldTransforms;
+export import vk_gltf_viewer.vulkan.buffer.InverseBindMatrices;
+export import vk_gltf_viewer.vulkan.buffer.MorphTargetWeights;
+export import vk_gltf_viewer.vulkan.buffer.SkinJointIndices;
 import vk_gltf_viewer.vulkan.shader_type.Node;
 
 namespace vk_gltf_viewer::vulkan::buffer {
@@ -29,9 +30,9 @@ namespace vk_gltf_viewer::vulkan::buffer {
             vma::Allocator allocator LIFETIMEBOUND,
             const fastgltf::Asset &asset LIFETIMEBOUND,
             std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-            const gltf::ds::TargetWeightCountExclusiveScanWithCount &targetWeightCountExclusiveScan,
-            const gltf::ds::SkinJointCountExclusiveScanWithCount &skinJointCountExclusiveScan,
-            const InstancedNodeWorldTransforms *instancedNodeWorldTransformBuffer LIFETIMEBOUND = nullptr
+            const InstancedNodeWorldTransforms *instancedNodeWorldTransformBuffer LIFETIMEBOUND = nullptr,
+            const MorphTargetWeights *morphTargetWeightBuffer LIFETIMEBOUND = nullptr,
+            const std::pair<SkinJointIndices, InverseBindMatrices> *skinJointIndexAndInverseBindMatrixBuffers LIFETIMEBOUND = nullptr
         );
 
         [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept;
@@ -61,7 +62,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
         std::reference_wrapper<const fastgltf::Asset> asset;
         vku::MappedBuffer buffer;
         vk::DescriptorBufferInfo descriptorInfo;
-        vk::DeviceAddress deviceAddress;
     };
 }
 
@@ -74,9 +74,9 @@ vk_gltf_viewer::vulkan::buffer::Nodes::Nodes(
     vma::Allocator allocator,
     const fastgltf::Asset &asset,
     std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-    const gltf::ds::TargetWeightCountExclusiveScanWithCount &targetWeightCountExclusiveScan,
-    const gltf::ds::SkinJointCountExclusiveScanWithCount &skinJointCountExclusiveScan,
-    const InstancedNodeWorldTransforms *instancedNodeWorldTransformBuffer
+    const InstancedNodeWorldTransforms *instancedNodeWorldTransformBuffer,
+    const MorphTargetWeights *morphTargetWeightBuffer,
+    const std::pair<SkinJointIndices, InverseBindMatrices> *skinJointIndexAndInverseBindMatrixBuffers
 ) : asset { asset },
     buffer {
         allocator,
@@ -90,35 +90,57 @@ vk_gltf_viewer::vulkan::buffer::Nodes::Nodes(
             vma::MemoryUsage::eAutoPreferDevice,
         },
     },
-    descriptorInfo { buffer, 0, vk::WholeSize },
-    deviceAddress { device.getBufferAddress({ buffer.buffer }) }{
-    const std::optional<vk::DeviceAddress> instancedNodeWorldTransformBufferAddress = value_if(
-        instancedNodeWorldTransformBuffer,
-        [&]() { return device.getBufferAddress({ *instancedNodeWorldTransformBuffer }); });
+    descriptorInfo { buffer, 0, vk::WholeSize } {
+    const vk::DeviceAddress selfDeviceAddress = device.getBufferAddress({ buffer.buffer });
+
+    vk::DeviceAddress instanceNodeWorldTransformBufferAddress = 0;
+    if (instancedNodeWorldTransformBuffer) {
+        instanceNodeWorldTransformBufferAddress = device.getBufferAddress({ *instancedNodeWorldTransformBuffer });
+    }
+
+    vk::DeviceAddress morphTargetWeightBufferAddress = 0;
+    if (morphTargetWeightBuffer) {
+        morphTargetWeightBufferAddress = device.getBufferAddress({ *morphTargetWeightBuffer });
+    }
+
+    vk::DeviceAddress skinJointIndexBufferAddress = 0;
+    vk::DeviceAddress inverseBindMatrixBufferAddress = 0;
+    if (skinJointIndexAndInverseBindMatrixBuffers) {
+        skinJointIndexBufferAddress = device.getBufferAddress({ skinJointIndexAndInverseBindMatrixBuffers->first.buffer });
+        inverseBindMatrixBufferAddress = device.getBufferAddress({ skinJointIndexAndInverseBindMatrixBuffers->second.buffer });
+    }
 
     const std::span data = buffer.asRange<shader_type::Node>();
     for (const auto &[nodeIndex, node] : asset.nodes | ranges::views::enumerate) {
-        data[nodeIndex] = shader_type::Node {
-            .worldTransform = glm::make_mat4(nodeWorldTransforms[nodeIndex].data()),
-            .pInstancedWorldTransforms = [&]() -> vk::DeviceAddress {
-                if (node.instancingAttributes.empty()) {
-                    // Use address of self's worldTransform if no instancing attributes are presented.
-                    return deviceAddress + sizeof(shader_type::Node) * nodeIndex + offsetof(shader_type::Node, worldTransform);
-                }
-                else {
-                    // Use address of instanced node world transform buffer if instancing attributes are presented.
-                    return *instancedNodeWorldTransformBufferAddress
-                        + sizeof(glm::mat4) * instancedNodeWorldTransformBuffer->nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex];
-                }
-            }(),
-            .morphTargetWeightStartIndex = targetWeightCountExclusiveScan[nodeIndex],
-            .skinJointIndexStartIndex = [&]() {
-                if (node.skinIndex) {
-                    return skinJointCountExclusiveScan[*node.skinIndex];
-                }
-                return std::numeric_limits<std::uint32_t>::max();
-            }(),
-        };
+        data[nodeIndex].worldTransform = glm::make_mat4(nodeWorldTransforms[nodeIndex].data());
+
+        if (node.instancingAttributes.empty()) {
+            // Use address of self's worldTransform if no instancing attributes are presented.
+            data[nodeIndex].pInstancedWorldTransformBuffer
+                = selfDeviceAddress + sizeof(shader_type::Node) * nodeIndex + offsetof(shader_type::Node, worldTransform);
+        }
+        else {
+            // Use address of instanced node world transform buffer if instancing attributes are presented.
+            data[nodeIndex].pInstancedWorldTransformBuffer
+                = instanceNodeWorldTransformBufferAddress
+                + sizeof(glm::mat4) * instancedNodeWorldTransformBuffer->nodeInstanceCountExclusiveScanWithCount.get()[nodeIndex];
+        }
+
+        if (morphTargetWeightBuffer) {
+            data[nodeIndex].pMorphTargetWeightBuffer
+                = morphTargetWeightBufferAddress
+                + sizeof(float) * morphTargetWeightBuffer->targetWeightCountExclusiveScanWithCount.get()[nodeIndex];
+        }
+
+        if (skinJointIndexAndInverseBindMatrixBuffers && node.skinIndex) {
+            const std::size_t offset = skinJointIndexAndInverseBindMatrixBuffers->first.skinJointCountExclusiveScanWithCount.get()[*node.skinIndex];
+            data[nodeIndex].pSkinJointIndexBuffer = skinJointIndexBufferAddress + sizeof(std::uint32_t) * offset;
+            data[nodeIndex].pInverseBindMatrixBuffer = inverseBindMatrixBufferAddress + sizeof(fastgltf::math::fmat4x4) * offset;
+        }
+        else {
+            // Use 0 if no skin joint index buffer is presented.
+            data[nodeIndex].pSkinJointIndexBuffer = 0;
+        }
     }
 }
 

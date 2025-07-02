@@ -25,9 +25,6 @@ import vk_gltf_viewer.vulkan.buffer.InstancedNodeWorldTransforms;
 import vk_gltf_viewer.vulkan.buffer.MorphTargetWeights;
 import vk_gltf_viewer.vulkan.buffer.Nodes;
 
-#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
-
 /**
  * @brief A type that represents the state for a single multi-draw-indirect call.
  *
@@ -73,8 +70,8 @@ namespace vk_gltf_viewer::vulkan {
     public:
         struct GltfAsset {
             std::optional<buffer::InstancedNodeWorldTransforms> instancedNodeWorldTransformBuffer;
-            buffer::Nodes nodeBuffer;
             std::optional<buffer::MorphTargetWeights> morphTargetWeightBuffer;
+            buffer::Nodes nodeBuffer;
 
             vku::MappedBuffer mousePickingResultBuffer;
 
@@ -96,18 +93,18 @@ namespace vk_gltf_viewer::vulkan {
                         adapter,
                     };
                 }) },
+                morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount.back() != 0, [&]() {
+                    return buffer::MorphTargetWeights { asset, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gpu };
+                }) },
                 nodeBuffer {
                     sharedData.gpu.device,
                     sharedData.gpu.allocator,
                     asset,
                     nodeWorldTransforms,
-                    sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount,
-                    sharedData.gltfAsset->skinJointCountExclusiveScanWithCount,
-                    instancedNodeWorldTransformBuffer.transform(LIFT(std::addressof)).value_or(nullptr),
+                    value_address(instancedNodeWorldTransformBuffer),
+                    value_address(morphTargetWeightBuffer),
+                    value_address(sharedData.gltfAsset->skinJointIndexAndInverseBindMatrixBuffer),
                 },
-                morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount.back() != 0, [&]() {
-                    return buffer::MorphTargetWeights { asset, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gpu };
-                }) },
                 mousePickingResultBuffer {
                     sharedData.gpu.allocator,
                     vk::BufferCreateInfo {
@@ -234,17 +231,9 @@ namespace vk_gltf_viewer::vulkan {
                 multiNodeMousePickingSet.getWrite<0>(multiNodeMousePickingResultBufferDescriptorInfo),
                 assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<1>(inner.nodeBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<5>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<6>(imageInfos),
+                assetDescriptorSet.getWrite<2>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
+                assetDescriptorSet.getWrite<3>(imageInfos),
             };
-            if (inner.morphTargetWeightBuffer) {
-                descriptorWrites.push_back(assetDescriptorSet.getWrite<2>(inner.morphTargetWeightBuffer->getDescriptorInfo()));
-            }
-            if (sharedData.gltfAsset->skinJointIndexAndInverseBindMatrixBuffer) {
-                const auto &[skinJointIndexBuffer, inverseBindMatrixBuffer] = *sharedData.gltfAsset->skinJointIndexAndInverseBindMatrixBuffer;
-                descriptorWrites.push_back(assetDescriptorSet.getWrite<3>(skinJointIndexBuffer.getDescriptorInfo()));
-                descriptorWrites.push_back(assetDescriptorSet.getWrite<4>(inverseBindMatrixBuffer.getDescriptorInfo()));
-            }
 
             sharedData.gpu.device.updateDescriptorSets(descriptorWrites, {});
         }

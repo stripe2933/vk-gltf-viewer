@@ -12,12 +12,12 @@ mat4 getTransform(uint skinAttributeCount) {
     else {
         mat4 skinMatrix = mat4(0.0);
         for (uint i = 0; i < skinAttributeCount; ++i) {
-            uvec4 jointIndices = getJoints(i) + NODE.skinJointStartIndex;
+            uvec4 jointIndices = getJoints(i);
             vec4 weights = getWeights(i);
-            skinMatrix += weights.x * nodes[skinJointIndices[jointIndices.x]].worldTransform * inverseBindMatrices[jointIndices.x]
-                        + weights.y * nodes[skinJointIndices[jointIndices.y]].worldTransform * inverseBindMatrices[jointIndices.y]
-                        + weights.z * nodes[skinJointIndices[jointIndices.z]].worldTransform * inverseBindMatrices[jointIndices.z]
-                        + weights.w * nodes[skinJointIndices[jointIndices.w]].worldTransform * inverseBindMatrices[jointIndices.w];
+            skinMatrix += weights.x * nodes[NODE.skinJointIndices.data[jointIndices.x]].worldTransform * NODE.inverseBindMatrices.data[jointIndices.x]
+                        + weights.y * nodes[NODE.skinJointIndices.data[jointIndices.y]].worldTransform * NODE.inverseBindMatrices.data[jointIndices.y]
+                        + weights.z * nodes[NODE.skinJointIndices.data[jointIndices.z]].worldTransform * NODE.inverseBindMatrices.data[jointIndices.z]
+                        + weights.w * nodes[NODE.skinJointIndices.data[jointIndices.w]].worldTransform * NODE.inverseBindMatrices.data[jointIndices.w];
         }
         return skinMatrix;
     }
