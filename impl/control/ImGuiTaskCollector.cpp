@@ -406,7 +406,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetTextures(
                         });
                     }), ImGuiTableColumnFlags_WidthFixed },
                     ImGui::ColumnInfo { "Type", decomposer([](auto, Flags<gltf::TextureUsage> type) {
-                        ImGui::TextUnformatted(tempStringBuffer.write("{::s}", type).view());
+                        ImGui::TextUnformatted(tempStringBuffer.write("{}", type).view());
                     }), ImGuiTableColumnFlags_WidthStretch });
             });
             ImGui::EndPopup();
@@ -708,7 +708,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Ass
                                 ImGui::Text("%zu", nodeIndex);
                             }) },
                             ImGui::ColumnInfo { "Path", decomposer([](auto, Flags<gltf::NodeAnimationUsage> usage) {
-                                ImGui::TextUnformatted(tempStringBuffer.write("{::s}", usage).view());
+                                ImGui::TextUnformatted(tempStringBuffer.write("{}", usage).view());
                             }) });
                         ImGui::TreePop();
                     }

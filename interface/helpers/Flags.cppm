@@ -75,29 +75,32 @@ private:
 };
 
 export template <typename BitType, typename CharT>
-struct std::formatter<Flags<BitType>, CharT> : range_formatter<BitType, CharT> {
-    constexpr formatter() {
-        range_formatter<BitType, CharT>::set_separator(" | ");
-        range_formatter<BitType, CharT>::set_brackets("", "");
-    }
-
-    [[nodiscard]] constexpr auto format(const Flags<BitType> &flags, auto &ctx) const {
+struct std::formatter<Flags<BitType>, CharT> : formatter<BitType, CharT> {
+    [[nodiscard]] auto format(const Flags<BitType> &flags, auto &ctx) const {
         const typename Flags<BitType>::MaskType flagMask { flags };
 
         constexpr typename Flags<BitType>::MaskType allFlagMask { FlagTraits<BitType>::allFlags };
         constexpr std::size_t flagCount = std::popcount(allFlagMask);
 
         boost::container::static_vector<BitType, flagCount> flagBits;
-        for (std::size_t shift = 0; shift < flagCount;) {
-            const auto bitmask = std::underlying_type_t<BitType> { 1 } << shift;
+        typename Flags<BitType>::MaskType bitmask { 1 };
+        for (std::size_t i = 0; i < flagCount; bitmask <<= 1) {
             if (allFlagMask & bitmask) {
                 if (flagMask & bitmask) {
                     flagBits.push_back(static_cast<BitType>(bitmask));
                 }
-                ++shift;
+                ++i;
             }
         }
 
-        return range_formatter<BitType, CharT>::format(flagBits, ctx);
+        if (!flagBits.empty()) {
+            formatter<BitType, CharT>::format(flagBits[0], ctx);
+            for (std::size_t i = 1; i < flagBits.size(); ++i) {
+                format_to(ctx.out(), " | ");
+                formatter<BitType, CharT>::format(flagBits[i], ctx);
+            }
+        }
+
+        return ctx.out();
     }
 };
