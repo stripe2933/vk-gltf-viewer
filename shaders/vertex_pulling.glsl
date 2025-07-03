@@ -14,18 +14,18 @@ layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I8
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U8Vec2Ref { u8vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I8Vec3Ref { i8vec3 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U8Vec3Ref { u8vec3 data; };
-layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I8Vec4Ref { i8vec4 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U8Vec4Ref { u8vec4 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I16Vec2Ref { i16vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U16Vec2Ref { u16vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I16Vec3Ref { i16vec3 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U16Vec3Ref { u16vec3 data; };
-layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer I16Vec4Ref { i16vec4 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer U16Vec4Ref { u16vec4 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer FloatRef { float data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec2Ref { vec2 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec3Ref { vec3 data; };
 layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer Vec4Ref { vec4 data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer UIntRef { uint data; };
+layout (std430, buffer_reference, buffer_reference_align = 4) readonly buffer UVec2Ref { uvec2 data; };
 
 vec3 getPosition(uint componentType, uint morphTargetWeightCount) {
     uvec2 fetchAddress = add64(PRIMITIVE.pPositionBuffer, uint(PRIMITIVE.positionByteStride) * uint(gl_VertexIndex));
@@ -131,10 +131,11 @@ vec4 getTangent(uint componentType, uint morphTargetWeightCount) {
         tangent = Vec4Ref(fetchAddress).data;
         break;
     case 8U: // BYTE normalized
-        tangent = dequantize(I8Vec4Ref(fetchAddress).data);
+        tangent = unpackSnorm4x8(UIntRef(fetchAddress).data);
         break;
     case 10U: // SHORT normalized
-        tangent = dequantize(I16Vec4Ref(fetchAddress).data);
+        uvec2 fetched = UVec2Ref(fetchAddress).data;
+        tangent = vec4(unpackSnorm2x16(fetched.x), unpackSnorm2x16(fetched.y));
         break;
     }
 
@@ -181,9 +182,9 @@ vec2 getTexcoord(uint texcoordIndex, uint componentType){
     case 9U: // UNSIGNED BYTE normalized
         return dequantize(U8Vec2Ref(fetchAddress).data);
     case 10U: // SHORT normalized
-        return dequantize(I16Vec2Ref(fetchAddress).data);
+        return unpackSnorm2x16(UIntRef(fetchAddress).data);
     case 11U: // UNSIGNED SHORT normalized
-        return dequantize(U16Vec2Ref(fetchAddress).data);
+        return unpackUnorm2x16(UIntRef(fetchAddress).data);
     }
     return vec2(0.0); // unreachable.
 }
@@ -207,9 +208,10 @@ vec4 getColor(uint componentType) {
         case 6U: // FLOAT
             return Vec4Ref(fetchAddress).data;
         case 9U: // UNSIGNED BYTE normalized
-            return dequantize(U8Vec4Ref(fetchAddress).data);
+            return unpackUnorm4x8(UIntRef(fetchAddress).data);
         case 11U: // UNSIGNED SHORT normalized
-            return dequantize(U16Vec4Ref(fetchAddress).data);
+            uvec2 fetched = UVec2Ref(fetchAddress).data;
+            return vec4(unpackUnorm2x16(fetched.x), unpackUnorm2x16(fetched.y));
         }
     }
     return vec4(1.0); // unreachable.
@@ -257,9 +259,10 @@ vec4 getWeights(uint weightIndex){
     case 6U: // FLOAT
         return Vec4Ref(fetchAddress).data;
     case 9U: // UNSIGNED BYTE normalized
-        return dequantize(U8Vec4Ref(fetchAddress).data);
+        return unpackUnorm4x8(UIntRef(fetchAddress).data);
     case 11U: // UNSIGNED SHORT normalized
-        return dequantize(U16Vec4Ref(fetchAddress).data);
+        uvec2 fetched = UVec2Ref(fetchAddress).data;
+        return vec4(unpackUnorm2x16(fetched.x), unpackUnorm2x16(fetched.y));
     }
     return vec4(0.0); // unreachable.
 }

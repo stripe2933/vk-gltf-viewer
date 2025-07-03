@@ -25,14 +25,6 @@ vec2 dequantize(u8vec2 data) {
     return vec2(data) / 255.0;
 }
 
-vec2 dequantize(i16vec2 data) {
-    return max(vec2(data) / 32767.0, -1.0);
-}
-
-vec2 dequantize(u16vec2 data) {
-    return vec2(data) / 65536.0;
-}
-
 vec3 dequantize(i8vec3 data) {
     return max(vec3(data) / 127.0, -1.0);
 }
@@ -47,22 +39,6 @@ vec3 dequantize(i16vec3 data) {
 
 vec3 dequantize(u16vec3 data) {
     return vec3(data) / 65536.0;
-}
-
-vec4 dequantize(i8vec4 data) {
-    return max(vec4(data) / 127.0, -1.0);
-}
-
-vec4 dequantize(u8vec4 data) {
-    return vec4(data) / 255.0;
-}
-
-vec4 dequantize(i16vec4 data) {
-    return max(vec4(data) / 32767.0, -1.0);
-}
-
-vec4 dequantize(u16vec4 data) {
-    return vec4(data) / 65536.0;
 }
 
 #endif // DEQUANTIZE_GLSL
