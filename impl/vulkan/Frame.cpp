@@ -536,8 +536,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
 
         if (!renderingNodes || task.gltf->regenerateDrawCommands) {
             const std::vector<std::size_t> visibleNodeIndices
-                = task.gltf->nodeVisibilities
-                | ranges::views::enumerate
+                = ranges::views::enumerate(task.gltf->nodeVisibilities)
                 | std::views::filter(LIFT(get<1>)) // Filter only if visibility bit is 1.
                 | std::views::keys
                 | std::views::transform(identity<std::size_t>)

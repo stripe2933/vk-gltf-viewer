@@ -42,7 +42,7 @@ vk_gltf_viewer::vulkan::buffer::SkinJointIndices::SkinJointIndices(
     buffer { [&]() {
         std::vector<std::uint32_t> combinedJointIndices(skinJointCountExclusiveScanWithCount.back());
     #ifdef _MSC_VER
-        for (const auto& [skinIndex, skin] : asset.skins | ranges::views::enumerate) {
+        for (const auto& [skinIndex, skin] : ranges::views::enumerate(asset.skins)) {
             std::ranges::copy(
                 skin.joints | std::views::transform([](auto x) -> std::uint32_t { return x; }),
                 combinedJointIndices.begin() + skinJointCountExclusiveScanWithCount[skinIndex]);

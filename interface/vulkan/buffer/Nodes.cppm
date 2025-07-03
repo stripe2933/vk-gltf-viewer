@@ -97,7 +97,7 @@ vk_gltf_viewer::vulkan::buffer::Nodes::Nodes(
         [&]() { return device.getBufferAddress({ *instancedNodeWorldTransformBuffer }); });
 
     const std::span data = buffer.asRange<shader_type::Node>();
-    for (const auto &[nodeIndex, node] : asset.nodes | ranges::views::enumerate) {
+    for (const auto &[nodeIndex, node] : ranges::views::enumerate(asset.nodes)) {
         data[nodeIndex] = shader_type::Node {
             .worldTransform = glm::make_mat4(nodeWorldTransforms[nodeIndex].data()),
             .pInstancedWorldTransforms = [&]() -> vk::DeviceAddress {

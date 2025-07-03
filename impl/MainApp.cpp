@@ -901,8 +901,7 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
 
         return {
             std::from_range,
-            asset.materials
-                | ranges::views::enumerate
+            ranges::views::enumerate(asset.materials)
                 | std::views::filter(decomposer([](auto, const fastgltf::Material &material) {
                     return material.emissiveStrength > 1.f;
                 }))
@@ -1472,7 +1471,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                         vk::ImageMemoryBarrier2 {
                             {}, {},
                             vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageWrite,
-                            {}, vk::ImageLayout::eGeneral, 
+                            {}, vk::ImageLayout::eGeneral,
                             vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                             prefilteredmapImage, vku::fullSubresourceRange(),
                         },

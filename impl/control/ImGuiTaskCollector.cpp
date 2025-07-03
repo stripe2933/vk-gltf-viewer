@@ -616,7 +616,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Ass
         std::map<std::size_t /* animation index */, std::map<std::size_t /* node index */, Flags<gltf::NodeAnimationUsage>>> collisions;
 
         void apply() {
-            for (std::size_t collidingAnimationIndex : collisions | std::views::keys) {
+            for (std::size_t collidingAnimationIndex : std::views::keys(collisions)) {
                 (*animationEnabled)[collidingAnimationIndex] = false;
             }
             (*animationEnabled)[animationIndexToEnable] = true;
@@ -640,8 +640,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Ass
                 }
 
                 auto otherRunningAnimationIndices
-                    = *animationEnabled
-                    | ranges::views::enumerate
+                    = ranges::views::enumerate(*animationEnabled)
                     | std::views::filter(decomposer([&](auto i, bool enabled) {
                         return enabled && (i != animationIndex);
                     }))
@@ -790,7 +789,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
             else return "<select...>";
         }();
         if (ImGui::BeginCombo("Material", previewText)) {
-            for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
+            for (const auto &[i, material] : ranges::views::enumerate(asset.materials)) {
                 const bool isSelected = i == selectedMaterialIndex;
                 ImGui::WithID(i, [&]() {
                     if (ImGui::Selectable(nonempty_or(material.name, [&]() { return tempStringBuffer.write("<Unnamed material {}>", i).view(); }).c_str(), isSelected)) {
@@ -1059,7 +1058,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(const fastglt
             selectedMaterialVariantIndex = 0;
         }
 
-        for (const auto &[i, variantName] : asset.materialVariants | ranges::views::enumerate) {
+        for (const auto &[i, variantName] : ranges::views::enumerate(asset.materialVariants)) {
             if (ImGui::RadioButton(variantName.c_str(), &selectedMaterialVariantIndex, i)) {
                 tasks.emplace(std::in_place_type<task::SelectMaterialVariants>, i);
             }
@@ -1077,7 +1076,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(
 ) {
     if (ImGui::Begin("Scene Hierarchy")) {
         if (ImGui::BeginCombo("Scene", nonempty_or(asset.scenes[sceneIndex].name, [&]() { return tempStringBuffer.write("<Unnamed scene {}>", sceneIndex).view(); }).c_str())) {
-            for (const auto &[i, scene] : asset.scenes | ranges::views::enumerate) {
+            for (const auto &[i, scene] : ranges::views::enumerate(asset.scenes)) {
                 const bool isSelected = i == sceneIndex;
                 if (ImGui::Selectable(nonempty_or(scene.name, [&]() { return tempStringBuffer.write("<Unnamed scene {}>", i).view(); }).c_str(), isSelected)) {
                     tasks.emplace(std::in_place_type<task::ChangeScene>, i);
@@ -1364,7 +1363,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
             bool isTransformUsedInAnimation = false;
             Flags<gltf::NodeAnimationUsage> nodeAnimationUsage{};
-            for (const auto &[animationIndex, animation] : animations | ranges::views::enumerate) {
+            for (const auto &[animationIndex, animation] : ranges::views::enumerate(animations)) {
                 if (animation.nodeUsages[selectedNodeIndex] | (gltf::NodeAnimationUsage::Translation | gltf::NodeAnimationUsage::Rotation | gltf::NodeAnimationUsage::Scale)) {
                     isTransformUsedInAnimation = true;
                 }
@@ -1433,7 +1432,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
 
                 // If node weights are used by an animation now, they cannot be modified by GUI.
                 ImGui::WithDisabled([&]() {
-                    for (auto &&[i, weight] : morphTargetWeights | ranges::views::enumerate) {
+                    for (auto &&[i, weight] : ranges::views::enumerate(morphTargetWeights)) {
                         if (ImGui::DragFloat(tempStringBuffer.write("Weight {}", i).view().c_str(), &weight, 0.01f)) {
                             tasks.emplace(std::in_place_type<task::MorphTargetWeightChanged>, selectedNodeIndex, i, 1);
                         }
@@ -1446,7 +1445,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
                     fastgltf::Mesh &mesh = asset.meshes[*node.meshIndex];
                     ImGui::InputTextWithHint("Name", "<empty>", &mesh.name);
 
-                    for (auto &&[primitiveIndex, primitive]: mesh.primitives | ranges::views::enumerate) {
+                    for (auto &&[primitiveIndex, primitive]: ranges::views::enumerate(mesh.primitives)) {
                         if (ImGui::CollapsingHeader(tempStringBuffer.write("Primitive {}", primitiveIndex).view().c_str())) {
                             ImGui::LabelText("Type", "%s", to_string(primitive.type).c_str());
                             if (primitive.materialIndex) {
@@ -1798,8 +1797,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
     ImGuizmo::BeginFrame();
     ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
 
-    auto enabledAnimations = animationEnabled
-        | ranges::views::enumerate
+    auto enabledAnimations = ranges::views::enumerate(animationEnabled)
         | std::views::filter(LIFT(get<1>)) // Filter by value.
         | std::views::keys // Retrieve indices.
         | std::views::transform(LIFT(animations.operator[])); // Get animation by index.

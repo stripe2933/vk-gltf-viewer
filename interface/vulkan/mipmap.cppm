@@ -81,7 +81,7 @@ void vk_gltf_viewer::vulkan::recordBatchedMipmapGenerationCommand(vk::CommandBuf
             images, dstLevel + 1U, {}, [](const vku::Image *pImage) { return pImage->mipLevels; });
 
         imageMemoryBarriers.clear();
-        for (const vku::Image &image : std::ranges::subrange(begin, images.end()) | ranges::views::deref) {
+        for (const vku::Image &image : ranges::views::deref(std::ranges::subrange(begin, images.end()))) {
             // Blit from srcLevel to dstLevel.
             cb.blitImage(
                 image, vk::ImageLayout::eTransferSrcOptimal,

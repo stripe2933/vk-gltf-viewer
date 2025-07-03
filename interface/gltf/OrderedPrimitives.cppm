@@ -44,8 +44,7 @@ vk_gltf_viewer::gltf::OrderedPrimitives::OrderedPrimitives(const fastgltf::Asset
     }
     , indices {
         std::from_range,
-        *this
-            | ranges::views::enumerate
+        ranges::views::enumerate(*this)
             | std::views::transform(decomposer([](std::size_t index, const fastgltf::Primitive *pPrimitive) noexcept {
                 return std::pair { pPrimitive, index };
             })),

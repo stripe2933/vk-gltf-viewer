@@ -86,8 +86,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
 
         void generateCombinedAccessorMappingInfo(const Gpu &gpu, auto &&accessorGetter, auto &&bufferAddressGetter) {
             auto indexedAttributeAccessors
-                = mappings
-                | std::views::values
+                = std::views::values(mappings)
                 | std::views::filter([&](const PrimitiveAccessors &accessors) {
                     return !std::invoke(accessorGetter, accessors).empty();
                 });

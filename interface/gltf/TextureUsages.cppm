@@ -47,7 +47,7 @@ module :private;
 
 vk_gltf_viewer::gltf::TextureUsages::TextureUsages(const fastgltf::Asset &asset) {
     resize(asset.textures.size());
-    for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
+    for (const auto &[i, material] : ranges::views::enumerate(asset.materials)) {
         if (material.pbrData.baseColorTexture) {
             operator[](material.pbrData.baseColorTexture->textureIndex)[i] |= TextureUsage::BaseColor;
         }

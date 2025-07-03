@@ -43,8 +43,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
     const Gpu &gpu
 ) {
     textureDescriptorSets
-        = asset.textures
-        | ranges::views::enumerate
+        = ranges::views::enumerate(asset.textures)
         | std::views::transform(decomposer([&](std::size_t textureIndex, const fastgltf::Texture &texture) -> vk::DescriptorSet {
             auto [sampler, imageView, _] = textures.descriptorInfos[textureIndex];
             const vku::Image &image = textures.images.at(getPreferredImageIndex(texture)).image;
@@ -75,7 +74,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
         | std::ranges::to<std::vector>();
 
     materialTextureDescriptorSets.resize(asset.materials.size());
-    for (const auto &[materialIndex, material] : asset.materials | ranges::views::enumerate) {
+    for (const auto &[materialIndex, material] : ranges::views::enumerate(asset.materials)) {
         if (const auto &textureInfo = material.pbrData.metallicRoughnessTexture) {
             const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
             if (componentCount(image.format) == 1) {
