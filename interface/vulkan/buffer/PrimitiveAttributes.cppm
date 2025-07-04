@@ -468,6 +468,6 @@ void vk_gltf_viewer::vulkan::buffer::PrimitiveAttributes::generateMissingTangent
 
     const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
     for (auto [pPrimitive, copyOffset] : std::views::zip(missingTangentPrimitives | std::views::keys, copyOffsets)) {
-        pPrimitive->tangentAccessor.emplace(bufferAddress + copyOffset, 6, 4, 16);
+        pPrimitive->tangentAccessor.emplace(bufferAddress + copyOffset, 8, 4, 4);
     }
 }

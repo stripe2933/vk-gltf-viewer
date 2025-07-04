@@ -16,7 +16,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
         std::reference_wrapper<const fastgltf::Asset> asset;
         std::reference_wrapper<const fastgltf::Primitive> primitive;
 
-        std::vector<fastgltf::math::fvec4> tangents;
+        std::vector<fastgltf::math::s8vec4> tangents;
 
         MikktSpaceMesh(const fastgltf::Asset &asset, const fastgltf::Primitive &primitive, const AssetExternalBuffers &adapter);
 
@@ -129,6 +129,11 @@ vk_gltf_viewer::gltf::algorithm::MikktSpaceInterface::MikktSpaceInterface()
         },
         .m_setTSpaceBasic = [](const SMikkTSpaceContext *pContext, const float *fvTangent, float fSign, int iFace, int iVert) {
             auto *meshData = static_cast<MikktSpaceMesh*>(pContext->m_pUserData);
-            *std::copy_n(fvTangent, 3, meshData->tangents[meshData->getIndex(iFace, iVert)].data()) = fSign;
+            meshData->tangents[meshData->getIndex(iFace, iVert)] = {
+                static_cast<std::int8_t>(fvTangent[0] * 127.0f),
+                static_cast<std::int8_t>(fvTangent[1] * 127.0f),
+                static_cast<std::int8_t>(fvTangent[2] * 127.0f),
+                static_cast<std::int8_t>(fSign * 127.0f),
+            };
         },
     } { }
