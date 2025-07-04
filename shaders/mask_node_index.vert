@@ -3,6 +3,7 @@
 #extension GL_EXT_shader_8bit_storage : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference_uvec2 : require
+#extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 
@@ -31,22 +32,13 @@ layout (location = 2) out VS_VARIADIC_OUT {
 } variadic_out;
 #endif
 
-layout (set = 0, binding = 0) readonly buffer PrimitiveBuffer {
+layout (set = 0, binding = 0, std430) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
 layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {
     Node nodes[];
 };
-layout (set = 0, binding = 2) readonly buffer MorphTargetWeightBuffer {
-    float morphTargetWeights[];
-};
-layout (set = 0, binding = 3, std430) readonly buffer SkinJointIndexBuffer {
-    uint skinJointIndices[];
-};
-layout (set = 0, binding = 4) readonly buffer InverseBindMatrixBuffer {
-    mat4 inverseBindMatrices[];
-};
-layout (set = 0, binding = 5, std430) readonly buffer MaterialBuffer {
+layout (set = 0, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 

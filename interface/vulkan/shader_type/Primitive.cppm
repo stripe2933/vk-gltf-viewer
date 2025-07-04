@@ -24,7 +24,6 @@ namespace vk_gltf_viewer::vulkan::shader_type {
         std::uint8_t tangentByteStride;
         std::uint8_t colorByteStride;
         std::uint32_t materialIndex;
-        std::uint8_t _padding0_[8];
     };
 }
 
@@ -32,6 +31,6 @@ namespace vk_gltf_viewer::vulkan::shader_type {
 module :private;
 #endif
 
-static_assert(sizeof(vk_gltf_viewer::vulkan::shader_type::Primitive) == 96);
+static_assert(sizeof(vk_gltf_viewer::vulkan::shader_type::Primitive) % 8 == 0);
 static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Primitive, positionByteStride) == 80);
 static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Primitive, materialIndex) == 84);

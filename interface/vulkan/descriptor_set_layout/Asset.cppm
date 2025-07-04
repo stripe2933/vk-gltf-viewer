@@ -9,7 +9,7 @@ import std;
 export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::dsl {
-    export struct Asset : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eCombinedImageSampler> {
+    export struct Asset : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eCombinedImageSampler> {
         explicit Asset(const Gpu &gpu LIFETIMEBOUND);
         Asset(const Gpu &gpu LIFETIMEBOUND, std::uint32_t textureCount);
 
@@ -33,9 +33,6 @@ vk_gltf_viewer::vulkan::dsl::Asset::Asset(const Gpu &gpu)
             vku::unsafeProxy(getBindings(
                 { 1, vk::ShaderStageFlagBits::eVertex },
                 { 1, vk::ShaderStageFlagBits::eVertex },
-                { 1, vk::ShaderStageFlagBits::eVertex },
-                { 1, vk::ShaderStageFlagBits::eVertex },
-                { 1, vk::ShaderStageFlagBits::eVertex },
                 { 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment },
                 { maxTextureCount(gpu), vk::ShaderStageFlagBits::eFragment })),
         },
@@ -43,9 +40,6 @@ vk_gltf_viewer::vulkan::dsl::Asset::Asset(const Gpu &gpu)
             vku::unsafeProxy<vk::DescriptorBindingFlags>({
                 {},
                 {},
-                vk::DescriptorBindingFlagBits::ePartiallyBound,
-                vk::DescriptorBindingFlagBits::ePartiallyBound,
-                vk::DescriptorBindingFlagBits::ePartiallyBound,
                 {},
                 vk::DescriptorBindingFlagBits::eUpdateAfterBind | vk::DescriptorBindingFlagBits::eVariableDescriptorCount,
             }),
@@ -59,9 +53,6 @@ vk_gltf_viewer::vulkan::dsl::Asset::Asset(const Gpu &gpu, std::uint32_t textureC
             vku::unsafeProxy(getBindings(
                 { 1, vk::ShaderStageFlagBits::eVertex },
                 { 1, vk::ShaderStageFlagBits::eVertex },
-                { 1, vk::ShaderStageFlagBits::eVertex },
-                { 1, vk::ShaderStageFlagBits::eVertex },
-                { 1, vk::ShaderStageFlagBits::eVertex },
                 { 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment },
                 { textureCount, vk::ShaderStageFlagBits::eFragment })),
         },
@@ -69,9 +60,6 @@ vk_gltf_viewer::vulkan::dsl::Asset::Asset(const Gpu &gpu, std::uint32_t textureC
             vku::unsafeProxy<vk::DescriptorBindingFlags>({
                 {},
                 {},
-                vk::DescriptorBindingFlagBits::ePartiallyBound,
-                vk::DescriptorBindingFlagBits::ePartiallyBound,
-                vk::DescriptorBindingFlagBits::ePartiallyBound,
                 {},
                 vk::DescriptorBindingFlagBits::eUpdateAfterBind,
             }),

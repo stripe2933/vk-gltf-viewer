@@ -62,7 +62,7 @@ vec3 getPosition(uint componentType, uint morphTargetWeightCount) {
         Accessor accessor = PRIMITIVE.positionMorphTargetAccessors.data[i];
         fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
 
-        float weight = morphTargetWeights[NODE.morphTargetWeightStartIndex + i];
+        float weight = NODE.morphTargetWeights.data[i];
         switch (accessor.componentType) {
         case 0U: // BYTE
             position += weight * vec3(I8Vec3Ref(fetchAddress).data);
@@ -106,7 +106,7 @@ vec3 getNormal(uint componentType, uint morphTargetWeightCount) {
         Accessor accessor = PRIMITIVE.normalMorphTargetAccessors.data[i];
         fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
 
-        float weight = morphTargetWeights[NODE.morphTargetWeightStartIndex + i];
+        float weight = NODE.morphTargetWeights.data[i];
         switch (accessor.componentType) {
         case 6U: // FLOAT
             normal += weight * Vec3Ref(fetchAddress).data;
@@ -145,7 +145,7 @@ vec4 getTangent(uint componentType, uint morphTargetWeightCount) {
         fetchAddress = getFetchAddress(accessor, gl_VertexIndex);
 
         // Tangent morph target only adds XYZ vertex tangent displacements.
-        float weight = morphTargetWeights[NODE.morphTargetWeightStartIndex + i];
+        float weight = NODE.morphTargetWeights.data[i];
         switch (accessor.componentType) {
         case 6U: // FLOAT
             tangent.xyz += weight * Vec3Ref(fetchAddress).data;
