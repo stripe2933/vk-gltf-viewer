@@ -104,8 +104,9 @@ namespace fastgltf {
     export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
     [[nodiscard]] std::span<const std::byte> getByteRegion(const Asset &asset, const Accessor &accessor, const BufferDataAdapter &adapter = {}) {
         const BufferView &bufferView = asset.bufferViews[accessor.bufferViewIndex.value()];
-        const std::size_t byteStride = bufferView.byteStride.value_or(getElementByteSize(accessor.type, accessor.componentType));
-        return adapter(asset, *accessor.bufferViewIndex).subspan(accessor.byteOffset, byteStride * accessor.count);
+        const std::size_t elementByteSize = getElementByteSize(accessor.type, accessor.componentType);
+        const std::size_t byteStride = bufferView.byteStride.value_or(elementByteSize);
+        return adapter(asset, *accessor.bufferViewIndex).subspan(accessor.byteOffset, byteStride * (accessor.count - 1) + elementByteSize);
     }
 
     /**
@@ -230,7 +231,7 @@ namespace fastgltf {
     [[nodiscard]] std::size_t getPreferredImageIndex(const Texture &texture);
 
     /**
-     * @brief Create a byte vector that contains the tightly packed accessor data.
+     * @brief Create a byte vector that contains the 4-byte aligned accessor data.
      *
      * Following accessor types and accessor component types are supported:
      * Accessor types: Scalar, Vec2, Vec3, Vec4
@@ -244,8 +245,8 @@ namespace fastgltf {
      * @throw std::out_of_range If <tt>accessor.type</tt> or <tt>accessor.componentType</tt> is not supported.
      */
     export template <typename BufferDataAdapter = DefaultBufferDataAdapter>
-    [[nodiscard]] std::vector<std::byte> getAccessorByteData(const Accessor &accessor, const Asset &asset, const BufferDataAdapter &adapter = {}) {
-        std::vector<std::byte> data(getElementByteSize(accessor.type, accessor.componentType) * accessor.count);
+    [[nodiscard]] std::vector<std::byte> getVertexAttributeAccessorByteData(const Accessor &accessor, const Asset &asset, const BufferDataAdapter &adapter = {}) {
+        std::vector<std::byte> data;
 
         constexpr iota_map<4, 1> componentCountMap;
         constexpr type_map componentTypeMap {
@@ -259,7 +260,13 @@ namespace fastgltf {
         };
         std::visit([&]<typename ComponentType>(auto ComponentCount, std::type_identity<ComponentType>) {
             using ElementType = std::conditional_t<ComponentCount == 1, ComponentType, math::vec<ComponentType, ComponentCount>>;
-            copyFromAccessor<ElementType>(asset, accessor, data.data(), adapter);
+
+            constexpr std::size_t AlignedElementSize = (sizeof(ElementType) / 4 + (sizeof(ElementType) % 4 != 0)) * 4;
+            // Instead of use tight size (AlignedElementSize * (accessor.count - 1) + sizeof(ElementType)), 4-byte
+            // aligned padding at the end can make shaders can safely obtain {i|u}{8|16}vec3 from fetched {i|u}{8|16}vec4.
+            data.resize(AlignedElementSize * accessor.count);
+
+            copyFromAccessor<ElementType, AlignedElementSize>(asset, accessor, data.data(), adapter);
         }, componentCountMap.get_variant(getNumComponents(accessor.type)), componentTypeMap.get_variant(accessor.componentType));
 
         return data;

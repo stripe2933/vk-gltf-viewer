@@ -11,14 +11,12 @@ namespace vk_gltf_viewer::vulkan::shader_type {
     /**
      * @brief Representation of <tt>fastgltf::Accessor</tt> in GPU-compatible layout.
      *
-     * This have buffer device address where the data is started, data's component type, component count, and byte stride.
+     * This have buffer device address where the data is started, data's component type and byte stride.
      */
     export struct Accessor {
         vk::DeviceAddress bufferAddress;
-        std::uint8_t componentType;
-        std::uint8_t componentCount;
-        std::uint8_t byteStride;
-        char _padding_[5];
+        std::uint32_t componentType;
+        std::uint32_t byteStride;
     };
 }
 
@@ -28,5 +26,3 @@ module :private;
 
 static_assert(sizeof(vk_gltf_viewer::vulkan::shader_type::Accessor) == 16);
 static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Accessor, componentType) == 8);
-static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Accessor, componentCount) == 9);
-static_assert(offsetof(vk_gltf_viewer::vulkan::shader_type::Accessor, byteStride) == 10);

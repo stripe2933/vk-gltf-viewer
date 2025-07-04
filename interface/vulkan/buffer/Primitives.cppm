@@ -99,7 +99,7 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::vulkan::bu
                 .pTexcoordAttributeMappingInfoBuffer = accessors.texcoordAccessorBufferAddress,
                 .pJointsAttributeMappingInfoBuffer = accessors.jointsAccessorBufferAddress,
                 .pWeightsAttributeMappingInfoBuffer = accessors.weightsAccessorBufferAddress,
-                .positionByteStride = accessors.positionAccessor.byteStride,
+                .positionByteStride = static_cast<std::uint8_t>(accessors.positionAccessor.byteStride),
                 .materialIndex = to_optional(pPrimitive->materialIndex)
                     .transform([](auto index) { return static_cast<std::uint32_t>(index) + 1U; })
                     .value_or(0U),
@@ -109,7 +109,7 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::vulkan::bu
             }
             if (accessors.normalAccessor) {
                 result.pNormalBuffer = accessors.normalAccessor->bufferAddress;
-                result.normalByteStride = accessors.normalAccessor->byteStride;
+                result.normalByteStride = static_cast<std::uint32_t>(accessors.normalAccessor->byteStride);
 
                 if (!accessors.normalMorphTargetAccessors.empty()) {
                     result.pNormalMorphTargetAccessorBuffer = accessors.normalMorphTargetAccessorBufferAddress;
@@ -117,15 +117,15 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::vulkan::bu
             }
             if (accessors.tangentAccessor) {
                 result.pTangentBuffer = accessors.tangentAccessor->bufferAddress;
-                result.tangentByteStride = accessors.tangentAccessor->byteStride;
+                result.tangentByteStride = static_cast<std::uint32_t>(accessors.tangentAccessor->byteStride);
 
                 if (!accessors.tangentMorphTargetAccessors.empty()) {
                     result.pTangentMorphTargetAccessorBuffer = accessors.tangentMorphTargetAccessorBufferAddress;
                 }
             }
-            if (accessors.colorAccessor) {
-                result.pColorBuffer = accessors.colorAccessor->bufferAddress;
-                result.colorByteStride = accessors.colorAccessor->byteStride;
+            if (accessors.colorAccessorAndComponentCount) {
+                result.pColorBuffer = accessors.colorAccessorAndComponentCount->first.bufferAddress;
+                result.colorByteStride = static_cast<std::uint32_t>(accessors.colorAccessorAndComponentCount->first.byteStride);
             }
 
             return result;

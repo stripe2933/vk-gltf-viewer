@@ -40,8 +40,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
     private:
         std::unordered_map<const fastgltf::Primitive*, std::pair<vk::IndexType, std::uint32_t>> indexInfos;
         std::unordered_map<vk::IndexType, vku::AllocatedBuffer> bufferByIndexType;
-
-        [[nodiscard]] static bool isAccessorBufferViewCompatibleWithIndexBuffer(const fastgltf::Accessor &accessor, const fastgltf::Asset &asset, const Gpu &gpu) noexcept;
     };
 }
 
@@ -114,7 +112,8 @@ vk_gltf_viewer::vulkan::buffer::CombinedIndices::CombinedIndices(
     // Get buffer view bytes from indexedPrimitives and group them by index type.
     for (const fastgltf::Primitive &primitive : indexedPrimitives) {
         const fastgltf::Accessor &accessor = asset.accessors[*primitive.indicesAccessor];
-        if (isAccessorBufferViewCompatibleWithIndexBuffer(accessor, asset, gpu)) {
+        if (!accessor.sparse && accessor.bufferViewIndex &&
+            (accessor.componentType != fastgltf::ComponentType::UnsignedByte || gpu.supportUint8Index)) {
             indexBufferBytesByType[getIndexType(accessor.componentType)]
                 .emplace_back(&primitive, getByteRegion(asset, accessor, adapter));
         }
@@ -221,26 +220,4 @@ vk::Buffer vk_gltf_viewer::vulkan::buffer::CombinedIndices::getIndexBuffer(vk::I
 
 std::pair<vk::IndexType, std::uint32_t> vk_gltf_viewer::vulkan::buffer::CombinedIndices::getIndexInfo(const fastgltf::Primitive &primitive) const {
     return indexInfos.at(&primitive);
-}
-
-bool vk_gltf_viewer::vulkan::buffer::CombinedIndices::isAccessorBufferViewCompatibleWithIndexBuffer(
-    const fastgltf::Accessor &accessor,
-    const fastgltf::Asset &asset,
-    const Gpu &gpu
-) noexcept {
-    if (accessor.sparse) return false;
-
-    // Accessor without buffer view has to be treated as zeros.
-    if (!accessor.bufferViewIndex) return false;
-
-    // Vulkan does not support interleaved index buffer.
-    if (const auto& byteStride = asset.bufferViews[*accessor.bufferViewIndex].byteStride) {
-        // Is accessor strided?
-        if (*byteStride != getElementByteSize(accessor.type, accessor.componentType)) return false;
-    }
-
-    // Accessor data is unsigned byte and the device does not support it.
-    if (accessor.componentType == fastgltf::ComponentType::UnsignedByte && !gpu.supportUint8Index) return false;
-
-    return true;
 }
