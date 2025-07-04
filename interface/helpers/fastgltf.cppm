@@ -261,9 +261,10 @@ namespace fastgltf {
         std::visit([&]<typename ComponentType>(auto ComponentCount, std::type_identity<ComponentType>) {
             using ElementType = std::conditional_t<ComponentCount == 1, ComponentType, math::vec<ComponentType, ComponentCount>>;
 
-            constexpr std::size_t ElementSize = sizeof(ElementType);
-            constexpr std::size_t AlignedElementSize = (ElementSize / 4 + (ElementSize % 4 != 0)) * 4;
-            data.resize(AlignedElementSize * (accessor.count - 1) + ElementSize);
+            constexpr std::size_t AlignedElementSize = (sizeof(ElementType) / 4 + (sizeof(ElementType) % 4 != 0)) * 4;
+            // Instead of use tight size (AlignedElementSize * (accessor.count - 1) + sizeof(ElementType)), 4-byte
+            // aligned padding at the end can make shaders can safely obtain {i|u}{8|16}vec3 from fetched {i|u}{8|16}vec4.
+            data.resize(AlignedElementSize * accessor.count);
 
             copyFromAccessor<ElementType, AlignedElementSize>(asset, accessor, data.data(), adapter);
         }, componentCountMap.get_variant(getNumComponents(accessor.type)), componentTypeMap.get_variant(accessor.componentType));
