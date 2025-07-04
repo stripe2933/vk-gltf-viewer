@@ -34,7 +34,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
             std::optional<shader_type::Accessor> tangentAccessor;
             std::vector<shader_type::Accessor> tangentMorphTargetAccessors;
             std::vector<shader_type::Accessor> texcoordAccessors;
-            std::optional<shader_type::Accessor> colorAccessor;
+            std::optional<std::pair<shader_type::Accessor, std::uint8_t /* component count */>> colorAccessorAndComponentCount;
             std::vector<shader_type::Accessor> jointsAccessors;
             std::vector<shader_type::Accessor> weightsAccessors;
 
@@ -318,9 +318,8 @@ std::unordered_map<const fastgltf::Primitive*, vk_gltf_viewer::vulkan::buffer::P
             const auto getGpuAccessor = [&](std::size_t accessorIndex) {
                 const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
                 shader_type::Accessor result {
-                    .componentType = static_cast<std::uint8_t>((accessor.normalized ? 8U : 0U)
-                        | (getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte))),
-                    .componentCount = static_cast<std::uint8_t>(getNumComponents(accessor.type)),
+                    .componentType = (accessor.normalized ? 8U : 0U)
+                        | (getGLComponentType(accessor.componentType) - getGLComponentType(fastgltf::ComponentType::Byte)),
                 };
 
                 if (auto it = generatedBufferDeviceAddressMappings.find(accessorIndex); it != generatedBufferDeviceAddressMappings.end()) {
@@ -358,7 +357,8 @@ std::unordered_map<const fastgltf::Primitive*, vk_gltf_viewer::vulkan::buffer::P
                     accessors.tangentAccessor.emplace(getGpuAccessor(accessorIndex));
                 }
                 else if (attributeName == "COLOR_0"sv) {
-                    accessors.colorAccessor.emplace(getGpuAccessor(accessorIndex));
+                    const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
+                    accessors.colorAccessorAndComponentCount.emplace(getGpuAccessor(accessorIndex), getNumComponents(accessor.type));
                 }
                 else {
                     const auto assignAccessor = [&](std::string_view prefix, std::vector<shader_type::Accessor> &accessors) {
@@ -468,6 +468,6 @@ void vk_gltf_viewer::vulkan::buffer::PrimitiveAttributes::generateMissingTangent
 
     const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
     for (auto [pPrimitive, copyOffset] : std::views::zip(missingTangentPrimitives | std::views::keys, copyOffsets)) {
-        pPrimitive->tangentAccessor.emplace(bufferAddress + copyOffset, 8, 4, 4);
+        pPrimitive->tangentAccessor.emplace(bufferAddress + copyOffset, 8, 4);
     }
 }

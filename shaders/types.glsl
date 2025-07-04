@@ -46,10 +46,8 @@ struct Node {
 
 struct Accessor {
     uvec2 bufferAddress;
-    uint8_t componentType;
-    uint8_t componentCount;
-    uint8_t stride;
-    uint8_t _padding_[5];
+    uint componentType;
+    uint stride;
 };
 
 uvec2 add64(uvec2 lhs, uint rhs) {
@@ -60,7 +58,7 @@ uvec2 add64(uvec2 lhs, uint rhs) {
 }
 
 uvec2 getFetchAddress(Accessor accessor, uint index) {
-    return add64(accessor.bufferAddress, uint(accessor.stride) * index);
+    return add64(accessor.bufferAddress, accessor.stride * index);
 }
 
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Accessors { Accessor data[]; };
