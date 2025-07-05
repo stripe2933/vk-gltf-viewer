@@ -6,6 +6,7 @@ module;
 export module vk_gltf_viewer.vulkan.buffer.PrimitiveAttributes;
 
 import std;
+import vkgltf;
 export import BS.thread_pool;
 
 import vk_gltf_viewer.gltf.algorithm.MikktSpaceInterface;
@@ -15,16 +16,14 @@ import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;
 import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.vulkan.buffer;
-export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.shader_type.Accessor;
-import vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     /**
      * @brief Storage of every primitive's attribute buffers in an asset, which can be addressed via buffer device addresses.
      */
-    export class PrimitiveAttributes : trait::PostTransferObject {
+    export class PrimitiveAttributes {
     public:
         struct PrimitiveAccessors {
             shader_type::Accessor positionAccessor;
@@ -49,7 +48,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
         PrimitiveAttributes(
             const fastgltf::Asset &asset,
             const Gpu &gpu,
-            StagingBufferStorage &stagingBufferStorage,
             BS::thread_pool<> &threadPool,
             const gltf::AssetExternalBuffers &adapter
         );
@@ -100,9 +98,6 @@ namespace vk_gltf_viewer::vulkan::buffer {
                 indexedAttributeAccessors | std::views::transform(accessorGetter),
                 vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
                 vma::MemoryUsage::eAutoPreferHost);
-            if (StagingBufferStorage::needStaging(buffer)) {
-                stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-            }
 
             const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
             for (auto &&[accessors, copyOffset] : std::views::zip(indexedAttributeAccessors, copyOffsets)) {
@@ -138,11 +133,9 @@ template <std::integral T>
 vk_gltf_viewer::vulkan::buffer::PrimitiveAttributes::PrimitiveAttributes(
     const fastgltf::Asset &asset,
     const Gpu &gpu,
-    StagingBufferStorage &stagingBufferStorage,
     BS::thread_pool<> &threadPool,
     const gltf::AssetExternalBuffers &adapter
-) : PostTransferObject { stagingBufferStorage },
-    mappings { createMappings(asset, gpu, adapter) } {
+) : mappings { createMappings(asset, gpu, adapter) } {
     // Generate mappings of indexed attribute accessors: {TEXCOORD,JOINTS,WEIGHTS}_<i>.
     generateCombinedAccessorMappingInfo(gpu, &PrimitiveAccessors::texcoordAccessors, &PrimitiveAccessors::texcoordAccessorBufferAddress);
     generateCombinedAccessorMappingInfo(gpu, &PrimitiveAccessors::jointsAccessors, &PrimitiveAccessors::jointsAccessorBufferAddress);
@@ -154,6 +147,24 @@ vk_gltf_viewer::vulkan::buffer::PrimitiveAttributes::PrimitiveAttributes(
     generateCombinedAccessorMappingInfo(gpu, &PrimitiveAccessors::tangentMorphTargetAccessors, &PrimitiveAccessors::tangentMorphTargetAccessorBufferAddress);
 
     generateMissingTangentBuffers(asset, gpu, threadPool, adapter);
+
+    vkgltf::PrimitiveAttributeBuffers::AttributeInfoCache cache {
+        asset,
+        gpu.allocator,
+        vkgltf::PrimitiveAttributeBuffers::AttributeInfoCache::Config {
+            .adapter = adapter,
+        },
+    };
+
+    std::vector<vkgltf::PrimitiveAttributeBuffers> primitiveAttributeBuffers;
+    for (const fastgltf::Mesh &mesh : asset.meshes) {
+        for (const fastgltf::Primitive &primitive : mesh.primitives) {
+            primitiveAttributeBuffers.emplace_back(asset, primitive, gpu.allocator, vkgltf::PrimitiveAttributeBuffers::Config {
+                .adapter = adapter,
+                .cache = &cache,
+            });
+        }
+    }
 }
 
 const vk_gltf_viewer::vulkan::buffer::PrimitiveAttributes::PrimitiveAccessors &vk_gltf_viewer::vulkan::buffer::PrimitiveAttributes::getAccessors(const fastgltf::Primitive &primitive) const {
@@ -174,10 +185,6 @@ vk::DeviceAddress vk_gltf_viewer::vulkan::buffer::PrimitiveAttributes::getZeroBu
             vma::MemoryUsage::eAutoPreferHost,
         });
     gpu.allocator.copyMemoryToAllocation(data, buffer.allocation, 0, sizeof(data));
-
-    if (StagingBufferStorage::needStaging(buffer)) {
-        stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-    }
 
     return gpu.device.getBufferAddress({ buffer.buffer });
 }
@@ -268,9 +275,6 @@ std::unordered_map<const fastgltf::Primitive*, vk_gltf_viewer::vulkan::buffer::P
             attributeBufferViewIndices | std::views::transform([&](std::size_t bufferViewIndex) { return adapter(asset, bufferViewIndex); }),
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
             vma::MemoryUsage::eAutoPreferHost);
-        if (StagingBufferStorage::needStaging(buffer)) {
-            stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-        }
 
         const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
         for (auto [bufferViewIndex, copyOffset] : std::views::zip(attributeBufferViewIndices, copyOffsets)) {
@@ -286,9 +290,6 @@ std::unordered_map<const fastgltf::Primitive*, vk_gltf_viewer::vulkan::buffer::P
             generatedAccessorByteData | std::views::values,
             vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
             vma::MemoryUsage::eAutoPreferHost);
-        if (StagingBufferStorage::needStaging(buffer)) {
-            stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-        }
 
         const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
         for (auto [bufferViewIndex, copyOffset] : std::views::zip(generatedAccessorByteData | std::views::keys, copyOffsets)) {
@@ -362,16 +363,7 @@ std::unordered_map<const fastgltf::Primitive*, vk_gltf_viewer::vulkan::buffer::P
                 }
                 else {
                     const auto assignAccessor = [&](std::string_view prefix, std::vector<shader_type::Accessor> &accessors) {
-                        std::size_t index;
-                        if (auto result = parse<std::size_t>(std::string_view { attributeName }.substr(prefix.size()))) {
-                            index = *result;
-                        }
-                        else {
-                            // Attribute name starting with "TEXCOORD_", but the following string is not a number.
-                            // TODO: would it be filtered by the glTF validation?
-                            throw fastgltf::Error::InvalidOrMissingAssetField;
-                        }
-
+                        const std::size_t index = parse<std::size_t>(std::string_view { attributeName }.substr(prefix.size())).value();
                         accessors[index] = getGpuAccessor(accessorIndex);
                     };
 
@@ -462,9 +454,6 @@ void vk_gltf_viewer::vulkan::buffer::PrimitiveAttributes::generateMissingTangent
         }),
         vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
         vma::MemoryUsage::eAutoPreferHost);
-    if (StagingBufferStorage::needStaging(buffer)) {
-        stagingBufferStorage.get().stage(buffer, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-    }
 
     const vk::DeviceAddress bufferAddress = gpu.device.getBufferAddress({ internalBuffers.emplace_back(std::move(buffer)).buffer });
     for (auto [pPrimitive, copyOffset] : std::views::zip(missingTangentPrimitives | std::views::keys, copyOffsets)) {

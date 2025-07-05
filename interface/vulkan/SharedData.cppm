@@ -11,6 +11,7 @@ import std;
 export import bloom;
 export import fastgltf;
 import imgui.vulkan;
+export import vkgltf;
 export import vku;
 export import :vulkan.pipeline.BloomApplyRenderer;
 export import :vulkan.pipeline.InverseToneMappingRenderer;
@@ -33,7 +34,6 @@ import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.helpers.ranges;
 export import vk_gltf_viewer.vulkan.ag.ImGui;
-export import vk_gltf_viewer.vulkan.buffer.CombinedIndices;
 export import vk_gltf_viewer.vulkan.buffer.Materials;
 export import vk_gltf_viewer.vulkan.buffer.InverseBindMatrices;
 export import vk_gltf_viewer.vulkan.buffer.PrimitiveAttributes;
@@ -54,7 +54,7 @@ namespace vk_gltf_viewer::vulkan {
             gltf::ds::SkinJointCountExclusiveScanWithCount skinJointCountExclusiveScanWithCount;
 
             buffer::Materials materialBuffer;
-            buffer::CombinedIndices combinedIndexBuffers;
+            vkgltf::CombinedIndexBuffer combinedIndexBuffer;
             buffer::PrimitiveAttributes primitiveAttributes;
             buffer::Primitives primitiveBuffer;
             std::optional<std::pair<buffer::SkinJointIndices, buffer::InverseBindMatrices>> skinJointIndexAndInverseBindMatrixBuffer;
@@ -66,7 +66,6 @@ namespace vk_gltf_viewer::vulkan {
             GltfAsset(
                 const fastgltf::Asset &asset,
                 const std::filesystem::path &directory,
-                const gltf::OrderedPrimitives &orderedPrimitives,
                 const Gpu &gpu,
                 const texture::Fallback &fallbackTexture,
                 const gltf::AssetExternalBuffers &adapter,
@@ -76,14 +75,18 @@ namespace vk_gltf_viewer::vulkan {
                 targetWeightCountExclusiveScanWithCount { asset },
                 skinJointCountExclusiveScanWithCount { asset },
                 materialBuffer { asset, gpu.allocator, stagingBufferStorage },
-                combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
-                primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
-                primitiveBuffer { orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
+                combinedIndexBuffer { asset, gpu.allocator, vkgltf::CombinedIndexBuffer::Config {
+                    .adapter = adapter,
+                    .promoteUnsignedByteToUnsignedShort = gpu.supportUint8Index,
+                    .usageFlags = vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+                } },
+                primitiveAttributes { asset, gpu, threadPool, adapter },
+                primitiveBuffer { asset, primitiveAttributes, gpu.allocator },
                 skinJointIndexAndInverseBindMatrixBuffer { value_if(!asset.skins.empty(), [&]() {
                     return std::pair<buffer::SkinJointIndices, buffer::InverseBindMatrices> {
                         std::piecewise_construct,
-                        std::tie(asset, skinJointCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage),
-                        std::tie(asset, skinJointCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage, adapter),
+                        std::tie(asset, skinJointCountExclusiveScanWithCount, gpu.allocator),
+                        std::tie(asset, skinJointCountExclusiveScanWithCount, gpu.allocator, adapter),
                     };
                 }) },
                 textures { asset, directory, gpu, fallbackTexture, threadPool, adapter },
@@ -280,7 +283,6 @@ namespace vk_gltf_viewer::vulkan {
         void changeAsset(
             const fastgltf::Asset &asset,
             const std::filesystem::path &directory,
-            const gltf::OrderedPrimitives &orderedPrimitives,
             const gltf::AssetExternalBuffers &adapter
         ) {
             // If asset texture count exceeds the available texture count provided by the GPU, throw the error before
@@ -290,7 +292,7 @@ namespace vk_gltf_viewer::vulkan {
                 throw gltf::AssetProcessError::TooManyTextureError;
             }
 
-            gltfAsset.emplace(asset, directory, orderedPrimitives, gpu, fallbackTexture, adapter);
+            gltfAsset.emplace(asset, directory, gpu, fallbackTexture, adapter);
             if (!gpu.supportVariableDescriptorCount && get<3>(assetDescriptorSetLayout.descriptorCounts) != textureCount) {
                 // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
                 nodeIndexPipelines.clear();

@@ -85,8 +85,6 @@ namespace vk_gltf_viewer {
              */
             gltf::AssetExternalBuffers assetExternalBuffers{ asset, directory };
 
-            gltf::OrderedPrimitives orderedPrimitives;
-
             std::vector<gltf::Animation> animations;
             std::shared_ptr<std::vector<bool>> animationEnabled;
 

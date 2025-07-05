@@ -585,10 +585,10 @@ void vk_gltf_viewer::MainApp::run() {
 
                     gpu.device.waitIdle();
 
-                    for (const auto &[pPrimitive, materialIndex] : gltf->materialVariantsMapping.at(task.variantIndex)) {
-                        pPrimitive->materialIndex.emplace(materialIndex);
-                        hasUpdateData |= sharedData.gltfAsset->primitiveBuffer.updateMaterial(
-                            gltf->orderedPrimitives.getIndex(*pPrimitive), static_cast<std::uint32_t>(materialIndex), sharedDataUpdateCommandBuffer);
+                    for (const auto &[primitive, materialIndex] : gltf->materialVariantsMapping.at(task.variantIndex)) {
+                        primitive->materialIndex.emplace(materialIndex);
+                        hasUpdateData |= sharedData.gltfAsset->primitiveBuffer.update<&vulkan::shader_type::Primitive::materialIndex>(
+                            *primitive, materialIndex, sharedDataUpdateCommandBuffer);
                     }
                 },
                 [&](const control::task::MorphTargetWeightChanged &task) {
@@ -722,7 +722,6 @@ void vk_gltf_viewer::MainApp::run() {
             .gltf = gltf.transform([&](Gltf &gltf) {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .asset = gltf.asset,
-                    .orderedPrimitives = gltf.orderedPrimitives,
                     .nodeWorldTransforms = gltf.nodeWorldTransforms,
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
                     .nodeVisibilities = gltf.nodeVisibilities.getVisibilities(),
@@ -910,7 +909,6 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
                 | std::views::keys,
         };
     }() }
-    , orderedPrimitives { asset }
     , animations { std::from_range, asset.animations | std::views::transform([&](const fastgltf::Animation &animation) {
         return gltf::Animation { asset, animation, assetExternalBuffers };
     }) }
@@ -1035,7 +1033,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
         //  so I'll just use it for now.
         gpu.device.waitIdle();
-        sharedData.changeAsset(inner.asset, path.parent_path(), inner.orderedPrimitives, inner.assetExternalBuffers);
+        sharedData.changeAsset(inner.asset, path.parent_path(), inner.assetExternalBuffers);
         for (vulkan::Frame &frame : frames) {
             frame.changeAsset(inner.asset, inner.nodeWorldTransforms, inner.assetExternalBuffers);
         }

@@ -43,16 +43,6 @@ find_package(Ktx CONFIG)
 find_package(OpenEXR CONFIG)
 
 # --------------------
-# Internal dependencies.
-# --------------------
-
-include(cmake/CompileShader.cmake)
-
-add_subdirectory(bloom)
-add_subdirectory(cubemap)
-add_subdirectory(ibl)
-
-# --------------------
 # Module configurations for the external dependencies.
 # --------------------
 
@@ -85,6 +75,17 @@ target_compile_definitions(glm_module PRIVATE
     GLM_GTX_INLINE_NAMESPACE
 )
 add_library(glm::module ALIAS glm_module)
+
+# --------------------
+# Internal dependencies.
+# --------------------
+
+include(cmake/CompileShader.cmake)
+
+add_subdirectory(bloom)
+add_subdirectory(cubemap)
+add_subdirectory(ibl)
+add_subdirectory(vkgltf)
 
 # --------------------
 # Project targets.
@@ -145,7 +146,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/SceneNodeLevels.cppm
         interface/gltf/StateCachedNodeVisibilityStructure.cppm
         interface/gltf/NodeWorldTransforms.cppm
-        interface/gltf/OrderedPrimitives.cppm
         interface/gltf/TextureUsages.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/algorithm.cppm
@@ -189,7 +189,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/attachment_group/SceneWeightedBlended.cppm
         interface/vulkan/attachment_group/ImGui.cppm
         interface/vulkan/buffer/mod.cppm
-        interface/vulkan/buffer/CombinedIndices.cppm
         interface/vulkan/buffer/CubeIndices.cppm
         interface/vulkan/buffer/IndirectDrawCommands.cppm
         interface/vulkan/buffer/InstancedNodeWorldTransforms.cppm
@@ -261,6 +260,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     meshoptimizer::meshoptimizer
     mikktspace::mikktspace
     nfd::nfd
+    vkgltf::vkgltf
     vku::vku
     vk-gltf-viewer::asset
 )

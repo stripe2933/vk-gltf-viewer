@@ -1,53 +1,77 @@
 module;
 
-#include <cstddef>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 export module vk_gltf_viewer.vulkan.buffer.Primitives;
 
 import std;
 export import fastgltf;
+export import vku;
 
-export import vk_gltf_viewer.gltf.OrderedPrimitives;
-import vk_gltf_viewer.helpers.fastgltf;
-import vk_gltf_viewer.helpers.concepts;
-import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.ranges;
 export import vk_gltf_viewer.vulkan.buffer.PrimitiveAttributes;
-export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
-export import vk_gltf_viewer.vulkan.Gpu;
-import vk_gltf_viewer.vulkan.shader_type.Primitive;
-import vk_gltf_viewer.vulkan.trait.PostTransferObject;
+export import vk_gltf_viewer.vulkan.shader_type.Primitive;
 
 namespace vk_gltf_viewer::vulkan::buffer {
-    export class Primitives : trait::PostTransferObject {
+    export class Primitives final : public vku::AllocatedBuffer {
     public:
         Primitives(
-            const gltf::OrderedPrimitives &orderedPrimitives,
-            const PrimitiveAttributes &primitiveAttributes,
-            const Gpu &gpu,
-            StagingBufferStorage &stagingBufferStorage
-        );
-
-        [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept;
-
-        /**
-         * @brief Update \p primitive's material index inside the GPU buffer.
-         * @param primitiveIndex Index of the primitive.
-         * @param materialIndex New material index.
-         * @param transferCommandBuffer If buffer is not host-visible memory and so is unable to be updated from the host, this command buffer will be used for recording the buffer update command. Then, its execution MUST be synchronized to be available to the <tt>primitiveBuffer</tt>'s usage. Otherwise, this parameter is not used.
-         * @return <tt>true</tt> if the buffer is not host-visible memory and the update command is recorded, <tt>false</tt> otherwise.
-         */
-        bool updateMaterial(std::size_t primitiveIndex, std::uint32_t materialIndex, vk::CommandBuffer transferCommandBuffer);
-
-    private:
-        std::variant<vku::AllocatedBuffer, vku::MappedBuffer> buffer;
-        vk::DescriptorBufferInfo descriptorInfo;
-
-        [[nodiscard]] std::variant<vku::AllocatedBuffer, vku::MappedBuffer> createBuffer(
-            const gltf::OrderedPrimitives &orderedPrimitives,
+            const fastgltf::Asset &asset,
             const PrimitiveAttributes &primitiveAttributes,
             vma::Allocator allocator
-        ) const;
+        );
+
+        /**
+         * @brief Get index of the primitive stored in the buffer.
+         * @param primitive Primitive to get the index of.
+         * @return Index of the primitive in the buffer.
+         */
+        [[nodiscard]] std::size_t getPrimitiveIndex(const fastgltf::Primitive &primitive) const;
+
+        /**
+         * @brief Get primitive from index.
+         * @param index Index of the primitive to get.
+         * @return Reference to the primitive at the given index.
+         */
+        [[nodiscard]] const fastgltf::Primitive &getPrimitive(std::size_t index) const noexcept;
+
+        template <auto shader_type::Primitive::*accessor>
+        bool update(
+            const fastgltf::Primitive &primitive,
+            const std::remove_cvref_t<std::invoke_result_t<decltype(accessor), shader_type::Primitive&>> &data,
+            vk::CommandBuffer transferCommandBuffer
+        ) {
+            // Obtain byte offset and size of the field to be updated.
+            static constexpr shader_type::Primitive dummy{};
+            constexpr auto fieldAddress = &std::invoke(accessor, dummy);
+            const vk::DeviceSize byteOffset
+                = sizeof(shader_type::Primitive) * getPrimitiveIndex(primitive)
+                + reinterpret_cast<std::uintptr_t>(fieldAddress) - reinterpret_cast<std::uintptr_t>(&dummy);
+            constexpr vk::DeviceSize byteSize = sizeof(data);
+            static_assert(byteSize % 4 == 0 && "Data size bytes must be multiple of 4.");
+
+            const vk::MemoryPropertyFlags memoryPropertyFlags = allocator.getAllocationMemoryProperties(allocation);
+            if (vku::contains(memoryPropertyFlags, vk::MemoryPropertyFlagBits::eHostVisible)) {
+                // If buffer allocation memory is host-visible, we can update it directly.
+                allocator.copyMemoryToAllocation(&data, allocation, byteOffset, byteSize);
+                return false;
+            }
+            else {
+                // If buffer allocation memory is not host-visible, we have to record a command to update the buffer.
+                transferCommandBuffer.updateBuffer(*this, byteOffset, byteSize, &data);
+                return true;
+            }
+        }
+
+    private:
+        std::vector<const fastgltf::Primitive*> orderedPrimitives;
+        std::unordered_map<const fastgltf::Primitive*, std::size_t> primitiveIndices;
+
+        Primitives(
+            const PrimitiveAttributes &primitiveAttributes,
+            vma::Allocator allocator,
+            std::vector<const fastgltf::Primitive*> orderedPrimitives
+        );
     };
 }
 
@@ -55,55 +79,59 @@ namespace vk_gltf_viewer::vulkan::buffer {
 module :private;
 #endif
 
+[[nodiscard]] std::vector<const fastgltf::Primitive*> createOrderedPrimitives(const fastgltf::Asset &asset) {
+    std::vector<const fastgltf::Primitive*> result;
+    for (const fastgltf::Mesh &mesh : asset.meshes) {
+        for (const fastgltf::Primitive &primitive : mesh.primitives) {
+            result.push_back(&primitive);
+        }
+    }
+    return result;
+}
+
 vk_gltf_viewer::vulkan::buffer::Primitives::Primitives(
-    const gltf::OrderedPrimitives &orderedPrimitives,
-    const PrimitiveAttributes &primitiveAttributes,
-    const Gpu &gpu,
-    StagingBufferStorage &stagingBufferStorage
-) : PostTransferObject { stagingBufferStorage },
-    buffer { createBuffer(orderedPrimitives, primitiveAttributes, gpu.allocator) },
-    descriptorInfo { visit(identity<vk::Buffer>, buffer), 0, vk::WholeSize } { }
-
-const vk::DescriptorBufferInfo &vk_gltf_viewer::vulkan::buffer::Primitives::getDescriptorInfo() const noexcept {
-    return descriptorInfo;
-}
-
-bool vk_gltf_viewer::vulkan::buffer::Primitives::updateMaterial(std::size_t primitiveIndex, std::uint32_t materialIndex,
-    vk::CommandBuffer transferCommandBuffer) {
-    return std::visit(multilambda {
-        [&](vku::MappedBuffer &primitiveBuffer) {
-            primitiveBuffer.asRange<shader_type::Primitive>()[primitiveIndex].materialIndex = materialIndex + 1;
-            return false;
-        },
-        [&](vk::Buffer primitiveBuffer) {
-            transferCommandBuffer.updateBuffer<std::uint32_t>(
-                primitiveBuffer,
-                sizeof(shader_type::Primitive) * primitiveIndex + offsetof(shader_type::Primitive, materialIndex),
-                materialIndex + 1);
-            return true;
-        },
-    }, buffer);
-}
-
-std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::vulkan::buffer::Primitives::createBuffer(
-    const gltf::OrderedPrimitives &orderedPrimitives,
+    const fastgltf::Asset &asset,
     const PrimitiveAttributes &primitiveAttributes,
     vma::Allocator allocator
-) const {
-    vku::MappedBuffer buffer {
+) : Primitives { primitiveAttributes, allocator, createOrderedPrimitives(asset) } { }
+
+std::size_t vk_gltf_viewer::vulkan::buffer::Primitives::getPrimitiveIndex(const fastgltf::Primitive &primitive) const {
+    return primitiveIndices.at(&primitive);
+}
+
+const fastgltf::Primitive & vk_gltf_viewer::vulkan::buffer::Primitives::getPrimitive(std::size_t index) const noexcept {
+    return *orderedPrimitives[index];
+}
+
+vk_gltf_viewer::vulkan::buffer::Primitives::Primitives(
+    const PrimitiveAttributes &primitiveAttributes,
+    vma::Allocator allocator,
+    std::vector<const fastgltf::Primitive*> orderedPrimitives
+) : AllocatedBuffer {
         allocator,
-        std::from_range, orderedPrimitives | std::views::transform([&](const fastgltf::Primitive *pPrimitive) {
-            const auto &accessors = primitiveAttributes.getAccessors(*pPrimitive);
+        vk::BufferCreateInfo {
+            {},
+            sizeof(shader_type::Primitive) * orderedPrimitives.size(),
+            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+            vma::MemoryUsage::eAutoPreferHost,
+        },
+    },
+    orderedPrimitives { std::move(orderedPrimitives) }{
+    std::ranges::transform(
+        this->orderedPrimitives, static_cast<shader_type::Primitive*>(allocator.getAllocationInfo(allocation).pMappedData),
+        [&](const fastgltf::Primitive *primitive) {
+            const auto &accessors = primitiveAttributes.getAccessors(*primitive);
             shader_type::Primitive result {
                 .pPositionBuffer = accessors.positionAccessor.bufferAddress,
                 .pTexcoordAttributeMappingInfoBuffer = accessors.texcoordAccessorBufferAddress,
                 .pJointsAttributeMappingInfoBuffer = accessors.jointsAccessorBufferAddress,
                 .pWeightsAttributeMappingInfoBuffer = accessors.weightsAccessorBufferAddress,
                 .positionByteStride = static_cast<std::uint8_t>(accessors.positionAccessor.byteStride),
-                .materialIndex = to_optional(pPrimitive->materialIndex)
-                    .transform([](auto index) { return static_cast<std::uint32_t>(index) + 1U; })
-                    .value_or(0U),
             };
+
             if (!accessors.positionMorphTargetAccessors.empty()) {
                 result.pPositionMorphTargetAccessorBuffer = accessors.positionMorphTargetAccessorBufferAddress;
             }
@@ -127,18 +155,19 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::vulkan::bu
                 result.pColorBuffer = accessors.colorAccessorAndComponentCount->first.bufferAddress;
                 result.colorByteStride = static_cast<std::uint32_t>(accessors.colorAccessorAndComponentCount->first.byteStride);
             }
+            if (primitive->materialIndex) {
+                result.materialIndex = static_cast<std::uint32_t>(*primitive->materialIndex) + 1U;
+            }
 
             return result;
-        }),
-        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
-    };
+        });
 
-    // If staging doesn't have to be done, preserve the mapped state.
-    if (!StagingBufferStorage::needStaging(buffer)) {
-        return std::variant<vku::AllocatedBuffer, vku::MappedBuffer> { std::in_place_type<vku::MappedBuffer>, std::move(buffer) };
+    const vk::MemoryPropertyFlags memoryPropertyFlags = allocator.getAllocationMemoryProperties(allocation);
+    if (!vku::contains(memoryPropertyFlags, vk::MemoryPropertyFlagBits::eHostCoherent)) {
+        allocator.flushAllocation(allocation, 0, size);
     }
 
-    vku::AllocatedBuffer unmappedBuffer = std::move(buffer).unmap();
-    stagingBufferStorage.get().stage(unmappedBuffer, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst);
-    return unmappedBuffer;
+    for (const auto &[i, primitive] : this->orderedPrimitives | ranges::views::enumerate) {
+        primitiveIndices[primitive] = i;
+    }
 }

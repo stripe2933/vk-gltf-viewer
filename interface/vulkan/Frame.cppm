@@ -12,7 +12,6 @@ export module vk_gltf_viewer:vulkan.Frame;
 import std;
 export import :vulkan.SharedData;
 
-export import vk_gltf_viewer.gltf.OrderedPrimitives;
 import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.math.extended_arithmetic;
 export import vk_gltf_viewer.math.Frustum;
@@ -141,7 +140,6 @@ namespace vk_gltf_viewer::vulkan {
                 };
 
                 const fastgltf::Asset &asset;
-                const gltf::OrderedPrimitives &orderedPrimitives;
                 std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms;
 
                 bool regenerateDrawCommands;
@@ -218,24 +216,19 @@ namespace vk_gltf_viewer::vulkan {
                 std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*inner.descriptorPool.value(), std::tie(sharedData.assetDescriptorSetLayout));
             }
 
-            const vk::DescriptorBufferInfo mousePickingResultBufferDescriptorInfo{ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) };
-            const vk::DescriptorBufferInfo multiNodeMousePickingResultBufferDescriptorInfo{ inner.mousePickingResultBuffer, 0, vk::WholeSize };
-
             std::vector<vk::DescriptorImageInfo> imageInfos;
             imageInfos.reserve(asset.textures.size() + 1);
             imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
             imageInfos.append_range(sharedData.gltfAsset->textures.descriptorInfos);
 
-            boost::container::static_vector<vk::WriteDescriptorSet, 2 + dsl::Asset::bindingCount> descriptorWrites {
-                mousePickingSet.getWrite<1>(mousePickingResultBufferDescriptorInfo),
-                multiNodeMousePickingSet.getWrite<0>(multiNodeMousePickingResultBufferDescriptorInfo),
-                assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.getDescriptorInfo()),
+            sharedData.gpu.device.updateDescriptorSets({
+                mousePickingSet.getWriteOne<1>({ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) }),
+                multiNodeMousePickingSet.getWriteOne<0>({ inner.mousePickingResultBuffer, 0, vk::WholeSize }),
+                assetDescriptorSet.getWriteOne<0>({ sharedData.gltfAsset->primitiveBuffer, 0, vk::WholeSize }),
                 assetDescriptorSet.getWrite<1>(inner.nodeBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<2>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
                 assetDescriptorSet.getWrite<3>(imageInfos),
-            };
-
-            sharedData.gpu.device.updateDescriptorSets(descriptorWrites, {});
+            }, {});
         }
 
     private:

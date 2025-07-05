@@ -6,22 +6,18 @@ export module vk_gltf_viewer.vulkan.buffer.SkinJointIndices;
 
 import std;
 export import fastgltf;
-export import vk_mem_alloc_hpp;
+export import vku;
 
 export import vk_gltf_viewer.gltf.data_structure.SkinJointCountExclusiveScanWithCount;
-export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
-import vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
 namespace vk_gltf_viewer::vulkan::buffer {
-    export class SkinJointIndices final : public vku::AllocatedBuffer, trait::PostTransferObject {
-    public:
+    export struct SkinJointIndices final : vku::AllocatedBuffer {
         std::reference_wrapper<const gltf::ds::SkinJointCountExclusiveScanWithCount> skinJointCountExclusiveScanWithCount;
 
         SkinJointIndices(
             const fastgltf::Asset& asset,
             const gltf::ds::SkinJointCountExclusiveScanWithCount& skinJointCountExclusiveScanWithCount LIFETIMEBOUND,
-            vma::Allocator allocator,
-            StagingBufferStorage &stagingBufferStorage
+            vma::Allocator allocator
         );
     };
 }
@@ -33,10 +29,8 @@ module :private;
 vk_gltf_viewer::vulkan::buffer::SkinJointIndices::SkinJointIndices(
     const fastgltf::Asset& asset,
     const gltf::ds::SkinJointCountExclusiveScanWithCount& skinJointCountExclusiveScanWithCount,
-    vma::Allocator allocator,
-    StagingBufferStorage &stagingBufferStorage
-) : PostTransferObject { stagingBufferStorage },
-    AllocatedBuffer {
+    vma::Allocator allocator
+) : AllocatedBuffer {
         allocator,
         vk::BufferCreateInfo {
             {},
@@ -63,9 +57,5 @@ vk_gltf_viewer::vulkan::buffer::SkinJointIndices::SkinJointIndices(
         const vk::DeviceSize byteSize = sizeof(std::uint32_t) * skin.joints.size();
         allocator.copyMemoryToAllocation(&convertedJointIndices[0], allocation, byteOffset, byteSize);
         byteOffset += byteSize;
-    }
-
-    if (StagingBufferStorage::needStaging(*this)) {
-        stagingBufferStorage.stage(*this, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
     }
 }

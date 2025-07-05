@@ -6,24 +6,21 @@ export module vk_gltf_viewer.vulkan.buffer.InverseBindMatrices;
 
 import std;
 export import fastgltf;
+export import vku;
 
 export import vk_gltf_viewer.gltf.AssetExternalBuffers;
 export import vk_gltf_viewer.gltf.data_structure.SkinJointCountExclusiveScanWithCount;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.span;
-export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
-import vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
 namespace vk_gltf_viewer::vulkan::buffer {
-    export class InverseBindMatrices final : public vku::AllocatedBuffer, trait::PostTransferObject {
-    public:
+    export struct InverseBindMatrices final : vku::AllocatedBuffer {
         std::reference_wrapper<const gltf::ds::SkinJointCountExclusiveScanWithCount> skinJointCountExclusiveScanWithCount;
         
         InverseBindMatrices(
             const fastgltf::Asset &asset,
             const gltf::ds::SkinJointCountExclusiveScanWithCount& skinJointCountExclusiveScanWithCount LIFETIMEBOUND,
             vma::Allocator allocator,
-            StagingBufferStorage &stagingBufferStorage,
             const gltf::AssetExternalBuffers &adapter
         );
     };
@@ -38,7 +35,6 @@ vk_gltf_viewer::vulkan::buffer::InverseBindMatrices::InverseBindMatrices(
     const fastgltf::Asset &asset,
     const gltf::ds::SkinJointCountExclusiveScanWithCount& skinJointCountExclusiveScanWithCount,
     vma::Allocator allocator,
-    StagingBufferStorage &stagingBufferStorage,
     const gltf::AssetExternalBuffers &adapter
 ) : AllocatedBuffer { 
         allocator,
@@ -52,7 +48,6 @@ vk_gltf_viewer::vulkan::buffer::InverseBindMatrices::InverseBindMatrices(
             vma::MemoryUsage::eAutoPreferHost,
         },
     },
-    PostTransferObject { stagingBufferStorage },
     skinJointCountExclusiveScanWithCount { skinJointCountExclusiveScanWithCount } {
     std::size_t maxSparseAccessorCount = 0;
     std::size_t maxContinuousIdentityMatrixCount = 0;
@@ -91,9 +86,5 @@ vk_gltf_viewer::vulkan::buffer::InverseBindMatrices::InverseBindMatrices(
         const vk::DeviceSize byteSize = data.size_bytes();
         allocator.copyMemoryToAllocation(data.data(), allocation, byteOffset, byteSize);
         byteOffset += byteSize;
-    }
-
-    if (StagingBufferStorage::needStaging(*this)) {
-        stagingBufferStorage.stage(*this, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
     }
 }

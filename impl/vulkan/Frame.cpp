@@ -151,7 +151,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         CommandSeparationCriteria result {
             .subpass = 0U,
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
+                return sharedData.gltfAsset->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             // By default, the default primitive doesn't have a material and therefore isn't unlit.
@@ -278,7 +278,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     const auto mousePickingCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
+                return sharedData.gltfAsset->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eBack,
@@ -327,7 +327,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     const auto multiNodeMousePickingCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
+                return sharedData.gltfAsset->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eNone,
@@ -375,7 +375,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     const auto jumpFloodSeedCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result {
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
+                return sharedData.gltfAsset->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eBack,
@@ -443,7 +443,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             instanceCount = task.gltf->asset.accessors[node.instancingAttributes[0].accessorIndex].count;
         }
 
-        const std::size_t primitiveIndex = task.gltf->orderedPrimitives.getIndex(primitive);
+        const std::size_t primitiveIndex = sharedData.gltfAsset->primitiveBuffer.getPrimitiveIndex(primitive);
 
         // To embed the node and primitive indices into 32-bit unsigned integer, both must be in range of 16-bit unsigned integer.
         if (!std::in_range<std::uint16_t>(nodeIndex) || !std::in_range<std::uint16_t>(primitiveIndex)) {
@@ -452,7 +452,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
 
         const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveIndex);
         if (primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor) {
-            const auto [_, firstIndex] = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive);
+            const std::uint32_t firstIndex = sharedData.gltfAsset->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).second;
             return vk::DrawIndexedIndirectCommand { drawCount, instanceCount, firstIndex, 0, firstInstance };
         }
         else {
@@ -463,7 +463,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     if (task.gltf) {
         const auto isPrimitiveWithinFrustum = [&](std::size_t nodeIndex, std::size_t primitiveIndex, const math::Frustum &frustum) -> bool {
             const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex];
-            const auto [min, max] = getBoundingBoxMinMax(*task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
+            const auto [min, max] = getBoundingBoxMinMax(sharedData.gltfAsset->primitiveBuffer.getPrimitive(primitiveIndex), node, task.gltf->asset);
 
             const auto pred = [&](const fastgltf::math::fmat4x4 &worldTransform) -> bool {
                 const fastgltf::math::fvec3 transformedMin { worldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
@@ -1178,7 +1178,10 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 
             if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
                 resourceBindingState.indexType = *criteria.indexType;
-                cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
+                cb.bindIndexBuffer(
+                    sharedData.gltfAsset->combinedIndexBuffer,
+                    sharedData.gltfAsset->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                    *resourceBindingState.indexType);
             }
             indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);;
         }
@@ -1289,7 +1292,10 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 
                         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
                             resourceBindingState.indexType = *criteria.indexType;
-                            cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
+                            cb.bindIndexBuffer(
+                                sharedData.gltfAsset->combinedIndexBuffer,
+                                sharedData.gltfAsset->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                                *resourceBindingState.indexType);
                         }
                         indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);;
                     }
@@ -1414,7 +1420,10 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
 
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
             resourceBindingState.indexType = *criteria.indexType;
-            cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
+            cb.bindIndexBuffer(
+                sharedData.gltfAsset->combinedIndexBuffer,
+                sharedData.gltfAsset->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                *resourceBindingState.indexType);
         }
         indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);;
     }
@@ -1470,7 +1479,10 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
 
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
             resourceBindingState.indexType = *criteria.indexType;
-            cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
+            cb.bindIndexBuffer(
+                sharedData.gltfAsset->combinedIndexBuffer,
+                sharedData.gltfAsset->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                *resourceBindingState.indexType);
         }
         indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);;
         hasBlendMesh = true;
