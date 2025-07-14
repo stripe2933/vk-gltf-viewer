@@ -24,12 +24,10 @@ find_package(boost_container CONFIG REQUIRED)
 find_package(boost_container_hash CONFIG REQUIRED)
 find_path(BSHOSHANY_THREAD_POOL_INCLUDE_DIRS "BS_thread_pool.hpp")
 find_package(cstring_view CONFIG REQUIRED)
-find_package(fastgltf CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(imguizmo CONFIG REQUIRED)
 find_package(meshoptimizer CONFIG REQUIRED)
-find_package(mikktspace CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(vku CONFIG REQUIRED)
@@ -41,16 +39,6 @@ find_package(vku CONFIG REQUIRED)
 find_package(CGAL CONFIG)
 find_package(Ktx CONFIG)
 find_package(OpenEXR CONFIG)
-
-# --------------------
-# Internal dependencies.
-# --------------------
-
-include(cmake/CompileShader.cmake)
-
-add_subdirectory(bloom)
-add_subdirectory(cubemap)
-add_subdirectory(ibl)
 
 # --------------------
 # Module configurations for the external dependencies.
@@ -67,12 +55,6 @@ target_sources(cstring_view_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/mod
 target_link_libraries(cstring_view_module PRIVATE cpp_util::cstring_view)
 add_library(cpp_util::cstring_view::module ALIAS cstring_view_module)
 
-add_library(fastgltf_module)
-target_sources(fastgltf_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/module-ports/fastgltf.ixx)
-target_link_libraries(fastgltf_module PRIVATE fastgltf::fastgltf)
-target_compile_definitions(fastgltf_module PRIVATE FASTGLTF_USE_STD_MODULE=1)
-add_library(fastgltf::module ALIAS fastgltf_module)
-
 add_library(glm_module)
 target_sources(glm_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/module-ports/glm.cppm)
 target_link_libraries(glm_module PRIVATE glm::glm)
@@ -85,6 +67,20 @@ target_compile_definitions(glm_module PRIVATE
     GLM_GTX_INLINE_NAMESPACE
 )
 add_library(glm::module ALIAS glm_module)
+
+# --------------------
+# Internal dependencies.
+# --------------------
+
+include(cmake/CompileShader.cmake)
+
+add_subdirectory(bloom)
+add_subdirectory(cubemap)
+add_subdirectory(ibl)
+set(VKGLTF_USE_MIKKTSPACE ON)
+set(VKGLTF_USE_KTX ${Ktx_FOUND})
+set(VKGLTF_USE_BINDLESS ON)
+add_subdirectory(vkgltf)
 
 # --------------------
 # Project targets.
@@ -133,22 +129,16 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/control/ImGuiTaskCollector.cppm
         interface/control/Task.cppm
         interface/global.cppm
-        interface/gltf/algorithm/MikktSpaceInterface.cppm
         interface/gltf/algorithm/miniball.cppm
         interface/gltf/Animation.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetProcessError.cppm
-        interface/gltf/data_structure/SkinJointCountExclusiveScanWithCount.cppm
-        interface/gltf/data_structure/NodeInstanceCountExclusiveScanWithCount.cppm
         interface/gltf/data_structure/SceneInverseHierarchy.cppm
-        interface/gltf/data_structure/TargetWeightCountExclusiveScanWithCount.cppm
         interface/gltf/SceneNodeLevels.cppm
         interface/gltf/StateCachedNodeVisibilityStructure.cppm
         interface/gltf/NodeWorldTransforms.cppm
-        interface/gltf/OrderedPrimitives.cppm
         interface/gltf/TextureUsages.cppm
         interface/helpers/AggregateHasher.cppm
-        interface/helpers/algorithm.cppm
         interface/helpers/concepts.cppm
         interface/helpers/fastgltf.cppm
         interface/helpers/Flags.cppm
@@ -189,25 +179,16 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/attachment_group/SceneWeightedBlended.cppm
         interface/vulkan/attachment_group/ImGui.cppm
         interface/vulkan/buffer/mod.cppm
-        interface/vulkan/buffer/CombinedIndices.cppm
         interface/vulkan/buffer/CubeIndices.cppm
         interface/vulkan/buffer/IndirectDrawCommands.cppm
-        interface/vulkan/buffer/InstancedNodeWorldTransforms.cppm
-        interface/vulkan/buffer/InverseBindMatrices.cppm
         interface/vulkan/buffer/Materials.cppm
-        interface/vulkan/buffer/MorphTargetWeights.cppm
-        interface/vulkan/buffer/Nodes.cppm
         interface/vulkan/buffer/PrimitiveAttributes.cppm
-        interface/vulkan/buffer/Primitives.cppm
-        interface/vulkan/buffer/SkinJointIndices.cppm
-        interface/vulkan/buffer/StagingBufferStorage.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
         interface/vulkan/descriptor_set_layout/MultiNodeMousePicking.cppm
         interface/vulkan/descriptor_set_layout/Skybox.cppm
         interface/vulkan/Frame.cppm
         interface/vulkan/Gpu.cppm
-        interface/vulkan/image/Images.cppm
         interface/vulkan/imgui/PlatformResource.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/BloomApplyRenderer.cppm
@@ -232,11 +213,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/render_pass/Scene.cppm
         interface/vulkan/sampler/BrdfLut.cppm
         interface/vulkan/sampler/Cubemap.cppm
-        interface/vulkan/sampler/Samplers.cppm
-        interface/vulkan/shader_type/Accessor.cppm
         interface/vulkan/shader_type/Material.cppm
-        interface/vulkan/shader_type/Node.cppm
-        interface/vulkan/shader_type/Primitive.cppm
         interface/vulkan/SharedData.cppm
         interface/vulkan/specialization_constants/SpecializationMap.cppm
         interface/vulkan/Swapchain.cppm
@@ -244,7 +221,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/texture/Fallback.cppm
         interface/vulkan/texture/ImGuiColorSpaceAndUsageCorrectedTextures.cppm
         interface/vulkan/texture/Textures.cppm
-        interface/vulkan/trait/PostTransferObject.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
     bloom
@@ -253,14 +229,13 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     BS_thread_pool::module
     cpp_util::cstring_view::module
     cubemap
-    fastgltf::module
     glm::module
     ibl
     imgui::imgui
     imguizmo::imguizmo
     meshoptimizer::meshoptimizer
-    mikktspace::mikktspace
     nfd::nfd
+    vkgltf::bindless
     vku::vku
     vk-gltf-viewer::asset
 )
@@ -276,7 +251,6 @@ else()
 endif()
 
 if (Ktx_FOUND)
-    target_link_libraries(vk-gltf-viewer PRIVATE KTX::ktx)
     target_compile_definitions(vk-gltf-viewer PRIVATE SUPPORT_KHR_TEXTURE_BASISU)
 else()
     message(STATUS "KTX not found, KHR_texture_basisu extension will not be supported.")

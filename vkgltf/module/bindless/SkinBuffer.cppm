@@ -188,7 +188,9 @@ namespace vkgltf {
             auto jointIndexBufferIt = jointIndicesData.begin();
             auto inverseBindMatrixBufferIt = inverseBindMatricesData.begin();
             for (const fastgltf::Skin &skin : asset.skins) {
-                jointIndexBufferIt = std::ranges::copy(skin.joints, jointIndexBufferIt).out;
+                jointIndexBufferIt = std::ranges::transform(skin.joints, jointIndexBufferIt, [](std::size_t n) noexcept {
+                    return static_cast<std::uint32_t>(n);
+                }).out;
 
                 if (skin.inverseBindMatrices) {
                     const fastgltf::Accessor &accessor = asset.accessors[*skin.inverseBindMatrices];

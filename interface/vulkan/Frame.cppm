@@ -12,7 +12,6 @@ export module vk_gltf_viewer:vulkan.Frame;
 import std;
 export import :vulkan.SharedData;
 
-export import vk_gltf_viewer.gltf.OrderedPrimitives;
 import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.math.extended_arithmetic;
 export import vk_gltf_viewer.math.Frustum;
@@ -21,9 +20,6 @@ import vk_gltf_viewer.vulkan.ag.MousePicking;
 import vk_gltf_viewer.vulkan.ag.SceneOpaque;
 import vk_gltf_viewer.vulkan.ag.SceneWeightedBlended;
 import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
-import vk_gltf_viewer.vulkan.buffer.InstancedNodeWorldTransforms;
-import vk_gltf_viewer.vulkan.buffer.MorphTargetWeights;
-import vk_gltf_viewer.vulkan.buffer.Nodes;
 
 /**
  * @brief A type that represents the state for a single multi-draw-indirect call.
@@ -69,9 +65,7 @@ namespace vk_gltf_viewer::vulkan {
 
     public:
         struct GltfAsset {
-            std::optional<buffer::InstancedNodeWorldTransforms> instancedNodeWorldTransformBuffer;
-            std::optional<buffer::MorphTargetWeights> morphTargetWeightBuffer;
-            buffer::Nodes nodeBuffer;
+            vkgltf::NodeBuffer nodeBuffer;
 
             vku::MappedBuffer mousePickingResultBuffer;
 
@@ -83,28 +77,10 @@ namespace vk_gltf_viewer::vulkan {
                 std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
                 const SharedData &sharedData LIFETIMEBOUND,
                 const gltf::AssetExternalBuffers &adapter
-            ) : instancedNodeWorldTransformBuffer { value_if(sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount.back() != 0, [&]() {
-                    return buffer::InstancedNodeWorldTransforms {
-                        sharedData.gpu.allocator,
-                        asset,
-                        asset.scenes[asset.defaultScene.value_or(0)],
-                        sharedData.gltfAsset->nodeInstanceCountExclusiveScanWithCount,
-                        nodeWorldTransforms,
-                        adapter,
-                    };
-                }) },
-                morphTargetWeightBuffer { value_if(sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount.back() != 0, [&]() {
-                    return buffer::MorphTargetWeights { asset, sharedData.gltfAsset->targetWeightCountExclusiveScanWithCount, sharedData.gpu };
-                }) },
-                nodeBuffer {
-                    sharedData.gpu.device,
-                    sharedData.gpu.allocator,
-                    asset,
-                    nodeWorldTransforms,
-                    value_address(instancedNodeWorldTransformBuffer),
-                    value_address(morphTargetWeightBuffer),
-                    value_address(sharedData.gltfAsset->skinJointIndexAndInverseBindMatrixBuffer),
-                },
+            ) : nodeBuffer { asset, nodeWorldTransforms, sharedData.gpu.device, sharedData.gpu.allocator, vkgltf::NodeBuffer::Config {
+                    .adapter = adapter,
+                    .skinBuffer = value_address(sharedData.gltfAsset->skinBuffer),
+                } },
                 mousePickingResultBuffer {
                     sharedData.gpu.allocator,
                     vk::BufferCreateInfo {
@@ -141,7 +117,6 @@ namespace vk_gltf_viewer::vulkan {
                 };
 
                 const fastgltf::Asset &asset;
-                const gltf::OrderedPrimitives &orderedPrimitives;
                 std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms;
 
                 bool regenerateDrawCommands;
@@ -218,24 +193,19 @@ namespace vk_gltf_viewer::vulkan {
                 std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*inner.descriptorPool.value(), std::tie(sharedData.assetDescriptorSetLayout));
             }
 
-            const vk::DescriptorBufferInfo mousePickingResultBufferDescriptorInfo{ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) };
-            const vk::DescriptorBufferInfo multiNodeMousePickingResultBufferDescriptorInfo{ inner.mousePickingResultBuffer, 0, vk::WholeSize };
-
             std::vector<vk::DescriptorImageInfo> imageInfos;
             imageInfos.reserve(asset.textures.size() + 1);
             imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
             imageInfos.append_range(sharedData.gltfAsset->textures.descriptorInfos);
 
-            boost::container::static_vector<vk::WriteDescriptorSet, 2 + dsl::Asset::bindingCount> descriptorWrites {
-                mousePickingSet.getWrite<1>(mousePickingResultBufferDescriptorInfo),
-                multiNodeMousePickingSet.getWrite<0>(multiNodeMousePickingResultBufferDescriptorInfo),
-                assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<1>(inner.nodeBuffer.getDescriptorInfo()),
-                assetDescriptorSet.getWrite<2>(sharedData.gltfAsset->materialBuffer.getDescriptorInfo()),
+            sharedData.gpu.device.updateDescriptorSets({
+                mousePickingSet.getWriteOne<1>({ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) }),
+                multiNodeMousePickingSet.getWriteOne<0>({ inner.mousePickingResultBuffer, 0, vk::WholeSize }),
+                assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.descriptorInfo),
+                assetDescriptorSet.getWrite<1>(inner.nodeBuffer.descriptorInfo),
+                assetDescriptorSet.getWrite<2>(sharedData.gltfAsset->materialBuffer.descriptorInfo),
                 assetDescriptorSet.getWrite<3>(imageInfos),
-            };
-
-            sharedData.gpu.device.updateDescriptorSets(descriptorWrites, {});
+            }, {});
         }
 
     private:

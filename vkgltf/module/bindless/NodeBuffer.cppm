@@ -250,14 +250,14 @@ namespace vkgltf {
             vk::DeviceAddress skinJointIndexBufferAddress;
             vk::DeviceAddress inverseBindMatrixBufferAddress;
             if (config.skinBuffer) {
-                skinJointIndexBufferAddress = device.getBufferAddress({ config.skinBuffer->jointIndices });
-                inverseBindMatrixBufferAddress = device.getBufferAddress({ config.skinBuffer->inverseBindMatrices });
+                skinJointIndexBufferAddress = device.getBufferAddress({ static_cast<vk::Buffer>(config.skinBuffer->jointIndices) });
+                inverseBindMatrixBufferAddress = device.getBufferAddress({ static_cast<vk::Buffer>(config.skinBuffer->inverseBindMatrices) });
             }
 
             std::byte* const mapped = static_cast<std::byte*>(allocator.getAllocationInfo(allocation).pMappedData);
             nodes = std::span { reinterpret_cast<shader_type::Node*>(mapped), asset.nodes.size() };
 
-            const vk::DeviceAddress selfDeviceAddress = device.getBufferAddress({ *this });
+            const vk::DeviceAddress selfDeviceAddress = device.getBufferAddress({ static_cast<vk::Buffer>(*this) });
 
             vk::DeviceAddress instanceTransformBufferAddress = selfDeviceAddress + intermediateData.instanceTransformDataByteOffset;
             auto instanceTransformIt = std::span {

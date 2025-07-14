@@ -283,19 +283,25 @@ namespace vkgltf {
 
                 bufferSize = 0;
                 for (const auto &[primitive, indexBytes] : unsignedIntIndexBytes) {
-                    indexTypeAndFirstIndexByPrimitive.try_emplace(primitive, vk::IndexType::eUint32, bufferSize / sizeof(std::uint32_t));
+                    indexTypeAndFirstIndexByPrimitive.try_emplace(
+                        primitive, 
+                        vk::IndexType::eUint32, static_cast<std::uint32_t>(bufferSize / sizeof(std::uint32_t)));
                     bufferSize += indexBytes.size_bytes();
                 }
 
                 unsignedShortIndexOffset = bufferSize;
                 for (const auto &[primitive, indexBytes] : unsignedShortIndexBytes) {
-                    indexTypeAndFirstIndexByPrimitive.try_emplace(primitive, vk::IndexType::eUint16, (bufferSize - unsignedShortIndexOffset) / sizeof(std::uint16_t));
+                    indexTypeAndFirstIndexByPrimitive.try_emplace(
+                        primitive, 
+                        vk::IndexType::eUint16, static_cast<std::uint32_t>((bufferSize - unsignedShortIndexOffset) / sizeof(std::uint16_t)));
                     bufferSize += indexBytes.size_bytes();
                 }
 
                 unsignedByteIndexOffset = bufferSize;
                 for (const auto &[primitive, indexBytes] : unsignedByteIndexBytes) {
-                    indexTypeAndFirstIndexByPrimitive.try_emplace(primitive, vk::IndexType::eUint8, (bufferSize - unsignedByteIndexOffset) / sizeof(std::uint8_t));
+                    indexTypeAndFirstIndexByPrimitive.try_emplace(
+                        primitive, 
+                        vk::IndexType::eUint8, static_cast<std::uint32_t>((bufferSize - unsignedByteIndexOffset) / sizeof(std::uint8_t)));
                     bufferSize += indexBytes.size_bytes();
                 }
             }

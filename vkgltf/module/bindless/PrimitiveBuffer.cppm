@@ -288,7 +288,7 @@ vkgltf::PrimitiveBuffer::PrimitiveBuffer(
     const auto toGpuAccessor = [&](const PrimitiveAttributeBuffers::AttributeInfo &info) -> shader_type::Accessor {
         constexpr std::uint32_t byteComponentType = getGLComponentType(fastgltf::ComponentType::Byte);
         return shader_type::Accessor {
-            .bufferAddress = device.getBufferAddress({ *info.buffer }) + info.offset,
+            .bufferAddress = device.getBufferAddress({ static_cast<vk::Buffer>(*info.buffer) }) + info.offset,
             .componentType = (info.normalized ? 8U : 0U) | (getGLComponentType(info.componentType) - byteComponentType),
             .byteStride = static_cast<std::uint32_t>(info.stride),
         };
@@ -298,7 +298,7 @@ vkgltf::PrimitiveBuffer::PrimitiveBuffer(
     // the written accessor data.
     auto emplaceAccessors
         = [&,
-            bufferAddress = device.getBufferAddress({ *this }) + intermediateData.mappingDataByteOffset,
+            bufferAddress = device.getBufferAddress({ static_cast<vk::Buffer>(*this) }) + intermediateData.mappingDataByteOffset,
             it = std::span { reinterpret_cast<shader_type::Accessor*>(mapped + intermediateData.mappingDataByteOffset), intermediateData.mappingCount }.begin()
         ](
             std::span<const PrimitiveAttributeBuffers::AttributeInfo> attributeInfos
