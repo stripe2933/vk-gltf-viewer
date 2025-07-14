@@ -8,7 +8,7 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
-#define HAS_VARIADIC_IN HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ALPHA_ATTRIBUTE
+#define HAS_VARIADIC_IN HAS_BASE_COLOR_TEXTURE || HAS_COLOR_0_ALPHA_ATTRIBUTE
 
 layout (constant_id = 0) const bool BASE_COLOR_TEXTURE_TRANSFORM = false;
 
@@ -18,8 +18,8 @@ layout (location = 1) in FRAG_VARIDIC_IN {
 #if HAS_BASE_COLOR_TEXTURE
     vec2 baseColorTexcoord;
 #endif
-#if HAS_COLOR_ALPHA_ATTRIBUTE
-    float colorAlpha;
+#if HAS_COLOR_0_ALPHA_ATTRIBUTE
+    float color0Alpha;
 #endif
 } variadic_in;
 #endif
@@ -40,8 +40,8 @@ void main(){
     }
     baseColorAlpha *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], baseColorTexcoord).a;
 #endif
-#if HAS_COLOR_ALPHA_ATTRIBUTE
-    baseColorAlpha *= variadic_in.colorAlpha;
+#if HAS_COLOR_0_ALPHA_ATTRIBUTE
+    baseColorAlpha *= variadic_in.color0Alpha;
 #endif
     if (baseColorAlpha < MATERIAL.alphaCutoff) discard;
 
