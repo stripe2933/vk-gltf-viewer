@@ -17,7 +17,7 @@
 
 #define HAS_VARIADIC_IN !FRAGMENT_SHADER_GENERATED_TBN || TEXCOORD_COUNT >= 1 || HAS_COLOR_0_ATTRIBUTE
 
-layout (constant_id = 0) const uint PACKED_TEXTURE_TRANSFORMS = 0; // [FALSE, FALSE, FALSE, FALSE, FALSE]
+layout (constant_id = 0) const bool USE_TEXTURE_TRANSFORM = false;
 
 layout (location = 0) in vec3 inPosition;
 layout (location = 1) flat in uint inMaterialIndex;
@@ -132,7 +132,7 @@ void main(){
     vec4 baseColor = MATERIAL.baseColorFactor;
 #if TEXCOORD_COUNT >= 1
     vec2 baseColorTexcoord = getTexcoord(MATERIAL.baseColorTexcoordIndex);
-    if ((PACKED_TEXTURE_TRANSFORMS & 1U) == 1U) {
+    if (USE_TEXTURE_TRANSFORM) {
         baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
     baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], baseColorTexcoord);
@@ -145,7 +145,7 @@ void main(){
     float roughness = MATERIAL.roughnessFactor;
 #if TEXCOORD_COUNT >= 1
     vec2 metallicRoughnessTexcoord = getTexcoord(MATERIAL.metallicRoughnessTexcoordIndex);
-    if ((PACKED_TEXTURE_TRANSFORMS & 2U) == 2U) {
+    if (USE_TEXTURE_TRANSFORM) {
         metallicRoughnessTexcoord = mat2(MATERIAL.metallicRoughnessTextureTransform) * metallicRoughnessTexcoord + MATERIAL.metallicRoughnessTextureTransform[2];
     }
     vec2 metallicRoughness = texture(textures[uint(MATERIAL.metallicRoughnessTextureIndex)], metallicRoughnessTexcoord).bg;
@@ -162,7 +162,7 @@ void main(){
 #if TEXCOORD_COUNT >= 1
     if (MATERIAL.normalTextureIndex != 0US){
         vec2 normalTexcoord = getTexcoord(MATERIAL.normalTexcoordIndex);
-        if ((PACKED_TEXTURE_TRANSFORMS & 4U) == 4U) {
+        if (USE_TEXTURE_TRANSFORM) {
             normalTexcoord = mat2(MATERIAL.normalTextureTransform) * normalTexcoord + MATERIAL.normalTextureTransform[2];
         }
         vec3 tangentNormal = texture(textures[uint(MATERIAL.normalTextureIndex)], normalTexcoord).rgb;
@@ -173,7 +173,7 @@ void main(){
 #elif TEXCOORD_COUNT >= 1
     if (MATERIAL.normalTextureIndex != 0US){
         vec2 normalTexcoord = getTexcoord(MATERIAL.normalTexcoordIndex);
-        if ((PACKED_TEXTURE_TRANSFORMS & 4U) == 4U) {
+        if (USE_TEXTURE_TRANSFORM) {
             normalTexcoord = mat2(MATERIAL.normalTextureTransform) * normalTexcoord + MATERIAL.normalTextureTransform[2];
         }
         vec3 tangentNormal = texture(textures[uint(MATERIAL.normalTextureIndex)], normalTexcoord).rgb;
@@ -190,7 +190,7 @@ void main(){
     float occlusion = MATERIAL.occlusionStrength;
 #if TEXCOORD_COUNT >= 1
     vec2 occlusionTexcoord = getTexcoord(MATERIAL.occlusionTexcoordIndex);
-    if ((PACKED_TEXTURE_TRANSFORMS & 8U) == 8U) {
+    if (USE_TEXTURE_TRANSFORM) {
         occlusionTexcoord = mat2(MATERIAL.occlusionTextureTransform) * occlusionTexcoord + MATERIAL.occlusionTextureTransform[2];
     }
     occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[uint(MATERIAL.occlusionTextureIndex)], occlusionTexcoord).r - 1.0);
@@ -199,7 +199,7 @@ void main(){
     vec3 emissive = MATERIAL.emissive;
 #if TEXCOORD_COUNT >= 1
     vec2 emissiveTexcoord = getTexcoord(MATERIAL.emissiveTexcoordIndex);
-    if ((PACKED_TEXTURE_TRANSFORMS & 16U) == 16U) {
+    if (USE_TEXTURE_TRANSFORM) {
         emissiveTexcoord = mat2(MATERIAL.emissiveTextureTransform) * emissiveTexcoord + MATERIAL.emissiveTextureTransform[2];
     }
     emissive *= texture(textures[uint(MATERIAL.emissiveTextureIndex)], emissiveTexcoord).rgb;

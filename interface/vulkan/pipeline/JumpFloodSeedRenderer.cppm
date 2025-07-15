@@ -95,7 +95,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         std::optional<fastgltf::ComponentType> color0AlphaComponentType;
         std::uint32_t positionMorphTargetCount;
         std::uint32_t skinAttributeCount;
-        bool baseColorTextureTransform;
+        bool useTextureTransform;
 
         [[nodiscard]] bool operator==(const MaskJumpFloodSeedRendererSpecialization&) const = default;
 
@@ -161,7 +161,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         };
 
         struct FragmentShaderSpecializationData {
-            vk::Bool32 baseColorTextureTransform;
+            vk::Bool32 useTextureTransform;
         };
 
         [[nodiscard]] std::array<int, 2> getVertexShaderVariants() const noexcept {
@@ -196,9 +196,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         }
 
         [[nodiscard]] FragmentShaderSpecializationData getFragmentShaderSpecializationData() const {
-            return {
-                .baseColorTextureTransform = baseColorTextureTransform,
-            };
+            return { useTextureTransform };
         }
     };
 }

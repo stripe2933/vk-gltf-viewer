@@ -33,11 +33,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         std::uint32_t tangentMorphTargetCount;
         std::uint32_t skinAttributeCount;
         bool fragmentShaderGeneratedTBN;
-        bool baseColorTextureTransform;
-        bool metallicRoughnessTextureTransform;
-        bool normalTextureTransform;
-        bool occlusionTextureTransform;
-        bool emissiveTextureTransform;
+        bool useTextureTransform;
         fastgltf::AlphaMode alphaMode;
         bool usePerFragmentEmissiveStencilExport;
 
@@ -230,7 +226,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         };
 
         struct FragmentShaderSpecializationData {
-            std::uint32_t packedTextureTransforms;
+            vk::Bool32 useTextureTransform;
         };
 
         [[nodiscard]] std::array<int, 3> getVertexShaderVariants() const noexcept {
@@ -275,16 +271,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         }
 
         [[nodiscard]] FragmentShaderSpecializationData getFragmentShaderSpecializationData() const {
-            std::bitset<5> bits;
-            bits.set(0, baseColorTextureTransform);
-            bits.set(1, metallicRoughnessTextureTransform);
-            bits.set(2, normalTextureTransform);
-            bits.set(3, occlusionTextureTransform);
-            bits.set(4, emissiveTextureTransform);
-
-            return {
-                .packedTextureTransforms = static_cast<std::uint32_t>(bits.to_ulong()),
-            };
+            return { useTextureTransform };
         }
     };
 }

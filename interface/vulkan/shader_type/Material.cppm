@@ -27,11 +27,11 @@ namespace vk_gltf_viewer::vulkan::shader_type {
         float occlusionStrength = 1.f;
         glm::vec3 emissive = { 0.f, 0.f, 0.f }; // emissiveStrength * emissiveFactor
         float alphaCutOff;
-        glm::mat3x2 baseColorTextureTransform;
-        glm::mat3x2 metallicRoughnessTextureTransform;
-        glm::mat3x2 normalTextureTransform;
-        glm::mat3x2 occlusionTextureTransform;
-        glm::mat3x2 emissiveTextureTransform;
+        glm::mat3x2 baseColorTextureTransform = { 1.f, 0.f, 0.f, 1.f, 0.f, 0.f };
+        glm::mat3x2 metallicRoughnessTextureTransform = { 1.f, 0.f, 0.f, 1.f, 0.f, 0.f };
+        glm::mat3x2 normalTextureTransform = { 1.f, 0.f, 0.f, 1.f, 0.f, 0.f };
+        glm::mat3x2 occlusionTextureTransform = { 1.f, 0.f, 0.f, 1.f, 0.f, 0.f };
+        glm::mat3x2 emissiveTextureTransform = { 1.f, 0.f, 0.f, 1.f, 0.f, 0.f };
         float ior = 1.5;
         char padding1[4];
     };
