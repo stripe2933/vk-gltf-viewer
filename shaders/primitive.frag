@@ -15,7 +15,7 @@
 #include "spherical_harmonics.glsl"
 #include "types.glsl"
 
-#define HAS_VARIADIC_IN !FRAGMENT_SHADER_GENERATED_TBN || TEXCOORD_COUNT >= 1 || HAS_COLOR_0_ATTRIBUTE
+#define HAS_VARIADIC_IN !FRAGMENT_SHADER_GENERATED_TBN || TEXCOORD_COUNT >= 1 || HAS_COLOR_ATTRIBUTE
 
 layout (constant_id = 0) const uint PACKED_TEXTURE_TRANSFORMS = 0; // [FALSE, FALSE, FALSE, FALSE, FALSE]
 
@@ -39,8 +39,8 @@ layout (location = 2) in FS_VARIADIC_IN {
 #error "Maximum texcoord count exceeded."
 #endif
 
-#if HAS_COLOR_0_ATTRIBUTE
-    vec4 color0;
+#if HAS_COLOR_ATTRIBUTE
+    vec4 color;
 #endif
 } variadic_in;
 #endif
@@ -137,8 +137,8 @@ void main(){
     }
     baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], baseColorTexcoord);
 #endif
-#if HAS_COLOR_0_ATTRIBUTE
-    baseColor *= variadic_in.color0;
+#if HAS_COLOR_ATTRIBUTE
+    baseColor *= variadic_in.color;
 #endif
 
     float metallic = MATERIAL.metallicFactor;

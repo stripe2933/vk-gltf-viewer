@@ -11,6 +11,7 @@ import :shader_selector.unlit_primitive_frag;
 import :shader_selector.unlit_primitive_vert;
 
 import vk_gltf_viewer.helpers.ranges;
+export import vk_gltf_viewer.helpers.vulkan;
 export import vk_gltf_viewer.vulkan.pl.Primitive;
 export import vk_gltf_viewer.vulkan.rp.Scene;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
@@ -21,14 +22,13 @@ import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class UnlitPrimitiveRendererSpecialization {
     public:
-        std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
-        fastgltf::ComponentType positionComponentType;
-        bool positionNormalized;
-        std::optional<std::pair<fastgltf::ComponentType, bool>> baseColorTexcoordComponentTypeAndNormalized;
-        std::optional<std::pair<fastgltf::ComponentType, std::uint8_t>> color0ComponentTypeAndCount;
-        std::uint32_t positionMorphTargetCount;
-        std::uint32_t skinAttributeCount;
-        bool baseColorTextureTransform;
+        std::optional<TopologyClass> topologyClass;
+        std::uint8_t positionComponentType;
+        std::optional<std::uint8_t> baseColorTexcoordComponentType;
+        std::optional<std::pair<std::uint8_t, std::uint8_t>> colorComponentCountAndType;
+        std::uint32_t positionMorphTargetWeightCount = 0;
+        std::uint32_t skinAttributeCount = 0;
+        bool baseColorTextureTransform = false;
         fastgltf::AlphaMode alphaMode;
 
         [[nodiscard]] bool operator==(const UnlitPrimitiveRendererSpecialization&) const noexcept = default;
@@ -65,7 +65,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
             const vk::PipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo {
                 {},
-                topologyClass.value_or(vk::PrimitiveTopology::eTriangleList),
+                topologyClass.transform(getRepresentativePrimitiveTopology).value_or(vk::PrimitiveTopology::eTriangleList),
             };
 
             switch (alphaMode) {
@@ -170,12 +170,10 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     private:
         struct VertexShaderSpecializationData {
             std::uint32_t positionComponentType;
-            vk::Bool32 positionNormalized;
-            std::uint32_t baseColorTexcoordComponentType;
-            vk::Bool32 baseColorTexcoordNormalized;
-            std::uint32_t color0ComponentType;
-            std::uint32_t color0ComponentCount;
-            std::uint32_t positionMorphTargetCount;
+            std::uint32_t texcoordComponentType = 5126; // FLOAT
+            std::uint32_t colorComponentCount = 0;
+            std::uint32_t colorComponentType = 5126; // FLOAT
+            std::uint32_t positionMorphTargetWeightCount;
             std::uint32_t skinAttributeCount;
         };
 
@@ -185,27 +183,26 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] std::array<int, 2> getVertexShaderVariants() const noexcept {
             return {
-                baseColorTexcoordComponentTypeAndNormalized.has_value(),
-                color0ComponentTypeAndCount.has_value(),
+                baseColorTexcoordComponentType.has_value(),
+                colorComponentCountAndType.has_value(),
             };
         }
 
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
             VertexShaderSpecializationData result {
-                .positionComponentType = getGLComponentType(positionComponentType),
-                .positionNormalized = positionNormalized,
-                .positionMorphTargetCount = positionMorphTargetCount,
+                .positionComponentType = positionComponentType,
+                .positionMorphTargetWeightCount = positionMorphTargetWeightCount,
                 .skinAttributeCount = skinAttributeCount,
             };
 
-            if (baseColorTexcoordComponentTypeAndNormalized) {
-                result.baseColorTexcoordComponentType = getGLComponentType(baseColorTexcoordComponentTypeAndNormalized->first);
-                result.baseColorTexcoordNormalized = baseColorTexcoordComponentTypeAndNormalized->second;
+            if (baseColorTexcoordComponentType) {
+                result.texcoordComponentType = *baseColorTexcoordComponentType;
             }
 
-            if (color0ComponentTypeAndCount) {
-                result.color0ComponentType = getGLComponentType(color0ComponentTypeAndCount->first);
-                result.color0ComponentCount = color0ComponentTypeAndCount->second;
+            if (colorComponentCountAndType) {
+                assert(ranges::one_of(colorComponentCountAndType->first, { 3, 4 }));
+                result.colorComponentCount = colorComponentCountAndType->first;
+                result.colorComponentType = colorComponentCountAndType->second;
             }
 
             return result;
@@ -213,8 +210,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] std::array<int, 3> getFragmentShaderVariants() const noexcept {
             return {
-                baseColorTexcoordComponentTypeAndNormalized.has_value(),
-                color0ComponentTypeAndCount.has_value(),
+                baseColorTexcoordComponentType.has_value(),
+                colorComponentCountAndType.has_value(),
                 static_cast<int>(alphaMode),
             };
         }

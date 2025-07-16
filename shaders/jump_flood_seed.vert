@@ -12,9 +12,8 @@
 #include "types.glsl"
 
 layout (constant_id = 0) const uint POSITION_COMPONENT_TYPE = 0;
-layout (constant_id = 1) const bool POSITION_NORMALIZED = false;
-layout (constant_id = 2) const uint POSITION_MORPH_TARGET_COUNT = 0;
-layout (constant_id = 3) const uint SKIN_ATTRIBUTE_COUNT = 0;
+layout (constant_id = 1) const uint POSITION_MORPH_TARGET_WEIGHT_COUNT = 0;
+layout (constant_id = 2) const uint SKIN_ATTRIBUTE_COUNT = 0;
 
 layout (set = 0, binding = 0, std430) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
@@ -31,7 +30,7 @@ layout (push_constant) uniform PushConstant {
 #include "transform.glsl"
 
 void main(){
-    vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_NORMALIZED, POSITION_MORPH_TARGET_COUNT);
+    vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_MORPH_TARGET_WEIGHT_COUNT);
     gl_Position = pc.projectionView * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
     gl_PointSize = 1.0;
 }

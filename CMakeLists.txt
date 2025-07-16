@@ -308,7 +308,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
         shaders/mask_multi_node_mouse_picking.frag
         shaders/mask_node_index.frag
         shaders/mask_node_index.vert
-    MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_0_ALPHA_ATTRIBUTE"
+    MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ALPHA_ATTRIBUTE"
     MACRO_VALUES
         "0 0" "0 1"
         "1 0" "1 1"
@@ -316,7 +316,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
 target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/primitive.vert
-    MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_0_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN"
+    MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN"
     MACRO_VALUES
         "0 0 0" "0 0 1" "0 1 0" "0 1 1"
         "1 0 0" "1 0 1" "1 1 0" "1 1 1"
@@ -327,7 +327,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
 target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/primitive.frag
-    MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_0_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN" "ALPHA_MODE" "EXT_SHADER_STENCIL_EXPORT"
+    MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN" "ALPHA_MODE" "EXT_SHADER_STENCIL_EXPORT"
     MACRO_VALUES
         "0 0 0 0 0" "0 0 0 1 0" "0 0 0 2 0" "0 0 1 0 0" "0 0 1 1 0" "0 0 1 2 0"
         "0 1 0 0 0" "0 1 0 1 0" "0 1 0 2 0" "0 1 1 0 0" "0 1 1 1 0" "0 1 1 2 0"
@@ -353,7 +353,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
 target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/unlit_primitive.vert
-    MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_0_ATTRIBUTE"
+    MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ATTRIBUTE"
     MACRO_VALUES
         "0 0" "0 1"
         "1 0" "1 1"
@@ -361,7 +361,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
 target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES shaders/unlit_primitive.frag
-    MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_0_ATTRIBUTE" "ALPHA_MODE"
+    MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_ATTRIBUTE" "ALPHA_MODE"
     MACRO_VALUES
         "0 0 0" "0 0 1" "0 0 2" "0 1 0" "0 1 1" "0 1 2"
         "1 0 0" "1 0 1" "1 0 2" "1 1 0" "1 1 1" "1 1 2"

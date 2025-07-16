@@ -11,26 +11,13 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
-#define HAS_VARIADIC_OUT !FRAGMENT_SHADER_GENERATED_TBN || TEXCOORD_COUNT >= 1 || HAS_COLOR_0_ATTRIBUTE
+#define HAS_VARIADIC_OUT !FRAGMENT_SHADER_GENERATED_TBN || TEXCOORD_COUNT >= 1 || HAS_COLOR_ATTRIBUTE
 
-layout (constant_id =  0) const uint POSITION_COMPONENT_TYPE = 0;
-layout (constant_id =  1) const bool POSITION_NORMALIZED = false;
-layout (constant_id =  2) const uint NORMAL_COMPONENT_TYPE = 0;
-layout (constant_id =  3) const uint TANGENT_COMPONENT_TYPE = 0;
-layout (constant_id =  4) const uint TEXCOORD_0_COMPONENT_TYPE = 0;
-layout (constant_id =  5) const uint TEXCOORD_1_COMPONENT_TYPE = 0;
-layout (constant_id =  6) const uint TEXCOORD_2_COMPONENT_TYPE = 0;
-layout (constant_id =  7) const uint TEXCOORD_3_COMPONENT_TYPE = 0;
-layout (constant_id =  8) const bool TEXCOORD_0_NORMALIZED = false;
-layout (constant_id =  9) const bool TEXCOORD_1_NORMALIZED = false;
-layout (constant_id = 10) const bool TEXCOORD_2_NORMALIZED = false;
-layout (constant_id = 11) const bool TEXCOORD_3_NORMALIZED = false;
-layout (constant_id = 12) const uint COLOR_0_COMPONENT_TYPE = 0;
-layout (constant_id = 13) const uint COLOR_0_COMPONENT_COUNT = 0;
-layout (constant_id = 14) const uint POSITION_MORPH_TARGET_COUNT = 0;
-layout (constant_id = 15) const uint NORMAL_MORPH_TARGET_COUNT = 0;
-layout (constant_id = 16) const uint TANGENT_MORPH_TARGET_COUNT = 0;
-layout (constant_id = 17) const uint SKIN_ATTRIBUTE_COUNT = 0;
+layout (constant_id = 0) const uint PACKED_ATTRIBUTE_COMPONENT_TYPES = 0;
+layout (constant_id = 1) const uint COLOR_COMPONENT_COUNT = 0;
+layout (constant_id = 2) const uint MORPH_TARGET_WEIGHT_COUNT = 0;
+layout (constant_id = 3) const uint PACKED_MORPH_TARGET_AVAILABILITY = 0;
+layout (constant_id = 4) const uint SKIN_ATTRIBUTE_COUNT = 0;
 
 layout (location = 0) out vec3 outPosition;
 layout (location = 1) flat out uint outMaterialIndex;
@@ -52,8 +39,8 @@ layout (location = 2) out VS_VARIADIC_OUT {
 #error "Maximum texcoord count exceeded."
 #endif
 
-#if HAS_COLOR_0_ATTRIBUTE
-    vec4 color0;
+#if HAS_COLOR_ATTRIBUTE
+    vec4 color;
 #endif
 } variadic_out;
 #endif
@@ -79,37 +66,32 @@ layout (push_constant, std430) uniform PushConstant {
 void main(){
     mat4 transform = getTransform(SKIN_ATTRIBUTE_COUNT);
 
-    vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_NORMALIZED, POSITION_MORPH_TARGET_COUNT);
+    vec3 inPosition = getPosition(PACKED_ATTRIBUTE_COMPONENT_TYPES & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x1U) == 0x1U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
     outPosition = (transform * vec4(inPosition, 1.0)).xyz;
 
     outMaterialIndex = MATERIAL_INDEX;
 
 #if !FRAGMENT_SHADER_GENERATED_TBN
-    vec3 inNormal = getNormal(NORMAL_COMPONENT_TYPE, NORMAL_MORPH_TARGET_COUNT);
+    vec3 inNormal = getNormal((PACKED_ATTRIBUTE_COMPONENT_TYPES >> 4U) & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x2U) == 0x2U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
     variadic_out.tbn[2] = normalize(mat3(transform) * inNormal); // N
 
     if (MATERIAL.normalTextureIndex != 0US){
-        vec4 inTangent = getTangent(TANGENT_COMPONENT_TYPE, TANGENT_MORPH_TARGET_COUNT);
+        vec4 inTangent = getTangent((PACKED_ATTRIBUTE_COMPONENT_TYPES >> 8U) & 0xFU, (PACKED_MORPH_TARGET_AVAILABILITY & 0x4U) == 0x4U ? MORPH_TARGET_WEIGHT_COUNT : 0U);
         variadic_out.tbn[0] = normalize(mat3(transform) * inTangent.xyz); // T
         variadic_out.tbn[1] = cross(variadic_out.tbn[2], variadic_out.tbn[0]) * -inTangent.w; // B
     }
 #endif
 
 #if TEXCOORD_COUNT == 1
-    variadic_out.texcoord = getTexcoord(0, TEXCOORD_0_COMPONENT_TYPE, TEXCOORD_0_NORMALIZED);
+    variadic_out.texcoord = getTexcoord(0, (PACKED_ATTRIBUTE_COMPONENT_TYPES >> 12U) & 0xFU);
 #elif TEXCOORD_COUNT >= 2
-    variadic_out.texcoords[0] = getTexcoord(0, TEXCOORD_0_COMPONENT_TYPE, TEXCOORD_0_NORMALIZED);
-    variadic_out.texcoords[1] = getTexcoord(1, TEXCOORD_1_COMPONENT_TYPE, TEXCOORD_1_NORMALIZED);
-#if TEXCOORD_COUNT >= 3
-    variadic_out.texcoords[2] = getTexcoord(2, TEXCOORD_2_COMPONENT_TYPE, TEXCOORD_2_NORMALIZED);
-#endif
-#if TEXCOORD_COUNT == 4
-    variadic_out.texcoords[3] = getTexcoord(3, TEXCOORD_3_COMPONENT_TYPE, TEXCOORD_3_NORMALIZED);
-#endif
+    for (uint i = 0; i < TEXCOORD_COUNT; i++){
+        variadic_out.texcoords[i] = getTexcoord(i, (PACKED_ATTRIBUTE_COMPONENT_TYPES >> (12U + 4U * i)) & 0xFU);
+    }
 #endif
 
-#if HAS_COLOR_0_ATTRIBUTE
-    variadic_out.color0 = getColor0(COLOR_0_COMPONENT_TYPE, COLOR_0_COMPONENT_COUNT);
+#if HAS_COLOR_ATTRIBUTE
+    variadic_out.color = getColor(PACKED_ATTRIBUTE_COMPONENT_TYPES >> 28U);
 #endif
 
     gl_Position = pc.projectionView * vec4(outPosition, 1.0);
