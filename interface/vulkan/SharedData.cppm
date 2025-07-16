@@ -39,10 +39,28 @@ export import vk_gltf_viewer.vulkan.rp.Scene;
 export import vk_gltf_viewer.vulkan.texture.ImGuiColorSpaceAndUsageCorrectedTextures;
 export import vk_gltf_viewer.vulkan.texture.Textures;
 
+[[nodiscard]] vk::PrimitiveTopology getListPrimitiveTopology(fastgltf::PrimitiveType type) noexcept {
+    switch (type) {
+        case fastgltf::PrimitiveType::Points:
+            return vk::PrimitiveTopology::ePointList;
+        case fastgltf::PrimitiveType::Lines:
+        case fastgltf::PrimitiveType::LineLoop:
+        case fastgltf::PrimitiveType::LineStrip:
+            return vk::PrimitiveTopology::eLineList;
+        case fastgltf::PrimitiveType::Triangles:
+        case fastgltf::PrimitiveType::TriangleStrip:
+        case fastgltf::PrimitiveType::TriangleFan:
+            return vk::PrimitiveTopology::eTriangleList;
+    }
+    std::unreachable();
+}
+
 namespace vk_gltf_viewer::vulkan {
     export class SharedData {
     public:
         struct GltfAsset {
+            const fastgltf::Asset &asset;
+
             buffer::Materials materialBuffer;
             vkgltf::CombinedIndexBuffer combinedIndexBuffer;
             std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers> primitiveAttributeBuffers;
@@ -61,7 +79,8 @@ namespace vk_gltf_viewer::vulkan {
                 const gltf::AssetExternalBuffers &adapter,
                 vkgltf::StagingBufferStorage &stagingBufferStorage,
                 BS::thread_pool<> threadPool = {}
-            ) : materialBuffer { asset, gpu.allocator, stagingBufferStorage },
+            ) : asset { asset },
+                materialBuffer { asset, gpu.allocator, stagingBufferStorage },
                 combinedIndexBuffer { asset, gpu.allocator, vkgltf::CombinedIndexBuffer::Config {
                     .adapter = adapter,
                     .promoteUnsignedByteToUnsignedShort = !gpu.supportUint8Index,
@@ -208,49 +227,245 @@ namespace vk_gltf_viewer::vulkan {
         // Pipeline selectors.
         // --------------------
 
-        [[nodiscard]] vk::Pipeline getNodeIndexRenderer(const NodeIndexRendererSpecialization &specialization) const {
+        [[nodiscard]] vk::Pipeline getNodeIndexRenderer(const fastgltf::Primitive &primitive) const {
+            const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+            NodeIndexRendererSpecialization specialization {
+                .positionComponentType = accessors.position.attributeInfo.componentType,
+                .positionNormalized = accessors.position.attributeInfo.normalized,
+                .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+            };
+
+            if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
+                specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+            }
+
             return ranges::try_emplace_if_not_exists(nodeIndexPipelines, specialization, [&]() {
                 return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass);
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getMaskNodeIndexRenderer(const MaskNodeIndexRendererSpecialization &specialization) const {
+        [[nodiscard]] vk::Pipeline getMaskNodeIndexRenderer(const fastgltf::Primitive &primitive) const {
+            const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+            MaskNodeIndexRendererSpecialization specialization {
+                .positionComponentType = accessors.position.attributeInfo.componentType,
+                .positionNormalized = accessors.position.attributeInfo.normalized,
+                .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+            };
+
+            if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
+                specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+            }
+
+            if (!accessors.colors.empty()) {
+                const fastgltf::Accessor &accessor = gltfAsset->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+                if (accessor.type == fastgltf::AccessorType::Vec4) {
+                    // Alpha value exists only if COLOR_0 is Vec4 type.
+                    specialization.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
+                }
+            }
+
+            if (primitive.materialIndex) {
+                const fastgltf::Material &material = gltfAsset->asset.materials[*primitive.materialIndex];
+                if (const auto &textureInfo = material.pbrData.baseColorTexture) {
+                    const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
+                    specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
+                    specialization.baseColorTextureTransform = textureInfo->transform != nullptr;
+                }
+            }
+
             return ranges::try_emplace_if_not_exists(maskNodeIndexPipelines, specialization, [&]() {
                 return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass);
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getMultiNodeMousePickingRenderer(const MultiNodeMousePickingRendererSpecialization &specialization) const {
+        [[nodiscard]] vk::Pipeline getMultiNodeMousePickingRenderer(const fastgltf::Primitive &primitive) const {
+            const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+            MultiNodeMousePickingRendererSpecialization specialization {
+                .positionComponentType = accessors.position.attributeInfo.componentType,
+                .positionNormalized = accessors.position.attributeInfo.normalized,
+                .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+            };
+
+            if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
+                specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+            }
+
             return ranges::try_emplace_if_not_exists(multiNodeMousePickingPipelines, specialization, [&]() {
                 return specialization.createPipeline(gpu, multiNodeMousePickingPipelineLayout);
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getMaskMultiNodeMousePickingRenderer(const MaskMultiNodeMousePickingRendererSpecialization &specialization) const {
+        [[nodiscard]] vk::Pipeline getMaskMultiNodeMousePickingRenderer(const fastgltf::Primitive &primitive) const {
+            const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+            MaskMultiNodeMousePickingRendererSpecialization specialization {
+                .positionComponentType = accessors.position.attributeInfo.componentType,
+                .positionNormalized = accessors.position.attributeInfo.normalized,
+                .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+            };
+
+            if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
+                specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+            }
+
+            if (!accessors.colors.empty()) {
+                const fastgltf::Accessor &accessor = gltfAsset->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+                if (accessor.type == fastgltf::AccessorType::Vec4) {
+                    // Alpha value exists only if COLOR_0 is Vec4 type.
+                    specialization.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
+                }
+            }
+
+            if (primitive.materialIndex) {
+                const fastgltf::Material &material = gltfAsset->asset.materials[*primitive.materialIndex];
+                if (const auto &textureInfo = material.pbrData.baseColorTexture) {
+                    const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
+                    specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
+                    specialization.baseColorTextureTransform = textureInfo->transform != nullptr;
+                }
+            }
+
             return ranges::try_emplace_if_not_exists(maskMultiNodeMousePickingPipelines, specialization, [&]() {
                 return specialization.createPipeline(gpu, multiNodeMousePickingPipelineLayout);
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getJumpFloodSeedRenderer(const JumpFloodSeedRendererSpecialization &specialization) const {
+        [[nodiscard]] vk::Pipeline getJumpFloodSeedRenderer(const fastgltf::Primitive &primitive) const {
+            const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+            JumpFloodSeedRendererSpecialization specialization {
+                .positionComponentType = accessors.position.attributeInfo.componentType,
+                .positionNormalized = accessors.position.attributeInfo.normalized,
+                .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+            };
+
+            if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
+                specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+            }
+
             return ranges::try_emplace_if_not_exists(jumpFloodSeedPipelines, specialization, [&]() {
                 return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getMaskJumpFloodSeedRenderer(const MaskJumpFloodSeedRendererSpecialization &specialization) const {
+        [[nodiscard]] vk::Pipeline getMaskJumpFloodSeedRenderer(const fastgltf::Primitive &primitive) const {
+            const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+            MaskJumpFloodSeedRendererSpecialization specialization {
+                .positionComponentType = accessors.position.attributeInfo.componentType,
+                .positionNormalized = accessors.position.attributeInfo.normalized,
+                .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+            };
+
+            if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
+                specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+            }
+
+            if (!accessors.colors.empty()) {
+                const fastgltf::Accessor &accessor = gltfAsset->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+                if (accessor.type == fastgltf::AccessorType::Vec4) {
+                    // Alpha value exists only if COLOR_0 is Vec4 type.
+                    specialization.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
+                }
+            }
+
+            if (primitive.materialIndex) {
+                const fastgltf::Material &material = gltfAsset->asset.materials[*primitive.materialIndex];
+                if (const auto &textureInfo = material.pbrData.baseColorTexture) {
+                    const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
+                    specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
+                    specialization.baseColorTextureTransform = textureInfo->transform != nullptr;
+                }
+            }
+
             return ranges::try_emplace_if_not_exists(maskJumpFloodSeedPipelines, specialization, [&]() {
                 return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getPrimitiveRenderer(const PrimitiveRendererSpecialization &specialization) const {
+        [[nodiscard]] vk::Pipeline getPrimitiveRenderer(const fastgltf::Primitive &primitive, bool usePerFragmentEmissiveStencilExport) const {
+            const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+            PrimitiveRendererSpecialization specialization {
+                .positionComponentType = accessors.position.attributeInfo.componentType,
+                .positionNormalized = accessors.position.attributeInfo.normalized,
+                .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+                .usePerFragmentEmissiveStencilExport = usePerFragmentEmissiveStencilExport,
+            };
+
+            if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
+                specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+            }
+
+            if (accessors.normal) {
+                specialization.normalComponentType = accessors.normal->attributeInfo.componentType;
+                specialization.normalMorphTargetCount = accessors.normal->morphTargets.size();
+            }
+            else {
+                specialization.fragmentShaderGeneratedTBN = true;
+            }
+
+            if (!accessors.colors.empty()) {
+                const fastgltf::Accessor &accessor = gltfAsset->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+                specialization.color0ComponentTypeAndCount.emplace(accessors.colors[0].attributeInfo.componentType, static_cast<std::uint8_t>(getNumComponents(accessor.type)));
+            }
+
+            if (primitive.materialIndex) {
+                if (accessors.tangent) {
+                    specialization.tangentComponentType = accessors.tangent->attributeInfo.componentType;
+                    specialization.tangentMorphTargetCount = accessors.tangent->morphTargets.size();
+                }
+
+                for (const auto &info : accessors.texcoords) {
+                    specialization.texcoordComponentTypeAndNormalized.emplace_back(info.attributeInfo.componentType, info.attributeInfo.normalized);
+                }
+
+                const fastgltf::Material &material = gltfAsset->asset.materials[*primitive.materialIndex];
+                specialization.baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform;
+                specialization.metallicRoughnessTextureTransform = material.pbrData.metallicRoughnessTexture && material.pbrData.metallicRoughnessTexture->transform;
+                specialization.normalTextureTransform = material.normalTexture && material.normalTexture->transform;
+                specialization.occlusionTextureTransform = material.occlusionTexture && material.occlusionTexture->transform;
+                specialization.emissiveTextureTransform = material.emissiveTexture && material.emissiveTexture->transform;
+                specialization.alphaMode = material.alphaMode;
+            }
+
             return ranges::try_emplace_if_not_exists(primitivePipelines, specialization, [&]() {
                 return specialization.createPipeline(gpu.device, primitivePipelineLayout, sceneRenderPass);
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getUnlitPrimitiveRenderer(const UnlitPrimitiveRendererSpecialization &specialization) const {
+        [[nodiscard]] vk::Pipeline getUnlitPrimitiveRenderer(const fastgltf::Primitive &primitive) const {
+            const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+            UnlitPrimitiveRendererSpecialization specialization {
+                .positionComponentType = accessors.position.attributeInfo.componentType,
+                .positionNormalized = accessors.position.attributeInfo.normalized,
+                .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+            };
+
+            if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
+                specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+            }
+
+            if (!accessors.colors.empty()) {
+                const fastgltf::Accessor &accessor = gltfAsset->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+                specialization.color0ComponentTypeAndCount.emplace(accessors.colors[0].attributeInfo.componentType, static_cast<std::uint8_t>(getNumComponents(accessor.type)));
+            }
+
+            if (primitive.materialIndex) {
+                const fastgltf::Material &material = gltfAsset->asset.materials[*primitive.materialIndex];
+                if (const auto &textureInfo = material.pbrData.baseColorTexture) {
+                    const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
+                    specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
+                    specialization.baseColorTextureTransform = textureInfo->transform != nullptr;
+                }
+
+                specialization.alphaMode = material.alphaMode;
+            }
+
             return ranges::try_emplace_if_not_exists(unlitPrimitivePipelines, specialization, [&]() {
                 return specialization.createPipeline(gpu.device, primitivePipelineLayout, sceneRenderPass);
             }).first->second;
