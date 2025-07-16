@@ -1,7 +1,5 @@
 module;
 
-#include <cassert>
-
 #include <boost/container/static_vector.hpp>
 #include <boost/container_hash/hash.hpp>
 
@@ -9,12 +7,11 @@ export module vk_gltf_viewer:vulkan.pipeline.PrimitiveRenderer;
 
 import std;
 export import fastgltf;
-import vku;
+export import vkgltf;
 import :shader_selector.primitive_vert;
 import :shader_selector.primitive_frag;
 
 import vk_gltf_viewer.helpers.ranges;
-export import vk_gltf_viewer.helpers.vulkan;
 export import vk_gltf_viewer.vulkan.pl.Primitive;
 export import vk_gltf_viewer.vulkan.rp.Scene;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
@@ -25,25 +22,25 @@ import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class PrimitiveRendererSpecialization {
     public:
-        std::optional<TopologyClass> topologyClass;
-        std::uint8_t positionComponentType;
-        std::optional<std::uint8_t> normalComponentType;
-        std::optional<std::uint8_t> tangentComponentType;
-        boost::container::static_vector<std::uint8_t, 4> texcoordComponentTypes;
-        std::optional<std::pair<std::uint8_t, std::uint8_t>> colorComponentCountAndType;
+        std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
+        fastgltf::ComponentType positionComponentType;
+        bool positionNormalized;
+        std::optional<fastgltf::ComponentType> normalComponentType;
+        std::optional<fastgltf::ComponentType> tangentComponentType;
+        boost::container::static_vector<std::pair<fastgltf::ComponentType, bool>, 4> texcoordComponentTypeAndNormalized;
+        std::optional<std::pair<fastgltf::ComponentType, std::uint8_t>> color0ComponentTypeAndCount;
+        std::uint32_t positionMorphTargetCount;
+        std::uint32_t normalMorphTargetCount;
+        std::uint32_t tangentMorphTargetCount;
+        std::uint32_t skinAttributeCount;
         bool fragmentShaderGeneratedTBN;
-        std::uint32_t morphTargetWeightCount = 0;
-        bool hasPositionMorphTarget = false;
-        bool hasNormalMorphTarget = false;
-        bool hasTangentMorphTarget = false;
-        std::uint32_t skinAttributeCount = 0;
-        bool baseColorTextureTransform = false;
-        bool metallicRoughnessTextureTransform = false;
-        bool normalTextureTransform = false;
-        bool occlusionTextureTransform = false;
-        bool emissiveTextureTransform = false;
+        bool baseColorTextureTransform;
+        bool metallicRoughnessTextureTransform;
+        bool normalTextureTransform;
+        bool occlusionTextureTransform;
+        bool emissiveTextureTransform;
         fastgltf::AlphaMode alphaMode;
-        bool usePerFragmentEmissiveStencilExport = false;
+        bool usePerFragmentEmissiveStencilExport;
 
         [[nodiscard]] bool operator==(const PrimitiveRendererSpecialization&) const noexcept = default;
 
@@ -79,7 +76,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
             const vk::PipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo {
                 {},
-                topologyClass.transform(getRepresentativePrimitiveTopology).value_or(vk::PrimitiveTopology::eTriangleList),
+                topologyClass.value_or(vk::PrimitiveTopology::eTriangleList),
             };
 
             switch (alphaMode) {
@@ -213,10 +210,23 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
     private:
         struct VertexShaderSpecializationData {
-            std::uint32_t packedAttributeComponentTypes;
-            std::uint32_t colorComponentCount;
-            std::uint32_t morphTargetWeightCount;
-            std::uint32_t packedMorphTargetAvailability;
+            std::uint32_t positionComponentType;
+            vk::Bool32 positionNormalized;
+            std::uint32_t normalComponentType;
+            std::uint32_t tangentComponentType;
+            std::uint32_t texcoord0ComponentType;
+            std::uint32_t texcoord1ComponentType;
+            std::uint32_t texcoord2ComponentType;
+            std::uint32_t texcoord3ComponentType;
+            vk::Bool32 texcoord0Normalized;
+            vk::Bool32 texcoord1Normalized;
+            vk::Bool32 texcoord2Normalized;
+            vk::Bool32 texcoord3Normalized;
+            std::uint32_t color0ComponentType;
+            std::uint32_t color0ComponentCount;
+            std::uint32_t positionMorphTargetCount;
+            std::uint32_t normalMorphTargetCount;
+            std::uint32_t tangentMorphTargetCount;
             std::uint32_t skinAttributeCount;
         };
 
@@ -226,46 +236,30 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] std::array<int, 3> getVertexShaderVariants() const noexcept {
             return {
-                static_cast<int>(texcoordComponentTypes.size()),
-                colorComponentCountAndType.has_value(),
+                static_cast<int>(texcoordComponentTypeAndNormalized.size()),
+                color0ComponentTypeAndCount.has_value(),
                 fragmentShaderGeneratedTBN,
             };
         }
 
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const {
             VertexShaderSpecializationData result {
-                .morphTargetWeightCount = morphTargetWeightCount,
-                .packedMorphTargetAvailability = (hasPositionMorphTarget ? 1U : 0U)
-                                               | (hasNormalMorphTarget ? 2U : 0U)
-                                               | (hasTangentMorphTarget ? 4U : 0U),
+                .positionComponentType = getGLComponentType(positionComponentType),
+                .positionNormalized = positionNormalized,
+                .normalComponentType = normalComponentType.transform(fastgltf::getGLComponentType).value_or(0U),
+                .tangentComponentType = tangentComponentType.transform(fastgltf::getGLComponentType).value_or(0U),
+                .positionMorphTargetCount = positionMorphTargetCount,
+                .normalMorphTargetCount = normalMorphTargetCount,
+                .tangentMorphTargetCount = tangentMorphTargetCount,
                 .skinAttributeCount = skinAttributeCount,
             };
 
-            // Packed components types are:
-            // PCT & 0xF -> POSITION
-            // (PCT >> 4) & 0xF -> NORMAL
-            // (PCT >> 8) & 0xF -> TANGENT
-            // (PCT >> 12) & 0xF -> TEXCOORD_0 // <- TEXCOORD_<i> attributes starts from third.
-            // (PCT >> 16) & 0xF -> TEXCOORD_1
-            // (PCT >> 20) & 0xF -> TEXCOORD_2
-            // (PCT >> 24) & 0xF -> TEXCOORD_3
-            // (PCT >> 28) & 0xF -> COLOR_0
-            result.packedAttributeComponentTypes |= static_cast<std::uint32_t>(positionComponentType);
-            if (normalComponentType) {
-                result.packedAttributeComponentTypes |= static_cast<std::uint32_t>(*normalComponentType) << 4;
-            }
-            if (tangentComponentType) {
-                result.packedAttributeComponentTypes |= static_cast<std::uint32_t>(*tangentComponentType) << 8;
-            }
+            std::ranges::transform(texcoordComponentTypeAndNormalized | std::views::keys, &result.texcoord0ComponentType /* TODO: UB? */, fastgltf::getGLComponentType);
+            std::ranges::copy(texcoordComponentTypeAndNormalized | std::views::values, &result.texcoord0Normalized /* TODO: UB? */);
 
-            for (auto [i, componentType] : std::views::zip(std::views::iota(3), texcoordComponentTypes)) {
-                result.packedAttributeComponentTypes |= static_cast<std::uint32_t>(componentType) << (4 * i);
-            }
-
-            if (colorComponentCountAndType) {
-                assert(ranges::one_of(colorComponentCountAndType->first, { 3, 4 }));
-                result.colorComponentCount = colorComponentCountAndType->first;
-                result.packedAttributeComponentTypes |= static_cast<std::uint32_t>(colorComponentCountAndType->second) << 28;
+            if (color0ComponentTypeAndCount) {
+                result.color0ComponentType = getGLComponentType(color0ComponentTypeAndCount->first);
+                result.color0ComponentCount = color0ComponentTypeAndCount->second;
             }
 
             return result;
@@ -273,8 +267,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] std::array<int, 5> getFragmentShaderVariants() const noexcept {
             return {
-                static_cast<int>(texcoordComponentTypes.size()),
-                colorComponentCountAndType.has_value(),
+                static_cast<int>(texcoordComponentTypeAndNormalized.size()),
+                color0ComponentTypeAndCount.has_value(),
                 fragmentShaderGeneratedTBN,
                 static_cast<int>(alphaMode),
                 usePerFragmentEmissiveStencilExport,
