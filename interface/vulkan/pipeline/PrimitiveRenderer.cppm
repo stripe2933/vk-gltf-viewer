@@ -7,7 +7,6 @@ export module vk_gltf_viewer:vulkan.pipeline.PrimitiveRenderer;
 
 import std;
 export import fastgltf;
-export import vkgltf;
 import :shader_selector.primitive_vert;
 import :shader_selector.primitive_frag;
 
