@@ -67,21 +67,18 @@ uvec2 getFetchAddress(Accessor accessor, uint index) {
 layout (std430, buffer_reference, buffer_reference_align = 16) readonly buffer Accessors { Accessor data[]; };
 
 struct Primitive {
-    uvec2 pPositionBuffer;
+    Accessor positionAccessor;
+    Accessor normalAccessor;
+    Accessor tangentAccessor;
+    Accessor texcoordAccessors[4];
+    Accessor color0Accessor;
     Accessors positionMorphTargetAccessors;
-    uvec2 pNormalBuffer;
     Accessors normalMorphTargetAccessors;
-    uvec2 pTangentBuffer;
     Accessors tangentMorphTargetAccessors;
-    uvec2 pColorBuffer;
-    Accessors texcoordAccessors;
-    Accessors jointsAccessors;
-    Accessors weightsAccessors;
-    uint8_t positionByteStride;
-    uint8_t normalByteStride;
-    uint8_t tangentByteStride;
-    uint8_t colorByteStride;
-    uint materialIndex;
+    Accessors jointAccessors;
+    Accessors weightAccessors;
+    int materialIndex;
+    uint _padding;
 };
 
 #endif

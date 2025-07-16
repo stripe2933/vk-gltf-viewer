@@ -18,7 +18,6 @@ import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.math.extended_arithmetic;
 import vk_gltf_viewer.vulkan.ag.MousePicking;
 import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
-import vk_gltf_viewer.vulkan.shader_type.Accessor;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
@@ -146,12 +145,17 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     passthruOffset = task.passthruRect.offset;
     mousePickingInput = task.mousePickingInput;
 
+    static constexpr auto getGpuComponentType = [](const vkgltf::PrimitiveAttributeBuffers::AttributeInfoWithMorphTargets &info) noexcept -> std::uint8_t {
+        constexpr std::uint32_t byteComponentType = getGLComponentType(fastgltf::ComponentType::Byte);
+        return (info.attributeInfo.normalized ? 8U : 0U) | (getGLComponentType(info.attributeInfo.componentType) - byteComponentType);
+    };
+
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
         const bool usePerFragmentEmissiveStencilExport = global::bloom.raw().mode == global::Bloom::Mode::PerFragment;
         CommandSeparationCriteria result {
             .subpass = 0U,
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
+                return sharedData.gltfAsset->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             // By default, the default primitive doesn't have a material and therefore isn't unlit.
@@ -161,14 +165,14 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
-        const auto &accessors = sharedData.gltfAsset->primitiveAttributes.getAccessors(primitive);
+        const vkgltf::PrimitiveAttributeBuffers &accessors = sharedData.gltfAsset->primitiveAttributeBuffers.at(&primitive);
 
         // glTF 2.0 specification:
         //   Points or Lines with no NORMAL attribute SHOULD be rendered without lighting and instead use the sum of the
         //   base color value (as defined above, multiplied by COLOR_0 when present) and the emissive value.
         const bool isPrimitivePointsOrLineWithoutNormal
             = ranges::one_of(primitive.type, { fastgltf::PrimitiveType::Points, fastgltf::PrimitiveType::Lines, fastgltf::PrimitiveType::LineLoop, fastgltf::PrimitiveType::LineStrip })
-            && !accessors.normalAccessor;
+            && !accessors.normal;
 
         if (primitive.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
@@ -177,15 +181,18 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             if (material.unlit || isPrimitivePointsOrLineWithoutNormal) {
                 result.pipeline = sharedData.getUnlitPrimitiveRenderer({
                     .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                    .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
+                    .positionComponentType = getGpuComponentType(accessors.position),
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
-                        return static_cast<std::uint8_t>(accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType);
+                        return getGpuComponentType(accessors.texcoords.at(getTexcoordIndex(textureInfo)));
                     }),
-                    .colorComponentCountAndType = accessors.colorAccessorAndComponentCount.transform(decomposer([](const shader_type::Accessor &accessor, std::uint8_t componentCount) {
-                        return std::pair { componentCount, static_cast<std::uint8_t>(accessor.componentType) };
-                    })),
-                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
-                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                    .colorComponentCountAndType = [&]() -> std::optional<std::pair<std::uint8_t, std::uint8_t>> {
+                        if (accessors.colors.empty()) return std::nullopt;
+
+                        const fastgltf::Accessor &accessor = task.gltf->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+                        return std::pair { static_cast<std::uint8_t>(getNumComponents(accessor.type)), getGpuComponentType(accessors.colors[0]) };
+                    }(),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform,
                     .alphaMode = material.alphaMode,
                 });
@@ -196,32 +203,28 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             else {
                 result.pipeline = sharedData.getPrimitiveRenderer({
                     .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                    .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
-                    .normalComponentType = accessors.normalAccessor.transform([](const shader_type::Accessor &accessor) {
-                        return static_cast<std::uint8_t>(accessor.componentType);
-                     }),
-                    .tangentComponentType = accessors.tangentAccessor.transform([](const shader_type::Accessor &accessor) {
-                        return static_cast<std::uint8_t>(accessor.componentType);
-                     }),
-                    .texcoordComponentTypes = accessors.texcoordAccessors
-                        | std::views::transform([](const auto &info) {
-                            return info.componentType;
-                        })
-                        | std::views::take(4) // Avoid bad_alloc for static_vector.
+                    .positionComponentType = getGpuComponentType(accessors.position),
+                    .normalComponentType = accessors.normal.transform(getGpuComponentType),
+                    .tangentComponentType = accessors.tangent.transform(getGpuComponentType),
+                    .texcoordComponentTypes = accessors.texcoords
+                        | std::views::transform(getGpuComponentType)
                         | std::ranges::to<boost::container::static_vector<std::uint8_t, 4>>(),
-                    .colorComponentCountAndType = accessors.colorAccessorAndComponentCount.transform(decomposer([](const shader_type::Accessor &accessor, std::uint8_t componentCount) {
-                        return std::pair { componentCount, static_cast<std::uint8_t>(accessor.componentType) };
-                    })),
-                    .fragmentShaderGeneratedTBN = !accessors.normalAccessor.has_value(),
+                    .colorComponentCountAndType = [&]() -> std::optional<std::pair<std::uint8_t, std::uint8_t>> {
+                        if (accessors.colors.empty()) return std::nullopt;
+
+                        const fastgltf::Accessor &accessor = task.gltf->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+                        return std::pair { static_cast<std::uint8_t>(getNumComponents(accessor.type)), getGpuComponentType(accessors.colors[0]) };
+                    }(),
+                    .fragmentShaderGeneratedTBN = !accessors.normal.has_value(),
                     .morphTargetWeightCount = static_cast<std::uint32_t>(std::max({
-                        accessors.positionMorphTargetAccessors.size(),
-                        accessors.normalMorphTargetAccessors.size(),
-                        accessors.tangentMorphTargetAccessors.size(),
+                        accessors.position.morphTargets.size(),
+                        accessors.normal.transform([](const auto &info) { return info.morphTargets.size(); }).value_or(std::size_t{}),
+                        accessors.tangent.transform([](const auto &info) { return info.morphTargets.size(); }).value_or(std::size_t{}),
                     })),
-                    .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
-                    .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
-                    .hasTangentMorphTarget = !accessors.tangentMorphTargetAccessors.empty(),
-                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                    .hasPositionMorphTarget = !accessors.position.morphTargets.empty(),
+                    .hasNormalMorphTarget = accessors.normal && !accessors.normal->morphTargets.empty(),
+                    .hasTangentMorphTarget = accessors.tangent && !accessors.tangent->morphTargets.empty(),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform,
                     .metallicRoughnessTextureTransform = material.pbrData.metallicRoughnessTexture && material.pbrData.metallicRoughnessTexture->transform,
                     .normalTextureTransform = material.normalTexture && material.normalTexture->transform,
@@ -240,12 +243,15 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         else if (isPrimitivePointsOrLineWithoutNormal) {
             result.pipeline = sharedData.getUnlitPrimitiveRenderer({
                 .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
-                .colorComponentCountAndType = accessors.colorAccessorAndComponentCount.transform(decomposer([](const shader_type::Accessor &accessor, std::uint8_t componentCount) {
-                    return std::pair { componentCount, static_cast<std::uint8_t>(accessor.componentType) };
-                })),
-                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
-                .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                .positionComponentType = getGpuComponentType(accessors.position),
+                .colorComponentCountAndType = [&]() -> std::optional<std::pair<std::uint8_t, std::uint8_t>> {
+                    if (accessors.colors.empty()) return std::nullopt;
+
+                    const fastgltf::Accessor &accessor = task.gltf->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+                    return std::pair { static_cast<std::uint8_t>(getNumComponents(accessor.type)), getGpuComponentType(accessors.colors[0]) };
+                }(),
+                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
             });
 
             // Disable stencil reference dynamic state when using unlit rendering pipeline.
@@ -255,20 +261,21 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             result.pipeline = sharedData.getPrimitiveRenderer({
                 .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
                 // TANGENT, TEXCOORD_<i> and their corresponding morph targets are unnecessary as there is no texture.
-                .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
-                .normalComponentType = accessors.normalAccessor.transform([](const shader_type::Accessor &accessor) {
-                    return static_cast<std::uint8_t>(accessor.componentType);
-                }),
-                .colorComponentCountAndType = accessors.colorAccessorAndComponentCount.transform(decomposer([](const shader_type::Accessor &accessor, std::uint8_t componentCount) {
-                    return std::pair { componentCount, static_cast<std::uint8_t>(accessor.componentType) };
-                })),
-                .fragmentShaderGeneratedTBN = !accessors.normalAccessor.has_value(),
+                .positionComponentType = getGpuComponentType(accessors.position),
+                .normalComponentType = accessors.normal.transform(getGpuComponentType),
+                .colorComponentCountAndType = [&]() -> std::optional<std::pair<std::uint8_t, std::uint8_t>> {
+                    if (accessors.colors.empty()) return std::nullopt;
+
+                    const fastgltf::Accessor &accessor = task.gltf->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+                    return std::pair { static_cast<std::uint8_t>(getNumComponents(accessor.type)), getGpuComponentType(accessors.colors[0]) };
+                }(),
+                .fragmentShaderGeneratedTBN = !accessors.normal.has_value(),
                 .morphTargetWeightCount = std::max<std::uint32_t>(
-                    accessors.positionMorphTargetAccessors.size(),
-                    accessors.normalMorphTargetAccessors.size()),
-                .hasPositionMorphTarget = !accessors.positionMorphTargetAccessors.empty(),
-                .hasNormalMorphTarget = !accessors.normalMorphTargetAccessors.empty(),
-                .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                    accessors.position.morphTargets.size(),
+                    accessors.normal.transform([](const auto &info) { return info.morphTargets.size(); }).value_or(std::size_t{})),
+                .hasPositionMorphTarget = !accessors.position.morphTargets.empty(),
+                .hasNormalMorphTarget = accessors.normal && !accessors.normal->morphTargets.empty(),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
                 .usePerFragmentEmissiveStencilExport = usePerFragmentEmissiveStencilExport,
             });
         }
@@ -278,37 +285,42 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     const auto mousePickingCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
+                return sharedData.gltfAsset->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
-        const auto &accessors = sharedData.gltfAsset->primitiveAttributes.getAccessors(primitive);
+        const vkgltf::PrimitiveAttributeBuffers &accessors = sharedData.gltfAsset->primitiveAttributeBuffers.at(&primitive);
         if (primitive.materialIndex) {
             const fastgltf::Material& material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskNodeIndexRenderer({
                     .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                    .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
+                    .positionComponentType = getGpuComponentType(accessors.position),
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
-                        return static_cast<std::uint8_t>(accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType);
+                        return getGpuComponentType(accessors.texcoords.at(getTexcoordIndex(textureInfo)));
                     }),
-                    .colorAlphaComponentType = accessors.colorAccessorAndComponentCount.and_then(decomposer([](const shader_type::Accessor &accessor, std::uint8_t componentCount) {
+                    .colorAlphaComponentType = [&]() -> std::optional<std::uint8_t> {
+                        if (accessors.colors.empty()) return std::nullopt;
+
+                        const fastgltf::Accessor &accessor = task.gltf->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
                         // Alpha value exists only if COLOR_0 is Vec4 type.
-                        return value_if(componentCount == 4, static_cast<std::uint8_t>(accessor.componentType));
-                    })),
-                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
-                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                        if (accessor.type != fastgltf::AccessorType::Vec4) return std::nullopt;
+
+                        return getGpuComponentType(accessors.colors[0]);
+                    }(),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform,
                 });
             }
             else {
                 result.pipeline = sharedData.getNodeIndexRenderer({
                     .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                    .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
-                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
-                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                    .positionComponentType = getGpuComponentType(accessors.position),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
                 });
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
@@ -316,9 +328,9 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         else {
             result.pipeline = sharedData.getNodeIndexRenderer({
                 .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
-                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
-                .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                .positionComponentType = getGpuComponentType(accessors.position),
+                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
             });
         }
         return result;
@@ -327,46 +339,51 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     const auto multiNodeMousePickingCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
+                return sharedData.gltfAsset->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eNone,
         };
 
-        const auto &accessors = sharedData.gltfAsset->primitiveAttributes.getAccessors(primitive);
+        const vkgltf::PrimitiveAttributeBuffers &accessors = sharedData.gltfAsset->primitiveAttributeBuffers.at(&primitive);
         if (primitive.materialIndex) {
             const fastgltf::Material& material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskMultiNodeMousePickingRenderer({
                     .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                    .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
+                    .positionComponentType = getGpuComponentType(accessors.position),
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
-                        return static_cast<std::uint8_t>(accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType);
+                        return getGpuComponentType(accessors.texcoords.at(getTexcoordIndex(textureInfo)));
                     }),
-                    .colorAlphaComponentType = accessors.colorAccessorAndComponentCount.and_then(decomposer([](const shader_type::Accessor &accessor, std::uint8_t componentCount) {
+                    .colorAlphaComponentType = [&]() -> std::optional<std::uint8_t> {
+                        if (accessors.colors.empty()) return std::nullopt;
+
+                        const fastgltf::Accessor &accessor = task.gltf->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
                         // Alpha value exists only if COLOR_0 is Vec4 type.
-                        return value_if(componentCount == 4, static_cast<std::uint8_t>(accessor.componentType));
-                    })),
-                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
-                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                        if (accessor.type != fastgltf::AccessorType::Vec4) return std::nullopt;
+
+                        return getGpuComponentType(accessors.colors[0]);
+                    }(),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform,
                 });
             }
             else {
                 result.pipeline = sharedData.getMultiNodeMousePickingRenderer({
                     .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                    .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
-                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
-                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                    .positionComponentType = getGpuComponentType(accessors.position),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
                 });
             }
         }
         else {
             result.pipeline = sharedData.getMultiNodeMousePickingRenderer({
                 .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
-                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
-                .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                .positionComponentType = getGpuComponentType(accessors.position),
+                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
             });
         }
         return result;
@@ -375,37 +392,42 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     const auto jumpFloodSeedCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result {
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive).first;
+                return sharedData.gltfAsset->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
-        const auto &accessors = sharedData.gltfAsset->primitiveAttributes.getAccessors(primitive);
+        const vkgltf::PrimitiveAttributeBuffers &accessors = sharedData.gltfAsset->primitiveAttributeBuffers.at(&primitive);
         if (primitive.materialIndex) {
             const fastgltf::Material &material = task.gltf->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskJumpFloodSeedRenderer({
                     .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                    .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
+                    .positionComponentType = getGpuComponentType(accessors.position),
                     .baseColorTexcoordComponentType = material.pbrData.baseColorTexture.transform([&](const fastgltf::TextureInfo &textureInfo) {
-                        return static_cast<std::uint8_t>(accessors.texcoordAccessors.at(textureInfo.texCoordIndex).componentType);
+                        return getGpuComponentType(accessors.texcoords.at(getTexcoordIndex(textureInfo)));
                     }),
-                    .colorAlphaComponentType = accessors.colorAccessorAndComponentCount.and_then(decomposer([](const shader_type::Accessor &accessor, std::uint8_t componentCount) {
+                    .colorAlphaComponentType = [&]() -> std::optional<std::uint8_t> {
+                        if (accessors.colors.empty()) return std::nullopt;
+
+                        const fastgltf::Accessor &accessor = task.gltf->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
                         // Alpha value exists only if COLOR_0 is Vec4 type.
-                        return value_if(componentCount == 4, static_cast<std::uint8_t>(accessor.componentType));
-                    })),
-                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
-                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                        if (accessor.type != fastgltf::AccessorType::Vec4) return std::nullopt;
+
+                        return getGpuComponentType(accessors.colors[0]);
+                    }(),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
                     .baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform,
                 });
             }
             else {
                 result.pipeline = sharedData.getJumpFloodSeedRenderer({
                     .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                    .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
-                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
-                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                    .positionComponentType = getGpuComponentType(accessors.position),
+                    .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                    .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
                 });
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
@@ -413,9 +435,9 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         else {
             result.pipeline = sharedData.getJumpFloodSeedRenderer({
                 .topologyClass = value_if(!sharedData.gpu.supportDynamicPrimitiveTopologyUnrestricted, [&]() { return getTopologyClass(getPrimitiveTopology(primitive.type)); }),
-                .positionComponentType = static_cast<std::uint8_t>(accessors.positionAccessor.componentType),
-                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.positionMorphTargetAccessors.size()),
-                .skinAttributeCount = static_cast<std::uint32_t>(accessors.jointsAccessors.size()),
+                .positionComponentType = getGpuComponentType(accessors.position),
+                .positionMorphTargetWeightCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
+                .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
             });
         }
         return result;
@@ -443,7 +465,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             instanceCount = task.gltf->asset.accessors[node.instancingAttributes[0].accessorIndex].count;
         }
 
-        const std::size_t primitiveIndex = task.gltf->orderedPrimitives.getIndex(primitive);
+        const std::size_t primitiveIndex = sharedData.gltfAsset->primitiveBuffer.getPrimitiveIndex(primitive);
 
         // To embed the node and primitive indices into 32-bit unsigned integer, both must be in range of 16-bit unsigned integer.
         if (!std::in_range<std::uint16_t>(nodeIndex) || !std::in_range<std::uint16_t>(primitiveIndex)) {
@@ -452,7 +474,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
 
         const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveIndex);
         if (primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor) {
-            const auto [_, firstIndex] = sharedData.gltfAsset.value().combinedIndexBuffers.getIndexInfo(primitive);
+            const std::uint32_t firstIndex = sharedData.gltfAsset->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).second;
             return vk::DrawIndexedIndirectCommand { drawCount, instanceCount, firstIndex, 0, firstInstance };
         }
         else {
@@ -463,7 +485,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     if (task.gltf) {
         const auto isPrimitiveWithinFrustum = [&](std::size_t nodeIndex, std::size_t primitiveIndex, const math::Frustum &frustum) -> bool {
             const fastgltf::Node &node = task.gltf->asset.nodes[nodeIndex];
-            const auto [min, max] = getBoundingBoxMinMax(*task.gltf->orderedPrimitives[primitiveIndex], node, task.gltf->asset);
+            const auto [min, max] = getBoundingBoxMinMax(sharedData.gltfAsset->primitiveBuffer.getPrimitive(primitiveIndex), node, task.gltf->asset);
 
             const auto pred = [&](const fastgltf::math::fmat4x4 &worldTransform) -> bool {
                 const fastgltf::math::fvec3 transformedMin { worldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
@@ -482,7 +504,7 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             else {
                 // If node is instanced, the node primitive is regarded to be within the frustum if any of its instance
                 // is within the frustum.
-                return std::ranges::any_of(gltfAsset->instancedNodeWorldTransformBuffer->getTransforms(nodeIndex), pred);
+                return std::ranges::any_of(gltfAsset->nodeBuffer.getInstanceWorldTransforms(nodeIndex), pred);
             }
         };
 
@@ -1177,10 +1199,13 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             }
 
             if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
-                resourceBindingState.indexType = *criteria.indexType;
-                cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
+                resourceBindingState.indexType.emplace(*criteria.indexType);
+                cb.bindIndexBuffer(
+                    sharedData.gltfAsset->combinedIndexBuffer,
+                    sharedData.gltfAsset->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                    *resourceBindingState.indexType);
             }
-            indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);;
+            indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
         }
     };
 
@@ -1288,10 +1313,13 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                         }
 
                         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
-                            resourceBindingState.indexType = *criteria.indexType;
-                            cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
+                            resourceBindingState.indexType.emplace(*criteria.indexType);
+                            cb.bindIndexBuffer(
+                                sharedData.gltfAsset->combinedIndexBuffer,
+                                sharedData.gltfAsset->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                                *resourceBindingState.indexType);
                         }
-                        indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);;
+                        indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
                     }
                 };
 
@@ -1413,10 +1441,13 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         }
 
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
-            resourceBindingState.indexType = *criteria.indexType;
-            cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
+            resourceBindingState.indexType.emplace(*criteria.indexType);
+            cb.bindIndexBuffer(
+                sharedData.gltfAsset->combinedIndexBuffer,
+                sharedData.gltfAsset->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                *resourceBindingState.indexType);
         }
-        indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);;
+        indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
     }
 }
 
@@ -1469,10 +1500,13 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
         }
 
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
-            resourceBindingState.indexType = *criteria.indexType;
-            cb.bindIndexBuffer(sharedData.gltfAsset.value().combinedIndexBuffers.getIndexBuffer(*resourceBindingState.indexType), 0, *resourceBindingState.indexType);
+            resourceBindingState.indexType.emplace(*criteria.indexType);
+            cb.bindIndexBuffer(
+                sharedData.gltfAsset->combinedIndexBuffer,
+                sharedData.gltfAsset->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                *resourceBindingState.indexType);
         }
-        indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);;
+        indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
         hasBlendMesh = true;
     }
 

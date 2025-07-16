@@ -6,21 +6,17 @@ export module vk_gltf_viewer.vulkan.buffer.Materials;
 
 import std;
 export import fastgltf;
-import vku;
-export import vk_mem_alloc_hpp;
-export import vulkan_hpp;
+export import vkgltf; // vkgltf::StagingBufferStorage
+export import vku;
 
-import vk_gltf_viewer.helpers.functional;
-export import vk_gltf_viewer.vulkan.buffer.StagingBufferStorage;
 export import vk_gltf_viewer.vulkan.shader_type.Material;
-import vk_gltf_viewer.vulkan.trait.PostTransferObject;
 
 namespace vk_gltf_viewer::vulkan::buffer {
-    export class Materials : trait::PostTransferObject {
+    export class Materials final : public vku::AllocatedBuffer {
     public:
-        Materials(const fastgltf::Asset &asset, vma::Allocator allocator, StagingBufferStorage &stagingBufferStorage);
+        vk::DescriptorBufferInfo descriptorInfo;
 
-        [[nodiscard]] const vk::DescriptorBufferInfo &getDescriptorInfo() const noexcept;
+        Materials(const fastgltf::Asset &asset, vma::Allocator allocator, vkgltf::StagingBufferStorage &stagingBufferStorage);
 
         /**
          * @brief Update material property with field accessor.
@@ -38,33 +34,24 @@ namespace vk_gltf_viewer::vulkan::buffer {
             const std::remove_cvref_t<std::invoke_result_t<decltype(accessor), shader_type::Material&>>& data,
             vk::CommandBuffer transferCommandBuffer
         ) {
-            // TODO: currently only data size 4-byte multiple checking is done, since there is no way to obtain the offset
-            //  of the member variable from accessor pointer. It could be checked at the runtime, but not implemented
-            //  as it is the validation layer's role. Check it at compile time if possible.
-            static_assert(sizeof(data) % 4 == 0 && "Data size bytes must be multiple of 4.");
+            // Obtain byte offset and size of the field to be updated.
+            static constexpr shader_type::Material dummy{};
+            constexpr auto fieldAddress = &std::invoke(accessor, dummy);
+            const vk::DeviceSize byteOffset
+                = sizeof(shader_type::Material) * (1 + materialIndex)
+                + reinterpret_cast<std::uintptr_t>(fieldAddress) - reinterpret_cast<std::uintptr_t>(&dummy);
+            constexpr vk::DeviceSize byteSize = sizeof(data);
+            static_assert(byteSize % 4 == 0 && "Data size bytes must be multiple of 4.");
 
-            return std::visit(multilambda {
-                [&](vku::MappedBuffer &primitiveBuffer) {
-                    std::invoke(accessor, primitiveBuffer.asRange<shader_type::Material>()[materialIndex + 1]) = data;
-                    return false;
-                },
-                [&](vk::Buffer primitiveBuffer) {
-                    static constexpr shader_type::Material dummy{};
-                    constexpr auto fieldAddress = &std::invoke(accessor, dummy);
-
-                    const vk::DeviceSize fieldOffset = reinterpret_cast<std::uintptr_t>(fieldAddress) - reinterpret_cast<std::uintptr_t>(&dummy);
-                    // assert(fieldOffset % 4 == 0 && "Field offset must be 4-byte aligned.");
-                    transferCommandBuffer.updateBuffer(primitiveBuffer, sizeof(shader_type::Material) * (materialIndex + 1) + fieldOffset, sizeof(data), &data);
-                    return true;
-                }
-            }, buffer);
+            if (vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostVisible)) {
+                allocator.copyMemoryToAllocation(&data, allocation, byteOffset, byteSize);
+                return false;
+            }
+            else {
+                transferCommandBuffer.updateBuffer(*this, byteOffset, byteSize, &data);
+                return true;
+            }
         }
-
-    private:
-        std::variant<vku::AllocatedBuffer, vku::MappedBuffer> buffer;
-        vk::DescriptorBufferInfo descriptorInfo;
-
-        [[nodiscard]] std::variant<vku::AllocatedBuffer, vku::MappedBuffer> createBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const;
     };
 }
 
@@ -84,22 +71,23 @@ module :private;
 vk_gltf_viewer::vulkan::buffer::Materials::Materials(
     const fastgltf::Asset &asset,
     vma::Allocator allocator,
-    StagingBufferStorage &stagingBufferStorage
-) : PostTransferObject { stagingBufferStorage },
-    buffer { createBuffer(asset, allocator) },
-    descriptorInfo { visit(identity<vk::Buffer>, buffer), 0, vk::WholeSize } { }
-
-const vk::DescriptorBufferInfo &vk_gltf_viewer::vulkan::buffer::Materials::getDescriptorInfo() const noexcept {
-    return descriptorInfo;
-}
-
-std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::vulkan::buffer::Materials::createBuffer(const fastgltf::Asset &asset, vma::Allocator allocator) const {
-    // This is workaround for Clang 18's bug that ranges::views::concat cannot be used with std::optional<shader_type::Material>.
-    // TODO: change it to use ranges::views::concat when available.
-    std::vector<shader_type::Material> bufferData;
-    bufferData.reserve(1 + asset.materials.size());
-    bufferData.push_back({});
-    bufferData.append_range(asset.materials | std::views::transform([&](const fastgltf::Material& material) {
+    vkgltf::StagingBufferStorage &stagingBufferStorage
+) : AllocatedBuffer {
+        allocator,
+        vk::BufferCreateInfo {
+            {},
+            sizeof(shader_type::Material) * (1 + asset.materials.size()), // +1 for fallback material.
+            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+            vma::MemoryUsage::eAutoPreferHost,
+        },
+    },
+    descriptorInfo { *this, 0, vk::WholeSize } {
+    auto it = std::span { static_cast<shader_type::Material*>(allocator.getAllocationInfo(allocation).pMappedData), 1 + asset.materials.size() }.begin();
+    *it++ = {}; // Initialize fallback material.
+    std::ranges::transform(asset.materials, it, [](const fastgltf::Material &material) {
         shader_type::Material result {
             .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
             .metallicFactor = material.pbrData.metallicFactor,
@@ -166,22 +154,15 @@ std::variant<vku::AllocatedBuffer, vku::MappedBuffer> vk_gltf_viewer::vulkan::bu
                 }
             }
         }
-
         return result;
-    }));
+    });
 
-    vku::MappedBuffer buffer {
-        allocator,
-        std::from_range, bufferData,
-        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
-    };
-
-    // If staging doesn't have to be done, preserve the mapped state.
-    if (!StagingBufferStorage::needStaging(buffer)) {
-        return std::variant<vku::AllocatedBuffer, vku::MappedBuffer> { std::in_place_type<vku::MappedBuffer>, std::move(buffer) };
+    if (!vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostCoherent)) {
+        // Created buffer is non-coherent. Flush the mapped memory range.
+        allocator.flushAllocation(allocation, 0, size);
     }
 
-    vku::AllocatedBuffer unmappedBuffer = std::move(buffer).unmap();
-    stagingBufferStorage.get().stage(unmappedBuffer, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst);
-    return unmappedBuffer;
+    if (stagingBufferStorage.stage(*this, vk::BufferUsageFlagBits::eStorageBuffer)) {
+        descriptorInfo.buffer = *this;
+    }
 }

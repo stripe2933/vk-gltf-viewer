@@ -109,8 +109,8 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
 
         if (const auto &textureInfo = material.normalTexture) {
             get<2>(materialTextureDescriptorSets[materialIndex]) = [&]() -> vk::DescriptorSet {
-                const auto &[image, _, alphaChannelPadded] = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex]));
-                if (componentCount(image.format) == 1 || alphaChannelPadded) {
+                const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
+                if (componentCount(image.format) == 1) {
                     // Alpha channel is sampled as 1, therefore can use the texture as is.
                     return textureDescriptorSets[textureInfo->textureIndex];
                 }
@@ -155,8 +155,8 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
 
         if (const auto &textureInfo = material.emissiveTexture) {
             get<4>(materialTextureDescriptorSets[materialIndex]) = [&]() -> vk::DescriptorSet {
-                const auto &[image, _, alphaChannelPadded] = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex]));
-                if (componentCount(image.format) == 1 || alphaChannelPadded) {
+                const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
+                if (componentCount(image.format) == 1) {
                     // Alpha channel is sampled as 1, therefore can use the texture as is.
                     return textureDescriptorSets[textureInfo->textureIndex];
                 }

@@ -11,6 +11,7 @@ import std;
 export import bloom;
 export import fastgltf;
 import imgui.vulkan;
+export import vkgltf.bindless;
 export import vku;
 export import :vulkan.pipeline.BloomApplyRenderer;
 export import :vulkan.pipeline.InverseToneMappingRenderer;
@@ -26,19 +27,12 @@ export import :vulkan.pipeline.UnlitPrimitiveRenderer;
 export import :vulkan.pipeline.WeightedBlendedCompositionRenderer;
 
 export import vk_gltf_viewer.gltf.AssetExternalBuffers;
-export import vk_gltf_viewer.gltf.data_structure.NodeInstanceCountExclusiveScanWithCount;
-export import vk_gltf_viewer.gltf.data_structure.TargetWeightCountExclusiveScanWithCount;
 import vk_gltf_viewer.helpers.AggregateHasher;
 import vk_gltf_viewer.helpers.fastgltf;
-import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.helpers.ranges;
 export import vk_gltf_viewer.vulkan.ag.ImGui;
-export import vk_gltf_viewer.vulkan.buffer.CombinedIndices;
 export import vk_gltf_viewer.vulkan.buffer.Materials;
-export import vk_gltf_viewer.vulkan.buffer.InverseBindMatrices;
 export import vk_gltf_viewer.vulkan.buffer.PrimitiveAttributes;
-export import vk_gltf_viewer.vulkan.buffer.Primitives;
-export import vk_gltf_viewer.vulkan.buffer.SkinJointIndices;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.rp.MousePicking;
 export import vk_gltf_viewer.vulkan.rp.Scene;
@@ -49,15 +43,11 @@ namespace vk_gltf_viewer::vulkan {
     export class SharedData {
     public:
         struct GltfAsset {
-            gltf::ds::NodeInstanceCountExclusiveScanWithCount nodeInstanceCountExclusiveScanWithCount;
-            gltf::ds::TargetWeightCountExclusiveScanWithCount targetWeightCountExclusiveScanWithCount;
-            gltf::ds::SkinJointCountExclusiveScanWithCount skinJointCountExclusiveScanWithCount;
-
             buffer::Materials materialBuffer;
-            buffer::CombinedIndices combinedIndexBuffers;
-            buffer::PrimitiveAttributes primitiveAttributes;
-            buffer::Primitives primitiveBuffer;
-            std::optional<std::pair<buffer::SkinJointIndices, buffer::InverseBindMatrices>> skinJointIndexAndInverseBindMatrixBuffer;
+            vkgltf::CombinedIndexBuffer combinedIndexBuffer;
+            std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers> primitiveAttributeBuffers;
+            vkgltf::PrimitiveBuffer primitiveBuffer;
+            std::optional<vkgltf::SkinBuffer> skinBuffer;
             texture::Textures textures;
             texture::ImGuiColorSpaceAndUsageCorrectedTextures imGuiColorSpaceAndUsageCorrectedTextures;
 
@@ -66,37 +56,38 @@ namespace vk_gltf_viewer::vulkan {
             GltfAsset(
                 const fastgltf::Asset &asset,
                 const std::filesystem::path &directory,
-                const gltf::OrderedPrimitives &orderedPrimitives,
                 const Gpu &gpu,
                 const texture::Fallback &fallbackTexture,
                 const gltf::AssetExternalBuffers &adapter,
-                buffer::StagingBufferStorage stagingBufferStorage = {},
+                vkgltf::StagingBufferStorage &stagingBufferStorage,
                 BS::thread_pool<> threadPool = {}
-            ) : nodeInstanceCountExclusiveScanWithCount { asset },
-                targetWeightCountExclusiveScanWithCount { asset },
-                skinJointCountExclusiveScanWithCount { asset },
-                materialBuffer { asset, gpu.allocator, stagingBufferStorage },
-                combinedIndexBuffers { asset, gpu, stagingBufferStorage, adapter },
-                primitiveAttributes { asset, gpu, stagingBufferStorage, threadPool, adapter },
-                primitiveBuffer { orderedPrimitives, primitiveAttributes, gpu, stagingBufferStorage },
-                skinJointIndexAndInverseBindMatrixBuffer { value_if(!asset.skins.empty(), [&]() {
-                    return std::pair<buffer::SkinJointIndices, buffer::InverseBindMatrices> {
-                        std::piecewise_construct,
-                        std::tie(asset, skinJointCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage),
-                        std::tie(asset, skinJointCountExclusiveScanWithCount, gpu.allocator, stagingBufferStorage, adapter),
-                    };
+            ) : materialBuffer { asset, gpu.allocator, stagingBufferStorage },
+                combinedIndexBuffer { asset, gpu.allocator, vkgltf::CombinedIndexBuffer::Config {
+                    .adapter = adapter,
+                    .promoteUnsignedByteToUnsignedShort = !gpu.supportUint8Index,
+                    .usageFlags = vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+                    .queueFamilies = gpu.queueFamilies.uniqueIndices,
+                    .stagingInfo = vku::unsafeAddress(vkgltf::StagingInfo { stagingBufferStorage }),
+                } },
+                primitiveAttributeBuffers { buffer::createPrimitiveAttributeBuffers(asset, gpu, stagingBufferStorage, threadPool, adapter) },
+                primitiveBuffer { asset, primitiveAttributeBuffers, gpu.device, gpu.allocator, vkgltf::PrimitiveBuffer::Config {
+                    .materialIndexFn = [](const fastgltf::Primitive &primitive) noexcept -> std::int32_t {
+                        // First element of the material storage buffer is reserved for the fallback material.
+                        if (!primitive.materialIndex) return 0;
+                        return 1 + *primitive.materialIndex;
+                    },
+                    .usageFlags = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
+                    .queueFamilies = gpu.queueFamilies.uniqueIndices,
+                    .stagingInfo = vku::unsafeAddress(vkgltf::StagingInfo { stagingBufferStorage }),
+                } },
+                skinBuffer { vkgltf::SkinBuffer::from(asset, gpu.allocator, vkgltf::SkinBuffer::Config {
+                    .adapter = adapter,
+                    .usageFlags = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
+                    .queueFamilies = gpu.queueFamilies.uniqueIndices,
+                    .stagingInfo = vku::unsafeAddress(vkgltf::StagingInfo { stagingBufferStorage }),
                 }) },
                 textures { asset, directory, gpu, fallbackTexture, threadPool, adapter },
                 imGuiColorSpaceAndUsageCorrectedTextures { asset, textures, gpu } {
-                if (stagingBufferStorage.hasStagingCommands()) {
-                    const vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-                    const vk::raii::Fence transferFence { gpu.device, vk::FenceCreateInfo{} };
-                    vku::executeSingleCommand(*gpu.device, *transferCommandPool, gpu.queues.transfer, [&](vk::CommandBuffer cb) {
-                        stagingBufferStorage.recordStagingCommands(cb);
-                    }, *transferFence);
-                    std::ignore = gpu.device.waitForFences(*transferFence, true, ~0ULL); // TODO: failure handling
-                }
-
                 imGuiTextureDescriptorSets
                     = textures.descriptorInfos
                     | std::views::transform([](const vk::DescriptorImageInfo &descriptorInfo) -> vk::DescriptorSet {
@@ -280,7 +271,6 @@ namespace vk_gltf_viewer::vulkan {
         void changeAsset(
             const fastgltf::Asset &asset,
             const std::filesystem::path &directory,
-            const gltf::OrderedPrimitives &orderedPrimitives,
             const gltf::AssetExternalBuffers &adapter
         ) {
             // If asset texture count exceeds the available texture count provided by the GPU, throw the error before
@@ -290,7 +280,10 @@ namespace vk_gltf_viewer::vulkan {
                 throw gltf::AssetProcessError::TooManyTextureError;
             }
 
-            gltfAsset.emplace(asset, directory, orderedPrimitives, gpu, fallbackTexture, adapter);
+            vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
+            vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, transferCommandPool, gpu.queues.transfer };
+            gltfAsset.emplace(asset, directory, gpu, fallbackTexture, adapter, stagingBufferStorage);
+
             if (!gpu.supportVariableDescriptorCount && get<3>(assetDescriptorSetLayout.descriptorCounts) != textureCount) {
                 // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
                 nodeIndexPipelines.clear();
@@ -307,6 +300,8 @@ namespace vk_gltf_viewer::vulkan {
                 primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
                 primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
             }
+
+            // In here stagingBufferStorage will be destroyed and fence will block until buffer staging operation finishes.
         }
 
     private:
