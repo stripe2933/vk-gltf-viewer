@@ -8,7 +8,7 @@
 #include "indexing.glsl"
 #include "types.glsl"
 
-#define HAS_VARIADIC_IN HAS_BASE_COLOR_TEXTURE || HAS_COLOR_0_ATTRIBUTE
+#define HAS_VARIADIC_IN HAS_BASE_COLOR_TEXTURE || HAS_COLOR_ATTRIBUTE
 
 layout (constant_id = 0) const bool BASE_COLOR_TEXTURE_TRANSFORM = false;
 
@@ -19,8 +19,8 @@ layout (location = 1) in FS_VARIADIC_IN {
     vec2 baseColorTexcoord;
 #endif
 
-#if HAS_COLOR_0_ATTRIBUTE
-    vec4 color0;
+#if HAS_COLOR_ATTRIBUTE
+    vec4 color;
 #endif
 } variadic_in;
 #endif
@@ -75,8 +75,8 @@ void main(){
     }
     baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], baseColorTexcoord);
 #endif
-#if HAS_COLOR_0_ATTRIBUTE
-    baseColor *= variadic_in.color0;
+#if HAS_COLOR_ATTRIBUTE
+    baseColor *= variadic_in.color;
 #endif
 
     writeOutput(baseColor);
