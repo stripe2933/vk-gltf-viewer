@@ -7,19 +7,20 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer:vulkan.Frame;
+export module vk_gltf_viewer.vulkan.Frame;
 
 import std;
-export import :vulkan.SharedData;
+export import fastgltf;
+export import glm;
+export import vkgltf;
+export import vku;
 
-import vk_gltf_viewer.helpers.optional;
-import vk_gltf_viewer.math.extended_arithmetic;
-export import vk_gltf_viewer.math.Frustum;
 import vk_gltf_viewer.vulkan.ag.JumpFloodSeed;
 import vk_gltf_viewer.vulkan.ag.MousePicking;
 import vk_gltf_viewer.vulkan.ag.SceneOpaque;
 import vk_gltf_viewer.vulkan.ag.SceneWeightedBlended;
 import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
+export import vk_gltf_viewer.vulkan.SharedData;
 
 /**
  * @brief A type that represents the state for a single multi-draw-indirect call.
@@ -77,29 +78,7 @@ namespace vk_gltf_viewer::vulkan {
                 std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
                 const SharedData &sharedData LIFETIMEBOUND,
                 const gltf::AssetExternalBuffers &adapter
-            ) : nodeBuffer { asset, nodeWorldTransforms, sharedData.gpu.device, sharedData.gpu.allocator, vkgltf::NodeBuffer::Config {
-                    .adapter = adapter,
-                    .skinBuffer = value_address(sharedData.gltfAsset->skinBuffer),
-                } },
-                mousePickingResultBuffer {
-                    sharedData.gpu.allocator,
-                    vk::BufferCreateInfo {
-                        {},
-                        sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(asset.nodes.size(), 32U),
-                        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-                    },
-                    vma::AllocationCreateInfo {
-                        vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
-                        vma::MemoryUsage::eAutoPreferDevice,
-                    },
-                },
-                descriptorPool { value_if(!sharedData.gpu.supportVariableDescriptorCount, [&]() {
-                    return vk::raii::DescriptorPool {
-                        sharedData.gpu.device,
-                        sharedData.assetDescriptorSetLayout.getPoolSize()
-                            .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind),
-                    };
-                }) } { }
+            );
         };
 
         struct ExecutionTask {
@@ -172,41 +151,7 @@ namespace vk_gltf_viewer::vulkan {
             const fastgltf::Asset &asset,
             std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
             const gltf::AssetExternalBuffers &adapter
-        ) {
-            const auto &inner = gltfAsset.emplace(asset, nodeWorldTransforms, sharedData, adapter);
-            if (sharedData.gpu.supportVariableDescriptorCount) {
-                (*sharedData.gpu.device).freeDescriptorSets(*descriptorPool, assetDescriptorSet);
-                assetDescriptorSet = decltype(assetDescriptorSet) {
-                    vku::unsafe,
-                    (*sharedData.gpu.device).allocateDescriptorSets(vk::StructureChain {
-                         vk::DescriptorSetAllocateInfo {
-                             *descriptorPool,
-                             *sharedData.assetDescriptorSetLayout,
-                         },
-                         vk::DescriptorSetVariableDescriptorCountAllocateInfo {
-                             vku::unsafeProxy<std::uint32_t>(asset.textures.size() + 1),
-                         },
-                     }.get())[0],
-                };
-            }
-            else {
-                std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*inner.descriptorPool.value(), std::tie(sharedData.assetDescriptorSetLayout));
-            }
-
-            std::vector<vk::DescriptorImageInfo> imageInfos;
-            imageInfos.reserve(asset.textures.size() + 1);
-            imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-            imageInfos.append_range(sharedData.gltfAsset->textures.descriptorInfos);
-
-            sharedData.gpu.device.updateDescriptorSets({
-                mousePickingSet.getWriteOne<1>({ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) }),
-                multiNodeMousePickingSet.getWriteOne<0>({ inner.mousePickingResultBuffer, 0, vk::WholeSize }),
-                assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.descriptorInfo),
-                assetDescriptorSet.getWrite<1>(inner.nodeBuffer.descriptorInfo),
-                assetDescriptorSet.getWrite<2>(sharedData.gltfAsset->materialBuffer.descriptorInfo),
-                assetDescriptorSet.getWrite<3>(imageInfos),
-            }, {});
-        }
+        );
 
     private:
         struct PassthruResources {

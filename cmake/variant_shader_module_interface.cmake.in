@@ -1,4 +1,4 @@
-export module @target_identifier@:shader.@shader_identifier@;
+export module @target_identifier@.shader.@shader_identifier@;
 
 #define SPECIALIZATION_BEGIN(...) \
     template <> \
@@ -16,3 +16,12 @@ namespace @target_identifier@::shader {
     export template <@comma_separated_macro_params@>
     constexpr auto &@shader_identifier@ = @shader_identifier@_t<@comma_separated_macro_names@>::data;
 }
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+#define INSTANTIATION(...) \
+    extern template struct @target_identifier@::shader::@shader_identifier@_t<__VA_ARGS__>
+
+@extern_template_instantiations@;

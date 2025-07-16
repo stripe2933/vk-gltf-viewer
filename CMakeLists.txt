@@ -86,17 +86,6 @@ add_subdirectory(vkgltf)
 # Project targets.
 # --------------------
 
-add_library(vk-gltf-viewer_asset)
-target_sources(vk-gltf-viewer_asset PUBLIC
-    FILE_SET CXX_MODULES
-    BASE_DIRS asset
-    FILES
-        asset/font/fontawesome_webfont_ttf.cppm
-        asset/font/mod.cppm
-        asset/mod.cppm
-)
-add_library(vk-gltf-viewer::asset ALIAS vk-gltf-viewer_asset)
-
 add_executable(vk-gltf-viewer WIN32 MACOSX_BUNDLE
     impl.cpp
     impl/control/ImGuiTaskCollector.cpp
@@ -123,6 +112,7 @@ target_sources(vk-gltf-viewer PRIVATE
         extlibs/module-ports/ImGuizmo.cppm
         extlibs/reflect.cppm
         interface/mod.cppm
+        interface/asset.cppm
         interface/AppState.cppm
         interface/control/AppWindow.cppm
         interface/control/Camera.cppm
@@ -198,6 +188,9 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/NodeIndexRenderer.cppm
         interface/vulkan/pipeline/JumpFloodComputer.cppm
         interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
+        interface/vulkan/pipeline/MaskJumpFloodSeedRenderer.cppm
+        interface/vulkan/pipeline/MaskMultiNodeMousePickingRenderer.cppm
+        interface/vulkan/pipeline/MaskNodeIndexRenderer.cppm
         interface/vulkan/pipeline/MousePickingRenderer.cppm
         interface/vulkan/pipeline/MultiNodeMousePickingRenderer.cppm
         interface/vulkan/pipeline/OutlineRenderer.cppm
@@ -238,7 +231,6 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     nfd::nfd
     vkgltf::bindless
     vku::vku
-    vk-gltf-viewer::asset
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE
     GLFW_INCLUDE_NONE

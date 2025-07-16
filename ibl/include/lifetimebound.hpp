@@ -8,7 +8,7 @@
 #define LIFETIMEBOUND
 #endif
 
-#if __clang__ >= 20
+#if __clang_major__ >= 20
 #define LIFETIME_CAPTURE_BY(...) [[clang::lifetime_capture_by(__VA_ARGS__)]]
 #else
 #define LIFETIME_CAPTURE_BY(...)

@@ -1,2 +1,2 @@
 export module bloom;
-export import :BloomComputer;
+export import bloom.BloomComputer;

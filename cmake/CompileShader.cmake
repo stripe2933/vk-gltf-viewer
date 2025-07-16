@@ -40,7 +40,7 @@ function(target_link_shaders TARGET SCOPE)
             set(depfile "${CMAKE_CURRENT_BINARY_DIR}/shader_depfile/${filename}.d")
             add_custom_command(
                 OUTPUT ${spirv_num_filename}
-                COMMAND Vulkan::glslc -MD -MF ${depfile} $<$<CONFIG:Release>:-O> --target-env=${arg_TARGET_ENV} -mfmt=num ${source} -o ${spirv_num_filename}
+                COMMAND Vulkan::glslc -MD -MF ${depfile} --target-env=${arg_TARGET_ENV} -mfmt=num ${source} -o ${spirv_num_filename}
                 DEPENDS ${source}
                 BYPRODUCTS ${depfile}
                 DEPFILE ${depfile}
@@ -97,7 +97,6 @@ function(target_link_shader_variants TARGET SCOPE)
 
     set(spirv_num_filenames "")
     set(shader_module_interface_filenames "")
-    set(shader_module_impl_filenames "")
     foreach (source IN LISTS arg_FILES)
         # Get filename from source.
         cmake_path(GET source FILENAME filename)
@@ -131,7 +130,7 @@ function(target_link_shader_variants TARGET SCOPE)
                 add_custom_command(
                     OUTPUT ${spirv_num_filename}
                     # Compile GLSL to SPIR-V.
-                    COMMAND Vulkan::glslc -MD -MF ${depfile} $<$<CONFIG:Release>:-O> --target-env=${arg_TARGET_ENV} -mfmt=num ${macro_cli_defs} ${source} -o ${spirv_num_filename}
+                    COMMAND Vulkan::glslc -MD -MF ${depfile} --target-env=${arg_TARGET_ENV} -mfmt=num ${macro_cli_defs} ${source} -o ${spirv_num_filename}
                     DEPENDS ${source}
                     BYPRODUCTS ${depfile}
                     DEPFILE ${depfile}
@@ -165,14 +164,6 @@ function(target_link_shader_variants TARGET SCOPE)
         set(shader_module_interface_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cppm")
         configure_file(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/variant_shader_module_interface.cmake.in ${shader_module_interface_filename} @ONLY)
         list(APPEND shader_module_interface_filenames ${shader_module_interface_filename})
-
-        # --------------------
-        # Make implementation file.
-        # --------------------
-
-        set(shader_module_impl_filename "${CMAKE_CURRENT_BINARY_DIR}/shader/${filename}.cpp")
-        configure_file(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/variant_shader_module_impl.cmake.in ${shader_module_impl_filename} @ONLY)
-        list(APPEND shader_module_impl_filenames ${shader_module_impl_filename})
     endforeach()
 
     # --------------------
@@ -181,5 +172,4 @@ function(target_link_shader_variants TARGET SCOPE)
 
     target_sources(${TARGET} ${SCOPE} FILE_SET HEADERS BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/shader FILES ${spirv_num_filenames})
     target_sources(${TARGET} ${SCOPE} FILE_SET CXX_MODULES BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/shader FILES ${shader_module_interface_filenames})
-    target_sources(${TARGET} ${SCOPE} ${shader_module_impl_filenames})
 endfunction()
