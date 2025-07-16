@@ -34,7 +34,7 @@ namespace vk_gltf_viewer::control {
         void sceneHierarchy(fastgltf::Asset &asset, std::size_t sceneIndex, gltf::StateCachedNodeVisibilityStructure &nodeVisibilities, const std::optional<std::size_t> &hoveringNodeIndex, std::unordered_set<std::size_t> &selectedNodeIndices);
         void nodeInspector(fastgltf::Asset &asset, std::span<const gltf::Animation> animations, const std::vector<bool> &animationEnabled, std::unordered_set<std::size_t> &selectedNodeIndices);
         void background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground);
-        void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureID eqmapTextureImGuiDescriptorSet);
+        void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureRef eqmapTextureRef);
         void inputControl(bool& automaticNearFarPlaneAdjustment, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline, bool canSelectBloomModePerFragment);
         void imguizmo();
         void imguizmo(fastgltf::Asset &asset, const std::unordered_set<std::size_t> &selectedNodes, std::span<fastgltf::math::fmat4x4> nodeWorldTransforms, ImGuizmo::OPERATION operation, std::span<const gltf::Animation> animations, const std::vector<bool> &animationEnabled);

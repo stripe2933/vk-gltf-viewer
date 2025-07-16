@@ -196,7 +196,7 @@ namespace vk_gltf_viewer::vulkan {
             std::vector<vk::DescriptorImageInfo> imageInfos;
             imageInfos.reserve(asset.textures.size() + 1);
             imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-            imageInfos.append_range(sharedData.gltfAsset->textures.descriptorInfos);
+            imageInfos.append_range(sharedData.gltfAsset->textures->descriptorInfos);
 
             sharedData.gpu.device.updateDescriptorSets({
                 mousePickingSet.getWriteOne<1>({ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) }),

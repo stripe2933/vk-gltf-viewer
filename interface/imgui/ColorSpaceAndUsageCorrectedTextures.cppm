@@ -30,11 +30,11 @@ namespace vk_gltf_viewer::imgui {
     export struct ColorSpaceAndUsageCorrectedTextures {
         virtual ~ColorSpaceAndUsageCorrectedTextures() = default;
 
-        [[nodiscard]] virtual ImTextureID getTextureID(std::size_t textureIndex) const = 0;
-        [[nodiscard]] virtual ImTextureID getMetallicTextureID(std::size_t materialIndex) const = 0;
-        [[nodiscard]] virtual ImTextureID getRoughnessTextureID(std::size_t materialIndex) const = 0;
-        [[nodiscard]] virtual ImTextureID getNormalTextureID(std::size_t materialIndex) const = 0;
-        [[nodiscard]] virtual ImTextureID getOcclusionTextureID(std::size_t materialIndex) const = 0;
-        [[nodiscard]] virtual ImTextureID getEmissiveTextureID(std::size_t materialIndex) const = 0;
+        [[nodiscard]] virtual ImTextureRef getTextureID(std::size_t textureIndex) const = 0;
+        [[nodiscard]] virtual ImTextureRef getMetallicTextureID(std::size_t materialIndex) const = 0;
+        [[nodiscard]] virtual ImTextureRef getRoughnessTextureID(std::size_t materialIndex) const = 0;
+        [[nodiscard]] virtual ImTextureRef getNormalTextureID(std::size_t materialIndex) const = 0;
+        [[nodiscard]] virtual ImTextureRef getOcclusionTextureID(std::size_t materialIndex) const = 0;
+        [[nodiscard]] virtual ImTextureRef getEmissiveTextureID(std::size_t materialIndex) const = 0;
     };
 }

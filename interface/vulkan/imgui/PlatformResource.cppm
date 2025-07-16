@@ -26,7 +26,8 @@ namespace vk_gltf_viewer::vulkan::imgui {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::imgui::PlatformResource::PlatformResource(const Gpu &gpu): checkerboardTexture { gpu } {
+vk_gltf_viewer::vulkan::imgui::PlatformResource::PlatformResource(const Gpu &gpu)
+    : checkerboardTexture { gpu } {
     checkerboardTextureID = vku::toUint64<vk::DescriptorSet>(ImGui_ImplVulkan_AddTexture(
         *checkerboardTexture.sampler, *checkerboardTexture.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 }

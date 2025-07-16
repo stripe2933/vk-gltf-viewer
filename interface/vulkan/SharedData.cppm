@@ -67,8 +67,11 @@ namespace vk_gltf_viewer::vulkan {
             std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers> primitiveAttributeBuffers;
             vkgltf::PrimitiveBuffer primitiveBuffer;
             std::optional<vkgltf::SkinBuffer> skinBuffer;
-            texture::Textures textures;
-            texture::ImGuiColorSpaceAndUsageCorrectedTextures imGuiColorSpaceAndUsageCorrectedTextures;
+
+            // Lifetime of glTF asset textures are not tied to the GltfAsset, as ImGui may need them after
+            // (FRAMES_IN_FLIGHT - 1) frames when asset is changed.
+            std::shared_ptr<texture::Textures> textures;
+            std::shared_ptr<texture::ImGuiColorSpaceAndUsageCorrectedTextures> imGuiColorSpaceAndUsageCorrectedTextures;
 
             std::vector<vk::DescriptorSet> imGuiTextureDescriptorSets;
 
@@ -106,10 +109,10 @@ namespace vk_gltf_viewer::vulkan {
                     .queueFamilies = gpu.queueFamilies.uniqueIndices,
                     .stagingInfo = vku::unsafeAddress(vkgltf::StagingInfo { stagingBufferStorage }),
                 }) },
-                textures { asset, directory, gpu, fallbackTexture, threadPool, adapter },
-                imGuiColorSpaceAndUsageCorrectedTextures { asset, textures, gpu } {
+                textures { std::make_shared<texture::Textures>(asset, directory, gpu, fallbackTexture, threadPool, adapter) },
+                imGuiColorSpaceAndUsageCorrectedTextures { std::make_shared<texture::ImGuiColorSpaceAndUsageCorrectedTextures>(asset, textures, gpu) } {
                 imGuiTextureDescriptorSets
-                    = textures.descriptorInfos
+                    = textures->descriptorInfos
                     | std::views::transform([](const vk::DescriptorImageInfo &descriptorInfo) -> vk::DescriptorSet {
                         return ImGui_ImplVulkan_AddTexture(descriptorInfo.sampler, descriptorInfo.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                     })

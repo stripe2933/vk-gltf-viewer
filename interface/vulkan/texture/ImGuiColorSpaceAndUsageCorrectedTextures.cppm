@@ -16,20 +16,22 @@ export import vk_gltf_viewer.vulkan.texture.Textures;
 
 namespace vk_gltf_viewer::vulkan::texture {
     export class ImGuiColorSpaceAndUsageCorrectedTextures final : public imgui::ColorSpaceAndUsageCorrectedTextures {
+        std::shared_ptr<const Textures> textures;
+
         std::deque<vk::raii::ImageView> imageViews;
         std::vector<vk::DescriptorSet> textureDescriptorSets;
         std::vector<std::array<vk::DescriptorSet, 5>> materialTextureDescriptorSets; // [0] -> metallic, [1] -> roughness, [2] -> normal, [3] -> occlusion, [4] -> emissive
 
     public:
-        ImGuiColorSpaceAndUsageCorrectedTextures(const fastgltf::Asset &asset LIFETIMEBOUND, const Textures &textures LIFETIMEBOUND, const Gpu &gpu LIFETIMEBOUND);
+        ImGuiColorSpaceAndUsageCorrectedTextures(const fastgltf::Asset &asset LIFETIMEBOUND, std::shared_ptr<const Textures> textures, const Gpu &gpu LIFETIMEBOUND);
         ~ImGuiColorSpaceAndUsageCorrectedTextures() override;
 
-        [[nodiscard]] ImTextureID getTextureID(std::size_t textureIndex) const override;
-        [[nodiscard]] ImTextureID getMetallicTextureID(std::size_t materialIndex) const override;
-        [[nodiscard]] ImTextureID getRoughnessTextureID(std::size_t materialIndex) const override;
-        [[nodiscard]] ImTextureID getNormalTextureID(std::size_t materialIndex) const override;
-        [[nodiscard]] ImTextureID getOcclusionTextureID(std::size_t materialIndex) const override;
-        [[nodiscard]] ImTextureID getEmissiveTextureID(std::size_t materialIndex) const override;
+        [[nodiscard]] ImTextureRef getTextureID(std::size_t textureIndex) const override;
+        [[nodiscard]] ImTextureRef getMetallicTextureID(std::size_t materialIndex) const override;
+        [[nodiscard]] ImTextureRef getRoughnessTextureID(std::size_t materialIndex) const override;
+        [[nodiscard]] ImTextureRef getNormalTextureID(std::size_t materialIndex) const override;
+        [[nodiscard]] ImTextureRef getOcclusionTextureID(std::size_t materialIndex) const override;
+        [[nodiscard]] ImTextureRef getEmissiveTextureID(std::size_t materialIndex) const override;
     };
 }
 
@@ -39,15 +41,15 @@ module :private;
 
 vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGuiColorSpaceAndUsageCorrectedTextures(
     const fastgltf::Asset &asset,
-    const Textures &textures,
+    std::shared_ptr<const Textures> _textures,
     const Gpu &gpu
-) {
+) : textures { std::move(_textures) } {
     textureDescriptorSets
         = asset.textures
         | ranges::views::enumerate
         | std::views::transform(decomposer([&](std::size_t textureIndex, const fastgltf::Texture &texture) -> vk::DescriptorSet {
-            auto [sampler, imageView, _] = textures.descriptorInfos[textureIndex];
-            const vku::Image &image = textures.images.at(getPreferredImageIndex(texture)).image;
+            auto [sampler, imageView, _] = textures->descriptorInfos[textureIndex];
+            const vku::Image &image = textures->images.at(getPreferredImageIndex(texture)).image;
             if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
                 // Image view format is incompatible, need to be regenerated.
                 const vk::ComponentMapping components = [&]() -> vk::ComponentMapping {
@@ -77,7 +79,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
     materialTextureDescriptorSets.resize(asset.materials.size());
     for (const auto &[materialIndex, material] : asset.materials | ranges::views::enumerate) {
         if (const auto &textureInfo = material.pbrData.metallicRoughnessTexture) {
-            const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
+            const vku::Image &image = textures->images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
             if (componentCount(image.format) == 1) {
                 // Texture is grayscale, channel propagating swizzling is unnecessary.
                 get<0>(materialTextureDescriptorSets[materialIndex]) = textureDescriptorSets[textureInfo->textureIndex];
@@ -91,7 +93,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
 
                 // Metallic.
                 get<0>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
-                    textures.descriptorInfos[textureInfo->textureIndex].sampler,
+                    textures->descriptorInfos[textureInfo->textureIndex].sampler,
                     *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
                         .setFormat(colorSpaceCompatibleFormat)
                         .setComponents({ vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eOne })),
@@ -99,7 +101,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
 
                 // Roughness.
                 get<1>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
-                    textures.descriptorInfos[textureInfo->textureIndex].sampler,
+                    textures->descriptorInfos[textureInfo->textureIndex].sampler,
                     *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
                         .setFormat(colorSpaceCompatibleFormat)
                         .setComponents({ vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eOne })),
@@ -109,7 +111,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
 
         if (const auto &textureInfo = material.normalTexture) {
             get<2>(materialTextureDescriptorSets[materialIndex]) = [&]() -> vk::DescriptorSet {
-                const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
+                const vku::Image &image = textures->images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
                 if (componentCount(image.format) == 1) {
                     // Alpha channel is sampled as 1, therefore can use the texture as is.
                     return textureDescriptorSets[textureInfo->textureIndex];
@@ -121,7 +123,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
                     }
 
                     return ImGui_ImplVulkan_AddTexture(
-                        textures.descriptorInfos[textureInfo->textureIndex].sampler,
+                        textures->descriptorInfos[textureInfo->textureIndex].sampler,
                         *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
                             .setFormat(colorSpaceCompatibleFormat)
                             .setComponents({ {}, {}, {}, vk::ComponentSwizzle::eOne })),
@@ -132,7 +134,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
 
         if (const auto &textureInfo = material.occlusionTexture) {
             get<3>(materialTextureDescriptorSets[materialIndex]) = [&]() -> vk::DescriptorSet {
-                const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
+                const vku::Image &image = textures->images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
                 if (componentCount(image.format) == 1) {
                     // Texture is grayscale, channel propagating swizzling is unnecessary.
                     return textureDescriptorSets[textureInfo->textureIndex];
@@ -144,7 +146,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
                     }
 
                     return ImGui_ImplVulkan_AddTexture(
-                        textures.descriptorInfos[textureInfo->textureIndex].sampler,
+                        textures->descriptorInfos[textureInfo->textureIndex].sampler,
                         *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
                             .setFormat(colorSpaceCompatibleFormat)
                             .setComponents({ vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne })),
@@ -155,7 +157,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
 
         if (const auto &textureInfo = material.emissiveTexture) {
             get<4>(materialTextureDescriptorSets[materialIndex]) = [&]() -> vk::DescriptorSet {
-                const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
+                const vku::Image &image = textures->images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
                 if (componentCount(image.format) == 1) {
                     // Alpha channel is sampled as 1, therefore can use the texture as is.
                     return textureDescriptorSets[textureInfo->textureIndex];
@@ -183,7 +185,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
                     }();
 
                     return ImGui_ImplVulkan_AddTexture(
-                        textures.descriptorInfos[textureInfo->textureIndex].sampler,
+                        textures->descriptorInfos[textureInfo->textureIndex].sampler,
                         *imageViews.emplace_back(gpu.device, image.getViewCreateInfo().setFormat(colorSpaceCompatibleFormat).setComponents(components)),
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 }
@@ -209,26 +211,26 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::~ImGu
     std::ranges::for_each(uniqueDescriptorSets, ImGui_ImplVulkan_RemoveTexture);
 }
 
-[[nodiscard]] ImTextureID vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getTextureID(std::size_t textureIndex) const {
+[[nodiscard]] ImTextureRef vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getTextureID(std::size_t textureIndex) const {
     return vku::toUint64(textureDescriptorSets[textureIndex]);
 }
 
-[[nodiscard]] ImTextureID vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getMetallicTextureID(std::size_t materialIndex) const {
+[[nodiscard]] ImTextureRef vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getMetallicTextureID(std::size_t materialIndex) const {
     return vku::toUint64(get<0>(materialTextureDescriptorSets[materialIndex]));
 }
 
-[[nodiscard]] ImTextureID vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getRoughnessTextureID(std::size_t materialIndex) const {
+[[nodiscard]] ImTextureRef vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getRoughnessTextureID(std::size_t materialIndex) const {
     return vku::toUint64(get<1>(materialTextureDescriptorSets[materialIndex]));
 }
 
-[[nodiscard]] ImTextureID vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getNormalTextureID(std::size_t materialIndex) const {
+[[nodiscard]] ImTextureRef vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getNormalTextureID(std::size_t materialIndex) const {
     return vku::toUint64(get<2>(materialTextureDescriptorSets[materialIndex]));
 }
 
-[[nodiscard]] ImTextureID vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getOcclusionTextureID(std::size_t materialIndex) const {
+[[nodiscard]] ImTextureRef vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getOcclusionTextureID(std::size_t materialIndex) const {
     return vku::toUint64(get<3>(materialTextureDescriptorSets[materialIndex]));
 }
 
-[[nodiscard]] ImTextureID vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getEmissiveTextureID(std::size_t materialIndex) const {
+[[nodiscard]] ImTextureRef vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getEmissiveTextureID(std::size_t materialIndex) const {
     return vku::toUint64(get<4>(materialTextureDescriptorSets[materialIndex]));
 }

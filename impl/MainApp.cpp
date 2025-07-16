@@ -165,13 +165,19 @@ void vk_gltf_viewer::MainApp::run() {
 	// being invalidated. This booleans indicate whether the frame feedback result is valid or not.
     std::array<bool, FRAMES_IN_FLIGHT> frameFeedbackResultValid{};
 
+    std::shared_ptr<const imgui::ColorSpaceAndUsageCorrectedTextures> retainedAssetTextures;
+
     // TODO: we need more general mechanism to upload the GPU buffer data in shared data. This is just a stopgap solution
     //  for current KHR_materials_variants implementation.
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const auto [sharedDataUpdateCommandBuffer] = vku::allocateCommandBuffers<1>(*gpu.device, *graphicsCommandPool);
 
     for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % FRAMES_IN_FLIGHT) {
-        bool hasUpdateData = false;
+        vulkan::Frame &frame = frames[frameIndex];
+        vk::Fence inFlightFence = frameInFlightFences[frameIndex];
+
+        // Wait for previous frame execution to end.
+        std::ignore = gpu.device.waitForFences(inFlightFence, true, ~0ULL);
 
         std::queue<control::Task> tasks;
 
@@ -207,9 +213,10 @@ void vk_gltf_viewer::MainApp::run() {
 
             imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths(), windowHandle);
             if (gltf) {
+                retainedAssetTextures = sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures;
                 imguiTaskCollector.assetInspector(gltf->asset, gltf->directory);
-                imguiTaskCollector.assetTextures(gltf->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures, gltf->textureUsages);
-                imguiTaskCollector.materialEditor(gltf->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures);
+                imguiTaskCollector.assetTextures(gltf->asset, *retainedAssetTextures, gltf->textureUsages);
+                imguiTaskCollector.materialEditor(gltf->asset, *retainedAssetTextures);
                 if (!gltf->asset.materialVariants.empty()) {
                     imguiTaskCollector.materialVariants(gltf->asset);
                 }
@@ -220,6 +227,10 @@ void vk_gltf_viewer::MainApp::run() {
                     imguiTaskCollector.animations(gltf->asset, gltf->animationEnabled);
                 }
             }
+            else {
+                retainedAssetTextures.reset();
+            }
+
             if (const auto &iblInfo = appState.imageBasedLightingProperties) {
                 imguiTaskCollector.imageBasedLighting(*iblInfo, vku::toUint64(skyboxResources->imGuiEqmapTextureDescriptorSet));
             }
@@ -250,12 +261,6 @@ void vk_gltf_viewer::MainApp::run() {
             }
         }
 
-        vulkan::Frame &frame = frames[frameIndex];
-        vk::Fence inFlightFence = frameInFlightFences[frameIndex];
-
-        // Wait for previous frame execution to end.
-        std::ignore = gpu.device.waitForFences(inFlightFence, true, ~0ULL);
-
         for (const auto &task : deferredFrameUpdateTasks) {
             task(frame);
         }
@@ -265,6 +270,7 @@ void vk_gltf_viewer::MainApp::run() {
         sharedDataUpdateCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
         // Process the collected tasks.
+        bool hasUpdateData = false;
         for (; !tasks.empty(); tasks.pop()) {
             visit(multilambda {
                 [this](const control::task::WindowKey &task) {
@@ -830,15 +836,11 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
     ImGui::CreateContext();
 
     ImGuiIO &io = ImGui::GetIO();
-    const glm::vec2 contentScale = window.getContentScale();
-    io.DisplayFramebufferScale = { contentScale.x, contentScale.y };
-#if __APPLE__
-    io.FontGlobalScale = 1.f / io.DisplayFramebufferScale.x;
-#endif
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
 
     ImFontConfig fontConfig;
-    fontConfig.SizePixels = 16.f * io.DisplayFramebufferScale.x;
+    fontConfig.SizePixels = 16.f;
 
     const char *defaultFontPath =
 #ifdef _WIN32
@@ -863,8 +865,6 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
     io.Fonts->AddFontFromMemoryCompressedBase85TTF(
         asset::font::fontawesome_webfont_ttf_compressed_data_base85,
         fontConfig.SizePixels, &fontConfig, fontAwesomeIconRanges);
-
-    io.Fonts->Build();
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
     const vk::Format colorAttachmentFormat = gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb;
