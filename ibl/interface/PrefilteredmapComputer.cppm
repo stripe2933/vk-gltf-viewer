@@ -4,11 +4,12 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module ibl:PrefilteredmapComputer;
+export module ibl.PrefilteredmapComputer;
 
 import std;
 export import vku;
-import :shader.prefilteredmap_comp;
+
+import ibl.shader.prefilteredmap_comp;
 
 namespace ibl {
     export class PrefilteredmapComputer {
@@ -27,9 +28,9 @@ namespace ibl {
              * to v1.2.11). If the extension is supported, compute shader can access the arbitrary mip level of the
              * storage image, and can reduce the descriptor binding count.
              */
-            bool useShaderImageLoadStoreLod;
+            bool useShaderImageLoadStoreLod = false;
 
-            SpecializationConstants specializationConstants;
+            SpecializationConstants specializationConstants = {};
         };
 
         static constexpr vk::ImageUsageFlags requiredCubemapImageUsageFlags = vk::ImageUsageFlagBits::eSampled;
@@ -39,67 +40,21 @@ namespace ibl {
             const vk::raii::Device &device LIFETIMEBOUND,
             const vku::Image &cubemapImage LIFETIMEBOUND,
             const vku::Image &prefilteredmapImage LIFETIMEBOUND,
-            const Config &config
-        ) : config { config },
-            device { device },
-            prefilteredmapImage { prefilteredmapImage },
-            cubemapSampler { device, vk::SamplerCreateInfo { {}, vk::Filter::eLinear, vk::Filter::eLinear }.setMaxLod(vk::LodClampNone) },
-            descriptorSetLayout { createDescriptorSetLayout() },
-            pipelineLayout { createPipelineLayout() },
-            pipeline { createPipeline() },
-            cubemapImageView { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
-            prefilteredmapMipImageViews { createPrefilteredmapMipImageViews() } { }
-
-        void setCubemapImage(const vku::Image &cubemapImage LIFETIME_CAPTURE_BY(this)) {
-            cubemapImageView = { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
-        }
-
-        void setPrefilteredmapImage(const vku::Image &prefilteredmapImage LIFETIME_CAPTURE_BY(this)) {
-            const bool descriptorSetLayoutChanged = !config.useShaderImageLoadStoreLod && (this->prefilteredmapImage.get().mipLevels != prefilteredmapImage.mipLevels);
-            this->prefilteredmapImage = prefilteredmapImage;
-            if (descriptorSetLayoutChanged) {
-                descriptorSetLayout = createDescriptorSetLayout();
-                pipelineLayout = createPipelineLayout();
-                pipeline = createPipeline();
+            const Config &config = {
+                .useShaderImageLoadStoreLod = false,
+                .specializationConstants = {
+                    .samples = 1024,
+                },
             }
-            prefilteredmapMipImageViews = createPrefilteredmapMipImageViews();
-        }
+        );
 
-        void recordCommands(vk::CommandBuffer computeCommandBuffer) const {
-            const auto *d = device.get().getDispatcher();
+        void setCubemapImage(const vku::Image &cubemapImage LIFETIME_CAPTURE_BY(this));
+        void setPrefilteredmapImage(const vku::Image &prefilteredmapImage LIFETIME_CAPTURE_BY(this));
 
-            computeCommandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline, *d);
-            computeCommandBuffer.pushDescriptorSetKHR(
-                vk::PipelineBindPoint::eCompute, *pipelineLayout,
-                0, {
-                    decltype(descriptorSetLayout)::getWriteOne<0>({ {}, *cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-                    decltype(descriptorSetLayout)::getWrite<1>(vku::unsafeProxy(prefilteredmapMipImageViews
-                        | std::views::transform([](vk::ImageView view) {
-                            return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
-                        })
-                        | std::ranges::to<std::vector>())),
-                }, *d);
-
-            for (std::uint32_t level = 0; level < prefilteredmapImage.get().mipLevels; ++level) {
-                computeCommandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, PushConstant {
-                    .mipLevel = static_cast<std::int32_t>(level),
-                    .roughness = static_cast<float>(level) / (prefilteredmapImage.get().mipLevels - 1),
-                }, *d);
-
-                constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) noexcept {
-                    return (num / denom) + (num % denom != 0);
-                };
-                const std::uint32_t groupCountXY = divCeil(prefilteredmapImage.get().extent.width >> level, 16U);
-                computeCommandBuffer.dispatch(groupCountXY, groupCountXY, 6, *d);
-            }
-
-        }
+        void recordCommands(vk::CommandBuffer computeCommandBuffer) const;
 
     private:
-        struct PushConstant {
-            std::int32_t mipLevel;
-            float roughness;
-        };
+        struct PushConstant;
 
         Config config;
         std::reference_wrapper<const vk::raii::Device> device;
@@ -111,63 +66,136 @@ namespace ibl {
         vk::raii::ImageView cubemapImageView;
         std::vector<vk::raii::ImageView> prefilteredmapMipImageViews;
 
-        [[nodiscard]] vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> createDescriptorSetLayout() const {
-            return {
-                device,
-                vk::DescriptorSetLayoutCreateInfo {
-                    vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
-                    vku::unsafeProxy(decltype(descriptorSetLayout)::getBindings(
-                        { 1, vk::ShaderStageFlagBits::eCompute, &*cubemapSampler },
-                        { config.useShaderImageLoadStoreLod ? 1U : prefilteredmapImage.get().mipLevels, vk::ShaderStageFlagBits::eCompute })),
-                },
-            };
-        }
-
-        [[nodiscard]] vk::raii::PipelineLayout createPipelineLayout() const {
-            return { device, vk::PipelineLayoutCreateInfo {
-                {},
-                *descriptorSetLayout,
-                vku::unsafeProxy(vk::PushConstantRange {
-                    vk::ShaderStageFlagBits::eCompute,
-                    0, sizeof(PushConstant),
-                }),
-            } };
-        }
-
-        [[nodiscard]] vk::raii::Pipeline createPipeline() const {
-            return { device, nullptr, vk::ComputePipelineCreateInfo {
-                {},
-                createPipelineStages(
-                    device,
-                    vku::Shader {
-                        config.useShaderImageLoadStoreLod
-                            ? std::span<const std::uint32_t> { shader::prefilteredmap_comp<1> }
-                            : std::span<const std::uint32_t> { shader::prefilteredmap_comp<0> },
-                        vk::ShaderStageFlagBits::eCompute,
-                        vku::unsafeAddress(vk::SpecializationInfo {
-                            // TODO: use vku::SpecializationMap when available.
-                            vku::unsafeProxy({
-                                vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, samples), sizeof(SpecializationConstants::samples) },
-                            }),
-                            vk::ArrayProxyNoTemporaries<const SpecializationConstants> { config.specializationConstants },
-                        }),
-                    }).get()[0],
-                *pipelineLayout,
-            } };
-        }
-
-        [[nodiscard]] std::vector<vk::raii::ImageView> createPrefilteredmapMipImageViews() const {
-            std::vector<vk::raii::ImageView> result;
-            if (config.useShaderImageLoadStoreLod) {
-                result.emplace_back(device, prefilteredmapImage.get().getViewCreateInfo(vk::ImageViewType::eCube));
-            }
-            else {
-                result.append_range(prefilteredmapImage.get().getMipViewCreateInfos(vk::ImageViewType::eCube)
-                    | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
-                        return vk::raii::ImageView { device, createInfo };
-                    }));
-            }
-            return result;
-        }
+        [[nodiscard]] vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> createDescriptorSetLayout() const;
+        [[nodiscard]] vk::raii::PipelineLayout createPipelineLayout() const;
+        [[nodiscard]] vk::raii::Pipeline createPipeline() const;
+        [[nodiscard]] std::vector<vk::raii::ImageView> createPrefilteredmapMipImageViews() const;
     };
+}
+
+#if !defined(__GNUC__) || defined(__clang__)
+module :private;
+#endif
+
+struct ibl::PrefilteredmapComputer::PushConstant {
+    std::int32_t mipLevel;
+    float roughness;
+};
+
+ibl::PrefilteredmapComputer::PrefilteredmapComputer(
+    const vk::raii::Device &device LIFETIMEBOUND,
+    const vku::Image &cubemapImage LIFETIMEBOUND,
+    const vku::Image &prefilteredmapImage LIFETIMEBOUND,
+    const Config &config
+) : config { config },
+    device { device },
+    prefilteredmapImage { prefilteredmapImage },
+    cubemapSampler { device, vk::SamplerCreateInfo { {}, vk::Filter::eLinear, vk::Filter::eLinear }.setMaxLod(vk::LodClampNone) },
+    descriptorSetLayout { createDescriptorSetLayout() },
+    pipelineLayout { createPipelineLayout() },
+    pipeline { createPipeline() },
+    cubemapImageView { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
+    prefilteredmapMipImageViews { createPrefilteredmapMipImageViews() } { }
+
+void ibl::PrefilteredmapComputer::setCubemapImage(const vku::Image &cubemapImage LIFETIME_CAPTURE_BY(this)) {
+    cubemapImageView = { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
+}
+
+void ibl::PrefilteredmapComputer::setPrefilteredmapImage(const vku::Image &prefilteredmapImage LIFETIME_CAPTURE_BY(this)) {
+    const bool descriptorSetLayoutChanged = !config.useShaderImageLoadStoreLod && (this->prefilteredmapImage.get().mipLevels != prefilteredmapImage.mipLevels);
+    this->prefilteredmapImage = prefilteredmapImage;
+    if (descriptorSetLayoutChanged) {
+        descriptorSetLayout = createDescriptorSetLayout();
+        pipelineLayout = createPipelineLayout();
+        pipeline = createPipeline();
+    }
+    prefilteredmapMipImageViews = createPrefilteredmapMipImageViews();
+}
+
+void ibl::PrefilteredmapComputer::recordCommands(vk::CommandBuffer computeCommandBuffer) const {
+    const auto *d = device.get().getDispatcher();
+
+    computeCommandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline, *d);
+    computeCommandBuffer.pushDescriptorSetKHR(
+        vk::PipelineBindPoint::eCompute, *pipelineLayout,
+        0, {
+            decltype(descriptorSetLayout)::getWriteOne<0>({ {}, *cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+            decltype(descriptorSetLayout)::getWrite<1>(vku::unsafeProxy(prefilteredmapMipImageViews
+                | std::views::transform([](vk::ImageView view) {
+                    return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
+                })
+                | std::ranges::to<std::vector>())),
+        }, *d);
+
+    for (std::uint32_t level = 0; level < prefilteredmapImage.get().mipLevels; ++level) {
+        computeCommandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, PushConstant {
+            .mipLevel = static_cast<std::int32_t>(level),
+            .roughness = static_cast<float>(level) / (prefilteredmapImage.get().mipLevels - 1),
+        }, *d);
+
+        constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) noexcept {
+            return (num / denom) + (num % denom != 0);
+        };
+        const std::uint32_t groupCountXY = divCeil(prefilteredmapImage.get().extent.width >> level, 16U);
+        computeCommandBuffer.dispatch(groupCountXY, groupCountXY, 6, *d);
+    }
+}
+
+[[nodiscard]] vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> ibl::PrefilteredmapComputer::createDescriptorSetLayout() const {
+    return {
+        device,
+        vk::DescriptorSetLayoutCreateInfo {
+            vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
+            vku::unsafeProxy(decltype(descriptorSetLayout)::getBindings(
+                { 1, vk::ShaderStageFlagBits::eCompute, &*cubemapSampler },
+                { config.useShaderImageLoadStoreLod ? 1U : prefilteredmapImage.get().mipLevels, vk::ShaderStageFlagBits::eCompute })),
+        },
+    };
+}
+
+[[nodiscard]] vk::raii::PipelineLayout ibl::PrefilteredmapComputer::createPipelineLayout() const {
+    return { device, vk::PipelineLayoutCreateInfo {
+        {},
+        *descriptorSetLayout,
+        vku::unsafeProxy(vk::PushConstantRange {
+            vk::ShaderStageFlagBits::eCompute,
+            0, sizeof(PushConstant),
+        }),
+    } };
+}
+
+[[nodiscard]] vk::raii::Pipeline ibl::PrefilteredmapComputer::createPipeline() const {
+    return { device, nullptr, vk::ComputePipelineCreateInfo {
+        {},
+        createPipelineStages(
+            device,
+            vku::Shader {
+                config.useShaderImageLoadStoreLod
+                    ? std::span<const std::uint32_t> { shader::prefilteredmap_comp<1> }
+                    : std::span<const std::uint32_t> { shader::prefilteredmap_comp<0> },
+                vk::ShaderStageFlagBits::eCompute,
+                vku::unsafeAddress(vk::SpecializationInfo {
+                    // TODO: use vku::SpecializationMap when available.
+                    vku::unsafeProxy({
+                        vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, samples), sizeof(SpecializationConstants::samples) },
+                    }),
+                    vk::ArrayProxyNoTemporaries<const SpecializationConstants> { config.specializationConstants },
+                }),
+            }).get()[0],
+        *pipelineLayout,
+    } };
+}
+
+[[nodiscard]] std::vector<vk::raii::ImageView> ibl::PrefilteredmapComputer::createPrefilteredmapMipImageViews() const {
+    std::vector<vk::raii::ImageView> result;
+    if (config.useShaderImageLoadStoreLod) {
+        result.emplace_back(device, prefilteredmapImage.get().getViewCreateInfo(vk::ImageViewType::eCube));
+    }
+    else {
+        result.append_range(prefilteredmapImage.get().getMipViewCreateInfos(vk::ImageViewType::eCube)
+            | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
+                return vk::raii::ImageView { device, createInfo };
+            }));
+    }
+    return result;
 }

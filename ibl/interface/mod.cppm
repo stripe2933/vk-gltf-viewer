@@ -1,4 +1,4 @@
 export module ibl;
-export import :BrdfmapRenderer;
-export import :PrefilteredmapComputer;
-export import :SphericalHarmonicCoefficientComputer;
+export import ibl.BrdfmapRenderer;
+export import ibl.PrefilteredmapComputer;
+export import ibl.SphericalHarmonicCoefficientComputer;

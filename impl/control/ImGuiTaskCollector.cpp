@@ -8,11 +8,7 @@ module;
 
 module vk_gltf_viewer.imgui.TaskCollector;
 
-import std;
-import glm;
-import imgui.internal;
 import imgui.math;
-import ImGuizmo;
 
 import vk_gltf_viewer.global;
 import vk_gltf_viewer.helpers.concepts;
@@ -25,6 +21,11 @@ import vk_gltf_viewer.helpers.PairHasher;
 import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.helpers.TempStringBuffer;
 import vk_gltf_viewer.imgui.UserData;
+
+#if defined(__clang__) && __clang_major__ < 19
+import std;
+import imgui.internal;
+#endif
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
