@@ -34,6 +34,7 @@ export import vk_gltf_viewer.vulkan.ag.ImGui;
 export import vk_gltf_viewer.vulkan.buffer.Materials;
 export import vk_gltf_viewer.vulkan.buffer.PrimitiveAttributes;
 export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.pipeline.AssetSpecialization;
 export import vk_gltf_viewer.vulkan.rp.MousePicking;
 export import vk_gltf_viewer.vulkan.rp.Scene;
 export import vk_gltf_viewer.vulkan.texture.ImGuiColorSpaceAndUsageCorrectedTextures;
@@ -245,13 +246,14 @@ namespace vk_gltf_viewer::vulkan {
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getMaskNodeIndexRenderer(const fastgltf::Primitive &primitive) const {
+        [[nodiscard]] vk::Pipeline getMaskNodeIndexRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
             const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
             MaskNodeIndexRendererSpecialization specialization {
                 .positionComponentType = accessors.position.attributeInfo.componentType,
                 .positionNormalized = accessors.position.attributeInfo.normalized,
                 .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+                .useTextureTransform = assetSpecialization.useTextureTransform,
             };
 
             if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
@@ -271,7 +273,6 @@ namespace vk_gltf_viewer::vulkan {
                 if (const auto &textureInfo = material.pbrData.baseColorTexture) {
                     const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
                     specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
-                    specialization.baseColorTextureTransform = textureInfo->transform != nullptr;
                 }
             }
 
@@ -298,13 +299,14 @@ namespace vk_gltf_viewer::vulkan {
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getMaskMultiNodeMousePickingRenderer(const fastgltf::Primitive &primitive) const {
+        [[nodiscard]] vk::Pipeline getMaskMultiNodeMousePickingRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
             const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
             MaskMultiNodeMousePickingRendererSpecialization specialization {
                 .positionComponentType = accessors.position.attributeInfo.componentType,
                 .positionNormalized = accessors.position.attributeInfo.normalized,
                 .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+                .useTextureTransform = assetSpecialization.useTextureTransform,
             };
 
             if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
@@ -324,7 +326,6 @@ namespace vk_gltf_viewer::vulkan {
                 if (const auto &textureInfo = material.pbrData.baseColorTexture) {
                     const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
                     specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
-                    specialization.baseColorTextureTransform = textureInfo->transform != nullptr;
                 }
             }
 
@@ -351,13 +352,14 @@ namespace vk_gltf_viewer::vulkan {
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getMaskJumpFloodSeedRenderer(const fastgltf::Primitive &primitive) const {
+        [[nodiscard]] vk::Pipeline getMaskJumpFloodSeedRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
             const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
             MaskJumpFloodSeedRendererSpecialization specialization {
                 .positionComponentType = accessors.position.attributeInfo.componentType,
                 .positionNormalized = accessors.position.attributeInfo.normalized,
                 .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+                .useTextureTransform = assetSpecialization.useTextureTransform,
             };
 
             if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
@@ -377,7 +379,6 @@ namespace vk_gltf_viewer::vulkan {
                 if (const auto &textureInfo = material.pbrData.baseColorTexture) {
                     const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
                     specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
-                    specialization.baseColorTextureTransform = textureInfo->transform != nullptr;
                 }
             }
 
@@ -386,13 +387,14 @@ namespace vk_gltf_viewer::vulkan {
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getPrimitiveRenderer(const fastgltf::Primitive &primitive, bool usePerFragmentEmissiveStencilExport) const {
+        [[nodiscard]] vk::Pipeline getPrimitiveRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive, bool usePerFragmentEmissiveStencilExport) const {
             const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
             PrimitiveRendererSpecialization specialization {
                 .positionComponentType = accessors.position.attributeInfo.componentType,
                 .positionNormalized = accessors.position.attributeInfo.normalized,
                 .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+                .useTextureTransform = assetSpecialization.useTextureTransform,
                 .usePerFragmentEmissiveStencilExport = usePerFragmentEmissiveStencilExport,
             };
 
@@ -424,11 +426,6 @@ namespace vk_gltf_viewer::vulkan {
                 }
 
                 const fastgltf::Material &material = gltfAsset->asset.materials[*primitive.materialIndex];
-                specialization.baseColorTextureTransform = material.pbrData.baseColorTexture && material.pbrData.baseColorTexture->transform;
-                specialization.metallicRoughnessTextureTransform = material.pbrData.metallicRoughnessTexture && material.pbrData.metallicRoughnessTexture->transform;
-                specialization.normalTextureTransform = material.normalTexture && material.normalTexture->transform;
-                specialization.occlusionTextureTransform = material.occlusionTexture && material.occlusionTexture->transform;
-                specialization.emissiveTextureTransform = material.emissiveTexture && material.emissiveTexture->transform;
                 specialization.alphaMode = material.alphaMode;
             }
 
@@ -437,13 +434,14 @@ namespace vk_gltf_viewer::vulkan {
             }).first->second;
         }
 
-        [[nodiscard]] vk::Pipeline getUnlitPrimitiveRenderer(const fastgltf::Primitive &primitive) const {
+        [[nodiscard]] vk::Pipeline getUnlitPrimitiveRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
             const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
             UnlitPrimitiveRendererSpecialization specialization {
                 .positionComponentType = accessors.position.attributeInfo.componentType,
                 .positionNormalized = accessors.position.attributeInfo.normalized,
                 .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
                 .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
+                .useTextureTransform = assetSpecialization.useTextureTransform,
             };
 
             if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
@@ -460,7 +458,6 @@ namespace vk_gltf_viewer::vulkan {
                 if (const auto &textureInfo = material.pbrData.baseColorTexture) {
                     const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
                     specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
-                    specialization.baseColorTextureTransform = textureInfo->transform != nullptr;
                 }
 
                 specialization.alphaMode = material.alphaMode;

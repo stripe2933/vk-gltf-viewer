@@ -12,7 +12,7 @@
 
 #define HAS_VARIADIC_IN HAS_BASE_COLOR_TEXTURE || HAS_COLOR_0_ALPHA_ATTRIBUTE
 
-layout (constant_id = 0) const bool BASE_COLOR_TEXTURE_TRANSFORM = false;
+layout (constant_id = 0) const bool USE_TEXTURE_TRANSFORM = false;
 
 layout (location = 0) flat in uint inNodeIndex;
 layout (location = 1) flat in uint inMaterialIndex;
@@ -40,7 +40,7 @@ void main(){
     float baseColorAlpha = MATERIAL.baseColorFactor.a;
 #if HAS_BASE_COLOR_TEXTURE
     vec2 baseColorTexcoord = variadic_in.baseColorTexcoord;
-    if (BASE_COLOR_TEXTURE_TRANSFORM) {
+    if (USE_TEXTURE_TRANSFORM) {
         baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
     baseColorAlpha *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], baseColorTexcoord).a;

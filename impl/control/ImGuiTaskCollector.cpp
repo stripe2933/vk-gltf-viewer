@@ -838,39 +838,44 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(
                 ImGui::HelperMarker("(overridden)", "This value is overridden by KHR_texture_transform extension.");
             };
             const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, gltf::TextureUsage usage) -> void {
-                const auto [enabledProp, changeProp] = [&]() -> std::array<task::MaterialPropertyChanged::Property, 2> {
+                task::MaterialPropertyChanged::Property changeProp;
+                switch (usage) {
                     using enum task::MaterialPropertyChanged::Property;
-                    switch (usage) {
-                        case gltf::TextureUsage::BaseColor:
-                            return { BaseColorTextureTransformEnabled, BaseColorTextureTransform };
-                        case gltf::TextureUsage::MetallicRoughness:
-                            return { MetallicRoughnessTextureTransformEnabled, MetallicRoughnessTextureTransform };
-                        case gltf::TextureUsage::Normal:
-                            return { NormalTextureTransformEnabled, NormalTextureTransform };
-                        case gltf::TextureUsage::Occlusion:
-                            return { OcclusionTextureTransformEnabled, OcclusionTextureTransform };
-                        case gltf::TextureUsage::Emissive:
-                            return { EmissiveTextureTransformEnabled, EmissiveTextureTransform };
-                    }
-                    std::unreachable();
-                }();
+                    case gltf::TextureUsage::BaseColor:
+                        changeProp = BaseColorTextureTransform;
+                        break;
+                    case gltf::TextureUsage::MetallicRoughness:
+                        changeProp = MetallicRoughnessTextureTransform;
+                        break;
+                    case gltf::TextureUsage::Normal:
+                        changeProp = NormalTextureTransform;
+                        break;
+                    case gltf::TextureUsage::Occlusion:
+                        changeProp = OcclusionTextureTransform;
+                        break;
+                    case gltf::TextureUsage::Emissive:
+                        changeProp = EmissiveTextureTransform;
+                        break;
+                    default:
+                        std::unreachable();
+                }
 
                 bool useTextureTransform = textureInfo.transform != nullptr;
                 bool isChangePropNotified = false; // prevent double notifying
                 if (ImGui::Checkbox("KHR_texture_transform", &useTextureTransform)) {
                     if (useTextureTransform) {
                         textureInfo.transform = std::make_unique<fastgltf::TextureTransform>();
-                        // Since the new identity 3x2 matrix has to be written into the GPU buffer, texture transform
-                        // change must be notified.
-                        notifyPropertyChanged(changeProp);
-                        isChangePropNotified = true;
+
+                        // Need to notify texture transform is enabled.
+                        // If it was not enabled before, pipelines will be recreated with texture transform enabled.
+                        notifyPropertyChanged(task::MaterialPropertyChanged::Property::TextureTransformEnabled);
                     }
                     else {
                         textureInfo.transform.reset();
                     }
 
-                    // Always notify texture transform enabled status is changed to request the re-calculate pipelines.
-                    notifyPropertyChanged(enabledProp);
+                    notifyPropertyChanged(changeProp);
+                    isChangePropNotified = true;
                 }
 
                 if (useTextureTransform) {

@@ -64,13 +64,18 @@ import vk_gltf_viewer.vulkan.Swapchain;
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
 
-[[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform &transform) noexcept {
-    const float c = std::cos(transform.rotation), s = std::sin(transform.rotation);
-    return { // Note: column major. A row in code actually means a column in the matrix.
-        transform.uvScale[0] * c, transform.uvScale[0] * -s,
-        transform.uvScale[1] * s, transform.uvScale[1] * c,
-        transform.uvOffset[0], transform.uvOffset[1],
-    };
+[[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform *transform) noexcept {
+    if (transform) {
+        const float c = std::cos(transform->rotation), s = std::sin(transform->rotation);
+        return { // Note: column major. A row in code actually means a column in the matrix.
+            transform->uvScale[0] * c, transform->uvScale[0] * -s,
+            transform->uvScale[1] * s, transform->uvScale[1] * c,
+            transform->uvOffset[0], transform->uvOffset[1],
+        };
+    }
+    else {
+        return { 1.f, 0.f, 0.f, 1.f, 0.f, 0.f };
+    }
 }
 
 vk_gltf_viewer::MainApp::MainApp()
@@ -469,11 +474,6 @@ void vk_gltf_viewer::MainApp::run() {
                         case Property::AlphaMode:
                         case Property::Unlit:
                         case Property::DoubleSided:
-                        case Property::BaseColorTextureTransformEnabled:
-                        case Property::EmissiveTextureTransformEnabled:
-                        case Property::MetallicRoughnessTextureTransformEnabled:
-                        case Property::NormalTextureTransformEnabled:
-                        case Property::OcclusionTextureTransformEnabled:
                             regenerateDrawCommands.fill(true);
                             break;
                         case Property::AlphaCutoff:
@@ -491,7 +491,7 @@ void vk_gltf_viewer::MainApp::run() {
                         case Property::BaseColorTextureTransform:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::baseColorTextureTransform>(
                                 task.materialIndex,
-                                getTextureTransform(*changedMaterial.pbrData.baseColorTexture->transform),
+                                getTextureTransform(changedMaterial.pbrData.baseColorTexture->transform.get()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::EmissiveStrength: {
@@ -519,7 +519,13 @@ void vk_gltf_viewer::MainApp::run() {
                         case Property::EmissiveTextureTransform:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::emissiveTextureTransform>(
                                 task.materialIndex,
-                                getTextureTransform(*changedMaterial.emissiveTexture->transform),
+                                getTextureTransform(changedMaterial.emissiveTexture->transform.get()),
+                                sharedDataUpdateCommandBuffer);
+                            break;
+                        case Property::Ior:
+                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::ior>(
+                                task.materialIndex,
+                                changedMaterial.ior,
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::MetallicFactor:
@@ -531,7 +537,7 @@ void vk_gltf_viewer::MainApp::run() {
                         case Property::MetallicRoughnessTextureTransform:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::metallicRoughnessTextureTransform>(
                                 task.materialIndex,
-                                getTextureTransform(*changedMaterial.pbrData.metallicRoughnessTexture->transform),
+                                getTextureTransform(changedMaterial.pbrData.metallicRoughnessTexture->transform.get()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::NormalScale:
@@ -543,7 +549,7 @@ void vk_gltf_viewer::MainApp::run() {
                         case Property::NormalTextureTransform:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::normalTextureTransform>(
                                 task.materialIndex,
-                                getTextureTransform(*changedMaterial.normalTexture->transform),
+                                getTextureTransform(changedMaterial.normalTexture->transform.get()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::OcclusionStrength:
@@ -555,7 +561,7 @@ void vk_gltf_viewer::MainApp::run() {
                         case Property::OcclusionTextureTransform:
                             hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::occlusionTextureTransform>(
                                 task.materialIndex,
-                                getTextureTransform(*changedMaterial.occlusionTexture->transform),
+                                getTextureTransform(changedMaterial.occlusionTexture->transform.get()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::RoughnessFactor:
@@ -564,11 +570,14 @@ void vk_gltf_viewer::MainApp::run() {
                                 changedMaterial.pbrData.roughnessFactor,
                                 sharedDataUpdateCommandBuffer);
                             break;
-                        case Property::Ior:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::ior>(
-                                task.materialIndex,
-                                changedMaterial.ior,
-                                sharedDataUpdateCommandBuffer);
+                        case Property::TextureTransformEnabled:
+                            if (!ranges::contains(gltf->asset.extensionsUsed, "KHR_texture_transform")) {
+                                gltf->asset.extensionsUsed.push_back("KHR_texture_transform");
+
+                                // Asset is loaded without KHR_texture_transform extension, and all pipelines were created
+                                // with texture transform disabled. Pipelines need to be recreated.
+                                regenerateDrawCommands.fill(true);
+                            }
                             break;
                     }
                 },
