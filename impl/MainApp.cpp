@@ -129,13 +129,14 @@ vk_gltf_viewer::MainApp::MainApp()
 
         recordSwapchainImageLayoutTransitionCommands(cb);
     }, *fence);
-    std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
     gpu.device.updateDescriptorSets({
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
         sharedData.imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
     }, {});
+
+    std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL);
 }
 
 void vk_gltf_viewer::MainApp::run() {

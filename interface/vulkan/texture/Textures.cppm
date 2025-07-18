@@ -46,13 +46,6 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     BS::thread_pool<> &threadPool,
     const gltf::AssetExternalBuffers &adapter
 ) {
-    // ----- Samplers -----
-
-    samplers.reserve(asset.samplers.size());
-    for (const fastgltf::Sampler &sampler : asset.samplers) {
-        samplers.emplace_back(gpu.device, vkgltf::getSamplerCreateInfo(sampler, 16.f));
-    }
-
     // ----- Images -----
 
     // Get images that are used by asset textures.
@@ -269,20 +262,29 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
         vku::unsafeProxy(vk::SemaphoreSubmitInfo { *copyFinishSemaphore, {}, dependencyChain }),
         vku::unsafeProxy(vk::CommandBufferSubmitInfo { graphicsCommandBuffer }),
     }, *fence);
+
+    // Do some nice things during the GPU execution.
+    {
+        // samplers
+        samplers.reserve(asset.samplers.size());
+        for (const fastgltf::Sampler &sampler : asset.samplers) {
+            samplers.emplace_back(gpu.device, vkgltf::getSamplerCreateInfo(sampler, 16.f));
+        }
+
+        // descriptorInfos
+        descriptorInfos.reserve(asset.textures.size());
+        for (const fastgltf::Texture &texture : asset.textures) {
+            descriptorInfos.emplace_back(
+                to_optional(texture.samplerIndex)
+                    .transform([&](std::size_t samplerIndex) { return *samplers[samplerIndex]; })
+                    .value_or(*fallbackTexture.sampler),
+                *images.at(getPreferredImageIndex(texture)).view,
+                vk::ImageLayout::eShaderReadOnlyOptimal);
+        }
+    }
+
     std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL);
 
     // Destroy staging buffers.
     stagingBufferStorage.reset(false /* stagingBufferStorage will not be used anymore */);
-
-    // ----- Textures -----
-
-    descriptorInfos.reserve(asset.textures.size());
-    for (const fastgltf::Texture &texture : asset.textures) {
-        descriptorInfos.emplace_back(
-            to_optional(texture.samplerIndex)
-                .transform([&](std::size_t samplerIndex) { return *samplers[samplerIndex]; })
-                .value_or(*fallbackTexture.sampler),
-            *images.at(getPreferredImageIndex(texture)).view,
-            vk::ImageLayout::eShaderReadOnlyOptimal);
-    }
 }

@@ -138,7 +138,6 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
             passthruResources.emplace(sharedData, task.passthruRect.extent, cb);
         }, *fence);
-        std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
 
         std::vector<vk::DescriptorImageInfo> bloomSetDescriptorInfos;
         if (sharedData.gpu.supportShaderImageLoadStoreLod) {
@@ -164,6 +163,8 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
             bloomApplySet.getWriteOne<0>({ {}, *passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eGeneral }),
             bloomApplySet.getWriteOne<1>({ {}, *passthruResources->bloomMipImageViews[0], vk::ImageLayout::eShaderReadOnlyOptimal }),
         }, {});
+
+        std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL);
     }
 
     projectionViewMatrix = global::camera.getProjectionViewMatrix();
