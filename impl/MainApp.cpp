@@ -581,7 +581,8 @@ void vk_gltf_viewer::MainApp::run() {
                     const bool isPrimitiveBufferHostVisible = vku::contains(
                         gpu.allocator.getAllocationMemoryProperties(sharedData.gltfAsset->primitiveBuffer.allocation),
                         vk::MemoryPropertyFlagBits::eHostVisible);
-                    for (const auto &[primitive, materialIndex] : gltf->materialVariantsMapping.at(task.variantIndex)) {
+                    for (const auto &[primitive, originalMaterialIndex] : gltf->variantsAffectingPrimitiveAndOriginalMaterialIndices) {
+                        const std::size_t materialIndex = primitive->mappings.at(task.variantIndex).value_or(originalMaterialIndex);
                         primitive->materialIndex.emplace(materialIndex);
 
                         const std::size_t primitiveIndex = sharedData.gltfAsset->primitiveBuffer.getPrimitiveIndex(*primitive);
@@ -895,7 +896,6 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     : dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) }
     , directory { path.parent_path() }
     , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
-    , materialVariantsMapping { getMaterialVariantsMapping(asset) }
     , bloomMaterials { [&]() -> std::unordered_set<std::size_t> {
         using namespace std::string_view_literals;
         if (!ranges::one_of("KHR_materials_emissive_strength"sv, asset.extensionsUsed)) {
@@ -924,7 +924,17 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
     , nodeVisibilities { asset, asset.scenes[sceneIndex], sceneInverseHierarchy }
     , sceneMiniball { [this]() {
         return gltf::algorithm::getMiniball(asset, asset.scenes[sceneIndex], nodeWorldTransforms, assetExternalBuffers);
-    } } { }
+    } } {
+    // variantsAffectingPrimitiveAndOriginalMaterialIndices
+    for (fastgltf::Mesh &mesh : asset.meshes) {
+        for (fastgltf::Primitive &primitive : mesh.primitives) {
+            if (!primitive.mappings.empty()) {
+                variantsAffectingPrimitiveAndOriginalMaterialIndices.emplace_back(
+                    &primitive, primitive.materialIndex.value());
+            }
+        }
+    }
+}
 
 void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
     this->sceneIndex = sceneIndex;

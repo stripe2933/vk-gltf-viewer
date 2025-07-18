@@ -68,7 +68,14 @@ namespace vk_gltf_viewer {
              */
             fastgltf::Asset asset;
 
-            std::unordered_map<std::size_t, std::vector<std::pair<fastgltf::Primitive*, std::size_t>>> materialVariantsMapping;
+            /**
+             * @brief Pairs of (primitive, original material index) that are affected by the <tt>KHR_materials_variants</tt>.
+             *
+             * When material variants is changed, primitives in this container have to be updated with the corresponding
+             * variant material index, or the original material index if it is not given by the variant.
+             */
+            std::vector<std::pair<fastgltf::Primitive*, std::size_t>> variantsAffectingPrimitiveAndOriginalMaterialIndices;
+
             gltf::TextureUsages textureUsages { asset };
 
             /**
