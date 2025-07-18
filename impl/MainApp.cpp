@@ -209,7 +209,7 @@ void vk_gltf_viewer::MainApp::run() {
                 imguiTaskCollector.nodeInspector(gltf->asset, gltf->animations, *gltf->animationEnabled, gltf->selectedNodes);
 
                 if (!gltf->asset.animations.empty()) {
-                    imguiTaskCollector.animations(gltf->asset, gltf->animationEnabled);
+                    imguiTaskCollector.animations(gltf->animations, gltf->animationEnabled);
                 }
             }
             if (const auto &iblInfo = appState.imageBasedLightingProperties) {
@@ -913,9 +913,6 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
                 | std::views::keys,
         };
     }() }
-    , animations { std::from_range, asset.animations | std::views::transform([&](const fastgltf::Animation &animation) {
-        return gltf::Animation { asset, animation, assetExternalBuffers };
-    }) }
     , animationEnabled { std::make_shared<std::vector<bool>>(asset.animations.size(), false) }
     , sceneIndex { asset.defaultScene.value_or(0) }
     , nodeWorldTransforms { asset, asset.scenes[sceneIndex] }
@@ -933,6 +930,12 @@ vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesys
                     &primitive, primitive.materialIndex.value());
             }
         }
+    }
+
+    // animations
+    animations.reserve(asset.animations.size());
+    for (std::size_t i : ranges::views::upto(asset.animations.size())) {
+        animations.emplace_back(asset, i, assetExternalBuffers);
     }
 }
 

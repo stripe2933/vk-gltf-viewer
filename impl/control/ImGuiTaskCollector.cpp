@@ -605,7 +605,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
     }
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Asset &asset, std::shared_ptr<std::vector<bool>> animationEnabled) {
+void vk_gltf_viewer::control::ImGuiTaskCollector::animations(std::span<const gltf::Animation> animations, std::shared_ptr<std::vector<bool>> animationEnabled) {
     struct AnimationCollisionDialogData {
         std::shared_ptr<std::vector<bool>> animationEnabled;
         std::size_t animationIndexToEnable;
@@ -620,43 +620,29 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Ass
     };
     static std::optional<AnimationCollisionDialogData> animationCollisionDialogData = std::nullopt;
 
+    const auto getDisplayName = [&](std::size_t animationIndex) {
+        return nonempty_or(animations[animationIndex].animation.get().name, [&]() -> cpp_util::cstring_view {
+            return tempStringBuffer.write("<Unnamed animation {}>", animationIndex).view();
+        }).c_str();
+    };
+
     if (ImGui::Begin("Animation")) {
-        for (std::size_t animationIndex : ranges::views::upto(asset.animations.size())) {
-            const fastgltf::Animation &animation = asset.animations[animationIndex];
+        for (const auto &[animationIndex, animation] : animations | ranges::views::enumerate) {
             bool enabled = (*animationEnabled)[animationIndex];
-            if (ImGui::Checkbox(nonempty_or(animation.name, [&]() -> cpp_util::cstring_view {
-                return tempStringBuffer.write("<Unnamed animation {}>", animationIndex).view();
-            }).c_str(), &enabled)) {
-                // Retrieve what node and path will be used by this animation.
-                std::unordered_set<std::pair<std::size_t, fastgltf::AnimationPath>, PairHasher> usedNodesAndPaths;
-                for (const fastgltf::AnimationChannel &channel : animation.channels) {
-                    if (channel.nodeIndex) {
-                        usedNodesAndPaths.emplace(*channel.nodeIndex, channel.path);
-                    }
-                }
+            if (ImGui::Checkbox(getDisplayName(animationIndex), &enabled)) {
+                for (const auto &[otherAnimationIndex, otherAnimation] : animations | ranges::views::enumerate) {
+                    if (otherAnimationIndex == animationIndex) continue; // Exclude self from collision check.
+                    if (!(*animationEnabled)[otherAnimationIndex]) continue; // Disabled animation doesn't have to be considered.
 
-                auto otherRunningAnimationIndices
-                    = *animationEnabled
-                    | ranges::views::enumerate
-                    | std::views::filter(decomposer([&](auto i, bool enabled) {
-                        return enabled && (i != animationIndex);
-                    }))
-                    | std::views::keys
-                    | std::views::transform(identity<std::size_t>);
-                for (std::size_t candidateAnimationIndex : otherRunningAnimationIndices) {
-                    const fastgltf::Animation &candidateAnimation = asset.animations[candidateAnimationIndex];
-                    for (const fastgltf::AnimationChannel &channel : candidateAnimation.channels) {
-                        if (!channel.nodeIndex) continue;
-
-                        if (usedNodesAndPaths.contains({ *channel.nodeIndex, channel.path })) {
-                            [&]() -> AnimationCollisionDialogData& {
-                                if (animationCollisionDialogData) {
-                                    return *animationCollisionDialogData;
-                                }
-                                else {
-                                    return animationCollisionDialogData.emplace(animationEnabled, animationIndex);
-                                }
-                            }().collisions[candidateAnimationIndex][*channel.nodeIndex] |= gltf::convert(channel.path);
+                    // Check if the other animation collides with the current one.
+                    for (const auto &[nodeIndex, usage] : otherAnimation.nodeUsages) {
+                        auto it = animation.nodeUsages.find(nodeIndex);
+                        if (it != animation.nodeUsages.end() && (it->second & usage)) {
+                            // Collision detected.
+                            if (!animationCollisionDialogData) {
+                                animationCollisionDialogData.emplace(animationEnabled, animationIndex);
+                            }
+                            animationCollisionDialogData->collisions[otherAnimationIndex][nodeIndex] |= usage;
                         }
                     }
                 }
@@ -694,9 +680,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const fastgltf::Ass
             // by checking these two pointers are same.
             if (animationCollisionDialogData->animationEnabled == animationEnabled) {
                 for (const auto &[collidingAnimationIndex, collisionList] : animationCollisionDialogData->collisions) {
-                    if (ImGui::TreeNode(nonempty_or(asset.animations[collidingAnimationIndex].name, [&]() -> cpp_util::cstring_view {
-                        return tempStringBuffer.write("<Unnamed animation {}>", collidingAnimationIndex).view();
-                    }).c_str())) {
+                    if (ImGui::TreeNode(getDisplayName(collidingAnimationIndex))) {
                         ImGui::Table<false>(
                             "animation-collision-table",
                             ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg,
@@ -1366,11 +1350,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(
             bool isTransformUsedInAnimation = false;
             Flags<gltf::NodeAnimationUsage> nodeAnimationUsage{};
             for (const auto &[animationIndex, animation] : animations | ranges::views::enumerate) {
-                if (animation.nodeUsages[selectedNodeIndex] | (gltf::NodeAnimationUsage::Translation | gltf::NodeAnimationUsage::Rotation | gltf::NodeAnimationUsage::Scale)) {
+                auto it = animation.nodeUsages.find(selectedNodeIndex);
+                if (it == animation.nodeUsages.end()) continue;
+
+                const Flags usage = it->second;
+                if (usage | (gltf::NodeAnimationUsage::Translation | gltf::NodeAnimationUsage::Rotation | gltf::NodeAnimationUsage::Scale)) {
                     isTransformUsedInAnimation = true;
                 }
                 if (animationEnabled[animationIndex]) {
-                    nodeAnimationUsage |= animation.nodeUsages[selectedNodeIndex];
+                    nodeAnimationUsage |= usage;
                 }
             }
 
@@ -1799,22 +1787,29 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
     ImGuizmo::BeginFrame();
     ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
 
-    auto enabledAnimations = animationEnabled
-        | ranges::views::enumerate
-        | std::views::filter(LIFT(get<1>)) // Filter by value.
-        | std::views::keys // Retrieve indices.
-        | std::views::transform(LIFT(animations.operator[])); // Get animation by index.
+    const auto isNodeUsedByEnabledAnimations = [&](std::size_t nodeIndex) {
+        for (const auto &[animationIndex, enabled] : animationEnabled | ranges::views::enumerate) {
+            if (!enabled) continue;
+
+            auto it = animations[animationIndex].nodeUsages.find(nodeIndex);
+            if (it == animations[animationIndex].nodeUsages.end()) continue;
+
+            const Flags usage = it->second;
+            if ((operation == ImGuizmo::OPERATION::TRANSLATE && (usage & gltf::NodeAnimationUsage::Translation)) ||
+                (operation == ImGuizmo::OPERATION::ROTATE && (usage & gltf::NodeAnimationUsage::Rotation)) ||
+                (operation == ImGuizmo::OPERATION::SCALE && (usage & gltf::NodeAnimationUsage::Scale))) {
+                return true;
+            }
+        }
+
+        return false;
+    };
 
     if (selectedNodes.size() == 1) {
         const std::size_t selectedNodeIndex = *selectedNodes.begin();
         fastgltf::math::fmat4x4 newWorldTransform = nodeWorldTransforms[selectedNodeIndex];
 
-        const bool enableGizmo = std::ranges::none_of(enabledAnimations, [&](const gltf::Animation &animation) {
-            return (operation == ImGuizmo::OPERATION::TRANSLATE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Translation)) ||
-                (operation == ImGuizmo::OPERATION::ROTATE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Rotation)) ||
-                (operation == ImGuizmo::OPERATION::SCALE && (animation.nodeUsages[selectedNodeIndex] & gltf::NodeAnimationUsage::Scale));
-        });
-        ImGuizmo::Enable(enableGizmo);
+        ImGuizmo::Enable(!isNodeUsedByEnabledAnimations(selectedNodeIndex));
 
         if (Manipulate(value_ptr(global::camera.getViewMatrix()), value_ptr(global::camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
             const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(nodeWorldTransforms[selectedNodeIndex]) * newWorldTransform;
@@ -1843,18 +1838,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(
                 fastgltf::math::fvec4 { pivot.x(), pivot.y(), pivot.z(), 1.f });
         }
 
-        bool enableGizmo = true;
-        for (const gltf::Animation &animation : enabledAnimations) {
-            for (std::size_t nodeIndex : selectedNodes) {
-                if ((operation == ImGuizmo::OPERATION::TRANSLATE && (animation.nodeUsages[nodeIndex] & gltf::NodeAnimationUsage::Translation)) ||
-                    (operation == ImGuizmo::OPERATION::ROTATE && (animation.nodeUsages[nodeIndex] & gltf::NodeAnimationUsage::Rotation)) ||
-                    (operation == ImGuizmo::OPERATION::SCALE && (animation.nodeUsages[nodeIndex] & gltf::NodeAnimationUsage::Scale))) {
-                    enableGizmo = false;
-                    break;
-                }
-            }
-        }
-        ImGuizmo::Enable(enableGizmo);
+        ImGuizmo::Enable(std::ranges::none_of(selectedNodes, isNodeUsedByEnabledAnimations));
 
         if (fastgltf::math::fmat4x4 deltaMatrix;
             Manipulate(value_ptr(global::camera.getViewMatrix()), value_ptr(global::camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data())) {
