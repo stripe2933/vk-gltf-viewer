@@ -32,7 +32,7 @@ namespace vkgltf {
          * @return <tt>true</tt> if \p buffer is staged, <tt>false</tt> if \p buffer is already device local and does
          * not need staging.
          */
-        bool stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage, vk::ArrayProxy<std::uint32_t> queueFamilies = {});
+        bool stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage, vk::ArrayProxy<const std::uint32_t> queueFamilies = {});
 
         /**
          * @brief Take ownership of \p buffer and record buffer to image copy command.
@@ -42,7 +42,7 @@ namespace vkgltf {
          * @param layout Destination image layout.
          * @param copyRegions Regions to be copied from the buffer to the image.
          */
-        void stage(vku::AllocatedBuffer &&buffer, vk::Image image, vk::ImageLayout layout, vk::ArrayProxy<vk::BufferImageCopy> copyRegions);
+        void stage(vku::AllocatedBuffer &&buffer, vk::Image image, vk::ImageLayout layout, vk::ArrayProxy<const vk::BufferImageCopy> copyRegions);
 
         /**
          * @brief Record pipeline barrier with <tt>vk::ImageMemoryBarrier</tt>, whose layout transition from
@@ -133,7 +133,7 @@ namespace vkgltf {
          * @warning You MUST call <tt>reset()</tt> method after calling this method. Otherwise, the destructor will
          * re-submit the command buffer to the queue, which violates the command buffer usage.
          */
-        void execute(vk::ArrayProxy<vk::Semaphore> signalSemaphores = {}, vk::Fence fence = {});
+        void execute(vk::ArrayProxy<const vk::Semaphore> signalSemaphores = {}, vk::Fence fence = {});
 
         /**
          * @brief Clear all staging buffers and copy/transition commands from memory.
@@ -187,7 +187,7 @@ namespace vkgltf {
          * @param queueFamilies Queue family indices that the buffer can be concurrently accessed. If its size is less than 2, buffer sharing mode will be set to <tt>vk::SharingMode::eExclusive</tt>.
          * @return <tt>true</tt> if \p buffer is staged, <tt>false</tt> if \p buffer is already device local and does not need staging.
          */
-        bool stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usageFlags, vk::ArrayProxy<std::uint32_t> queueFamilies = {}) const;
+        bool stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usageFlags, vk::ArrayProxy<const std::uint32_t> queueFamilies = {}) const;
     };
 }
 
@@ -214,7 +214,7 @@ vkgltf::StagingBufferStorage::~StagingBufferStorage() {
     }
 }
 
-bool vkgltf::StagingBufferStorage::stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage, vk::ArrayProxy<std::uint32_t> queueFamilies) {
+bool vkgltf::StagingBufferStorage::stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage, vk::ArrayProxy<const std::uint32_t> queueFamilies) {
     if (vku::contains(buffer.allocator.getAllocationMemoryProperties(buffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
         return false;
     }
@@ -245,7 +245,7 @@ void vkgltf::StagingBufferStorage::stage(
     vku::AllocatedBuffer &&buffer,
     vk::Image image,
     vk::ImageLayout layout,
-    vk::ArrayProxy<vk::BufferImageCopy> copyRegions
+    vk::ArrayProxy<const vk::BufferImageCopy> copyRegions
 ) {
     cb.copyBufferToImage(
         stagingBuffers.emplace_back(std::move(buffer)), image,
@@ -304,7 +304,7 @@ void vkgltf::StagingBufferStorage::memoryBarrierToBottom(
     });
 }
 
-void vkgltf::StagingBufferStorage::execute(vk::ArrayProxy<vk::Semaphore> signalSemaphores, vk::Fence fence) {
+void vkgltf::StagingBufferStorage::execute(vk::ArrayProxy<const vk::Semaphore> signalSemaphores, vk::Fence fence) {
     if (!bufferMemoryBarriersToBottom.empty() || !imageMemoryBarriersToBottom.empty()) {
         cb.pipelineBarrier(
             vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
@@ -338,7 +338,7 @@ void vkgltf::StagingBufferStorage::reset(bool beginCommandBuffer) {
     }
 }
 
-bool vkgltf::StagingInfo::stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usageFlags, vk::ArrayProxy<std::uint32_t> queueFamilies) const {
+bool vkgltf::StagingInfo::stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usageFlags, vk::ArrayProxy<const std::uint32_t> queueFamilies) const {
     std::unique_lock<std::mutex> lock;
     if (mutex) {
         lock = std::unique_lock { *mutex };

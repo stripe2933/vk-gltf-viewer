@@ -98,7 +98,7 @@ namespace vkgltf {
              *
              * If its size is less than 2, <tt>sharingMode</tt> of the buffer will be set to <tt>vk::SharingMode::eExclusive</tt>.
              */
-            vk::ArrayProxy<std::uint32_t> queueFamilies = {};
+            vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
 
             /**
              * @brief VMA allocation creation flags for the buffer allocation.
@@ -331,7 +331,7 @@ namespace vkgltf {
     public:
         const SkinBuffer *skinBuffer = nullptr;
         vk::BufferUsageFlags usageFlags = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress;
-        vk::ArrayProxy<std::uint32_t> queueFamilies = {};
+        vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
         vma::AllocationCreateInfo allocationCreateInfo = vma::AllocationCreateInfo {
             vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
             vma::MemoryUsage::eAutoPreferDevice,
