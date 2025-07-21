@@ -76,13 +76,6 @@ namespace vk_gltf_viewer::vulkan {
 
         const Gpu &gpu;
 
-        // --------------------
-        // Non-owning swapchain resources.
-        // --------------------
-
-        vk::Extent2D swapchainExtent;
-        std::span<const vk::Image> swapchainImages;
-
         // Buffer, image and image views and samplers.
         buffer::CubeIndices cubeIndices;
         sampler::Cubemap cubemapSampler;
@@ -253,8 +246,6 @@ vk_gltf_viewer::vulkan::SharedData::GltfAsset::~GltfAsset() {
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages)
     : gpu { gpu }
-    , swapchainExtent { swapchainExtent }
-    , swapchainImages { swapchainImages }
     , cubeIndices { gpu.allocator }
     , cubemapSampler { gpu.device }
     , brdfLutSampler { gpu.device }
@@ -535,10 +526,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderer(const
 // submission.
 // --------------------
 
-void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &newSwapchainExtent, std::span<const vk::Image> newSwapchainImages) {
-    swapchainExtent = newSwapchainExtent;
-    swapchainImages = newSwapchainImages;
-
+void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages) {
     imGuiAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
 }
 

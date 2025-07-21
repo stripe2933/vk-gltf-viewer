@@ -71,7 +71,7 @@ import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderer;
 }
 
 vk_gltf_viewer::MainApp::MainApp()
-    : swapchain { gpu, window.getSurface(), getSwapchainExtent(), FRAMES_IN_FLIGHT }
+    : swapchain { gpu, window.getSurface(), getSwapchainExtent() }
     , sharedData { gpu, swapchain.extent, swapchain.images }
     , frames { ARRAY_OF(2, vulkan::Frame { sharedData }) } {
     const ibl::BrdfmapRenderer brdfmapRenderer { gpu.device, brdfmapImage, {} };
@@ -140,8 +140,6 @@ vk_gltf_viewer::MainApp::MainApp()
 }
 
 void vk_gltf_viewer::MainApp::run() {
-    std::array<vk::raii::Fence, FRAMES_IN_FLIGHT> frameInFlightFences = ARRAY_OF(FRAMES_IN_FLIGHT, vk::raii::Fence { gpu.device, vk::FenceCreateInfo { vk::FenceCreateFlagBits::eSignaled } });
-    
     // When using multiple frames in flight, updating resources in a frame while it’s still being used by the GPU can
     // lead to data hazards. Since resource updates occur when one of the frames is fenced, that frame can be updated
     // safely, but the others cannot.
@@ -163,7 +161,7 @@ void vk_gltf_viewer::MainApp::run() {
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const auto [sharedDataUpdateCommandBuffer] = vku::allocateCommandBuffers<1>(*gpu.device, *graphicsCommandPool);
 
-    for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); frameIndex = (frameIndex + 1) % FRAMES_IN_FLIGHT) {
+    for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); ++frameIndex) {
         bool hasUpdateData = false;
 
         std::queue<control::Task> tasks;
@@ -243,11 +241,33 @@ void vk_gltf_viewer::MainApp::run() {
             }
         }
 
-        vulkan::Frame &frame = frames[frameIndex];
-        vk::Fence inFlightFence = frameInFlightFences[frameIndex];
-
-        // Wait for previous frame execution to end.
-        std::ignore = gpu.device.waitForFences(inFlightFence, true, ~0ULL);
+        vulkan::Frame &frame = frames[frameIndex % FRAMES_IN_FLIGHT];
+        if (frameIndex >= FRAMES_IN_FLIGHT) {
+            // Get execution result of the frame.
+            vulkan::Frame::ExecutionResult result = frame.getExecutionResult();
+            if (frameFeedbackResultValid[frameIndex % FRAMES_IN_FLIGHT]) {
+                // Feedback the update result into this.
+                if (auto *indices = get_if<std::vector<std::size_t>>(&result.mousePickingResult)) {
+                    assert(gltf);
+                    if (ImGui::GetIO().KeyCtrl) {
+                        gltf->selectedNodes.insert_range(*indices);
+                    }
+                    else {
+                        gltf->selectedNodes = { std::from_range, *indices };
+                    }
+                }
+                else if (auto *index = get_if<std::size_t>(&result.mousePickingResult)) {
+                    assert(gltf);
+                    gltf->hoveringNode = *index;
+                }
+                else if (gltf) {
+                    gltf->hoveringNode.reset();
+                }
+            }
+            else {
+                frameFeedbackResultValid[frameIndex % FRAMES_IN_FLIGHT] = true;
+            }
+        }
 
         for (const auto &task : deferredFrameUpdateTasks) {
             task(frame);
@@ -681,7 +701,7 @@ void vk_gltf_viewer::MainApp::run() {
 
         // Update frame resources.
         const glm::vec2 framebufferScale = window.getFramebufferSize() / window.getSize();
-        const vulkan::Frame::UpdateResult updateResult = frame.update({
+        frame.update({
             .passthruRect = vk::Rect2D {
                 { static_cast<std::int32_t>(framebufferScale.x * passthruRect.Min.x), static_cast<std::int32_t>(framebufferScale.y * passthruRect.Min.y) },
                 { static_cast<std::uint32_t>(framebufferScale.x * passthruRect.GetWidth()), static_cast<std::uint32_t>(framebufferScale.y * passthruRect.GetHeight()) },
@@ -729,7 +749,7 @@ void vk_gltf_viewer::MainApp::run() {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .asset = gltf.asset,
                     .nodeWorldTransforms = gltf.nodeWorldTransforms,
-                    .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex], false),
+                    .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex % FRAMES_IN_FLIGHT], false),
                     .nodeVisibilities = gltf.nodeVisibilities.getVisibilities(),
                     .hoveringNode = transform([&](std::size_t index, const AppState::Outline &outline) {
                         return vulkan::Frame::ExecutionTask::Gltf::HoveringNode {
@@ -748,73 +768,7 @@ void vk_gltf_viewer::MainApp::run() {
             .solidBackground = appState.background.to_optional(),
         });
 
-		if (frameFeedbackResultValid[frameIndex]) {
-            // Feedback the update result into this.
-		    if (auto *indices = get_if<std::vector<std::size_t>>(&updateResult.mousePickingResult)) {
-		        assert(gltf);
-		        if (ImGui::GetIO().KeyCtrl) {
-		            gltf->selectedNodes.insert_range(*indices);
-		        }
-		        else {
-		            gltf->selectedNodes = { std::from_range, *indices };
-		        }
-		    }
-		    else if (auto *index = get_if<std::size_t>(&updateResult.mousePickingResult)) {
-		        assert(gltf);
-                gltf->hoveringNode = *index;
-		    }
-		    else if (gltf) {
-                gltf->hoveringNode.reset();
-		    }
-		}
-        else {
-			frameFeedbackResultValid[frameIndex] = true;
-        }
-
-        // Acquire the next swapchain image.
-        std::uint32_t swapchainImageIndex;
-        vk::Semaphore swapchainImageAcquireSemaphore = *swapchain.imageAcquireSemaphores[frameIndex];
-        try {
-            vk::Result result [[maybe_unused]];
-            std::tie(result, swapchainImageIndex) = (*gpu.device).acquireNextImageKHR(
-                *swapchain.swapchain, ~0ULL, swapchainImageAcquireSemaphore);
-
-        #if __APPLE__
-            // MoltenVK does not allow presenting suboptimal swapchain image.
-            // Issue tracked: https://github.com/KhronosGroup/MoltenVK/issues/2542
-            if (result == vk::Result::eSuboptimalKHR) {
-                throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
-            }
-        #endif
-        }
-        catch (const vk::OutOfDateKHRError&) {
-            handleSwapchainResize();
-        }
-
-        // Execute frame.
-        gpu.device.resetFences(inFlightFence);
-        vk::Semaphore swapchainImageReadySemaphore = *swapchain.imageReadySemaphores[swapchainImageIndex];
-        frame.recordCommandsAndSubmit(swapchainImageIndex, swapchainImageAcquireSemaphore, swapchainImageReadySemaphore, inFlightFence);
-
-        // Present the rendered swapchain image to swapchain.
-        try {
-            const vk::Result result [[maybe_unused]] = gpu.queues.graphicsPresent.presentKHR({
-                swapchainImageReadySemaphore,
-                *swapchain.swapchain,
-                swapchainImageIndex,
-            });
-
-        #if __APPLE__
-            if (result == vk::Result::eSuboptimalKHR) {
-                // The result codes VK_ERROR_OUT_OF_DATE_KHR and VK_SUBOPTIMAL_KHR have the same meaning when
-                // returned by vkQueuePresentKHR as they do when returned by vkAcquireNextImageKHR.
-                throw vk::OutOfDateKHRError { "Suboptimal swapchain" };
-            }
-        #endif
-        }
-        catch (const vk::OutOfDateKHRError&) {
-            handleSwapchainResize();
-        }
+        frame.recordCommandsAndSubmit(swapchain);
     }
     gpu.device.waitIdle();
 }

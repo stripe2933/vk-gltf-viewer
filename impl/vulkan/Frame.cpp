@@ -77,7 +77,9 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
     , graphicsCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.graphicsPresent } }
     , scenePrepassFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
     , sceneRenderingFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
-    , jumpFloodFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} } {
+    , jumpFloodFinishSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
+    , swapchainImageAcquireSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
+    , inFlightFence { sharedData.gpu.device, vk::FenceCreateInfo{} } {
     // Allocate descriptor sets.
     std::tie(mousePickingSet, multiNodeMousePickingSet, hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet, inverseToneMappingSet, bloomSet, bloomApplySet)
         = allocateDescriptorSets(*descriptorPool, std::tie(
@@ -98,12 +100,10 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
         = vku::allocateCommandBuffers<3>(*sharedData.gpu.device, *graphicsCommandPool);
 }
 
-vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
-    UpdateResult result{};
+vk_gltf_viewer::vulkan::Frame::ExecutionResult vk_gltf_viewer::vulkan::Frame::getExecutionResult() {
+    std::ignore = sharedData.gpu.device.waitForFences(*inFlightFence, true, ~0ULL);
 
-    // --------------------
-    // Update CPU resources.
-    // --------------------
+    ExecutionResult result{};
 
     // Retrieve the mouse picking result from the buffer.
     visit(multilambda {
@@ -112,11 +112,14 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
 
             const std::span packedBits = gltfAsset->mousePickingResultBuffer.asRange<const std::uint32_t>();
             std::vector<std::size_t> &indices = result.mousePickingResult.emplace<std::vector<std::size_t>>();
-            for (std::size_t nodeIndex = 0; nodeIndex < task.gltf->asset.nodes.size(); ++nodeIndex) {
-                const std::uint32_t accessBlock = packedBits[nodeIndex / 32];
-                const std::uint32_t bitmask = 1U << (nodeIndex % 32);
-                if (accessBlock & bitmask) {
-                    indices.push_back(nodeIndex);
+
+            std::size_t nodeIndex = 0;
+            for (std::uint32_t accessBlock : packedBits) {
+                for (std::uint32_t bitmask = 1; bitmask != 0; bitmask <<= 1) {
+                    if (accessBlock & bitmask) {
+                        indices.push_back(nodeIndex);
+                    }
+                    ++nodeIndex;
                 }
             }
         },
@@ -131,6 +134,10 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
         [](std::monostate) { }
     }, mousePickingInput);
 
+    return result;
+}
+
+void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
     // If passthru extent is different from the current's, dependent images have to be recreated.
     if (!passthruResources || passthruResources->extent != task.passthruRect.extent) {
         // TODO: can this operation be non-blocking?
@@ -562,16 +569,28 @@ vk_gltf_viewer::vulkan::Frame::UpdateResult vk_gltf_viewer::vulkan::Frame::updat
     else {
         background.emplace<vku::DescriptorSet<dsl::Skybox>>(sharedData.skyboxDescriptorSet);
     }
-
-    return result;
 }
 
-void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
-    std::uint32_t swapchainImageIndex,
-    vk::Semaphore swapchainImageAcquireSemaphore,
-    vk::Semaphore swapchainImageReadySemaphore,
-    vk::Fence inFlightFence
-) const {
+void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain) const {
+    // Acquire the next swapchain image.
+    std::uint32_t swapchainImageIndex;
+    try {
+        vk::Result result [[maybe_unused]];
+        std::tie(result, swapchainImageIndex) = (*sharedData.gpu.device).acquireNextImageKHR(
+            *swapchain.swapchain, ~0ULL, *swapchainImageAcquireSema);
+
+    #if __APPLE__
+        // MoltenVK does not allow presenting suboptimal swapchain image.
+        // Issue tracked: https://github.com/KhronosGroup/MoltenVK/issues/2542
+        if (result == vk::Result::eSuboptimalKHR) {
+            return;
+        }
+    #endif
+    }
+    catch (const vk::OutOfDateKHRError&) {
+        return;
+    }
+
     // Record commands.
     graphicsCommandPool.reset();
     computeCommandPool.reset();
@@ -781,14 +800,14 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
                     {}, vk::AccessFlagBits::eTransferWrite,
                     vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eTransferDstOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
+                    swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(),
                 },
             }));
 
         // Copy from composited image to swapchain image.
         compositionCommandBuffer.copyImage(
             passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).image, vk::ImageLayout::eTransferSrcOptimal,
-            sharedData.swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal,
+            swapchain.images[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal,
             vk::ImageCopy {
                 { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
                 { 0, 0, 0 },
@@ -805,7 +824,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
                 vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
                 vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eColorAttachmentOptimal,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
+                swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(),
             });
 
         recordImGuiCompositionCommands(compositionCommandBuffer, swapchainImageIndex);
@@ -818,12 +837,13 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
                 vk::AccessFlagBits::eColorAttachmentWrite, {},
                 vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                sharedData.swapchainImages[swapchainImageIndex], vku::fullSubresourceRange(),
+                swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(),
             });
 
         compositionCommandBuffer.end();
     }
 
+    sharedData.gpu.device.resetFences(*inFlightFence);
     sharedData.gpu.queues.graphicsPresent.submit({
         vk::SubmitInfo {
             {},
@@ -832,16 +852,26 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
             *sceneRenderingFinishSema,
         },
         vk::SubmitInfo {
-            vku::unsafeProxy({ swapchainImageAcquireSemaphore, *sceneRenderingFinishSema, *jumpFloodFinishSema }),
+            vku::unsafeProxy({ *swapchainImageAcquireSema, *sceneRenderingFinishSema, *jumpFloodFinishSema }),
             vku::unsafeProxy<vk::PipelineStageFlags>({
                 vk::PipelineStageFlagBits::eTransfer,
                 vk::PipelineStageFlagBits::eColorAttachmentOutput,
                 vk::PipelineStageFlagBits::eFragmentShader,
             }),
             compositionCommandBuffer,
-            swapchainImageReadySemaphore,
+            *swapchain.imageReadySemaphores[swapchainImageIndex],
         },
-    }, inFlightFence);
+    }, *inFlightFence);
+
+    // Present the rendered swapchain image to swapchain.
+    try {
+        std::ignore = sharedData.gpu.queues.graphicsPresent.presentKHR({
+            *swapchain.imageReadySemaphores[swapchainImageIndex],
+            *swapchain.swapchain,
+            swapchainImageIndex,
+        });
+    }
+    catch (const vk::OutOfDateKHRError&) { }
 }
 
 void vk_gltf_viewer::vulkan::Frame::changeAsset(

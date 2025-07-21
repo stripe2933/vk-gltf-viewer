@@ -21,6 +21,7 @@ import vk_gltf_viewer.vulkan.ag.SceneOpaque;
 import vk_gltf_viewer.vulkan.ag.SceneWeightedBlended;
 import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
 export import vk_gltf_viewer.vulkan.SharedData;
+export import vk_gltf_viewer.vulkan.Swapchain;
 
 /**
  * @brief A type that represents the state for a single multi-draw-indirect call.
@@ -122,7 +123,7 @@ namespace vk_gltf_viewer::vulkan {
             std::optional<glm::vec3> solidBackground; // If this is nullopt, use SharedData::SkyboxDescriptorSet instead.
         };
 
-        struct UpdateResult {
+        struct ExecutionResult {
             /**
              * @brief Node index of the current pointing mesh. <tt>std::nullopt</tt> if there is no mesh under the cursor.
              */
@@ -138,14 +139,10 @@ namespace vk_gltf_viewer::vulkan {
 
         explicit Frame(const SharedData &sharedData LIFETIMEBOUND);
 
-        UpdateResult update(const ExecutionTask &task);
+        [[nodiscard]] ExecutionResult getExecutionResult();
+        void update(const ExecutionTask &task);
 
-        void recordCommandsAndSubmit(
-            std::uint32_t swapchainImageIndex,
-            vk::Semaphore swapchainImageAcquireSemaphore,
-            vk::Semaphore swapchainImageReadySemaphore,
-            vk::Fence inFlightFence = nullptr
-        ) const;
+        void recordCommandsAndSubmit(Swapchain &swapchain) const;
 
         void changeAsset(
             const fastgltf::Asset &asset,
@@ -243,6 +240,8 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::Semaphore scenePrepassFinishSema;
         vk::raii::Semaphore sceneRenderingFinishSema;
         vk::raii::Semaphore jumpFloodFinishSema;
+        vk::raii::Semaphore swapchainImageAcquireSema;
+        vk::raii::Fence inFlightFence;
 
         vk::Offset2D passthruOffset;
         glm::mat4 projectionViewMatrix;
