@@ -151,11 +151,6 @@ void vk_gltf_viewer::MainApp::run() {
 
     std::array<bool, FRAMES_IN_FLIGHT> regenerateDrawCommands{};
 
-    // Currently frame feedback result contains which node is in hovered state, which is only valid
-    // with the asset that is used for hovering test. Therefore, if asset may changed, the result is
-	// being invalidated. This booleans indicate whether the frame feedback result is valid or not.
-    std::array<bool, FRAMES_IN_FLIGHT> frameFeedbackResultValid{};
-
     // TODO: we need more general mechanism to upload the GPU buffer data in shared data. This is just a stopgap solution
     //  for current KHR_materials_variants implementation.
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
@@ -243,29 +238,20 @@ void vk_gltf_viewer::MainApp::run() {
 
         vulkan::Frame &frame = frames[frameIndex % FRAMES_IN_FLIGHT];
         if (frameIndex >= FRAMES_IN_FLIGHT) {
-            // Get execution result of the frame.
-            vulkan::Frame::ExecutionResult result = frame.getExecutionResult();
-            if (frameFeedbackResultValid[frameIndex % FRAMES_IN_FLIGHT]) {
-                // Feedback the update result into this.
-                if (auto *indices = get_if<std::vector<std::size_t>>(&result.mousePickingResult)) {
-                    assert(gltf);
-                    if (ImGui::GetIO().KeyCtrl) {
-                        gltf->selectedNodes.insert_range(*indices);
-                    }
-                    else {
-                        gltf->selectedNodes = { std::from_range, *indices };
-                    }
+            const vulkan::Frame::ExecutionResult result = frame.getExecutionResult();
+            if (auto *indices = get_if<std::vector<std::size_t>>(&result.mousePickingResult)) {
+                if (ImGui::GetIO().KeyCtrl) {
+                    gltf->selectedNodes.insert_range(*indices);
                 }
-                else if (auto *index = get_if<std::size_t>(&result.mousePickingResult)) {
-                    assert(gltf);
-                    gltf->hoveringNode = *index;
-                }
-                else if (gltf) {
-                    gltf->hoveringNode.reset();
+                else {
+                    gltf->selectedNodes = { std::from_range, *indices };
                 }
             }
-            else {
-                frameFeedbackResultValid[frameIndex % FRAMES_IN_FLIGHT] = true;
+            else if (auto *index = get_if<std::size_t>(&result.mousePickingResult)) {
+                gltf->hoveringNode = *index;
+            }
+            else if (gltf) {
+                gltf->hoveringNode.reset();
             }
         }
 
@@ -407,7 +393,6 @@ void vk_gltf_viewer::MainApp::run() {
                 [&](const control::task::LoadGltf &task) {
                     loadGltf(task.path);
                     regenerateDrawCommands.fill(true);
-                    frameFeedbackResultValid.fill(false);
                 },
                 [this](control::task::CloseGltf) {
                     closeGltf();
@@ -706,46 +691,7 @@ void vk_gltf_viewer::MainApp::run() {
                 { static_cast<std::int32_t>(framebufferScale.x * passthruRect.Min.x), static_cast<std::int32_t>(framebufferScale.y * passthruRect.Min.y) },
                 { static_cast<std::uint32_t>(framebufferScale.x * passthruRect.GetWidth()), static_cast<std::uint32_t>(framebufferScale.y * passthruRect.GetHeight()) },
             },
-            .mousePickingInput = [&]() -> std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
-                const glm::dvec2 cursorPos = window.getCursorPos();
-                if (drawSelectionRectangle) {
-                    ImRect selectionRect {
-                        { static_cast<float>(lastMouseDownPosition->x), static_cast<float>(lastMouseDownPosition->y) },
-                        { static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) },
-                    };
-                    if (selectionRect.Min.x > selectionRect.Max.x) {
-                        std::swap(selectionRect.Min.x, selectionRect.Max.x);
-                    }
-                    if (selectionRect.Min.y > selectionRect.Max.y) {
-                        std::swap(selectionRect.Min.y, selectionRect.Max.y);
-                    }
-
-                    selectionRect.ClipWith(passthruRect);
-
-                    return vk::Rect2D {
-                        {
-                            static_cast<std::int32_t>(framebufferScale.x * (selectionRect.Min.x - passthruRect.Min.x)),
-                            static_cast<std::int32_t>(framebufferScale.y * (selectionRect.Min.y - passthruRect.Min.y)),
-                        },
-                        {
-                            static_cast<std::uint32_t>(framebufferScale.x * selectionRect.GetWidth()),
-                            static_cast<std::uint32_t>(framebufferScale.y * selectionRect.GetHeight()),
-                        },
-                    };
-                }
-                else if (passthruRect.Contains({ static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) }) && !ImGui::GetIO().WantCaptureMouse) {
-                    // Note: be aware of implicit vk::Offset2D -> vk::Rect2D promotion!
-                    return std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
-                        std::in_place_type<vk::Offset2D>,
-                        static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - passthruRect.Min.x)),
-                        static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - passthruRect.Min.y)),
-                    };
-                }
-                else {
-                    return std::monostate{};
-                }
-            }(),
-            .gltf = gltf.transform([&](Gltf &gltf) {
+            .gltf = gltf.transform([&](const Gltf &gltf) {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .asset = gltf.asset,
                     .nodeWorldTransforms = gltf.nodeWorldTransforms,
@@ -763,6 +709,45 @@ void vk_gltf_viewer::MainApp::run() {
                             appState.selectedNodeOutline->thickness,
                         };
                     }),
+                    .mousePickingInput = [&]() -> std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
+                        const glm::dvec2 cursorPos = window.getCursorPos();
+                        if (drawSelectionRectangle) {
+                            ImRect selectionRect {
+                                { static_cast<float>(lastMouseDownPosition->x), static_cast<float>(lastMouseDownPosition->y) },
+                                { static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) },
+                            };
+                            if (selectionRect.Min.x > selectionRect.Max.x) {
+                                std::swap(selectionRect.Min.x, selectionRect.Max.x);
+                            }
+                            if (selectionRect.Min.y > selectionRect.Max.y) {
+                                std::swap(selectionRect.Min.y, selectionRect.Max.y);
+                            }
+
+                            selectionRect.ClipWith(passthruRect);
+
+                            return vk::Rect2D {
+                                {
+                                    static_cast<std::int32_t>(framebufferScale.x * (selectionRect.Min.x - passthruRect.Min.x)),
+                                    static_cast<std::int32_t>(framebufferScale.y * (selectionRect.Min.y - passthruRect.Min.y)),
+                                },
+                                {
+                                    static_cast<std::uint32_t>(framebufferScale.x * selectionRect.GetWidth()),
+                                    static_cast<std::uint32_t>(framebufferScale.y * selectionRect.GetHeight()),
+                                },
+                            };
+                        }
+                        else if (passthruRect.Contains({ static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) }) && !ImGui::GetIO().WantCaptureMouse) {
+                            // Note: be aware of implicit vk::Offset2D -> vk::Rect2D promotion!
+                            return std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
+                                std::in_place_type<vk::Offset2D>,
+                                static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - passthruRect.Min.x)),
+                                static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - passthruRect.Min.y)),
+                            };
+                        }
+                        else {
+                            return std::monostate{};
+                        }
+                    }(),
                 };
             }),
             .solidBackground = appState.background.to_optional(),

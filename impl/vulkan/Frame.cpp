@@ -102,37 +102,34 @@ vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
 
 vk_gltf_viewer::vulkan::Frame::ExecutionResult vk_gltf_viewer::vulkan::Frame::getExecutionResult() {
     std::ignore = sharedData.gpu.device.waitForFences(*inFlightFence, true, ~0ULL);
-
     ExecutionResult result{};
 
-    // Retrieve the mouse picking result from the buffer.
-    visit(multilambda {
-        [&](const vk::Rect2D&) {
-            if (!gltfAsset) return;
+    if (gltfAsset) {
+        // Retrieve the mouse picking result from the buffer.
+        visit(multilambda {
+            [&](const vk::Rect2D&) {
+                const std::span packedBits = gltfAsset->mousePickingResultBuffer.asRange<const std::uint32_t>();
+                std::vector<std::size_t> &indices = result.mousePickingResult.emplace<std::vector<std::size_t>>();
 
-            const std::span packedBits = gltfAsset->mousePickingResultBuffer.asRange<const std::uint32_t>();
-            std::vector<std::size_t> &indices = result.mousePickingResult.emplace<std::vector<std::size_t>>();
-
-            std::size_t nodeIndex = 0;
-            for (std::uint32_t accessBlock : packedBits) {
-                for (std::uint32_t bitmask = 1; bitmask != 0; bitmask <<= 1) {
-                    if (accessBlock & bitmask) {
-                        indices.push_back(nodeIndex);
+                std::size_t nodeIndex = 0;
+                for (std::uint32_t accessBlock : packedBits) {
+                    for (std::uint32_t bitmask = 1; bitmask != 0; bitmask <<= 1) {
+                        if (accessBlock & bitmask) {
+                            indices.push_back(nodeIndex);
+                        }
+                        ++nodeIndex;
                     }
-                    ++nodeIndex;
                 }
-            }
-        },
-        [&](const vk::Offset2D&) {
-            if (!gltfAsset) return;
-
-            const std::uint16_t hoveringNodeIndex = gltfAsset->mousePickingResultBuffer.asValue<const std::uint32_t>();
-            if (hoveringNodeIndex != NO_INDEX) {
-                result.mousePickingResult.emplace<std::size_t>(hoveringNodeIndex);
-            }
-        },
-        [](std::monostate) { }
-    }, mousePickingInput);
+            },
+            [&](const vk::Offset2D&) {
+                const std::uint16_t hoveringNodeIndex = gltfAsset->mousePickingResultBuffer.asValue<const std::uint32_t>();
+                if (hoveringNodeIndex != NO_INDEX) {
+                    result.mousePickingResult.emplace<std::size_t>(hoveringNodeIndex);
+                }
+            },
+            [](std::monostate) { }
+        }, gltfAsset->mousePickingInput);
+    }
 
     return result;
 }
@@ -177,7 +174,6 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
     projectionViewMatrix = global::camera.getProjectionViewMatrix();
     translationlessProjectionViewMatrix = global::camera.getProjectionMatrix() * glm::mat4 { glm::mat3 { global::camera.getViewMatrix() } };
     passthruOffset = task.passthruRect.offset;
-    mousePickingInput = task.mousePickingInput;
 
     // Should be calculated on-demand (only if pipeline recreation is requested).
     Lazy<AssetSpecialization> assetSpecialization { [&]() { return AssetSpecialization { task.gltf->asset }; } };
@@ -468,7 +464,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                         renderingNodes->startMousePickingRenderPass |= commandBufferCullingFunc(buffer, frustum);
                     }
                 },
-            }, task.mousePickingInput);
+            }, task.gltf->mousePickingInput);
         }
         else {
             for (buffer::IndirectDrawCommands &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
@@ -486,7 +482,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                         buffer.resetDrawCount();
                     }
                 },
-            }, task.mousePickingInput);
+            }, task.gltf->mousePickingInput);
         }
 
         if (task.gltf->selectedNodes) {
@@ -556,6 +552,8 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         else {
             hoveringNode.reset();
         }
+
+        gltfAsset->mousePickingInput = task.gltf->mousePickingInput;
     }
     else {
         renderingNodes.reset();
@@ -1274,7 +1272,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         [](std::monostate) {
             return false;
         }
-    }, mousePickingInput);
+    }, gltfAsset->mousePickingInput);
 
     if (makeMousePickingResultBufferAvailableToHost) {
         cb.pipelineBarrier(

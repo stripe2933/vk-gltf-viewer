@@ -74,6 +74,8 @@ namespace vk_gltf_viewer::vulkan {
             // Used only if GPU does not support variable descriptor count.
             std::optional<vk::raii::DescriptorPool> descriptorPool;
 
+            std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
+
             GltfAsset(
                 const fastgltf::Asset &asset LIFETIMEBOUND,
                 std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
@@ -103,18 +105,18 @@ namespace vk_gltf_viewer::vulkan {
                 const std::vector<bool> &nodeVisibilities;
                 std::optional<HoveringNode> hoveringNode;
                 std::optional<SelectedNodes> selectedNodes;
+
+                /**
+                 * @brief Cursor position or selection rectangle for handling mouse picking.
+                 *
+                 * - If mouse picking has to be done inside the selection rectangle, passthrough rectangle aligned, framebuffer-scale <tt>vk::Rect2D</tt> used.
+                 * - If mouse picking has to be done under the current cursor, passthrough rectangle aligned <tt>vk::Offset2D</tt> used.
+                 * - Otherwise, <tt>std::monostate</tt> used.
+                 */
+                std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
             };
 
             vk::Rect2D passthruRect;
-
-            /**
-             * @brief Cursor position or selection rectangle for handling mouse picking.
-             *
-             * - If mouse picking has to be done inside the selection rectangle, passthrough rectangle aligned, framebuffer-scale <tt>vk::Rect2D</tt> used.
-             * - If mouse picking has to be done under the current cursor, passthrough rectangle aligned <tt>vk::Offset2D</tt> used.
-             * - Otherwise, <tt>std::monostate</tt> used.
-             */
-            std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
 
             /**
              * @brief Information of glTF to be rendered. <tt>std::nullopt</tt> if no glTF scene to be rendered.
@@ -246,7 +248,6 @@ namespace vk_gltf_viewer::vulkan {
         vk::Offset2D passthruOffset;
         glm::mat4 projectionViewMatrix;
         glm::mat4 translationlessProjectionViewMatrix;
-        std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
