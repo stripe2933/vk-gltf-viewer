@@ -6,10 +6,6 @@ module vk_gltf_viewer.vulkan.Gpu;
 
 import vk_gltf_viewer.helpers.ranges;
 
-#if defined(__clang__) && __clang_major__ < 19
-import std;
-#endif
-
 constexpr std::array requiredExtensions {
 #if __APPLE__
     vk::KHRPortabilitySubsetExtensionName,

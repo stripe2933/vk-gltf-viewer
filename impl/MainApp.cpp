@@ -46,17 +46,6 @@ import vk_gltf_viewer.vulkan.imgui.PlatformResource;
 import vk_gltf_viewer.vulkan.mipmap;
 import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderer;
 
-#if defined(__clang__) && __clang_major__ < 19
-import std;
-
-import vk_gltf_viewer.AppState;
-import vk_gltf_viewer.control.AppWindow;
-import vk_gltf_viewer.gltf.Animation;
-import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
-import vk_gltf_viewer.vulkan.Frame;
-import vk_gltf_viewer.vulkan.Swapchain;
-#endif
-
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 #define INDEX_SEQ(Is, N, ...) [&]<auto ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})

@@ -22,11 +22,6 @@ import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.helpers.TempStringBuffer;
 import vk_gltf_viewer.imgui.UserData;
 
-#if defined(__clang__) && __clang_major__ < 19
-import std;
-import imgui.internal;
-#endif
-
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})

@@ -16,10 +16,6 @@ import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.math.extended_arithmetic;
 
-#if defined(__clang__) && __clang_major__ < 19
-import std;
-#endif
-
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
