@@ -16,6 +16,7 @@ import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.math.extended_arithmetic;
 
+#define INDEX_SEQ(Is, N, ...) [&]<auto ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
@@ -609,9 +610,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             sharedData.gpu.device.updateDescriptorSets(
                 hoveringNodeOutlineSet.getWriteOne<0>({
                     {},
-                    *hoveringNodeJumpFloodForward
-                        ? *passthruResources->hoveringNodeOutlineJumpFloodResources.pongImageView
-                        : *passthruResources->hoveringNodeOutlineJumpFloodResources.pingImageView,
+                    *passthruResources->hoveringNodeOutlineJumpFloodResources.perLayerImageViews[*hoveringNodeJumpFloodForward],
                     vk::ImageLayout::eShaderReadOnlyOptimal,
                 }),
                 {});
@@ -625,9 +624,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             sharedData.gpu.device.updateDescriptorSets(
                 selectedNodeOutlineSet.getWriteOne<0>({
                     {},
-                    *selectedNodeJumpFloodForward
-                        ? *passthruResources->selectedNodeOutlineJumpFloodResources.pongImageView
-                        : *passthruResources->selectedNodeOutlineJumpFloodResources.pingImageView,
+                    *passthruResources->selectedNodeOutlineJumpFloodResources.perLayerImageViews[*selectedNodeJumpFloodForward],
                     vk::ImageLayout::eShaderReadOnlyOptimal,
                 }),
                 {});
@@ -914,8 +911,9 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodR
         gpu.queueFamilies.uniqueIndices,
     } },
     imageView { gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2DArray) },
-    pingImageView { gpu.device, image.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
-    pongImageView { gpu.device, image.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 }) } { }
+    perLayerImageViews { INDEX_SEQ(Is, 2, {
+        return std::array { vk::raii::ImageView { gpu.device, image.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, Is, 1 }) }... };
+    }) } { }
 
 vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
     const SharedData &sharedData,

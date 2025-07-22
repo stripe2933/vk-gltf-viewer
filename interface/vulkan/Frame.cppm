@@ -132,8 +132,7 @@ namespace vk_gltf_viewer::vulkan {
             struct JumpFloodResources {
                 vku::AllocatedImage image;
                 vk::raii::ImageView imageView;
-                vk::raii::ImageView pingImageView;
-                vk::raii::ImageView pongImageView;
+                std::array<vk::raii::ImageView, 2> perLayerImageViews;
 
                 JumpFloodResources(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent);
             };
