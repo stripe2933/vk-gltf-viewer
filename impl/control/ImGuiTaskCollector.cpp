@@ -8,11 +8,7 @@ module;
 
 module vk_gltf_viewer.imgui.TaskCollector;
 
-import std;
-import glm;
-import imgui.internal;
 import imgui.math;
-import ImGuizmo;
 
 import vk_gltf_viewer.global;
 import vk_gltf_viewer.helpers.concepts;

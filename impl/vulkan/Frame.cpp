@@ -3,10 +3,8 @@ module;
 #include <boost/container/static_vector.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-module vk_gltf_viewer;
-import :vulkan.Frame;
+module vk_gltf_viewer.vulkan.Frame;
 
-import std;
 import imgui.vulkan;
 
 import vk_gltf_viewer.global;
@@ -17,8 +15,6 @@ import vk_gltf_viewer.helpers.Lazy;
 import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.math.extended_arithmetic;
-import vk_gltf_viewer.vulkan.ag.MousePicking;
-import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
@@ -44,6 +40,35 @@ constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
     }
     std::unreachable();
 }
+
+vk_gltf_viewer::vulkan::Frame::GltfAsset::GltfAsset(
+    const fastgltf::Asset &asset,
+    std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
+    const SharedData &sharedData,
+    const gltf::AssetExternalBuffers &adapter
+) : nodeBuffer { asset, nodeWorldTransforms, sharedData.gpu.device, sharedData.gpu.allocator, vkgltf::NodeBuffer::Config {
+        .adapter = adapter,
+        .skinBuffer = value_address(sharedData.gltfAsset->skinBuffer),
+    } },
+    mousePickingResultBuffer {
+        sharedData.gpu.allocator,
+        vk::BufferCreateInfo {
+            {},
+            sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(asset.nodes.size(), 32U),
+            vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    },
+    descriptorPool { value_if(!sharedData.gpu.supportVariableDescriptorCount, [&]() {
+        return vk::raii::DescriptorPool {
+            sharedData.gpu.device,
+            sharedData.assetDescriptorSetLayout.getPoolSize()
+                .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind),
+        };
+    }) } { }
 
 vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
     : sharedData { sharedData }
@@ -816,6 +841,46 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(
             swapchainImageReadySemaphore,
         },
     }, inFlightFence);
+}
+
+void vk_gltf_viewer::vulkan::Frame::changeAsset(
+    const fastgltf::Asset &asset,
+    std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
+    const gltf::AssetExternalBuffers &adapter
+) {
+    const auto &inner = gltfAsset.emplace(asset, nodeWorldTransforms, sharedData, adapter);
+    if (sharedData.gpu.supportVariableDescriptorCount) {
+        (*sharedData.gpu.device).freeDescriptorSets(*descriptorPool, assetDescriptorSet);
+        assetDescriptorSet = decltype(assetDescriptorSet) {
+            vku::unsafe,
+            (*sharedData.gpu.device).allocateDescriptorSets(vk::StructureChain {
+                 vk::DescriptorSetAllocateInfo {
+                     *descriptorPool,
+                     *sharedData.assetDescriptorSetLayout,
+                 },
+                 vk::DescriptorSetVariableDescriptorCountAllocateInfo {
+                     vku::unsafeProxy<std::uint32_t>(asset.textures.size() + 1),
+                 },
+             }.get())[0],
+        };
+    }
+    else {
+        std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*inner.descriptorPool.value(), std::tie(sharedData.assetDescriptorSetLayout));
+    }
+
+    std::vector<vk::DescriptorImageInfo> imageInfos;
+    imageInfos.reserve(asset.textures.size() + 1);
+    imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+    imageInfos.append_range(sharedData.gltfAsset->textures.descriptorInfos);
+
+    sharedData.gpu.device.updateDescriptorSets({
+        mousePickingSet.getWriteOne<1>({ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) }),
+        multiNodeMousePickingSet.getWriteOne<0>({ inner.mousePickingResultBuffer, 0, vk::WholeSize }),
+        assetDescriptorSet.getWrite<0>(sharedData.gltfAsset->primitiveBuffer.descriptorInfo),
+        assetDescriptorSet.getWrite<1>(inner.nodeBuffer.descriptorInfo),
+        assetDescriptorSet.getWrite<2>(sharedData.gltfAsset->materialBuffer.descriptorInfo),
+        assetDescriptorSet.getWrite<3>(imageInfos),
+    }, {});
 }
 
 vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodResources(

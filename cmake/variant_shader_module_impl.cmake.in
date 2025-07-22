@@ -1,7 +1,0 @@
-module @target_identifier@;
-import :shader.@shader_identifier@;
-
-#define INSTANTIATION(...) \
-    extern template struct @target_identifier@::shader::@shader_identifier@_t<__VA_ARGS__>
-
-@extern_template_instantiations@;

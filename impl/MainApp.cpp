@@ -26,24 +26,16 @@ module;
 #undef MemoryBarrier
 #endif
 
-module vk_gltf_viewer;
-import :MainApp;
+module vk_gltf_viewer.MainApp;
 
-import std;
-import asset;
 import cubemap;
 import ibl;
 import imgui.glfw;
 import imgui.vulkan;
-import :vulkan.Frame;
-import :vulkan.pipeline.CubemapToneMappingRenderer;
 
-import vk_gltf_viewer.AppState;
-import vk_gltf_viewer.control.AppWindow;
+import vk_gltf_viewer.asset;
 import vk_gltf_viewer.global;
 import vk_gltf_viewer.gltf.algorithm.miniball;
-import vk_gltf_viewer.gltf.Animation;
-import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;
@@ -52,7 +44,7 @@ import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.imgui.TaskCollector;
 import vk_gltf_viewer.vulkan.imgui.PlatformResource;
 import vk_gltf_viewer.vulkan.mipmap;
-import vk_gltf_viewer.vulkan.Swapchain;
+import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderer;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
@@ -1240,9 +1232,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     const ibl::SphericalHarmonicCoefficientComputer sphericalHarmonicCoefficientComputer { gpu.device, gpu.allocator, cubemapImage, sphericalHarmonicsBuffer, {
         .sampleMipLevel = 0,
-        .specializationConstants = {
-            .subgroupSize = gpu.subgroupSize,
-        },
+        .subgroupSize = gpu.subgroupSize,
     } };
     const ibl::PrefilteredmapComputer prefilteredmapComputer { gpu.device, cubemapImage, prefilteredmapImage, {
         .useShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod,

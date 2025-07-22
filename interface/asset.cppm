@@ -1,9 +1,9 @@
-export module asset:font.fontawesome_webfont_ttf;
+export module vk_gltf_viewer.asset;
 
 // File: 'fontawesome-webfont.ttf' (165548 bytes)
 // Exported using binary_to_compressed_c.exe -base85 "fontawesome-webfont.ttf" fontawesome_webfont_ttf
 
-namespace asset::font {
+namespace vk_gltf_viewer::asset::font {
     export constexpr char fontawesome_webfont_ttf_compressed_data_base85[155710+1] =
         "7])#######Xf/IZ'/###[),##0rC$#Q6>##T@;*>7eu':fBt(Nt@'o/fY;99]'W<#.(m<-Q@^01kZn425<<:Je,>>#CEnB4aNV=BB%on5Y;jl&#7YY#Rb(*Hlme+MmRu(Nfc5&5#-0%J"
         "kxp6[5e;A+t5IG;e.d<B]QZemdq.>-Q@pV-TT$=(ghN5&/.>>#FqEn/<_[FHsRUm*w&g<6;*35&S4JuBuThBW9Vfi'v2NP&%I[^IpH?_#V3S>-4)NU/+>00F:KPmOHqP1D:H:;$R%S+H"

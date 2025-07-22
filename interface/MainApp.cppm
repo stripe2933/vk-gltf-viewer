@@ -1,7 +1,6 @@
-export module vk_gltf_viewer:MainApp;
+export module vk_gltf_viewer.MainApp;
 
 import std;
-import :vulkan.Frame;
 
 import vk_gltf_viewer.AppState;
 import vk_gltf_viewer.control.AppWindow;
@@ -17,6 +16,7 @@ import vk_gltf_viewer.imgui.UserData;
 import vk_gltf_viewer.vulkan.dsl.Asset;
 import vk_gltf_viewer.vulkan.dsl.ImageBasedLighting;
 import vk_gltf_viewer.vulkan.dsl.Skybox;
+import vk_gltf_viewer.vulkan.Frame;
 import vk_gltf_viewer.vulkan.Swapchain;
 
 namespace vk_gltf_viewer {

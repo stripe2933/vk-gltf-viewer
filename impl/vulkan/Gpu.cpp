@@ -4,8 +4,6 @@ module;
 
 module vk_gltf_viewer.vulkan.Gpu;
 
-import std;
-
 import vk_gltf_viewer.helpers.ranges;
 
 constexpr std::array requiredExtensions {
