@@ -123,13 +123,12 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/global.cppm
         interface/gltf/algorithm/miniball.cppm
         interface/gltf/Animation.cppm
+        interface/gltf/AssetExtended.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetProcessError.cppm
-        interface/gltf/data_structure/SceneInverseHierarchy.cppm
-        interface/gltf/SceneNodeLevels.cppm
+        interface/gltf/SceneInverseHierarchy.cppm
         interface/gltf/StateCachedNodeVisibilityStructure.cppm
-        interface/gltf/NodeWorldTransforms.cppm
-        interface/gltf/TextureUsages.cppm
+        interface/gltf/TextureUsage.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/concepts.cppm
         interface/helpers/fastgltf.cppm
@@ -180,6 +179,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/descriptor_set_layout/MultiNodeMousePicking.cppm
         interface/vulkan/descriptor_set_layout/Skybox.cppm
         interface/vulkan/Frame.cppm
+        interface/vulkan/gltf/AssetExtended.cppm
         interface/vulkan/Gpu.cppm
         interface/vulkan/imgui/PlatformResource.cppm
         interface/vulkan/mipmap.cppm

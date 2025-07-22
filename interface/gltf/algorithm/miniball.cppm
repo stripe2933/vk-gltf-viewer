@@ -19,7 +19,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
      * @brief The smallest enclosing sphere of the scene meshes' bounding boxes, i.e. miniball.
      *
      * @param asset fastgltf Asset.
-     * @param scene Scene to be considered. It must be from the same asset.
+     * @param sceneIndex Index of scene to be calculated.
      * @param nodeWorldTransforms Node world transform matrices ordered by node indices in the asset.
      * @param adapter Buffer data adapter.
      * @return The pair of the miniball's center and radius.
@@ -27,7 +27,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
     export
     [[nodiscard]] std::pair<fastgltf::math::fvec3, float> getMiniball(
         const fastgltf::Asset &asset,
-        const fastgltf::Scene &scene,
+        std::size_t sceneIndex,
         std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
         const AssetExternalBuffers &adapter
     );
@@ -39,7 +39,7 @@ module :private;
 
 [[nodiscard]] std::pair<fastgltf::math::fvec3, float> vk_gltf_viewer::gltf::algorithm::getMiniball(
     const fastgltf::Asset &asset,
-    const fastgltf::Scene &scene,
+    std::size_t sceneIndex,
     std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
     const AssetExternalBuffers &adapter
 ) {
@@ -52,7 +52,7 @@ module :private;
     fastgltf::math::fvec3 max(std::numeric_limits<float>::lowest());
 #endif
 
-    traverseScene(asset, scene, [&](std::size_t nodeIndex) {
+    traverseScene(asset, asset.scenes[sceneIndex], [&](std::size_t nodeIndex) {
         const fastgltf::Node &node = asset.nodes[nodeIndex];
         const fastgltf::math::fmat4x4 &worldTransform = nodeWorldTransforms[nodeIndex];
 

@@ -2,12 +2,14 @@ module;
 
 #include <cassert>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer.gltf.StateCachedNodeVisibilityStructure;
 
 import std;
 export import fastgltf;
 
-import vk_gltf_viewer.gltf.data_structure.SceneInverseHierarchy;
+import vk_gltf_viewer.gltf.SceneInverseHierarchy;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.ranges;
 
@@ -37,20 +39,14 @@ namespace vk_gltf_viewer::gltf {
 
         /**
          * @param asset glTF asset.
-         * @param scene Scene that determines the hierarchy.
-         * @param sceneInverseHierarchy Cached structure for retrieving the parent node index of a node. If not given, new instance will be created.
+         * @param sceneIndex Index of scene that determines the hierarchy.
+         * @param sceneInverseHierarchy Cached structure for retrieving the parent node index of a node.
          */
         StateCachedNodeVisibilityStructure(
-            const fastgltf::Asset &asset,
-            const fastgltf::Scene &scene,
-            std::shared_ptr<const ds::SceneInverseHierarchy> sceneInverseHierarchy = nullptr
+            const fastgltf::Asset &asset LIFETIMEBOUND,
+            std::size_t sceneIndex,
+            const SceneInverseHierarchy &sceneInverseHierarchy LIFETIMEBOUND
         ) noexcept;
-
-        /**
-         * @param scene Scene that determines the hierarchy.
-         * @param sceneInverseHierarchy Cached structure for retrieving the parent node index of a node. If not given, new instance will be created.
-         */
-        void setScene(const fastgltf::Scene &scene, std::shared_ptr<const ds::SceneInverseHierarchy> sceneInverseHierarchy = nullptr) noexcept;
 
         [[nodiscard]] const std::vector<bool> &getVisibilities() const noexcept;
 
@@ -73,8 +69,8 @@ namespace vk_gltf_viewer::gltf {
         [[nodiscard]] State getState(std::size_t nodeIndex) const noexcept;
 
     private:
-        std::reference_wrapper<const fastgltf::Asset> asset;
-        std::shared_ptr<const ds::SceneInverseHierarchy> sceneInverseHierarchy;
+        std::reference_wrapper<const fastgltf::Asset> asset; // Lifetime tied to AssetExtended
+        std::reference_wrapper<const SceneInverseHierarchy> sceneInverseHierarchy; // Lifetime tied to AssetExtended
         std::vector<bool> visibilities;
         std::vector<State> states;
 
@@ -92,41 +88,25 @@ module :private;
 
 vk_gltf_viewer::gltf::StateCachedNodeVisibilityStructure::StateCachedNodeVisibilityStructure(
     const fastgltf::Asset &asset,
-    const fastgltf::Scene &scene,
-    std::shared_ptr<const ds::SceneInverseHierarchy> sceneInverseHierarchy
+    std::size_t sceneIndex,
+    const SceneInverseHierarchy &sceneInverseHierarchy
 ) noexcept
     : asset { asset }
-    , visibilities { std::vector<bool>(asset.nodes.size()) }
+    , sceneInverseHierarchy { sceneInverseHierarchy }
+    , visibilities { std::vector(asset.nodes.size(), false) }
     , states { std::vector<State>(asset.nodes.size()) }{
-    setScene(scene, std::move(sceneInverseHierarchy));
-}
-
-void vk_gltf_viewer::gltf::StateCachedNodeVisibilityStructure::setScene(
-    const fastgltf::Scene &scene,
-    std::shared_ptr<const ds::SceneInverseHierarchy> sceneInverseHierarchy
-) noexcept {
-    if (sceneInverseHierarchy) {
-        this->sceneInverseHierarchy = std::move(sceneInverseHierarchy);
-    }
-    else {
-        this->sceneInverseHierarchy = std::make_shared<const ds::SceneInverseHierarchy>(asset, scene);
-    }
-
-    std::ranges::fill(visibilities, false);
-    traverseScene(asset, scene, [&](std::size_t nodeIndex) noexcept {
+    const auto dfs = [&](this const auto &self, std::size_t nodeIndex) -> void {
         visibilities[nodeIndex] = true;
-    });
 
-    const auto dfs = [this](this const auto &self, std::size_t nodeIndex) -> void {
         // First update all children nodes.
-        for (std::size_t childNodeIndex : asset.get().nodes[nodeIndex].children) {
+        for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
             self(childNodeIndex);
         }
 
         // And update the current node based on its children.
         updateState(nodeIndex);
     };
-    for (std::size_t nodeIndex : scene.nodeIndices) {
+    for (std::size_t nodeIndex : asset.scenes[sceneIndex].nodeIndices) {
         dfs(nodeIndex);
     }
 }
@@ -144,7 +124,7 @@ void vk_gltf_viewer::gltf::StateCachedNodeVisibilityStructure::setVisibility(std
     visibilities[nodeIndex] = value;
 
     updateState(nodeIndex);
-    for (std::optional<std::size_t> parentNodeIndex; (parentNodeIndex = sceneInverseHierarchy->parentNodeIndices[nodeIndex]);) {
+    for (std::optional<std::size_t> parentNodeIndex; (parentNodeIndex = sceneInverseHierarchy.get().parentNodeIndices[nodeIndex]);) {
         updateState(nodeIndex = *parentNodeIndex);
     }
 }

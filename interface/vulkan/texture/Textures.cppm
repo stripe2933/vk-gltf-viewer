@@ -2,6 +2,8 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer.vulkan.texture.Textures;
 
 import std;
@@ -9,9 +11,11 @@ export import BS.thread_pool;
 export import fastgltf;
 export import vkgltf;
 
-export import vk_gltf_viewer.gltf.AssetExternalBuffers;
+export import vk_gltf_viewer.gltf.AssetExtended;
+export import vk_gltf_viewer.gltf.AssetProcessError;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.vulkan;
+import vk_gltf_viewer.vulkan.dsl.Asset;
 import vk_gltf_viewer.vulkan.mipmap;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.texture.Fallback;
@@ -24,12 +28,10 @@ namespace vk_gltf_viewer::vulkan::texture {
         std::vector<vk::DescriptorImageInfo> descriptorInfos;
 
         Textures(
-            const fastgltf::Asset &asset,
-            const std::filesystem::path &directory,
-            const Gpu &gpu,
-            const Fallback &fallbackTexture,
-            BS::thread_pool<> &threadPool,
-            const gltf::AssetExternalBuffers &adapter
+            const gltf::AssetExtended &assetExtended,
+            const Gpu &gpu LIFETIMEBOUND,
+            const Fallback &fallbackTexture LIFETIMEBOUND,
+            BS::thread_pool<> &threadPool
         );
     };
 }
@@ -39,17 +41,21 @@ module :private;
 #endif
 
 vk_gltf_viewer::vulkan::texture::Textures::Textures(
-    const fastgltf::Asset &asset,
-    const std::filesystem::path &directory,
+    const gltf::AssetExtended &assetExtended,
     const Gpu &gpu,
     const Fallback &fallbackTexture,
-    BS::thread_pool<> &threadPool,
-    const gltf::AssetExternalBuffers &adapter
+    BS::thread_pool<> &threadPool
 ) {
+    if (1 + assetExtended.asset.textures.size() > dsl::Asset::maxTextureCount(gpu)) {
+        // If asset texture count exceeds the available texture count provided by the GPU, throw the error before
+        // processing data to avoid unnecessary processing.
+        throw gltf::AssetProcessError::TooManyTextureError;
+    }
+
     // ----- Images -----
 
     // Get images that are used by asset textures.
-    std::vector usedImageIndices { std::from_range, asset.textures | std::views::transform(fastgltf::getPreferredImageIndex) };
+    std::vector usedImageIndices { std::from_range, assetExtended.asset.textures | std::views::transform(fastgltf::getPreferredImageIndex) };
     std::ranges::sort(usedImageIndices);
     const auto [begin, end] = std::ranges::unique(usedImageIndices);
     usedImageIndices.erase(begin, end);
@@ -62,12 +68,12 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     // Base color and emissive texture must be in SRGB format.
     // First traverse the asset textures and fetch the image index that must be in SRGB format.
     std::unordered_set<std::size_t> srgbImageIndices;
-    for (const fastgltf::Material &material : asset.materials) {
+    for (const fastgltf::Material &material : assetExtended.asset.materials) {
         if (const auto &baseColorTexture = material.pbrData.baseColorTexture) {
-            srgbImageIndices.emplace(getPreferredImageIndex(asset.textures[baseColorTexture->textureIndex]));
+            srgbImageIndices.emplace(getPreferredImageIndex(assetExtended.asset.textures[baseColorTexture->textureIndex]));
         }
         if (const auto &emissiveTexture = material.emissiveTexture) {
-            srgbImageIndices.emplace(getPreferredImageIndex(asset.textures[emissiveTexture->textureIndex]));
+            srgbImageIndices.emplace(getPreferredImageIndex(assetExtended.asset.textures[emissiveTexture->textureIndex]));
         }
     }
 
@@ -92,7 +98,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
         const bool allowMutateSrgbFormat = gpu.supportSwapchainMutableFormat == isSrgbImage;
 
         const vkgltf::Image::Config config {
-            .adapter = adapter,
+            .adapter = assetExtended.externalBuffers,
             .allowMutateSrgbFormat = allowMutateSrgbFormat,
             .uncompressedImageFormatFn = [&](int channels) -> vk::Format {
                 if (isSrgbImage) {
@@ -129,7 +135,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
         return std::pair<std::size_t, vkgltf::Image> {
             std::piecewise_construct,
             std::tuple { imageIndex },
-            std::tie(asset, asset.images[imageIndex], directory, gpu.device, gpu.allocator, config),
+            std::tie(assetExtended.asset, assetExtended.asset.images[imageIndex], assetExtended.directory, gpu.device, gpu.allocator, config),
         };
     }).get() | std::views::as_rvalue);
 
@@ -266,20 +272,20 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     // Do some nice things during the GPU execution.
     {
         // samplers
-        samplers.reserve(asset.samplers.size());
-        for (const fastgltf::Sampler &sampler : asset.samplers) {
+        samplers.reserve(assetExtended.asset.samplers.size());
+        for (const fastgltf::Sampler &sampler : assetExtended.asset.samplers) {
             samplers.emplace_back(gpu.device, vkgltf::getSamplerCreateInfo(sampler, 16.f));
         }
 
         // descriptorInfos
-        descriptorInfos.reserve(asset.textures.size());
-        for (const fastgltf::Texture &texture : asset.textures) {
-            descriptorInfos.emplace_back(
-                to_optional(texture.samplerIndex)
-                    .transform([&](std::size_t samplerIndex) { return *samplers[samplerIndex]; })
-                    .value_or(*fallbackTexture.sampler),
-                *images.at(getPreferredImageIndex(texture)).view,
-                vk::ImageLayout::eShaderReadOnlyOptimal);
+        descriptorInfos.reserve(assetExtended.asset.textures.size());
+        for (const fastgltf::Texture &texture : assetExtended.asset.textures) {
+            vk::Sampler sampler = *fallbackTexture.sampler;
+            if (texture.samplerIndex) {
+                sampler = *samplers[*texture.samplerIndex];
+            }
+
+            descriptorInfos.emplace_back(sampler, *images.at(getPreferredImageIndex(texture)).view, vk::ImageLayout::eShaderReadOnlyOptimal);
         }
     }
 

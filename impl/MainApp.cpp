@@ -1,6 +1,9 @@
 module;
 
 #include <cassert>
+#if __clang__
+#include <filesystem>
+#endif
 
 #include <GLFW/glfw3.h>
 #include <IconsFontAwesome4.h>
@@ -164,15 +167,15 @@ void vk_gltf_viewer::MainApp::run() {
         std::vector<std::size_t> transformedNodes;
 
         // Collect task from animation system.
-        if (gltf) {
+        if (assetExtended) {
             std::vector<std::size_t> morphedNodes;
-            for (const auto &[animation, enabled] : std::views::zip(gltf->animations, *gltf->animationEnabled)) {
+            for (const auto &[animation, enabled] : assetExtended->animations) {
                 if (!enabled) continue;
-                animation.update(glfwGetTime(), transformedNodes, morphedNodes, gltf->assetExternalBuffers);
+                animation.update(glfwGetTime(), transformedNodes, morphedNodes, assetExtended->externalBuffers);
             }
 
             for (std::size_t nodeIndex : morphedNodes) {
-                const std::size_t targetWeightCount = getTargetWeightCount(gltf->asset.nodes[nodeIndex], gltf->asset);
+                const std::size_t targetWeightCount = getTargetWeightCount(assetExtended->asset.nodes[nodeIndex], assetExtended->asset);
                 tasks.emplace(std::in_place_type<control::task::MorphTargetWeightChanged>, nodeIndex, 0, targetWeightCount);
             }
         }
@@ -192,18 +195,17 @@ void vk_gltf_viewer::MainApp::run() {
             NFD_GetNativeWindowFromGLFWWindow(window, &windowHandle);
 
             imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths(), windowHandle);
-            if (gltf) {
-                imguiTaskCollector.assetInspector(gltf->asset, gltf->directory);
-                imguiTaskCollector.assetTextures(gltf->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures, gltf->textureUsages);
-                imguiTaskCollector.materialEditor(gltf->asset, sharedData.gltfAsset->imGuiColorSpaceAndUsageCorrectedTextures);
-                if (!gltf->asset.materialVariants.empty()) {
-                    imguiTaskCollector.materialVariants(gltf->asset);
+            if (assetExtended) {
+                imguiTaskCollector.assetInspector(*assetExtended);
+                imguiTaskCollector.materialEditor(*assetExtended);
+                if (!assetExtended->asset.materialVariants.empty()) {
+                    imguiTaskCollector.materialVariants(*assetExtended);
                 }
-                imguiTaskCollector.sceneHierarchy(gltf->asset, gltf->sceneIndex, gltf->nodeVisibilities, gltf->hoveringNode, gltf->selectedNodes);
-                imguiTaskCollector.nodeInspector(gltf->asset, gltf->animations, *gltf->animationEnabled, gltf->selectedNodes);
+                imguiTaskCollector.sceneHierarchy(*assetExtended);
+                imguiTaskCollector.nodeInspector(*assetExtended);
 
-                if (!gltf->asset.animations.empty()) {
-                    imguiTaskCollector.animations(gltf->animations, gltf->animationEnabled);
+                if (!assetExtended->asset.animations.empty()) {
+                    imguiTaskCollector.animations(assetExtended);
                 }
             }
             if (const auto &iblInfo = appState.imageBasedLightingProperties) {
@@ -211,8 +213,8 @@ void vk_gltf_viewer::MainApp::run() {
             }
             imguiTaskCollector.background(appState.canSelectSkyboxBackground, appState.background);
             imguiTaskCollector.inputControl(appState.automaticNearFarPlaneAdjustment, appState.hoveringNodeOutline, appState.selectedNodeOutline, gpu.supportShaderStencilExport);
-            if (gltf) {
-                imguiTaskCollector.imguizmo(gltf->asset, gltf->selectedNodes, gltf->nodeWorldTransforms, appState.imGuizmoOperation, gltf->animations, *gltf->animationEnabled);
+            if (assetExtended) {
+                imguiTaskCollector.imguizmo(*assetExtended, appState.imGuizmoOperation);
             }
             else {
                 imguiTaskCollector.imguizmo();
@@ -241,17 +243,17 @@ void vk_gltf_viewer::MainApp::run() {
             const vulkan::Frame::ExecutionResult result = frame.getExecutionResult();
             if (auto *indices = get_if<std::vector<std::size_t>>(&result.mousePickingResult)) {
                 if (ImGui::GetIO().KeyCtrl) {
-                    gltf->selectedNodes.insert_range(*indices);
+                    assetExtended->selectedNodes.insert_range(*indices);
                 }
                 else {
-                    gltf->selectedNodes = { std::from_range, *indices };
+                    assetExtended->selectedNodes = { std::from_range, *indices };
                 }
             }
             else if (auto *index = get_if<std::size_t>(&result.mousePickingResult)) {
-                gltf->hoveringNode = *index;
+                assetExtended->hoveringNode = *index;
             }
-            else if (gltf) {
-                gltf->hoveringNode.reset();
+            else if (assetExtended) {
+                assetExtended->hoveringNode.reset();
             }
         }
 
@@ -269,7 +271,7 @@ void vk_gltf_viewer::MainApp::run() {
                 [this](const control::task::WindowKey &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureKeyboard) return;
 
-                    if (task.action == GLFW_PRESS && gltf && !gltf->selectedNodes.empty()) {
+                    if (task.action == GLFW_PRESS && assetExtended && !assetExtended->selectedNodes.empty()) {
                         switch (task.key) {
                             case GLFW_KEY_T:
                                 appState.imGuizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
@@ -305,28 +307,28 @@ void vk_gltf_viewer::MainApp::run() {
                     if (task.button == GLFW_MOUSE_BUTTON_LEFT && task.action == GLFW_PRESS) {
                         lastMouseDownPosition = window.getCursorPos();
                     }
-                    else if (leftMouseButtonPressed && gltf && !selectionRectanglePopped) {
-                        if (gltf->hoveringNode) {
+                    else if (leftMouseButtonPressed && assetExtended && !selectionRectanglePopped) {
+                        if (assetExtended->hoveringNode) {
                             if (ImGui::GetIO().KeyCtrl) {
                                 // Toggle the hovering node's selection.
-                                if (auto it = gltf->selectedNodes.find(*gltf->hoveringNode); it != gltf->selectedNodes.end()) {
-                                    gltf->selectedNodes.erase(it);
+                                if (auto it = assetExtended->selectedNodes.find(*assetExtended->hoveringNode); it != assetExtended->selectedNodes.end()) {
+                                    assetExtended->selectedNodes.erase(it);
                                 }
                                 else {
-                                    gltf->selectedNodes.emplace_hint(it, *gltf->hoveringNode);
+                                    assetExtended->selectedNodes.emplace_hint(it, *assetExtended->hoveringNode);
                                 }
                                 tasks.emplace(std::in_place_type<control::task::NodeSelectionChanged>);
                             }
-                            else if (gltf->selectedNodes.size() != 1 || (*gltf->hoveringNode != *gltf->selectedNodes.begin())) {
+                            else if (assetExtended->selectedNodes.size() != 1 || (*assetExtended->hoveringNode != *assetExtended->selectedNodes.begin())) {
                                 // Unless there's only 1 selected node and is the same as the hovering node, change selection
                                 // to the hovering node.
-                                gltf->selectedNodes = { *gltf->hoveringNode };
+                                assetExtended->selectedNodes = { *assetExtended->hoveringNode };
                                 tasks.emplace(std::in_place_type<control::task::NodeSelectionChanged>);
                             }
                             global::shouldNodeInSceneHierarchyScrolledToBeVisible = true;
                         }
                         else {
-                            gltf->selectedNodes.clear();
+                            assetExtended->selectedNodes.clear();
                             tasks.emplace(std::in_place_type<control::task::NodeSelectionChanged>);
                         }
                     }
@@ -401,16 +403,16 @@ void vk_gltf_viewer::MainApp::run() {
                     loadEqmap(task.path);
                 },
                 [&](control::task::ChangeScene task) {
-                    gltf->setScene(task.newSceneIndex);
+                    assetExtended->setScene(task.newSceneIndex);
 
                     auto nodeWorldTransformUpdateTask = [this, sceneIndex = task.newSceneIndex](vulkan::Frame &frame) {
-                        frame.gltfAsset->nodeBuffer.update(gltf->asset.scenes[sceneIndex], gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                        frame.gltfAsset->nodeBuffer.update(gltf->asset.scenes[sceneIndex], assetExtended->nodeWorldTransforms, assetExtended->externalBuffers);
                     };
                     nodeWorldTransformUpdateTask(frame);
                     deferredFrameUpdateTasks.push_back(std::move(nodeWorldTransformUpdateTask));
 
                     // Adjust the camera based on the scene enclosing sphere.
-                    const auto &[center, radius] = gltf->sceneMiniball.get();
+                    const auto &[center, radius] = assetExtended->sceneMiniball.get();
                     const float distance = radius / std::sin(global::camera.fov / 2.f);
                     global::camera.position = glm::make_vec3(center.data()) - distance * normalize(global::camera.direction);
                     global::camera.zMin = distance - radius;
@@ -424,15 +426,13 @@ void vk_gltf_viewer::MainApp::run() {
                     regenerateDrawCommands.fill(true);
                 },
                 [this](control::task::NodeSelectionChanged) {
-                    assert(gltf);
-
                     // If selected nodes have a single material, show it in the Material Editor window.
                     std::optional<std::size_t> uniqueMaterialIndex = std::nullopt;
-                    for (std::size_t nodeIndex : gltf->selectedNodes) {
-                        const auto &meshIndex = gltf->asset.nodes[nodeIndex].meshIndex;
+                    for (std::size_t nodeIndex : assetExtended->selectedNodes) {
+                        const auto &meshIndex = assetExtended->asset.nodes[nodeIndex].meshIndex;
                         if (!meshIndex) continue;
 
-                        for (const fastgltf::Primitive &primitive : gltf->asset.meshes[*meshIndex].primitives) {
+                        for (const fastgltf::Primitive &primitive : assetExtended->asset.meshes[*meshIndex].primitives) {
                             if (primitive.materialIndex) {
                                 if (!uniqueMaterialIndex) {
                                     uniqueMaterialIndex.emplace(*primitive.materialIndex);
@@ -446,27 +446,28 @@ void vk_gltf_viewer::MainApp::run() {
                     }
 
                     if (uniqueMaterialIndex) {
-                        control::ImGuiTaskCollector::selectedMaterialIndex = *uniqueMaterialIndex;
+                        assetExtended->imGuiSelectedMaterialIndex.emplace(*uniqueMaterialIndex);
                     }
                 },
                 [this](const control::task::HoverNodeFromGui &task) {
-                    assert(gltf);
-                    gltf->hoveringNode.emplace(task.nodeIndex);
+                    assetExtended->hoveringNode.emplace(task.nodeIndex);
                 },
                 [&](const control::task::NodeLocalTransformChanged &task) {
                     transformedNodes.push_back(task.nodeIndex);
                 },
                 [&](const control::task::NodeWorldTransformChanged &task) {
                     auto updateNodeTransformTask = [this, nodeIndex = task.nodeIndex](vulkan::Frame &frame) {
-                        frame.gltfAsset->nodeBuffer.update(nodeIndex, gltf->nodeWorldTransforms[nodeIndex], gltf->assetExternalBuffers);
+                        frame.gltfAsset->nodeBuffer.update(nodeIndex, assetExtended->nodeWorldTransforms[nodeIndex], assetExtended->externalBuffers);
                     };
                     updateNodeTransformTask(frame);
                     deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
 
-                    gltf->sceneMiniball.invalidate();
+                    assetExtended->sceneMiniball.invalidate();
                 },
                 [&](const control::task::MaterialPropertyChanged &task) {
-                    const fastgltf::Material &changedMaterial = gltf->asset.materials[task.materialIndex];
+                    const fastgltf::Material &changedMaterial = assetExtended->asset.materials[task.materialIndex];
+                    auto* const vkAssetExtended = dynamic_cast<vulkan::gltf::AssetExtended*>(assetExtended.get());
+
                     switch (task.property) {
                         using Property = control::task::MaterialPropertyChanged::Property;
                         case Property::AlphaMode:
@@ -475,102 +476,102 @@ void vk_gltf_viewer::MainApp::run() {
                             regenerateDrawCommands.fill(true);
                             break;
                         case Property::AlphaCutoff:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::alphaCutOff>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::alphaCutOff>(
                                 task.materialIndex,
                                 changedMaterial.alphaCutoff,
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::BaseColorFactor:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::baseColorFactor>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::baseColorFactor>(
                                 task.materialIndex,
                                 glm::make_vec4(changedMaterial.pbrData.baseColorFactor.data()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::BaseColorTextureTransform:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::baseColorTextureTransform>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::baseColorTextureTransform>(
                                 task.materialIndex,
                                 getTextureTransform(changedMaterial.pbrData.baseColorTexture->transform.get()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::EmissiveStrength: {
-                            const auto it = gltf->bloomMaterials.find(task.materialIndex);
-                            const bool useBloom = gltf->asset.materials[task.materialIndex].emissiveStrength > 1.f;
+                            const auto it = assetExtended->bloomMaterials.find(task.materialIndex);
+                            const bool useBloom = assetExtended->asset.materials[task.materialIndex].emissiveStrength > 1.f;
 
                             // Material emissive strength is changed to 1.
-                            if (it != gltf->bloomMaterials.end() && !useBloom) {
-                                gltf->bloomMaterials.erase(it);
+                            if (it != assetExtended->bloomMaterials.end() && !useBloom) {
+                                assetExtended->bloomMaterials.erase(it);
                                 regenerateDrawCommands.fill(true);
                             }
                             // Material emissive strength is changed from 1.
-                            else if (it == gltf->bloomMaterials.end() && useBloom) {
-                                gltf->bloomMaterials.emplace_hint(it, task.materialIndex);
+                            else if (it == assetExtended->bloomMaterials.end() && useBloom) {
+                                assetExtended->bloomMaterials.emplace_hint(it, task.materialIndex);
                                 regenerateDrawCommands.fill(true);
                             }
                             [[fallthrough]]; // materialBuffer also needs to be updated.
                         }
                         case Property::Emissive:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::emissive>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::emissive>(
                                 task.materialIndex,
                                 changedMaterial.emissiveStrength * glm::make_vec3(changedMaterial.emissiveFactor.data()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::EmissiveTextureTransform:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::emissiveTextureTransform>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::emissiveTextureTransform>(
                                 task.materialIndex,
                                 getTextureTransform(changedMaterial.emissiveTexture->transform.get()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::Ior:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::ior>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::ior>(
                                 task.materialIndex,
                                 changedMaterial.ior,
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::MetallicFactor:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::metallicFactor>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::metallicFactor>(
                                 task.materialIndex,
                                 changedMaterial.pbrData.metallicFactor,
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::MetallicRoughnessTextureTransform:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::metallicRoughnessTextureTransform>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::metallicRoughnessTextureTransform>(
                                 task.materialIndex,
                                 getTextureTransform(changedMaterial.pbrData.metallicRoughnessTexture->transform.get()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::NormalScale:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::normalScale>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::normalScale>(
                                 task.materialIndex,
                                 changedMaterial.normalTexture->scale,
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::NormalTextureTransform:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::normalTextureTransform>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::normalTextureTransform>(
                                 task.materialIndex,
                                 getTextureTransform(changedMaterial.normalTexture->transform.get()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::OcclusionStrength:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::occlusionStrength>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::occlusionStrength>(
                                 task.materialIndex,
                                 changedMaterial.occlusionTexture->strength,
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::OcclusionTextureTransform:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::occlusionTextureTransform>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::occlusionTextureTransform>(
                                 task.materialIndex,
                                 getTextureTransform(changedMaterial.occlusionTexture->transform.get()),
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::RoughnessFactor:
-                            hasUpdateData |= sharedData.gltfAsset->materialBuffer.update<&vulkan::shader_type::Material::roughnessFactor>(
+                            hasUpdateData |= vkAssetExtended->materialBuffer.update<&vulkan::shader_type::Material::roughnessFactor>(
                                 task.materialIndex,
                                 changedMaterial.pbrData.roughnessFactor,
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::TextureTransformEnabled:
-                            if (!ranges::contains(gltf->asset.extensionsUsed, "KHR_texture_transform")) {
-                                gltf->asset.extensionsUsed.push_back("KHR_texture_transform");
+                            if (!ranges::contains(assetExtended->asset.extensionsUsed, "KHR_texture_transform")) {
+                                assetExtended->asset.extensionsUsed.push_back("KHR_texture_transform");
 
                                 // Asset is loaded without KHR_texture_transform extension, and all pipelines were created
                                 // with texture transform disabled. Pipelines need to be recreated.
@@ -580,28 +581,28 @@ void vk_gltf_viewer::MainApp::run() {
                     }
                 },
                 [&](const control::task::SelectMaterialVariants &task) {
-                    assert(gltf && "Synchronization error: gltf is unset but material variants are selected.");
-
                     gpu.device.waitIdle();
 
+                    auto* const vkAssetExtended = dynamic_cast<vulkan::gltf::AssetExtended*>(assetExtended.get());
+
                     const bool isPrimitiveBufferHostVisible = vku::contains(
-                        gpu.allocator.getAllocationMemoryProperties(sharedData.gltfAsset->primitiveBuffer.allocation),
+                        gpu.allocator.getAllocationMemoryProperties(vkAssetExtended->primitiveBuffer.allocation),
                         vk::MemoryPropertyFlagBits::eHostVisible);
-                    for (const auto &[primitive, originalMaterialIndex] : gltf->variantsAffectingPrimitiveAndOriginalMaterialIndices) {
+                    for (const auto &[primitive, originalMaterialIndex] : assetExtended->materialVariantsMapping) {
                         const std::size_t materialIndex = primitive->mappings.at(task.variantIndex).value_or(originalMaterialIndex);
                         primitive->materialIndex.emplace(materialIndex);
 
-                        const std::size_t primitiveIndex = sharedData.gltfAsset->primitiveBuffer.getPrimitiveIndex(*primitive);
-                        std::int32_t &dstData = sharedData.gltfAsset->primitiveBuffer.mappedData[primitiveIndex].materialIndex;
+                        const std::size_t primitiveIndex = vkAssetExtended->primitiveBuffer.getPrimitiveIndex(*primitive);
+                        std::int32_t &dstData = vkAssetExtended->primitiveBuffer.mappedData[primitiveIndex].materialIndex;
                         if (isPrimitiveBufferHostVisible) {
                             dstData = materialIndex + 1;
                         }
                         else {
                             const vk::DeviceSize dstOffset
                                 = reinterpret_cast<const std::byte*>(&dstData)
-                                - reinterpret_cast<const std::byte*>(sharedData.gltfAsset->primitiveBuffer.mappedData.data());
+                                - reinterpret_cast<const std::byte*>(vkAssetExtended->primitiveBuffer.mappedData.data());
                             sharedDataUpdateCommandBuffer.updateBuffer<std::remove_cvref_t<decltype(dstData)>>(
-                                sharedData.gltfAsset->primitiveBuffer, dstOffset, materialIndex + 1);
+                                vkAssetExtended->primitiveBuffer, dstOffset, materialIndex + 1);
                             hasUpdateData = true;
                         }
                     }
@@ -609,7 +610,7 @@ void vk_gltf_viewer::MainApp::run() {
                 [&](const control::task::MorphTargetWeightChanged &task) {
                     auto updateTargetWeightTask = [this, task](vulkan::Frame &frame) {
                         std::ranges::copy(
-                            getTargetWeights(gltf->asset.nodes[task.nodeIndex], gltf->asset)
+                            getTargetWeights(assetExtended->asset.nodes[task.nodeIndex], assetExtended->asset)
                                 .subspan(task.targetWeightStartIndex, task.targetWeightCount),
                             frame.gltfAsset->nodeBuffer.getMorphTargetWeights(task.nodeIndex)
                                 .subspan(task.targetWeightStartIndex, task.targetWeightCount).begin());
@@ -617,7 +618,7 @@ void vk_gltf_viewer::MainApp::run() {
                     updateTargetWeightTask(frame);
                     deferredFrameUpdateTasks.push_back(std::move(updateTargetWeightTask));
 
-                    gltf->sceneMiniball.invalidate();
+                    assetExtended->sceneMiniball.invalidate();
                 },
                 [&](control::task::BloomModeChanged) {
                     // Primitive rendering pipelines have to be recreated to use shader stencil export or not.
@@ -627,52 +628,49 @@ void vk_gltf_viewer::MainApp::run() {
         }
 
         if (!transformedNodes.empty()) {
-            std::vector visited(gltf->asset.nodes.size(), false);
-
             // Remove duplicates in transformedNodes.
             std::ranges::sort(transformedNodes);
             const auto [begin, end] = std::ranges::unique(transformedNodes);
             transformedNodes.erase(begin, end);
 
             // Sort transformedNodes by their node level in the scene.
-            std::ranges::sort(transformedNodes, {}, LIFT(gltf->sceneNodeLevels.operator[]));
+            std::ranges::sort(transformedNodes, {}, LIFT(assetExtended->sceneNodeLevels.operator[]));
 
+            // Obtain nodes that are the top of the subtree of transformed nodes.
+            std::vector<std::size_t> topNodes;
+            std::vector visited(assetExtended->asset.nodes.size(), false);
             for (std::size_t nodeIndex : transformedNodes) {
                 // If node is marked as visited, its world transform is already updated by its ancestor node. Skipping it.
                 if (visited[nodeIndex]) continue;
 
                 // TODO.CXX26: std::optional<const fastgltf::math::fmat4x4&> can ditch the unnecessary copying.
                 fastgltf::math::fmat4x4 baseMatrix { 1.f };
-                if (const auto &parentNodeIndex = gltf->sceneInverseHierarchy->parentNodeIndices[nodeIndex]) {
-                    baseMatrix = gltf->nodeWorldTransforms[*parentNodeIndex];
+                if (const auto &parentNodeIndex = assetExtended->sceneInverseHierarchy.parentNodeIndices[nodeIndex]) {
+                    baseMatrix = assetExtended->nodeWorldTransforms[*parentNodeIndex];
                 }
-                const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(gltf->asset.nodes[nodeIndex], baseMatrix);
+                const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(assetExtended->asset.nodes[nodeIndex], baseMatrix);
 
                 // Update current and descendants world transforms and mark them as visited.
-                traverseNode(gltf->asset, nodeIndex, [&](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) noexcept {
-                    // If node is already visited, its descendants must be visited too. Continuing traversal is redundant.
-                    if (visited[nodeIndex]) {
-                        return false;
-                    }
+                traverseNode(assetExtended->asset, nodeIndex, [&](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) noexcept {
+                    assetExtended->nodeWorldTransforms[nodeIndex] = worldTransform;
 
-                    gltf->nodeWorldTransforms[nodeIndex] = worldTransform;
+                    assert(!visited[nodeIndex] && "This must be visited");
                     visited[nodeIndex] = true;
-                    return true;
                 }, nodeWorldTransform);
 
                 // Update GPU side world transform data.
                 auto updateNodeTransformTask = [this, nodeIndex](vulkan::Frame &frame) {
-                    frame.gltfAsset->nodeBuffer.updateHierarchical(nodeIndex, gltf->nodeWorldTransforms, gltf->assetExternalBuffers);
+                    frame.gltfAsset->nodeBuffer.updateHierarchical(nodeIndex, assetExtended->nodeWorldTransforms, assetExtended->externalBuffers);
                 };
                 updateNodeTransformTask(frame);
                 deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
             }
 
-            gltf->sceneMiniball.invalidate();
+            assetExtended->sceneMiniball.invalidate();
         }
 
-        if (gltf && appState.automaticNearFarPlaneAdjustment) {
-            const auto &[center, radius] = gltf->sceneMiniball.get();
+        if (assetExtended && appState.automaticNearFarPlaneAdjustment) {
+            const auto &[center, radius] = assetExtended->sceneMiniball.get();
             global::camera.tightenNearFar(glm::make_vec3(center.data()), radius);
         }
 
@@ -691,20 +689,17 @@ void vk_gltf_viewer::MainApp::run() {
                 { static_cast<std::int32_t>(framebufferScale.x * passthruRect.Min.x), static_cast<std::int32_t>(framebufferScale.y * passthruRect.Min.y) },
                 { static_cast<std::uint32_t>(framebufferScale.x * passthruRect.GetWidth()), static_cast<std::uint32_t>(framebufferScale.y * passthruRect.GetHeight()) },
             },
-            .gltf = gltf.transform([&](const Gltf &gltf) {
+            .gltf = value_if(static_cast<bool>(assetExtended), [&] {
                 return vulkan::Frame::ExecutionTask::Gltf {
-                    .asset = gltf.asset,
-                    .nodeWorldTransforms = gltf.nodeWorldTransforms,
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex % FRAMES_IN_FLIGHT], false),
-                    .nodeVisibilities = gltf.nodeVisibilities.getVisibilities(),
                     .hoveringNode = transform([&](std::size_t index, const AppState::Outline &outline) {
                         return vulkan::Frame::ExecutionTask::Gltf::HoveringNode {
                             index, outline.color, outline.thickness,
                         };
-                    }, gltf.hoveringNode, appState.hoveringNodeOutline.to_optional()),
-                    .selectedNodes = value_if(!gltf.selectedNodes.empty() && appState.selectedNodeOutline.has_value(), [&]() {
+                    }, assetExtended->hoveringNode, appState.hoveringNodeOutline.to_optional()),
+                    .selectedNodes = value_if(!assetExtended->selectedNodes.empty() && appState.selectedNodeOutline.has_value(), [&]() {
                         return vulkan::Frame::ExecutionTask::Gltf::SelectedNodes {
-                            gltf.selectedNodes,
+                            assetExtended->selectedNodes,
                             appState.selectedNodeOutline->color,
                             appState.selectedNodeOutline->thickness,
                         };
@@ -832,64 +827,6 @@ vk_gltf_viewer::MainApp::ImGuiContext::~ImGuiContext() {
     ImGui::DestroyContext();
 }
 
-vk_gltf_viewer::MainApp::Gltf::Gltf(fastgltf::Parser &parser, const std::filesystem::path &path)
-    : dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) }
-    , directory { path.parent_path() }
-    , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
-    , bloomMaterials { [&]() -> std::unordered_set<std::size_t> {
-        using namespace std::string_view_literals;
-        if (!ranges::one_of("KHR_materials_emissive_strength"sv, asset.extensionsUsed)) {
-            // It is guaranteed that all material emissive strength values are 1.0.
-            return {};
-        }
-
-        return {
-            std::from_range,
-            asset.materials
-                | ranges::views::enumerate
-                | std::views::filter(decomposer([](auto, const fastgltf::Material &material) {
-                    return material.emissiveStrength > 1.f;
-                }))
-                | std::views::keys,
-        };
-    }() }
-    , animationEnabled { std::make_shared<std::vector<bool>>(asset.animations.size(), false) }
-    , sceneIndex { asset.defaultScene.value_or(0) }
-    , nodeWorldTransforms { asset, asset.scenes[sceneIndex] }
-    , sceneInverseHierarchy { std::make_shared<gltf::ds::SceneInverseHierarchy>(asset, asset.scenes[sceneIndex]) }
-    , sceneNodeLevels { asset, asset.scenes[sceneIndex] }
-    , nodeVisibilities { asset, asset.scenes[sceneIndex], sceneInverseHierarchy }
-    , sceneMiniball { [this]() {
-        return gltf::algorithm::getMiniball(asset, asset.scenes[sceneIndex], nodeWorldTransforms, assetExternalBuffers);
-    } } {
-    // variantsAffectingPrimitiveAndOriginalMaterialIndices
-    for (fastgltf::Mesh &mesh : asset.meshes) {
-        for (fastgltf::Primitive &primitive : mesh.primitives) {
-            if (!primitive.mappings.empty()) {
-                variantsAffectingPrimitiveAndOriginalMaterialIndices.emplace_back(
-                    &primitive, primitive.materialIndex.value());
-            }
-        }
-    }
-
-    // animations
-    animations.reserve(asset.animations.size());
-    for (std::size_t i : ranges::views::upto(asset.animations.size())) {
-        animations.emplace_back(asset, i, assetExternalBuffers);
-    }
-}
-
-void vk_gltf_viewer::MainApp::Gltf::setScene(std::size_t sceneIndex) {
-    this->sceneIndex = sceneIndex;
-    nodeWorldTransforms.update(asset.scenes[sceneIndex]);
-    sceneInverseHierarchy = std::make_shared<gltf::ds::SceneInverseHierarchy>(asset, asset.scenes[sceneIndex]);
-    sceneNodeLevels = { asset, asset.scenes[sceneIndex] };
-    sceneMiniball.invalidate();
-    nodeVisibilities.setScene(asset.scenes[sceneIndex], sceneInverseHierarchy);
-    selectedNodes.clear();
-    hoveringNode.reset();
-}
-
 vk_gltf_viewer::MainApp::SkyboxResources::~SkyboxResources() {
     ImGui_ImplVulkan_RemoveTexture(imGuiEqmapTextureDescriptorSet);
 }
@@ -985,14 +922,18 @@ vku::AllocatedImage vk_gltf_viewer::MainApp::createBrdfmapImage() const {
 
 void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     try {
-        const Gltf &inner = gltf.emplace(parser, path);
+        vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
+        vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, transferCommandPool, gpu.queues.transfer };
+        auto gltfAsset = std::make_shared<vulkan::gltf::AssetExtended>(path, gpu, sharedData.fallbackTexture, stagingBufferStorage);
+
+        assetExtended = gltfAsset;
 
         // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
         //  so I'll just use it for now.
         gpu.device.waitIdle();
-        sharedData.changeAsset(inner.asset, path.parent_path(), inner.assetExternalBuffers);
+        sharedData.setAsset(std::move(gltfAsset));
         for (vulkan::Frame &frame : frames) {
-            frame.changeAsset(inner.asset, inner.nodeWorldTransforms, inner.assetExternalBuffers);
+            frame.updateAsset();
         }
     }
     catch (gltf::AssetProcessError error) {
@@ -1019,17 +960,15 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // Update AppState.
     appState.pushRecentGltfPath(path);
 
-    global::bloom.set_active(!gltf->bloomMaterials.empty());
+    global::bloom.set_active(!assetExtended->bloomMaterials.empty());
 
     // Adjust the camera based on the scene enclosing sphere.
-    const auto &[center, radius] = gltf->sceneMiniball.get();
+    const auto &[center, radius] = assetExtended->sceneMiniball.get();
     const float distance = radius / std::sin(global::camera.fov / 2.f);
     global::camera.position = glm::make_vec3(center.data()) - distance * normalize(global::camera.direction);
     global::camera.zMin = distance - radius;
     global::camera.zMax = distance + radius;
     global::camera.targetDistance = distance;
-
-    control::ImGuiTaskCollector::selectedMaterialIndex.reset();
 }
 
 void vk_gltf_viewer::MainApp::closeGltf() {
@@ -1037,8 +976,8 @@ void vk_gltf_viewer::MainApp::closeGltf() {
     for (vulkan::Frame &frame : frames) {
         frame.gltfAsset.reset();
     }
-    sharedData.gltfAsset.reset();
-    gltf.reset();
+    sharedData.assetExtended.reset();
+    assetExtended.reset();
 
     window.setTitle("Vulkan glTF Viewer");
 }

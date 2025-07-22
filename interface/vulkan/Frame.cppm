@@ -76,12 +76,7 @@ namespace vk_gltf_viewer::vulkan {
 
             std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
 
-            GltfAsset(
-                const fastgltf::Asset &asset LIFETIMEBOUND,
-                std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-                const SharedData &sharedData LIFETIMEBOUND,
-                const gltf::AssetExternalBuffers &adapter
-            );
+            GltfAsset(const SharedData &sharedData LIFETIMEBOUND);
         };
 
         struct ExecutionTask {
@@ -98,11 +93,7 @@ namespace vk_gltf_viewer::vulkan {
                     float outlineThickness;
                 };
 
-                const fastgltf::Asset &asset;
-                std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms;
-
                 bool regenerateDrawCommands;
-                const std::vector<bool> &nodeVisibilities;
                 std::optional<HoveringNode> hoveringNode;
                 std::optional<SelectedNodes> selectedNodes;
 
@@ -146,11 +137,7 @@ namespace vk_gltf_viewer::vulkan {
 
         void recordCommandsAndSubmit(Swapchain &swapchain) const;
 
-        void changeAsset(
-            const fastgltf::Asset &asset,
-            std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-            const gltf::AssetExternalBuffers &adapter
-        );
+        void updateAsset();
 
     private:
         struct PassthruResources {
