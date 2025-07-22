@@ -74,9 +74,16 @@ import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderer;
 }
 
 vk_gltf_viewer::MainApp::MainApp()
-    : swapchain { gpu, window.getSurface(), getSwapchainExtent() }
+    : instance { createInstance() }
+    , window { instance }
+    , drawSelectionRectangle { false }
+    , gpu { instance, window.getSurface() }
+    , renderer { std::make_shared<Renderer>(Renderer::Capabilities {
+        .perFragmentBloom = gpu.supportShaderStencilExport,
+    }) }
+    , swapchain { gpu, window.getSurface(), getSwapchainExtent() }
     , sharedData { gpu, swapchain.extent, swapchain.images }
-    , frames { ARRAY_OF(2, vulkan::Frame { sharedData }) } {
+    , frames { ARRAY_OF(2, vulkan::Frame { renderer, sharedData }) } {
     const ibl::BrdfmapRenderer brdfmapRenderer { gpu.device, brdfmapImage, {} };
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
@@ -211,13 +218,12 @@ void vk_gltf_viewer::MainApp::run() {
             if (const auto &iblInfo = appState.imageBasedLightingProperties) {
                 imguiTaskCollector.imageBasedLighting(*iblInfo, vku::toUint64(skyboxResources->imGuiEqmapTextureDescriptorSet));
             }
-            imguiTaskCollector.background(appState.canSelectSkyboxBackground, appState.background);
-            imguiTaskCollector.inputControl(appState.automaticNearFarPlaneAdjustment, appState.hoveringNodeOutline, appState.selectedNodeOutline, gpu.supportShaderStencilExport);
+            imguiTaskCollector.rendererSetting(*renderer);
             if (assetExtended) {
-                imguiTaskCollector.imguizmo(*assetExtended, appState.imGuizmoOperation);
+                imguiTaskCollector.imguizmo(*renderer, *assetExtended);
             }
             else {
-                imguiTaskCollector.imguizmo();
+                imguiTaskCollector.imguizmo(*renderer);
             }
 
             if (drawSelectionRectangle) {
@@ -274,13 +280,13 @@ void vk_gltf_viewer::MainApp::run() {
                     if (task.action == GLFW_PRESS && assetExtended && !assetExtended->selectedNodes.empty()) {
                         switch (task.key) {
                             case GLFW_KEY_T:
-                                appState.imGuizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
+                                renderer->imGuizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
                                 break;
                             case GLFW_KEY_R:
-                                appState.imGuizmoOperation = ImGuizmo::OPERATION::ROTATE;
+                                renderer->imGuizmoOperation = ImGuizmo::OPERATION::ROTATE;
                                 break;
                             case GLFW_KEY_S:
-                                appState.imGuizmoOperation = ImGuizmo::OPERATION::SCALE;
+                                renderer->imGuizmoOperation = ImGuizmo::OPERATION::SCALE;
                                 break;
                         }
                     }
@@ -342,18 +348,18 @@ void vk_gltf_viewer::MainApp::run() {
                     }(task);
 
                     const float factor = std::powf(1.01f, -scale);
-                    const glm::vec3 displacementToTarget = global::camera.direction * global::camera.targetDistance;
-                    global::camera.targetDistance *= factor;
-                    global::camera.position += (1.f - factor) * displacementToTarget;
+                    const glm::vec3 displacementToTarget = renderer->camera.direction * renderer->camera.targetDistance;
+                    renderer->camera.targetDistance *= factor;
+                    renderer->camera.position += (1.f - factor) * displacementToTarget;
                 },
                 [this](const control::task::WindowTrackpadRotate &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
                     // Rotate the camera around the Y-axis lied on the target point.
-                    const glm::vec3 target = global::camera.position + global::camera.direction * global::camera.targetDistance;
+                    const glm::vec3 target = renderer->camera.position + renderer->camera.direction * renderer->camera.targetDistance;
                     const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
-                    global::camera.direction = glm::mat3 { rotation } * global::camera.direction;
-                    global::camera.position = target - global::camera.direction * global::camera.targetDistance;
+                    renderer->camera.direction = glm::mat3 { rotation } * renderer->camera.direction;
+                    renderer->camera.position = target - renderer->camera.direction * renderer->camera.targetDistance;
                 },
                 [&](const control::task::WindowDrop &task) {
                     if (task.paths.empty()) return;
@@ -389,7 +395,7 @@ void vk_gltf_viewer::MainApp::run() {
                     handleSwapchainResize();
                 },
                 [this](const control::task::ChangePassthruRect &task) {
-                    global::camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
+                    renderer->camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
                     passthruRect = task.newRect;
                 },
                 [&](const control::task::LoadGltf &task) {
@@ -413,11 +419,11 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Adjust the camera based on the scene enclosing sphere.
                     const auto &[center, radius] = assetExtended->sceneMiniball.get();
-                    const float distance = radius / std::sin(global::camera.fov / 2.f);
-                    global::camera.position = glm::make_vec3(center.data()) - distance * normalize(global::camera.direction);
-                    global::camera.zMin = distance - radius;
-                    global::camera.zMax = distance + radius;
-                    global::camera.targetDistance = distance;
+                    const float distance = radius / std::sin(renderer->camera.fov / 2.f);
+                    renderer->camera.position = glm::make_vec3(center.data()) - distance * normalize(renderer->camera.direction);
+                    renderer->camera.zMin = distance - radius;
+                    renderer->camera.zMax = distance + radius;
+                    renderer->camera.targetDistance = distance;
 
                     regenerateDrawCommands.fill(true);
                 },
@@ -669,9 +675,9 @@ void vk_gltf_viewer::MainApp::run() {
             assetExtended->sceneMiniball.invalidate();
         }
 
-        if (assetExtended && appState.automaticNearFarPlaneAdjustment) {
+        if (renderer->automaticNearFarPlaneAdjustment && assetExtended) {
             const auto &[center, radius] = assetExtended->sceneMiniball.get();
-            global::camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+            renderer->camera.tightenNearFar(glm::make_vec3(center.data()), radius);
         }
 
         if (hasUpdateData) {
@@ -692,18 +698,6 @@ void vk_gltf_viewer::MainApp::run() {
             .gltf = value_if(static_cast<bool>(assetExtended), [&] {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex % FRAMES_IN_FLIGHT], false),
-                    .hoveringNode = transform([&](std::size_t index, const AppState::Outline &outline) {
-                        return vulkan::Frame::ExecutionTask::Gltf::HoveringNode {
-                            index, outline.color, outline.thickness,
-                        };
-                    }, assetExtended->hoveringNode, appState.hoveringNodeOutline.to_optional()),
-                    .selectedNodes = value_if(!assetExtended->selectedNodes.empty() && appState.selectedNodeOutline.has_value(), [&]() {
-                        return vulkan::Frame::ExecutionTask::Gltf::SelectedNodes {
-                            assetExtended->selectedNodes,
-                            appState.selectedNodeOutline->color,
-                            appState.selectedNodeOutline->thickness,
-                        };
-                    }),
                     .mousePickingInput = [&]() -> std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
                         const glm::dvec2 cursorPos = window.getCursorPos();
                         if (drawSelectionRectangle) {
@@ -745,7 +739,6 @@ void vk_gltf_viewer::MainApp::run() {
                     }(),
                 };
             }),
-            .solidBackground = appState.background.to_optional(),
         });
 
         frame.recordCommandsAndSubmit(swapchain);
@@ -960,15 +953,15 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // Update AppState.
     appState.pushRecentGltfPath(path);
 
-    global::bloom.set_active(!assetExtended->bloomMaterials.empty());
+    renderer->bloom.set_active(!assetExtended->bloomMaterials.empty());
 
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius] = assetExtended->sceneMiniball.get();
-    const float distance = radius / std::sin(global::camera.fov / 2.f);
-    global::camera.position = glm::make_vec3(center.data()) - distance * normalize(global::camera.direction);
-    global::camera.zMin = distance - radius;
-    global::camera.zMax = distance + radius;
-    global::camera.targetDistance = distance;
+    const float distance = radius / std::sin(renderer->camera.fov / 2.f);
+    renderer->camera.position = glm::make_vec3(center.data()) - distance * normalize(renderer->camera.direction);
+    renderer->camera.zMin = distance - radius;
+    renderer->camera.zMax = distance + radius;
+    renderer->camera.targetDistance = distance;
 }
 
 void vk_gltf_viewer::MainApp::closeGltf() {
@@ -1468,8 +1461,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     }
 
     // Update AppState.
-    appState.canSelectSkyboxBackground = true;
-    appState.background.reset();
+    renderer->setSkybox({} /* TODO */);
     appState.imageBasedLightingProperties = AppState::ImageBasedLighting {
         .eqmap = {
             .path = eqmapPath,

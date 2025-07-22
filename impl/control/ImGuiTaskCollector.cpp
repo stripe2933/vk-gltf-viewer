@@ -239,7 +239,6 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
     ImGui::DockBuilderDockWindow("Textures", leftSidebarTop);
 
     // leftSidebarBottom
-    ImGui::DockBuilderDockWindow("Background", leftSidebarBottom);
     ImGui::DockBuilderDockWindow("Scene Hierarchy", leftSidebarBottom);
     ImGui::DockBuilderDockWindow("IBL", leftSidebarBottom);
 
@@ -247,7 +246,7 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
     const ImGuiID rightSidebarTop = ImGui::DockBuilderSplitNode(rightSidebar, ImGuiDir_Up, 0.5f, nullptr, &rightSidebarBottom);
 
     // rightSidebarTop
-    ImGui::DockBuilderDockWindow("Input control", rightSidebarTop);
+    ImGui::DockBuilderDockWindow("Renderer Setting", rightSidebarTop);
 
     // rightSidebarBottom
     ImGui::DockBuilderDockWindow("Node Inspector", rightSidebarBottom);
@@ -1569,29 +1568,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
     nodeInspectorCalled = true;
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::background(
-    bool canSelectSkyboxBackground,
-    full_optional<glm::vec3> &solidBackground
-) {
-    if (ImGui::Begin("Background")) {
-        const bool useSolidBackground = solidBackground.has_value();
-        // If canSelectSkyboxBackground is false, the user cannot select the skybox background.
-        ImGui::WithDisabled([&]() {
-            if (ImGui::RadioButton("Use cubemap image from equirectangular map", !useSolidBackground)) {
-                solidBackground.set_active(false);
-            }
-        }, !canSelectSkyboxBackground);
-
-        if (ImGui::RadioButton("Use solid color", useSolidBackground)) {
-            solidBackground.set_active(true);
-        }
-        ImGui::WithDisabled([&]() {
-            ImGui::ColorPicker3("Color", value_ptr(*solidBackground));
-        }, !useSolidBackground);
-    }
-    ImGui::End();
-}
-
 void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
     const AppState::ImageBasedLighting &info,
     ImTextureID eqmapTextureImGuiDescriptorSet
@@ -1636,46 +1612,41 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
     imageBasedLightingCalled = true;
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
-    bool &automaticNearFarPlaneAdjustment,
-    full_optional<AppState::Outline> &hoveringNodeOutline,
-    full_optional<AppState::Outline> &selectedNodeOutline,
-    bool canSelectBloomModePerFragment
-) {
-    if (ImGui::Begin("Input control")){
+void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &renderer) {
+    if (ImGui::Begin("Renderer Setting")){
         if (ImGui::CollapsingHeader("Camera")) {
-            ImGui::DragFloat3("Position", value_ptr(global::camera.position), 0.1f);
-            if (ImGui::DragFloat3("Direction", value_ptr(global::camera.direction), 0.1f, -1.f, 1.f)) {
-                global::camera.direction = normalize(global::camera.direction);
+            ImGui::DragFloat3("Position", value_ptr(renderer.camera.position), 0.1f);
+            if (ImGui::DragFloat3("Direction", value_ptr(renderer.camera.direction), 0.1f, -1.f, 1.f)) {
+                renderer.camera.direction = normalize(renderer.camera.direction);
             }
-            if (ImGui::DragFloat3("Up", value_ptr(global::camera.up), 0.1f, -1.f, 1.f)) {
-                global::camera.up = normalize(global::camera.up);
-            }
-
-            if (float fovInDegree = glm::degrees(global::camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
-                global::camera.fov = glm::radians(fovInDegree);
+            if (ImGui::DragFloat3("Up", value_ptr(renderer.camera.up), 0.1f, -1.f, 1.f)) {
+                renderer.camera.up = normalize(renderer.camera.up);
             }
 
-            ImGui::Checkbox("Automatic Near/Far Adjustment", &automaticNearFarPlaneAdjustment);
+            if (float fovInDegree = glm::degrees(renderer.camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
+                renderer.camera.fov = glm::radians(fovInDegree);
+            }
+
+            ImGui::Checkbox("Automatic Near/Far Adjustment", &renderer.automaticNearFarPlaneAdjustment);
             ImGui::SameLine();
             ImGui::HelperMarker("(?)", "Near/Far plane will be automatically tightened to fit the scene bounding box.");
 
             ImGui::WithDisabled([&]() {
-                ImGui::DragFloatRange2("Near/Far", &global::camera.zMin, &global::camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
-            }, automaticNearFarPlaneAdjustment);
+                ImGui::DragFloatRange2("Near/Far", &renderer.camera.zMin, &renderer.camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+            }, renderer.automaticNearFarPlaneAdjustment);
 
-            constexpr auto to_string = [](global::FrustumCullingMode mode) noexcept -> const char* {
+            constexpr auto to_string = [](Renderer::FrustumCullingMode mode) noexcept -> const char* {
                 switch (mode) {
-                    case global::FrustumCullingMode::Off: return "Off";
-                    case global::FrustumCullingMode::On: return "On";
-                    case global::FrustumCullingMode::OnWithInstancing: return "On with instancing";
+                    case Renderer::FrustumCullingMode::Off: return "Off";
+                    case Renderer::FrustumCullingMode::On: return "On";
+                    case Renderer::FrustumCullingMode::OnWithInstancing: return "On with instancing";
                 }
                 std::unreachable();
             };
-            if (ImGui::BeginCombo("Frustum Culling", to_string(global::frustumCullingMode))) {
-                for (auto mode : { global::FrustumCullingMode::Off, global::FrustumCullingMode::On, global::FrustumCullingMode::OnWithInstancing }) {
-                    if (ImGui::Selectable(to_string(mode), global::frustumCullingMode == mode) && global::frustumCullingMode != mode) {
-                        global::frustumCullingMode = mode;
+            if (ImGui::BeginCombo("Frustum Culling", to_string(renderer.frustumCullingMode))) {
+                for (auto mode : { Renderer::FrustumCullingMode::Off, Renderer::FrustumCullingMode::On, Renderer::FrustumCullingMode::OnWithInstancing }) {
+                    if (ImGui::Selectable(to_string(mode), renderer.frustumCullingMode == mode) && renderer.frustumCullingMode != mode) {
+                        renderer.frustumCullingMode = mode;
                         ImGui::SetItemDefaultFocus();
                     }
                 }
@@ -1683,58 +1654,74 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
             }
         }
 
-        if (ImGui::CollapsingHeader("Node selection")) {
-            bool showHoveringNodeOutline = hoveringNodeOutline.has_value();
-            if (ImGui::Checkbox("Hovering node outline", &showHoveringNodeOutline)) {
-                hoveringNodeOutline.set_active(showHoveringNodeOutline);
+        if (ImGui::CollapsingHeader("Background")) {
+            const bool useSolidBackground = renderer.solidBackground.has_value();
+            ImGui::WithDisabled([&]() {
+                if (ImGui::RadioButton("Use cubemap image from equirectangular map", !useSolidBackground)) {
+                    renderer.solidBackground.set_active(false);
+                }
+            }, !renderer.canSelectSkyboxBackground());
+
+            if (ImGui::RadioButton("Use solid color", useSolidBackground)) {
+                renderer.solidBackground.set_active(true);
             }
             ImGui::WithDisabled([&]() {
-                ImGui::DragFloat("Thickness##hoveringNodeOutline", &hoveringNodeOutline->thickness, 1.f, 1.f, 1.f);
-                ImGui::ColorEdit4("Color##hoveringNodeOutline", value_ptr(hoveringNodeOutline->color));
+                ImGui::ColorPicker3("Color", value_ptr(renderer.solidBackground.raw()));
+            }, !useSolidBackground);
+        }
+
+        if (ImGui::CollapsingHeader("Node selection")) {
+            bool showHoveringNodeOutline = renderer.hoveringNodeOutline.has_value();
+            if (ImGui::Checkbox("Hovering node outline", &showHoveringNodeOutline)) {
+                renderer.hoveringNodeOutline.set_active(showHoveringNodeOutline);
+            }
+            ImGui::WithDisabled([&]() {
+                ImGui::DragFloat("Thickness##hoveringNodeOutline", &renderer.hoveringNodeOutline->thickness, 1.f, 1.f, 1.f);
+                ImGui::ColorEdit4("Color##hoveringNodeOutline", value_ptr(renderer.hoveringNodeOutline->color));
             }, !showHoveringNodeOutline);
 
-            bool showSelectedNodeOutline = selectedNodeOutline.has_value();
+            bool showSelectedNodeOutline = renderer.selectedNodeOutline.has_value();
             if (ImGui::Checkbox("Selected node outline", &showSelectedNodeOutline)) {
-                selectedNodeOutline.set_active(showSelectedNodeOutline);
+                renderer.selectedNodeOutline.set_active(showSelectedNodeOutline);
             }
             ImGui::WithDisabled([&]() {
-                ImGui::DragFloat("Thickness##selectedNodeOutline", &selectedNodeOutline->thickness, 1.f, 1.f, 1.f);
-                ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(selectedNodeOutline->color));
+                ImGui::DragFloat("Thickness##selectedNodeOutline", &renderer.selectedNodeOutline->thickness, 1.f, 1.f, 1.f);
+                ImGui::ColorEdit4("Color##selectedNodeOutline", value_ptr(renderer.selectedNodeOutline->color));
             }, !showSelectedNodeOutline);
         }
 
         if (ImGui::CollapsingHeader("Bloom")) {
-            bool bloom = global::bloom.has_value();
+            bool bloom = renderer.bloom.has_value();
             if (ImGui::Checkbox("Enable bloom", &bloom)) {
-                global::bloom.set_active(bloom);
+                renderer.bloom.set_active(bloom);
             }
 
             ImGui::WithDisabled([&]() {
-                const char* const previewValue = []() {
-                    switch (global::bloom.raw().mode) {
-                        case global::Bloom::Mode::PerMaterial: return "Per-Material";
-                        case global::Bloom::Mode::PerFragment: return "Per-Fragment";
+                const char* const previewValue = [&]() {
+                    switch (renderer.bloom.raw().mode) {
+                        case Renderer::Bloom::PerMaterial: return "Per-Material";
+                        case Renderer::Bloom::PerFragment: return "Per-Fragment";
                     }
                     std::unreachable();
                 }();
                 if (ImGui::BeginCombo("Mode", previewValue)) {
-                    if (ImGui::Selectable("Per-Material", global::bloom->mode == global::Bloom::Mode::PerMaterial) && global::bloom->mode != global::Bloom::Mode::PerMaterial) {
-                        global::bloom->mode = global::Bloom::Mode::PerMaterial;
+                    if (ImGui::Selectable("Per-Material", renderer.bloom->mode == Renderer::Bloom::PerMaterial) && renderer.bloom->mode != Renderer::Bloom::PerMaterial) {
+                        renderer.bloom->mode = Renderer::Bloom::PerMaterial;
                         tasks.emplace(std::in_place_type<task::BloomModeChanged>);
 
                         ImGui::SetItemDefaultFocus();
                     }
 
                     ImGui::WithDisabled([&]() {
-                        if (ImGui::Selectable("Per-Fragment", global::bloom->mode == global::Bloom::Mode::PerFragment) && global::bloom->mode != global::Bloom::Mode::PerFragment) {
-                            global::bloom->mode = global::Bloom::Mode::PerFragment;
+                        if (ImGui::Selectable("Per-Fragment", renderer.bloom->mode == Renderer::Bloom::PerFragment) && renderer.bloom->mode != Renderer::Bloom::PerFragment) {
+                            renderer.bloom->mode = Renderer::Bloom::PerFragment;
                             tasks.emplace(std::in_place_type<task::BloomModeChanged>);
 
                             ImGui::SetItemDefaultFocus();
                         }
-                    }, !canSelectBloomModePerFragment);
+                    }, !renderer.capabilities.perFragmentBloom);
                     ImGui::SameLine();
-                    if (canSelectBloomModePerFragment) {
+                    if (renderer.capabilities.perFragmentBloom) {
                         ImGui::HelperMarker("(!)", "Rendering performance may be significantly degraded.");
                     }
                     else {
@@ -1744,32 +1731,32 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::inputControl(
                     ImGui::EndCombo();
                 }
 
-                ImGui::DragFloat("Intensity", &global::bloom.raw().intensity, 1e-2f, 0.f, 0.1f);
+                ImGui::DragFloat("Intensity", &renderer.bloom.raw().intensity, 1e-2f, 0.f, 0.1f);
             }, !bloom);
         }
     }
     ImGui::End();
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo() {
+void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer) {
     // Set ImGuizmo rect.
     ImGuizmo::BeginFrame();
     ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
 
     constexpr ImVec2 size { 64.f, 64.f };
     constexpr ImU32 background = 0x00000000; // Transparent.
-    const glm::mat4 oldView = global::camera.getViewMatrix();
+    const glm::mat4 oldView = renderer.camera.getViewMatrix();
     glm::mat4 newView = oldView;
-    ImGuizmo::ViewManipulate(value_ptr(newView), global::camera.targetDistance, centerNodeRect.Max - size, size, background);
+    ImGuizmo::ViewManipulate(value_ptr(newView), renderer.camera.targetDistance, centerNodeRect.Max - size, size, background);
     if (newView != oldView) {
         const glm::mat4 inverseView = inverse(newView);
-        global::camera.up = inverseView[1];
-        global::camera.position = inverseView[3];
-        global::camera.direction = -inverseView[2];
+        renderer.camera.up = inverseView[1];
+        renderer.camera.position = inverseView[3];
+        renderer.camera.direction = -inverseView[2];
     }
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(gltf::AssetExtended &assetExtended, ImGuizmo::OPERATION operation) {
+void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, gltf::AssetExtended &assetExtended) {
     // Set ImGuizmo rect.
     ImGuizmo::BeginFrame();
     ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
@@ -1782,9 +1769,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(gltf::AssetExtended &
             if (it == animation.nodeUsages.end()) continue;
 
             const Flags usage = it->second;
-            if ((operation == ImGuizmo::OPERATION::TRANSLATE && (usage & gltf::NodeAnimationUsage::Translation)) ||
-                (operation == ImGuizmo::OPERATION::ROTATE && (usage & gltf::NodeAnimationUsage::Rotation)) ||
-                (operation == ImGuizmo::OPERATION::SCALE && (usage & gltf::NodeAnimationUsage::Scale))) {
+            if ((renderer.imGuizmoOperation == ImGuizmo::OPERATION::TRANSLATE && (usage & gltf::NodeAnimationUsage::Translation)) ||
+                (renderer.imGuizmoOperation == ImGuizmo::OPERATION::ROTATE && (usage & gltf::NodeAnimationUsage::Rotation)) ||
+                (renderer.imGuizmoOperation == ImGuizmo::OPERATION::SCALE && (usage & gltf::NodeAnimationUsage::Scale))) {
                 return true;
             }
         }
@@ -1798,7 +1785,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(gltf::AssetExtended &
 
         ImGuizmo::Enable(!isNodeUsedByEnabledAnimations(selectedNodeIndex));
 
-        if (Manipulate(value_ptr(global::camera.getViewMatrix()), value_ptr(global::camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
+        if (Manipulate(value_ptr(renderer.camera.getViewMatrix()), value_ptr(renderer.camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
             const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(assetExtended.nodeWorldTransforms[selectedNodeIndex]) * newWorldTransform;
 
             updateTransform(assetExtended.asset.nodes[selectedNodeIndex], [&](fastgltf::math::fmat4x4 &transformMatrix) {
@@ -1828,7 +1815,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(gltf::AssetExtended &
         ImGuizmo::Enable(std::ranges::none_of(assetExtended.selectedNodes, isNodeUsedByEnabledAnimations));
 
         if (fastgltf::math::fmat4x4 deltaMatrix;
-            Manipulate(value_ptr(global::camera.getViewMatrix()), value_ptr(global::camera.getProjectionMatrixForwardZ()), operation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data())) {
+            Manipulate(value_ptr(renderer.camera.getViewMatrix()), value_ptr(renderer.camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data())) {
             for (std::size_t nodeIndex : assetExtended.selectedNodes) {
                 const fastgltf::math::fmat4x4 inverseOldWorldTransform = affineInverse(assetExtended.nodeWorldTransforms[nodeIndex]);
 
@@ -1873,13 +1860,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(gltf::AssetExtended &
 
     constexpr ImVec2 size { 64.f, 64.f };
     constexpr ImU32 background = 0x00000000; // Transparent.
-    const glm::mat4 oldView = global::camera.getViewMatrix();
+    const glm::mat4 oldView = renderer.camera.getViewMatrix();
     glm::mat4 newView = oldView;
-    ImGuizmo::ViewManipulate(value_ptr(newView), global::camera.targetDistance, centerNodeRect.Max - size, size, background);
+    ImGuizmo::ViewManipulate(value_ptr(newView), renderer.camera.targetDistance, centerNodeRect.Max - size, size, background);
     if (newView != oldView) {
         const glm::mat4 inverseView = inverse(newView);
-        global::camera.up = inverseView[1];
-        global::camera.position = inverseView[3];
-        global::camera.direction = -inverseView[2];
+        renderer.camera.up = inverseView[1];
+        renderer.camera.position = inverseView[3];
+        renderer.camera.direction = -inverseView[2];
     }
 }

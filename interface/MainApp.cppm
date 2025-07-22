@@ -7,6 +7,7 @@ import vk_gltf_viewer.gltf.AssetExtended;
 import vk_gltf_viewer.control.AppWindow;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.imgui.UserData;
+import vk_gltf_viewer.Renderer;
 import vk_gltf_viewer.vulkan.Frame;
 import vk_gltf_viewer.vulkan.Swapchain;
 
@@ -50,9 +51,11 @@ namespace vk_gltf_viewer {
 
         control::AppWindow window { instance };
         std::optional<glm::dvec2> lastMouseDownPosition;
-        bool drawSelectionRectangle = false;
+        bool drawSelectionRectangle;
 
-        vulkan::Gpu gpu { instance, window.getSurface() };
+        vulkan::Gpu gpu;
+        std::shared_ptr<Renderer> renderer;
+
         vulkan::Swapchain swapchain;
 
         ImGuiContext imGuiContext { window, *instance, gpu };

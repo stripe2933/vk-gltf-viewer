@@ -20,6 +20,7 @@ import vk_gltf_viewer.vulkan.ag.MousePicking;
 import vk_gltf_viewer.vulkan.ag.SceneOpaque;
 import vk_gltf_viewer.vulkan.ag.SceneWeightedBlended;
 import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
+export import vk_gltf_viewer.Renderer;
 export import vk_gltf_viewer.vulkan.SharedData;
 export import vk_gltf_viewer.vulkan.Swapchain;
 
@@ -81,21 +82,7 @@ namespace vk_gltf_viewer::vulkan {
 
         struct ExecutionTask {
             struct Gltf {
-                struct HoveringNode {
-                    std::size_t index;
-                    glm::vec4 outlineColor;
-                    float outlineThickness;
-                };
-
-                struct SelectedNodes {
-                    const std::unordered_set<std::size_t>& indices;
-                    glm::vec4 outlineColor;
-                    float outlineThickness;
-                };
-
                 bool regenerateDrawCommands;
-                std::optional<HoveringNode> hoveringNode;
-                std::optional<SelectedNodes> selectedNodes;
 
                 /**
                  * @brief Cursor position or selection rectangle for handling mouse picking.
@@ -113,7 +100,6 @@ namespace vk_gltf_viewer::vulkan {
              * @brief Information of glTF to be rendered. <tt>std::nullopt</tt> if no glTF scene to be rendered.
              */
             std::optional<Gltf> gltf;
-            std::optional<glm::vec3> solidBackground; // If this is nullopt, use SharedData::SkyboxDescriptorSet instead.
         };
 
         struct ExecutionResult {
@@ -123,6 +109,8 @@ namespace vk_gltf_viewer::vulkan {
             std::variant<std::monostate, std::size_t, std::vector<std::size_t>> mousePickingResult;
         };
 
+        std::shared_ptr<const Renderer> renderer;
+
         // --------------------
         // glTF asset.
         // --------------------
@@ -130,7 +118,7 @@ namespace vk_gltf_viewer::vulkan {
         std::optional<GltfAsset> gltfAsset;
         vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
 
-        explicit Frame(const SharedData &sharedData LIFETIMEBOUND);
+        Frame(std::shared_ptr<const Renderer> renderer, const SharedData &sharedData LIFETIMEBOUND);
 
         [[nodiscard]] ExecutionResult getExecutionResult();
         void update(const ExecutionTask &task);
@@ -186,17 +174,13 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         struct SelectedNodes {
-            std::unordered_set<std::size_t> indices;
+            std::size_t indexHash; // = boost::hash_unordered_range(selectedNodes)
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
-            glm::vec4 outlineColor;
-            float outlineThickness;
         };
 
         struct HoveringNode {
             std::size_t index;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
-            glm::vec4 outlineColor;
-            float outlineThickness;
         };
 
         // Buffer, image and image views.

@@ -155,6 +155,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
         interface/math/Plane.cppm
+        interface/Renderer.cppm
         interface/shader_selector/mask_node_index_frag.cppm
         interface/shader_selector/mask_node_index_vert.cppm
         interface/shader_selector/mask_jump_flood_seed_frag.cppm

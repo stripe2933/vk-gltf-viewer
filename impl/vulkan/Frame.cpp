@@ -1,5 +1,6 @@
 module;
 
+#include <boost/container_hash/hash.hpp>
 #include <boost/container/static_vector.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
@@ -7,7 +8,6 @@ module vk_gltf_viewer.vulkan.Frame;
 
 import imgui.vulkan;
 
-import vk_gltf_viewer.global;
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;
@@ -72,8 +72,9 @@ vk_gltf_viewer::vulkan::Frame::GltfAsset::GltfAsset(const SharedData &sharedData
         };
     }) } { }
 
-vk_gltf_viewer::vulkan::Frame::Frame(const SharedData &sharedData)
+vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, const SharedData &sharedData)
     : sharedData { sharedData }
+    , renderer { std::move(_renderer) }
     , descriptorPool { createDescriptorPool() }
     , computeCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.compute } }
     , graphicsCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.graphicsPresent } }
@@ -173,15 +174,15 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL);
     }
 
-    projectionViewMatrix = global::camera.getProjectionViewMatrix();
-    translationlessProjectionViewMatrix = global::camera.getProjectionMatrix() * glm::mat4 { glm::mat3 { global::camera.getViewMatrix() } };
+    projectionViewMatrix = renderer->camera.getProjectionViewMatrix();
+    translationlessProjectionViewMatrix = renderer->camera.getProjectionMatrix() * glm::mat4 { glm::mat3 { renderer->camera.getViewMatrix() } };
     passthruOffset = task.passthruRect.offset;
 
     // Should be calculated on-demand (only if pipeline recreation is requested).
     Lazy<AssetSpecialization> assetSpecialization { [&]() { return AssetSpecialization { sharedData.assetExtended->asset }; } };
 
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
-        const bool usePerFragmentEmissiveStencilExport = global::bloom.raw().mode == global::Bloom::Mode::PerFragment;
+        const bool usePerFragmentEmissiveStencilExport = renderer->bloom.raw().mode == Renderer::Bloom::PerFragment;
         CommandSeparationCriteria result {
             .subpass = 0U,
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
@@ -383,7 +384,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                         const fastgltf::Node &node = sharedData.assetExtended->asset.nodes[nodeIndex];
 
                         // Node is instanced and frustum culling is disabled for instanced nodes.
-                        if (!node.instancingAttributes.empty() && global::frustumCullingMode != global::FrustumCullingMode::OnWithInstancing) {
+                        if (!node.instancingAttributes.empty() && renderer->frustumCullingMode != Renderer::FrustumCullingMode::OnWithInstancing) {
                             return true;
                         }
 
@@ -431,9 +432,9 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                 buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, multiNodeMousePickingCriteriaGetter, visibleNodeIndices, drawCommandGetter));
         }
 
-        const math::Frustum frustum = global::camera.getFrustum();
+        const math::Frustum frustum = renderer->camera.getFrustum();
 
-        if (global::frustumCullingMode != global::FrustumCullingMode::Off) {
+        if (renderer->frustumCullingMode != Renderer::FrustumCullingMode::Off) {
             for (buffer::IndirectDrawCommands &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
                 commandBufferCullingFunc(buffer, frustum);
             }
@@ -448,7 +449,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                     const float xmax = static_cast<float>(offset.x + 1) / task.passthruRect.extent.width;
                     const float ymin = 1.f - static_cast<float>(offset.y + 1) / task.passthruRect.extent.height;
                     const float ymax = 1.f - static_cast<float>(offset.y) / task.passthruRect.extent.height;
-                    const math::Frustum frustum = global::camera.getFrustum(xmin, xmax, ymin, ymax);
+                    const math::Frustum frustum = renderer->camera.getFrustum(xmin, xmax, ymin, ymax);
 
                     for (buffer::IndirectDrawCommands &buffer : renderingNodes->mousePickingIndirectDrawCommandBuffers | std::views::values) {
                         renderingNodes->startMousePickingRenderPass |= commandBufferCullingFunc(buffer, frustum);
@@ -459,7 +460,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                     const float xmax = static_cast<float>(rect.offset.x + rect.extent.width) / task.passthruRect.extent.width;
                     const float ymin = 1.f - static_cast<float>(rect.offset.y + rect.extent.height) / task.passthruRect.extent.height;
                     const float ymax = 1.f - static_cast<float>(rect.offset.y) / task.passthruRect.extent.height;
-                    const math::Frustum frustum = global::camera.getFrustum(xmin, xmax, ymin, ymax);
+                    const math::Frustum frustum = renderer->camera.getFrustum(xmin, xmax, ymin, ymax);
 
                     renderingNodes->startMousePickingRenderPass = false;
                     for (buffer::IndirectDrawCommands &buffer : renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers | std::views::values) {
@@ -487,25 +488,21 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             }, task.gltf->mousePickingInput);
         }
 
-        if (task.gltf->selectedNodes) {
-            if (selectedNodes) {
-                if (task.gltf->regenerateDrawCommands ||
-                    selectedNodes->indices != task.gltf->selectedNodes->indices) {
-                    selectedNodes->indices = task.gltf->selectedNodes->indices;
-                    selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter);
-                }
-                selectedNodes->outlineColor = task.gltf->selectedNodes->outlineColor;
-                selectedNodes->outlineThickness = task.gltf->selectedNodes->outlineThickness;
-            }
-            else {
+        if (!sharedData.assetExtended->selectedNodes.empty() && renderer->selectedNodeOutline) {
+            const auto getSelectionHash = [&] {
+                return boost::hash_unordered_range(sharedData.assetExtended->selectedNodes.begin(), sharedData.assetExtended->selectedNodes.end());
+            };
+
+            std::size_t indexHash;
+            if (!selectedNodes /* asset has selected nodes but frame doesn't */ ||
+                task.gltf->regenerateDrawCommands /* draw call regeneration explicitly requested */ ||
+                (indexHash = getSelectionHash()) != selectedNodes->indexHash /* asset node selection has been changed */ ) {
                 selectedNodes.emplace(
-                    task.gltf->selectedNodes->indices,
-                    buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, task.gltf->selectedNodes->indices, drawCommandGetter),
-                    task.gltf->selectedNodes->outlineColor,
-                    task.gltf->selectedNodes->outlineThickness);
+                    indexHash,
+                    buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, sharedData.assetExtended->selectedNodes, drawCommandGetter));
             }
 
-            if (global::frustumCullingMode != global::FrustumCullingMode::Off) {
+            if (renderer->frustumCullingMode != Renderer::FrustumCullingMode::Off) {
                 for (buffer::IndirectDrawCommands &buffer : selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers | std::views::values) {
                     commandBufferCullingFunc(buffer, frustum);
                 }
@@ -520,27 +517,23 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             selectedNodes.reset();
         }
 
-        if (task.gltf->hoveringNode &&
-            // If selectedNodeIndices == hoveringNodeIndex, hovering node outline doesn't have to be drawn.
-            !(task.gltf->selectedNodes && task.gltf->selectedNodes->indices.size() == 1 && *task.gltf->selectedNodes->indices.begin() == task.gltf->hoveringNode->index)) {
-            if (hoveringNode) {
-                if (task.gltf->regenerateDrawCommands ||
-                    hoveringNode->index != task.gltf->hoveringNode->index) {
-                    hoveringNode->index = task.gltf->hoveringNode->index;
-                    hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers = buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, std::views::single(task.gltf->hoveringNode->index), drawCommandGetter);
-                }
-                hoveringNode->outlineColor = task.gltf->hoveringNode->outlineColor;
-                hoveringNode->outlineThickness = task.gltf->hoveringNode->outlineThickness;
-            }
-            else {
+        const auto isHoveringNodeAndSelectedNodeEqual = [&] {
+            const auto &selectedNodes = sharedData.assetExtended->selectedNodes;
+            return selectedNodes.size() == 1 && *sharedData.assetExtended->hoveringNode == *selectedNodes.begin();
+        };
+
+        if (sharedData.assetExtended->hoveringNode &&
+            renderer->hoveringNodeOutline &&
+            !isHoveringNodeAndSelectedNodeEqual() /* in this case, hovering node outline doesn't have to be drawn */) {
+            if (!hoveringNode /* asset has hovering node but frame doesn't */ ||
+                task.gltf->regenerateDrawCommands /* draw call regeneration explicitly requested */ ||
+                *sharedData.assetExtended->hoveringNode != hoveringNode->index /* asset hovering node has been changed */) {
                 hoveringNode.emplace(
-                    task.gltf->hoveringNode->index,
-                    buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, std::views::single(task.gltf->hoveringNode->index), drawCommandGetter),
-                    task.gltf->hoveringNode->outlineColor,
-                    task.gltf->hoveringNode->outlineThickness);
+                    *sharedData.assetExtended->hoveringNode,
+                    buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, std::views::single(*sharedData.assetExtended->hoveringNode), drawCommandGetter));
             }
 
-            if (global::frustumCullingMode != global::FrustumCullingMode::Off) {
+            if (renderer->frustumCullingMode != Renderer::FrustumCullingMode::Off) {
                 for (buffer::IndirectDrawCommands &buffer : hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers | std::views::values) {
                     commandBufferCullingFunc(buffer, frustum);
                 }
@@ -561,13 +554,6 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         renderingNodes.reset();
         selectedNodes.reset();
         hoveringNode.reset();
-    }
-
-    if (task.solidBackground) {
-        background.emplace<glm::vec3>(*task.solidBackground);
-    }
-    else {
-        background.emplace<vku::DescriptorSet<dsl::Skybox>>(sharedData.skyboxDescriptorSet);
     }
 }
 
@@ -619,7 +605,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                 jumpFloodCommandBuffer,
                 passthruResources->hoveringNodeOutlineJumpFloodResources.image,
                 hoveringNodeJumpFloodSet,
-                std::bit_ceil(static_cast<std::uint32_t>(hoveringNode->outlineThickness)));
+                std::bit_ceil(static_cast<std::uint32_t>(renderer->hoveringNodeOutline->thickness)));
             sharedData.gpu.device.updateDescriptorSets(
                 hoveringNodeOutlineSet.getWriteOne<0>({
                     {},
@@ -635,7 +621,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                 jumpFloodCommandBuffer,
                 passthruResources->selectedNodeOutlineJumpFloodResources.image,
                 selectedNodeJumpFloodSet,
-                std::bit_ceil(static_cast<std::uint32_t>(selectedNodes->outlineThickness)));
+                std::bit_ceil(static_cast<std::uint32_t>(renderer->selectedNodeOutline->thickness)));
             sharedData.gpu.device.updateDescriptorSets(
                 selectedNodeOutlineSet.getWriteOne<0>({
                     {},
@@ -664,8 +650,8 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
         sceneRenderingCommandBuffer.setScissor(0, vk::Rect2D { { 0, 0 }, passthruResources->extent });
 
         vk::ClearColorValue backgroundColor { 0.f, 0.f, 0.f, 0.f };
-        if (auto *clearColor = get_if<glm::vec3>(&background)) {
-            backgroundColor.setFloat32({ clearColor->x, clearColor->y, clearColor->z, 1.f });
+        if (renderer->solidBackground) {
+            backgroundColor.setFloat32({ renderer->solidBackground->x, renderer->solidBackground->y, renderer->solidBackground->z, 1.f });
         }
         sceneRenderingCommandBuffer.beginRenderPass({
             *sharedData.sceneRenderPass,
@@ -687,7 +673,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
         if (renderingNodes) {
             recordSceneOpaqueMeshDrawCommands(sceneRenderingCommandBuffer);
         }
-        if (holds_alternative<vku::DescriptorSet<dsl::Skybox>>(background)) {
+        if (!renderer->solidBackground) {
             recordSkyboxDrawCommands(sceneRenderingCommandBuffer);
         }
 
@@ -715,7 +701,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
         sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
 
         // Inverse tone-map the result image to bloomImage[mipLevel=0] when bloom is enabled.
-        if (global::bloom) {
+        if (renderer->bloom) {
             sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingRenderer.pipeline);
             sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingRenderer.pipelineLayout, 0, inverseToneMappingSet, {});
             sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
@@ -723,7 +709,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
 
         sceneRenderingCommandBuffer.endRenderPass();
 
-        if (global::bloom) {
+        if (renderer->bloom) {
             sceneRenderingCommandBuffer.pipelineBarrier(
                 vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eComputeShader,
                 {},
@@ -757,7 +743,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             sceneRenderingCommandBuffer.pushConstants<BloomApplyRenderer::PushConstant>(
                 *sharedData.bloomApplyRenderer.pipelineLayout,
                 vk::ShaderStageFlagBits::eFragment,
-                0, BloomApplyRenderer::PushConstant { .factor = global::bloom->intensity });
+                0, BloomApplyRenderer::PushConstant { .factor = renderer->bloom->intensity });
             sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
 
             sceneRenderingCommandBuffer.endRenderPass();
@@ -1339,7 +1325,7 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
             resourceBindingState.descriptorBound = true;
         }
         if (!resourceBindingState.pushConstantBound) {
-            sharedData.primitivePipelineLayout.pushConstants(cb, { projectionViewMatrix, global::camera.position });
+            sharedData.primitivePipelineLayout.pushConstants(cb, { projectionViewMatrix, renderer->camera.position });
             resourceBindingState.pushConstantBound = true;
         }
 
@@ -1417,7 +1403,7 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
             resourceBindingState.descriptorBound = true;
         }
         if (!resourceBindingState.pushConstantBound) {
-            sharedData.primitivePipelineLayout.pushConstants(cb, { projectionViewMatrix, global::camera.position });
+            sharedData.primitivePipelineLayout.pushConstants(cb, { projectionViewMatrix, renderer->camera.position });
             resourceBindingState.pushConstantBound = true;
         }
 
@@ -1436,8 +1422,7 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer cb) const {
-    assert(holds_alternative<vku::DescriptorSet<dsl::Skybox>>(background) && "recordSkyboxDrawCommand called, but background is not set to the proper skybox descriptor set.");
-    sharedData.skyboxRenderer.draw(cb, get<vku::DescriptorSet<dsl::Skybox>>(background), { translationlessProjectionViewMatrix });
+    sharedData.skyboxRenderer.draw(cb, sharedData.skyboxDescriptorSet, { translationlessProjectionViewMatrix });
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
@@ -1496,8 +1481,8 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
         cb.pushConstants<OutlineRenderer::PushConstant>(
             *sharedData.outlineRenderer.pipelineLayout, vk::ShaderStageFlagBits::eFragment,
             0, OutlineRenderer::PushConstant {
-                .outlineColor = selectedNodes->outlineColor,
-                .outlineThickness = selectedNodes->outlineThickness,
+                .outlineColor = renderer->selectedNodeOutline->color,
+                .outlineThickness = renderer->selectedNodeOutline->thickness,
             });
         cb.draw(3, 1, 0, 0);
     }
@@ -1514,8 +1499,8 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
         cb.pushConstants<OutlineRenderer::PushConstant>(
             *sharedData.outlineRenderer.pipelineLayout, vk::ShaderStageFlagBits::eFragment,
             0, OutlineRenderer::PushConstant {
-                .outlineColor = hoveringNode->outlineColor,
-                .outlineThickness = hoveringNode->outlineThickness,
+                .outlineColor = renderer->hoveringNodeOutline->color,
+                .outlineThickness = renderer->hoveringNodeOutline->thickness,
             });
         cb.draw(3, 1, 0, 0);
     }

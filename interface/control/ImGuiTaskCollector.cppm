@@ -12,7 +12,7 @@ export import ImGuizmo;
 export import vk_gltf_viewer.AppState;
 export import vk_gltf_viewer.control.Task;
 export import vk_gltf_viewer.gltf.AssetExtended;
-export import vk_gltf_viewer.helpers.full_optional;
+export import vk_gltf_viewer.Renderer;
 
 namespace vk_gltf_viewer::control {
     export class ImGuiTaskCollector {
@@ -27,11 +27,10 @@ namespace vk_gltf_viewer::control {
         void materialVariants(gltf::AssetExtended &assetExtended);
         void sceneHierarchy(gltf::AssetExtended &assetExtended);
         void nodeInspector(gltf::AssetExtended &assetExtended);
-        void background(bool canSelectSkyboxBackground, full_optional<glm::vec3> &solidBackground);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureID eqmapTextureImGuiDescriptorSet);
-        void inputControl(bool& automaticNearFarPlaneAdjustment, full_optional<AppState::Outline> &hoveringNodeOutline, full_optional<AppState::Outline> &selectedNodeOutline, bool canSelectBloomModePerFragment);
-        void imguizmo();
-        void imguizmo(gltf::AssetExtended &assetExtended, ImGuizmo::OPERATION operation);
+        void rendererSetting(Renderer &renderer);
+        void imguizmo(Renderer &renderer);
+        void imguizmo(Renderer &renderer, gltf::AssetExtended &assetExtended);
 
     private:
         std::queue<Task> &tasks;
