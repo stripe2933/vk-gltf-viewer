@@ -68,6 +68,8 @@ namespace vk_gltf_viewer::vulkan {
 
     public:
         struct GltfAsset {
+            std::shared_ptr<const gltf::AssetExtended> assetExtended;
+
             vkgltf::NodeBuffer nodeBuffer;
 
             vku::MappedBuffer mousePickingResultBuffer;
@@ -77,7 +79,33 @@ namespace vk_gltf_viewer::vulkan {
 
             std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
 
-            GltfAsset(const SharedData &sharedData LIFETIMEBOUND);
+            explicit GltfAsset(const SharedData &sharedData LIFETIMEBOUND);
+
+            /**
+             * @brief Update the node buffer's world transform data using host asset data.
+             * @param nodeIndex Index of the node to be updated.
+             */
+            void updateNodeWorldTransform(std::size_t nodeIndex);
+
+            /**
+             * @brief Update the node buffer's world transform data using host asset data.
+             * @param nodeIndex Index of the node that is used as the root of the hierarchical update.
+             */
+            void updateNodeWorldTransformHierarchical(std::size_t nodeIndex);
+
+            /**
+             * @brief Update the node buffer's world transform data using host asset data.
+             * @param sceneIndex Index of the scene that is used to update the node world transforms.
+             */
+            void updateNodeWorldTransformScene(std::size_t sceneIndex);
+
+            /**
+             * @brief Update the node buffer's morph target weights using host asset data.
+             * @param nodeIndex Index of the node to be updated.
+             * @param startIndex Start index of the morph target weights to be updated.
+             * @param count Number of morph target weights to be updated.
+             */
+            void updateNodeTargetWeights(std::size_t nodeIndex, std::size_t startIndex, std::size_t count);
         };
 
         struct ExecutionTask {

@@ -45,6 +45,7 @@ import vk_gltf_viewer.helpers.functional;
 import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.imgui.TaskCollector;
+import vk_gltf_viewer.vulkan.FrameDeferredTask;
 import vk_gltf_viewer.vulkan.imgui.PlatformResource;
 import vk_gltf_viewer.vulkan.mipmap;
 import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderer;
@@ -156,8 +157,7 @@ void vk_gltf_viewer::MainApp::run() {
     // One way to handle this is by storing update tasks for the other frames and executing them once the target frame
     // becomes idle. This approach is especially efficient for two frames in flight, as it requires only a single task
     // vector to store updates for the “another” frame.
-    static_assert(FRAMES_IN_FLIGHT == 2, "Frames ≥ 3 needs different update deferring mechanism.");
-    std::vector<std::function<void(vulkan::Frame&)>> deferredFrameUpdateTasks;
+    vulkan::FrameDeferredTask frameDeferredTask;
 
     std::array<bool, FRAMES_IN_FLIGHT> regenerateDrawCommands{};
 
@@ -263,13 +263,18 @@ void vk_gltf_viewer::MainApp::run() {
             }
         }
 
-        for (const auto &task : deferredFrameUpdateTasks) {
-            task(frame);
-        }
-        deferredFrameUpdateTasks.clear();
-
         graphicsCommandPool.reset();
         sharedDataUpdateCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+
+        // As we're going to update the frame resource from here, frameDeferredTask has to be reset. It can be done by
+        // calling FrameDeferredTask::executeAndReset() in here, but there's a problem: what we updated in the previous
+        // frame may useless, by either the current frame need to cancel it (e.g. changing asset) or current frame also
+        // need to update the same thing (e.g. playing animation that changes the node world transforms).
+        //
+        // There's good solution for this: we're going to process the collected task, and will cancel the deferred task
+        // if necessary. frameDeferredTask will be replaced with the newly created one, and the existing one will be
+        // retained until the collected tasks are processed. After the processing finished, it will be executed.
+        vulkan::FrameDeferredTask currentFrameTask = std::exchange(frameDeferredTask, vulkan::FrameDeferredTask{});
 
         // Process the collected tasks.
         for (; !tasks.empty(); tasks.pop()) {
@@ -400,10 +405,21 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [&](const control::task::LoadGltf &task) {
                     loadGltf(task.path);
+
+                    // All planned updates related to the previous glTF asset have to be canceled.
+                    currentFrameTask.reset();
+                    frameDeferredTask.reset();
+                    transformedNodes.clear();
+
                     regenerateDrawCommands.fill(true);
                 },
-                [this](control::task::CloseGltf) {
+                [&](control::task::CloseGltf) {
                     closeGltf();
+
+                    // All planned updates related to the previous glTF asset have to be canceled.
+                    currentFrameTask.reset();
+                    frameDeferredTask.reset();
+                    transformedNodes.clear();
                 },
                 [this](const control::task::LoadEqmap &task) {
                     loadEqmap(task.path);
@@ -411,11 +427,8 @@ void vk_gltf_viewer::MainApp::run() {
                 [&](control::task::ChangeScene task) {
                     assetExtended->setScene(task.newSceneIndex);
 
-                    auto nodeWorldTransformUpdateTask = [this, sceneIndex = task.newSceneIndex](vulkan::Frame &frame) {
-                        frame.gltfAsset->nodeBuffer.update(gltf->asset.scenes[sceneIndex], assetExtended->nodeWorldTransforms, assetExtended->externalBuffers);
-                    };
-                    nodeWorldTransformUpdateTask(frame);
-                    deferredFrameUpdateTasks.push_back(std::move(nodeWorldTransformUpdateTask));
+                    frame.gltfAsset->updateNodeWorldTransformScene(task.newSceneIndex);
+                    frameDeferredTask.updateNodeWorldTransformScene(task.newSceneIndex);
 
                     // Adjust the camera based on the scene enclosing sphere.
                     const auto &[center, radius] = assetExtended->sceneMiniball.get();
@@ -425,6 +438,7 @@ void vk_gltf_viewer::MainApp::run() {
                     renderer->camera.zMax = distance + radius;
                     renderer->camera.targetDistance = distance;
 
+                    transformedNodes.clear(); // They are all related to the previous glTF asset.
                     regenerateDrawCommands.fill(true);
                 },
                 [&](control::task::NodeVisibilityChanged task) {
@@ -462,11 +476,9 @@ void vk_gltf_viewer::MainApp::run() {
                     transformedNodes.push_back(task.nodeIndex);
                 },
                 [&](const control::task::NodeWorldTransformChanged &task) {
-                    auto updateNodeTransformTask = [this, nodeIndex = task.nodeIndex](vulkan::Frame &frame) {
-                        frame.gltfAsset->nodeBuffer.update(nodeIndex, assetExtended->nodeWorldTransforms[nodeIndex], assetExtended->externalBuffers);
-                    };
-                    updateNodeTransformTask(frame);
-                    deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
+                    // It merges the current node world transform update request with the previous requests.
+                    currentFrameTask.updateNodeWorldTransform(task.nodeIndex);
+                    frameDeferredTask.updateNodeWorldTransform(task.nodeIndex);
 
                     assetExtended->sceneMiniball.invalidate();
                 },
@@ -614,15 +626,9 @@ void vk_gltf_viewer::MainApp::run() {
                     }
                 },
                 [&](const control::task::MorphTargetWeightChanged &task) {
-                    auto updateTargetWeightTask = [this, task](vulkan::Frame &frame) {
-                        std::ranges::copy(
-                            getTargetWeights(assetExtended->asset.nodes[task.nodeIndex], assetExtended->asset)
-                                .subspan(task.targetWeightStartIndex, task.targetWeightCount),
-                            frame.gltfAsset->nodeBuffer.getMorphTargetWeights(task.nodeIndex)
-                                .subspan(task.targetWeightStartIndex, task.targetWeightCount).begin());
-                    };
-                    updateTargetWeightTask(frame);
-                    deferredFrameUpdateTasks.push_back(std::move(updateTargetWeightTask));
+                    // It merges the current node target weight update request with the previous requests.
+                    currentFrameTask.updateNodeTargetWeights(task.nodeIndex, task.targetWeightStartIndex, task.targetWeightCount);
+                    frameDeferredTask.updateNodeTargetWeights(task.nodeIndex, task.targetWeightStartIndex, task.targetWeightCount);
 
                     assetExtended->sceneMiniball.invalidate();
                 },
@@ -642,8 +648,6 @@ void vk_gltf_viewer::MainApp::run() {
             // Sort transformedNodes by their node level in the scene.
             std::ranges::sort(transformedNodes, {}, LIFT(assetExtended->sceneNodeLevels.operator[]));
 
-            // Obtain nodes that are the top of the subtree of transformed nodes.
-            std::vector<std::size_t> topNodes;
             std::vector visited(assetExtended->asset.nodes.size(), false);
             for (std::size_t nodeIndex : transformedNodes) {
                 // If node is marked as visited, its world transform is already updated by its ancestor node. Skipping it.
@@ -665,11 +669,9 @@ void vk_gltf_viewer::MainApp::run() {
                 }, nodeWorldTransform);
 
                 // Update GPU side world transform data.
-                auto updateNodeTransformTask = [this, nodeIndex](vulkan::Frame &frame) {
-                    frame.gltfAsset->nodeBuffer.updateHierarchical(nodeIndex, assetExtended->nodeWorldTransforms, assetExtended->externalBuffers);
-                };
-                updateNodeTransformTask(frame);
-                deferredFrameUpdateTasks.push_back(std::move(updateNodeTransformTask));
+                // It merges the current node world transform update request with the previous requests.
+                currentFrameTask.updateNodeWorldTransformHierarchical(nodeIndex);
+                frameDeferredTask.updateNodeWorldTransformHierarchical(nodeIndex);
             }
 
             assetExtended->sceneMiniball.invalidate();
@@ -689,6 +691,8 @@ void vk_gltf_viewer::MainApp::run() {
         }
 
         // Update frame resources.
+        currentFrameTask.executeAndReset(frame);
+
         const glm::vec2 framebufferScale = window.getFramebufferSize() / window.getSize();
         frame.update({
             .passthruRect = vk::Rect2D {
@@ -914,20 +918,11 @@ vku::AllocatedImage vk_gltf_viewer::MainApp::createBrdfmapImage() const {
 }
 
 void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
+    std::shared_ptr<vulkan::gltf::AssetExtended> vkAssetExtended;
+    vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
+    vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, transferCommandPool, gpu.queues.transfer };
     try {
-        vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-        vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, transferCommandPool, gpu.queues.transfer };
-        auto gltfAsset = std::make_shared<vulkan::gltf::AssetExtended>(path, gpu, sharedData.fallbackTexture, stagingBufferStorage);
-
-        assetExtended = gltfAsset;
-
-        // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
-        //  so I'll just use it for now.
-        gpu.device.waitIdle();
-        sharedData.setAsset(std::move(gltfAsset));
-        for (vulkan::Frame &frame : frames) {
-            frame.updateAsset();
-        }
+        vkAssetExtended = std::make_shared<vulkan::gltf::AssetExtended>(path, gpu, sharedData.fallbackTexture, stagingBufferStorage);
     }
     catch (gltf::AssetProcessError error) {
         std::println(std::cerr, "The glTF file cannot be processed because of an error: {}", to_string(error));
@@ -945,6 +940,16 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
             // Application fault.
             std::rethrow_exception(std::current_exception());
         }
+    }
+
+    assetExtended = vkAssetExtended;
+
+    // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
+    //  so I'll just use it for now.
+    gpu.device.waitIdle();
+    sharedData.setAsset(std::move(vkAssetExtended));
+    for (vulkan::Frame &frame : frames) {
+        frame.updateAsset();
     }
 
     // Change window title.
@@ -966,6 +971,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 
 void vk_gltf_viewer::MainApp::closeGltf() {
     gpu.device.waitIdle();
+
     for (vulkan::Frame &frame : frames) {
         frame.gltfAsset.reset();
     }

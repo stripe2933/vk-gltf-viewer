@@ -180,6 +180,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/descriptor_set_layout/MultiNodeMousePicking.cppm
         interface/vulkan/descriptor_set_layout/Skybox.cppm
         interface/vulkan/Frame.cppm
+        interface/vulkan/FrameDeferredTask.cppm
         interface/vulkan/gltf/AssetExtended.cppm
         interface/vulkan/Gpu.cppm
         interface/vulkan/imgui/PlatformResource.cppm

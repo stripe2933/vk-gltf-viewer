@@ -43,21 +43,22 @@ constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
 }
 
 vk_gltf_viewer::vulkan::Frame::GltfAsset::GltfAsset(const SharedData &sharedData)
-    : nodeBuffer {
-        sharedData.assetExtended->asset,
-        sharedData.assetExtended->nodeWorldTransforms,
+    : assetExtended { sharedData.assetExtended }
+    , nodeBuffer {
+        assetExtended->asset,
+        assetExtended->nodeWorldTransforms,
         sharedData.gpu.device,
         sharedData.gpu.allocator,
         vkgltf::NodeBuffer::Config {
-            .adapter = sharedData.assetExtended->externalBuffers,
-            .skinBuffer = value_address(sharedData.assetExtended->skinBuffer),
+            .adapter = assetExtended->externalBuffers,
+            .skinBuffer = value_address(assetExtended->skinBuffer),
         },
     },
     mousePickingResultBuffer {
         sharedData.gpu.allocator,
         vk::BufferCreateInfo {
             {},
-            sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(sharedData.assetExtended->asset.nodes.size(), 32U),
+            sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(assetExtended->asset.nodes.size(), 32U),
             vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
         },
         vma::AllocationCreateInfo {
@@ -72,6 +73,24 @@ vk_gltf_viewer::vulkan::Frame::GltfAsset::GltfAsset(const SharedData &sharedData
                 .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind),
         };
     }) } { }
+
+void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeWorldTransform(std::size_t nodeIndex) {
+    nodeBuffer.update(nodeIndex, assetExtended->nodeWorldTransforms[nodeIndex], assetExtended->externalBuffers);
+}
+
+void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeWorldTransformHierarchical(std::size_t nodeIndex) {
+    nodeBuffer.updateHierarchical(nodeIndex, assetExtended->nodeWorldTransforms, assetExtended->externalBuffers);
+}
+
+void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeWorldTransformScene(std::size_t sceneIndex) {
+    nodeBuffer.update(assetExtended->asset.scenes[sceneIndex], assetExtended->nodeWorldTransforms, assetExtended->externalBuffers);
+}
+
+void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeTargetWeights(std::size_t nodeIndex, std::size_t startIndex, std::size_t count) {
+    std::ranges::copy(
+        getTargetWeights(assetExtended->asset.nodes[nodeIndex], assetExtended->asset).subspan(startIndex, count),
+        nodeBuffer.getMorphTargetWeights(nodeIndex).subspan(startIndex, count).begin());
+}
 
 vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, const SharedData &sharedData)
     : sharedData { sharedData }
@@ -180,14 +199,14 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
     passthruOffset = task.passthruRect.offset;
 
     // Should be calculated on-demand (only if pipeline recreation is requested).
-    Lazy<AssetSpecialization> assetSpecialization { [&]() { return AssetSpecialization { sharedData.assetExtended->asset }; } };
+    Lazy<AssetSpecialization> assetSpecialization { [&]() { return AssetSpecialization { gltfAsset->assetExtended->asset }; } };
 
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
         const bool usePerFragmentEmissiveStencilExport = renderer->bloom.raw().mode == Renderer::Bloom::PerFragment;
         CommandSeparationCriteria result {
             .subpass = 0U,
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
+                return gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             // By default, the default primitive doesn't have a material and therefore isn't unlit.
@@ -205,7 +224,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             && (primitive.findAttribute("NORMAL") == primitive.attributes.end());
 
         if (primitive.materialIndex) {
-            const fastgltf::Material &material = sharedData.assetExtended->asset.materials[*primitive.materialIndex];
+            const fastgltf::Material &material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
 
             if (material.unlit || isPrimitivePointsOrLineWithoutNormal) {
@@ -235,14 +254,14 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
     const auto mousePickingCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
+                return gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
         if (primitive.materialIndex) {
-            const fastgltf::Material& material = sharedData.assetExtended->asset.materials[*primitive.materialIndex];
+            const fastgltf::Material& material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskNodeIndexRenderer(assetSpecialization.get(), primitive);
             }
@@ -260,14 +279,14 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
     const auto multiNodeMousePickingCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
+                return gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eNone,
         };
 
         if (primitive.materialIndex) {
-            const fastgltf::Material& material = sharedData.assetExtended->asset.materials[*primitive.materialIndex];
+            const fastgltf::Material& material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskMultiNodeMousePickingRenderer(assetSpecialization.get(), primitive);
             }
@@ -284,14 +303,14 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
     const auto jumpFloodSeedCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result {
             .indexType = value_if(primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor.has_value(), [&]() {
-                return sharedData.assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
+                return gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = getPrimitiveTopology(primitive.type),
             .cullMode = vk::CullModeFlagBits::eBack,
         };
 
         if (primitive.materialIndex) {
-            const fastgltf::Material &material = sharedData.assetExtended->asset.materials[*primitive.materialIndex];
+            const fastgltf::Material &material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
                 result.pipeline = sharedData.getMaskJumpFloodSeedRenderer(assetSpecialization.get(), primitive);
             }
@@ -315,7 +334,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         // - Otherwise, the POSITION accessor will determine the draw count.
         const std::size_t drawCountDeterminingAccessorIndex
             = primitive.indicesAccessor.value_or(primitive.findAttribute("POSITION")->accessorIndex);
-        std::uint32_t drawCount = sharedData.assetExtended->asset.accessors[drawCountDeterminingAccessorIndex].count;
+        std::uint32_t drawCount = gltfAsset->assetExtended->asset.accessors[drawCountDeterminingAccessorIndex].count;
 
         // Since GL_LINE_LOOP primitive is emulated as LINE_STRIP draw, additional 1 index is used.
         if (primitive.type == fastgltf::PrimitiveType::LineLoop) {
@@ -324,11 +343,11 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
 
         // EXT_mesh_gpu_instancing support.
         std::uint32_t instanceCount = 1;
-        if (const fastgltf::Node &node = sharedData.assetExtended->asset.nodes[nodeIndex]; !node.instancingAttributes.empty()) {
-            instanceCount = sharedData.assetExtended->asset.accessors[node.instancingAttributes[0].accessorIndex].count;
+        if (const fastgltf::Node &node = gltfAsset->assetExtended->asset.nodes[nodeIndex]; !node.instancingAttributes.empty()) {
+            instanceCount = gltfAsset->assetExtended->asset.accessors[node.instancingAttributes[0].accessorIndex].count;
         }
 
-        const std::size_t primitiveIndex = sharedData.assetExtended->primitiveBuffer.getPrimitiveIndex(primitive);
+        const std::size_t primitiveIndex = gltfAsset->assetExtended->primitiveBuffer.getPrimitiveIndex(primitive);
 
         // To embed the node and primitive indices into 32-bit unsigned integer, both must be in range of 16-bit unsigned integer.
         if (!std::in_range<std::uint16_t>(nodeIndex) || !std::in_range<std::uint16_t>(primitiveIndex)) {
@@ -337,7 +356,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
 
         const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveIndex);
         if (primitive.type == fastgltf::PrimitiveType::LineLoop || primitive.indicesAccessor) {
-            const std::uint32_t firstIndex = sharedData.assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).second;
+            const std::uint32_t firstIndex = gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).second;
             return vk::DrawIndexedIndirectCommand { drawCount, instanceCount, firstIndex, 0, firstInstance };
         }
         else {
@@ -347,8 +366,8 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
 
     if (task.gltf) {
         const auto isPrimitiveWithinFrustum = [&](std::size_t nodeIndex, std::size_t primitiveIndex, const math::Frustum &frustum) -> bool {
-            const fastgltf::Node &node = sharedData.assetExtended->asset.nodes[nodeIndex];
-            const auto [min, max] = getBoundingBoxMinMax(sharedData.assetExtended->primitiveBuffer.getPrimitive(primitiveIndex), node, sharedData.assetExtended->asset);
+            const fastgltf::Node &node = gltfAsset->assetExtended->asset.nodes[nodeIndex];
+            const auto [min, max] = getBoundingBoxMinMax(gltfAsset->assetExtended->primitiveBuffer.getPrimitive(primitiveIndex), node, gltfAsset->assetExtended->asset);
 
             const auto pred = [&](const fastgltf::math::fmat4x4 &worldTransform) -> bool {
                 const fastgltf::math::fvec3 transformedMin { worldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
@@ -382,7 +401,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                     commands.begin(),
                     std::ranges::partition(commands, [&](T &command) {
                         const std::size_t nodeIndex = command.firstInstance >> 16U;
-                        const fastgltf::Node &node = sharedData.assetExtended->asset.nodes[nodeIndex];
+                        const fastgltf::Node &node = gltfAsset->assetExtended->asset.nodes[nodeIndex];
 
                         // Node is instanced and frustum culling is disabled for instanced nodes.
                         if (!node.instancingAttributes.empty() && renderer->frustumCullingMode != Renderer::FrustumCullingMode::OnWithInstancing) {
@@ -404,7 +423,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                             }
                             else {
                                 command.instanceCount = isPrimitiveWithinFrustum(nodeIndex, primitiveIndex, frustum)
-                                    ? sharedData.assetExtended->asset.accessors[node.instancingAttributes.front().accessorIndex].count : 0U;
+                                    ? gltfAsset->assetExtended->asset.accessors[node.instancingAttributes.front().accessorIndex].count : 0U;
                             }
                             cachedInstanceCounts.emplace_hint(it, command.firstInstance, command.instanceCount);
                         }
@@ -421,16 +440,16 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
 
         if (!renderingNodes || task.gltf->regenerateDrawCommands) {
             std::vector<std::size_t> visibleNodeIndices;
-            for (const auto &[nodeIndex, visible] : sharedData.assetExtended->sceneNodeVisibilities.getVisibilities() | ranges::views::enumerate) {
+            for (const auto &[nodeIndex, visible] : gltfAsset->assetExtended->sceneNodeVisibilities.getVisibilities() | ranges::views::enumerate) {
                 if (visible) {
                     visibleNodeIndices.push_back(nodeIndex);
                 }
             }
 
             renderingNodes.emplace(
-                buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, criteriaGetter, visibleNodeIndices, drawCommandGetter),
-                buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, mousePickingCriteriaGetter, visibleNodeIndices, drawCommandGetter),
-                buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, multiNodeMousePickingCriteriaGetter, visibleNodeIndices, drawCommandGetter));
+                buffer::createIndirectDrawCommandBuffers(gltfAsset->assetExtended->asset, sharedData.gpu.allocator, criteriaGetter, visibleNodeIndices, drawCommandGetter),
+                buffer::createIndirectDrawCommandBuffers(gltfAsset->assetExtended->asset, sharedData.gpu.allocator, mousePickingCriteriaGetter, visibleNodeIndices, drawCommandGetter),
+                buffer::createIndirectDrawCommandBuffers(gltfAsset->assetExtended->asset, sharedData.gpu.allocator, multiNodeMousePickingCriteriaGetter, visibleNodeIndices, drawCommandGetter));
         }
 
         const math::Frustum frustum = renderer->camera.getFrustum();
@@ -489,9 +508,9 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             }, task.gltf->mousePickingInput);
         }
 
-        if (!sharedData.assetExtended->selectedNodes.empty() && renderer->selectedNodeOutline) {
+        if (!gltfAsset->assetExtended->selectedNodes.empty() && renderer->selectedNodeOutline) {
             const auto getSelectionHash = [&] {
-                return boost::hash_unordered_range(sharedData.assetExtended->selectedNodes.begin(), sharedData.assetExtended->selectedNodes.end());
+                return boost::hash_unordered_range(gltfAsset->assetExtended->selectedNodes.begin(), gltfAsset->assetExtended->selectedNodes.end());
             };
 
             std::size_t indexHash;
@@ -500,7 +519,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                 (indexHash = getSelectionHash()) != selectedNodes->indexHash /* asset node selection has been changed */ ) {
                 selectedNodes.emplace(
                     indexHash,
-                    buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, sharedData.assetExtended->selectedNodes, drawCommandGetter));
+                    buffer::createIndirectDrawCommandBuffers(gltfAsset->assetExtended->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, gltfAsset->assetExtended->selectedNodes, drawCommandGetter));
             }
 
             if (renderer->frustumCullingMode != Renderer::FrustumCullingMode::Off) {
@@ -519,19 +538,19 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         }
 
         const auto isHoveringNodeAndSelectedNodeEqual = [&] {
-            const auto &selectedNodes = sharedData.assetExtended->selectedNodes;
-            return selectedNodes.size() == 1 && *sharedData.assetExtended->hoveringNode == *selectedNodes.begin();
+            const auto &selectedNodes = gltfAsset->assetExtended->selectedNodes;
+            return selectedNodes.size() == 1 && *gltfAsset->assetExtended->hoveringNode == *selectedNodes.begin();
         };
 
-        if (sharedData.assetExtended->hoveringNode &&
+        if (gltfAsset->assetExtended->hoveringNode &&
             renderer->hoveringNodeOutline &&
             !isHoveringNodeAndSelectedNodeEqual() /* in this case, hovering node outline doesn't have to be drawn */) {
             if (!hoveringNode /* asset has hovering node but frame doesn't */ ||
                 task.gltf->regenerateDrawCommands /* draw call regeneration explicitly requested */ ||
-                *sharedData.assetExtended->hoveringNode != hoveringNode->index /* asset hovering node has been changed */) {
+                *gltfAsset->assetExtended->hoveringNode != hoveringNode->index /* asset hovering node has been changed */) {
                 hoveringNode.emplace(
-                    *sharedData.assetExtended->hoveringNode,
-                    buffer::createIndirectDrawCommandBuffers(sharedData.assetExtended->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, std::views::single(*sharedData.assetExtended->hoveringNode), drawCommandGetter));
+                    *gltfAsset->assetExtended->hoveringNode,
+                    buffer::createIndirectDrawCommandBuffers(gltfAsset->assetExtended->asset, sharedData.gpu.allocator, jumpFloodSeedCriteriaGetter, std::views::single(*gltfAsset->assetExtended->hoveringNode), drawCommandGetter));
             }
 
             if (renderer->frustumCullingMode != Renderer::FrustumCullingMode::Off) {
@@ -869,7 +888,7 @@ void vk_gltf_viewer::vulkan::Frame::updateAsset() {
                      *sharedData.assetDescriptorSetLayout,
                  },
                  vk::DescriptorSetVariableDescriptorCountAllocateInfo {
-                     vku::unsafeProxy<std::uint32_t>(sharedData.assetExtended->asset.textures.size() + 1),
+                     vku::unsafeProxy<std::uint32_t>(inner.assetExtended->asset.textures.size() + 1),
                  },
              }.get())[0],
         };
@@ -879,16 +898,16 @@ void vk_gltf_viewer::vulkan::Frame::updateAsset() {
     }
 
     std::vector<vk::DescriptorImageInfo> imageInfos;
-    imageInfos.reserve(sharedData.assetExtended->asset.textures.size() + 1);
+    imageInfos.reserve(inner.assetExtended->asset.textures.size() + 1);
     imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-    imageInfos.append_range(sharedData.assetExtended->textures.descriptorInfos);
+    imageInfos.append_range(inner.assetExtended->textures.descriptorInfos);
 
     sharedData.gpu.device.updateDescriptorSets({
         mousePickingSet.getWriteOne<1>({ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) }),
         multiNodeMousePickingSet.getWriteOne<0>({ inner.mousePickingResultBuffer, 0, vk::WholeSize }),
-        assetDescriptorSet.getWrite<0>(sharedData.assetExtended->primitiveBuffer.descriptorInfo),
+        assetDescriptorSet.getWrite<0>(inner.assetExtended->primitiveBuffer.descriptorInfo),
         assetDescriptorSet.getWrite<1>(inner.nodeBuffer.descriptorInfo),
-        assetDescriptorSet.getWrite<2>(sharedData.assetExtended->materialBuffer.descriptorInfo),
+        assetDescriptorSet.getWrite<2>(inner.assetExtended->materialBuffer.descriptorInfo),
         assetDescriptorSet.getWrite<3>(imageInfos),
     }, {});
 }
@@ -1107,8 +1126,8 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
                 resourceBindingState.indexType.emplace(*criteria.indexType);
                 cb.bindIndexBuffer(
-                    sharedData.assetExtended->combinedIndexBuffer,
-                    sharedData.assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                    gltfAsset->assetExtended->combinedIndexBuffer,
+                    gltfAsset->assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
                     *resourceBindingState.indexType);
             }
             indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
@@ -1221,8 +1240,8 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
                             resourceBindingState.indexType.emplace(*criteria.indexType);
                             cb.bindIndexBuffer(
-                                sharedData.assetExtended->combinedIndexBuffer,
-                                sharedData.assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                                gltfAsset->assetExtended->combinedIndexBuffer,
+                                gltfAsset->assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
                                 *resourceBindingState.indexType);
                         }
                         indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
@@ -1349,8 +1368,8 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
             resourceBindingState.indexType.emplace(*criteria.indexType);
             cb.bindIndexBuffer(
-                sharedData.assetExtended->combinedIndexBuffer,
-                sharedData.assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                gltfAsset->assetExtended->combinedIndexBuffer,
+                gltfAsset->assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
                 *resourceBindingState.indexType);
         }
         indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
@@ -1408,8 +1427,8 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
             resourceBindingState.indexType.emplace(*criteria.indexType);
             cb.bindIndexBuffer(
-                sharedData.assetExtended->combinedIndexBuffer,
-                sharedData.assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                gltfAsset->assetExtended->combinedIndexBuffer,
+                gltfAsset->assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
                 *resourceBindingState.indexType);
         }
         indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
