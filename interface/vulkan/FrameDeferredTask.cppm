@@ -14,8 +14,19 @@ namespace vk_gltf_viewer::vulkan {
     export class FrameDeferredTask {
     public:
         void executeAndReset(Frame &frame);
-        void reset();
 
+        /**
+         * @brief Reset all asset-related tasks.
+         *
+         * Including:
+         * - <tt>updateNodeWorldTransform</tt>
+         * - <tt>updateNodeWorldTransformHierarchical</tt>
+         * - <tt>updateNodeWorldTransformScene</tt>
+         * - <tt>updateNodeTargetWeights</tt>
+         */
+        void resetAssetRelated();
+
+        void setPassthruExtent(const vk::Extent2D &extent);
         void updateNodeWorldTransform(std::size_t nodeIndex);
         void updateNodeWorldTransformHierarchical(std::size_t nodeIndex);
         void updateNodeWorldTransformScene(std::size_t sceneIndex);
@@ -31,6 +42,7 @@ namespace vk_gltf_viewer::vulkan {
             std::size_t sceneIndex;
         };
 
+        std::optional<vk::Extent2D> passthruExtent;
         std::variant<std::monostate, UpdateNodeWorldTransform, UpdateNodeWorldTransformScene> nodeWorldTransformUpdateTask;
         std::unordered_map<std::size_t /* node index */, std::pair<std::size_t /* weight start index */, std::size_t /* weight count */>> nodeTargetWeightUpdateTask;
     };
@@ -44,6 +56,11 @@ module :private;
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 void vk_gltf_viewer::vulkan::FrameDeferredTask::executeAndReset(Frame &frame) {
+    if (passthruExtent) {
+        frame.setPassthruExtent(*passthruExtent);
+        passthruExtent.reset();
+    }
+
     visit(multilambda {
         [](std::monostate) noexcept { },
         [&](UpdateNodeWorldTransform &task) {
@@ -94,9 +111,13 @@ void vk_gltf_viewer::vulkan::FrameDeferredTask::executeAndReset(Frame &frame) {
     nodeTargetWeightUpdateTask.clear();
 }
 
-void vk_gltf_viewer::vulkan::FrameDeferredTask::reset() {
+void vk_gltf_viewer::vulkan::FrameDeferredTask::resetAssetRelated() {
     nodeWorldTransformUpdateTask.emplace<std::monostate>();
     nodeTargetWeightUpdateTask.clear();
+}
+
+void vk_gltf_viewer::vulkan::FrameDeferredTask::setPassthruExtent(const vk::Extent2D &extent) {
+    passthruExtent.emplace(extent);
 }
 
 void vk_gltf_viewer::vulkan::FrameDeferredTask::updateNodeWorldTransform(std::size_t nodeIndex) {

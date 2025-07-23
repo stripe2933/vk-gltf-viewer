@@ -266,6 +266,8 @@ void vk_gltf_viewer::MainApp::run() {
         graphicsCommandPool.reset();
         sharedDataUpdateCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
+        const glm::vec2 framebufferScale = window.getFramebufferSize() / window.getSize();
+
         // As we're going to update the frame resource from here, frameDeferredTask has to be reset. It can be done by
         // calling FrameDeferredTask::executeAndReset() in here, but there's a problem: what we updated in the previous
         // frame may useless, by either the current frame need to cancel it (e.g. changing asset) or current frame also
@@ -399,16 +401,25 @@ void vk_gltf_viewer::MainApp::run() {
                 [this](concepts::one_of<control::task::WindowSize, control::task::WindowContentScale> auto const &task) {
                     handleSwapchainResize();
                 },
-                [this](const control::task::ChangePassthruRect &task) {
+                [&](const control::task::ChangePassthruRect &task) {
                     renderer->camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
                     passthruRect = task.newRect;
+
+                    const vk::Extent2D extent {
+                        static_cast<std::uint32_t>(framebufferScale.x * task.newRect.GetWidth()),
+                        static_cast<std::uint32_t>(framebufferScale.y * task.newRect.GetHeight()),
+                    };
+
+                    // It replaces the previously set passthru extent with the new one.
+                    currentFrameTask.setPassthruExtent(extent);
+                    frameDeferredTask.setPassthruExtent(extent);
                 },
                 [&](const control::task::LoadGltf &task) {
                     loadGltf(task.path);
 
                     // All planned updates related to the previous glTF asset have to be canceled.
-                    currentFrameTask.reset();
-                    frameDeferredTask.reset();
+                    currentFrameTask.resetAssetRelated();
+                    frameDeferredTask.resetAssetRelated();
                     transformedNodes.clear();
 
                     regenerateDrawCommands.fill(true);
@@ -417,8 +428,8 @@ void vk_gltf_viewer::MainApp::run() {
                     closeGltf();
 
                     // All planned updates related to the previous glTF asset have to be canceled.
-                    currentFrameTask.reset();
-                    frameDeferredTask.reset();
+                    currentFrameTask.resetAssetRelated();
+                    frameDeferredTask.resetAssetRelated();
                     transformedNodes.clear();
                 },
                 [this](const control::task::LoadEqmap &task) {
@@ -693,11 +704,10 @@ void vk_gltf_viewer::MainApp::run() {
         // Update frame resources.
         currentFrameTask.executeAndReset(frame);
 
-        const glm::vec2 framebufferScale = window.getFramebufferSize() / window.getSize();
         frame.update({
-            .passthruRect = vk::Rect2D {
-                { static_cast<std::int32_t>(framebufferScale.x * passthruRect.Min.x), static_cast<std::int32_t>(framebufferScale.y * passthruRect.Min.y) },
-                { static_cast<std::uint32_t>(framebufferScale.x * passthruRect.GetWidth()), static_cast<std::uint32_t>(framebufferScale.y * passthruRect.GetHeight()) },
+            .passthruOffset = {
+                static_cast<std::int32_t>(framebufferScale.x * passthruRect.Min.x),
+                static_cast<std::int32_t>(framebufferScale.y * passthruRect.Min.y),
             },
             .gltf = value_if(static_cast<bool>(assetExtended), [&] {
                 return vulkan::Frame::ExecutionTask::Gltf {

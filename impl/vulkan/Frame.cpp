@@ -158,45 +158,9 @@ vk_gltf_viewer::vulkan::Frame::ExecutionResult vk_gltf_viewer::vulkan::Frame::ge
 }
 
 void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
-    // If passthru extent is different from the current's, dependent images have to be recreated.
-    if (!passthruResources || passthruResources->extent != task.passthruRect.extent) {
-        // TODO: can this operation be non-blocking?
-        const vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
-        vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-            passthruResources.emplace(sharedData, task.passthruRect.extent, cb);
-        }, *fence);
-
-        std::vector<vk::DescriptorImageInfo> bloomSetDescriptorInfos;
-        if (sharedData.gpu.supportShaderImageLoadStoreLod) {
-            bloomSetDescriptorInfos.push_back({ {}, *passthruResources->bloomImageView, vk::ImageLayout::eGeneral });
-        }
-        else {
-            bloomSetDescriptorInfos.append_range(passthruResources->bloomMipImageViews | std::views::transform([this](vk::ImageView imageView) {
-                return vk::DescriptorImageInfo{ {}, imageView, vk::ImageLayout::eGeneral };
-            }));
-        }
-
-        sharedData.gpu.device.updateDescriptorSets({
-            mousePickingSet.getWriteOne<0>({ {}, *passthruResources->mousePickingAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal }),
-            hoveringNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
-            selectedNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->selectedNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
-            weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
-                vk::DescriptorImageInfo { {}, *passthruResources->sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal },
-                vk::DescriptorImageInfo { {}, *passthruResources->sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view, vk::ImageLayout::eShaderReadOnlyOptimal },
-            })),
-            inverseToneMappingSet.getWriteOne<0>({ {}, *passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal }),
-            bloomSet.getWriteOne<0>({ {}, *passthruResources->bloomImageView, vk::ImageLayout::eGeneral }),
-            bloomSet.getWrite<1>(bloomSetDescriptorInfos),
-            bloomApplySet.getWriteOne<0>({ {}, *passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eGeneral }),
-            bloomApplySet.getWriteOne<1>({ {}, *passthruResources->bloomMipImageViews[0], vk::ImageLayout::eShaderReadOnlyOptimal }),
-        }, {});
-
-        std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL);
-    }
-
     projectionViewMatrix = renderer->camera.getProjectionViewMatrix();
     translationlessProjectionViewMatrix = renderer->camera.getProjectionMatrix() * glm::mat4 { glm::mat3 { renderer->camera.getViewMatrix() } };
-    passthruOffset = task.passthruRect.offset;
+    passthruOffset = task.passthruOffset;
 
     // Should be calculated on-demand (only if pipeline recreation is requested).
     Lazy<AssetSpecialization> assetSpecialization { [&]() { return AssetSpecialization { gltfAsset->assetExtended->asset }; } };
@@ -465,10 +429,10 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                 [](std::monostate) noexcept { },
                 [&](const vk::Offset2D &offset) {
                     // TODO: use ray-sphere intersection test instead of frustum overlap test.
-                    const float xmin = static_cast<float>(offset.x) / task.passthruRect.extent.width;
-                    const float xmax = static_cast<float>(offset.x + 1) / task.passthruRect.extent.width;
-                    const float ymin = 1.f - static_cast<float>(offset.y + 1) / task.passthruRect.extent.height;
-                    const float ymax = 1.f - static_cast<float>(offset.y) / task.passthruRect.extent.height;
+                    const float xmin = static_cast<float>(offset.x) / passthruResources->extent.width;
+                    const float xmax = static_cast<float>(offset.x + 1) / passthruResources->extent.width;
+                    const float ymin = 1.f - static_cast<float>(offset.y + 1) / passthruResources->extent.height;
+                    const float ymax = 1.f - static_cast<float>(offset.y) / passthruResources->extent.height;
                     const math::Frustum frustum = renderer->camera.getFrustum(xmin, xmax, ymin, ymax);
 
                     for (buffer::IndirectDrawCommands &buffer : renderingNodes->mousePickingIndirectDrawCommandBuffers | std::views::values) {
@@ -476,10 +440,10 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                     }
                 },
                 [&](const vk::Rect2D &rect) {
-                    const float xmin = static_cast<float>(rect.offset.x) / task.passthruRect.extent.width;
-                    const float xmax = static_cast<float>(rect.offset.x + rect.extent.width) / task.passthruRect.extent.width;
-                    const float ymin = 1.f - static_cast<float>(rect.offset.y + rect.extent.height) / task.passthruRect.extent.height;
-                    const float ymax = 1.f - static_cast<float>(rect.offset.y) / task.passthruRect.extent.height;
+                    const float xmin = static_cast<float>(rect.offset.x) / passthruResources->extent.width;
+                    const float xmax = static_cast<float>(rect.offset.x + rect.extent.width) / passthruResources->extent.width;
+                    const float ymin = 1.f - static_cast<float>(rect.offset.y + rect.extent.height) / passthruResources->extent.height;
+                    const float ymax = 1.f - static_cast<float>(rect.offset.y) / passthruResources->extent.height;
                     const math::Frustum frustum = renderer->camera.getFrustum(xmin, xmax, ymin, ymax);
 
                     renderingNodes->startMousePickingRenderPass = false;
@@ -874,6 +838,41 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
         });
     }
     catch (const vk::OutOfDateKHRError&) { }
+}
+
+void vk_gltf_viewer::vulkan::Frame::setPassthruExtent(const vk::Extent2D &extent) {
+    vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
+    vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+        passthruResources.emplace(sharedData, extent, cb);
+    }, *fence);
+
+    std::vector<vk::DescriptorImageInfo> bloomSetDescriptorInfos;
+    if (sharedData.gpu.supportShaderImageLoadStoreLod) {
+        bloomSetDescriptorInfos.push_back({ {}, *passthruResources->bloomImageView, vk::ImageLayout::eGeneral });
+    }
+    else {
+        bloomSetDescriptorInfos.append_range(passthruResources->bloomMipImageViews | std::views::transform([this](vk::ImageView imageView) {
+            return vk::DescriptorImageInfo{ {}, imageView, vk::ImageLayout::eGeneral };
+        }));
+    }
+
+    sharedData.gpu.device.updateDescriptorSets({
+        mousePickingSet.getWriteOne<0>({ {}, *passthruResources->mousePickingAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        hoveringNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
+        selectedNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->selectedNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
+        weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
+            vk::DescriptorImageInfo { {}, *passthruResources->sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal },
+            vk::DescriptorImageInfo { {}, *passthruResources->sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view, vk::ImageLayout::eShaderReadOnlyOptimal },
+        })),
+        inverseToneMappingSet.getWriteOne<0>({ {}, *passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        bloomSet.getWriteOne<0>({ {}, *passthruResources->bloomImageView, vk::ImageLayout::eGeneral }),
+        bloomSet.getWrite<1>(bloomSetDescriptorInfos),
+        bloomApplySet.getWriteOne<0>({ {}, *passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eGeneral }),
+        bloomApplySet.getWriteOne<1>({ {}, *passthruResources->bloomMipImageViews[0], vk::ImageLayout::eShaderReadOnlyOptimal }),
+    }, {});
+
+    // TODO: can this operation be non-blocking?
+    std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL);
 }
 
 void vk_gltf_viewer::vulkan::Frame::updateAsset() {

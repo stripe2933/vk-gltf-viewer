@@ -122,7 +122,7 @@ namespace vk_gltf_viewer::vulkan {
                 std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
             };
 
-            vk::Rect2D passthruRect;
+            vk::Offset2D passthruOffset;
 
             /**
              * @brief Information of glTF to be rendered. <tt>std::nullopt</tt> if no glTF scene to be rendered.
@@ -152,6 +152,8 @@ namespace vk_gltf_viewer::vulkan {
         void update(const ExecutionTask &task);
 
         void recordCommandsAndSubmit(Swapchain &swapchain) const;
+
+        void setPassthruExtent(const vk::Extent2D &extent);
 
         void updateAsset();
 
