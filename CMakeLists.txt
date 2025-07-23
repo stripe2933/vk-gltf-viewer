@@ -129,6 +129,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/SceneInverseHierarchy.cppm
         interface/gltf/StateCachedNodeVisibilityStructure.cppm
         interface/gltf/TextureUsage.cppm
+        interface/gui/dialog.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/concepts.cppm
         interface/helpers/fastgltf.cppm

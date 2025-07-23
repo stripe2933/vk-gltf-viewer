@@ -39,6 +39,7 @@ import imgui.vulkan;
 import vk_gltf_viewer.asset;
 import vk_gltf_viewer.global;
 import vk_gltf_viewer.gltf.algorithm.miniball;
+import vk_gltf_viewer.gui.dialog;
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;
@@ -212,7 +213,7 @@ void vk_gltf_viewer::MainApp::run() {
                 imguiTaskCollector.nodeInspector(*assetExtended);
 
                 if (!assetExtended->asset.animations.empty()) {
-                    imguiTaskCollector.animations(assetExtended);
+                    imguiTaskCollector.animations(*assetExtended);
                 }
             }
             if (const auto &iblInfo = appState.imageBasedLightingProperties) {
@@ -225,6 +226,7 @@ void vk_gltf_viewer::MainApp::run() {
             else {
                 imguiTaskCollector.imguizmo(*renderer);
             }
+            imguiTaskCollector.dialog();
 
             if (drawSelectionRectangle) {
                 const glm::dvec2 cursorPos = window.getCursorPos();
@@ -369,6 +371,9 @@ void vk_gltf_viewer::MainApp::run() {
                     renderer->camera.position = target - renderer->camera.direction * renderer->camera.targetDistance;
                 },
                 [&](const control::task::WindowDrop &task) {
+                    // Prevent drag-and-drop when any dialog is opened.
+                    if (!holds_alternative<std::monostate>(gui::currentDialog)) return;
+
                     if (task.paths.empty()) return;
 
                     static constexpr auto supportedSkyboxExtensions = {

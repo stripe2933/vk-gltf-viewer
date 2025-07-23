@@ -21,7 +21,7 @@ namespace vk_gltf_viewer::control {
         ~ImGuiTaskCollector();
 
         void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
-        void animations(const std::shared_ptr<gltf::AssetExtended> &assetExtended);
+        void animations(gltf::AssetExtended &assetExtended);
         void assetInspector(gltf::AssetExtended &assetExtended);
         void materialEditor(gltf::AssetExtended &assetExtended);
         void materialVariants(gltf::AssetExtended &assetExtended);
@@ -31,6 +31,7 @@ namespace vk_gltf_viewer::control {
         void rendererSetting(Renderer &renderer);
         void imguizmo(Renderer &renderer);
         void imguizmo(Renderer &renderer, gltf::AssetExtended &assetExtended);
+        void dialog();
 
     private:
         std::queue<Task> &tasks;

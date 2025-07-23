@@ -11,6 +11,7 @@ module vk_gltf_viewer.imgui.TaskCollector;
 import imgui.math;
 
 import vk_gltf_viewer.global;
+import vk_gltf_viewer.gui.dialog;
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.formatter.ByteSize;
@@ -406,75 +407,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
     }
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const std::shared_ptr<gltf::AssetExtended> &assetExtended) {
-    struct AnimationCollisionDialogData {
-        std::shared_ptr<gltf::AssetExtended> assetExtended;
-        std::size_t animationIndexToEnable;
-        std::map<std::size_t /* animation index */, std::map<std::size_t /* node index */, Flags<gltf::NodeAnimationUsage>>> collisions;
-
-        std::optional<bool> show() {
-            // Center the modal window.
-            ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2 { 0.5f, 0.5f });
-
-            std::optional<bool> result{};
-            if (ImGui::BeginPopupModal("Animation Collision Detected", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-                ImGui::TextUnformatted("The animation you're trying to enable is colliding by other enabled animations.");
-
-                for (const auto &[collidingAnimationIndex, collisionList] : collisions) {
-                    if (ImGui::TreeNode(getDisplayName(assetExtended->asset, assetExtended->asset.animations[collidingAnimationIndex]).c_str())) {
-                        ImGui::Table<false>(
-                            "animation-collision-table",
-                            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg,
-                            collisionList,
-                            ImGui::ColumnInfo { "Node", decomposer([](std::size_t nodeIndex, auto) {
-                                ImGui::Text("%zu", nodeIndex);
-                            }) },
-                            ImGui::ColumnInfo { "Path", decomposer([](auto, Flags<gltf::NodeAnimationUsage> usage) {
-                                ImGui::TextUnformatted(tempStringBuffer.write("{::s}", usage).view());
-                            }) });
-                        ImGui::TreePop();
-                    }
-                }
-
-                ImGui::TextUnformatted("Would you like to disable these animations?");
-
-                ImGui::Separator();
-
-                ImGui::Checkbox("Don't ask me and resolve automatically", &static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->resolveAnimationCollisionAutomatically);
-
-                if (ImGui::Button("Yes")) {
-                    result.emplace(true);
-                    ImGui::CloseCurrentPopup();
-                }
-                ImGui::SetItemDefaultFocus();
-                ImGui::SameLine();
-                if (ImGui::Button("No")) {
-                    result.emplace(false);
-                    ImGui::CloseCurrentPopup();
-                }
-
-                ImGui::EndPopup();
-            }
-
-            return result;
-        }
-
-        void resolve() {
-            for (std::size_t collidingAnimationIndex : collisions | std::views::keys) {
-                assetExtended->animations[collidingAnimationIndex].second = false;
-            }
-            assetExtended->animations[animationIndexToEnable].second = true;
-        }
-    };
-
-    static std::optional<AnimationCollisionDialogData> animationCollisionDialogData = std::nullopt;
-
+void vk_gltf_viewer::control::ImGuiTaskCollector::animations(gltf::AssetExtended &assetExtended) {
     if (ImGui::Begin("Animation")) {
-        for (std::size_t animationIndex : ranges::views::upto(assetExtended->asset.animations.size())) {
-            auto &[animation, enabled] = assetExtended->animations[animationIndex];
-            if (ImGui::Checkbox(getDisplayName(assetExtended->asset, assetExtended->asset.animations[animationIndex]).c_str(), &enabled) && enabled) {
-                for (std::size_t otherAnimationIndex : ranges::views::upto(assetExtended->asset.animations.size())) {
-                    const auto &[otherAnimation, otherAnimationEnabled] = assetExtended->animations[otherAnimationIndex];
+        for (std::size_t animationIndex : ranges::views::upto(assetExtended.asset.animations.size())) {
+            auto &[animation, enabled] = assetExtended.animations[animationIndex];
+            if (ImGui::Checkbox(getDisplayName(assetExtended.asset, assetExtended.asset.animations[animationIndex]).c_str(), &enabled) && enabled) {
+                // Collect the indices of colliding animations.
+                std::vector<std::size_t> collisionIndices;
+                for (std::size_t otherAnimationIndex : ranges::views::upto(assetExtended.asset.animations.size())) {
+                    const auto &[otherAnimation, otherAnimationEnabled] = assetExtended.animations[otherAnimationIndex];
                     if (!otherAnimationEnabled) continue;
 
                     // Exclude self from collision check.
@@ -485,36 +426,37 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(const std::shared_p
                         if (it == animation.nodeUsages.end()) continue;
 
                         if (it->second & path) {
-                            // This animation is colliding with other enabled animation.
-                            enabled = false;
-                            if (!animationCollisionDialogData) {
-                                animationCollisionDialogData.emplace(assetExtended, animationIndex);
-                            }
-
-                            animationCollisionDialogData->collisions[otherAnimationIndex][nodeIndex] |= path;
+                            collisionIndices.push_back(otherAnimationIndex);
+                            break;
                         }
                     }
                 }
 
-                if (animationCollisionDialogData) {
+                if (!collisionIndices.empty()) {
                     if (static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->resolveAnimationCollisionAutomatically) {
-                        animationCollisionDialogData->resolve();
-                        animationCollisionDialogData.reset();
+                        // Do not open the collision resolve dialog, instead just disable the colliding animations.
+                        for (std::size_t collidingAnimationIndex : collisionIndices) {
+                            assetExtended.animations[collidingAnimationIndex].second = false;
+                        }
                     }
                     else {
-                        ImGui::OpenPopup("Animation Collision Detected");
+                        enabled = false;
+
+                        decltype(gui::AnimationCollisionResolveDialog::collisions) collisionByAnimation;
+                        for (std::size_t collidingAnimationIndex : collisionIndices) {
+                            // Collect which paths are colliding.
+                            auto &collisions = collisionByAnimation[collidingAnimationIndex];
+                            for (const auto &[nodeIndex, path] : assetExtended.animations[collidingAnimationIndex].first.nodeUsages) {
+                                const auto it = animation.nodeUsages.find(nodeIndex);
+                                if (it != animation.nodeUsages.end()) {
+                                    collisions[nodeIndex] |= it->second & path;
+                                }
+                            }
+                        }
+
+                        gui::currentDialog.emplace<gui::AnimationCollisionResolveDialog>(assetExtended, animationIndex, std::move(collisionByAnimation));
                     }
                 }
-            }
-        }
-
-        if (animationCollisionDialogData) {
-            if (auto dialogResult = animationCollisionDialogData->show()) {
-                if (*dialogResult) {
-                    animationCollisionDialogData->resolve();
-                }
-
-                animationCollisionDialogData.reset();
             }
         }
     }
@@ -1869,4 +1811,63 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, g
         renderer.camera.position = inverseView[3];
         renderer.camera.direction = -inverseView[2];
     }
+}
+
+void vk_gltf_viewer::control::ImGuiTaskCollector::dialog() {
+    visit(multilambda {
+        [](std::monostate) noexcept { },
+        [this](gui::AnimationCollisionResolveDialog &dialog) {
+            // Center the dialog window.
+            ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2 { 0.5f, 0.5f });
+
+            constexpr const char *name = "Animation Collision Resolve Dialog";
+            if (ImGui::BeginPopupModal(name, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+                ImGui::TextUnformatted("The animation you're trying to enable is colliding by other enabled animations.");
+
+                for (const auto &[i, collisionList] : dialog.collisions) {
+                    if (ImGui::TreeNode(getDisplayName(dialog.assetExtended.get().asset, dialog.assetExtended.get().asset.animations[i]).c_str())) {
+                        ImGui::Table<false>(
+                            "animation-collision-table",
+                            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg,
+                            collisionList,
+                            ImGui::ColumnInfo { "Node", decomposer([](std::size_t nodeIndex, auto) {
+                                ImGui::Text("%zu", nodeIndex);
+                            }) },
+                            ImGui::ColumnInfo { "Path", decomposer([](auto, Flags<gltf::NodeAnimationUsage> usage) {
+                                ImGui::TextUnformatted(tempStringBuffer.write("{::s}", usage).view());
+                            }) });
+                        ImGui::TreePop();
+                    }
+                }
+
+                ImGui::TextUnformatted("Would you like to disable these animations?");
+
+                ImGui::Separator();
+
+                ImGui::Checkbox("Don't ask me and resolve automatically", &static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->resolveAnimationCollisionAutomatically);
+
+                if (ImGui::Button("Yes")) {
+                    // Resolve the colliding animations.
+                    for (std::size_t collidingAnimationIndex : dialog.collisions | std::views::keys) {
+                        dialog.assetExtended.get().animations[collidingAnimationIndex].second = false;
+                    }
+                    dialog.assetExtended.get().animations[dialog.animationIndexToEnable].second = true;
+
+                    ImGui::CloseCurrentPopup();
+                    gui::currentDialog.emplace<std::monostate>();
+                }
+                ImGui::SetItemDefaultFocus();
+                ImGui::SameLine();
+                if (ImGui::Button("No")) {
+                    ImGui::CloseCurrentPopup();
+                    gui::currentDialog.emplace<std::monostate>();
+                }
+
+                ImGui::EndPopup();
+            }
+            else {
+                ImGui::OpenPopup(name);
+            }
+        },
+    }, gui::currentDialog);
 }
