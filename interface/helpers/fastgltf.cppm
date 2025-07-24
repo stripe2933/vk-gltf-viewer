@@ -24,11 +24,6 @@ import vk_gltf_viewer.helpers.type_map;
     }
 
 namespace fastgltf {
-    export template <typename T>
-    [[nodiscard]] std::optional<T> to_optional(OptionalWithFlagValue<T> v) noexcept {
-        return value_if(v.has_value(), [&]() { return *v; });
-    }
-
     export
     [[nodiscard]] cpp_util::cstring_view to_string(PrimitiveType value) noexcept;
 
@@ -559,9 +554,10 @@ cpp_util::cstring_view fastgltf::to_string(MimeType mime) noexcept {
         case MimeType::JPEG: return "image/jpeg";
         case MimeType::PNG: return "image/png";
         case MimeType::KTX2: return "image/ktx2";
+        case MimeType::DDS: return "image/vnd-ms.dds";
         case MimeType::GltfBuffer: return "model/gltf-buffer";
         case MimeType::OctetStream: return "application/octet-stream";
-        case MimeType::DDS: return "image/vnd-ms.dds";
+        case MimeType::WEBP: return "image/webp";
     }
     std::unreachable();
 }
@@ -627,9 +623,12 @@ std::size_t fastgltf::getTexcoordIndex(const TextureInfo &textureInfo) noexcept 
 }
 
 std::size_t fastgltf::getPreferredImageIndex(const Texture &texture) {
-    return to_optional(texture.basisuImageIndex) // Prefer BasisU compressed image if exists.
-        .or_else([&]() { return to_optional(texture.imageIndex); }) // Otherwise, use regular image.
-        .value();
+    if (texture.basisuImageIndex) {
+        return *texture.basisuImageIndex; // Prefer BasisU compressed image if exists.
+    }
+
+    // Otherwise, use regular image.
+    return texture.imageIndex.value();
 }
 
 std::span<float> fastgltf::getTargetWeights(Node &node, Asset &asset) noexcept {
@@ -658,42 +657,46 @@ std::size_t fastgltf::getTargetWeightCount(const Node &node, const Asset &asset)
 
 std::array<fastgltf::math::fvec3, 2> fastgltf::getBoundingBoxMinMax(const Primitive &primitive, const Node &node, const Asset &asset) {
     constexpr auto getAccessorMinMax = [](const Accessor &accessor) {
-        constexpr auto fetchVec3 = visitor {
-            []<typename U>(const std::pmr::vector<U> &v) {
-                assert(v.size() == 3);
-                return math::fvec3 { static_cast<float>(v[0]), static_cast<float>(v[1]), static_cast<float>(v[2]) };
-            },
-            [](std::monostate) -> math::fvec3 {
-                throw std::invalid_argument { "Accessor min/max is not number" };
-            },
+        constexpr auto copyAccessorData = [](const AccessorBoundsArray &accessor, math::fvec3 &out) {
+            assert(accessor.size() == 3);
+            switch (accessor.type()) {
+                case AccessorBoundsArray::BoundsType::float64:
+                    INDEX_SEQ(Is, 3, { std::ignore = ((out[Is] = static_cast<float>(accessor.get<double>(Is))), ...); });
+                    return;
+                case AccessorBoundsArray::BoundsType::int64:
+                    INDEX_SEQ(Is, 3, { std::ignore = ((out[Is] = static_cast<float>(accessor.get<std::int64_t>(Is))), ...); });
+                    return;
+            }
+            std::unreachable();
         };
 
-        math::fvec3 min = visit(fetchVec3, accessor.min);
-        math::fvec3 max = visit(fetchVec3, accessor.max);
+        std::array<math::fvec3, 2> result;
+        copyAccessorData(accessor.min.value(), get<0>(result));
+        copyAccessorData(accessor.max.value(), get<1>(result));
 
         if (accessor.normalized) {
             switch (accessor.componentType) {
             case ComponentType::Byte:
-                min = cwiseMax(min / 127, math::fvec3(-1));
-                max = cwiseMax(max / 127, math::fvec3(-1));
+                get<0>(result) = cwiseMax(get<0>(result) / 127, math::fvec3(-1));
+                get<1>(result) = cwiseMax(get<1>(result) / 127, math::fvec3(-1));
                 break;
             case ComponentType::UnsignedByte:
-                min /= 255;
-                max /= 255;
+                get<0>(result) /= 255;
+                get<1>(result) /= 255;
                 break;
             case ComponentType::Short:
-                min = cwiseMax(min / 32767, math::fvec3(-1));
-                max = cwiseMax(max / 32767, math::fvec3(-1));
+                get<0>(result) = cwiseMax(get<0>(result) / 32767, math::fvec3(-1));
+                get<1>(result) = cwiseMax(get<1>(result) / 32767, math::fvec3(-1));
                 break;
             case ComponentType::UnsignedShort:
-                min /= 65535;
-                max /= 65535;
+                get<0>(result) /= 65535;
+                get<1>(result) /= 65535;
                 break;
             default:
                 throw std::logic_error { "Normalized accessor must be either BYTE, UNSIGNED_BYTE, SHORT, or UNSIGNED_SHORT" };
             }
         }
-        return std::array { min, max };
+        return result;
     };
 
     const Accessor &accessor = asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];

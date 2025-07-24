@@ -181,21 +181,39 @@ void attributeTable(const fastgltf::Asset &asset, std::ranges::viewable_range au
         } },
         ImGui::ColumnInfo { "Bound", [&](const fastgltf::Attribute &attribute) {
             const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
-            std::visit(fastgltf::visitor {
-                [](const std::pmr::vector<std::int64_t> &min, const std::pmr::vector<std::int64_t> &max) {
-                    assert(min.size() == max.size() && "Different min/max dimension");
-                    if (min.size() == 1) ImGui::TextUnformatted(tempStringBuffer.write("[{}, {}]", min[0], max[0]));
-                    else ImGui::TextUnformatted(tempStringBuffer.write("{}x{}", min, max));
-                },
-                [](const std::pmr::vector<double> &min, const std::pmr::vector<double> &max) {
-                    assert(min.size() == max.size() && "Different min/max dimension");
-                    if (min.size() == 1) ImGui::TextUnformatted(tempStringBuffer.write("[{1:.{0}f}, {2:.{0}f}]", boundFpPrecision, min[0], max[0]));
-                    else ImGui::TextUnformatted(tempStringBuffer.write("{1::.{0}f}x{2::.{0}f}", boundFpPrecision, min, max));
-                },
-                [](const auto&...) {
-                    ImGui::TextUnformatted("-"sv);
+
+            fastgltf::AccessorBoundsArray::BoundsType boundsType;
+            std::size_t size;
+            if (accessor.min && accessor.max &&
+                (boundsType = accessor.min->type()) == accessor.max->type() &&
+                (size = accessor.min->size()) == accessor.max->size()) {
+                switch (boundsType) {
+                    case fastgltf::AccessorBoundsArray::BoundsType::float64: {
+                        const std::span min { accessor.min->data<double>(), size };
+                        const std::span max { accessor.max->data<double>(), size };
+                        if (size == 1) {
+                            ImGui::TextUnformatted(tempStringBuffer.write("[{1:.{0}f}, {2:.{0}f}]", boundFpPrecision, min[0], max[0]));
+                        }
+                        else {
+                            ImGui::TextUnformatted(tempStringBuffer.write("{1::.{0}f}x{2::.{0}f}", boundFpPrecision, min, max));
+                        }
+                        break;
+                    }
+                    case fastgltf::AccessorBoundsArray::BoundsType::int64: {
+                        const std::span min { accessor.min->data<std::int64_t>(), size };
+                        const std::span max { accessor.max->data<std::int64_t>(), size };
+                        if (size == 1) {
+                            ImGui::TextUnformatted(tempStringBuffer.write("[{}, {}]", min[0], max[0]));
+                        } else {
+                            ImGui::TextUnformatted(tempStringBuffer.write("{}x{}", min, max));
+                        }
+                        break;
+                    }
                 }
-            }, accessor.min, accessor.max);
+            }
+            else {
+                ImGui::TextUnformatted("-"sv);
+            }
         } },
         ImGui::ColumnInfo { "Normalized", [&](const fastgltf::Attribute &attribute) {
             ImGui::TextUnformatted(asset.accessors[attribute.accessorIndex].normalized ? "Yes"sv : "No"sv);
@@ -621,8 +639,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
                 ImGui::TextUnformatted(
                     tempStringBuffer.write(
                         "{} / {}",
-                        to_optional(sampler.magFilter).transform(LIFT(to_string)).value_or("-"),
-                        to_optional(sampler.minFilter).transform(LIFT(to_string)).value_or("-")));
+                        sampler.magFilter.transform(LIFT(to_string)).value_or("-"),
+                        sampler.minFilter.transform(LIFT(to_string)).value_or("-")));
             }, ImGuiTableColumnFlags_WidthFixed },
             ImGui::ColumnInfo { "Wrap (S/T)", [](const fastgltf::Sampler &sampler) {
                 ImGui::TextUnformatted(tempStringBuffer.write("{} / {}", sampler.wrapS, sampler.wrapT));
@@ -1327,7 +1345,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                         transformChanged |= ImGui::DragFloat3("Translation", trs.translation.data());
                     }, nodeAnimationUsage & gltf::NodeAnimationUsage::Translation);
                     ImGui::WithDisabled([&]() {
-                        transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.value_ptr());
+                        transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.data());
                     }, nodeAnimationUsage & gltf::NodeAnimationUsage::Rotation);
                     ImGui::WithDisabled([&]() {
                         transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
@@ -1404,7 +1422,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                             attributeTable(
                                 assetExtended.asset,
                                 ranges::views::concat(
-                                    to_range(to_optional(primitive.indicesAccessor).transform([](std::size_t accessorIndex) {
+                                    to_range(primitive.indicesAccessor.transform([](std::size_t accessorIndex) {
                                         return fastgltf::Attribute { "Index", accessorIndex };
                                     })),
                                     primitive.attributes));

@@ -1,13 +1,13 @@
 {
   "default-registry": {
     "kind": "git",
-    "baseline": "38d9cf0bd45404cd25aeb03f79bcb0af256de343",
+    "baseline": "dd3097e305afa53f7b4312371f62058d2e665320",
     "repository": "https://github.com/microsoft/vcpkg"
   },
   "registries": [
     {
       "kind": "git",
-      "baseline": "8764d1f97ea52e2895ef30cd8ffea310159b43e6",
+      "baseline": "5c2e71d74371fda7bb08f91d385d43304f10cfd7",
       "reference": "main",
       "repository": "https://github.com/stripe2933/vcpkg-registry",
       "packages": [
