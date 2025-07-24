@@ -1315,10 +1315,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                 }
             }, isTransformUsedInAnimation);
 
-            // If node TRS transform is used by an animation now, it cannot be modified by GUI.
+            bool transformChanged = false;
             std::visit(fastgltf::visitor {
                 [&](fastgltf::TRS &trs) {
-                    bool transformChanged = false;
+                    // If node TRS transform is used by an animation now, it cannot be modified by GUI.
                     ImGui::WithDisabled([&]() {
                         transformChanged |= ImGui::DragFloat3("Translation", trs.translation.data());
                     }, nodeAnimationUsage & gltf::NodeAnimationUsage::Translation);
@@ -1328,23 +1328,31 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                     ImGui::WithDisabled([&]() {
                         transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
                     }, nodeAnimationUsage & gltf::NodeAnimationUsage::Scale);
-
-                    if (transformChanged) {
-                        tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
-                    }
                 },
                 [&](fastgltf::math::fmat4x4 &matrix) {
-                    // | operator cannot be chained, because of the short circuit evaluation.
-                    bool transformChanged = ImGui::DragFloat4("Column 0", matrix.col(0).data());
-                    transformChanged |= ImGui::DragFloat4("Column 1", matrix.col(1).data());
-                    transformChanged |= ImGui::DragFloat4("Column 2", matrix.col(2).data());
-                    transformChanged |= ImGui::DragFloat4("Column 3", matrix.col(3).data());
-
-                    if (transformChanged) {
-                        tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
+                    fastgltf::math::fvec4 row;
+                    if (ImGui::DragFloat4("Row 1", (row = matrix.row(0)).data())) {
+                        INDEX_SEQ(Is, 4, { ((matrix.col(Is).x() = row[Is]), ...); });
+                        transformChanged = true;
                     }
+                    if (ImGui::DragFloat4("Row 2", (row = matrix.row(1)).data())) {
+                        INDEX_SEQ(Is, 4, { ((matrix.col(Is).y() = row[Is]), ...); });
+                        transformChanged = true;
+                    }
+                    if (ImGui::DragFloat4("Row 3", (row = matrix.row(2)).data())) {
+                        INDEX_SEQ(Is, 4, { ((matrix.col(Is).z() = row[Is]), ...); });
+                        transformChanged = true;
+                    }
+                    ImGui::WithDisabled([&] {
+                        row = { 0.f, 0.f, 0.f, 1.f };
+                        ImGui::DragFloat4("Row 4", row.data());
+                    });
                 },
             }, node.transform);
+
+            if (transformChanged) {
+                tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
+            }
 
             if (!node.instancingAttributes.empty() && ImGui::TreeNodeEx("EXT_mesh_gpu_instancing", ImGuiTreeNodeFlags_NoTreePushOnOpen)) {
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
