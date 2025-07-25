@@ -163,21 +163,24 @@ void hoverableImageCheckerboardBackground(ImTextureID texture, const ImVec2 &siz
     }
 }
 
-void attributeTable(std::ranges::viewable_range auto const &attributes) {
+void attributeTable(const fastgltf::Asset &asset, std::ranges::viewable_range auto const &attributes) {
     ImGui::Table<false>(
         "attributes-table",
         ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_SizingFixedFit,
         attributes,
-        ImGui::ColumnInfo { "Attribute", decomposer([](std::string_view attributeName, const auto&) {
-            ImGui::TextUnformatted(attributeName);
-        }) },
-        ImGui::ColumnInfo { "Type", decomposer([](auto, const fastgltf::Accessor &accessor) {
+        ImGui::ColumnInfo { "Attribute", [](const fastgltf::Attribute &attribute) {
+            ImGui::TextUnformatted(attribute.name);
+        } },
+        ImGui::ColumnInfo { "Type", [&](const fastgltf::Attribute &attribute) {
+            const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
             ImGui::TextUnformatted(tempStringBuffer.write("{} ({})", accessor.type, accessor.componentType));
-        }) },
-        ImGui::ColumnInfo { "Count", decomposer([](auto, const fastgltf::Accessor &accessor) {
+        } },
+        ImGui::ColumnInfo { "Count", [&](const fastgltf::Attribute &attribute) {
+            const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
             ImGui::TextUnformatted(tempStringBuffer.write(accessor.count));
-        }) },
-        ImGui::ColumnInfo { "Bound", decomposer([](auto, const fastgltf::Accessor &accessor) {
+        } },
+        ImGui::ColumnInfo { "Bound", [&](const fastgltf::Attribute &attribute) {
+            const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
             std::visit(fastgltf::visitor {
                 [](const std::pmr::vector<std::int64_t> &min, const std::pmr::vector<std::int64_t> &max) {
                     assert(min.size() == max.size() && "Different min/max dimension");
@@ -193,14 +196,15 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
                     ImGui::TextUnformatted("-"sv);
                 }
             }, accessor.min, accessor.max);
-        }) },
-        ImGui::ColumnInfo { "Normalized", decomposer([](auto, const fastgltf::Accessor &accessor) {
-            ImGui::TextUnformatted(accessor.normalized ? "Yes"sv : "No"sv);
-        }), ImGuiTableColumnFlags_DefaultHide },
-        ImGui::ColumnInfo { "Sparse", decomposer([](auto, const fastgltf::Accessor &accessor) {
-            ImGui::TextUnformatted(accessor.sparse ? "Yes"sv : "No"sv);
-        }), ImGuiTableColumnFlags_DefaultHide },
-        ImGui::ColumnInfo { "Buffer View", decomposer([](auto, const fastgltf::Accessor &accessor) {
+        } },
+        ImGui::ColumnInfo { "Normalized", [&](const fastgltf::Attribute &attribute) {
+            ImGui::TextUnformatted(asset.accessors[attribute.accessorIndex].normalized ? "Yes"sv : "No"sv);
+        }, ImGuiTableColumnFlags_DefaultHide },
+        ImGui::ColumnInfo { "Sparse", [&](const fastgltf::Attribute &attribute) {
+            ImGui::TextUnformatted(asset.accessors[attribute.accessorIndex].sparse ? "Yes"sv : "No"sv);
+        }, ImGuiTableColumnFlags_DefaultHide },
+        ImGui::ColumnInfo { "Buffer View", [&](const fastgltf::Attribute &attribute) {
+            const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
             if (accessor.bufferViewIndex) {
                 if (ImGui::TextLink(tempStringBuffer.write(*accessor.bufferViewIndex).view().c_str())) {
                     makeWindowVisible("Buffer Views");
@@ -211,7 +215,7 @@ void attributeTable(std::ranges::viewable_range auto const &attributes) {
                 ImGui::SameLine();
                 ImGui::HelperMarker("(?)", "Zero will be used for accessor data.");
             }
-        }) });
+        } });
 }
 
 [[nodiscard]] ImGuiID makeDefaultDockState(ImGuiID dockSpaceOverViewport) {
@@ -1356,9 +1360,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
 
             if (!node.instancingAttributes.empty() && ImGui::TreeNodeEx("EXT_mesh_gpu_instancing", ImGuiTreeNodeFlags_NoTreePushOnOpen)) {
                 ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
-                    attributeTable(node.instancingAttributes | std::views::transform([&](const fastgltf::Attribute &attribute) {
-                        return std::tie(attribute.name, assetExtended.asset.accessors[attribute.accessorIndex]);
-                    }));
+                    attributeTable(assetExtended.asset, node.instancingAttributes);
                 });
             }
 
@@ -1399,13 +1401,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                                 });
                             }
 
-                            attributeTable(ranges::views::concat(
-                                to_range(to_optional(primitive.indicesAccessor).transform([&](std::size_t accessorIndex) {
-                                    return std::pair<std::string_view, const fastgltf::Accessor&> { "Index"sv, assetExtended.asset.accessors[accessorIndex] };
-                                })),
-                                primitive.attributes | std::views::transform([&](const fastgltf::Attribute &attribute) {
-                                    return std::tie(attribute.name, assetExtended.asset.accessors[attribute.accessorIndex]);
-                                })));
+                            attributeTable(
+                                assetExtended.asset,
+                                ranges::views::concat(
+                                    to_range(to_optional(primitive.indicesAccessor).transform([](std::size_t accessorIndex) {
+                                        return fastgltf::Attribute { "Index", accessorIndex };
+                                    })),
+                                    primitive.attributes));
                         }
                     }
 
