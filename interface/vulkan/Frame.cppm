@@ -20,7 +20,9 @@ import vk_gltf_viewer.vulkan.ag.MousePicking;
 import vk_gltf_viewer.vulkan.ag.SceneOpaque;
 import vk_gltf_viewer.vulkan.ag.SceneWeightedBlended;
 import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
+export import vk_gltf_viewer.Renderer;
 export import vk_gltf_viewer.vulkan.SharedData;
+export import vk_gltf_viewer.vulkan.Swapchain;
 
 /**
  * @brief A type that represents the state for a single multi-draw-indirect call.
@@ -66,6 +68,8 @@ namespace vk_gltf_viewer::vulkan {
 
     public:
         struct GltfAsset {
+            std::shared_ptr<const gltf::AssetExtended> assetExtended;
+
             vkgltf::NodeBuffer nodeBuffer;
 
             vku::MappedBuffer mousePickingResultBuffer;
@@ -73,61 +77,67 @@ namespace vk_gltf_viewer::vulkan {
             // Used only if GPU does not support variable descriptor count.
             std::optional<vk::raii::DescriptorPool> descriptorPool;
 
-            GltfAsset(
-                const fastgltf::Asset &asset LIFETIMEBOUND,
-                std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-                const SharedData &sharedData LIFETIMEBOUND,
-                const gltf::AssetExternalBuffers &adapter
-            );
+            std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
+
+            explicit GltfAsset(const SharedData &sharedData LIFETIMEBOUND);
+
+            /**
+             * @brief Update the node buffer's world transform data using host asset data.
+             * @param nodeIndex Index of the node to be updated.
+             */
+            void updateNodeWorldTransform(std::size_t nodeIndex);
+
+            /**
+             * @brief Update the node buffer's world transform data using host asset data.
+             * @param nodeIndex Index of the node that is used as the root of the hierarchical update.
+             */
+            void updateNodeWorldTransformHierarchical(std::size_t nodeIndex);
+
+            /**
+             * @brief Update the node buffer's world transform data using host asset data.
+             * @param sceneIndex Index of the scene that is used to update the node world transforms.
+             */
+            void updateNodeWorldTransformScene(std::size_t sceneIndex);
+
+            /**
+             * @brief Update the node buffer's morph target weights using host asset data.
+             * @param nodeIndex Index of the node to be updated.
+             * @param startIndex Start index of the morph target weights to be updated.
+             * @param count Number of morph target weights to be updated.
+             */
+            void updateNodeTargetWeights(std::size_t nodeIndex, std::size_t startIndex, std::size_t count);
         };
 
         struct ExecutionTask {
             struct Gltf {
-                struct HoveringNode {
-                    std::size_t index;
-                    glm::vec4 outlineColor;
-                    float outlineThickness;
-                };
-
-                struct SelectedNodes {
-                    const std::unordered_set<std::size_t>& indices;
-                    glm::vec4 outlineColor;
-                    float outlineThickness;
-                };
-
-                const fastgltf::Asset &asset;
-                std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms;
-
                 bool regenerateDrawCommands;
-                const std::vector<bool> &nodeVisibilities;
-                std::optional<HoveringNode> hoveringNode;
-                std::optional<SelectedNodes> selectedNodes;
+
+                /**
+                 * @brief Cursor position or selection rectangle for handling mouse picking.
+                 *
+                 * - If mouse picking has to be done inside the selection rectangle, passthrough rectangle aligned, framebuffer-scale <tt>vk::Rect2D</tt> used.
+                 * - If mouse picking has to be done under the current cursor, passthrough rectangle aligned <tt>vk::Offset2D</tt> used.
+                 * - Otherwise, <tt>std::monostate</tt> used.
+                 */
+                std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
             };
 
-            vk::Rect2D passthruRect;
-
-            /**
-             * @brief Cursor position or selection rectangle for handling mouse picking.
-             *
-             * - If mouse picking has to be done inside the selection rectangle, passthrough rectangle aligned, framebuffer-scale <tt>vk::Rect2D</tt> used.
-             * - If mouse picking has to be done under the current cursor, passthrough rectangle aligned <tt>vk::Offset2D</tt> used.
-             * - Otherwise, <tt>std::monostate</tt> used.
-             */
-            std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
+            vk::Offset2D passthruOffset;
 
             /**
              * @brief Information of glTF to be rendered. <tt>std::nullopt</tt> if no glTF scene to be rendered.
              */
             std::optional<Gltf> gltf;
-            std::optional<glm::vec3> solidBackground; // If this is nullopt, use SharedData::SkyboxDescriptorSet instead.
         };
 
-        struct UpdateResult {
+        struct ExecutionResult {
             /**
              * @brief Node index of the current pointing mesh. <tt>std::nullopt</tt> if there is no mesh under the cursor.
              */
             std::variant<std::monostate, std::size_t, std::vector<std::size_t>> mousePickingResult;
         };
+
+        std::shared_ptr<const Renderer> renderer;
 
         // --------------------
         // glTF asset.
@@ -136,30 +146,23 @@ namespace vk_gltf_viewer::vulkan {
         std::optional<GltfAsset> gltfAsset;
         vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
 
-        explicit Frame(const SharedData &sharedData LIFETIMEBOUND);
+        Frame(std::shared_ptr<const Renderer> renderer, const SharedData &sharedData LIFETIMEBOUND);
 
-        UpdateResult update(const ExecutionTask &task);
+        [[nodiscard]] ExecutionResult getExecutionResult();
+        void update(const ExecutionTask &task);
 
-        void recordCommandsAndSubmit(
-            std::uint32_t swapchainImageIndex,
-            vk::Semaphore swapchainImageAcquireSemaphore,
-            vk::Semaphore swapchainImageReadySemaphore,
-            vk::Fence inFlightFence = nullptr
-        ) const;
+        void recordCommandsAndSubmit(Swapchain &swapchain) const;
 
-        void changeAsset(
-            const fastgltf::Asset &asset,
-            std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-            const gltf::AssetExternalBuffers &adapter
-        );
+        void setPassthruExtent(const vk::Extent2D &extent);
+
+        void updateAsset();
 
     private:
         struct PassthruResources {
             struct JumpFloodResources {
                 vku::AllocatedImage image;
                 vk::raii::ImageView imageView;
-                vk::raii::ImageView pingImageView;
-                vk::raii::ImageView pongImageView;
+                std::array<vk::raii::ImageView, 2> perLayerImageViews;
 
                 JumpFloodResources(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent);
             };
@@ -200,17 +203,13 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         struct SelectedNodes {
-            std::unordered_set<std::size_t> indices;
+            std::size_t indexHash; // = boost::hash_unordered_range(selectedNodes)
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
-            glm::vec4 outlineColor;
-            float outlineThickness;
         };
 
         struct HoveringNode {
             std::size_t index;
             std::map<CommandSeparationCriteriaNoShading, buffer::IndirectDrawCommands> jumpFloodSeedIndirectDrawCommandBuffers;
-            glm::vec4 outlineColor;
-            float outlineThickness;
         };
 
         // Buffer, image and image views.
@@ -243,11 +242,12 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::Semaphore scenePrepassFinishSema;
         vk::raii::Semaphore sceneRenderingFinishSema;
         vk::raii::Semaphore jumpFloodFinishSema;
+        vk::raii::Semaphore swapchainImageAcquireSema;
+        vk::raii::Fence inFlightFence;
 
         vk::Offset2D passthruOffset;
         glm::mat4 projectionViewMatrix;
         glm::mat4 translationlessProjectionViewMatrix;
-        std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;

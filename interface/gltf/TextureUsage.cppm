@@ -1,11 +1,10 @@
-export module vk_gltf_viewer.gltf.TextureUsages;
+export module vk_gltf_viewer.gltf.TextureUsage;
 
 import std;
 export import cstring_view;
 export import fastgltf;
 
 export import vk_gltf_viewer.helpers.Flags;
-import vk_gltf_viewer.helpers.ranges;
 
 namespace vk_gltf_viewer::gltf {
     export enum class TextureUsage : std::uint8_t {
@@ -16,10 +15,7 @@ namespace vk_gltf_viewer::gltf {
         Emissive = 16,
     };
 
-    export struct TextureUsages : std::vector<std::unordered_map<std::size_t, Flags<TextureUsage>>> {
-        explicit TextureUsages(const fastgltf::Asset &asset);
-    };
-
+    export
     [[nodiscard]] cpp_util::cstring_view to_string(TextureUsage usage);
 } // namespace vk_gltf_viewer::gltf
 
@@ -44,27 +40,6 @@ struct FlagTraits<vk_gltf_viewer::gltf::TextureUsage> {
 #if !defined(__GNUC__) || defined(__clang__)
 module :private;
 #endif
-
-vk_gltf_viewer::gltf::TextureUsages::TextureUsages(const fastgltf::Asset &asset) {
-    resize(asset.textures.size());
-    for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
-        if (material.pbrData.baseColorTexture) {
-            operator[](material.pbrData.baseColorTexture->textureIndex)[i] |= TextureUsage::BaseColor;
-        }
-        if (material.pbrData.metallicRoughnessTexture) {
-            operator[](material.pbrData.metallicRoughnessTexture->textureIndex)[i] |= TextureUsage::MetallicRoughness;
-        }
-        if (material.normalTexture) {
-            operator[](material.normalTexture->textureIndex)[i] |= TextureUsage::Normal;
-        }
-        if (material.occlusionTexture) {
-            operator[](material.occlusionTexture->textureIndex)[i] |= TextureUsage::Occlusion;
-        }
-        if (material.emissiveTexture) {
-            operator[](material.emissiveTexture->textureIndex)[i] |= TextureUsage::Emissive;
-        }
-    }
-}
 
 cpp_util::cstring_view vk_gltf_viewer::gltf::to_string(TextureUsage usage) {
     switch (usage) {

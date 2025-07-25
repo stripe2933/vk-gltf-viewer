@@ -2,18 +2,12 @@ export module vk_gltf_viewer.AppState;
 
 import std;
 export import glm;
-export import ImGuizmo;
 
 export import vk_gltf_viewer.helpers.full_optional;
 
 namespace vk_gltf_viewer {
     export class AppState {
     public:
-        struct Outline {
-            float thickness;
-            glm::vec4 color;
-        };
-
         struct ImageBasedLighting {
             struct EquirectangularMap {
                 std::filesystem::path path;
@@ -35,13 +29,7 @@ namespace vk_gltf_viewer {
             } prefilteredmap;
         };
 
-        bool automaticNearFarPlaneAdjustment = true;
-        full_optional<Outline> hoveringNodeOutline { std::in_place, 2.f, glm::vec4 { 1.f, 0.5f, 0.2f, 1.f } };
-        full_optional<Outline> selectedNodeOutline { std::in_place, 2.f, glm::vec4 { 0.f, 1.f, 0.2f, 1.f } };
-        bool canSelectSkyboxBackground = false; // TODO: bad design... this and background should be handled in a single field.
-        full_optional<glm::vec3> background { std::in_place, 0.f, 0.f, 0.f }; // nullopt -> use cubemap from the given equirectangular map image.
         std::optional<ImageBasedLighting> imageBasedLightingProperties;
-        ImGuizmo::OPERATION imGuizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
 
         AppState() noexcept;
         ~AppState();

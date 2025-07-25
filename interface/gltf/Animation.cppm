@@ -21,15 +21,11 @@ namespace vk_gltf_viewer::gltf {
         Weights = 8,     /// Node target weight is used by an animation.
     };
 
-	export
-    [[nodiscard]] NodeAnimationUsage convert(fastgltf::AnimationPath path) noexcept;
-
     export
     [[nodiscard]] cpp_util::cstring_view to_string(NodeAnimationUsage usage) noexcept;
 
     export class Animation {
         std::reference_wrapper<fastgltf::Asset> asset;
-        std::reference_wrapper<const fastgltf::Animation> animation;
 
         /**
          * @brief Copied input accessor floats, indexed by the accessor index.
@@ -37,9 +33,10 @@ namespace vk_gltf_viewer::gltf {
         std::unordered_map<std::size_t, std::vector<float>> inputAccessorData;
 
     public:
-		std::vector<Flags<NodeAnimationUsage>> nodeUsages;
+        std::reference_wrapper<const fastgltf::Animation> animation;
+		std::unordered_map<std::size_t, Flags<NodeAnimationUsage>> nodeUsages;
 
-        Animation(fastgltf::Asset &asset LIFETIMEBOUND, const fastgltf::Animation &animation, const AssetExternalBuffers &adapter);
+        Animation(fastgltf::Asset &asset LIFETIMEBOUND, std::size_t animationIndex, const AssetExternalBuffers &adapter);
 
         /**
          * @brief Fetch transforms and target weights at given \p time, update asset data using them.
@@ -49,8 +46,6 @@ namespace vk_gltf_viewer::gltf {
          * @param adapter Buffer data adapter.
          */
         void update(float time, std::vector<std::size_t> &transformedNodes, std::vector<std::size_t> &morphedNodes, const AssetExternalBuffers &adapter) const;
-
-    private:
     };
 }
 
@@ -209,20 +204,6 @@ template <typename T>
 	std::unreachable();
 }
 
-vk_gltf_viewer::gltf::NodeAnimationUsage vk_gltf_viewer::gltf::convert(fastgltf::AnimationPath path) noexcept {
-    switch (path) {
-        case fastgltf::AnimationPath::Translation:
-            return NodeAnimationUsage::Translation;
-        case fastgltf::AnimationPath::Rotation:
-            return NodeAnimationUsage::Rotation;
-        case fastgltf::AnimationPath::Scale:
-            return NodeAnimationUsage::Scale;
-        case fastgltf::AnimationPath::Weights:
-            return NodeAnimationUsage::Weights;
-    }
-    std::unreachable();
-}
-
 cpp_util::cstring_view vk_gltf_viewer::gltf::to_string(NodeAnimationUsage usage) noexcept {
     switch (usage) {
         case NodeAnimationUsage::Translation: return "Translation";
@@ -235,21 +216,34 @@ cpp_util::cstring_view vk_gltf_viewer::gltf::to_string(NodeAnimationUsage usage)
 
 vk_gltf_viewer::gltf::Animation::Animation(
 	fastgltf::Asset &asset,
-	const fastgltf::Animation &animation,
+	std::size_t animationIndex,
 	const AssetExternalBuffers &adapter
 ) : asset { asset },
-	animation { animation } {
-	for (const fastgltf::AnimationSampler &sampler : animation.samplers) {
+	animation { asset.animations[animationIndex] } {
+	for (const fastgltf::AnimationSampler &sampler : animation.get().samplers) {
 		const fastgltf::Accessor &inputAccessor = asset.accessors[sampler.inputAccessor];
 		if (auto [it, inserted] = inputAccessorData.try_emplace(sampler.inputAccessor, inputAccessor.count); inserted) {
 			fastgltf::copyFromAccessor<float>(asset, inputAccessor, it->second.data(), adapter);
 		}
 	}
 
-	nodeUsages.resize(asset.nodes.size());
-	for (const fastgltf::AnimationChannel &channel : animation.channels) {
+	for (const fastgltf::AnimationChannel &channel : animation.get().channels) {
 		if (channel.nodeIndex) {
-			nodeUsages[*channel.nodeIndex] |= convert(channel.path);
+			Flags<NodeAnimationUsage> &usage = nodeUsages[*channel.nodeIndex];
+			switch (channel.path) {
+				case fastgltf::AnimationPath::Translation:
+					usage |= NodeAnimationUsage::Translation;
+					break;
+				case fastgltf::AnimationPath::Rotation:
+					usage |= NodeAnimationUsage::Rotation;
+					break;
+				case fastgltf::AnimationPath::Scale:
+					usage |= NodeAnimationUsage::Scale;
+					break;
+				case fastgltf::AnimationPath::Weights:
+					usage |= NodeAnimationUsage::Weights;
+					break;
+			}
 		}
 	}
 }

@@ -1,6 +1,8 @@
 ﻿cmake_minimum_required (VERSION 3.30)
 
-if (CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "4.0.3")
+    set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "d0edc3af-4c50-42ea-a356-e2862fe7a444")
+elseif (CMAKE_VERSION VERSION_GREATER_EQUAL "4.0.1")
     set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "a9e1cf81-9932-4810-974b-6eccaf14e457")
 else()
     set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "0e5b6991-d74f-4b3d-a41c-cf096e0b2508")
@@ -121,13 +123,13 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/global.cppm
         interface/gltf/algorithm/miniball.cppm
         interface/gltf/Animation.cppm
+        interface/gltf/AssetExtended.cppm
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetProcessError.cppm
-        interface/gltf/data_structure/SceneInverseHierarchy.cppm
-        interface/gltf/SceneNodeLevels.cppm
+        interface/gltf/SceneInverseHierarchy.cppm
         interface/gltf/StateCachedNodeVisibilityStructure.cppm
-        interface/gltf/NodeWorldTransforms.cppm
-        interface/gltf/TextureUsages.cppm
+        interface/gltf/TextureUsage.cppm
+        interface/gui/dialog.cppm
         interface/helpers/AggregateHasher.cppm
         interface/helpers/concepts.cppm
         interface/helpers/fastgltf.cppm
@@ -154,6 +156,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
         interface/math/Plane.cppm
+        interface/Renderer.cppm
         interface/shader_selector/mask_node_index_frag.cppm
         interface/shader_selector/mask_node_index_vert.cppm
         interface/shader_selector/mask_jump_flood_seed_frag.cppm
@@ -178,6 +181,8 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/descriptor_set_layout/MultiNodeMousePicking.cppm
         interface/vulkan/descriptor_set_layout/Skybox.cppm
         interface/vulkan/Frame.cppm
+        interface/vulkan/FrameDeferredTask.cppm
+        interface/vulkan/gltf/AssetExtended.cppm
         interface/vulkan/Gpu.cppm
         interface/vulkan/imgui/PlatformResource.cppm
         interface/vulkan/mipmap.cppm

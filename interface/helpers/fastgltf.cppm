@@ -424,17 +424,6 @@ namespace fastgltf {
     export
     [[nodiscard]] std::array<math::fvec3, 8> getBoundingBoxCornerPoints(const Primitive &primitive, const Node &node, const Asset &asset);
 
-    /**
-     * @brief Create association of (mapping index) -> [(primitive, material index)] for <tt>KHR_materials_variants</tt>.
-     *
-     * <tt>KHR_materials_variants</tt> extension defines the material variants for each primitive. For each variant index, you
-     * can call `at` to get the list of primitives and their material indices that use the corresponding material variant.
-     *
-     * @param asset fastgltf Asset.
-     * @return <tt>std::unordered_map</tt> of (mapping index) -> [(primitive, material index)].
-     */
-    export std::unordered_map<std::size_t, std::vector<std::pair<Primitive*, std::size_t>>> getMaterialVariantsMapping(Asset &asset LIFETIMEBOUND);
-
 namespace math {
     /**
      * @brief Get component-wise minimum of two vectors.
@@ -744,16 +733,4 @@ std::array<fastgltf::math::fvec3, 8> fastgltf::getBoundingBoxCornerPoints(const 
         { max[0], max[1], min[2] },
         max,
     };
-}
-
-std::unordered_map<std::size_t, std::vector<std::pair<fastgltf::Primitive*, std::size_t>>> fastgltf::getMaterialVariantsMapping(Asset &asset) {
-    std::unordered_map<std::size_t, std::vector<std::pair<Primitive*, std::size_t>>> result;
-    for (Mesh &mesh : asset.meshes) {
-        for (Primitive &primitive : mesh.primitives) {
-            for (std::size_t i = 0; const auto &mapping : primitive.mappings) {
-                result[i++].emplace_back(&primitive, mapping.value_or(primitive.materialIndex.value()));
-            }
-        }
-    }
-    return result;
 }

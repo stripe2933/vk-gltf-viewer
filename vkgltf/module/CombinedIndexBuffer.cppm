@@ -72,7 +72,7 @@ namespace vkgltf {
              *
              * If its size is less than 2, <tt>sharingMode</tt> of the buffer will be set to <tt>vk::SharingMode::eExclusive</tt>.
              */
-            vk::ArrayProxy<std::uint32_t> queueFamilies = {};
+            vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
 
             /**
              * @brief VMA allocation creation flags for the buffer allocation.
@@ -364,7 +364,7 @@ public:
     bool promoteUnsignedByteToUnsignedShort = true;
     bool processLineLoopAsLineStrip = true;
     vk::BufferUsageFlags usageFlags = vk::BufferUsageFlagBits::eIndexBuffer;
-    vk::ArrayProxy<std::uint32_t> queueFamilies = {};
+    vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
     vma::AllocationCreateInfo allocationCreateInfo = {
         vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
         vma::MemoryUsage::eAutoPreferHost,

@@ -164,7 +164,7 @@ namespace vkgltf {
              *
              * If its size is less than 2, <tt>sharingMode</tt> of the image will be set to <tt>vk::SharingMode::eExclusive</tt>.
              */
-            vk::ArrayProxy<std::uint32_t> queueFamilies = {};
+            vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
 
             /**
              * @brief Allocation create info for the image.
@@ -389,7 +389,7 @@ namespace vkgltf {
         vk::ImageUsageFlags compressedImageUsageFlags = vk::ImageUsageFlagBits::eSampled;
         vk::ImageLayout compressedImageDstLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
     #endif
-        vk::ArrayProxy<std::uint32_t> queueFamilies = {};
+        vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
         vma::AllocationCreateInfo allocationCreateInfo = { {}, vma::MemoryUsage::eAutoPreferDevice };
         StagingInfo &stagingInfo;
     };

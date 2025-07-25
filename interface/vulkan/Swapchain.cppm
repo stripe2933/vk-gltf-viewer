@@ -20,10 +20,9 @@ namespace vk_gltf_viewer::vulkan {
         std::vector<vk::Image> images;
         std::vector<vk::raii::ImageView> imageViews;
 
-        std::vector<vk::raii::Semaphore> imageAcquireSemaphores;
         std::vector<vk::raii::Semaphore> imageReadySemaphores;
 
-        Swapchain(const Gpu &gpu LIFETIMEBOUND, vk::SurfaceKHR surface LIFETIMEBOUND, const vk::Extent2D &extent, std::size_t framesInFlight);
+        Swapchain(const Gpu &gpu LIFETIMEBOUND, vk::SurfaceKHR surface LIFETIMEBOUND, const vk::Extent2D &extent);
 
         [[nodiscard]] explicit operator const vk::SwapchainKHR&() const & noexcept;
 
@@ -86,18 +85,13 @@ constexpr vk::SemaphoreCreateInfo semaphoreCreateInfo{};
     return { device, createInfo.get() };
 }
 
-vk_gltf_viewer::vulkan::Swapchain::Swapchain(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &extent, std::size_t framesInFlight)
+vk_gltf_viewer::vulkan::Swapchain::Swapchain(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &extent)
     : gpu { gpu }
     , surface { surface }
     , extent { extent }
     , swapchain { createSwapchain(gpu.device, surface, gpu.physicalDevice.getSurfaceCapabilitiesKHR(surface), extent, gpu.supportSwapchainMutableFormat) }
     , images { swapchain.getImages() } {
-    imageAcquireSemaphores.reserve(framesInFlight);
     imageReadySemaphores.reserve(images.size());
-
-    for (auto _ : ranges::views::upto(framesInFlight)) {
-        imageAcquireSemaphores.emplace_back(gpu.device, semaphoreCreateInfo);
-    }
     for (auto _ : ranges::views::upto(images.size())) {
         imageReadySemaphores.emplace_back(gpu.device, semaphoreCreateInfo);
     }

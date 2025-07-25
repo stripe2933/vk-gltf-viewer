@@ -150,7 +150,7 @@ namespace vkgltf {
                  *
                  * If its size is less than 2, <tt>sharingMode</tt> of the buffer will be set to <tt>vk::SharingMode::eExclusive</tt>.
                  */
-                vk::ArrayProxy<std::uint32_t> queueFamilies = {};
+                vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
 
                 /**
                  * @brief VMA allocation creation flags for the buffer allocation.
@@ -397,7 +397,7 @@ namespace vkgltf {
              *
              * If its size is less than 2, <tt>sharingMode</tt> of the buffer will be set to <tt>vk::SharingMode::eExclusive</tt>.
              */
-            vk::ArrayProxy<std::uint32_t> queueFamilies = {};
+            vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
 
             /**
              * @brief VMA allocation creation flags for the buffer allocation.
@@ -602,7 +602,7 @@ namespace vkgltf {
             fastgltf::ComponentType componentType,
             vma::Allocator allocator,
             vk::BufferUsageFlags usageFlags = vk::BufferUsageFlagBits::eVertexBuffer,
-            vk::ArrayProxy<std::uint32_t> queueFamilies = {},
+            vk::ArrayProxy<const std::uint32_t> queueFamilies = {},
             const vma::AllocationCreateInfo &allocationCreateInfo = vma::AllocationCreateInfo {
                 vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
                 vma::MemoryUsage::eAutoPreferHost,
@@ -671,7 +671,7 @@ namespace vkgltf {
                 if (accessor.sparse) return std::nullopt;
                 return vk::BufferUsageFlagBits::eVertexBuffer;
             };
-        vk::ArrayProxy<std::uint32_t> queueFamilies = {};
+        vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
         vma::AllocationCreateInfo allocationCreateInfo = {
             vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
             vma::MemoryUsage::eAutoPreferHost,
@@ -695,7 +695,7 @@ namespace vkgltf {
     #endif
         std::function<fastgltf::ComponentType(const fastgltf::Accessor&)> componentTypeFn = &fastgltf::Accessor::componentType;
         vk::BufferUsageFlags usageFlags = vk::BufferUsageFlagBits::eVertexBuffer;
-        vk::ArrayProxy<std::uint32_t> queueFamilies = {};
+        vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
         vma::AllocationCreateInfo allocationCreateInfo = {
             vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
             vma::MemoryUsage::eAutoPreferHost,

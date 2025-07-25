@@ -11,16 +11,13 @@ import std;
 export import bloom;
 export import fastgltf;
 import imgui.vulkan;
-export import vkgltf.bindless;
 export import vku;
 
-export import vk_gltf_viewer.gltf.AssetExternalBuffers;
 import vk_gltf_viewer.helpers.AggregateHasher;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.ranges;
 export import vk_gltf_viewer.vulkan.ag.ImGui;
-export import vk_gltf_viewer.vulkan.buffer.Materials;
-export import vk_gltf_viewer.vulkan.buffer.PrimitiveAttributes;
+export import vk_gltf_viewer.vulkan.gltf.AssetExtended;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.pipeline.AssetSpecialization;
 export import vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderer;
@@ -43,45 +40,11 @@ export import vk_gltf_viewer.vulkan.pl.Primitive;
 export import vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
 export import vk_gltf_viewer.vulkan.rp.MousePicking;
 export import vk_gltf_viewer.vulkan.rp.Scene;
-export import vk_gltf_viewer.vulkan.texture.ImGuiColorSpaceAndUsageCorrectedTextures;
-export import vk_gltf_viewer.vulkan.texture.Textures;
 
 namespace vk_gltf_viewer::vulkan {
     export class SharedData {
     public:
-        struct GltfAsset {
-            const fastgltf::Asset &asset;
-
-            buffer::Materials materialBuffer;
-            vkgltf::CombinedIndexBuffer combinedIndexBuffer;
-            std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers> primitiveAttributeBuffers;
-            vkgltf::PrimitiveBuffer primitiveBuffer;
-            std::optional<vkgltf::SkinBuffer> skinBuffer;
-            texture::Textures textures;
-            texture::ImGuiColorSpaceAndUsageCorrectedTextures imGuiColorSpaceAndUsageCorrectedTextures;
-
-            std::vector<vk::DescriptorSet> imGuiTextureDescriptorSets;
-
-            GltfAsset(
-                const fastgltf::Asset &asset,
-                const std::filesystem::path &directory,
-                const Gpu &gpu,
-                const texture::Fallback &fallbackTexture,
-                const gltf::AssetExternalBuffers &adapter,
-                vkgltf::StagingBufferStorage &stagingBufferStorage,
-                BS::thread_pool<> threadPool = {}
-            );
-            ~GltfAsset();
-        };
-
         const Gpu &gpu;
-
-        // --------------------
-        // Non-owning swapchain resources.
-        // --------------------
-
-        vk::Extent2D swapchainExtent;
-        std::span<const vk::Image> swapchainImages;
 
         // Buffer, image and image views and samplers.
         buffer::CubeIndices cubeIndices;
@@ -136,7 +99,7 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         texture::Fallback fallbackTexture;
-        std::optional<GltfAsset> gltfAsset;
+        std::shared_ptr<const vulkan::gltf::AssetExtended> assetExtended;
 
         SharedData(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages);
 
@@ -160,11 +123,7 @@ namespace vk_gltf_viewer::vulkan {
 
         void handleSwapchainResize(const vk::Extent2D &newSwapchainExtent, std::span<const vk::Image> newSwapchainImages);
 
-        void changeAsset(
-            const fastgltf::Asset &asset,
-            const std::filesystem::path &directory,
-            const gltf::AssetExternalBuffers &adapter
-        );
+        void setAsset(std::shared_ptr<const vulkan::gltf::AssetExtended> assetExtended);
 
     private:
         // --------------------
@@ -203,58 +162,8 @@ vk::PrimitiveTopology getListPrimitiveTopology(fastgltf::PrimitiveType type) noe
     std::unreachable();
 }
 
-vk_gltf_viewer::vulkan::SharedData::GltfAsset::GltfAsset(
-    const fastgltf::Asset &asset,
-    const std::filesystem::path &directory,
-    const Gpu &gpu,
-    const texture::Fallback &fallbackTexture,
-    const gltf::AssetExternalBuffers &adapter,
-    vkgltf::StagingBufferStorage &stagingBufferStorage,
-    BS::thread_pool<> threadPool
-) : asset { asset },
-    materialBuffer { asset, gpu.allocator, stagingBufferStorage },
-    combinedIndexBuffer { asset, gpu.allocator, vkgltf::CombinedIndexBuffer::Config {
-        .adapter = adapter,
-        .promoteUnsignedByteToUnsignedShort = !gpu.supportUint8Index,
-        .usageFlags = vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferSrc,
-        .queueFamilies = gpu.queueFamilies.uniqueIndices,
-        .stagingInfo = vku::unsafeAddress(vkgltf::StagingInfo { stagingBufferStorage }),
-    } },
-    primitiveAttributeBuffers { buffer::createPrimitiveAttributeBuffers(asset, gpu, stagingBufferStorage, threadPool, adapter) },
-    primitiveBuffer { asset, primitiveAttributeBuffers, gpu.device, gpu.allocator, vkgltf::PrimitiveBuffer::Config {
-        .materialIndexFn = [](const fastgltf::Primitive &primitive) noexcept -> std::int32_t {
-            // First element of the material storage buffer is reserved for the fallback material.
-            if (!primitive.materialIndex) return 0;
-            return 1 + *primitive.materialIndex;
-        },
-        .usageFlags = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
-        .queueFamilies = gpu.queueFamilies.uniqueIndices,
-        .stagingInfo = vku::unsafeAddress(vkgltf::StagingInfo { stagingBufferStorage }),
-    } },
-    skinBuffer { vkgltf::SkinBuffer::from(asset, gpu.allocator, vkgltf::SkinBuffer::Config {
-        .adapter = adapter,
-        .usageFlags = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
-        .queueFamilies = gpu.queueFamilies.uniqueIndices,
-        .stagingInfo = vku::unsafeAddress(vkgltf::StagingInfo { stagingBufferStorage }),
-    }) },
-    textures { asset, directory, gpu, fallbackTexture, threadPool, adapter },
-    imGuiColorSpaceAndUsageCorrectedTextures { asset, textures, gpu } {
-    imGuiTextureDescriptorSets
-        = textures.descriptorInfos
-        | std::views::transform([](const vk::DescriptorImageInfo &descriptorInfo) -> vk::DescriptorSet {
-            return ImGui_ImplVulkan_AddTexture(descriptorInfo.sampler, descriptorInfo.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        })
-        | std::ranges::to<std::vector>();
-}
-
-vk_gltf_viewer::vulkan::SharedData::GltfAsset::~GltfAsset() {
-    std::ranges::for_each(imGuiTextureDescriptorSets, ImGui_ImplVulkan_RemoveTexture);
-}
-
 vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages)
     : gpu { gpu }
-    , swapchainExtent { swapchainExtent }
-    , swapchainImages { swapchainImages }
     , cubeIndices { gpu.allocator }
     , cubemapSampler { gpu.device }
     , brdfLutSampler { gpu.device }
@@ -291,7 +200,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getNodeIndexRenderer(const fastgltf::Primitive &primitive) const {
-    const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+    const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
     NodeIndexRendererSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
@@ -309,7 +218,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getNodeIndexRenderer(const fast
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskNodeIndexRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
-    const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+    const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
     MaskNodeIndexRendererSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
@@ -323,7 +232,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskNodeIndexRenderer(const 
     }
 
     if (!accessors.colors.empty()) {
-        const fastgltf::Accessor &accessor = gltfAsset->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+        const fastgltf::Accessor &accessor = assetExtended->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
         if (accessor.type == fastgltf::AccessorType::Vec4) {
             // Alpha value exists only if COLOR_0 is Vec4 type.
             specialization.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
@@ -331,7 +240,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskNodeIndexRenderer(const 
     }
 
     if (primitive.materialIndex) {
-        const fastgltf::Material &material = gltfAsset->asset.materials[*primitive.materialIndex];
+        const fastgltf::Material &material = assetExtended->asset.materials[*primitive.materialIndex];
         if (const auto &textureInfo = material.pbrData.baseColorTexture) {
             const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
             specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
@@ -344,7 +253,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskNodeIndexRenderer(const 
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMultiNodeMousePickingRenderer(const fastgltf::Primitive &primitive) const {
-    const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+    const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
     MultiNodeMousePickingRendererSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
@@ -362,7 +271,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMultiNodeMousePickingRendere
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
-    const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+    const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
     MaskMultiNodeMousePickingRendererSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
@@ -376,7 +285,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRen
     }
 
     if (!accessors.colors.empty()) {
-        const fastgltf::Accessor &accessor = gltfAsset->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+        const fastgltf::Accessor &accessor = assetExtended->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
         if (accessor.type == fastgltf::AccessorType::Vec4) {
             // Alpha value exists only if COLOR_0 is Vec4 type.
             specialization.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
@@ -384,7 +293,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRen
     }
 
     if (primitive.materialIndex) {
-        const fastgltf::Material &material = gltfAsset->asset.materials[*primitive.materialIndex];
+        const fastgltf::Material &material = assetExtended->asset.materials[*primitive.materialIndex];
         if (const auto &textureInfo = material.pbrData.baseColorTexture) {
             const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
             specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
@@ -397,7 +306,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRen
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getJumpFloodSeedRenderer(const fastgltf::Primitive &primitive) const {
-    const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+    const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
     JumpFloodSeedRendererSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
@@ -415,7 +324,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getJumpFloodSeedRenderer(const 
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
-    const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+    const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
     MaskJumpFloodSeedRendererSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
@@ -429,7 +338,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderer(co
     }
 
     if (!accessors.colors.empty()) {
-        const fastgltf::Accessor &accessor = gltfAsset->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+        const fastgltf::Accessor &accessor = assetExtended->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
         if (accessor.type == fastgltf::AccessorType::Vec4) {
             // Alpha value exists only if COLOR_0 is Vec4 type.
             specialization.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
@@ -437,7 +346,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderer(co
     }
 
     if (primitive.materialIndex) {
-        const fastgltf::Material &material = gltfAsset->asset.materials[*primitive.materialIndex];
+        const fastgltf::Material &material = assetExtended->asset.materials[*primitive.materialIndex];
         if (const auto &textureInfo = material.pbrData.baseColorTexture) {
             const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
             specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
@@ -450,7 +359,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderer(co
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive, bool usePerFragmentEmissiveStencilExport) const {
-    const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+    const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
     PrimitiveRendererSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
@@ -473,7 +382,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderer(const Asse
     }
 
     if (!accessors.colors.empty()) {
-        const fastgltf::Accessor &accessor = gltfAsset->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+        const fastgltf::Accessor &accessor = assetExtended->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
         specialization.color0ComponentTypeAndCount.emplace(accessors.colors[0].attributeInfo.componentType, static_cast<std::uint8_t>(getNumComponents(accessor.type)));
     }
 
@@ -487,7 +396,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderer(const Asse
             specialization.texcoordComponentTypeAndNormalized.emplace_back(info.attributeInfo.componentType, info.attributeInfo.normalized);
         }
 
-        const fastgltf::Material &material = gltfAsset->asset.materials[*primitive.materialIndex];
+        const fastgltf::Material &material = assetExtended->asset.materials[*primitive.materialIndex];
         specialization.alphaMode = material.alphaMode;
     }
 
@@ -497,7 +406,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderer(const Asse
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
-    const vkgltf::PrimitiveAttributeBuffers &accessors = gltfAsset->primitiveAttributeBuffers.at(&primitive);
+    const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
     UnlitPrimitiveRendererSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
@@ -511,12 +420,12 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderer(const
     }
 
     if (!accessors.colors.empty()) {
-        const fastgltf::Accessor &accessor = gltfAsset->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+        const fastgltf::Accessor &accessor = assetExtended->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
         specialization.color0ComponentTypeAndCount.emplace(accessors.colors[0].attributeInfo.componentType, static_cast<std::uint8_t>(getNumComponents(accessor.type)));
     }
 
     if (primitive.materialIndex) {
-        const fastgltf::Material &material = gltfAsset->asset.materials[*primitive.materialIndex];
+        const fastgltf::Material &material = assetExtended->asset.materials[*primitive.materialIndex];
         if (const auto &textureInfo = material.pbrData.baseColorTexture) {
             const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
             specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
@@ -535,29 +444,14 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderer(const
 // submission.
 // --------------------
 
-void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &newSwapchainExtent, std::span<const vk::Image> newSwapchainImages) {
-    swapchainExtent = newSwapchainExtent;
-    swapchainImages = newSwapchainImages;
-
+void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages) {
     imGuiAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
 }
 
-void vk_gltf_viewer::vulkan::SharedData::changeAsset(
-    const fastgltf::Asset &asset,
-    const std::filesystem::path &directory,
-    const gltf::AssetExternalBuffers &adapter
-) {
-    // If asset texture count exceeds the available texture count provided by the GPU, throw the error before
-    // processing data to avoid unnecessary processing.
-    const std::uint32_t textureCount = 1 + asset.textures.size();
-    if (textureCount > dsl::Asset::maxTextureCount(gpu)) {
-        throw gltf::AssetProcessError::TooManyTextureError;
-    }
+void vk_gltf_viewer::vulkan::SharedData::setAsset(std::shared_ptr<const vulkan::gltf::AssetExtended> _assetExtended) {
+    assetExtended = std::move(_assetExtended);
 
-    vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-    vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, transferCommandPool, gpu.queues.transfer };
-    gltfAsset.emplace(asset, directory, gpu, fallbackTexture, adapter, stagingBufferStorage);
-
+    const std::uint32_t textureCount = 1 + assetExtended->asset.textures.size();
     if (!gpu.supportVariableDescriptorCount && get<3>(assetDescriptorSetLayout.descriptorCounts) != textureCount) {
         // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
         nodeIndexPipelines.clear();
@@ -574,6 +468,4 @@ void vk_gltf_viewer::vulkan::SharedData::changeAsset(
         primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
         primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
     }
-
-    // In here stagingBufferStorage will be destroyed and fence will block until buffer staging operation finishes.
 }

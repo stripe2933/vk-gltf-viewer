@@ -1,7 +1,5 @@
 module;
 
-#include <cassert>
-
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 #include <lifetimebound.hpp>
@@ -12,17 +10,16 @@ import std;
 export import BS.thread_pool;
 export import vkgltf;
 
-export import vk_gltf_viewer.gltf.AssetExternalBuffers;
+export import vk_gltf_viewer.gltf.AssetExtended;
 export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::buffer {
     export
     [[nodiscard]] std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers> createPrimitiveAttributeBuffers(
-        const fastgltf::Asset &asset LIFETIMEBOUND,
-        const Gpu &gpu,
+        const gltf::AssetExtended &assetExtended LIFETIMEBOUND,
+        const Gpu &gpu LIFETIMEBOUND,
         vkgltf::StagingBufferStorage &stagingBufferStorage,
-        BS::thread_pool<> &threadPool,
-        const gltf::AssetExternalBuffers &adapter
+        BS::thread_pool<> &threadPool
     );
 
 }
@@ -32,17 +29,16 @@ module :private;
 #endif
 
 std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers> vk_gltf_viewer::vulkan::buffer::createPrimitiveAttributeBuffers(
-    const fastgltf::Asset &asset,
+    const gltf::AssetExtended &assetExtended,
     const Gpu &gpu,
     vkgltf::StagingBufferStorage &stagingBufferStorage,
-    BS::thread_pool<> &threadPool,
-    const gltf::AssetExternalBuffers &adapter
+    BS::thread_pool<> &threadPool
 ) {
     const vkgltf::PrimitiveAttributeBuffers::AttributeInfoCache cache {
-        asset,
+        assetExtended.asset,
         gpu.allocator,
         vkgltf::PrimitiveAttributeBuffers::AttributeInfoCache::Config {
-            .adapter = adapter,
+            .adapter = assetExtended.externalBuffers,
             .maxTexcoordAttributeCount = 4,
             .maxJointsAttributeCount = std::numeric_limits<std::size_t>::max(),
             .maxWeightsAttributeCount = std::numeric_limits<std::size_t>::max(),
@@ -54,7 +50,7 @@ std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers
     };
 
     const vkgltf::PrimitiveAttributeBuffers::Config config {
-        .adapter = adapter,
+        .adapter = assetExtended.externalBuffers,
         .cache = &cache,
         .maxTexcoordAttributeCount = 4,
         .maxJointsAttributeCount = std::numeric_limits<std::size_t>::max(),
@@ -70,7 +66,7 @@ std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers
 
     std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers> result;
     std::vector<const fastgltf::Primitive*> primitiveNeedsMikkTSpaceTangents;
-    for (const fastgltf::Mesh &mesh : asset.meshes) {
+    for (const fastgltf::Mesh &mesh : assetExtended.asset.meshes) {
         for (const fastgltf::Primitive &primitive : mesh.primitives) {
             if (primitive.findAttribute("POSITION") == primitive.attributes.end()) {
                 // glTF 2.0 specification:
@@ -83,7 +79,7 @@ std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers
 
             const vkgltf::PrimitiveAttributeBuffers &emplaced = result.try_emplace(
                 &primitive,
-                asset, primitive, gpu.allocator, config).first->second;
+                assetExtended.asset, primitive, gpu.allocator, config).first->second;
             if (emplaced.needMikkTSpaceTangents()) {
                 primitiveNeedsMikkTSpaceTangents.push_back(&primitive);
             }
@@ -103,7 +99,7 @@ std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers
                 vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
                 vma::MemoryUsage::eAutoPreferHost,
             },
-            adapter);
+            assetExtended.externalBuffers);
     }).wait();
 
     // ----- Collect distinct buffers for staging -----
