@@ -627,7 +627,6 @@ namespace vkgltf {
             // Erase type.
             const std::span generatedBytes = visit([](const auto &generated) { return as_bytes(std::span { generated }); }, generated);
 
-            const vk::DeviceSize stride = getComponentByteSize(componentType);
             tangent.emplace().attributeInfo = {
                 .buffer = std::make_shared<vku::AllocatedBuffer>(
                     allocator,
@@ -639,9 +638,8 @@ namespace vkgltf {
                         queueFamilies,
                     },
                     allocationCreateInfo),
-                .offset = 0,
                 .size = generatedBytes.size_bytes(),
-                .stride = stride,
+                .stride = 4 * getComponentByteSize(componentType),
                 .componentType = componentType,
                 .normalized = componentType != fastgltf::ComponentType::Float,
             };
