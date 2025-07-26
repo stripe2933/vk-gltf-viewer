@@ -9,6 +9,7 @@ export import vk_gltf_viewer.gltf.AssetExternalBuffers;
 export import vk_gltf_viewer.gltf.TextureUsage;
 export import vk_gltf_viewer.gltf.SceneInverseHierarchy;
 export import vk_gltf_viewer.gltf.StateCachedNodeVisibilityStructure;
+import vk_gltf_viewer.gltf.util;
 export import vk_gltf_viewer.imgui.ColorSpaceAndUsageCorrectedTextures;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;
@@ -35,9 +36,9 @@ namespace vk_gltf_viewer::gltf {
         fastgltf::Asset asset;
 
     	/**
-		 * @brief Pairs of (primitive, original material index).
+		 * @brief Association of primitive -> original material index.
 		 */
-        std::vector<std::pair<fastgltf::Primitive*, std::optional<std::size_t>>> originalMaterialIndexByPrimitive;
+        std::unordered_map<const fastgltf::Primitive*, std::optional<std::size_t>> originalMaterialIndexByPrimitive;
 
         /**
          * @brief Map of (material index, texture usage flags) for each texture.
@@ -165,7 +166,7 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
 	// originalMaterialIndexByPrimitive
 	for (fastgltf::Mesh &mesh: asset.meshes) {
 		for (fastgltf::Primitive &primitive: mesh.primitives) {
-			originalMaterialIndexByPrimitive.emplace_back(&primitive, primitive.materialIndex);
+			originalMaterialIndexByPrimitive.try_emplace(&primitive, primitive.materialIndex);
 		}
 	}
 
@@ -209,31 +210,9 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
 
 	// imGuiSelectedMaterialVariantsIndex
 	if (ranges::contains(asset.extensionsUsed, "KHR_materials_variants"sv)) {
-		// Find primitives that are affected by KHR_material_variants.
-		const auto isMaterialVariantUsed = [&](std::size_t variantIndex) {
-			for (const fastgltf::Primitive *primitive : originalMaterialIndexByPrimitive | std::views::keys) {
-				if (primitive->mappings.empty()) {
-					// Primitive is not affected by KHR_material_variants.
-					continue;
-				}
-
-				const auto &materialIndex = primitive->mappings.at(variantIndex);
-				if (materialIndex && *materialIndex != primitive->materialIndex.value()) {
-					// The material variants given by variantIndex refers different material than what presented at
-					// the loading time.
-					return false;
-				}
-			}
-
-			return true;
-		};
-
-		for (std::size_t variantIndex : ranges::views::upto(asset.materialVariants.size())) {
-			if (isMaterialVariantUsed(variantIndex)) {
-				imGuiSelectedMaterialVariantsIndex.emplace(variantIndex);
-				break;
-			}
-		}
+		imGuiSelectedMaterialVariantsIndex = getActiveMaterialVariantIndex(asset, [this](const fastgltf::Primitive &primitive) {
+			return originalMaterialIndexByPrimitive.at(&primitive);
+		});
 	}
 
 	// nodeWorldTransforms

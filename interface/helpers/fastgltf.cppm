@@ -24,6 +24,14 @@ import vk_gltf_viewer.helpers.type_map;
     }
 
 namespace fastgltf {
+    export template <typename T>
+    [[nodiscard]] std::optional<T> to_optional(OptionalWithFlagValue<T> v) noexcept {
+        if (v) {
+            return *v;
+        }
+        return std::nullopt;
+    }
+
     export
     [[nodiscard]] cpp_util::cstring_view to_string(PrimitiveType value) noexcept;
 

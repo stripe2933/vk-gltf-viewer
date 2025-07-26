@@ -1,6 +1,7 @@
 export module vk_gltf_viewer.control.Task;
 
 import std;
+export import fastgltf;
 export import glm;
 export import imgui.internal;
 
@@ -58,7 +59,7 @@ namespace vk_gltf_viewer::control {
             std::size_t materialIndex;
             Property property;
         };
-        struct SelectMaterialVariants { std::size_t variantIndex; };
+        struct PrimitiveMaterialChanged { const fastgltf::Primitive *primitive; };
         struct MorphTargetWeightChanged { std::size_t nodeIndex; std::size_t targetWeightStartIndex; std::size_t targetWeightCount; };
         struct BloomModeChanged{};
     }
@@ -84,7 +85,7 @@ namespace vk_gltf_viewer::control {
         task::NodeLocalTransformChanged,
         task::NodeWorldTransformChanged,
         task::MaterialPropertyChanged,
-        task::SelectMaterialVariants,
+        task::PrimitiveMaterialChanged,
         task::MorphTargetWeightChanged,
         task::BloomModeChanged>;
 }

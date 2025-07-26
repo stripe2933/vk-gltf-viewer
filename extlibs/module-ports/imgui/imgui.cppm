@@ -149,6 +149,7 @@ namespace ImGui {
     export using ImGui::SetNextItemAllowOverlap;
     export using ImGui::SetNextItemWidth;
     export using ImGui::SetNextWindowPos;
+    export using ImGui::SmallButton;
     export using ImGui::TableHeadersRow;
     export using ImGui::TableNextRow;
     export using ImGui::TableSetColumnIndex;
