@@ -29,6 +29,16 @@ module;
 #undef MemoryBarrier
 #endif
 
+#ifdef _WIN32
+#define DEFAULT_FONT_PATH "C:\\Windows\\Fonts\\arial.ttf"
+#elif __APPLE__
+#define DEFAULT_FONT_PATH "/System/Library/Fonts/SFNS.ttf"
+#elif __linux__
+#define DEFAULT_FONT_PATH "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf"
+#else
+#error "Type your own font file in here!"
+#endif
+
 module vk_gltf_viewer.MainApp;
 
 import cubemap;
@@ -162,6 +172,32 @@ void vk_gltf_viewer::MainApp::run() {
 
     std::array<bool, FRAMES_IN_FLIGHT> regenerateDrawCommands{};
 
+    // Current application running loop flow is like:
+    //
+    // while (application is running) {
+    //    waitForPreviousFrameGpuExecution();
+    //
+    //    // Collect frame tasks.
+    //    pollEvents(); // <- Collect task from window events (mouse, keyboard, drag and drop, ...).
+    //    imGuiFuncs(); // <- Collect task from GUI input (buton click, ...).
+    //
+    //    processFrameTasks();
+    //
+    //    recordCommandBuffers(); // Will call ImGui_ImplVulkan_RenderDrawData().
+    //    submitCommandBuffers();
+    //    presentFrame();
+    // }
+    //
+    // The problem is: changing glTF asset may be requested via ImGui menu click, and the previous asset will be
+    // destroyed in processFrameTasks() function. But, imGuiFuncs() was already executed, and it will store the
+    // ImTextureID (=VkDescriptorSet) in its internal state. Then recordCommandBuffers() will try to use the already
+    // destroyed texture.
+    //
+    // To work-around, before destroying the previously loaded asset, its ownership is shared to
+    // retainedAssetExtended[frameIndex % FRAMES_IN_FLIGHT], to prevent the asset is completely destroyed. The asset
+    // will be retained during its frame execution, and should be destroyed after the frame execution is completed.
+    std::array<std::shared_ptr<const gltf::AssetExtended>, FRAMES_IN_FLIGHT> retainedAssetExtended;
+
     // TODO: we need more general mechanism to upload the GPU buffer data in shared data. This is just a stopgap solution
     //  for current KHR_materials_variants implementation.
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
@@ -263,6 +299,12 @@ void vk_gltf_viewer::MainApp::run() {
             else if (assetExtended) {
                 assetExtended->hoveringNode.reset();
             }
+        }
+
+        if (auto &retained = retainedAssetExtended[frameIndex % FRAMES_IN_FLIGHT]) {
+            // The previous execution of the frame requested destroying the asset, and now the request can be done
+            // (as ImGui will not refer its texture).
+            retained.reset();
         }
 
         graphicsCommandPool.reset();
@@ -420,6 +462,8 @@ void vk_gltf_viewer::MainApp::run() {
                     frameDeferredTask.setPassthruExtent(extent);
                 },
                 [&](const control::task::LoadGltf &task) {
+                    retainedAssetExtended[frameIndex % FRAMES_IN_FLIGHT] = assetExtended;
+
                     loadGltf(task.path);
 
                     // All planned updates related to the previous glTF asset have to be canceled.
@@ -430,6 +474,8 @@ void vk_gltf_viewer::MainApp::run() {
                     regenerateDrawCommands.fill(true);
                 },
                 [&](control::task::CloseGltf) {
+                    retainedAssetExtended[frameIndex % FRAMES_IN_FLIGHT] = assetExtended;
+
                     closeGltf();
 
                     // All planned updates related to the previous glTF asset have to be canceled.
@@ -769,42 +815,21 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
     ImGui::CheckVersion();
     ImGui::CreateContext();
 
-    ImGuiIO &io = ImGui::GetIO();
-    const glm::vec2 contentScale = window.getContentScale();
-    io.DisplayFramebufferScale = { contentScale.x, contentScale.y };
-#if __APPLE__
-    io.FontGlobalScale = 1.f / io.DisplayFramebufferScale.x;
-#endif
+    ImGuiIO &io = ImGui::GetIO();    
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     ImFontConfig fontConfig;
-    fontConfig.SizePixels = 16.f * io.DisplayFramebufferScale.x;
-
-    const char *defaultFontPath =
-#ifdef _WIN32
-        "C:\\Windows\\Fonts\\arial.ttf";
-#elif __APPLE__
-        "/Library/Fonts/Arial Unicode.ttf";
-#elif __linux__
-        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf";
-#else
-#error "Type your own font file in here!"
-#endif
-    if (std::filesystem::exists(defaultFontPath)) {
-        io.Fonts->AddFontFromFileTTF(defaultFontPath, 16.f * io.DisplayFramebufferScale.x);
+    if (std::filesystem::exists(DEFAULT_FONT_PATH)) {
+        io.Fonts->AddFontFromFileTTF(DEFAULT_FONT_PATH, 0.f, &fontConfig);
     }
     else {
-        std::println(std::cerr, "Your system doesn't have expected system font at {}. Low-resolution font will be used instead.", defaultFontPath);
+        std::cerr << "Your system doesn't have expected system font at " DEFAULT_FONT_PATH ". Low-resolution font will be used instead.";
         io.Fonts->AddFontDefault(&fontConfig);
     }
 
     fontConfig.MergeMode = true;
     constexpr ImWchar fontAwesomeIconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
-    io.Fonts->AddFontFromMemoryCompressedBase85TTF(
-        asset::font::fontawesome_webfont_ttf_compressed_data_base85,
-        fontConfig.SizePixels, &fontConfig, fontAwesomeIconRanges);
-
-    io.Fonts->Build();
+    io.Fonts->AddFontFromMemoryCompressedBase85TTF(asset::font::fontawesome_webfont_ttf_compressed_data_base85, 0.f, &fontConfig, fontAwesomeIconRanges);
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
     const vk::Format colorAttachmentFormat = gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb;

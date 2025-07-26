@@ -123,9 +123,9 @@ void makeWindowVisible(const char* window_name) {
     }
 }
 
-void hoverableImage(ImTextureID texture, const ImVec2 &size) {
+void hoverableImage(ImTextureRef tex_ref, const ImVec2 &size) {
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
-    ImGui::Image(texture, size);
+    ImGui::Image(tex_ref, size);
 
     if (ImGui::BeginItemTooltip()) {
         const ImGuiIO &io = ImGui::GetIO();
@@ -136,16 +136,16 @@ void hoverableImage(ImTextureID texture, const ImVec2 &size) {
         region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
 
         constexpr float zoomScale = 4.0f;
-        ImGui::Image(texture, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
+        ImGui::Image(tex_ref, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
         ImGui::TextUnformatted(tempStringBuffer.write("Showing: [{:.0f}, {:.0f}]x[{:.0f}, {:.0f}]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y));
 
         ImGui::EndTooltip();
     }
 }
 
-void hoverableImageCheckerboardBackground(ImTextureID texture, const ImVec2 &size) {
+void hoverableImageCheckerboardBackground(ImTextureRef texture_ref, const ImVec2 &size) {
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
-    ImGui::ImageCheckerboardBackground(texture, size);
+    ImGui::ImageCheckerboardBackground(texture_ref, size);
 
     if (ImGui::BeginItemTooltip()) {
         const ImGuiIO &io = ImGui::GetIO();
@@ -156,7 +156,7 @@ void hoverableImageCheckerboardBackground(ImTextureID texture, const ImVec2 &siz
         region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
 
         constexpr float zoomScale = 4.0f;
-        ImGui::ImageCheckerboardBackground(texture, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
+        ImGui::ImageCheckerboardBackground(texture_ref, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
         ImGui::TextUnformatted(tempStringBuffer.write("Showing: [{:.0f}, {:.0f}]x[{:.0f}, {:.0f}]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y));
 
         ImGui::EndTooltip();
@@ -301,7 +301,7 @@ vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(std::queue<Task>
     ImGui::NewFrame();
 
     // Enable global docking.
-    ImGuiID dockSpace = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
+    ImGuiID dockSpace = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_NoDockingOverCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
     if (shouldMakeDefaultDockState) {
         dockSpace = makeDefaultDockState(dockSpace);
     }
@@ -1069,7 +1069,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
 
                 bool isNodeSelected = std::ranges::all_of(ancestorNodeIndices, LIFT(assetExtended.selectedNodes.contains)) && assetExtended.selectedNodes.contains(nodeIndex);
                 const bool isTreeNodeOpen = ImGui::WithStyleColor(ImGuiCol_Header, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive), [&]() {
-                    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap;
+                    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap | ImGuiTreeNodeFlags_DrawLinesToNodes;
                     if (nodeIndex == assetExtended.hoveringNode) flags |= ImGuiTreeNodeFlags_Framed;
                     if (isNodeSelected) flags |= ImGuiTreeNodeFlags_Selected;
                     if (node.children.empty()) flags |= ImGuiTreeNodeFlags_Bullet | ImGuiTreeNodeFlags_Leaf;
@@ -1540,13 +1540,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
     const AppState::ImageBasedLighting &info,
-    ImTextureID eqmapTextureImGuiDescriptorSet
+    ImTextureRef eqmapTextureRef
 ) {
     if (ImGui::Begin("IBL")) {
         if (ImGui::CollapsingHeader("Equirectangular map")) {
             const float eqmapAspectRatio = static_cast<float>(info.eqmap.dimension.y) / info.eqmap.dimension.x;
             const ImVec2 eqmapTextureSize = ImVec2 { 1.f, eqmapAspectRatio } * ImGui::GetContentRegionAvail().x;
-            hoverableImage(eqmapTextureImGuiDescriptorSet, eqmapTextureSize);
+            hoverableImage(eqmapTextureRef, eqmapTextureSize);
 
             ImGui::WithLabel("File"sv, [&]() {
                 ImGui::TextLinkOpenURL(PATH_C_STR(info.eqmap.path.filename()), PATH_C_STR(info.eqmap.path));
