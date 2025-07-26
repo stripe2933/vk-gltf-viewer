@@ -1007,9 +1007,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
 }
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(gltf::AssetExtended &assetExtended) {
-    assert(assetExtended.imGuiSelectedMaterialVariantsIndex.has_value());
     if (ImGui::Begin("Material Variants")) {
-        int selected = *assetExtended.imGuiSelectedMaterialVariantsIndex;
+        int selected = -1;
+        if (assetExtended.imGuiSelectedMaterialVariantsIndex) {
+            selected = static_cast<int>(*assetExtended.imGuiSelectedMaterialVariantsIndex);
+        }
+
         for (const auto &[i, variantName] : assetExtended.asset.materialVariants | ranges::views::enumerate) {
             if (ImGui::RadioButton(variantName.c_str(), &selected, i)) {
                 assetExtended.imGuiSelectedMaterialVariantsIndex.emplace(selected);
