@@ -668,8 +668,19 @@ void vk_gltf_viewer::MainApp::run() {
                     const bool isPrimitiveBufferHostVisible = vku::contains(
                         gpu.allocator.getAllocationMemoryProperties(vkAssetExtended->primitiveBuffer.allocation),
                         vk::MemoryPropertyFlagBits::eHostVisible);
-                    for (const auto &[primitive, originalMaterialIndex] : assetExtended->materialVariantsMapping) {
-                        const std::size_t materialIndex = primitive->mappings.at(task.variantIndex).value_or(originalMaterialIndex);
+                    for (const auto &[primitive, originalMaterialIndex] : assetExtended->originalMaterialIndexByPrimitive) {
+                        if (primitive->mappings.empty()) {
+                            // Primitive material has no variants.
+                            continue;
+                        }
+
+                        std::size_t materialIndex;
+                        if (const auto &i = primitive->mappings.at(task.variantIndex)) {
+                            materialIndex = *i;
+                        }
+                        else {
+                            materialIndex = originalMaterialIndex.value();;
+                        }
                         primitive->materialIndex.emplace(materialIndex);
 
                         const std::size_t primitiveIndex = vkAssetExtended->primitiveBuffer.getPrimitiveIndex(*primitive);
