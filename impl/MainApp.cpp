@@ -650,42 +650,34 @@ void vk_gltf_viewer::MainApp::run() {
                             break;
                     }
                 },
-                [&](const control::task::SelectMaterialVariants &task) {
-                    gpu.device.waitIdle();
+                [&](const control::task::PrimitiveMaterialChanged &task) {
+                    vkgltf::PrimitiveBuffer &primitiveBuffer = dynamic_cast<vulkan::gltf::AssetExtended*>(assetExtended.get())->primitiveBuffer;
+                    const std::size_t primitiveIndex = primitiveBuffer.getPrimitiveIndex(*task.primitive);
+                    std::int32_t &dstData = primitiveBuffer.mappedData[primitiveIndex].materialIndex;
 
-                    auto* const vkAssetExtended = dynamic_cast<vulkan::gltf::AssetExtended*>(assetExtended.get());
+                    if (vku::contains(gpu.allocator.getAllocationMemoryProperties(primitiveBuffer.allocation), vk::MemoryPropertyFlagBits::eHostVisible)) {
+                        gpu.device.waitIdle();
 
-                    const bool isPrimitiveBufferHostVisible = vku::contains(
-                        gpu.allocator.getAllocationMemoryProperties(vkAssetExtended->primitiveBuffer.allocation),
-                        vk::MemoryPropertyFlagBits::eHostVisible);
-                    for (const auto &[primitive, originalMaterialIndex] : assetExtended->originalMaterialIndexByPrimitive) {
-                        if (primitive->mappings.empty()) {
-                            // Primitive material has no variants.
-                            continue;
-                        }
-
-                        std::size_t materialIndex;
-                        if (const auto &i = primitive->mappings.at(task.variantIndex)) {
-                            materialIndex = *i;
+                        if (task.primitive->materialIndex) {
+                            dstData = *task.primitive->materialIndex + 1;
                         }
                         else {
-                            materialIndex = originalMaterialIndex.value();;
+                            dstData = 0;
                         }
-                        primitive->materialIndex.emplace(materialIndex);
+                    }
+                    else {
+                        const vk::DeviceSize dstOffset
+                            = reinterpret_cast<const std::byte*>(&dstData)
+                            - reinterpret_cast<const std::byte*>(primitiveBuffer.mappedData.data());
 
-                        const std::size_t primitiveIndex = vkAssetExtended->primitiveBuffer.getPrimitiveIndex(*primitive);
-                        std::int32_t &dstData = vkAssetExtended->primitiveBuffer.mappedData[primitiveIndex].materialIndex;
-                        if (isPrimitiveBufferHostVisible) {
-                            dstData = materialIndex + 1;
+                        std::uint32_t data = 0;
+                        if (task.primitive->materialIndex) {
+                            data = *task.primitive->materialIndex + 1;
                         }
-                        else {
-                            const vk::DeviceSize dstOffset
-                                = reinterpret_cast<const std::byte*>(&dstData)
-                                - reinterpret_cast<const std::byte*>(vkAssetExtended->primitiveBuffer.mappedData.data());
-                            sharedDataUpdateCommandBuffer.updateBuffer<std::remove_cvref_t<decltype(dstData)>>(
-                                vkAssetExtended->primitiveBuffer, dstOffset, materialIndex + 1);
-                            hasUpdateData = true;
-                        }
+
+                        sharedDataUpdateCommandBuffer.updateBuffer<std::remove_cvref_t<decltype(dstData)>>(
+                            primitiveBuffer, dstOffset, data);
+                        hasUpdateData = true;
                     }
                 },
                 [&](const control::task::MorphTargetWeightChanged &task) {
