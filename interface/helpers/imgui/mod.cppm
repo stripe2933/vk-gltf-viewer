@@ -73,7 +73,7 @@ namespace ImGui {
         }
     }
 
-    export bool ImageButtonWithText(std::string_view str_id, ImTextureID user_texture_id, std::string_view text, const ImVec2 &image_size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& bg_col = ImVec4(0, 0, 0, 0), const ImVec4& tint_col = ImVec4(1, 1, 1, 1), ImGuiButtonFlags flags = 0) {
+    export bool ImageButtonWithText(std::string_view str_id, ImTextureRef tex_ref, std::string_view text, const ImVec2 &image_size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& bg_col = ImVec4(0, 0, 0, 0), const ImVec4& tint_col = ImVec4(1, 1, 1, 1), ImGuiButtonFlags flags = 0) {
         ImGuiStyle &style = GetStyle();
         ImGuiWindow* window = GetCurrentWindow();
         if (window->SkipItems)
@@ -100,7 +100,7 @@ namespace ImGui {
         if (bg_col.w > 0.0f)
             window->DrawList->AddRectFilled(p_min, p_max, GetColorU32(bg_col));
         window->DrawList->AddImage(static_cast<const vk_gltf_viewer::imgui::UserData*>(GetIO().UserData)->platformResource->checkerboardTextureID, p_min, p_max, image_size * uv0 / 16.f, image_size * uv1 / 16.f, GetColorU32(tint_col));
-        window->DrawList->AddImage(user_texture_id, p_min, p_max, uv0, uv1, GetColorU32(tint_col));
+        window->DrawList->AddImage(tex_ref, p_min, p_max, uv0, uv1, GetColorU32(tint_col));
         window->DrawList->PushClipRect({ p_min.x, p_max.y }, { p_max.x, p_max.y + GetTextLineHeight() }, true);
         window->DrawList->AddText({ p_min.x, p_max.y }, GetColorU32(ImGuiCol_Text), text.data(), text.data() + text.size());
         window->DrawList->PopClipRect();
@@ -108,12 +108,12 @@ namespace ImGui {
         return pressed;
     }
 
-    export void ImageCheckerboardBackground(ImTextureID textureId, const ImVec2 &size, const ImVec2 &uv0 = {}, const ImVec2 &uv1 = { 1, 1 }) {
+    export void ImageCheckerboardBackground(ImTextureRef tex_ref, const ImVec2 &size, const ImVec2 &uv0 = {}, const ImVec2 &uv1 = { 1, 1 }) {
         const ImVec2 texturePosition = GetCursorScreenPos();
         SetNextItemAllowOverlap();
         Image(static_cast<const vk_gltf_viewer::imgui::UserData*>(GetIO().UserData)->platformResource->checkerboardTextureID, size, size * uv0 / 16.f, size * uv1 / 16.f);
         SetCursorScreenPos(texturePosition);
-        Image(textureId, size, uv0, uv1);
+        Image(tex_ref, size, uv0, uv1);
     }
 
     export template <std::invocable F>

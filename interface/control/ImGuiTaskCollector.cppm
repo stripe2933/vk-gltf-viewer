@@ -27,7 +27,7 @@ namespace vk_gltf_viewer::control {
         void materialVariants(gltf::AssetExtended &assetExtended);
         void sceneHierarchy(gltf::AssetExtended &assetExtended);
         void nodeInspector(gltf::AssetExtended &assetExtended);
-        void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureID eqmapTextureImGuiDescriptorSet);
+        void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureRef eqmapTextureImGuiDescriptorSet);
         void rendererSetting(Renderer &renderer);
         void imguizmo(Renderer &renderer);
         void imguizmo(Renderer &renderer, gltf::AssetExtended &assetExtended);

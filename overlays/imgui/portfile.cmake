@@ -5,18 +5,18 @@ if ("docking-experimental" IN_LIST FEATURES)
         OUT_SOURCE_PATH SOURCE_PATH
         REPO ocornut/imgui
         REF "v${VERSION}-docking"
-        SHA512 8c43016957a4811922e2bbf9108eecb0c94944e34b357087b8c989eb8c1155483eeb84af6b5291b3512fcd1bfe3e1a2bc04870594e7e9f4e28b0629e3eecbf25
+        SHA512 a6bce731285669667df32092b58b95a246c9db2d695950b699cefcda33d8eb470cfd00e44fedd1e5bc79df5981669feee792b63440c671828fe629548f0f5dc5
         HEAD_REF docking
-        PATCHES draw-tree-lines.patch use-fallback-texture.patch msvc-module-fix.patch
+        PATCHES no-static-inline.patch
     )
 else()
     vcpkg_from_github(
         OUT_SOURCE_PATH SOURCE_PATH
         REPO ocornut/imgui
         REF "v${VERSION}"
-        SHA512 421aa81b55a85a8c4ea21d1b352e41e916b9e0f3ccfee3dcf415fc69c49a5feffc742c991fe10a19725a3766c92ebc5bff1027d6278ae7b8f1861474e891d6e6
+        SHA512 58d1499dccfb43aa5b97c6c9cef9967979827443beec5ec1a42d120b935302f6c69bcc2a1247cada962ee0d80dc87726ffc8d0e0f7ba795f237a07c3bcc531fe
         HEAD_REF master
-        PATCHES draw-tree-lines.patch use-fallback-texture.patch msvc-module-fix.patch
+        PATCHES no-static-inline.patch
     )
 endif()
 
