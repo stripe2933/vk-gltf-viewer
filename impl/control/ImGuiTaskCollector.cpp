@@ -1452,6 +1452,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                                     });
                                 }
 
+                                if (ImGui::Selectable("[Assign new material...]")) {
+                                    const std::size_t newMaterialIndex = assetExtended.asset.materials.size();
+                                    assetExtended.asset.materials.push_back({});
+                                    tasks.emplace(std::in_place_type<task::MaterialAdded>);
+
+                                    primitive.materialIndex.emplace(newMaterialIndex);
+                                    primitiveMaterialChanged = true;
+                                }
+
                                 ImGui::EndCombo();
                             }
 

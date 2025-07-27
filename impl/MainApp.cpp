@@ -200,8 +200,9 @@ void vk_gltf_viewer::MainApp::run() {
 
     // TODO: we need more general mechanism to upload the GPU buffer data in shared data. This is just a stopgap solution
     //  for current KHR_materials_variants implementation.
-    const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
-    const auto [sharedDataUpdateCommandBuffer] = vku::allocateCommandBuffers<1>(*gpu.device, *graphicsCommandPool);
+    vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+    auto [sharedDataUpdateCommandBuffer] = vku::allocateCommandBuffers<1>(*gpu.device, *graphicsCommandPool);
+    std::vector<vku::AllocatedBuffer> sharedDataStagingBuffers;
 
     for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); ++frameIndex) {
         bool hasUpdateData = false;
@@ -544,6 +545,27 @@ void vk_gltf_viewer::MainApp::run() {
 
                     assetExtended->sceneMiniball.invalidate();
                 },
+                [&](control::task::MaterialAdded) {
+                    vulkan::gltf::AssetExtended &vkAsset = *dynamic_cast<vulkan::gltf::AssetExtended*>(assetExtended.get());
+                    if (!vkAsset.materialBuffer.canAddMaterial()) {
+                        // Enlarge the material buffer.
+                        gpu.device.waitIdle();
+                        if (auto oldMaterialBuffer = vkAsset.materialBuffer.enlarge(sharedDataUpdateCommandBuffer)) {
+                            sharedDataStagingBuffers.push_back(std::move(*oldMaterialBuffer));
+                            hasUpdateData = true;
+                        }
+
+                        // Update asset descriptor set by each frame to make them point to the new material buffer.
+                        INDEX_SEQ(Is, FRAMES_IN_FLIGHT, {
+                            sharedData.gpu.device.updateDescriptorSets(
+                                std::array { (get<Is>(frames).assetDescriptorSet.template getWrite<2>(vkAsset.materialBuffer.descriptorInfo))... },
+                                {});
+                        });
+                    }
+
+                    // Add the new material to the material buffer.
+                    hasUpdateData |= vkAsset.materialBuffer.add(assetExtended->asset.materials.back(), sharedDataUpdateCommandBuffer);
+                },
                 [&](const control::task::MaterialPropertyChanged &task) {
                     const fastgltf::Material &changedMaterial = assetExtended->asset.materials[task.materialIndex];
                     auto* const vkAssetExtended = dynamic_cast<vulkan::gltf::AssetExtended*>(assetExtended.get());
@@ -753,9 +775,10 @@ void vk_gltf_viewer::MainApp::run() {
         if (hasUpdateData) {
             sharedDataUpdateCommandBuffer.end();
 
-            const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+            vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
             gpu.queues.graphicsPresent.submit(vk::SubmitInfo { {}, {}, sharedDataUpdateCommandBuffer }, *fence);
             std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
+            sharedDataStagingBuffers.clear();
         }
 
         // Update frame resources.

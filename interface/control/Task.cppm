@@ -33,7 +33,7 @@ namespace vk_gltf_viewer::control {
          * transforms will be changed to match their original world transform.
          */
         struct NodeWorldTransformChanged { std::size_t nodeIndex; };
-
+        struct MaterialAdded { };
         struct MaterialPropertyChanged {
             enum Property {
                 AlphaCutoff,
@@ -84,6 +84,7 @@ namespace vk_gltf_viewer::control {
         task::HoverNodeFromGui,
         task::NodeLocalTransformChanged,
         task::NodeWorldTransformChanged,
+        task::MaterialAdded,
         task::MaterialPropertyChanged,
         task::PrimitiveMaterialChanged,
         task::MorphTargetWeightChanged,
