@@ -200,8 +200,9 @@ void vk_gltf_viewer::MainApp::run() {
 
     // TODO: we need more general mechanism to upload the GPU buffer data in shared data. This is just a stopgap solution
     //  for current KHR_materials_variants implementation.
-    const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
-    const auto [sharedDataUpdateCommandBuffer] = vku::allocateCommandBuffers<1>(*gpu.device, *graphicsCommandPool);
+    vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
+    auto [sharedDataUpdateCommandBuffer] = vku::allocateCommandBuffers<1>(*gpu.device, *graphicsCommandPool);
+    std::vector<vku::AllocatedBuffer> sharedDataStagingBuffers;
 
     for (std::uint64_t frameIndex = 0; !glfwWindowShouldClose(window); ++frameIndex) {
         bool hasUpdateData = false;
@@ -544,6 +545,27 @@ void vk_gltf_viewer::MainApp::run() {
 
                     assetExtended->sceneMiniball.invalidate();
                 },
+                [&](control::task::MaterialAdded) {
+                    vulkan::gltf::AssetExtended &vkAsset = *dynamic_cast<vulkan::gltf::AssetExtended*>(assetExtended.get());
+                    if (!vkAsset.materialBuffer.canAddMaterial()) {
+                        // Enlarge the material buffer.
+                        gpu.device.waitIdle();
+                        if (auto oldMaterialBuffer = vkAsset.materialBuffer.enlarge(sharedDataUpdateCommandBuffer)) {
+                            sharedDataStagingBuffers.push_back(std::move(*oldMaterialBuffer));
+                            hasUpdateData = true;
+                        }
+
+                        // Update asset descriptor set by each frame to make them point to the new material buffer.
+                        INDEX_SEQ(Is, FRAMES_IN_FLIGHT, {
+                            sharedData.gpu.device.updateDescriptorSets(
+                                std::array { (get<Is>(frames).assetDescriptorSet.template getWrite<2>(vkAsset.materialBuffer.descriptorInfo))... },
+                                {});
+                        });
+                    }
+
+                    // Add the new material to the material buffer.
+                    hasUpdateData |= vkAsset.materialBuffer.add(assetExtended->asset.materials.back(), sharedDataUpdateCommandBuffer);
+                },
                 [&](const control::task::MaterialPropertyChanged &task) {
                     const fastgltf::Material &changedMaterial = assetExtended->asset.materials[task.materialIndex];
                     auto* const vkAssetExtended = dynamic_cast<vulkan::gltf::AssetExtended*>(assetExtended.get());
@@ -660,32 +682,38 @@ void vk_gltf_viewer::MainApp::run() {
                             break;
                     }
                 },
-                [&](const control::task::SelectMaterialVariants &task) {
-                    gpu.device.waitIdle();
+                [&](const control::task::PrimitiveMaterialChanged &task) {
+                    vkgltf::PrimitiveBuffer &primitiveBuffer = dynamic_cast<vulkan::gltf::AssetExtended*>(assetExtended.get())->primitiveBuffer;
+                    const std::size_t primitiveIndex = primitiveBuffer.getPrimitiveIndex(*task.primitive);
+                    std::int32_t &dstData = primitiveBuffer.mappedData[primitiveIndex].materialIndex;
 
-                    auto* const vkAssetExtended = dynamic_cast<vulkan::gltf::AssetExtended*>(assetExtended.get());
+                    if (vku::contains(gpu.allocator.getAllocationMemoryProperties(primitiveBuffer.allocation), vk::MemoryPropertyFlagBits::eHostVisible)) {
+                        gpu.device.waitIdle();
 
-                    const bool isPrimitiveBufferHostVisible = vku::contains(
-                        gpu.allocator.getAllocationMemoryProperties(vkAssetExtended->primitiveBuffer.allocation),
-                        vk::MemoryPropertyFlagBits::eHostVisible);
-                    for (const auto &[primitive, originalMaterialIndex] : assetExtended->materialVariantsMapping) {
-                        const std::size_t materialIndex = primitive->mappings.at(task.variantIndex).value_or(originalMaterialIndex);
-                        primitive->materialIndex.emplace(materialIndex);
-
-                        const std::size_t primitiveIndex = vkAssetExtended->primitiveBuffer.getPrimitiveIndex(*primitive);
-                        std::int32_t &dstData = vkAssetExtended->primitiveBuffer.mappedData[primitiveIndex].materialIndex;
-                        if (isPrimitiveBufferHostVisible) {
-                            dstData = materialIndex + 1;
+                        if (task.primitive->materialIndex) {
+                            dstData = *task.primitive->materialIndex + 1;
                         }
                         else {
-                            const vk::DeviceSize dstOffset
-                                = reinterpret_cast<const std::byte*>(&dstData)
-                                - reinterpret_cast<const std::byte*>(vkAssetExtended->primitiveBuffer.mappedData.data());
-                            sharedDataUpdateCommandBuffer.updateBuffer<std::remove_cvref_t<decltype(dstData)>>(
-                                vkAssetExtended->primitiveBuffer, dstOffset, materialIndex + 1);
-                            hasUpdateData = true;
+                            dstData = 0;
                         }
                     }
+                    else {
+                        const vk::DeviceSize dstOffset
+                            = reinterpret_cast<const std::byte*>(&dstData)
+                            - reinterpret_cast<const std::byte*>(primitiveBuffer.mappedData.data());
+
+                        std::uint32_t data = 0;
+                        if (task.primitive->materialIndex) {
+                            data = *task.primitive->materialIndex + 1;
+                        }
+
+                        sharedDataUpdateCommandBuffer.updateBuffer<std::remove_cvref_t<decltype(dstData)>>(
+                            primitiveBuffer, dstOffset, data);
+                        hasUpdateData = true;
+                    }
+
+                    // Draw commands need to be regenerated if changed material has different alpha mode/unlit/double-sided.
+                    regenerateDrawCommands.fill(true);
                 },
                 [&](const control::task::MorphTargetWeightChanged &task) {
                     // It merges the current node target weight update request with the previous requests.
@@ -747,9 +775,10 @@ void vk_gltf_viewer::MainApp::run() {
         if (hasUpdateData) {
             sharedDataUpdateCommandBuffer.end();
 
-            const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+            vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
             gpu.queues.graphicsPresent.submit(vk::SubmitInfo { {}, {}, sharedDataUpdateCommandBuffer }, *fence);
             std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
+            sharedDataStagingBuffers.clear();
         }
 
         // Update frame resources.

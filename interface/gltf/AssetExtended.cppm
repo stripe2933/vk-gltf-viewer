@@ -9,6 +9,7 @@ export import vk_gltf_viewer.gltf.AssetExternalBuffers;
 export import vk_gltf_viewer.gltf.TextureUsage;
 export import vk_gltf_viewer.gltf.SceneInverseHierarchy;
 export import vk_gltf_viewer.gltf.StateCachedNodeVisibilityStructure;
+import vk_gltf_viewer.gltf.util;
 export import vk_gltf_viewer.imgui.ColorSpaceAndUsageCorrectedTextures;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;
@@ -35,12 +36,9 @@ namespace vk_gltf_viewer::gltf {
         fastgltf::Asset asset;
 
     	/**
-		 * @brief Pairs of (primitive, original material index) that are affected by the <tt>KHR_materials_variants</tt>.
-		 *
-		 * When material variants is changed, primitives in this container have to be updated with the corresponding
-		 * variant material index, or the original material index if it is not given by the variant.
+		 * @brief Association of primitive -> original material index.
 		 */
-        std::vector<std::pair<fastgltf::Primitive*, std::size_t>> materialVariantsMapping;
+        std::unordered_map<const fastgltf::Primitive*, std::optional<std::size_t>> originalMaterialIndexByPrimitive;
 
         /**
          * @brief Map of (material index, texture usage flags) for each texture.
@@ -71,6 +69,10 @@ namespace vk_gltf_viewer::gltf {
 
         /**
          * @brief Index of the material variants that is currently used.
+         *
+         * If <tt>KHR_materials_variants</tt> extension is used, it is attempted to be calculated by iterating over all
+         * primitives in the asset and check the material index is used by the material variants. However, it may failed
+         * and the value will be <tt>std::nullopt</tt> in that case.
          */
         std::optional<std::size_t> imGuiSelectedMaterialVariantsIndex;
 
@@ -161,12 +163,10 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
     , sceneMiniball { [this]() {
         return algorithm::getMiniball(asset, sceneIndex, nodeWorldTransforms, externalBuffers);
     } } {
-	// materialVariantsMapping
-	for (fastgltf::Mesh &mesh : asset.meshes) {
-		for (fastgltf::Primitive &primitive : mesh.primitives) {
-			if (!primitive.mappings.empty()) {
-				materialVariantsMapping.emplace_back(&primitive, primitive.materialIndex.value());
-			}
+	// originalMaterialIndexByPrimitive
+	for (fastgltf::Mesh &mesh: asset.meshes) {
+		for (fastgltf::Primitive &primitive: mesh.primitives) {
+			originalMaterialIndexByPrimitive.try_emplace(&primitive, primitive.materialIndex);
 		}
 	}
 
@@ -206,6 +206,13 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
 			std::piecewise_construct,
 			std::tie(asset, animationIndex, externalBuffers),
 			std::tuple { false });
+	}
+
+	// imGuiSelectedMaterialVariantsIndex
+	if (ranges::contains(asset.extensionsUsed, "KHR_materials_variants"sv)) {
+		imGuiSelectedMaterialVariantsIndex = getActiveMaterialVariantIndex(asset, [this](const fastgltf::Primitive &primitive) {
+			return originalMaterialIndexByPrimitive.at(&primitive);
+		});
 	}
 
 	// nodeWorldTransforms

@@ -11,6 +11,7 @@ module vk_gltf_viewer.imgui.TaskCollector;
 import imgui.math;
 
 import vk_gltf_viewer.global;
+import vk_gltf_viewer.gltf.util;
 import vk_gltf_viewer.gui.dialog;
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.fastgltf;
@@ -1007,13 +1008,34 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
 }
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(gltf::AssetExtended &assetExtended) {
-    assert(assetExtended.imGuiSelectedMaterialVariantsIndex.has_value());
     if (ImGui::Begin("Material Variants")) {
-        int selected = *assetExtended.imGuiSelectedMaterialVariantsIndex;
-        for (const auto &[i, variantName] : assetExtended.asset.materialVariants | ranges::views::enumerate) {
-            if (ImGui::RadioButton(variantName.c_str(), &selected, i)) {
+        int selected = -1;
+        if (assetExtended.imGuiSelectedMaterialVariantsIndex) {
+            selected = static_cast<int>(*assetExtended.imGuiSelectedMaterialVariantsIndex);
+        }
+
+        for (const auto &[variantIndex, variantName] : assetExtended.asset.materialVariants | ranges::views::enumerate) {
+            if (ImGui::RadioButton(variantName.c_str(), &selected, variantIndex)) {
+                // Apply material variants.
+                for (fastgltf::Mesh &mesh : assetExtended.asset.meshes) {
+                    for (fastgltf::Primitive &primitive : mesh.primitives) {
+                        if (primitive.mappings.empty()) {
+                            // Primitive is not affected by KHR_materials_variants.
+                            continue;
+                        }
+
+                        if (const auto &variantMaterialIndex = primitive.mappings.at(variantIndex)) {
+                            primitive.materialIndex.emplace(*variantMaterialIndex);
+                        }
+                        else {
+                            const auto &originalMaterialIndex = assetExtended.originalMaterialIndexByPrimitive.at(&primitive);
+                            primitive.materialIndex.emplace(originalMaterialIndex.value());
+                        }
+
+                        tasks.emplace(std::in_place_type<task::PrimitiveMaterialChanged>, &primitive);
+                    }
+                }
                 assetExtended.imGuiSelectedMaterialVariantsIndex.emplace(selected);
-                tasks.emplace(std::in_place_type<task::SelectMaterialVariants>, i);
             }
         }
     }
@@ -1403,20 +1425,78 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                     for (auto &&[primitiveIndex, primitive]: mesh.primitives | ranges::views::enumerate) {
                         if (ImGui::CollapsingHeader(tempStringBuffer.write("Primitive {}", primitiveIndex).view().c_str())) {
                             ImGui::LabelText("Type", "%s", to_string(primitive.type).c_str());
+
+                            bool primitiveMaterialChanged = false;
+
+                            const char* previewValue = "-";
                             if (primitive.materialIndex) {
-                                ImGui::WithID(*primitive.materialIndex, [&]() {
-                                    ImGui::WithLabel("Material"sv, [&]() {
-                                        if (ImGui::TextLink(getDisplayName(assetExtended.asset, assetExtended.asset.materials[*primitive.materialIndex]).c_str())) {
-                                            makeWindowVisible("Material Editor");
-                                            assetExtended.imGuiSelectedMaterialIndex.emplace(*primitive.materialIndex);
-                                        }
-                                    });
-                                });
+                                previewValue = getDisplayName(assetExtended.asset, assetExtended.asset.materials[*primitive.materialIndex]).c_str();
                             }
-                            else {
-                                ImGui::WithDisabled([]() {
-                                    ImGui::LabelText("Material", "-");
-                                });
+
+                            if (ImGui::BeginCombo("Material", previewValue)) {
+                                if (ImGui::Selectable(primitive.materialIndex ? "[Unassign material...]" : "-", !primitive.materialIndex) && primitive.materialIndex) {
+                                    // Unassign material.
+                                    primitive.materialIndex.reset();
+                                    primitiveMaterialChanged = true;
+                                }
+
+                                for (const auto &[materialIndex, material] : assetExtended.asset.materials | ranges::views::enumerate) {
+                                    ImGui::WithID(materialIndex, [&] {
+                                        ImGui::WithDisabled([&] {
+                                            if (ImGui::Selectable(getDisplayName(assetExtended.asset, material).c_str(), primitive.materialIndex == materialIndex) &&
+                                                primitive.materialIndex != materialIndex) {
+                                                primitive.materialIndex.emplace(materialIndex);
+                                                primitiveMaterialChanged = true;
+                                            }
+                                        }, !gltf::isMaterialCompatible(material, primitive));
+                                    });
+                                }
+
+                                if (ImGui::Selectable("[Assign new material...]")) {
+                                    const std::size_t newMaterialIndex = assetExtended.asset.materials.size();
+                                    assetExtended.asset.materials.push_back({});
+                                    tasks.emplace(std::in_place_type<task::MaterialAdded>);
+
+                                    primitive.materialIndex.emplace(newMaterialIndex);
+                                    primitiveMaterialChanged = true;
+                                }
+
+                                ImGui::EndCombo();
+                            }
+
+                            const auto &originalMaterialIndex = assetExtended.originalMaterialIndexByPrimitive.at(&primitive);
+                            if (to_optional(primitive.materialIndex) != originalMaterialIndex) {
+                                ImGui::SameLine();
+                                if (ImGui::SmallButton("Reset")) {
+                                    if (originalMaterialIndex) {
+                                        primitive.materialIndex.emplace(*originalMaterialIndex);
+                                    }
+                                    else {
+                                        primitive.materialIndex.reset();
+                                    }
+                                    primitiveMaterialChanged = true;
+                                }
+                            }
+
+                            if (primitiveMaterialChanged) {
+                                if (!primitive.mappings.empty()) {
+                                    // If primitive is affected by KHR_materials_variants, current active material variant
+                                    // index needed to be recalculated.
+                                    assetExtended.imGuiSelectedMaterialVariantsIndex = gltf::getActiveMaterialVariantIndex(
+                                        assetExtended.asset,
+                                        [&](const fastgltf::Primitive &primitive) {
+                                            return assetExtended.originalMaterialIndexByPrimitive.at(&primitive);
+                                        });
+                                }
+
+                                // Assign assetExtended.imGuiSelectedMaterialIndex as primitive material index (maybe nullopt).
+                                if ((assetExtended.imGuiSelectedMaterialIndex = primitive.materialIndex)) {
+                                    // If assigned material is not nullopt, open the material editor.
+                                    // It will show the assigned material.
+                                    makeWindowVisible("Material Editor");
+                                }
+
+                                tasks.emplace(std::in_place_type<task::PrimitiveMaterialChanged>, &primitive);
                             }
 
                             attributeTable(
