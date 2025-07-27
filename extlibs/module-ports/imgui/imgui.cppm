@@ -46,6 +46,7 @@ export using ::ImGuiTreeNodeFlags_SpanAllColumns;
 export using ::ImGuiTreeNodeFlags_Selected;
 export using ::ImGuiWindowFlags_AlwaysAutoResize;
 export using ::ImTextureID;
+export using ::ImTextureRef;
 export using ::ImU32;
 export using ::ImVec2;
 export using ::ImVec4;
@@ -54,7 +55,7 @@ export using ::ImWchar;
 
 #ifdef IMGUI_HAS_DOCK
 export using ::ImGuiConfigFlags_DockingEnable;
-export using ::ImGuiDockNodeFlags_NoDockingInCentralNode;
+export using ::ImGuiDockNodeFlags_NoDockingOverCentralNode;
 #endif
 
 namespace ImGui {

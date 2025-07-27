@@ -123,9 +123,9 @@ void makeWindowVisible(const char* window_name) {
     }
 }
 
-void hoverableImage(ImTextureID texture, const ImVec2 &size) {
+void hoverableImage(ImTextureRef tex_ref, const ImVec2 &size) {
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
-    ImGui::Image(texture, size);
+    ImGui::Image(tex_ref, size);
 
     if (ImGui::BeginItemTooltip()) {
         const ImGuiIO &io = ImGui::GetIO();
@@ -136,16 +136,16 @@ void hoverableImage(ImTextureID texture, const ImVec2 &size) {
         region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
 
         constexpr float zoomScale = 4.0f;
-        ImGui::Image(texture, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
+        ImGui::Image(tex_ref, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
         ImGui::TextUnformatted(tempStringBuffer.write("Showing: [{:.0f}, {:.0f}]x[{:.0f}, {:.0f}]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y));
 
         ImGui::EndTooltip();
     }
 }
 
-void hoverableImageCheckerboardBackground(ImTextureID texture, const ImVec2 &size) {
+void hoverableImageCheckerboardBackground(ImTextureRef texture_ref, const ImVec2 &size) {
     const ImVec2 texturePosition = ImGui::GetCursorScreenPos();
-    ImGui::ImageCheckerboardBackground(texture, size);
+    ImGui::ImageCheckerboardBackground(texture_ref, size);
 
     if (ImGui::BeginItemTooltip()) {
         const ImGuiIO &io = ImGui::GetIO();
@@ -156,7 +156,7 @@ void hoverableImageCheckerboardBackground(ImTextureID texture, const ImVec2 &siz
         region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
 
         constexpr float zoomScale = 4.0f;
-        ImGui::ImageCheckerboardBackground(texture, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
+        ImGui::ImageCheckerboardBackground(texture_ref, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
         ImGui::TextUnformatted(tempStringBuffer.write("Showing: [{:.0f}, {:.0f}]x[{:.0f}, {:.0f}]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y));
 
         ImGui::EndTooltip();
@@ -181,21 +181,39 @@ void attributeTable(const fastgltf::Asset &asset, std::ranges::viewable_range au
         } },
         ImGui::ColumnInfo { "Bound", [&](const fastgltf::Attribute &attribute) {
             const fastgltf::Accessor &accessor = asset.accessors[attribute.accessorIndex];
-            std::visit(fastgltf::visitor {
-                [](const std::pmr::vector<std::int64_t> &min, const std::pmr::vector<std::int64_t> &max) {
-                    assert(min.size() == max.size() && "Different min/max dimension");
-                    if (min.size() == 1) ImGui::TextUnformatted(tempStringBuffer.write("[{}, {}]", min[0], max[0]));
-                    else ImGui::TextUnformatted(tempStringBuffer.write("{}x{}", min, max));
-                },
-                [](const std::pmr::vector<double> &min, const std::pmr::vector<double> &max) {
-                    assert(min.size() == max.size() && "Different min/max dimension");
-                    if (min.size() == 1) ImGui::TextUnformatted(tempStringBuffer.write("[{1:.{0}f}, {2:.{0}f}]", boundFpPrecision, min[0], max[0]));
-                    else ImGui::TextUnformatted(tempStringBuffer.write("{1::.{0}f}x{2::.{0}f}", boundFpPrecision, min, max));
-                },
-                [](const auto&...) {
-                    ImGui::TextUnformatted("-"sv);
+
+            fastgltf::AccessorBoundsArray::BoundsType boundsType;
+            std::size_t size;
+            if (accessor.min && accessor.max &&
+                (boundsType = accessor.min->type()) == accessor.max->type() &&
+                (size = accessor.min->size()) == accessor.max->size()) {
+                switch (boundsType) {
+                    case fastgltf::AccessorBoundsArray::BoundsType::float64: {
+                        const std::span min { accessor.min->data<double>(), size };
+                        const std::span max { accessor.max->data<double>(), size };
+                        if (size == 1) {
+                            ImGui::TextUnformatted(tempStringBuffer.write("[{1:.{0}f}, {2:.{0}f}]", boundFpPrecision, min[0], max[0]));
+                        }
+                        else {
+                            ImGui::TextUnformatted(tempStringBuffer.write("{1::.{0}f}x{2::.{0}f}", boundFpPrecision, min, max));
+                        }
+                        break;
+                    }
+                    case fastgltf::AccessorBoundsArray::BoundsType::int64: {
+                        const std::span min { accessor.min->data<std::int64_t>(), size };
+                        const std::span max { accessor.max->data<std::int64_t>(), size };
+                        if (size == 1) {
+                            ImGui::TextUnformatted(tempStringBuffer.write("[{}, {}]", min[0], max[0]));
+                        } else {
+                            ImGui::TextUnformatted(tempStringBuffer.write("{}x{}", min, max));
+                        }
+                        break;
+                    }
                 }
-            }, accessor.min, accessor.max);
+            }
+            else {
+                ImGui::TextUnformatted("-"sv);
+            }
         } },
         ImGui::ColumnInfo { "Normalized", [&](const fastgltf::Attribute &attribute) {
             ImGui::TextUnformatted(asset.accessors[attribute.accessorIndex].normalized ? "Yes"sv : "No"sv);
@@ -283,7 +301,7 @@ vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(std::queue<Task>
     ImGui::NewFrame();
 
     // Enable global docking.
-    ImGuiID dockSpace = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
+    ImGuiID dockSpace = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_NoDockingOverCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
     if (shouldMakeDefaultDockState) {
         dockSpace = makeDefaultDockState(dockSpace);
     }
@@ -621,8 +639,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
                 ImGui::TextUnformatted(
                     tempStringBuffer.write(
                         "{} / {}",
-                        to_optional(sampler.magFilter).transform(LIFT(to_string)).value_or("-"),
-                        to_optional(sampler.minFilter).transform(LIFT(to_string)).value_or("-")));
+                        sampler.magFilter.transform(LIFT(to_string)).value_or("-"),
+                        sampler.minFilter.transform(LIFT(to_string)).value_or("-")));
             }, ImGuiTableColumnFlags_WidthFixed },
             ImGui::ColumnInfo { "Wrap (S/T)", [](const fastgltf::Sampler &sampler) {
                 ImGui::TextUnformatted(tempStringBuffer.write("{} / {}", sampler.wrapS, sampler.wrapT));
@@ -1051,7 +1069,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
 
                 bool isNodeSelected = std::ranges::all_of(ancestorNodeIndices, LIFT(assetExtended.selectedNodes.contains)) && assetExtended.selectedNodes.contains(nodeIndex);
                 const bool isTreeNodeOpen = ImGui::WithStyleColor(ImGuiCol_Header, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive), [&]() {
-                    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap;
+                    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap | ImGuiTreeNodeFlags_DrawLinesToNodes;
                     if (nodeIndex == assetExtended.hoveringNode) flags |= ImGuiTreeNodeFlags_Framed;
                     if (isNodeSelected) flags |= ImGuiTreeNodeFlags_Selected;
                     if (node.children.empty()) flags |= ImGuiTreeNodeFlags_Bullet | ImGuiTreeNodeFlags_Leaf;
@@ -1327,7 +1345,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                         transformChanged |= ImGui::DragFloat3("Translation", trs.translation.data());
                     }, nodeAnimationUsage & gltf::NodeAnimationUsage::Translation);
                     ImGui::WithDisabled([&]() {
-                        transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.value_ptr());
+                        transformChanged |= ImGui::DragFloat4("Rotation", trs.rotation.data());
                     }, nodeAnimationUsage & gltf::NodeAnimationUsage::Rotation);
                     ImGui::WithDisabled([&]() {
                         transformChanged |= ImGui::DragFloat3("Scale", trs.scale.data());
@@ -1404,7 +1422,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                             attributeTable(
                                 assetExtended.asset,
                                 ranges::views::concat(
-                                    to_range(to_optional(primitive.indicesAccessor).transform([](std::size_t accessorIndex) {
+                                    to_range(primitive.indicesAccessor.transform([](std::size_t accessorIndex) {
                                         return fastgltf::Attribute { "Index", accessorIndex };
                                     })),
                                     primitive.attributes));
@@ -1522,13 +1540,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
     const AppState::ImageBasedLighting &info,
-    ImTextureID eqmapTextureImGuiDescriptorSet
+    ImTextureRef eqmapTextureRef
 ) {
     if (ImGui::Begin("IBL")) {
         if (ImGui::CollapsingHeader("Equirectangular map")) {
             const float eqmapAspectRatio = static_cast<float>(info.eqmap.dimension.y) / info.eqmap.dimension.x;
             const ImVec2 eqmapTextureSize = ImVec2 { 1.f, eqmapAspectRatio } * ImGui::GetContentRegionAvail().x;
-            hoverableImage(eqmapTextureImGuiDescriptorSet, eqmapTextureSize);
+            hoverableImage(eqmapTextureRef, eqmapTextureSize);
 
             ImGui::WithLabel("File"sv, [&]() {
                 ImGui::TextLinkOpenURL(PATH_C_STR(info.eqmap.path.filename()), PATH_C_STR(info.eqmap.path));

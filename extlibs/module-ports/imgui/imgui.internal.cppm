@@ -10,7 +10,6 @@ export using ::ImGuiInputTextFlags_CallbackResize;
 export using ::ImGuiItemFlags_MixedValue;
 export using ::ImGuiSettingsHandler;
 export using ::ImGuiTextBuffer;
-export using ::ImGuiTreeNodeFlags_DrawTreeLines;
 export using ::ImGuiWindow;
 export using ::ImHashStr;
 export using ::ImRect;
