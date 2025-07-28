@@ -109,7 +109,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 vk::SubpassDescription2 {
                     {},
                     vk::PipelineBindPoint::eGraphics,
-                    0,
+                    0b1111,
                     {},
                     vku::unsafeProxy(vk::AttachmentReference2 { 0, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
                     vku::unsafeProxy(vk::AttachmentReference2 { 1, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
@@ -132,7 +132,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 vk::SubpassDescription2 {
                     {},
                     vk::PipelineBindPoint::eGraphics,
-                    0,
+                    0b1111,
                     {},
                     vku::unsafeProxy({
                         vk::AttachmentReference2 { 4, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor },
@@ -160,7 +160,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
             vk::SubpassDescription2 {
                 {},
                 vk::PipelineBindPoint::eGraphics,
-                0,
+                0b1111,
                 vku::unsafeProxy({
                     vk::AttachmentReference2 { 5, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
                     vk::AttachmentReference2 { 7, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
@@ -171,7 +171,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
             vk::SubpassDescription2 {
                 {},
                 vk::PipelineBindPoint::eGraphics,
-                0,
+                0b1111,
                 vku::unsafeProxy({
                     vk::AttachmentReference2 { 1, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
                 }),

@@ -454,8 +454,8 @@ void vk_gltf_viewer::MainApp::run() {
                     passthruRect = task.newRect;
 
                     const vk::Extent2D extent {
-                        static_cast<std::uint32_t>(framebufferScale.x * task.newRect.GetWidth()),
-                        static_cast<std::uint32_t>(framebufferScale.y * task.newRect.GetHeight()),
+                        static_cast<std::uint32_t>(framebufferScale.x * task.newRect.GetWidth()) / 2,
+                        static_cast<std::uint32_t>(framebufferScale.y * task.newRect.GetHeight()) / 2,
                     };
 
                     // It replaces the previously set passthru extent with the new one.

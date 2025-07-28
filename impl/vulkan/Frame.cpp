@@ -774,7 +774,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                     vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
                     vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).image, vku::fullSubresourceRange(),
+                    passthruResources->sceneAttachmentGroup.colorImage, vku::fullSubresourceRange(),
                 },
                 // Change swapchain image layout from PresentSrcKHR to TransferDstOptimal.
                 vk::ImageMemoryBarrier {
@@ -786,16 +786,22 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             }));
 
         // Copy from composited image to swapchain image.
-        compositionCommandBuffer.copyImage(
-            passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).image, vk::ImageLayout::eTransferSrcOptimal,
-            swapchain.images[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal,
-            vk::ImageCopy {
-                { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-                { 0, 0, 0 },
-                { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-                vk::Offset3D { passthruOffset, 0 },
-                vk::Extent3D { passthruResources->extent, 1 },
-            });
+        INDEX_SEQ(Is, 4, {
+            compositionCommandBuffer.copyImage(
+                passthruResources->sceneAttachmentGroup.colorImage, vk::ImageLayout::eTransferSrcOptimal,
+                swapchain.images[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal,
+                { vk::ImageCopy {
+                    { vk::ImageAspectFlagBits::eColor, 0, Is, 1 },
+                    { 0, 0, 0 },
+                    { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+                    vk::Offset3D {
+                        passthruOffset.x + ((Is % 2 == 1) ? static_cast<std::int32_t>(passthruResources->extent.width) : 0),
+                        passthruOffset.y + ((Is / 2 == 1) ? static_cast<std::int32_t>(passthruResources->extent.height) : 0),
+                        0,
+                    },
+                    vk::Extent3D { passthruResources->extent, 1 },
+                }... });
+        });
 
         // Change swapchain image layout from TransferDstOptimal to ColorAttachmentOptimal.
         compositionCommandBuffer.pipelineBarrier(
@@ -876,13 +882,13 @@ void vk_gltf_viewer::vulkan::Frame::setPassthruExtent(const vk::Extent2D &extent
         hoveringNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->hoveringNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
         selectedNodeJumpFloodSet.getWriteOne<0>({ {}, *passthruResources->selectedNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
         weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
-            vk::DescriptorImageInfo { {}, *passthruResources->sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal },
-            vk::DescriptorImageInfo { {}, *passthruResources->sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view, vk::ImageLayout::eShaderReadOnlyOptimal },
+            vk::DescriptorImageInfo { {}, *passthruResources->sceneAttachmentGroup.accumulationImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+            vk::DescriptorImageInfo { {}, *passthruResources->sceneAttachmentGroup.revealageImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
         })),
-        inverseToneMappingSet.getWriteOne<0>({ {}, *passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        inverseToneMappingSet.getWriteOne<0>({ {}, *passthruResources->sceneAttachmentGroup.colorImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
         bloomSet.getWriteOne<0>({ {}, *passthruResources->bloomImageView, vk::ImageLayout::eGeneral }),
         bloomSet.getWrite<1>(bloomSetDescriptorInfos),
-        bloomApplySet.getWriteOne<0>({ {}, *passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).view, vk::ImageLayout::eGeneral }),
+        bloomApplySet.getWriteOne<0>({ {}, *passthruResources->sceneAttachmentGroup.colorImageView, vk::ImageLayout::eGeneral }),
         bloomApplySet.getWriteOne<1>({ {}, *passthruResources->bloomMipImageViews[0], vk::ImageLayout::eShaderReadOnlyOptimal }),
     }, {});
 
@@ -967,28 +973,28 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
     hoveringNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, hoveringNodeOutlineJumpFloodResources.image },
     selectedNodeOutlineJumpFloodResources { sharedData.gpu, extent },
     selectedNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, selectedNodeOutlineJumpFloodResources.image },
-    sceneOpaqueAttachmentGroup { sharedData.gpu, extent },
-    sceneWeightedBlendedAttachmentGroup { sharedData.gpu, extent, sceneOpaqueAttachmentGroup.depthStencilAttachment->image },
+    sceneAttachmentGroup { sharedData.gpu, extent },
     bloomImage { sharedData.gpu.allocator, vk::ImageCreateInfo {
         {},
         vk::ImageType::e2D,
         vk::Format::eR16G16B16A16Sfloat,
         vk::Extent3D { extent, 1 },
-        vku::Image::maxMipLevels(extent), 1,
+        vku::Image::maxMipLevels(extent), 4,
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eColorAttachment // written in InverseToneMappingRenderer
             | bloom::BloomComputer::requiredImageUsageFlags
             | vk::ImageUsageFlagBits::eInputAttachment /* read in BloomApplyRenderer */,
     } },
-    bloomImageView { sharedData.gpu.device, bloomImage.getViewCreateInfo() },
+    bloomImageView { sharedData.gpu.device, bloomImage.getViewCreateInfo(vk::ImageViewType::e2DArray) },
     bloomMipImageViews { [&]() {
         std::vector<vk::raii::ImageView> result;
-        result.emplace_back(sharedData.gpu.device, bloomImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }));
+        result.emplace_back(sharedData.gpu.device, bloomImage.getViewCreateInfo(
+            { vk::ImageAspectFlagBits::eColor, 0, 1, 0, vk::RemainingArrayLayers }, vk::ImageViewType::e2DArray));
 
         if (!sharedData.gpu.supportShaderImageLoadStoreLod) {
             result.append_range(
-                bloomImage.getMipViewCreateInfos()
+                bloomImage.getMipViewCreateInfos(vk::ImageViewType::e2DArray)
                 | std::views::drop(1)
                 | std::views::transform([&](const vk::ImageViewCreateInfo& createInfo) {
                     return vk::raii::ImageView{ sharedData.gpu.device, createInfo };
@@ -1001,14 +1007,14 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
         {},
         *sharedData.sceneRenderPass,
         vku::unsafeProxy({
-            *sceneOpaqueAttachmentGroup.getColorAttachment(0).multisampleView,
-            *sceneOpaqueAttachmentGroup.getColorAttachment(0).view,
-            *sceneOpaqueAttachmentGroup.depthStencilAttachment->view,
-            *sceneOpaqueAttachmentGroup.stencilResolveImageView,
-            *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).multisampleView,
-            *sceneWeightedBlendedAttachmentGroup.getColorAttachment(0).view,
-            *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).multisampleView,
-            *sceneWeightedBlendedAttachmentGroup.getColorAttachment(1).view,
+            *sceneAttachmentGroup.multisampleColorImageView,
+            *sceneAttachmentGroup.colorImageView,
+            *sceneAttachmentGroup.depthStencilImageView,
+            *sceneAttachmentGroup.stencilResolveImageView,
+            *sceneAttachmentGroup.multisampleAccumulationImageView,
+            *sceneAttachmentGroup.accumulationImageView,
+            *sceneAttachmentGroup.multisampleRevealageImageView,
+            *sceneAttachmentGroup.revealageImageView,
             *bloomMipImageViews[0],
         }),
         extent.width, extent.height, 1,
@@ -1017,7 +1023,7 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
         {},
         *sharedData.bloomApplyRenderPass,
         vku::unsafeProxy({
-            *sceneOpaqueAttachmentGroup.getColorAttachment(0).view,
+            *sceneAttachmentGroup.colorImageView,
             *bloomMipImageViews[0],
         }),
         extent.width, extent.height, 1,
@@ -1497,7 +1503,7 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
         1,
         0,
         vku::unsafeProxy(vk::RenderingAttachmentInfo {
-            *passthruResources->sceneOpaqueAttachmentGroup.getColorAttachment(0).view,
+            *passthruResources->sceneAttachmentGroup.colorImageView,
             vk::ImageLayout::eColorAttachmentOptimal,
             {}, {}, {},
             vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore,

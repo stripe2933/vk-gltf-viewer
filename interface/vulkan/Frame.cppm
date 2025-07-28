@@ -17,8 +17,7 @@ export import vku;
 
 import vk_gltf_viewer.vulkan.ag.JumpFloodSeed;
 import vk_gltf_viewer.vulkan.ag.MousePicking;
-import vk_gltf_viewer.vulkan.ag.SceneOpaque;
-import vk_gltf_viewer.vulkan.ag.SceneWeightedBlended;
+import vk_gltf_viewer.vulkan.ag.Scene;
 import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
 export import vk_gltf_viewer.Renderer;
 export import vk_gltf_viewer.vulkan.SharedData;
@@ -180,8 +179,7 @@ namespace vk_gltf_viewer::vulkan {
             ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 
             // Scene rendering.
-            ag::SceneOpaque sceneOpaqueAttachmentGroup;
-            ag::SceneWeightedBlended sceneWeightedBlendedAttachmentGroup;
+            ag::Scene sceneAttachmentGroup;
 
             // Bloom.
             vku::AllocatedImage bloomImage;
