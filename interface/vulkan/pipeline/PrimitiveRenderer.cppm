@@ -13,7 +13,7 @@ export import fastgltf;
 import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.shader_selector.primitive_frag;
 import vk_gltf_viewer.shader_selector.primitive_vert;
-export import vk_gltf_viewer.vulkan.pl.Primitive;
+export import vk_gltf_viewer.vulkan.pl.PrimitiveMultiview;
 export import vk_gltf_viewer.vulkan.rp.Scene;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
@@ -40,7 +40,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
-            const pl::Primitive &pipelineLayout LIFETIMEBOUND,
+            const pl::PrimitiveMultiview &pipelineLayout LIFETIMEBOUND,
             const rp::Scene &sceneRenderPass LIFETIMEBOUND
         ) const;
 
@@ -89,7 +89,7 @@ struct vk_gltf_viewer::vulkan::pipeline::PrimitiveRendererSpecialization::Fragme
 
 vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::PrimitiveRendererSpecialization::createPipeline(
     const vk::raii::Device &device,
-    const pl::Primitive &pipelineLayout,
+    const pl::PrimitiveMultiview &pipelineLayout,
     const rp::Scene &sceneRenderPass
 ) const {
     const auto vertexShaderSpecializationData = getVertexShaderSpecializationData();

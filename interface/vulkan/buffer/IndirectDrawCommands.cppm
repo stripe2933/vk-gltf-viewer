@@ -9,6 +9,7 @@ export import fastgltf;
 export import vku;
 
 import vk_gltf_viewer.helpers.concepts;
+import vk_gltf_viewer.helpers.functional;
 import vk_gltf_viewer.helpers.ranges;
 
 namespace vk_gltf_viewer::vulkan::buffer {
@@ -174,6 +175,20 @@ void vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::resetDrawCount() noex
 }
 
 void vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::recordDrawCommand(vk::CommandBuffer cb, bool drawIndirectCount) const {
+#if __APPLE__
+    visit(multilambda {
+        [&](std::span<const vk::DrawIndirectCommand> commands) {
+            for (const vk::DrawIndirectCommand &command : commands) {
+                cb.draw(command.vertexCount, command.instanceCount, command.firstVertex, command.firstInstance);
+            }
+        },
+        [&](std::span<const vk::DrawIndexedIndirectCommand> commands) {
+            for (const vk::DrawIndexedIndirectCommand &command : commands) {
+                cb.drawIndexed(command.indexCount, command.instanceCount, command.firstIndex, command.vertexOffset, command.firstInstance);
+            }
+        },
+    }, drawIndirectCommands());
+#else
     if (indexed) {
         if (drawIndirectCount) {
             cb.drawIndexedIndirectCount(*this, sizeof(std::uint32_t), *this, 0, maxDrawCount(), sizeof(vk::DrawIndexedIndirectCommand));
@@ -190,4 +205,5 @@ void vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::recordDrawCommand(vk:
             cb.drawIndirect(*this, sizeof(std::uint32_t), drawCount(), sizeof(vk::DrawIndirectCommand));
         }
     }
+#endif
 }

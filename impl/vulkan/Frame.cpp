@@ -105,6 +105,30 @@ void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeTargetWeights(std::size
 vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, const SharedData &sharedData)
     : sharedData { sharedData }
     , renderer { std::move(_renderer) }
+    , cameraBuffer {
+        sharedData.gpu.allocator,
+        vk::BufferCreateInfo {
+            {},
+            sizeof(glm::mat4) * 4 + sizeof(glm::vec4) * 4,
+            vk::BufferUsageFlagBits::eUniformBuffer,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    }
+    , translationlessCameraBuffer {
+        sharedData.gpu.allocator,
+        vk::BufferCreateInfo {
+            {},
+            sizeof(glm::mat4) * 4,
+            vk::BufferUsageFlagBits::eUniformBuffer,
+        },
+        vma::AllocationCreateInfo {
+            vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    }
     , descriptorPool { createDescriptorPool() }
     , computeCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.compute } }
     , graphicsCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.graphicsPresent } }
@@ -114,18 +138,26 @@ vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, 
     , swapchainImageAcquireSema { sharedData.gpu.device, vk::SemaphoreCreateInfo{} }
     , inFlightFence { sharedData.gpu.device, vk::FenceCreateInfo{} } {
     // Allocate descriptor sets.
-    std::tie(mousePickingSet, multiNodeMousePickingSet, hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, weightedBlendedCompositionSet, inverseToneMappingSet, bloomSet, bloomApplySet)
+    std::tie(rendererSet, mousePickingSet, multiNodeMousePickingSet, hoveringNodeJumpFloodSet, selectedNodeJumpFloodSet, hoveringNodeOutlineSet, selectedNodeOutlineSet, skyboxSet, weightedBlendedCompositionSet, inverseToneMappingSet, bloomSet, bloomApplySet)
         = allocateDescriptorSets(*descriptorPool, std::tie(
+            sharedData.rendererDescriptorSetLayout,
             sharedData.mousePickingRenderer.descriptorSetLayout,
             sharedData.multiNodeMousePickingDescriptorSetLayout,
             sharedData.jumpFloodComputer.descriptorSetLayout,
             sharedData.jumpFloodComputer.descriptorSetLayout,
             sharedData.outlineRenderer.descriptorSetLayout,
             sharedData.outlineRenderer.descriptorSetLayout,
+            sharedData.skyboxRenderer.descriptorSetLayout,
             sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout,
             sharedData.inverseToneMappingRenderer.descriptorSetLayout,
             sharedData.bloomComputer.descriptorSetLayout,
             sharedData.bloomApplyRenderer.descriptorSetLayout));
+
+    // Update descriptor sets.
+    sharedData.gpu.device.updateDescriptorSets({
+        rendererSet.getWriteOne<0>({ cameraBuffer, 0, vk::WholeSize }),
+        skyboxSet.getWriteOne<0>({ translationlessCameraBuffer, 0, vk::WholeSize }),
+    }, {});
 
     // Allocate per-frame command buffers.
     std::tie(jumpFloodCommandBuffer) = vku::allocateCommandBuffers<1>(*sharedData.gpu.device, *computeCommandPool);
@@ -168,9 +200,33 @@ vk_gltf_viewer::vulkan::Frame::ExecutionResult vk_gltf_viewer::vulkan::Frame::ge
 }
 
 void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
-    projectionViewMatrix = renderer->camera.getProjectionViewMatrix();
-    translationlessProjectionViewMatrix = renderer->camera.getProjectionMatrix() * glm::mat4 { glm::mat3 { renderer->camera.getViewMatrix() } };
     passthruOffset = task.passthruOffset;
+
+    // Write camera buffer.
+    const auto projectionViews
+        = renderer->cameras
+        | std::views::transform([](const control::Camera& camera) noexcept {
+            return camera.getProjectionMatrix() * camera.getViewMatrix();
+        })
+        | std::ranges::to<boost::container::static_vector<glm::mat4, 4>>();
+    const auto viewPositions
+        = renderer->cameras
+        | std::views::transform([](const control::Camera& camera) noexcept {
+            return glm::vec4 { camera.position, 0.f };
+		})
+		| std::ranges::to<boost::container::static_vector<glm::vec4, 4>>();
+    sharedData.gpu.allocator.copyMemoryToAllocation(projectionViews.data(), cameraBuffer.allocation, 0, sizeof(glm::mat4) * projectionViews.size());
+    sharedData.gpu.allocator.copyMemoryToAllocation(viewPositions.data(), cameraBuffer.allocation, sizeof(glm::mat4) * 4, sizeof(glm::vec4) * viewPositions.size());
+
+    if (!renderer->solidBackground) {
+        const auto translationlessProjectionViews
+            = renderer->cameras
+            | std::views::transform([](const control::Camera& camera) noexcept {
+                return camera.getProjectionMatrix() * glm::mat4 { glm::mat3 { camera.getViewMatrix() } };
+            })
+			| std::ranges::to<boost::container::static_vector<glm::mat4, 4>>();
+        sharedData.gpu.allocator.copyMemoryToAllocation(translationlessProjectionViews.data(), translationlessCameraBuffer.allocation, 0, sizeof(glm::mat4) * translationlessProjectionViews.size());
+    }
 
     // Should be calculated on-demand (only if pipeline recreation is requested).
     Lazy<AssetSpecialization> assetSpecialization { [&]() { return AssetSpecialization { gltfAsset->assetExtended->asset }; } };
@@ -431,9 +487,11 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                 buffer::createIndirectDrawCommandBuffers(gltfAsset->assetExtended->asset, sharedData.gpu.allocator, multiNodeMousePickingCriteriaGetter, visibleNodeIndices, drawCommandGetter));
         }
 
-        const math::Frustum frustum = renderer->camera.getFrustum();
+        const math::Frustum frustum = renderer->cameras[0].getFrustum();
 
         if (renderer->frustumCullingMode != Renderer::FrustumCullingMode::Off) {
+            assert(renderer->cameras.size() == 1 && "Frustum culling is only supported for single camera rendering.");
+
             for (buffer::IndirectDrawCommands &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
                 commandBufferCullingFunc(buffer, frustum);
             }
@@ -448,7 +506,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                     const float xmax = static_cast<float>(offset.x + 1) / passthruResources->extent.width;
                     const float ymin = 1.f - static_cast<float>(offset.y + 1) / passthruResources->extent.height;
                     const float ymax = 1.f - static_cast<float>(offset.y) / passthruResources->extent.height;
-                    const math::Frustum frustum = renderer->camera.getFrustum(xmin, xmax, ymin, ymax);
+                    const math::Frustum frustum = renderer->cameras[0].getFrustum(xmin, xmax, ymin, ymax);
 
                     for (buffer::IndirectDrawCommands &buffer : renderingNodes->mousePickingIndirectDrawCommandBuffers | std::views::values) {
                         renderingNodes->startMousePickingRenderPass |= commandBufferCullingFunc(buffer, frustum);
@@ -459,7 +517,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                     const float xmax = static_cast<float>(rect.offset.x + rect.extent.width) / passthruResources->extent.width;
                     const float ymin = 1.f - static_cast<float>(rect.offset.y + rect.extent.height) / passthruResources->extent.height;
                     const float ymax = 1.f - static_cast<float>(rect.offset.y) / passthruResources->extent.height;
-                    const math::Frustum frustum = renderer->camera.getFrustum(xmin, xmax, ymin, ymax);
+                    const math::Frustum frustum = renderer->cameras[0].getFrustum(xmin, xmax, ymin, ymax);
 
                     renderingNodes->startMousePickingRenderPass = false;
                     for (buffer::IndirectDrawCommands &buffer : renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers | std::views::values) {
@@ -502,6 +560,8 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             }
 
             if (renderer->frustumCullingMode != Renderer::FrustumCullingMode::Off) {
+                assert(renderer->cameras.size() == 1 && "Frustum culling is only supported for single camera rendering.");
+
                 for (buffer::IndirectDrawCommands &buffer : selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers | std::views::values) {
                     commandBufferCullingFunc(buffer, frustum);
                 }
@@ -533,6 +593,8 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             }
 
             if (renderer->frustumCullingMode != Renderer::FrustumCullingMode::Off) {
+                assert(renderer->cameras.size() == 1 && "Frustum culling is only supported for single camera rendering.");
+
                 for (buffer::IndirectDrawCommands &buffer : hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers | std::views::values) {
                     commandBufferCullingFunc(buffer, frustum);
                 }
@@ -669,7 +731,10 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             recordSceneOpaqueMeshDrawCommands(sceneRenderingCommandBuffer);
         }
         if (!renderer->solidBackground) {
-            recordSkyboxDrawCommands(sceneRenderingCommandBuffer);
+            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxRenderer.pipeline);
+            sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxRenderer.pipelineLayout, 0, skyboxSet, {});
+            sceneRenderingCommandBuffer.bindIndexBuffer(sharedData.cubeIndexBuffer, 0, vk::IndexType::eUint16);
+            sceneRenderingCommandBuffer.drawIndexed(36, 1, 0, 0, 0);
         }
 
         // Render meshes whose AlphaMode=Blend.
@@ -1055,9 +1120,11 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
 
 vk::raii::DescriptorPool vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const {
     vku::PoolSizes poolSizes
-        = sharedData.mousePickingRenderer.descriptorSetLayout.getPoolSize()
+        = sharedData.rendererDescriptorSetLayout.getPoolSize()
+        + sharedData.mousePickingRenderer.descriptorSetLayout.getPoolSize()
         + sharedData.multiNodeMousePickingDescriptorSetLayout.getPoolSize()
         + 2 * getPoolSizes(sharedData.jumpFloodComputer.descriptorSetLayout, sharedData.outlineRenderer.descriptorSetLayout)
+        + sharedData.skyboxRenderer.descriptorSetLayout.getPoolSize()
         + sharedData.weightedBlendedCompositionRenderer.descriptorSetLayout.getPoolSize()
         + sharedData.inverseToneMappingRenderer.descriptorSetLayout.getPoolSize()
         + sharedData.bloomComputer.descriptorSetLayout.getPoolSize()
@@ -1112,10 +1179,10 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         std::optional<vk::CullModeFlagBits> cullMode{};
         std::optional<vk::IndexType> indexType;
 
-        // (Mask){Depth|JumpFloodSeed}Renderer have compatible descriptor set layouts and push constant range,
-        // therefore they only need to be bound once.
+        // (Mask){Depth|JumpFloodSeed}Renderer have the same pipeline layout, therefore descriptor sets and push constants should
+        // be bound only once.
         bool descriptorSetBound = false;
-        bool pushConstantBound = false;
+        bool pushConstantsBound = false;
     };
 
     auto drawPrimitives = [&, resourceBindingState = ResourceBindingState{}](const auto &indirectDrawCommandBuffers) mutable {
@@ -1125,14 +1192,14 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             }
 
             if (!resourceBindingState.descriptorSetBound) {
-                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveNoShadingPipelineLayout,
-                    0, assetDescriptorSet, {});
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout,
+                    0, { rendererSet, assetDescriptorSet }, {});
                 resourceBindingState.descriptorSetBound = true;
             }
 
-            if (!resourceBindingState.pushConstantBound) {
-                sharedData.primitiveNoShadingPipelineLayout.pushConstants(cb, { projectionViewMatrix });
-                resourceBindingState.pushConstantBound = true;
+            if (!resourceBindingState.pushConstantsBound) {
+                cb.pushConstants<std::uint32_t>(*sharedData.primitivePipelineLayout, pl::Primitive::PushConstant::range.stageFlags, 0, vku::unsafeProxy(0U /* TODO */));
+                resourceBindingState.pushConstantsBound = true;
             }
 
             if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
@@ -1241,16 +1308,8 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 
                         if (!resourceBindingState.descriptorSetBound) {
                             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.multiNodeMousePickingPipelineLayout,
-                                0, { assetDescriptorSet, multiNodeMousePickingSet }, {});
+                                0, { rendererSet, assetDescriptorSet, multiNodeMousePickingSet }, {});
                             resourceBindingState.descriptorSetBound = true;
-                        }
-
-                        if (!resourceBindingState.pushConstantBound) {
-                            cb.pushConstants<pl::MultiNodeMousePicking::PushConstant>(*sharedData.multiNodeMousePickingPipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                0, pl::MultiNodeMousePicking::PushConstant {
-                                    .projectionView = projectionViewMatrix,
-                                });
-                            resourceBindingState.pushConstantBound = true;
                         }
 
                         if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
@@ -1345,10 +1404,8 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         std::optional<vk::CullModeFlagBits> cullMode{};
         std::optional<vk::IndexType> indexType;
 
-        // (Mask)(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
-        // therefore they only need to be bound once.
+        // (Mask)(Unlit)PrimitiveRenderer have the same pipeline layout, therefore descriptor sets should be bound only once.
         bool descriptorBound = false;
-        bool pushConstantBound = false;
     } resourceBindingState{};
 
     // Render alphaMode=Opaque | Mask meshes.
@@ -1357,13 +1414,9 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
             cb.bindPipeline(vk::PipelineBindPoint::eGraphics, resourceBindingState.pipeline = criteria.pipeline);
         }
         if (!resourceBindingState.descriptorBound) {
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout, 0,
-                { sharedData.imageBasedLightingDescriptorSet, assetDescriptorSet }, {});
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveMultiviewPipelineLayout, 0,
+                { rendererSet, assetDescriptorSet }, {});
             resourceBindingState.descriptorBound = true;
-        }
-        if (!resourceBindingState.pushConstantBound) {
-            sharedData.primitivePipelineLayout.pushConstants(cb, { projectionViewMatrix, renderer->camera.position });
-            resourceBindingState.pushConstantBound = true;
         }
 
         if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
@@ -1405,10 +1458,9 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
         std::optional<std::uint32_t> stencilReference{};
         std::optional<vk::IndexType> indexType;
 
-        // Blend(Faceted)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
+        // (Unlit)PrimitiveRenderer have compatible descriptor set layouts and push constant range,
         // therefore they only need to be bound once.
         bool descriptorBound = false;
-        bool pushConstantBound = false;
     } resourceBindingState{};
 
     // Render alphaMode=Blend meshes.
@@ -1435,13 +1487,9 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
         }
 
         if (!resourceBindingState.descriptorBound) {
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout, 0,
-                { sharedData.imageBasedLightingDescriptorSet, assetDescriptorSet }, {});
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveMultiviewPipelineLayout, 0,
+                { rendererSet, assetDescriptorSet }, {});
             resourceBindingState.descriptorBound = true;
-        }
-        if (!resourceBindingState.pushConstantBound) {
-            sharedData.primitivePipelineLayout.pushConstants(cb, { projectionViewMatrix, renderer->camera.position });
-            resourceBindingState.pushConstantBound = true;
         }
 
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
@@ -1456,10 +1504,6 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
     }
 
     return hasBlendMesh;
-}
-
-void vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer cb) const {
-    sharedData.skyboxRenderer.draw(cb, sharedData.skyboxDescriptorSet, { translationlessProjectionViewMatrix });
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(

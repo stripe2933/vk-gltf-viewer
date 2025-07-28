@@ -10,7 +10,7 @@ import vku;
 
 import vk_gltf_viewer.shader.jump_flood_seed_frag;
 import vk_gltf_viewer.shader.jump_flood_seed_vert;
-export import vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
+export import vk_gltf_viewer.vulkan.pl.Primitive;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -26,7 +26,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
-            const pl::PrimitiveNoShading &pipelineLayout LIFETIMEBOUND
+            const pl::Primitive &pipelineLayout LIFETIMEBOUND
         ) const;
 
     private:
@@ -52,7 +52,7 @@ struct vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRendererSpecialization::Ve
 
 [[nodiscard]] vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRendererSpecialization::createPipeline(
     const vk::raii::Device &device,
-    const pl::PrimitiveNoShading &pipelineLayout
+    const pl::Primitive &pipelineLayout
 ) const {
     return { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(

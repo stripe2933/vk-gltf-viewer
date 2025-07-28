@@ -211,6 +211,8 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         // Buffer, image and image views.
+        vku::AllocatedBuffer cameraBuffer;
+        vku::AllocatedBuffer translationlessCameraBuffer;
         std::optional<PassthruResources> passthruResources;
 
         // Descriptor/command pools.
@@ -219,17 +221,21 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::CommandPool graphicsCommandPool;
 
         // Descriptor sets.
+    public: // TODO
+        vku::DescriptorSet<dsl::Renderer> rendererSet;
         vku::DescriptorSet<MousePickingRenderer::DescriptorSetLayout> mousePickingSet;
         vku::DescriptorSet<dsl::MultiNodeMousePicking> multiNodeMousePickingSet;
         vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> hoveringNodeJumpFloodSet;
         vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> selectedNodeJumpFloodSet;
         vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSet;
         vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSet;
+        vku::DescriptorSet<SkyboxRenderer::DescriptorSetLayout> skyboxSet;
         vku::DescriptorSet<WeightedBlendedCompositionRenderer::DescriptorSetLayout> weightedBlendedCompositionSet;
         vku::DescriptorSet<InverseToneMappingRenderer::DescriptorSetLayout> inverseToneMappingSet;
         vku::DescriptorSet<bloom::BloomComputer::DescriptorSetLayout> bloomSet;
         vku::DescriptorSet<BloomApplyRenderer::DescriptorSetLayout> bloomApplySet;
 
+    private: // TODO
         // Command buffers.
         vk::CommandBuffer scenePrepassCommandBuffer;
         vk::CommandBuffer sceneRenderingCommandBuffer;
@@ -244,12 +250,9 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::Fence inFlightFence;
 
         vk::Offset2D passthruOffset;
-        glm::mat4 projectionViewMatrix;
-        glm::mat4 translationlessProjectionViewMatrix;
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
-        std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
 
         [[nodiscard]] vk::raii::DescriptorPool createDescriptorPool() const;
 
@@ -258,7 +261,6 @@ namespace vk_gltf_viewer::vulkan {
         [[nodiscard]] bool recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSet, std::uint32_t initialSampleOffset) const;
         void recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const;
         bool recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const;
-        void recordSkyboxDrawCommands(vk::CommandBuffer cb) const;
         void recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward) const;
         void recordImGuiCompositionCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex) const;
     };

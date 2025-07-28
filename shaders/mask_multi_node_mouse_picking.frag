@@ -27,12 +27,12 @@ layout (location = 2) in FRAG_VARIADIC_IN {
 } variadic_in;
 #endif
 
-layout (set = 0, binding = 2, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout (set = 0, binding = 3) uniform sampler2D textures[];
+layout (set = 1, binding = 3) uniform sampler2D textures[];
 
-layout (set = 1, binding = 0) buffer MousePickingResultBuffer {
+layout (set = 2, binding = 0) buffer MousePickingResultBuffer {
     uint packedBits[];
 };
 

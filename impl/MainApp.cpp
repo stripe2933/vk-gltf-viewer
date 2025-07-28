@@ -71,6 +71,10 @@ import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderer;
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
 
+[[nodiscard]] ImVec2 toImVec2(const glm::vec2 &v) noexcept {
+    return { v.x, v.y };
+}
+
 [[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform *transform) noexcept {
     if (transform) {
         const float c = std::cos(transform->rotation), s = std::sin(transform->rotation);
@@ -152,11 +156,14 @@ vk_gltf_viewer::MainApp::MainApp()
         recordSwapchainImageLayoutTransitionCommands(cb);
     }, *fence);
 
-    gpu.device.updateDescriptorSets({
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<2>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-    }, {});
+    // TODO: update at once?
+    for (vulkan::Frame &frame : frames) {
+        gpu.device.updateDescriptorSets({
+            frame.rendererSet.getWriteOne<1>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
+            frame.rendererSet.getWriteOne<2>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+            frame.rendererSet.getWriteOne<3>({ {}, *brdfmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        }, {});
+    }
 
     std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL);
 }
@@ -266,10 +273,9 @@ void vk_gltf_viewer::MainApp::run() {
             imguiTaskCollector.dialog();
 
             if (drawSelectionRectangle) {
-                const glm::dvec2 cursorPos = window.getCursorPos();
                 ImRect region {
                     ImVec2 { static_cast<float>(lastMouseDownPosition->x), static_cast<float>(lastMouseDownPosition->y) },
-                    ImVec2 { static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) },
+                    toImVec2(window.getCursorPos()),
                 };
                 if (region.Min.x > region.Max.x) {
                     std::swap(region.Min.x, region.Max.x);
@@ -399,19 +405,33 @@ void vk_gltf_viewer::MainApp::run() {
                         [](const control::task::WindowTrackpadZoom &zoom) { return zoom.scale; }
                     }(task);
 
-                    const float factor = std::powf(1.01f, -scale);
-                    const glm::vec3 displacementToTarget = renderer->camera.direction * renderer->camera.targetDistance;
-                    renderer->camera.targetDistance *= factor;
-                    renderer->camera.position += (1.f - factor) * displacementToTarget;
+                    // Find which rectangle the cursor is currently in.
+                    for (auto &&[camera, cameraRect] : std::views::zip(renderer->cameras, renderer->getCameraRects(passthruRect))) {
+                        if (cameraRect.Contains(toImVec2(window.getCursorPos()))) {
+                            const float factor = std::powf(1.01f, -scale);
+                            const glm::vec3 displacementToTarget = camera.direction * camera.targetDistance;
+                            camera.targetDistance *= factor;
+                            camera.position += (1.f - factor) * displacementToTarget;
+                            break;
+                        }
+                    }
+
                 },
                 [this](const control::task::WindowTrackpadRotate &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
-                    // Rotate the camera around the Y-axis lied on the target point.
-                    const glm::vec3 target = renderer->camera.position + renderer->camera.direction * renderer->camera.targetDistance;
-                    const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
-                    renderer->camera.direction = glm::mat3 { rotation } * renderer->camera.direction;
-                    renderer->camera.position = target - renderer->camera.direction * renderer->camera.targetDistance;
+                    // Find which rectangle the cursor is currently in.
+                    for (auto &&[camera, cameraRect] : std::views::zip(renderer->cameras, renderer->getCameraRects(passthruRect))) {
+                        if (cameraRect.Contains(toImVec2(window.getCursorPos()))) {
+                            // Rotate the camera around the Y-axis lied on the target point.
+                            const glm::vec3 target = camera.position + camera.direction * camera.targetDistance;
+                            const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
+                            camera.direction = glm::mat3 { rotation } * camera.direction;
+                            camera.position = target - camera.direction * camera.targetDistance;
+
+                            break;
+                        }
+                    }
                 },
                 [&](const control::task::WindowDrop &task) {
                     // Prevent drag-and-drop when any dialog is opened.
@@ -450,12 +470,16 @@ void vk_gltf_viewer::MainApp::run() {
                     handleSwapchainResize();
                 },
                 [&](const control::task::ChangePassthruRect &task) {
-                    renderer->camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
+                    const float aspectRatio = renderer->getCameraAspectRatio(task.newRect.GetSize());
+                    for (control::Camera &camera : renderer->cameras) {
+                        camera.aspectRatio = aspectRatio;
+                    }
                     passthruRect = task.newRect;
 
+                    const ImVec2 cameraExtent = renderer->getCameraExtent(task.newRect.GetSize());
                     const vk::Extent2D extent {
-                        static_cast<std::uint32_t>(framebufferScale.x * task.newRect.GetWidth()) / 2,
-                        static_cast<std::uint32_t>(framebufferScale.y * task.newRect.GetHeight()) / 2,
+                        static_cast<std::uint32_t>(framebufferScale.x * cameraExtent.x),
+                        static_cast<std::uint32_t>(framebufferScale.y * cameraExtent.y),
                     };
 
                     // It replaces the previously set passthru extent with the new one.
@@ -495,11 +519,13 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Adjust the camera based on the scene enclosing sphere.
                     const auto &[center, radius] = assetExtended->sceneMiniball.get();
-                    const float distance = radius / std::sin(renderer->camera.fov / 2.f);
-                    renderer->camera.position = glm::make_vec3(center.data()) - distance * normalize(renderer->camera.direction);
-                    renderer->camera.zMin = distance - radius;
-                    renderer->camera.zMax = distance + radius;
-                    renderer->camera.targetDistance = distance;
+                    for (control::Camera &camera : renderer->cameras) {
+                        const float distance = radius / std::sin(camera.fov / 2.f);
+                        camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
+                        camera.zMin = distance - radius;
+                        camera.zMax = distance + radius;
+                        camera.targetDistance = distance;
+                    }
 
                     transformedNodes.clear(); // They are all related to the previous glTF asset.
                     regenerateDrawCommands.fill(true);
@@ -769,7 +795,9 @@ void vk_gltf_viewer::MainApp::run() {
 
         if (renderer->automaticNearFarPlaneAdjustment && assetExtended) {
             const auto &[center, radius] = assetExtended->sceneMiniball.get();
-            renderer->camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+            for (control::Camera &camera : renderer->cameras) {
+                camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+            }
         }
 
         if (hasUpdateData) {
@@ -793,11 +821,11 @@ void vk_gltf_viewer::MainApp::run() {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex % FRAMES_IN_FLIGHT], false),
                     .mousePickingInput = [&]() -> std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
-                        const glm::dvec2 cursorPos = window.getCursorPos();
+                        const ImVec2 cursorPos = toImVec2(window.getCursorPos());
                         if (drawSelectionRectangle) {
                             ImRect selectionRect {
                                 { static_cast<float>(lastMouseDownPosition->x), static_cast<float>(lastMouseDownPosition->y) },
-                                { static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) },
+                                cursorPos,
                             };
                             if (selectionRect.Min.x > selectionRect.Max.x) {
                                 std::swap(selectionRect.Min.x, selectionRect.Max.x);
@@ -819,7 +847,7 @@ void vk_gltf_viewer::MainApp::run() {
                                 },
                             };
                         }
-                        else if (passthruRect.Contains({ static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) }) && !ImGui::GetIO().WantCaptureMouse) {
+                        else if (passthruRect.Contains(cursorPos) && !ImGui::GetIO().WantCaptureMouse) {
                             // Note: be aware of implicit vk::Offset2D -> vk::Rect2D promotion!
                             return std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
                                 std::in_place_type<vk::Offset2D>,
@@ -1036,11 +1064,14 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius] = assetExtended->sceneMiniball.get();
-    const float distance = radius / std::sin(renderer->camera.fov / 2.f);
-    renderer->camera.position = glm::make_vec3(center.data()) - distance * normalize(renderer->camera.direction);
-    renderer->camera.zMin = distance - radius;
-    renderer->camera.zMax = distance + radius;
-    renderer->camera.targetDistance = distance;
+
+    for (control::Camera &camera : renderer->cameras) {
+        const float distance = radius / std::sin(camera.fov / 2.f);
+        camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
+        camera.zMin = distance - radius;
+        camera.zMax = distance + radius;
+        camera.targetDistance = distance;
+    }
 }
 
 void vk_gltf_viewer::MainApp::closeGltf() {
@@ -1582,11 +1613,14 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     };
 
     // Update the related descriptor sets.
-    gpu.device.updateDescriptorSets({
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<0>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
-        sharedData.imageBasedLightingDescriptorSet.getWriteOne<1>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-        sharedData.skyboxDescriptorSet.getWriteOne<0>({ {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-    }, {});
+    // TODO: update at once?
+    for (vulkan::Frame &frame : frames) {
+        gpu.device.updateDescriptorSets({
+            frame.rendererSet.getWriteOne<1>({ imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize }),
+            frame.rendererSet.getWriteOne<2>({ {}, *imageBasedLightingResources.prefilteredmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+            frame.skyboxSet.getWriteOne<1>({ {}, *skyboxResources->cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        }, {});
+    }
 
     // Update AppState.
     appState.pushRecentSkyboxPath(eqmapPath);

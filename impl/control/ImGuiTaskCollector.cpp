@@ -3,6 +3,7 @@ module;
 #include <cassert>
 #include <version>
 
+#include <boost/container/static_vector.hpp>
 #include <IconsFontAwesome4.h>
 #include <nfd.hpp>
 
@@ -1664,17 +1665,29 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &renderer) {
     if (ImGui::Begin("Renderer Setting")){
-        if (ImGui::CollapsingHeader("Camera")) {
-            ImGui::DragFloat3("Position", value_ptr(renderer.camera.position), 0.1f);
-            if (ImGui::DragFloat3("Direction", value_ptr(renderer.camera.direction), 0.1f, -1.f, 1.f)) {
-                renderer.camera.direction = normalize(renderer.camera.direction);
-            }
-            if (ImGui::DragFloat3("Up", value_ptr(renderer.camera.up), 0.1f, -1.f, 1.f)) {
-                renderer.camera.up = normalize(renderer.camera.up);
+        if (ImGui::CollapsingHeader("Cameras")) {
+            if (ImGui::BeginCombo("Camera", tempStringBuffer.write("Camera {}", renderer.imGuiSelectedCameraIndex + 1).view().c_str())) {
+                for (auto &&[cameraIndex, camera] : renderer.cameras | ranges::views::enumerate) {
+                    if (ImGui::Selectable(tempStringBuffer.write("Camera {}", cameraIndex + 1).view().c_str(), renderer.imGuiSelectedCameraIndex == cameraIndex)) {
+                        renderer.imGuiSelectedCameraIndex = cameraIndex;
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
             }
 
-            if (float fovInDegree = glm::degrees(renderer.camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
-                renderer.camera.fov = glm::radians(fovInDegree);
+            Camera &camera = renderer.cameras[renderer.imGuiSelectedCameraIndex];
+
+            ImGui::DragFloat3("Position", value_ptr(camera.position), 0.1f);
+            if (ImGui::DragFloat3("Direction", value_ptr(camera.direction), 0.1f, -1.f, 1.f)) {
+                camera.direction = normalize(camera.direction);
+            }
+            if (ImGui::DragFloat3("Up", value_ptr(camera.up), 0.1f, -1.f, 1.f)) {
+                camera.up = normalize(camera.up);
+            }
+
+            if (float fovInDegree = glm::degrees(camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
+                camera.fov = glm::radians(fovInDegree);
             }
 
             ImGui::Checkbox("Automatic Near/Far Adjustment", &renderer.automaticNearFarPlaneAdjustment);
@@ -1682,7 +1695,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
             ImGui::HelperMarker("(?)", "Near/Far plane will be automatically tightened to fit the scene bounding box.");
 
             ImGui::WithDisabled([&]() {
-                ImGui::DragFloatRange2("Near/Far", &renderer.camera.zMin, &renderer.camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+                ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
             }, renderer.automaticNearFarPlaneAdjustment);
 
             constexpr auto to_string = [](Renderer::FrustumCullingMode mode) noexcept -> const char* {
@@ -1793,16 +1806,23 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer) {
     ImGuizmo::BeginFrame();
     ImGuizmo::SetRect(centerNodeRect.Min.x, centerNodeRect.Min.y, centerNodeRect.GetWidth(), centerNodeRect.GetHeight());
 
-    constexpr ImVec2 size { 64.f, 64.f };
-    constexpr ImU32 background = 0x00000000; // Transparent.
-    const glm::mat4 oldView = renderer.camera.getViewMatrix();
-    glm::mat4 newView = oldView;
-    ImGuizmo::ViewManipulate(value_ptr(newView), renderer.camera.targetDistance, centerNodeRect.Max - size, size, background);
-    if (newView != oldView) {
-        const glm::mat4 inverseView = inverse(newView);
-        renderer.camera.up = inverseView[1];
-        renderer.camera.position = inverseView[3];
-        renderer.camera.direction = -inverseView[2];
+    for (auto &&[cameraIndex, camera, rect] : ranges::views::zip_enumerate(renderer.cameras, renderer.getCameraRects(centerNodeRect))) {
+        const glm::mat4 oldView = camera.getViewMatrix();
+        glm::mat4 newView = oldView;
+
+        constexpr ImVec2 size { 64.f, 64.f };
+        constexpr ImU32 background = 0x00000000; // Transparent.
+
+        ImGuizmo::PushID(cameraIndex);
+        ImGuizmo::ViewManipulate(value_ptr(newView), camera.targetDistance, rect.Max - size, size, background);
+        ImGuizmo::PopID();
+
+        if (newView != oldView) {
+            const glm::mat4 inverseView = inverse(newView);
+            camera.up = inverseView[1];
+            camera.position = inverseView[3];
+            camera.direction = -inverseView[2];
+        }
     }
 }
 
@@ -1829,20 +1849,23 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, g
         return false;
     };
 
+    const boost::container::static_vector<ImRect, 4> cameraRects = renderer.getCameraRects(centerNodeRect);
     if (assetExtended.selectedNodes.size() == 1) {
         const std::size_t selectedNodeIndex = *assetExtended.selectedNodes.begin();
         fastgltf::math::fmat4x4 newWorldTransform = assetExtended.nodeWorldTransforms[selectedNodeIndex];
 
         ImGuizmo::Enable(!isNodeUsedByEnabledAnimations(selectedNodeIndex));
 
-        if (Manipulate(value_ptr(renderer.camera.getViewMatrix()), value_ptr(renderer.camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
-            const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(assetExtended.nodeWorldTransforms[selectedNodeIndex]) * newWorldTransform;
+        for (const auto &[camera, rect] : std::views::zip(renderer.cameras, cameraRects)) {
+            if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
+                const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(assetExtended.nodeWorldTransforms[selectedNodeIndex]) * newWorldTransform;
 
-            updateTransform(assetExtended.asset.nodes[selectedNodeIndex], [&](fastgltf::math::fmat4x4 &transformMatrix) {
-                transformMatrix = transformMatrix * deltaMatrix;
-            });
+                updateTransform(assetExtended.asset.nodes[selectedNodeIndex], [&](fastgltf::math::fmat4x4 &transformMatrix) {
+                    transformMatrix = transformMatrix * deltaMatrix;
+                });
 
-            tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
+                tasks.emplace(std::in_place_type<task::NodeLocalTransformChanged>, selectedNodeIndex);
+            }
         }
     }
     else if (assetExtended.selectedNodes.size() >= 2) {
@@ -1864,60 +1887,69 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, g
 
         ImGuizmo::Enable(std::ranges::none_of(assetExtended.selectedNodes, isNodeUsedByEnabledAnimations));
 
-        if (fastgltf::math::fmat4x4 deltaMatrix;
-            Manipulate(value_ptr(renderer.camera.getViewMatrix()), value_ptr(renderer.camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data())) {
-            for (std::size_t nodeIndex : assetExtended.selectedNodes) {
-                const fastgltf::math::fmat4x4 inverseOldWorldTransform = affineInverse(assetExtended.nodeWorldTransforms[nodeIndex]);
+        for (const auto &[camera, rect] : std::views::zip(renderer.cameras, cameraRects)) {
+            if (fastgltf::math::fmat4x4 deltaMatrix;
+                Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data())) {
+                for (std::size_t nodeIndex : assetExtended.selectedNodes) {
+                    const fastgltf::math::fmat4x4 inverseOldWorldTransform = affineInverse(assetExtended.nodeWorldTransforms[nodeIndex]);
 
-                // Update node's world transform by pre-multiplying the delta matrix.
-                assetExtended.nodeWorldTransforms[nodeIndex] = deltaMatrix * assetExtended.nodeWorldTransforms[nodeIndex];
+                    // Update node's world transform by pre-multiplying the delta matrix.
+                    assetExtended.nodeWorldTransforms[nodeIndex] = deltaMatrix * assetExtended.nodeWorldTransforms[nodeIndex];
 
-                // Update node's local transform to match the world transform.
-                updateTransform(assetExtended.asset.nodes[nodeIndex], [&](fastgltf::math::fmat4x4 &localTransform) {
-                    // newWorldTransform = oldParentWorldTransform * newLocalTransform
-                    //                   = oldParentWorldTransform * (oldLocalTransform * localTransformDelta)
-                    //                   = oldWorldTransform * localTransformDelta
-                    // Therefore,
-                    //     localTransformDelta = oldWorldTransform^-1 * newWorldTransform, and
-                    //     newLocalTransform = oldLocalTransform * oldWorldTransform^-1 * newWorldTransform
-                    localTransform = localTransform * inverseOldWorldTransform * assetExtended.nodeWorldTransforms[nodeIndex];
-                });
+                    // Update node's local transform to match the world transform.
+                    updateTransform(assetExtended.asset.nodes[nodeIndex], [&](fastgltf::math::fmat4x4 &localTransform) {
+                        // newWorldTransform = oldParentWorldTransform * newLocalTransform
+                        //                   = oldParentWorldTransform * (oldLocalTransform * localTransformDelta)
+                        //                   = oldWorldTransform * localTransformDelta
+                        // Therefore,
+                        //     localTransformDelta = oldWorldTransform^-1 * newWorldTransform, and
+                        //     newLocalTransform = oldLocalTransform * oldWorldTransform^-1 * newWorldTransform
+                        localTransform = localTransform * inverseOldWorldTransform * assetExtended.nodeWorldTransforms[nodeIndex];
+                    });
 
-                // The updated node's immediate descendants local transforms also have to be updated to match their
-                // original world transforms.
-                const fastgltf::math::fmat4x4 inverseNewWorldTransform = affineInverse(assetExtended.nodeWorldTransforms[nodeIndex]);
-                for (std::size_t childNodeIndex : assetExtended.asset.nodes[nodeIndex].children) {
-                    // If the currently processing child is also in the selection, its world transform is changed,
-                    // therefore must be processed in the next execution of outer for-loop.
-                    if (assetExtended.selectedNodes.contains(childNodeIndex)) {
-                        continue;
+                    // The updated node's immediate descendants local transforms also have to be updated to match their
+                    // original world transforms.
+                    const fastgltf::math::fmat4x4 inverseNewWorldTransform = affineInverse(assetExtended.nodeWorldTransforms[nodeIndex]);
+                    for (std::size_t childNodeIndex : assetExtended.asset.nodes[nodeIndex].children) {
+                        // If the currently processing child is also in the selection, its world transform is changed,
+                        // therefore must be processed in the next execution of outer for-loop.
+                        if (assetExtended.selectedNodes.contains(childNodeIndex)) {
+                            continue;
+                        }
+
+                        updateTransform(assetExtended.asset.nodes[childNodeIndex], [&](fastgltf::math::fmat4x4 &localTransform) {
+                            // newWorldTransform = parentWorldTransform * newLocalTransform = oldWorldTransform.
+                            // Therefore, newLocalTransform = parentWorldTransform^-1 * oldWorldTransform
+                            localTransform = inverseNewWorldTransform * assetExtended.nodeWorldTransforms[childNodeIndex];
+                        });
                     }
 
-                    updateTransform(assetExtended.asset.nodes[childNodeIndex], [&](fastgltf::math::fmat4x4 &localTransform) {
-                        // newWorldTransform = parentWorldTransform * newLocalTransform = oldWorldTransform.
-                        // Therefore, newLocalTransform = parentWorldTransform^-1 * oldWorldTransform
-                        localTransform = inverseNewWorldTransform * assetExtended.nodeWorldTransforms[childNodeIndex];
-                    });
+                    tasks.emplace(std::in_place_type<task::NodeWorldTransformChanged>, nodeIndex);
                 }
-
-                tasks.emplace(std::in_place_type<task::NodeWorldTransformChanged>, nodeIndex);
             }
-        }
-        else if (!ImGuizmo::IsUsing()) {
-            retainedPivotTransformMatrix.reset();
+            else if (!ImGuizmo::IsUsing()) {
+                retainedPivotTransformMatrix.reset();
+            }
         }
     }
 
-    constexpr ImVec2 size { 64.f, 64.f };
-    constexpr ImU32 background = 0x00000000; // Transparent.
-    const glm::mat4 oldView = renderer.camera.getViewMatrix();
-    glm::mat4 newView = oldView;
-    ImGuizmo::ViewManipulate(value_ptr(newView), renderer.camera.targetDistance, centerNodeRect.Max - size, size, background);
-    if (newView != oldView) {
-        const glm::mat4 inverseView = inverse(newView);
-        renderer.camera.up = inverseView[1];
-        renderer.camera.position = inverseView[3];
-        renderer.camera.direction = -inverseView[2];
+    for (auto &&[cameraIndex, camera, rect] : ranges::views::zip_enumerate(renderer.cameras, cameraRects)) {
+        const glm::mat4 oldView = camera.getViewMatrix();
+        glm::mat4 newView = oldView;
+
+        constexpr ImVec2 size { 64.f, 64.f };
+        constexpr ImU32 background = 0x00000000; // Transparent.
+
+        ImGuizmo::PushID(cameraIndex);
+        ImGuizmo::ViewManipulate(value_ptr(newView), camera.targetDistance, rect.Max - size, size, background);
+        ImGuizmo::PopID();
+
+        if (newView != oldView) {
+            const glm::mat4 inverseView = inverse(newView);
+            camera.up = inverseView[1];
+            camera.position = inverseView[3];
+            camera.direction = -inverseView[2];
+        }
     }
 }
 

@@ -10,7 +10,7 @@ import vku;
 
 import vk_gltf_viewer.shader.node_index_frag;
 import vk_gltf_viewer.shader.node_index_vert;
-export import vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
+export import vk_gltf_viewer.vulkan.pl.Primitive;
 export import vk_gltf_viewer.vulkan.rp.MousePicking;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
@@ -27,7 +27,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
-            const pl::PrimitiveNoShading &pipelineLayout LIFETIMEBOUND,
+            const pl::Primitive &pipelineLayout LIFETIMEBOUND,
             const rp::MousePicking &renderPass LIFETIMEBOUND
         ) const;
 
@@ -54,7 +54,7 @@ struct vk_gltf_viewer::vulkan::pipeline::NodeIndexRendererSpecialization::Vertex
 
 [[nodiscard]] vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::NodeIndexRendererSpecialization::createPipeline(
     const vk::raii::Device &device,
-    const pl::PrimitiveNoShading &pipelineLayout,
+    const pl::Primitive &pipelineLayout,
     const rp::MousePicking &renderPass
 ) const {
     return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(

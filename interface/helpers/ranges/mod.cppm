@@ -156,6 +156,18 @@ namespace views {
     }
 #endif
 
+    export template <std::ranges::input_range... Rs>
+    [[nodiscard]] constexpr auto zip_enumerate(Rs &&...rs) {
+        using index_type = std::common_type_t<std::ranges::range_difference_t<Rs>...>;
+        if constexpr ((std::ranges::sized_range<Rs> && ...)) {
+            const auto min_size = std::min({ static_cast<index_type>(std::ranges::size(rs))... });
+            return std::views::zip(upto(min_size), FWD(rs)...);
+        }
+        else {
+            return std::views::zip(std::views::iota(index_type{}), FWD(rs)...);
+        }
+    }
+
     export CLANG_INLINE constexpr auto deref = std::views::transform([](auto &&x) -> decltype(auto) {
         return *FWD(x);
     });

@@ -17,6 +17,7 @@ import vk_gltf_viewer.helpers.AggregateHasher;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.ranges;
 export import vk_gltf_viewer.vulkan.ag.ImGui;
+export import vk_gltf_viewer.vulkan.buffer.CubeIndices;
 export import vk_gltf_viewer.vulkan.gltf.AssetExtended;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.pipeline.AssetSpecialization;
@@ -37,7 +38,7 @@ import vk_gltf_viewer.vulkan.pipeline.UnlitPrimitiveRenderer;
 export import vk_gltf_viewer.vulkan.pipeline.WeightedBlendedCompositionRenderer;
 export import vk_gltf_viewer.vulkan.pl.MultiNodeMousePicking;
 export import vk_gltf_viewer.vulkan.pl.Primitive;
-export import vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
+export import vk_gltf_viewer.vulkan.pl.PrimitiveMultiview;
 export import vk_gltf_viewer.vulkan.rp.MousePicking;
 export import vk_gltf_viewer.vulkan.rp.Scene;
 
@@ -47,15 +48,14 @@ namespace vk_gltf_viewer::vulkan {
         const Gpu &gpu;
 
         // Buffer, image and image views and samplers.
-        buffer::CubeIndices cubeIndices;
+        buffer::CubeIndices cubeIndexBuffer;
         sampler::Cubemap cubemapSampler;
         sampler::BrdfLut brdfLutSampler;
 
         // Descriptor set layouts.
+        dsl::Renderer rendererDescriptorSetLayout;
         dsl::Asset assetDescriptorSetLayout;
-        dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout;
         dsl::MultiNodeMousePicking multiNodeMousePickingDescriptorSetLayout;
-        dsl::Skybox skyboxDescriptorSetLayout;
 
         // Render passes.
         rp::MousePicking mousePickingRenderPass;
@@ -65,7 +65,7 @@ namespace vk_gltf_viewer::vulkan {
         // Pipeline layouts.
         pl::MultiNodeMousePicking multiNodeMousePickingPipelineLayout;
         pl::Primitive primitivePipelineLayout;
-        pl::PrimitiveNoShading primitiveNoShadingPipelineLayout;
+        pl::PrimitiveMultiview primitiveMultiviewPipelineLayout;
 
         // --------------------
         // Pipelines.
@@ -86,13 +86,6 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         ag::ImGui imGuiAttachmentGroup;
-
-        // Descriptor pools.
-        vk::raii::DescriptorPool descriptorPool;
-
-        // Descriptor sets.
-        vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
-        vku::DescriptorSet<dsl::Skybox> skyboxDescriptorSet;
 
         // --------------------
         // glTF assets.
@@ -164,9 +157,10 @@ vk::PrimitiveTopology getListPrimitiveTopology(fastgltf::PrimitiveType type) noe
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages)
     : gpu { gpu }
-    , cubeIndices { gpu.allocator }
+    , cubeIndexBuffer { gpu.allocator }
     , cubemapSampler { gpu.device }
     , brdfLutSampler { gpu.device }
+    , rendererDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
     , assetDescriptorSetLayout { [&]() {
         if (gpu.supportVariableDescriptorCount) {
             return dsl::Asset { gpu };
@@ -175,29 +169,23 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
             return dsl::Asset { gpu, 1 }; // TODO: set proper initial texture count.
         }
     }() }
-    , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
     , multiNodeMousePickingDescriptorSetLayout { gpu.device }
-    , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
     , mousePickingRenderPass { gpu.device }
     , sceneRenderPass { gpu }
     , bloomApplyRenderPass { gpu }
-    , multiNodeMousePickingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) }
-    , primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
-    , primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout }
+    , multiNodeMousePickingPipelineLayout { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) }
+    , primitivePipelineLayout { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout) }
+    , primitiveMultiviewPipelineLayout { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout) }
     , jumpFloodComputer { gpu.device }
     , mousePickingRenderer { gpu.device, mousePickingRenderPass }
     , outlineRenderer { gpu.device }
-    , skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, sceneRenderPass, cubeIndices }
+    , skyboxRenderer { gpu.device, cubemapSampler, sceneRenderPass }
     , weightedBlendedCompositionRenderer { gpu, sceneRenderPass }
     , inverseToneMappingRenderer { gpu, sceneRenderPass }
     , bloomComputer { gpu.device, { .useAMDShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod } }
     , bloomApplyRenderer { gpu, bloomApplyRenderPass }
     , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
-    , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
-    , fallbackTexture { gpu }{
-    std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet) = vku::allocateDescriptorSets(
-        *descriptorPool, std::tie(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout));
-}
+    , fallbackTexture { gpu } { }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getNodeIndexRenderer(const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
@@ -213,7 +201,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getNodeIndexRenderer(const fast
     }
 
     return ranges::try_emplace_if_not_exists(nodeIndexPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass);
+        return specialization.createPipeline(gpu.device, primitivePipelineLayout, mousePickingRenderPass);
     }).first->second;
 }
 
@@ -248,7 +236,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskNodeIndexRenderer(const 
     }
 
     return ranges::try_emplace_if_not_exists(maskNodeIndexPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass);
+        return specialization.createPipeline(gpu.device, primitivePipelineLayout, mousePickingRenderPass);
     }).first->second;
 }
 
@@ -319,7 +307,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getJumpFloodSeedRenderer(const 
     }
 
     return ranges::try_emplace_if_not_exists(jumpFloodSeedPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
+        return specialization.createPipeline(gpu.device, primitivePipelineLayout);
     }).first->second;
 }
 
@@ -354,7 +342,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderer(co
     }
 
     return ranges::try_emplace_if_not_exists(maskJumpFloodSeedPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
+        return specialization.createPipeline(gpu.device, primitivePipelineLayout);
     }).first->second;
 }
 
@@ -401,7 +389,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderer(const Asse
     }
 
     return ranges::try_emplace_if_not_exists(primitivePipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitivePipelineLayout, sceneRenderPass);
+        return specialization.createPipeline(gpu.device, primitiveMultiviewPipelineLayout, sceneRenderPass);
     }).first->second;
 }
 
@@ -435,7 +423,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderer(const
     }
 
     return ranges::try_emplace_if_not_exists(unlitPrimitivePipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitivePipelineLayout, sceneRenderPass);
+        return specialization.createPipeline(gpu.device, primitiveMultiviewPipelineLayout, sceneRenderPass);
     }).first->second;
 }
 
@@ -464,8 +452,8 @@ void vk_gltf_viewer::vulkan::SharedData::setAsset(std::shared_ptr<const vulkan::
         unlitPrimitivePipelines.clear();
 
         assetDescriptorSetLayout = { gpu, textureCount };
-        multiNodeMousePickingPipelineLayout = { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) };
-        primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
-        primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
+        multiNodeMousePickingPipelineLayout = { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) };
+        primitivePipelineLayout = { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout) };
+        primitiveMultiviewPipelineLayout = { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout) };
     }
 }

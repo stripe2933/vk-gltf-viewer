@@ -14,6 +14,8 @@ namespace ImGuizmo {
     export using ImGuizmo::OPERATION;
     export using ImGuizmo::Manipulate;
     export using ImGuizmo::MODE;
+    export using ImGuizmo::PushID;
+    export using ImGuizmo::PopID;
     export using ImGuizmo::SetRect;
     export using ImGuizmo::ViewManipulate;
 }

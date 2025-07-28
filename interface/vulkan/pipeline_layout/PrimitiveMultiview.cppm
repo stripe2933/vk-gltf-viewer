@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.pl.Primitive;
+export module vk_gltf_viewer.vulkan.pl.PrimitiveMultiview;
 
 import std;
 export import vulkan_hpp;
@@ -12,17 +12,8 @@ export import vk_gltf_viewer.vulkan.dsl.Asset;
 export import vk_gltf_viewer.vulkan.dsl.Renderer;
 
 namespace vk_gltf_viewer::vulkan::pl {
-    export struct Primitive : vk::raii::PipelineLayout {
-        struct PushConstant {
-            static constexpr vk::PushConstantRange range{
-				vk::ShaderStageFlagBits::eVertex,
-                0, sizeof(std::uint32_t),
-            };
-
-            std::uint32_t cameraIndex;
-        };
-
-        Primitive(
+    export struct PrimitiveMultiview : vk::raii::PipelineLayout {
+        PrimitiveMultiview(
             const vk::raii::Device &device LIFETIMEBOUND,
             std::pair<const dsl::Renderer&, const dsl::Asset&> descriptorSetLayouts LIFETIMEBOUND
         );
@@ -33,11 +24,10 @@ namespace vk_gltf_viewer::vulkan::pl {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::pl::Primitive::Primitive(
+vk_gltf_viewer::vulkan::pl::PrimitiveMultiview::PrimitiveMultiview(
     const vk::raii::Device &device,
     std::pair<const dsl::Renderer&, const dsl::Asset&> descriptorSetLayouts
 ) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
         vku::unsafeProxy({ *descriptorSetLayouts.first, *descriptorSetLayouts.second }),
-        PushConstant::range,
     } } { }

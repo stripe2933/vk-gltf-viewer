@@ -34,18 +34,22 @@ layout (location = 2) out VS_VARIADIC_OUT {
 } variadic_out;
 #endif
 
-layout (set = 0, binding = 0, std430) readonly buffer PrimitiveBuffer {
+layout (set = 0, binding = 0) uniform Camera {
+    mat4 projectionViews[4];
+};
+
+layout (set = 1, binding = 0, std430) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
-layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {
+layout (set = 1, binding = 1, std430) readonly buffer NodeBuffer {
     Node nodes[];
 };
-layout (set = 0, binding = 2, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
-layout (push_constant) uniform PushConstant {
-    mat4 projectionView;
+layout (push_constant) uniform PushConstants {
+    uint cameraIndex;
 } pc;
 
 #include "vertex_pulling.glsl"
@@ -62,6 +66,6 @@ void main(){
 #endif
 
     vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_NORMALIZED, POSITION_MORPH_TARGET_COUNT);
-    gl_Position = pc.projectionView * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
+    gl_Position = projectionViews[pc.cameraIndex] * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
     gl_PointSize = 1.0;
 }
