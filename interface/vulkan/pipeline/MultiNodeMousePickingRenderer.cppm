@@ -11,7 +11,7 @@ import vku;
 import vk_gltf_viewer.shader.multi_node_mouse_picking_frag;
 import vk_gltf_viewer.shader.node_index_vert;
 export import vk_gltf_viewer.vulkan.Gpu;
-export import vk_gltf_viewer.vulkan.pl.MultiNodeMousePicking;
+export import vk_gltf_viewer.vulkan.pl.MousePicking;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -27,7 +27,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
             const Gpu &gpu LIFETIMEBOUND,
-            const pl::MultiNodeMousePicking &pipelineLayout LIFETIMEBOUND
+            const pl::MousePicking &pipelineLayout LIFETIMEBOUND
         ) const;
 
     private:
@@ -53,7 +53,7 @@ struct vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRendererSpecializa
 
 vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRendererSpecialization::createPipeline(
     const Gpu &gpu,
-    const pl::MultiNodeMousePicking &pipelineLayout
+    const pl::MousePicking &pipelineLayout
 ) const {
     return { gpu.device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(

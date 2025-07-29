@@ -163,26 +163,26 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/math/Frustum.cppm
         interface/math/Plane.cppm
         interface/Renderer.cppm
-        interface/shader_selector/mask_node_index_frag.cppm
         interface/shader_selector/mask_node_index_vert.cppm
         interface/shader_selector/mask_jump_flood_seed_frag.cppm
         interface/shader_selector/mask_jump_flood_seed_vert.cppm
+        interface/shader_selector/mask_mouse_picking_frag.cppm
         interface/shader_selector/mask_multi_node_mouse_picking_frag.cppm
         interface/shader_selector/primitive_frag.cppm
         interface/shader_selector/primitive_vert.cppm
         interface/shader_selector/unlit_primitive_frag.cppm
         interface/shader_selector/unlit_primitive_vert.cppm
-        interface/vulkan/attachment_group/MousePicking.cppm
+        interface/vulkan/attachment_group/ImGui.cppm
         interface/vulkan/attachment_group/JumpFloodSeed.cppm
         interface/vulkan/attachment_group/Scene.cppm
-        interface/vulkan/attachment_group/ImGui.cppm
+        interface/vulkan/attachment_group/MousePicking.cppm
         interface/vulkan/buffer/mod.cppm
         interface/vulkan/buffer/CubeIndices.cppm
         interface/vulkan/buffer/IndirectDrawCommands.cppm
         interface/vulkan/buffer/Materials.cppm
         interface/vulkan/buffer/PrimitiveAttributes.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
-        interface/vulkan/descriptor_set_layout/MultiNodeMousePicking.cppm
+        interface/vulkan/descriptor_set_layout/MousePicking.cppm
         interface/vulkan/descriptor_set_layout/Renderer.cppm
         interface/vulkan/Frame.cppm
         interface/vulkan/FrameDeferredTask.cppm
@@ -194,12 +194,11 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/BloomApplyRenderer.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
         interface/vulkan/pipeline/InverseToneMappingRenderer.cppm
-        interface/vulkan/pipeline/NodeIndexRenderer.cppm
         interface/vulkan/pipeline/JumpFloodComputer.cppm
         interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
         interface/vulkan/pipeline/MaskJumpFloodSeedRenderer.cppm
+        interface/vulkan/pipeline/MaskMousePickingRenderer.cppm
         interface/vulkan/pipeline/MaskMultiNodeMousePickingRenderer.cppm
-        interface/vulkan/pipeline/MaskNodeIndexRenderer.cppm
         interface/vulkan/pipeline/MousePickingRenderer.cppm
         interface/vulkan/pipeline/MultiNodeMousePickingRenderer.cppm
         interface/vulkan/pipeline/OutlineRenderer.cppm
@@ -207,7 +206,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/SkyboxRenderer.cppm
         interface/vulkan/pipeline/UnlitPrimitiveRenderer.cppm
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderer.cppm
-        interface/vulkan/pipeline_layout/MultiNodeMousePicking.cppm
+        interface/vulkan/pipeline_layout/MousePicking.cppm
         interface/vulkan/pipeline_layout/Primitive.cppm
         interface/vulkan/pipeline_layout/PrimitiveMultiview.cppm
         interface/vulkan/render_pass/BloomApply.cppm
@@ -301,7 +300,6 @@ target_link_shaders(vk-gltf-viewer PRIVATE
         shaders/jump_flood.comp
         shaders/mouse_picking.frag
         shaders/multi_node_mouse_picking.frag
-        shaders/node_index.frag
         shaders/node_index.vert
         shaders/outline.frag
         shaders/screen_quad.vert
@@ -314,8 +312,8 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
     FILES
         shaders/mask_jump_flood_seed.frag
         shaders/mask_jump_flood_seed.vert
+        shaders/mask_mouse_picking.frag
         shaders/mask_multi_node_mouse_picking.frag
-        shaders/mask_node_index.frag
         shaders/mask_node_index.vert
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_0_ALPHA_ATTRIBUTE"
     MACRO_VALUES

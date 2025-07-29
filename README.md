@@ -99,6 +99,7 @@ The extensions and feature used in this application are quite common in the mode
     - `drawIndirectFirstInstance`
     - `samplerAnistropy`
     - `shaderInt16`
+    - `shaderInt64`
     - `multiDrawIndirect`
     - `shaderStorageImageWriteWithoutFormat`
     - `independentBlend` (Weighted Blended OIT)
@@ -115,6 +116,7 @@ The extensions and feature used in this application are quite common in the mode
     - `descriptorBindingPartiallyBound`
     - `runtimeDescriptorArray`
     - `separateDepthStencilLayouts`
+    - `shaderBufferInt64Atomics`
     - `storageBuffer8BitAccess`
     - `scalarBlockLayout`
     - `timelineSemaphore`

@@ -1,8 +1,12 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
+#extension GL_KHR_shader_subgroup_vote : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_8bit_storage : require
+#extension GL_EXT_shader_atomic_int64 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 #define FRAGMENT_SHADER
 #include "indexing.glsl"
@@ -25,12 +29,14 @@ layout (location = 2) in FRAG_VARIADIC_IN {
 } variadic_in;
 #endif
 
-layout (location = 0) out uint outNodeIndex;
-
 layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 layout (set = 1, binding = 3) uniform sampler2D textures[];
+
+layout (set = 2, binding = 0) buffer MousePickingResultBuffer {
+    uint64_t depthNodeIndexPacked;
+};
 
 void main(){
     float baseColorAlpha = MATERIAL.baseColorFactor.a;
@@ -45,6 +51,7 @@ void main(){
     baseColorAlpha *= variadic_in.color0Alpha;
 #endif
     if (baseColorAlpha < MATERIAL.alphaCutoff) discard;
-
-    outNodeIndex = inNodeIndex;
+    
+    uint intDepth = floatBitsToUint(gl_FragCoord.z);
+    atomicMax(depthNodeIndexPacked, packUint2x32(uvec2(inNodeIndex, intDepth)));
 }
