@@ -670,7 +670,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             sharedData.gpu.device.updateDescriptorSets(
                 hoveringNodeOutlineSet.getWriteOne<0>({
                     {},
-                    *passthruResources->hoveringNodeOutlineJumpFloodResources.perLayerImageViews[*hoveringNodeJumpFloodForward],
+                    *passthruResources->hoveringNodeOutlineJumpFloodResources.pingPongImageViews[*hoveringNodeJumpFloodForward],
                     vk::ImageLayout::eShaderReadOnlyOptimal,
                 }),
                 {});
@@ -684,7 +684,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             sharedData.gpu.device.updateDescriptorSets(
                 selectedNodeOutlineSet.getWriteOne<0>({
                     {},
-                    *passthruResources->selectedNodeOutlineJumpFloodResources.perLayerImageViews[*selectedNodeJumpFloodForward],
+                    *passthruResources->selectedNodeOutlineJumpFloodResources.pingPongImageViews[*selectedNodeJumpFloodForward],
                     vk::ImageLayout::eShaderReadOnlyOptimal,
                 }),
                 {});
@@ -1005,7 +1005,7 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodR
         vk::ImageType::e2D,
         vk::Format::eR16G16Uint,
         vk::Extent3D { extent, 1 },
-        1, 2, // arrayLevels=0 for ping image, arrayLevels=1 for pong image.
+        1, 8 /* TODO */, // 0..4 for ping image, 4..8 for pong image.
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eColorAttachment /* write from JumpFloodSeedRenderer */
@@ -1015,8 +1015,11 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodR
         gpu.queueFamilies.uniqueIndices,
     } },
     imageView { gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2DArray) },
-    perLayerImageViews { INDEX_SEQ(Is, 2, {
-        return std::array { vk::raii::ImageView { gpu.device, image.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, Is, 1 }) }... };
+    pingPongImageViews { INDEX_SEQ(Is, 2, {
+        return std::array { vk::raii::ImageView { 
+            gpu.device, 
+            image.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 4 * Is, 4 /* TODO */ }, vk::ImageViewType::e2DArray),
+        }... };
     }) } { }
 
 vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
@@ -1111,9 +1114,9 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
         {
             layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, mousePickingAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
             layoutTransitionBarrier(vk::ImageLayout::eGeneral, hoveringNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
-            layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, hoveringNodeJumpFloodSeedAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
+            layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, hoveringNodeJumpFloodSeedAttachmentGroup.depthImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
             layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
-            layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, selectedNodeJumpFloodSeedAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
+            layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, selectedNodeJumpFloodSeedAttachmentGroup.depthImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
             layoutTransitionBarrier(vk::ImageLayout::eGeneral, bloomImage, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingArrayLayers, 0, 1 }),
         });
 }
@@ -1157,7 +1160,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             {}, vk::AccessFlagBits::eColorAttachmentWrite,
             {}, vk::ImageLayout::eColorAttachmentOptimal,
             vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-            image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image */,
+            image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 4 /* TODO */ } /* ping image */,
         };
     };
     if (selectedNodes) {
@@ -1179,27 +1182,20 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         std::optional<vk::CullModeFlagBits> cullMode{};
         std::optional<vk::IndexType> indexType;
 
-        // (Mask){Depth|JumpFloodSeed}Renderer have the same pipeline layout, therefore descriptor sets and push constants should
-        // be bound only once.
         bool descriptorSetBound = false;
-        bool pushConstantsBound = false;
+        bool pushConstantsBound = false; // Only used for (Mask)(Multi)NodeIndexRenderer.
     };
 
-    auto drawPrimitives = [&, resourceBindingState = ResourceBindingState{}](const auto &indirectDrawCommandBuffers) mutable {
+    auto drawPrimitiveForJumpFloodSeed = [&, resourceBindingState = ResourceBindingState{}](const auto &indirectDrawCommandBuffers) mutable {
         for (const auto &[criteria, indirectDrawCommandBuffer] : indirectDrawCommandBuffers) {
             if (resourceBindingState.pipeline != criteria.pipeline) {
                 cb.bindPipeline(vk::PipelineBindPoint::eGraphics, resourceBindingState.pipeline = criteria.pipeline);
             }
 
             if (!resourceBindingState.descriptorSetBound) {
-                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout,
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitiveMultiviewPipelineLayout,
                     0, { rendererSet, assetDescriptorSet }, {});
                 resourceBindingState.descriptorSetBound = true;
-            }
-
-            if (!resourceBindingState.pushConstantsBound) {
-                cb.pushConstants<std::uint32_t>(*sharedData.primitivePipelineLayout, pl::Primitive::PushConstant::range.stageFlags, 0, vku::unsafeProxy(0U /* TODO */));
-                resourceBindingState.pushConstantsBound = true;
             }
 
             if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
@@ -1226,19 +1222,45 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 
     // Seeding jump flood initial image for hovering node.
     if (hoveringNode) {
-        cb.beginRenderingKHR(passthruResources->hoveringNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
-            vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
-            vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
-        drawPrimitives(hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers);
+        cb.beginRenderingKHR({
+            {},
+			vk::Rect2D { { 0, 0 }, passthruResources->extent },
+            0,
+            0b1111U /* TODO */,
+            vku::unsafeProxy(vk::RenderingAttachmentInfo {
+                *passthruResources->hoveringNodeJumpFloodSeedAttachmentGroup.colorImageView, vk::ImageLayout::eColorAttachmentOptimal,
+                {}, {}, {},
+				vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearColorValue { 0U, 0U, 0U, 0U },
+            }),
+            vku::unsafeAddress<vk::RenderingAttachmentInfo>({
+                *passthruResources->hoveringNodeJumpFloodSeedAttachmentGroup.depthImageView, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                {}, {}, {},
+                vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, vk::ClearDepthStencilValue { 0.f, 0U },
+			}),
+        });
+        drawPrimitiveForJumpFloodSeed(hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers);
         cb.endRenderingKHR();
     }
 
     // Seeding jump flood initial image for selected node.
     if (selectedNodes) {
-        cb.beginRenderingKHR(passthruResources->selectedNodeJumpFloodSeedAttachmentGroup.getRenderingInfo(
-            vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, { 0U, 0U, 0U, 0U } },
-            vku::AttachmentGroup::DepthStencilAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, { 0.f, 0U } }));
-        drawPrimitives(selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers);
+        cb.beginRenderingKHR({
+            {},
+            vk::Rect2D { { 0, 0 }, passthruResources->extent },
+            0,
+            0b1111U /* TODO */,
+            vku::unsafeProxy(vk::RenderingAttachmentInfo {
+                *passthruResources->selectedNodeJumpFloodSeedAttachmentGroup.colorImageView, vk::ImageLayout::eColorAttachmentOptimal,
+                {}, {}, {},
+                vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearColorValue { 0U, 0U, 0U, 0U },
+            }),
+            vku::unsafeAddress<vk::RenderingAttachmentInfo>({
+                *passthruResources->selectedNodeJumpFloodSeedAttachmentGroup.depthImageView, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                {}, {}, {},
+                vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, vk::ClearDepthStencilValue { 0.f, 0U },
+            }),
+        });
+        drawPrimitiveForJumpFloodSeed(selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers);
         cb.endRenderingKHR();
     }
 
@@ -1266,7 +1288,39 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 }, vk::SubpassContents::eInline);
 
                 // Subpass 1: draw node index to the 1x1 pixel (which lies at the right below the cursor).
-                drawPrimitives(renderingNodes->mousePickingIndirectDrawCommandBuffers);
+                for (ResourceBindingState resourceBindingState{};  const auto& [criteria, indirectDrawCommandBuffer] : renderingNodes->mousePickingIndirectDrawCommandBuffers) {
+                    if (resourceBindingState.pipeline != criteria.pipeline) {
+                        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, resourceBindingState.pipeline = criteria.pipeline);
+                    }
+
+                    if (!resourceBindingState.descriptorSetBound) {
+                        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.primitivePipelineLayout,
+                            0, { rendererSet, assetDescriptorSet }, {});
+                        resourceBindingState.descriptorSetBound = true;
+                    }
+
+                    if (!resourceBindingState.pushConstantsBound) {
+                        cb.pushConstants<std::uint32_t>(*sharedData.primitivePipelineLayout, pl::Primitive::PushConstant::range.stageFlags, 0, vku::unsafeProxy(0U /* TODO */));
+                        resourceBindingState.pushConstantsBound = true;
+                    }
+
+                    if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
+                        cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+                    }
+
+                    if (resourceBindingState.cullMode != criteria.cullMode) {
+                        cb.setCullModeEXT(resourceBindingState.cullMode.emplace(criteria.cullMode));
+                    }
+
+                    if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
+                        resourceBindingState.indexType.emplace(*criteria.indexType);
+                        cb.bindIndexBuffer(
+                            gltfAsset->assetExtended->combinedIndexBuffer,
+                            gltfAsset->assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                            *resourceBindingState.indexType);
+                    }
+                    indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
+                }
 
                 cb.nextSubpass(vk::SubpassContents::eInline);
 
@@ -1300,33 +1354,6 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                         vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite,
                     }, {}, {});
 
-                auto drawPrimitives = [&, resourceBindingState = ResourceBindingState{}](const auto &indirectDrawCommandBuffers) mutable {
-                    for (const auto &[criteria, indirectDrawCommandBuffer] : indirectDrawCommandBuffers) {
-                        if (resourceBindingState.pipeline != criteria.pipeline) {
-                            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, resourceBindingState.pipeline = criteria.pipeline);
-                        }
-
-                        if (!resourceBindingState.descriptorSetBound) {
-                            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.multiNodeMousePickingPipelineLayout,
-                                0, { rendererSet, assetDescriptorSet, multiNodeMousePickingSet }, {});
-                            resourceBindingState.descriptorSetBound = true;
-                        }
-
-                        if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
-                            cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
-                        }
-
-                        if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
-                            resourceBindingState.indexType.emplace(*criteria.indexType);
-                            cb.bindIndexBuffer(
-                                gltfAsset->assetExtended->combinedIndexBuffer,
-                                gltfAsset->assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
-                                *resourceBindingState.indexType);
-                        }
-                        indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
-                    }
-                };
-
                 cb.setScissor(0, rect);
                 cb.beginRenderingKHR(vk::RenderingInfo {
                     {},
@@ -1340,7 +1367,35 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                         vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
                     }) : nullptr,
                 });
-                drawPrimitives(renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers);
+                for (ResourceBindingState resourceBindingState{}; const auto& [criteria, indirectDrawCommandBuffer] : renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers) {
+                    if (resourceBindingState.pipeline != criteria.pipeline) {
+                        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, resourceBindingState.pipeline = criteria.pipeline);
+                    }
+
+                    if (!resourceBindingState.descriptorSetBound) {
+                        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.multiNodeMousePickingPipelineLayout,
+                            0, { rendererSet, assetDescriptorSet, multiNodeMousePickingSet }, {});
+                        resourceBindingState.descriptorSetBound = true;
+                    }
+
+                    if (!resourceBindingState.pushConstantsBound) {
+                        cb.pushConstants<std::uint32_t>(*sharedData.primitivePipelineLayout, pl::Primitive::PushConstant::range.stageFlags, 0, vku::unsafeProxy(0U /* TODO */));
+                        resourceBindingState.pushConstantsBound = true;
+                    }
+
+                    if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
+                        cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+                    }
+
+                    if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
+                        resourceBindingState.indexType.emplace(*criteria.indexType);
+                        cb.bindIndexBuffer(
+                            gltfAsset->assetExtended->combinedIndexBuffer,
+                            gltfAsset->assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
+                            *resourceBindingState.indexType);
+                    }
+                    indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
+                }
                 cb.endRenderingKHR();
 
                 return true;
@@ -1378,14 +1433,14 @@ bool vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
                 vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageRead,
                 vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eGeneral,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 4 /* TODO */ },
             },
             vk::ImageMemoryBarrier2 {
                 {}, {},
                 vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderStorageWrite,
                 {}, vk::ImageLayout::eGeneral,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 },
+                image, { vk::ImageAspectFlagBits::eColor, 0, 1, 4 /* TODO */, 4 /* TODO */ },
             }
         }),
     });
@@ -1519,7 +1574,7 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
             vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
             vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
             passthruResources->hoveringNodeOutlineJumpFloodResources.image,
-            { vk::ImageAspectFlagBits::eColor, 0, 1, *hoveringNodeJumpFloodForward, 1 },
+            { vk::ImageAspectFlagBits::eColor, 0, 1, *hoveringNodeJumpFloodForward ? 4U /* TODO */ : 0U, 4 /* TODO */ },
         });
     }
     if (selectedNodeJumpFloodForward) {
@@ -1528,7 +1583,7 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
             vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
             vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
             passthruResources->selectedNodeOutlineJumpFloodResources.image,
-            { vk::ImageAspectFlagBits::eColor, 0, 1, *selectedNodeJumpFloodForward, 1 },
+            { vk::ImageAspectFlagBits::eColor, 0, 1, *selectedNodeJumpFloodForward ? 4U /* TODO */ : 0U, 4 /* TODO */ },
         });
     }
     if (!memoryBarriers.empty()) {
@@ -1544,8 +1599,8 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
     cb.beginRenderingKHR(vk::RenderingInfo {
         {},
         { { 0, 0 }, passthruResources->extent },
-        1,
         0,
+        0b1111U /* TODO */,
         vku::unsafeProxy(vk::RenderingAttachmentInfo {
             *passthruResources->sceneAttachmentGroup.colorImageView,
             vk::ImageLayout::eColorAttachmentOptimal,

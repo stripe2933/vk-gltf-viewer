@@ -307,7 +307,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getJumpFloodSeedRenderer(const 
     }
 
     return ranges::try_emplace_if_not_exists(jumpFloodSeedPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitivePipelineLayout);
+        return specialization.createPipeline(gpu.device, primitiveMultiviewPipelineLayout);
     }).first->second;
 }
 
@@ -342,7 +342,7 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderer(co
     }
 
     return ranges::try_emplace_if_not_exists(maskJumpFloodSeedPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitivePipelineLayout);
+        return specialization.createPipeline(gpu.device, primitiveMultiviewPipelineLayout);
     }).first->second;
 }
 

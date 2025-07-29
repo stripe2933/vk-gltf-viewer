@@ -10,7 +10,7 @@ import vku;
 
 import vk_gltf_viewer.shader_selector.mask_jump_flood_seed_frag;
 import vk_gltf_viewer.shader_selector.mask_jump_flood_seed_vert;
-export import vk_gltf_viewer.vulkan.pl.Primitive;
+export import vk_gltf_viewer.vulkan.pl.PrimitiveMultiview;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
@@ -29,7 +29,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
-            const pl::Primitive &pipelineLayout LIFETIMEBOUND
+            const pl::PrimitiveMultiview &pipelineLayout LIFETIMEBOUND
         ) const;
 
     private:
@@ -66,7 +66,7 @@ struct vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRendererSpecialization
 
 vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRendererSpecialization::createPipeline(
     const vk::raii::Device &device,
-    const pl::Primitive &pipelineLayout
+    const pl::PrimitiveMultiview &pipelineLayout
 ) const {
     return { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
@@ -107,7 +107,7 @@ vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRendererSp
                 }),
             })),
         vk::PipelineRenderingCreateInfo {
-            {},
+            0b1111U,
             vku::unsafeProxy(vk::Format::eR16G16Uint),
             vk::Format::eD32Sfloat,
         }

@@ -77,7 +77,7 @@ vk_gltf_viewer::vulkan::pipeline::OutlineRenderer::OutlineRenderer(
             { 1.f, 1.f, 1.f, 1.f },
         })),
         vk::PipelineRenderingCreateInfo {
-            {},
+            0b1111U,
             vku::unsafeProxy(vk::Format::eB8G8R8A8Srgb),
         },
     }.get() } { }

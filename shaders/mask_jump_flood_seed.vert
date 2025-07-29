@@ -1,4 +1,5 @@
 #version 460
+#extension GL_EXT_multiview : require
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_shader_8bit_storage : require
 #extension GL_EXT_shader_16bit_storage : require
@@ -47,10 +48,6 @@ layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
-layout (push_constant) uniform PushConstants {
-    uint cameraIndex;
-} pc;
-
 #include "vertex_pulling.glsl"
 #include "transform.glsl"
 
@@ -64,6 +61,6 @@ void main(){
 #endif
 
     vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_NORMALIZED, POSITION_MORPH_TARGET_COUNT);
-    gl_Position = projectionViews[pc.cameraIndex] * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
+    gl_Position = projectionViews[gl_ViewIndex] * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
     gl_PointSize = 1.0;
 }
