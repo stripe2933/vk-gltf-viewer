@@ -130,7 +130,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
             .compressedImageUsageFlags = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
             .compressedImageDstLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
         #endif
-            .stagingInfo = stagingInfo,
+            .stagingInfo = &stagingInfo,
         };
         return std::pair<std::size_t, vkgltf::Image> {
             std::piecewise_construct,
