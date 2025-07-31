@@ -182,6 +182,10 @@ namespace vkgltf {
              * @brief Information about buffer to image staging, or <tt>nullptr</tt> if <tt>VK_EXT_host_image_copy</tt> is used.
              */
             StagingInfo *stagingInfo = nullptr;
+
+        #if __APPLE__
+            vk::ExportMetalObjectTypeFlagBitsEXT metalObjectTypeFlagBits{};
+        #endif
         };
 
         vku::AllocatedImage image;
@@ -299,6 +303,9 @@ namespace vkgltf {
                     config.queueFamilies,
                 },
                 vk::ImageFormatListCreateInfo { formatList },
+            #if __APPLE__
+                vk::ExportMetalObjectCreateInfoEXT { config.metalObjectTypeFlagBits },
+            #endif
             };
 
         #ifdef USE_KTX
@@ -324,6 +331,12 @@ namespace vkgltf {
             else {
                 createInfo.unlink<vk::ImageFormatListCreateInfo>();
             }
+
+        #if __APPLE__
+            if (config.metalObjectTypeFlagBits == vk::ExportMetalObjectTypeFlagBitsEXT{}) {
+                createInfo.unlink<vk::ExportMetalObjectCreateInfoEXT>();
+            }
+        #endif
 
             vku::AllocatedImage result { allocator, createInfo.get(), config.allocationCreateInfo };
 
@@ -426,6 +439,9 @@ namespace vkgltf {
         vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
         vma::AllocationCreateInfo allocationCreateInfo = { {}, vma::MemoryUsage::eAutoPreferDevice };
         StagingInfo *stagingInfo = nullptr;
+    #if __APPLE__
+        vk::ExportMetalObjectTypeFlagBitsEXT metalObjectTypeFlagBits{};
+    #endif
     };
 
 }
