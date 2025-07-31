@@ -908,20 +908,25 @@ vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {
     const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
     extensions.append_range(std::views::counted(glfwExtensions, glfwExtensionCount));
 
-    vk::raii::Instance instance { context, vk::InstanceCreateInfo{
-#if __APPLE__
-        vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR,
-#else
-        {},
-#endif
-        vku::unsafeAddress(vk::ApplicationInfo {
-            "Vulkan glTF Viewer", 0,
-            nullptr, 0,
-            vk::makeApiVersion(0, 1, 2, 0),
-        }),
-        {},
-        extensions,
-    } };
+    vk::raii::Instance instance { context, vk::StructureChain {
+        vk::InstanceCreateInfo {
+        #if __APPLE__
+            vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR,
+        #else
+            {},
+        #endif
+            vku::unsafeAddress(vk::ApplicationInfo {
+                "Vulkan glTF Viewer", 0,
+                nullptr, 0,
+                vk::makeApiVersion(0, 1, 2, 0),
+            }),
+            {},
+            extensions,
+        },
+    #if __APPLE__
+        vk::ExportMetalObjectCreateInfoEXT { vk::ExportMetalObjectTypeFlagBitsEXT::eMetalCommandQueue },
+    #endif
+    }.get() };
     VULKAN_HPP_DEFAULT_DISPATCHER.init(*instance);
     return instance;
 }
