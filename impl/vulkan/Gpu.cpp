@@ -12,6 +12,7 @@ constexpr std::array requiredExtensions {
     vk::KHRCopyCommands2ExtensionName,
     vk::KHRFormatFeatureFlags2ExtensionName,
     vk::EXTHostImageCopyExtensionName,
+    vk::EXTMetalObjectsExtensionName,
 #endif
     vk::KHRDynamicRenderingExtensionName,
     vk::KHRSynchronization2ExtensionName,

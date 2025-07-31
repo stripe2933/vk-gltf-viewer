@@ -16,9 +16,17 @@ export import vk_gltf_viewer.gltf.AssetProcessError;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.vulkan;
 import vk_gltf_viewer.vulkan.dsl.Asset;
-import vk_gltf_viewer.vulkan.mipmap;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.texture.Fallback;
+
+#if __APPLE__
+import MetalCpp;
+import ObjCBridge;
+
+import vk_gltf_viewer.helpers.ranges;
+#else
+import vk_gltf_viewer.vulkan.mipmap;
+#endif
 
 namespace vk_gltf_viewer::vulkan::texture {
     export struct Textures {
@@ -129,14 +137,14 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
                 }
             },
             .uncompressedImageMipmapPolicy = vkgltf::Image::MipmapPolicy::AllocateOnly,
+        #if __APPLE__
+            .metalObjectTypeFlagBits = vk::ExportMetalObjectTypeFlagBitsEXT::eMetalTexture,
+        #else
             .uncompressedImageUsageFlags = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
-        #if !__APPLE__
             .uncompressedImageDstLayout = vk::ImageLayout::eTransferSrcOptimal,
-        #endif
         #ifdef SUPPORT_KHR_TEXTURE_BASISU
             .compressedImageUsageFlags = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
         #endif
-        #if !__APPLE__
             .stagingInfo = &stagingInfo,
         #endif
         };
@@ -172,55 +180,76 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
         }
     }
 
-    // Generate image mipmaps using graphics queue.
-    std::optional<vk::raii::CommandPool> graphicsCommandPool; // Only have value if GPU has dedicated transfer queue.
+#if __APPLE__
+    std::vector<vk::ExportMetalTextureInfoEXT> exportTextureInfos;
+    exportTextureInfos.reserve(images.size());
+    std::unordered_set<vk::Image> imagesToGenerateMipmap;
+
+    for (const auto &[image, _] : images | std::views::values) {
+        exportTextureInfos.push_back({ image, {}, {}, vk::ImageAspectFlagBits::ePlane0 });
+        if (!isCompressed(image.format) && image.mipLevels > 1) {
+            imagesToGenerateMipmap.emplace(image);
+        }
+    }
+    for (const auto &[a, b] : exportTextureInfos | ranges::views::pairwise) {
+        a.pNext = &b;
+    }
+
+    // Export MTLCommandQueue (from graphics queue) and MTLTextures (from generated images).
+    vk::StructureChain exportInfos {
+        vk::ExportMetalObjectsInfoEXT{},
+        vk::ExportMetalCommandQueueInfoEXT { gpu.queues.graphicsPresent }
+            .setPNext(&exportTextureInfos.front()),
+    };
+    gpu.device.exportMetalObjectsEXT(exportInfos.get());
+
+    MTL::CommandQueue* const commandQueue = (MTL::CommandQueue*)ObjCBridge_bridge(exportInfos.get<vk::ExportMetalCommandQueueInfoEXT>().mtlCommandQueue);
+    MTL::CommandBuffer* const commandBuffer = commandQueue->commandBufferWithUnretainedReferences();
+
+    MTL::BlitCommandEncoder* const blitCommandEncoder = commandBuffer->blitCommandEncoder();
+    for (const vk::ExportMetalTextureInfoEXT &exportTextureInfo : exportTextureInfos) {
+        MTL::Texture* const texture = (MTL::Texture*)ObjCBridge_bridge(exportTextureInfo.mtlTexture);
+        if (imagesToGenerateMipmap.contains(exportTextureInfo.image)) {
+            blitCommandEncoder->generateMipmaps(texture);
+        }
+        blitCommandEncoder->optimizeContentsForGPUAccess(texture);
+    }
+    blitCommandEncoder->endEncoding();
+
+    commandBuffer->commit();
+    commandBuffer->waitUntilCompleted();
+
+    if (!imagesToGenerateMipmap.empty()) {
+        // Prevent Validation Layer complains.
+        gpu.device.transitionImageLayoutEXT(
+            imagesToGenerateMipmap
+                | std::views::transform([](vk::Image image) noexcept {
+                    return vk::HostImageLayoutTransitionInfo { image, {}, vk::ImageLayout::eShaderReadOnlyOptimal, vku::fullSubresourceRange() };
+                })
+                | std::ranges::to<std::vector>());
+    }
+#else
+    // Graphics capable queue is needed for vkCmdBlitImage().
+    std::optional<vk::raii::CommandPool> graphicsCommandPool; // Only will have value if GPU has dedicated transfer queue.
     vk::CommandBuffer graphicsCommandBuffer;
-#if !__APPLE__
     if (gpu.queueFamilies.graphicsPresent == gpu.queueFamilies.transfer) {
         graphicsCommandBuffer = (*gpu.device).allocateCommandBuffers({ *transferCommandPool, vk::CommandBufferLevel::ePrimary, 1 })[0];
     }
     else
-#endif
     {
         const auto &inner = graphicsCommandPool.emplace(gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent });
         graphicsCommandBuffer = (*gpu.device).allocateCommandBuffers({ *inner, vk::CommandBufferLevel::ePrimary, 1 })[0];
     }
 
-#if !__APPLE__
     constexpr vk::PipelineStageFlags2 dependencyChain = vk::PipelineStageFlagBits2::eCopy;
-#endif
 
     // Command buffer recording
     {
         graphicsCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-        std::vector<const vku::Image*> imagesToGenerateMipmap;
-    #if __APPLE__
-        std::vector<vk::HostImageLayoutTransitionInfo> layoutTransitionInfos;
-        for (const auto &[image, _] : images | std::views::values) {
-            if (!isCompressed(image.format) && image.mipLevels > 1) {
-                imagesToGenerateMipmap.push_back(&image);
-
-                // Only mipLevel=0 is copied now and has ShaderReadOnlyOptimal layout. For calling
-                // recordBatchedMipmapGenerationCommand(), mipLevel=0 layout need to be changed to TransferSrcOptimal
-                // and the rest of mip levels to TransferDstOptimal.
-                layoutTransitionInfos.push_back({
-                    image, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferSrcOptimal,
-                    vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
-                });
-                layoutTransitionInfos.push_back({
-                    image, {}, vk::ImageLayout::eTransferDstOptimal,
-                    vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingMipLevels, 0, 1 },
-                });
-            }
-        }
-
-        if (!layoutTransitionInfos.empty()) {
-            gpu.device.transitionImageLayoutEXT(layoutTransitionInfos);
-        }
-    #else
         // Change image layouts and acquire resource queue family ownerships (optionally).
         std::vector<vk::ImageMemoryBarrier2> imageMemoryBarriers;
+        std::vector<const vku::Image*> imagesToGenerateMipmap;
         for (const auto &[image, _] : images | std::views::values) {
         #ifdef SUPPORT_KHR_TEXTURE_BASISU
             if (isCompressed(image.format)) {
@@ -286,12 +315,12 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
                         image, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingArrayLayers, 0, 1 },
                     });
 
+                    // Image is needed to generate mipmap.
                     imagesToGenerateMipmap.push_back(&image);
                 }
             }
         }
         graphicsCommandBuffer.pipelineBarrier2KHR({ {}, {}, {}, imageMemoryBarriers });
-    #endif
 
         if (!imagesToGenerateMipmap.empty()) {
             // Collect image memory barriers that are inserted after the mipmap generation command.
@@ -330,17 +359,12 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
     gpu.queues.graphicsPresent.submit2KHR(vk::SubmitInfo2 {
         {},
-    #if __APPLE__
-        {},
-    #else
         vku::unsafeProxy(vk::SemaphoreSubmitInfo { *copyFinishSemaphore, {}, dependencyChain }),
-    #endif
         vku::unsafeProxy(vk::CommandBufferSubmitInfo { graphicsCommandBuffer }),
     }, *fence);
 
     std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL);
 
-#if !__APPLE__
     // Destroy staging buffers.
     stagingBufferStorage.reset(false /* stagingBufferStorage will not be used anymore */);
 #endif

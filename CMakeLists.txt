@@ -84,6 +84,11 @@ set(VKGLTF_USE_KTX ${Ktx_FOUND})
 set(VKGLTF_USE_BINDLESS ON)
 add_subdirectory(vkgltf)
 
+if (APPLE)
+    add_subdirectory(metal-cpp)
+    add_subdirectory(ObjCBridge)
+endif()
+
 # --------------------
 # Project targets.
 # --------------------
@@ -262,21 +267,28 @@ else()
     message(STATUS "OpenEXR not found, loading EXR skybox will not be supported.")
 endif()
 
-if (APPLE AND ${CMAKE_BUILD_TYPE} STREQUAL "Release")
-    set_target_properties(vk-gltf-viewer PROPERTIES
-        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in
-        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-        MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION}"
+if (APPLE)
+    target_link_libraries(vk-gltf-viewer PRIVATE
+        metal-cpp::metal-cpp
+        ObjCBridge::ObjCBridge
     )
 
-    find_package(Vulkan COMPONENTS MoltenVK REQUIRED)
-    set(APP_BUNDLE_CONTENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/vk-gltf-viewer.app/Contents")
-    add_custom_command(TARGET vk-gltf-viewer POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_BUNDLE_CONTENTS_DIR}/lib" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
-            && ${CMAKE_COMMAND} -E copy ${Vulkan_LIBRARY} ${Vulkan_MoltenVK_LIBRARY} "${APP_BUNDLE_CONTENTS_DIR}/lib" # Copy libvulkan.dylib, libMoltenVK.dylib
-            && ${CMAKE_COMMAND} -E rename "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.dylib" "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.1.dylib"
-            && ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/asset/resources" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
-            && install_name_tool -add_rpath "@executable_path/../lib/" "${APP_BUNDLE_CONTENTS_DIR}/MacOS/vk-gltf-viewer")
+    if (${CMAKE_BUILD_TYPE} STREQUAL "Release")
+        set_target_properties(vk-gltf-viewer PROPERTIES
+            MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in
+            MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+            MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION}"
+        )
+
+        find_package(Vulkan COMPONENTS MoltenVK REQUIRED)
+        set(APP_BUNDLE_CONTENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/vk-gltf-viewer.app/Contents")
+        add_custom_command(TARGET vk-gltf-viewer POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_BUNDLE_CONTENTS_DIR}/lib" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
+                && ${CMAKE_COMMAND} -E copy ${Vulkan_LIBRARY} ${Vulkan_MoltenVK_LIBRARY} "${APP_BUNDLE_CONTENTS_DIR}/lib" # Copy libvulkan.dylib, libMoltenVK.dylib
+                && ${CMAKE_COMMAND} -E rename "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.dylib" "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.1.dylib"
+                && ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/asset/resources" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
+                && install_name_tool -add_rpath "@executable_path/../lib/" "${APP_BUNDLE_CONTENTS_DIR}/MacOS/vk-gltf-viewer")
+    endif()
 endif()
 
 # --------------------
