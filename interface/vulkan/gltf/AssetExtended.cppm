@@ -58,6 +58,17 @@ vk_gltf_viewer::vulkan::gltf::AssetExtended::AssetExtended(
     combinedIndexBuffer { asset, gpu.allocator, vkgltf::CombinedIndexBuffer::Config {
         .adapter = externalBuffers,
         .promoteUnsignedByteToUnsignedShort = !gpu.supportUint8Index,
+        .topologyConvertFn = [](fastgltf::PrimitiveType type) noexcept {
+            if (type == fastgltf::PrimitiveType::LineLoop) {
+                return fastgltf::PrimitiveType::LineStrip;
+            }
+        #if __APPLE__
+            if (type == fastgltf::PrimitiveType::TriangleFan) {
+                return fastgltf::PrimitiveType::Triangles;
+            }
+        #endif
+            return type;
+        },
         .usageFlags = vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferSrc,
         .queueFamilies = gpu.queueFamilies.uniqueIndices,
         .stagingInfo = vku::unsafeAddress(vkgltf::StagingInfo { stagingBufferStorage }),

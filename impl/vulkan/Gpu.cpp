@@ -300,7 +300,6 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
         vk::PhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT { supportAttachmentFeedbackLoopLayout },
 #if __APPLE__
         vk::PhysicalDevicePortabilitySubsetFeaturesKHR{}
-            .setTriangleFans(true)
             .setImageViewFormatSwizzle(true),
         vk::PhysicalDeviceHostImageCopyFeatures { true },
 #endif
