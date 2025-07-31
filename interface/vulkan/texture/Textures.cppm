@@ -77,6 +77,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
         }
     }
 
+#if !__APPLE__
     vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
     vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, transferCommandPool, gpu.queues.transfer };
 
@@ -88,6 +89,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
         stagingInfo.queueFamilyOwnershipTransfer.emplace(gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent);
     }
+#endif
 
     images.insert_range(threadPool.submit_sequence(0, usedImageIndices.size(), [&](std::size_t i) {
         const std::size_t imageIndex = usedImageIndices[i];
@@ -100,6 +102,9 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
         const vkgltf::Image::Config config {
             .adapter = assetExtended.externalBuffers,
             .allowMutateSrgbFormat = allowMutateSrgbFormat,
+        #if __APPLE__
+            .imageCopyDstLayout = vk::ImageLayout::eShaderReadOnlyOptimal, // Prevent double layout transition
+        #endif
             .uncompressedImageFormatFn = [&](int channels) -> vk::Format {
                 if (isSrgbImage) {
                     if (channels == 1 && gpu.supportR8SrgbImageFormat) {
@@ -125,12 +130,15 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
             },
             .uncompressedImageMipmapPolicy = vkgltf::Image::MipmapPolicy::AllocateOnly,
             .uncompressedImageUsageFlags = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
+        #if !__APPLE__
             .uncompressedImageDstLayout = vk::ImageLayout::eTransferSrcOptimal,
+        #endif
         #ifdef SUPPORT_KHR_TEXTURE_BASISU
             .compressedImageUsageFlags = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
-            .compressedImageDstLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
         #endif
-            .stagingInfo = stagingInfo,
+        #if !__APPLE__
+            .stagingInfo = &stagingInfo,
+        #endif
         };
         return std::pair<std::size_t, vkgltf::Image> {
             std::piecewise_construct,
@@ -139,28 +147,79 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
         };
     }).get() | std::views::as_rvalue);
 
+#if !__APPLE__
     vk::raii::Semaphore copyFinishSemaphore { gpu.device, vk::SemaphoreCreateInfo{} };
     stagingBufferStorage.execute(*copyFinishSemaphore);
+#endif
+
+    // Do some nice things during the GPU execution.
+    {
+        // samplers
+        samplers.reserve(assetExtended.asset.samplers.size());
+        for (const fastgltf::Sampler &sampler : assetExtended.asset.samplers) {
+            samplers.emplace_back(gpu.device, vkgltf::getSamplerCreateInfo(sampler, 16.f));
+        }
+
+        // descriptorInfos
+        descriptorInfos.reserve(assetExtended.asset.textures.size());
+        for (const fastgltf::Texture &texture : assetExtended.asset.textures) {
+            vk::Sampler sampler = *fallbackTexture.sampler;
+            if (texture.samplerIndex) {
+                sampler = *samplers[*texture.samplerIndex];
+            }
+
+            descriptorInfos.emplace_back(sampler, *images.at(getPreferredImageIndex(texture)).view, vk::ImageLayout::eShaderReadOnlyOptimal);
+        }
+    }
 
     // Generate image mipmaps using graphics queue.
     std::optional<vk::raii::CommandPool> graphicsCommandPool; // Only have value if GPU has dedicated transfer queue.
     vk::CommandBuffer graphicsCommandBuffer;
-    if (gpu.queueFamilies.graphicsPresent != gpu.queueFamilies.transfer) {
+#if !__APPLE__
+    if (gpu.queueFamilies.graphicsPresent == gpu.queueFamilies.transfer) {
+        graphicsCommandBuffer = (*gpu.device).allocateCommandBuffers({ *transferCommandPool, vk::CommandBufferLevel::ePrimary, 1 })[0];
+    }
+    else
+#endif
+    {
         const auto &inner = graphicsCommandPool.emplace(gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent });
         graphicsCommandBuffer = (*gpu.device).allocateCommandBuffers({ *inner, vk::CommandBufferLevel::ePrimary, 1 })[0];
     }
-    else {
-        graphicsCommandBuffer = (*gpu.device).allocateCommandBuffers({ *transferCommandPool, vk::CommandBufferLevel::ePrimary, 1 })[0];
-    }
 
+#if !__APPLE__
     constexpr vk::PipelineStageFlags2 dependencyChain = vk::PipelineStageFlagBits2::eCopy;
+#endif
 
     // Command buffer recording
     {
         graphicsCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-        // Change image layouts and acquire resource queue family ownerships (optionally).
         std::vector<const vku::Image*> imagesToGenerateMipmap;
+    #if __APPLE__
+        std::vector<vk::HostImageLayoutTransitionInfo> layoutTransitionInfos;
+        for (const auto &[image, _] : images | std::views::values) {
+            if (!isCompressed(image.format) && image.mipLevels > 1) {
+                imagesToGenerateMipmap.push_back(&image);
+
+                // Only mipLevel=0 is copied now and has ShaderReadOnlyOptimal layout. For calling
+                // recordBatchedMipmapGenerationCommand(), mipLevel=0 layout need to be changed to TransferSrcOptimal
+                // and the rest of mip levels to TransferDstOptimal.
+                layoutTransitionInfos.push_back({
+                    image, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                    vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                });
+                layoutTransitionInfos.push_back({
+                    image, {}, vk::ImageLayout::eTransferDstOptimal,
+                    vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingMipLevels, 0, 1 },
+                });
+            }
+        }
+
+        if (!layoutTransitionInfos.empty()) {
+            gpu.device.transitionImageLayoutEXT(layoutTransitionInfos);
+        }
+    #else
+        // Change image layouts and acquire resource queue family ownerships (optionally).
         std::vector<vk::ImageMemoryBarrier2> imageMemoryBarriers;
         for (const auto &[image, _] : images | std::views::values) {
         #ifdef SUPPORT_KHR_TEXTURE_BASISU
@@ -208,7 +267,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
                 }
 
                 if (image.mipLevels == 1) {
-                    // Change the image layout from TransfeSrcOptimal to ShaderReadOnlyOptimal.
+                    // Change the image layout from TransferSrcOptimal to ShaderReadOnlyOptimal.
                     imageMemoryBarriers.push_back({
                         vk::PipelineStageFlagBits2::eAllCommands, {}, // dependency chain (A)
                         vk::PipelineStageFlagBits2::eAllCommands, {},
@@ -232,11 +291,13 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
             }
         }
         graphicsCommandBuffer.pipelineBarrier2KHR({ {}, {}, {}, imageMemoryBarriers });
+    #endif
 
         if (!imagesToGenerateMipmap.empty()) {
-            recordBatchedMipmapGenerationCommand(graphicsCommandBuffer, imagesToGenerateMipmap);
-
-            // Change the image layout to ShaderReadOnlyOptimal.
+            // Collect image memory barriers that are inserted after the mipmap generation command.
+            // Note: recordBatchedMipmapGenerationCommand() takes ownership of std::vector<const vku::Image*>, therefore
+            // the vector should be moved. But the vector is also need for collecting barriers, therefore this code is
+            // intentionally in here (instead of after recordBatchedMipmapGenerationCommand()).
             std::vector<vk::ImageMemoryBarrier> imageMemoryBarriersToBottom;
             imageMemoryBarriersToBottom.reserve(2 * imagesToGenerateMipmap.size());
             for (const vku::Image *image : imagesToGenerateMipmap) {
@@ -254,6 +315,10 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
                 });
             }
 
+            // Generate mipmaps.
+            recordBatchedMipmapGenerationCommand(graphicsCommandBuffer, std::move(imagesToGenerateMipmap));
+
+            // Change the image layout to ShaderReadOnlyOptimal.
             graphicsCommandBuffer.pipelineBarrier(
                 vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
                 {}, {}, {}, imageMemoryBarriersToBottom);
@@ -265,32 +330,18 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
     gpu.queues.graphicsPresent.submit2KHR(vk::SubmitInfo2 {
         {},
+    #if __APPLE__
+        {},
+    #else
         vku::unsafeProxy(vk::SemaphoreSubmitInfo { *copyFinishSemaphore, {}, dependencyChain }),
+    #endif
         vku::unsafeProxy(vk::CommandBufferSubmitInfo { graphicsCommandBuffer }),
     }, *fence);
 
-    // Do some nice things during the GPU execution.
-    {
-        // samplers
-        samplers.reserve(assetExtended.asset.samplers.size());
-        for (const fastgltf::Sampler &sampler : assetExtended.asset.samplers) {
-            samplers.emplace_back(gpu.device, vkgltf::getSamplerCreateInfo(sampler, 16.f));
-        }
-
-        // descriptorInfos
-        descriptorInfos.reserve(assetExtended.asset.textures.size());
-        for (const fastgltf::Texture &texture : assetExtended.asset.textures) {
-            vk::Sampler sampler = *fallbackTexture.sampler;
-            if (texture.samplerIndex) {
-                sampler = *samplers[*texture.samplerIndex];
-            }
-
-            descriptorInfos.emplace_back(sampler, *images.at(getPreferredImageIndex(texture)).view, vk::ImageLayout::eShaderReadOnlyOptimal);
-        }
-    }
-
     std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL);
 
+#if !__APPLE__
     // Destroy staging buffers.
     stagingBufferStorage.reset(false /* stagingBufferStorage will not be used anymore */);
+#endif
 }

@@ -1,5 +1,6 @@
 module;
 
+#include <cassert>
 #include <stb_image.h>
 
 #ifdef USE_KTX
@@ -37,17 +38,19 @@ struct StagingData {
     vk::Format format;
     std::uint32_t mipLevels;
 
-    vku::AllocatedBuffer stagingBuffer;
-    std::vector<vk::BufferImageCopy> copyRegions;
+    std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> data;
+    void *hostBackedData;
 
-    [[nodiscard]] static StagingData fromJpgPng(const char *path, const std::function<vk::Format(int)> &formatFn, vma::Allocator allocator);
-    [[nodiscard]] static StagingData fromJpgPng(std::span<const std::byte> memory, const std::function<vk::Format(int)> &formatFn, vma::Allocator allocator);
-    [[nodiscard]] static StagingData fromJpgPng(const vk::Extent2D &extent, stbi_uc* &&data, vk::Format format, vma::Allocator allocator);
+    [[nodiscard]] static StagingData fromJpgPng(const char *path, const std::function<vk::Format(int)> &formatFn, vma::Allocator *allocator);
+    [[nodiscard]] static StagingData fromJpgPng(std::span<const std::byte> memory, const std::function<vk::Format(int)> &formatFn, vma::Allocator *allocator);
+    [[nodiscard]] static StagingData fromJpgPng(const vk::Extent2D &extent, stbi_uc* &&data, vk::Format format, vma::Allocator *allocator);
 #ifdef USE_KTX
-    [[nodiscard]] static StagingData fromKtx(const char *path, vma::Allocator allocator);
-    [[nodiscard]] static StagingData fromKtx(std::span<const std::byte> memory, vma::Allocator allocator);
-    [[nodiscard]] static StagingData fromKtx(ktxTexture2* &&texture, vma::Allocator allocator);
+    [[nodiscard]] static StagingData fromKtx(const char *path, vma::Allocator *allocator);
+    [[nodiscard]] static StagingData fromKtx(std::span<const std::byte> memory, vma::Allocator *allocator);
+    [[nodiscard]] static StagingData fromKtx(ktxTexture2* &&texture, vma::Allocator *allocator);
 #endif
+
+    void destroyHostBackedData() noexcept;
 };
 
 namespace vkgltf {
@@ -128,7 +131,9 @@ namespace vkgltf {
             /**
              * @brief Image usage flags for uncompressed images.
              *
-             * @note <tt>vk::ImageUsageFlagBits::eTransferSrcOptimal</tt> is always added to the usage flags for staging.
+             * The final usage flags is determined by combining the given flags with
+             * - <tt>vk::ImageUsageFlagBits::eTransferDst</tt> if <tt>stagingInfo</tt> is given.
+             * - <tt>vk::ImageUsageFlagBits::eHostTransfer</tt> if <tt>stagingInfo</tt> is not given.
              */
             vk::ImageUsageFlags uncompressedImageUsageFlags = vk::ImageUsageFlagBits::eSampled;
 
@@ -145,7 +150,9 @@ namespace vkgltf {
             /**
              * @brief Image usage flags for compressed images.
              *
-             * @note <tt>vk::ImageUsageFlagBits::eTransferSrcOptimal</tt> is always added to the usage flags for staging.
+             * The final usage flags is determined by combining the given flags with
+             * - <tt>vk::ImageUsageFlagBits::eTransferDst</tt> if <tt>stagingInfo</tt> is given.
+             * - <tt>vk::ImageUsageFlagBits::eHostTransfer</tt> if <tt>stagingInfo</tt> is not given.
              */
             vk::ImageUsageFlags compressedImageUsageFlags = vk::ImageUsageFlagBits::eSampled;
 
@@ -171,7 +178,10 @@ namespace vkgltf {
              */
             vma::AllocationCreateInfo allocationCreateInfo = { {}, vma::MemoryUsage::eAutoPreferDevice };
 
-            StagingInfo &stagingInfo;
+            /**
+             * @brief Information about buffer to image staging, or <tt>nullptr</tt> if <tt>VK_EXT_host_image_copy</tt> is used.
+             */
+            StagingInfo *stagingInfo = nullptr;
         };
 
         vku::AllocatedImage image;
@@ -194,7 +204,7 @@ namespace vkgltf {
             const vk::raii::Device &device,
             vma::Allocator allocator,
             const Config<BufferDataAdapter> &config = {}
-        ) : image { createImage(asset, image, directory, allocator, config) },
+        ) : image { createImage(asset, image, directory, device, allocator, config) },
             view { device, this->image.getViewCreateInfo().setComponents(getComponentMapping(componentCount(this->image.format))) } { }
 
     private:
@@ -203,9 +213,11 @@ namespace vkgltf {
             const fastgltf::Asset &asset,
             const fastgltf::Image &image,
             const std::filesystem::path &directory,
+            const vk::raii::Device &device,
             vma::Allocator allocator,
             const Config<BufferDataAdapter> &config
         ) {
+            vma::Allocator* const nullableAllocator = config.stagingInfo ? &allocator : nullptr;
             StagingData stagingData = visit(fastgltf::visitor {
                 [&]<one_of<fastgltf::sources::Array, fastgltf::sources::ByteView, fastgltf::sources::BufferView> T>(const T &embedded) {
                     std::span<const std::byte> memory;
@@ -217,10 +229,10 @@ namespace vkgltf {
                     }
                     switch (embedded.mimeType) {
                         case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
-                            return StagingData::fromJpgPng(memory, config.uncompressedImageFormatFn, allocator);
+                            return StagingData::fromJpgPng(memory, config.uncompressedImageFormatFn, nullableAllocator);
                     #ifdef USE_KTX
                         case fastgltf::MimeType::KTX2:
-                            return StagingData::fromKtx(memory, allocator);
+                            return StagingData::fromKtx(memory, nullableAllocator);
                     #endif
                         default:
                             throw std::runtime_error { "Unknown image MIME type" };
@@ -258,10 +270,10 @@ namespace vkgltf {
 
                     switch (mimeType) {
                         case fastgltf::MimeType::JPEG: case fastgltf::MimeType::PNG:
-                            return StagingData::fromJpgPng(PATH_C_STR(filePath), config.uncompressedImageFormatFn, allocator);
+                            return StagingData::fromJpgPng(PATH_C_STR(filePath), config.uncompressedImageFormatFn, nullableAllocator);
                     #ifdef USE_KTX
                         case fastgltf::MimeType::KTX2:
-                            return StagingData::fromKtx(PATH_C_STR(filePath), allocator);
+                            return StagingData::fromKtx(PATH_C_STR(filePath), nullableAllocator);
                     #endif
                         default:
                             throw std::runtime_error { "Unknown image MIME type" };
@@ -291,7 +303,8 @@ namespace vkgltf {
 
         #ifdef USE_KTX
             if (isCompressed(createInfo.get().format)) {
-                createInfo.get().usage = config.compressedImageUsageFlags | vk::ImageUsageFlagBits::eTransferSrc;
+                createInfo.get().usage = config.compressedImageUsageFlags
+                    | (config.stagingInfo ? vk::ImageUsageFlagBits::eTransferDst : vk::ImageUsageFlagBits::eHostTransfer);
             }
             else
         #endif
@@ -300,7 +313,8 @@ namespace vkgltf {
                     createInfo.get().mipLevels = vku::Image::maxMipLevels(stagingData.extent);
                 }
 
-                createInfo.get().usage = config.uncompressedImageUsageFlags | vk::ImageUsageFlagBits::eTransferSrc;
+                createInfo.get().usage = config.uncompressedImageUsageFlags
+                    | (config.stagingInfo ? vk::ImageUsageFlagBits::eTransferDst : vk::ImageUsageFlagBits::eHostTransfer);
             }
 
             if (config.allowMutateSrgbFormat) {
@@ -313,25 +327,6 @@ namespace vkgltf {
 
             vku::AllocatedImage result { allocator, createInfo.get(), config.allocationCreateInfo };
 
-            std::unique_lock<std::mutex> lock;
-            if (config.stagingInfo.mutex) {
-                lock = std::unique_lock { *config.stagingInfo.mutex };
-            }
-
-            // Change image layout for copy destination.
-            const vk::ImageSubresourceRange copiedImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, stagingData.mipLevels, 0, 1 };
-            config.stagingInfo.stagingBufferStorage.get().memoryBarrierFromTop(
-                result, config.imageCopyDstLayout,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                copiedImageSubresourceRange);
-
-            // Copy from the buffer to the image with the given regions.
-            config.stagingInfo.stagingBufferStorage.get().stage(
-                std::move(stagingData.stagingBuffer),
-                result, config.imageCopyDstLayout,
-                stagingData.copyRegions);
-
-            // Change image layout to the destination layout with releasing the queue family ownership if specified.
             vk::ImageLayout dstLayout;
         #ifdef USE_KTX
             if (isCompressed(stagingData.format)) {
@@ -343,13 +338,52 @@ namespace vkgltf {
                 dstLayout = config.uncompressedImageDstLayout;
             }
 
-            // If src/dst image layouts are same and no queue family ownership transfer is needed, memory barrier can be
-            // skipped.
-            if (config.imageCopyDstLayout != dstLayout || config.stagingInfo.queueFamilyOwnershipTransfer) {
-                const auto &[src, dst] = config.stagingInfo.queueFamilyOwnershipTransfer
-                    .value_or(std::pair { vk::QueueFamilyIgnored, vk::QueueFamilyIgnored });
-                config.stagingInfo.stagingBufferStorage.get().memoryBarrierToBottom(
-                    result, config.imageCopyDstLayout, dstLayout, src, dst, copiedImageSubresourceRange);
+            const vk::ImageSubresourceRange copiedImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, stagingData.mipLevels, 0, 1 };
+            if (config.stagingInfo) {
+                // Acquire mutex lock to prevent recording the command buffer from multiple threads.
+                std::unique_lock<std::mutex> lock;
+                if (config.stagingInfo->mutex) {
+                    lock = std::unique_lock { *config.stagingInfo->mutex };
+                }
+
+                // Change image layout for copy destination.
+                config.stagingInfo->stagingBufferStorage.get().memoryBarrierFromTop(
+                    result, config.imageCopyDstLayout,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    copiedImageSubresourceRange);
+
+                // Copy from the buffer to the image with the given regions.
+                auto &[buffer, copyRegions] = *get_if<0>(&stagingData.data);
+                config.stagingInfo->stagingBufferStorage.get().stage(
+                    std::move(buffer), result, config.imageCopyDstLayout, copyRegions);
+
+                // If src/dst image layouts are same and no queue family ownership transfer is needed, memory barrier
+                // can be skipped.
+                if (config.imageCopyDstLayout != dstLayout || config.stagingInfo->queueFamilyOwnershipTransfer) {
+                    const auto &[src, dst] = config.stagingInfo->queueFamilyOwnershipTransfer
+                        .value_or(std::pair { vk::QueueFamilyIgnored, vk::QueueFamilyIgnored });
+                    config.stagingInfo->stagingBufferStorage.get().memoryBarrierToBottom(
+                        result, config.imageCopyDstLayout, dstLayout, src, dst, copiedImageSubresourceRange);
+                }
+            }
+            else {
+                // VK_EXT_host_image_copy is used.
+
+                // Change image layout for copy destination.
+                vk::HostImageLayoutTransitionInfo layoutTransitionInfo {
+                    result, {}, config.imageCopyDstLayout, copiedImageSubresourceRange };
+                device.transitionImageLayoutEXT(layoutTransitionInfo);
+
+                // Copy from the host memory to the image.
+                device.copyMemoryToImageEXT({ {}, result, config.imageCopyDstLayout, *get_if<1>(&stagingData.data) });
+                stagingData.destroyHostBackedData();
+
+                if (config.imageCopyDstLayout != dstLayout) {
+                    // Change image layout to the final layout.
+                    layoutTransitionInfo.oldLayout = config.imageCopyDstLayout;
+                    layoutTransitionInfo.newLayout = dstLayout;
+                    device.transitionImageLayoutEXT(layoutTransitionInfo);
+                }
             }
 
             return result;
@@ -391,7 +425,7 @@ namespace vkgltf {
     #endif
         vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
         vma::AllocationCreateInfo allocationCreateInfo = { {}, vma::MemoryUsage::eAutoPreferDevice };
-        StagingInfo &stagingInfo;
+        StagingInfo *stagingInfo = nullptr;
     };
 
 }
@@ -447,7 +481,7 @@ vk::Format toggleSrgb(vk::Format format) {
 StagingData StagingData::fromJpgPng(
     const char *path,
     const std::function<vk::Format(int)> &formatFn,
-    vma::Allocator allocator
+    vma::Allocator *allocator
 ) {
     int width, height, channels;
     if (!stbi_info(path, &width, &height, &channels)) {
@@ -468,7 +502,7 @@ StagingData StagingData::fromJpgPng(
 StagingData StagingData::fromJpgPng(
     std::span<const std::byte> memory,
     const std::function<vk::Format(int)> &formatFn,
-    vma::Allocator allocator
+    vma::Allocator *allocator
 ) {
     int width, height, channels;
     if (!stbi_info_from_memory(reinterpret_cast<stbi_uc const *>(memory.data()), memory.size_bytes(), &width, &height, &channels)) {
@@ -488,39 +522,62 @@ StagingData StagingData::fromJpgPng(
     return fromJpgPng({ static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) }, std::move(data), format, allocator);
 }
 
-StagingData StagingData::fromJpgPng(const vk::Extent2D &extent, stbi_uc *&&data, vk::Format format, vma::Allocator allocator) {
+StagingData StagingData::fromJpgPng(const vk::Extent2D &extent, stbi_uc *&&data, vk::Format format, vma::Allocator *allocator) {
     StagingData result {
         .extent = extent,
         .format = format,
         .mipLevels = 1,
-        .stagingBuffer = {
-            allocator,
-            vk::BufferCreateInfo {
-                {},
-                blockSize(format) * extent.width * extent.height,
-                vk::BufferUsageFlagBits::eTransferSrc,
-            },
-            vma::AllocationCreateInfo {
-                vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
-                vma::MemoryUsage::eAutoPreferHost,
-            },
-        },
-        .copyRegions = {
-            vk::BufferImageCopy {
-                0, 0, 0,
-                vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-                vk::Offset3D {}, vk::Extent3D { extent, 1 },
-            },
-        },
+        .data = [&] {
+            if (allocator) {
+                std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> result {
+                    std::in_place_index<0>,
+                    std::piecewise_construct,
+                    std::forward_as_tuple(
+                        *allocator,
+                        vk::BufferCreateInfo {
+                            {},
+                            blockSize(format) * extent.width * extent.height,
+                            vk::BufferUsageFlagBits::eTransferSrc,
+                        },
+                        vma::AllocationCreateInfo {
+                            vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+                            vma::MemoryUsage::eAutoPreferHost,
+                        }),
+                    std::forward_as_tuple(std::initializer_list<vk::BufferImageCopy> {
+                        vk::BufferImageCopy {
+                            0, 0, 0,
+                            vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+                            vk::Offset3D {}, vk::Extent3D { extent, 1 },
+                        },
+                    }),
+                };
+
+                allocator->copyMemoryToAllocation(data, get_if<0>(&result)->first.allocation, 0, get_if<0>(&result)->first.size);
+                stbi_image_free(data);
+
+                return result;
+            }
+            else {
+                return std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
+                    std::in_place_index<1>,
+                    {
+                        vk::MemoryToImageCopy {
+                            data, 0, 0,
+                            vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+                            vk::Offset3D{}, vk::Extent3D { extent, 1 },
+                        },
+                    },
+                };
+            }
+        }(),
+        .hostBackedData = allocator ? nullptr : data,
     };
-    allocator.copyMemoryToAllocation(data, result.stagingBuffer.allocation, 0, result.stagingBuffer.size);
-    stbi_image_free(data);
 
     return result;
 }
 
 #ifdef USE_KTX
-StagingData StagingData::fromKtx(const char *path, vma::Allocator allocator) {
+StagingData StagingData::fromKtx(const char *path, vma::Allocator *allocator) {
     ktxTexture2 *texture;
     KTX_error_code result = ktxTexture2_CreateFromNamedFile(path, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);
     if (result != KTX_SUCCESS) {
@@ -530,7 +587,7 @@ StagingData StagingData::fromKtx(const char *path, vma::Allocator allocator) {
     return fromKtx(std::move(texture), allocator);
 }
 
-StagingData StagingData::fromKtx(std::span<const std::byte> memory, vma::Allocator allocator) {
+StagingData StagingData::fromKtx(std::span<const std::byte> memory, vma::Allocator *allocator) {
     ktxTexture2 *texture;
     KTX_error_code result = ktxTexture2_CreateFromMemory(
         reinterpret_cast<const ktx_uint8_t*>(memory.data()), memory.size_bytes(),
@@ -542,7 +599,7 @@ StagingData StagingData::fromKtx(std::span<const std::byte> memory, vma::Allocat
     return fromKtx(std::move(texture), allocator);
 }
 
-StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator allocator) {
+StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocator) {
     // Transcode the texture to BC7 format if needed.
     if (ktxTexture2_NeedsTranscoding(texture)) {
         // TODO: As glTF specification says, transfer function should be KHR_DF_TRANSFER_SRGB, but
@@ -554,46 +611,91 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator allocato
         }
     }
 
-    StagingData result {
+    return {
         .extent = { texture->baseWidth, texture->baseHeight },
         .format = static_cast<vk::Format>(texture->vkFormat),
         .mipLevels = texture->numLevels,
-        .stagingBuffer = {
-            allocator,
-            vk::BufferCreateInfo {
-                {},
-                ktxTexture_GetDataSize(ktxTexture(texture)),
-                vk::BufferUsageFlagBits::eTransferSrc,
-            },
-            vma::AllocationCreateInfo {
-                vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
-                vma::MemoryUsage::eAutoPreferHost,
-            },
-        },
+        .data = [&] {
+            if (allocator) {
+                std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> resultVariant {
+                    std::in_place_index<0>,
+                    std::piecewise_construct,
+                    std::forward_as_tuple(
+                        *allocator,
+                        vk::BufferCreateInfo {
+                            {},
+                            ktxTexture_GetDataSize(ktxTexture(texture)),
+                            vk::BufferUsageFlagBits::eTransferSrc,
+                        },
+                        vma::AllocationCreateInfo {
+                            vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+                            vma::MemoryUsage::eAutoPreferHost,
+                        }),
+                    std::forward_as_tuple(
+                        std::from_range,
+                        std::views::iota(std::uint32_t{}, texture->numLevels)
+                            | std::views::transform([&](std::uint32_t level) {
+                                ktx_size_t offset;
+                                if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
+                                    throw std::runtime_error { ktxErrorString(result) };
+                                }
+
+                                return vk::BufferImageCopy {
+                                    offset, 0, 0,
+                                    vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
+                                    vk::Offset3D{}, vk::Extent3D { vku::Image::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
+                                };
+                            })),
+                };
+
+                // Copy texture data to the staging buffer.
+                allocator->copyMemoryToAllocation(
+                    ktxTexture_GetData(ktxTexture(texture)), get_if<0>(&resultVariant)->first.allocation,
+                    0, get_if<0>(&resultVariant)->first.size);
+
+                // As data is copied, the texture can be destroyed.
+                ktxTexture_Destroy(ktxTexture(texture));
+
+                return resultVariant;
+            }
+            else {
+                return std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
+                    std::in_place_index<1>,
+                    std::from_range,
+                    std::views::iota(std::uint32_t{}, texture->numLevels)
+                        | std::views::transform([&, data = ktxTexture_GetData(ktxTexture(texture))](std::uint32_t level) {
+                            ktx_size_t offset;
+                            if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
+                                throw std::runtime_error { ktxErrorString(result) };
+                            }
+
+                            return vk::MemoryToImageCopy {
+                                data + offset, 0, 0,
+                                vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
+                                vk::Offset3D{}, vk::Extent3D { vku::Image::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
+                            };
+                        }),
+                };
+            }
+        }(),
+        .hostBackedData = allocator ? nullptr : texture,
     };
-    allocator.copyMemoryToAllocation(
-        ktxTexture_GetData(ktxTexture(texture)), result.stagingBuffer.allocation,
-        0, result.stagingBuffer.size);
-
-    result.copyRegions.reserve(result.mipLevels);
-    for (std::uint32_t level = 0; level < result.mipLevels; ++level) {
-        ktx_size_t offset;
-        if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
-            throw std::runtime_error { ktxErrorString(result) };
-        }
-
-        result.copyRegions.push_back({
-            offset, 0, 0,
-            vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
-            vk::Offset3D{}, vk::Extent3D { vku::Image::mipExtent(result.extent, level), 1 },
-        });
-    }
-
-    ktxTexture_Destroy(ktxTexture(texture));
-
-    return result;
 }
 #endif
+
+void StagingData::destroyHostBackedData() noexcept {
+    assert(hostBackedData && "Data is not host backed");
+
+#ifdef USE_KTX
+    if (isCompressed(format)) {
+        ktxTexture_Destroy(ktxTexture(hostBackedData));
+    }
+    else
+#endif
+    {
+        stbi_image_free(hostBackedData);
+    }
+}
 
 vk::ComponentMapping vkgltf::Image::getComponentMapping(std::uint8_t componentCount) noexcept {
     switch (componentCount) {

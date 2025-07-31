@@ -9,6 +9,9 @@ import vk_gltf_viewer.helpers.ranges;
 constexpr std::array requiredExtensions {
 #if __APPLE__
     vk::KHRPortabilitySubsetExtensionName,
+    vk::KHRCopyCommands2ExtensionName,
+    vk::KHRFormatFeatureFlags2ExtensionName,
+    vk::EXTHostImageCopyExtensionName,
 #endif
     vk::KHRDynamicRenderingExtensionName,
     vk::KHRSynchronization2ExtensionName,
@@ -298,6 +301,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
         vk::PhysicalDevicePortabilitySubsetFeaturesKHR{}
             .setTriangleFans(true)
             .setImageViewFormatSwizzle(true),
+        vk::PhysicalDeviceHostImageCopyFeatures { true },
 #endif
     };
 
