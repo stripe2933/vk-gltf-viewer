@@ -12,6 +12,115 @@ export import vku;
 
 export import vkgltf.StagingBufferStorage;
 
+template <typename T, typename... Ts>
+concept one_of = (std::same_as<T, Ts> || ...);
+
+/**
+ * @brief Generate indices which assembled with \p dstTopology is equivalent to the assembled \p indices with \p srcTopology.
+ *
+ * Available \p srcTopology and \p dstTopology combinations are:
+ * - LineStrip -> Lines
+ * - LineLoop -> Lines
+ * - LineLoop -> LineStrip
+ * - TriangleStrip -> Triangles
+ * - TriangleFan -> Triangles
+ *
+ * @tparam DstT Destination type. Its representation range must be wider than or equal to the \p indices element type.
+ * @tparam R Input indices range type
+ * @param srcTopology Source primitive topology.
+ * @param dstTopology Destination primitive topology.
+ * @param indices Input indices which will be assembled with \p srcTopology.
+ * @return (index bytes, allocation byte size) pair.
+ * @throw std::invalid_argument if \p srcTopology and \p dstTopology combination is not one of the list in above.
+ */
+template <one_of<std::uint8_t, std::uint16_t, std::uint32_t> DstT, std::ranges::random_access_range R>
+[[nodiscard]] std::pair<std::unique_ptr<std::byte[]>, std::size_t> convertIndices(
+    fastgltf::PrimitiveType srcTopology,
+    fastgltf::PrimitiveType dstTopology,
+    R &&indices
+) {
+    static_assert(sizeof(std::ranges::range_value_t<R>) <= sizeof(DstT), "Destination integer type is not representable with source integer type.");
+
+    if (srcTopology == fastgltf::PrimitiveType::LineStrip && dstTopology == fastgltf::PrimitiveType::Lines) {
+        // [i0, i1, ..., i_{n-1}] -> [i0, i1, i1, i2, ..., i_{n-2}, i_{n-1}]
+        const std::size_t drawCount = 2 * (indices.size() - 1);
+        const std::size_t byteSize = sizeof(DstT) * drawCount;
+        auto result = std::make_unique_for_overwrite<std::byte[]>(byteSize);
+
+        auto resultIt = std::span<DstT> { reinterpret_cast<DstT*>(result.get()), drawCount }.begin();
+        *resultIt++ = indices[0];
+        for (std::size_t i = 1; i < indices.size() - 1; ++i) {
+            *resultIt++ = indices[i];
+            *resultIt++ = indices[i];
+        }
+        *resultIt++ = indices.back();
+
+        return { std::move(result), byteSize };
+    }
+    if (srcTopology == fastgltf::PrimitiveType::LineLoop && dstTopology == fastgltf::PrimitiveType::Lines) {
+        // [i0, i1, ..., i_{n-1}] -> [i0, i1, i1, i2, ..., i_{n-2}, i_{n-1}, i_{n-1}, i0]
+        const std::size_t drawCount = 2 * indices.size();
+        const std::size_t byteSize = sizeof(DstT) * drawCount;
+        auto result = std::make_unique_for_overwrite<std::byte[]>(byteSize);
+
+        auto resultIt = std::span<DstT> { reinterpret_cast<DstT*>(result.get()), drawCount }.begin();
+        *resultIt++ = indices[0];
+        for (std::size_t i = 1; i < indices.size(); ++i) {
+            *resultIt++ = indices[i];
+            *resultIt++ = indices[i];
+        }
+        *resultIt++ = indices[0];
+
+        return { std::move(result), byteSize };
+    }
+    if (srcTopology == fastgltf::PrimitiveType::LineLoop && dstTopology == fastgltf::PrimitiveType::LineStrip) {
+        // [i0, i1, ..., i_{n-1}] -> [i0, i1, i2, ..., i_{n-1}, i0]
+        const std::size_t drawCount = indices.size() + 1;
+        const std::size_t byteSize = sizeof(DstT) * drawCount;
+        auto result = std::make_unique_for_overwrite<std::byte[]>(byteSize);
+
+        auto resultIt = std::span<DstT> { reinterpret_cast<DstT*>(result.get()), drawCount }.begin();
+        for (std::size_t i = 0; i < indices.size(); ++i) {
+            *resultIt++ = indices[i];
+        }
+        *resultIt++ = indices[0];
+
+        return { std::move(result), byteSize };
+    }
+    if (srcTopology == fastgltf::PrimitiveType::TriangleStrip && dstTopology == fastgltf::PrimitiveType::Triangles) {
+        // [i0, i1, ..., i_{n-1}] -> [i0, i1, i2, i1, i2, i3, ..., i_{n-3}, i_{n-2}, i_{n-1}]
+        const std::size_t drawCount = 3 * (indices.size() - 2);
+        const std::size_t byteSize = sizeof(DstT) * drawCount;
+        auto result = std::make_unique_for_overwrite<std::byte[]>(byteSize);
+
+        auto resultIt = std::span<DstT> { reinterpret_cast<DstT*>(result.get()), drawCount }.begin();
+        for (std::size_t i = 0; i < indices.size() - 2; ++i) {
+            *resultIt++ = indices[i];
+            *resultIt++ = indices[i + 1];
+            *resultIt++ = indices[i + 2];
+        }
+
+        return { std::move(result), byteSize };
+    }
+    if (srcTopology == fastgltf::PrimitiveType::TriangleFan && dstTopology == fastgltf::PrimitiveType::Triangles) {
+        // [i0, i1, ..., i_{n-1}] -> [i0, i1, i2, i0, i2, i3, ..., i0, i_{n-2}, i_{n-1}]
+        const std::size_t drawCount = 3 * (indices.size() - 2);
+        const std::size_t byteSize = sizeof(DstT) * drawCount;
+        auto result = std::make_unique_for_overwrite<std::byte[]>(byteSize);
+
+        auto resultIt = std::span<DstT> { reinterpret_cast<DstT*>(result.get()), drawCount }.begin();
+        for (std::size_t i = 1; i < indices.size() - 1; ++i) {
+            *resultIt++ = indices[0];
+            *resultIt++ = indices[i];
+            *resultIt++ = indices[i + 1];
+        }
+
+        return { std::move(result), byteSize };
+    }
+
+    throw std::invalid_argument { "Unsupported topology conversion" };
+}
+
 namespace vkgltf {
     /**
      * @brief Vulkan buffer of all glTF asset's indices accessors data combined into a single buffer, with alignment of
@@ -27,6 +136,12 @@ namespace vkgltf {
      * +---------------------------------------------------------------------------------------------------+
      */
     export class CombinedIndexBuffer final : public vku::AllocatedBuffer {
+        struct DefaultTopologyConvertFn {
+            static fastgltf::PrimitiveType operator()(fastgltf::PrimitiveType type) noexcept {
+                return type == fastgltf::PrimitiveType::LineLoop ? fastgltf::PrimitiveType::LineStrip : type;
+            }
+        };
+
     public:
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         class Config {
@@ -50,13 +165,29 @@ namespace vkgltf {
             bool promoteUnsignedByteToUnsignedShort = true;
 
             /**
-             * @brief If <tt>true</tt>, <tt>LINE_LOOP</tt> primitive will be processed as <tt>LINE_STRIP</tt> with an
-             * additional first vertex at the end of the index buffer.
+             * @brief Function determines the given primitive's topology needs to be converted and therefore processed
+             * in <tt>CombinedIndexBuffer</tt>, regardless of it is indexed or not.
              *
-             * As Vulkan does not support <tt>LINE_LOOP</tt> primitive topology natively (unlike OpenGL), it has to be
-             * emulated as <tt>LINE_STRIP</tt> with an additional first vertex at the end of the index buffer.
+             * If the result of this function invoked with the primitive type is different from passed primitive type,
+             * <tt>CombinedIndexBuffer</tt> tries to generate new indices data. For example, if primitive type is
+             * <tt>TriangleFan</tt>, its indices accessor data is <tt>[0, 1, 2, 3]</tt> and
+             * <tt>topologyConvertFn(fastgltf::PrimitiveType::TriangleFan)</tt> is <tt>Triangles</tt>, it generates new
+             * indices data of <tt>[0, 1, 2, 0, 2, 3]</tt>. It is also applied to non-indexed primitive, whose result
+             * will be calculated from <tt>[0, 1, ..., (POSITION attribute accessor).count - 1]</tt>.
+             *
+             * The currently available input/output pairs of this function are restricted as:
+             * - LineStrip -> Lines
+             * - LineLoop -> Lines
+             * - LineLoop -> LineStrip
+             * - TriangleStrip -> Triangles
+             * - TriangleFan -> Triangles
+             * Violating the restriction will throw <tt>std::invalid_argument</tt> exception. TriangleFan -> TriangleStrip
+             * is theoretically possible, but not implemented due to the complexity.
+             *
+             * By default, it returns the input type itself, except for LineLoop, which returns LineStrip, as Vulkan
+             * does not support <tt>LINE_LOOP</tt> primitive topology natively (unlike OpenGL).
              */
-            bool processLineLoopAsLineStrip = true;
+            std::function<fastgltf::PrimitiveType(fastgltf::PrimitiveType)> topologyConvertFn = DefaultTopologyConvertFn{};
 
             /**
              * @brief Vulkan buffer usage flags for the buffer creation.
@@ -162,50 +293,67 @@ namespace vkgltf {
                             continue;
                         }
 
-                        if (config.processLineLoopAsLineStrip && primitive.type == fastgltf::PrimitiveType::LineLoop) {
-                            // LINE_LOOP primitive is not supported in Vulkan, therefore has to be emulated as LINE_STRIP, with
-                            // additional first vertex at the end using indexed draw.
+                        if (fastgltf::PrimitiveType type = std::invoke(config.topologyConvertFn, primitive.type); type != primitive.type) {
+                            std::unique_ptr<std::byte[]> &newIndexBytes = generatedBytes.emplace_back();
+                            std::uint32_t newIndexByteSize;
+
                             if (primitive.indicesAccessor) {
                                 const fastgltf::Accessor &accessor = asset.accessors[*primitive.indicesAccessor];
-                                fastgltf::ComponentType componentType = accessor.componentType;
-                                const std::size_t drawCount = accessor.count + 1;
-
-                                const auto getBytes = [&]<typename T>() -> std::span<const std::byte> {
-                                    const std::size_t byteSize = sizeof(T) * drawCount;
-                                    auto bytes = std::make_unique_for_overwrite<std::byte[]>(byteSize);
-
-                                    // [i0, i1, ..., i_{n-1}, i0] (n: indices accessor count)
-                                    copyFromAccessor<T>(asset, accessor, bytes.get(), config.adapter);
-                                    std::ranges::copy(
-                                        std::bit_cast<std::array<std::byte, sizeof(T)>>(getAccessorElement<T>(asset, accessor, 0, config.adapter)),
-                                        &bytes[sizeof(T) * accessor.count]);
-
-                                    return { generatedBytes.emplace_back(std::move(bytes)).get(), byteSize };
-                                };
-
-                                // glTF 2.0 specification:
-                                //   indices accessor MUST NOT contain the maximum possible value for the component type used
-                                //   (i.e., 255 for unsigned bytes, 65535 for unsigned shorts, 4294967295 for unsigned ints).
-                                //   https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#meshes-overview
-                                //
-                                // As indices count is incremented by 1, it has to be re-checked if the count is still less than
-                                // the maximum value of the component type.
-
-                                switch (componentType) {
-                                    case fastgltf::ComponentType::UnsignedByte:
-                                        if (!config.promoteUnsignedByteToUnsignedShort) {
-                                            unsignedByteIndexBytes.emplace(&primitive, getBytes.template operator()<std::uint8_t>());
-                                            break;
+                                switch (accessor.componentType) {
+                                    case fastgltf::ComponentType::UnsignedByte: {
+                                        std::span<const std::uint8_t> indices;
+                                        std::unique_ptr<std::uint8_t[]> copiedAccessorIndices;
+                                        if (!accessor.bufferViewIndex || accessor.sparse) {
+                                            copiedAccessorIndices = std::make_unique_for_overwrite<std::uint8_t[]>(accessor.count);
+                                            copyFromAccessor<std::uint8_t>(asset, accessor, copiedAccessorIndices.get(), config.adapter);
+                                            indices = { copiedAccessorIndices.get(), accessor.count };
                                         }
-                                        // If condition not satisfied, type is promoted to the larger type and will be retried (at
-                                        // the below).
-                                        [[fallthrough]];
-                                    case fastgltf::ComponentType::UnsignedShort:
-                                        unsignedShortIndexBytes.emplace(&primitive, getBytes.template operator()<std::uint16_t>());
+                                        else {
+                                            indices = { reinterpret_cast<const std::uint8_t*>(config.adapter(asset, *accessor.bufferViewIndex).data() + accessor.byteOffset), accessor.count };
+                                        }
+
+                                        if (config.promoteUnsignedByteToUnsignedShort) {
+                                            std::tie(newIndexBytes, newIndexByteSize) = convertIndices<std::uint16_t>(primitive.type, type, indices);
+                                            unsignedByteIndexBytes.emplace(&primitive, std::span { newIndexBytes.get(), newIndexByteSize });
+                                        }
+                                        else {
+                                            std::tie(newIndexBytes, newIndexByteSize) = convertIndices<std::uint8_t>(primitive.type, type, indices);
+                                            unsignedByteIndexBytes.emplace(&primitive, std::span { newIndexBytes.get(), newIndexByteSize });
+                                        }
                                         break;
-                                    case fastgltf::ComponentType::UnsignedInt:
-                                        unsignedIntIndexBytes.emplace(&primitive, getBytes.template operator()<std::uint32_t>());
+                                    }
+                                    case fastgltf::ComponentType::UnsignedShort: {
+                                        std::span<const std::uint16_t> indices;
+                                        std::unique_ptr<std::uint16_t[]> copiedAccessorIndices;
+                                        if (!accessor.bufferViewIndex || accessor.sparse) {
+                                            copiedAccessorIndices = std::make_unique_for_overwrite<std::uint16_t[]>(accessor.count);
+                                            copyFromAccessor<std::uint16_t>(asset, accessor, copiedAccessorIndices.get(), config.adapter);
+                                            indices = { copiedAccessorIndices.get(), accessor.count };
+                                        }
+                                        else {
+                                            indices = { reinterpret_cast<const std::uint16_t*>(config.adapter(asset, *accessor.bufferViewIndex).data() + accessor.byteOffset), accessor.count };
+                                        }
+
+                                        std::tie(newIndexBytes, newIndexByteSize) = convertIndices<std::uint16_t>(primitive.type, type, indices);
+                                        unsignedShortIndexBytes.emplace(&primitive, std::span { newIndexBytes.get(), newIndexByteSize });
                                         break;
+                                    }
+                                    case fastgltf::ComponentType::UnsignedInt: {
+                                        std::span<const std::uint32_t> indices;
+                                        std::unique_ptr<std::uint32_t[]> copiedAccessorIndices;
+                                        if (!accessor.bufferViewIndex || accessor.sparse) {
+                                            copiedAccessorIndices = std::make_unique_for_overwrite<std::uint32_t[]>(accessor.count);
+                                            copyFromAccessor<std::uint32_t>(asset, accessor, copiedAccessorIndices.get(), config.adapter);
+                                            indices = { copiedAccessorIndices.get(), accessor.count };
+                                        }
+                                        else {
+                                            indices = { reinterpret_cast<const std::uint32_t*>(config.adapter(asset, *accessor.bufferViewIndex).data() + accessor.byteOffset), accessor.count };
+                                        }
+
+                                        std::tie(newIndexBytes, newIndexByteSize) = convertIndices<std::uint32_t>(primitive.type, type, indices);
+                                        unsignedIntIndexBytes.emplace(&primitive, std::span { newIndexBytes.get(), newIndexByteSize });
+                                        break;
+                                    }
                                     default:
                                         // glTF 2.0 mandates index accessor component type to be one of the above.
                                         std::unreachable();
@@ -213,33 +361,26 @@ namespace vkgltf {
                             }
                             else {
                                 const std::size_t accessorCount = asset.accessors[positionAttribute->accessorIndex].count;
-                                const std::size_t drawCount = accessorCount + 1;
-
-                                const auto getBytes = [&]<typename T>() -> std::span<const std::byte> {
-                                    const std::size_t byteSize = sizeof(T) * drawCount;
-                                    auto bytes = std::make_unique_for_overwrite<std::byte[]>(byteSize);
-
-                                    // [0, 1, ..., n-1, 0] (n: POSITION accessor count)
-                                    auto it = &bytes[0];
-                                    for (T n = 0; n < accessorCount; ++n) {
-                                        it = std::ranges::copy(std::bit_cast<std::array<std::byte, sizeof(T)>>(n), it).out;
-                                    }
-                                    std::ranges::copy(std::bit_cast<std::array<std::byte, sizeof(T)>>(T{}), it);
-
-                                    return { generatedBytes.emplace_back(std::move(bytes)).get(), byteSize };
-                                };
-
-                                if (!config.promoteUnsignedByteToUnsignedShort && drawCount < std::numeric_limits<std::uint8_t>::max()) {
-                                    unsignedByteIndexBytes.emplace(&primitive, getBytes.template operator()<std::uint8_t>());
+                                if (!config.promoteUnsignedByteToUnsignedShort && accessorCount < std::numeric_limits<std::uint8_t>::max()) {
+                                    std::tie(newIndexBytes, newIndexByteSize) = convertIndices<std::uint8_t>(
+                                        primitive.type, type,
+                                        std::views::iota(std::uint8_t{}, static_cast<std::uint8_t>(accessorCount)));
+                                    unsignedByteIndexBytes.emplace(&primitive, std::span { newIndexBytes.get(), newIndexByteSize });
                                 }
-                                else if (drawCount < std::numeric_limits<std::uint16_t>::max()) {
-                                    unsignedShortIndexBytes.emplace(&primitive, getBytes.template operator()<std::uint16_t>());
+                                else if (accessorCount < std::numeric_limits<std::uint16_t>::max()) {
+                                    std::tie(newIndexBytes, newIndexByteSize) = convertIndices<std::uint16_t>(
+                                        primitive.type, type,
+                                        std::views::iota(std::uint16_t{}, static_cast<std::uint16_t>(accessorCount)));
+                                    unsignedShortIndexBytes.emplace(&primitive, std::span { newIndexBytes.get(), newIndexByteSize });
                                 }
-                                else if (drawCount < std::numeric_limits<std::uint32_t>::max()) {
-                                    unsignedIntIndexBytes.emplace(&primitive, getBytes.template operator()<std::uint32_t>());
+                                else if (accessorCount < std::numeric_limits<std::uint32_t>::max()) {
+                                    std::tie(newIndexBytes, newIndexByteSize) = convertIndices<std::uint32_t>(
+                                        primitive.type, type,
+                                        std::views::iota(std::uint32_t{}, static_cast<std::uint32_t>(accessorCount)));
+                                    unsignedIntIndexBytes.emplace(&primitive, std::span { newIndexBytes.get(), newIndexByteSize });
                                 }
                                 else {
-                                    // Error in here means POSITION attribute accessor count is 4,294,967,294 (=2^32 - 2).
+                                    // Error in here means POSITION attribute accessor count is 4,294,967,295 (=2^32 - 1).
                                     throw std::runtime_error { "Too large vertex draw count" };
                                 }
                             }
@@ -362,7 +503,7 @@ class vkgltf::CombinedIndexBuffer::Config<fastgltf::DefaultBufferDataAdapter> {
 public:
     bool avoidZeroSizeBuffer = true;
     bool promoteUnsignedByteToUnsignedShort = true;
-    bool processLineLoopAsLineStrip = true;
+    std::function<fastgltf::PrimitiveType(fastgltf::PrimitiveType)> topologyConvertFn = DefaultTopologyConvertFn{};
     vk::BufferUsageFlags usageFlags = vk::BufferUsageFlagBits::eIndexBuffer;
     vk::ArrayProxyNoTemporaries<const std::uint32_t> queueFamilies = {};
     vma::AllocationCreateInfo allocationCreateInfo = {
