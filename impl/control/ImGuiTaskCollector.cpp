@@ -235,7 +235,7 @@ void attributeTable(const fastgltf::Asset &asset, std::ranges::viewable_range au
         } });
 }
 
-[[nodiscard]] ImGuiID makeDefaultDockState(ImGuiID dockSpaceOverViewport) {
+void makeDefaultDockState(ImGuiID viewportDockSpace) {
     // ------------------------------------
     // |       |                  |       |
     // |  LST  |                  |  RST  |
@@ -246,11 +246,12 @@ void attributeTable(const fastgltf::Asset &asset, std::ranges::viewable_range au
     // |       |  bottomSidebar   |       |
     // ------------------------------------
 
-    const ImGuiID leftSidebar = ImGui::DockBuilderSplitNode(dockSpaceOverViewport, ImGuiDir_Left, 0.25f, nullptr, &dockSpaceOverViewport);
-    const ImGuiID rightSidebar = ImGui::DockBuilderSplitNode(dockSpaceOverViewport, ImGuiDir_Right, 0.33f, nullptr, &dockSpaceOverViewport);
-
-    ImGuiID leftSidebarBottom;
-    const ImGuiID leftSidebarTop = ImGui::DockBuilderSplitNode(leftSidebar, ImGuiDir_Up, 0.5f, nullptr, &leftSidebarBottom);
+    ImGuiID leftSidebar, leftSidebarTop, leftSidebarBottom, rightSidebar, rightSidebarTop, rightSidebarBottom, bottomSidebar, centralDockSpace;
+    ImGui::DockBuilderSplitNode(viewportDockSpace, ImGuiDir_Left, 0.25f, &leftSidebar, &rightSidebar);
+    ImGui::DockBuilderSplitNode(leftSidebar, ImGuiDir_Up, 0.5f, &leftSidebarTop, &leftSidebarBottom);
+    ImGui::DockBuilderSplitNode(rightSidebar, ImGuiDir_Right, 0.33f, &rightSidebar, &bottomSidebar),
+    ImGui::DockBuilderSplitNode(rightSidebar, ImGuiDir_Up, 0.5f, &rightSidebarTop, &rightSidebarBottom);
+    ImGui::DockBuilderSplitNode(bottomSidebar, ImGuiDir_Down, 0.3f, &bottomSidebar, &centralDockSpace);
 
     // leftSidebarTop
     ImGui::DockBuilderDockWindow("Asset Info", leftSidebarTop);
@@ -264,25 +265,18 @@ void attributeTable(const fastgltf::Asset &asset, std::ranges::viewable_range au
     ImGui::DockBuilderDockWindow("Scene Hierarchy", leftSidebarBottom);
     ImGui::DockBuilderDockWindow("IBL", leftSidebarBottom);
 
-    ImGuiID rightSidebarBottom;
-    const ImGuiID rightSidebarTop = ImGui::DockBuilderSplitNode(rightSidebar, ImGuiDir_Up, 0.5f, nullptr, &rightSidebarBottom);
-
     // rightSidebarTop
     ImGui::DockBuilderDockWindow("Renderer Setting", rightSidebarTop);
 
     // rightSidebarBottom
     ImGui::DockBuilderDockWindow("Node Inspector", rightSidebarBottom);
 
-    const ImGuiID bottomSidebar = ImGui::DockBuilderSplitNode(dockSpaceOverViewport, ImGuiDir_Down, 0.3f, nullptr, &dockSpaceOverViewport);
-
     // bottomSidebar
     ImGui::DockBuilderDockWindow("Material Editor", bottomSidebar);
     ImGui::DockBuilderDockWindow("Material Variants", bottomSidebar);
     ImGui::DockBuilderDockWindow("Animation", bottomSidebar);
 
-    ImGui::DockBuilderFinish(dockSpaceOverViewport);
-
-    return dockSpaceOverViewport; // This will represent the central node.
+    ImGui::DockBuilderFinish(viewportDockSpace);
 }
 
 vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(std::queue<Task> &tasks, const ImRect &oldPassthruRect)
@@ -302,7 +296,7 @@ vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(std::queue<Task>
     // Enable global docking.
     ImGuiID dockSpace = ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_NoDockingOverCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
     if (shouldMakeDefaultDockState) {
-        dockSpace = makeDefaultDockState(dockSpace);
+        makeDefaultDockState(dockSpace);
     }
 
     // Get central node region.
