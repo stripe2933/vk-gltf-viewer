@@ -1,5 +1,6 @@
 module;
 
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 
 export module imgui;
@@ -52,6 +53,17 @@ export using ::ImVec2;
 export using ::ImVec4;
 export using ::ImVector;
 export using ::ImWchar;
+
+export using ::operator+;
+export using ::operator-;
+export using ::operator*;
+export using ::operator/;
+export using ::operator+=;
+export using ::operator-=;
+export using ::operator*=;
+export using ::operator/=;
+export using ::operator==;
+export using ::operator!=;
 
 #ifdef IMGUI_HAS_DOCK
 export using ::ImGuiConfigFlags_DockingEnable;

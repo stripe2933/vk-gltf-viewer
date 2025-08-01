@@ -112,7 +112,6 @@ target_sources(vk-gltf-viewer PRIVATE
     BASE_DIRS extlibs interface
     FILES
         extlibs/module-ports/imgui/imgui.cppm
-        extlibs/module-ports/imgui/imgui.math.cppm
         extlibs/module-ports/imgui/imgui.glfw.cppm
         extlibs/module-ports/imgui/imgui.internal.cppm
         extlibs/module-ports/imgui/imgui.vulkan.cppm

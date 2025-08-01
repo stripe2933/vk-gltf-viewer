@@ -8,8 +8,6 @@ module;
 
 module vk_gltf_viewer.imgui.TaskCollector;
 
-import imgui.math;
-
 import vk_gltf_viewer.global;
 import vk_gltf_viewer.gltf.util;
 import vk_gltf_viewer.gui.dialog;

@@ -8,7 +8,6 @@ export import :table;
 import std;
 export import imgui;
 import imgui.internal;
-import imgui.math;
 
 import vk_gltf_viewer.imgui.UserData;
 
