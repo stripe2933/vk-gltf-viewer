@@ -5,9 +5,7 @@ module;
 export module vk_gltf_viewer.imgui.TaskCollector;
 
 import std;
-export import glm;
 import imgui.internal;
-export import ImGuizmo;
 
 export import vk_gltf_viewer.AppState;
 export import vk_gltf_viewer.control.Task;
