@@ -57,8 +57,8 @@ vk_gltf_viewer::vulkan::ag::SceneOpaque::SceneOpaque(const Gpu &gpu, const vk::E
             gpu.allocator,
             vk::Format::eB8G8R8A8Srgb,
             vk::ImageUsageFlagBits::eColorAttachment
-                | vk::ImageUsageFlagBits::eInputAttachment // input in InverseToneMappingRenderer
-                | (gpu.supportAttachmentFeedbackLoopLayout ? vk::ImageUsageFlagBits::eAttachmentFeedbackLoopEXT : vk::ImageUsageFlagBits{}) // BloomApplyRenderer
+                | vk::ImageUsageFlagBits::eInputAttachment // input in InverseToneMappingRenderPipeline
+                | (gpu.supportAttachmentFeedbackLoopLayout ? vk::ImageUsageFlagBits::eAttachmentFeedbackLoopEXT : vk::ImageUsageFlagBits{}) // BloomApplyRenderPipeline
                 | vk::ImageUsageFlagBits::eTransferSrc /* copied to the swapchain image */)));
     setDepthStencilAttachment(
         gpu.device,

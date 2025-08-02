@@ -59,7 +59,7 @@ import vk_gltf_viewer.imgui.TaskCollector;
 import vk_gltf_viewer.vulkan.FrameDeferredTask;
 import vk_gltf_viewer.vulkan.imgui.PlatformResource;
 import vk_gltf_viewer.vulkan.mipmap;
-import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderer;
+import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderPipeline;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
@@ -1208,7 +1208,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     // Generate Tone-mapped cubemap.
     const vulkan::rp::CubemapToneMapping cubemapToneMappingRenderPass { gpu.device };
-    const vulkan::CubemapToneMappingRenderer cubemapToneMappingRenderer { gpu, cubemapToneMappingRenderPass };
+    const vulkan::CubemapToneMappingRenderPipeline cubemapToneMappingRenderPipeline { gpu, cubemapToneMappingRenderPass };
 
     vku::AllocatedImage toneMappedCubemapImage { gpu.allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
@@ -1516,11 +1516,11 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                     vku::unsafeProxy<vk::ClearValue>(vk::ClearColorValue{}),
                 }, vk::SubpassContents::eInline);
 
-                cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapToneMappingRenderer.pipeline);
+                cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapToneMappingRenderPipeline.pipeline);
                 cb.pushDescriptorSetKHR(
                     vk::PipelineBindPoint::eGraphics,
-                    *cubemapToneMappingRenderer.pipelineLayout,
-                    0, vulkan::CubemapToneMappingRenderer::DescriptorSetLayout::getWriteOne<0>({ {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal }));
+                    *cubemapToneMappingRenderPipeline.pipelineLayout,
+                    0, vulkan::CubemapToneMappingRenderPipeline::DescriptorSetLayout::getWriteOne<0>({ {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal }));
                 cb.setViewport(0, vku::unsafeProxy(vku::toViewport(vku::toExtent2D(toneMappedCubemapImage.extent))));
                 cb.setScissor(0, vku::unsafeProxy(vk::Rect2D { { 0, 0 }, vku::toExtent2D(toneMappedCubemapImage.extent) }));
                 cb.draw(3, 1, 0, 0);

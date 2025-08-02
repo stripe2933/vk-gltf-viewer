@@ -20,21 +20,21 @@ export import vk_gltf_viewer.vulkan.ag.ImGui;
 export import vk_gltf_viewer.vulkan.gltf.AssetExtended;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.pipeline.AssetSpecialization;
-export import vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderer;
-export import vk_gltf_viewer.vulkan.pipeline.InverseToneMappingRenderer;
-export import vk_gltf_viewer.vulkan.pipeline.JumpFloodComputer;
-import vk_gltf_viewer.vulkan.pipeline.JumpFloodSeedRenderer;
-import vk_gltf_viewer.vulkan.pipeline.MaskJumpFloodSeedRenderer;
-import vk_gltf_viewer.vulkan.pipeline.MaskMultiNodeMousePickingRenderer;
-import vk_gltf_viewer.vulkan.pipeline.MaskNodeIndexRenderer;
-export import vk_gltf_viewer.vulkan.pipeline.MousePickingRenderer;
-export import vk_gltf_viewer.vulkan.pipeline.MultiNodeMousePickingRenderer;
-import vk_gltf_viewer.vulkan.pipeline.NodeIndexRenderer;
-export import vk_gltf_viewer.vulkan.pipeline.OutlineRenderer;
-import vk_gltf_viewer.vulkan.pipeline.PrimitiveRenderer;
-export import vk_gltf_viewer.vulkan.pipeline.SkyboxRenderer;
-import vk_gltf_viewer.vulkan.pipeline.UnlitPrimitiveRenderer;
-export import vk_gltf_viewer.vulkan.pipeline.WeightedBlendedCompositionRenderer;
+export import vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.InverseToneMappingRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.JumpFloodComputePipeline;
+import vk_gltf_viewer.vulkan.pipeline.JumpFloodSeedRenderPipeline;
+import vk_gltf_viewer.vulkan.pipeline.MaskJumpFloodSeedRenderPipeline;
+import vk_gltf_viewer.vulkan.pipeline.MaskMultiNodeMousePickingRenderPipeline;
+import vk_gltf_viewer.vulkan.pipeline.MaskNodeIndexRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.MousePickingRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.MultiNodeMousePickingRenderPipeline;
+import vk_gltf_viewer.vulkan.pipeline.NodeIndexRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.OutlineRenderPipeline;
+import vk_gltf_viewer.vulkan.pipeline.PrimitiveRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.SkyboxRenderPipeline;
+import vk_gltf_viewer.vulkan.pipeline.UnlitPrimitiveRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.WeightedBlendedCompositionRenderPipeline;
 export import vk_gltf_viewer.vulkan.pl.MultiNodeMousePicking;
 export import vk_gltf_viewer.vulkan.pl.Primitive;
 export import vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
@@ -72,14 +72,14 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         // Primitive unrelated pipelines.
-        JumpFloodComputer jumpFloodComputer;
-        MousePickingRenderer mousePickingRenderer;
-        OutlineRenderer outlineRenderer;
-        SkyboxRenderer skyboxRenderer;
-        WeightedBlendedCompositionRenderer weightedBlendedCompositionRenderer;
-        InverseToneMappingRenderer inverseToneMappingRenderer;
+        JumpFloodComputePipeline jumpFloodComputePipeline;
+        MousePickingRenderPipeline mousePickingRenderPipeline;
+        OutlineRenderPipeline outlineRenderPipeline;
+        SkyboxRenderPipeline skyboxRenderPipeline;
+        WeightedBlendedCompositionRenderPipeline weightedBlendedCompositionRenderPipeline;
+        InverseToneMappingRenderPipeline inverseToneMappingRenderPipeline;
         bloom::BloomComputer bloomComputer;
-        BloomApplyRenderer bloomApplyRenderer;
+        BloomApplyRenderPipeline bloomApplyRenderPipeline;
 
         // --------------------
         // Attachment groups.
@@ -107,14 +107,14 @@ namespace vk_gltf_viewer::vulkan {
         // Pipeline selectors.
         // --------------------
 
-        [[nodiscard]] vk::Pipeline getNodeIndexRenderer(const fastgltf::Primitive &primitive) const;
-        [[nodiscard]] vk::Pipeline getMaskNodeIndexRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const;
-        [[nodiscard]] vk::Pipeline getMultiNodeMousePickingRenderer(const fastgltf::Primitive &primitive) const;
-        [[nodiscard]] vk::Pipeline getMaskMultiNodeMousePickingRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const;
-        [[nodiscard]] vk::Pipeline getJumpFloodSeedRenderer(const fastgltf::Primitive &primitive) const;
-        [[nodiscard]] vk::Pipeline getMaskJumpFloodSeedRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const;
-        [[nodiscard]] vk::Pipeline getPrimitiveRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive, bool usePerFragmentEmissiveStencilExport) const;
-        [[nodiscard]] vk::Pipeline getUnlitPrimitiveRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const;
+        [[nodiscard]] vk::Pipeline getNodeIndexRenderPipeline(const fastgltf::Primitive &primitive) const;
+        [[nodiscard]] vk::Pipeline getMaskNodeIndexRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const;
+        [[nodiscard]] vk::Pipeline getMultiNodeMousePickingRenderPipeline(const fastgltf::Primitive &primitive) const;
+        [[nodiscard]] vk::Pipeline getMaskMultiNodeMousePickingRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const;
+        [[nodiscard]] vk::Pipeline getJumpFloodSeedRenderPipeline(const fastgltf::Primitive &primitive) const;
+        [[nodiscard]] vk::Pipeline getMaskJumpFloodSeedRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const;
+        [[nodiscard]] vk::Pipeline getPrimitiveRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive, bool usePerFragmentEmissiveStencilExport) const;
+        [[nodiscard]] vk::Pipeline getUnlitPrimitiveRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const;
 
         // --------------------
         // The below public methods will modify the GPU resources, therefore they MUST be called before the command buffer
@@ -131,14 +131,14 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         // glTF primitive rendering pipelines.
-        mutable std::unordered_map<NodeIndexRendererSpecialization, vk::raii::Pipeline, AggregateHasher> nodeIndexPipelines;
-        mutable std::unordered_map<MaskNodeIndexRendererSpecialization, vk::raii::Pipeline, AggregateHasher> maskNodeIndexPipelines;
-        mutable std::unordered_map<MultiNodeMousePickingRendererSpecialization, vk::raii::Pipeline, AggregateHasher> multiNodeMousePickingPipelines;
-        mutable std::unordered_map<MaskMultiNodeMousePickingRendererSpecialization, vk::raii::Pipeline, AggregateHasher> maskMultiNodeMousePickingPipelines;
-        mutable std::unordered_map<JumpFloodSeedRendererSpecialization, vk::raii::Pipeline, AggregateHasher> jumpFloodSeedPipelines;
-        mutable std::unordered_map<MaskJumpFloodSeedRendererSpecialization, vk::raii::Pipeline, AggregateHasher> maskJumpFloodSeedPipelines;
-        mutable std::unordered_map<PrimitiveRendererSpecialization, vk::raii::Pipeline, AggregateHasher> primitivePipelines;
-        mutable std::unordered_map<UnlitPrimitiveRendererSpecialization, vk::raii::Pipeline, AggregateHasher> unlitPrimitivePipelines;
+        mutable std::unordered_map<NodeIndexRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> nodeIndexPipelines;
+        mutable std::unordered_map<MaskNodeIndexRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> maskNodeIndexPipelines;
+        mutable std::unordered_map<MultiNodeMousePickingRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> multiNodeMousePickingPipelines;
+        mutable std::unordered_map<MaskMultiNodeMousePickingRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> maskMultiNodeMousePickingPipelines;
+        mutable std::unordered_map<JumpFloodSeedRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> jumpFloodSeedPipelines;
+        mutable std::unordered_map<MaskJumpFloodSeedRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> maskJumpFloodSeedPipelines;
+        mutable std::unordered_map<PrimitiveRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> primitivePipelines;
+        mutable std::unordered_map<UnlitPrimitiveRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> unlitPrimitivePipelines;
     };
 }
 
@@ -184,14 +184,14 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
     , multiNodeMousePickingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) }
     , primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
     , primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout }
-    , jumpFloodComputer { gpu.device }
-    , mousePickingRenderer { gpu.device, mousePickingRenderPass }
-    , outlineRenderer { gpu.device }
-    , skyboxRenderer { gpu.device, skyboxDescriptorSetLayout, sceneRenderPass, cubeIndices }
-    , weightedBlendedCompositionRenderer { gpu, sceneRenderPass }
-    , inverseToneMappingRenderer { gpu, sceneRenderPass }
+    , jumpFloodComputePipeline { gpu.device }
+    , mousePickingRenderPipeline { gpu.device, mousePickingRenderPass }
+    , outlineRenderPipeline { gpu.device }
+    , skyboxRenderPipeline { gpu.device, skyboxDescriptorSetLayout, sceneRenderPass, cubeIndices }
+    , weightedBlendedCompositionRenderPipeline { gpu, sceneRenderPass }
+    , inverseToneMappingRenderPipeline { gpu, sceneRenderPass }
     , bloomComputer { gpu.device, { .useAMDShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod } }
-    , bloomApplyRenderer { gpu, bloomApplyRenderPass }
+    , bloomApplyRenderPipeline { gpu, bloomApplyRenderPass }
     , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
     , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
     , fallbackTexture { gpu }{
@@ -199,9 +199,9 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
         *descriptorPool, std::tie(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout));
 }
 
-vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getNodeIndexRenderer(const fastgltf::Primitive &primitive) const {
+vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getNodeIndexRenderPipeline(const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    NodeIndexRendererSpecialization specialization {
+    NodeIndexRenderPipelineSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -217,9 +217,9 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getNodeIndexRenderer(const fast
     }).first->second;
 }
 
-vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskNodeIndexRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
+vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskNodeIndexRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    MaskNodeIndexRendererSpecialization specialization {
+    MaskNodeIndexRenderPipelineSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -252,9 +252,9 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskNodeIndexRenderer(const 
     }).first->second;
 }
 
-vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMultiNodeMousePickingRenderer(const fastgltf::Primitive &primitive) const {
+vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMultiNodeMousePickingRenderPipeline(const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    MultiNodeMousePickingRendererSpecialization specialization {
+    MultiNodeMousePickingRenderPipelineSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -270,9 +270,9 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMultiNodeMousePickingRendere
     }).first->second;
 }
 
-vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
+vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    MaskMultiNodeMousePickingRendererSpecialization specialization {
+    MaskMultiNodeMousePickingRenderPipelineSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -305,9 +305,9 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRen
     }).first->second;
 }
 
-vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getJumpFloodSeedRenderer(const fastgltf::Primitive &primitive) const {
+vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getJumpFloodSeedRenderPipeline(const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    JumpFloodSeedRendererSpecialization specialization {
+    JumpFloodSeedRenderPipelineSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -323,9 +323,9 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getJumpFloodSeedRenderer(const 
     }).first->second;
 }
 
-vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
+vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    MaskJumpFloodSeedRendererSpecialization specialization {
+    MaskJumpFloodSeedRenderPipelineSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -358,9 +358,9 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderer(co
     }).first->second;
 }
 
-vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive, bool usePerFragmentEmissiveStencilExport) const {
+vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive, bool usePerFragmentEmissiveStencilExport) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    PrimitiveRendererSpecialization specialization {
+    PrimitiveRenderPipelineSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -405,9 +405,9 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderer(const Asse
     }).first->second;
 }
 
-vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderer(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
+vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    UnlitPrimitiveRendererSpecialization specialization {
+    UnlitPrimitiveRenderPipelineSpecialization specialization {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),

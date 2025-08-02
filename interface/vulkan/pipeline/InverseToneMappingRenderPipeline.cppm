@@ -4,7 +4,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.pipeline.InverseToneMappingRenderer;
+export module vk_gltf_viewer.vulkan.pipeline.InverseToneMappingRenderPipeline;
 
 import std;
 
@@ -14,14 +14,14 @@ export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.rp.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export struct InverseToneMappingRenderer {
+    export struct InverseToneMappingRenderPipeline {
         using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment>;
 
         DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        InverseToneMappingRenderer(const Gpu &gpu LIFETIMEBOUND, const rp::Scene &renderPass LIFETIMEBOUND);
+        InverseToneMappingRenderPipeline(const Gpu &gpu LIFETIMEBOUND, const rp::Scene &renderPass LIFETIMEBOUND);
     };
 }
 
@@ -29,7 +29,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::pipeline::InverseToneMappingRenderer::InverseToneMappingRenderer(const Gpu &gpu, const rp::Scene &renderPass)
+vk_gltf_viewer::vulkan::pipeline::InverseToneMappingRenderPipeline::InverseToneMappingRenderPipeline(const Gpu &gpu, const rp::Scene &renderPass)
     : descriptorSetLayout { gpu.device, vk::DescriptorSetLayoutCreateInfo {
         {},
         vku::unsafeProxy(DescriptorSetLayout::getBindings(

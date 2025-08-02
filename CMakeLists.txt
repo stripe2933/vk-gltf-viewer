@@ -192,22 +192,22 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/imgui/PlatformResource.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/AssetSpecialization.cppm
-        interface/vulkan/pipeline/BloomApplyRenderer.cppm
-        interface/vulkan/pipeline/CubemapToneMappingRenderer.cppm
-        interface/vulkan/pipeline/InverseToneMappingRenderer.cppm
-        interface/vulkan/pipeline/NodeIndexRenderer.cppm
-        interface/vulkan/pipeline/JumpFloodComputer.cppm
-        interface/vulkan/pipeline/JumpFloodSeedRenderer.cppm
-        interface/vulkan/pipeline/MaskJumpFloodSeedRenderer.cppm
-        interface/vulkan/pipeline/MaskMultiNodeMousePickingRenderer.cppm
-        interface/vulkan/pipeline/MaskNodeIndexRenderer.cppm
-        interface/vulkan/pipeline/MousePickingRenderer.cppm
-        interface/vulkan/pipeline/MultiNodeMousePickingRenderer.cppm
-        interface/vulkan/pipeline/OutlineRenderer.cppm
-        interface/vulkan/pipeline/PrimitiveRenderer.cppm
-        interface/vulkan/pipeline/SkyboxRenderer.cppm
-        interface/vulkan/pipeline/UnlitPrimitiveRenderer.cppm
-        interface/vulkan/pipeline/WeightedBlendedCompositionRenderer.cppm
+        interface/vulkan/pipeline/BloomApplyRenderPipeline.cppm
+        interface/vulkan/pipeline/CubemapToneMappingRenderPipeline.cppm
+        interface/vulkan/pipeline/InverseToneMappingRenderPipeline.cppm
+        interface/vulkan/pipeline/JumpFloodComputePipeline.cppm
+        interface/vulkan/pipeline/JumpFloodSeedRenderPipeline.cppm
+        interface/vulkan/pipeline/MaskJumpFloodSeedRenderPipeline.cppm
+        interface/vulkan/pipeline/MaskMultiNodeMousePickingRenderPipeline.cppm
+        interface/vulkan/pipeline/MaskNodeIndexRenderPipeline.cppm
+        interface/vulkan/pipeline/MousePickingRenderPipeline.cppm
+        interface/vulkan/pipeline/MultiNodeMousePickingRenderPipeline.cppm
+        interface/vulkan/pipeline/NodeIndexRenderPipeline.cppm
+        interface/vulkan/pipeline/OutlineRenderPipeline.cppm
+        interface/vulkan/pipeline/PrimitiveRenderPipeline.cppm
+        interface/vulkan/pipeline/SkyboxRenderPipeline.cppm
+        interface/vulkan/pipeline/UnlitPrimitiveRenderPipeline.cppm
+        interface/vulkan/pipeline/WeightedBlendedCompositionRenderPipeline.cppm
         interface/vulkan/pipeline_layout/MultiNodeMousePicking.cppm
         interface/vulkan/pipeline_layout/Primitive.cppm
         interface/vulkan/pipeline_layout/PrimitiveNoShading.cppm

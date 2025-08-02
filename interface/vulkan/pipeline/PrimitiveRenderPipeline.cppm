@@ -1,40 +1,46 @@
 module;
 
-#include <cassert>
+#include <boost/container/static_vector.hpp>
+#include <boost/container_hash/hash.hpp>
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.pipeline.UnlitPrimitiveRenderer;
+export module vk_gltf_viewer.vulkan.pipeline.PrimitiveRenderPipeline;
 
 import std;
 export import fastgltf;
-import vku;
 
 import vk_gltf_viewer.helpers.ranges;
-import vk_gltf_viewer.shader_selector.unlit_primitive_frag;
-import vk_gltf_viewer.shader_selector.unlit_primitive_vert;
+import vk_gltf_viewer.shader_selector.primitive_frag;
+import vk_gltf_viewer.shader_selector.primitive_vert;
 export import vk_gltf_viewer.vulkan.pl.Primitive;
 export import vk_gltf_viewer.vulkan.rp.Scene;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export class UnlitPrimitiveRendererSpecialization {
+    export class PrimitiveRenderPipelineSpecialization {
     public:
         std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
         fastgltf::ComponentType positionComponentType;
         bool positionNormalized;
-        std::optional<std::pair<fastgltf::ComponentType, bool>> baseColorTexcoordComponentTypeAndNormalized;
+        std::optional<fastgltf::ComponentType> normalComponentType;
+        std::optional<fastgltf::ComponentType> tangentComponentType;
+        boost::container::static_vector<std::pair<fastgltf::ComponentType, bool>, 4> texcoordComponentTypeAndNormalized;
         std::optional<std::pair<fastgltf::ComponentType, std::uint8_t>> color0ComponentTypeAndCount;
         std::uint32_t positionMorphTargetCount;
+        std::uint32_t normalMorphTargetCount;
+        std::uint32_t tangentMorphTargetCount;
         std::uint32_t skinAttributeCount;
+        bool fragmentShaderGeneratedTBN;
         bool useTextureTransform;
         fastgltf::AlphaMode alphaMode;
+        bool usePerFragmentEmissiveStencilExport;
 
-        [[nodiscard]] bool operator==(const UnlitPrimitiveRendererSpecialization&) const noexcept = default;
+        [[nodiscard]] bool operator==(const PrimitiveRenderPipelineSpecialization&) const noexcept = default;
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
-            const pl::Primitive &layout LIFETIMEBOUND,
+            const pl::Primitive &pipelineLayout LIFETIMEBOUND,
             const rp::Scene &sceneRenderPass LIFETIMEBOUND
         ) const;
 
@@ -42,9 +48,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         struct VertexShaderSpecializationData;
         struct FragmentShaderSpecializationData;
 
-        [[nodiscard]] std::array<int, 2> getVertexShaderVariants() const noexcept;
+        [[nodiscard]] std::array<int, 3> getVertexShaderVariants() const noexcept;
         [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const noexcept;
-        [[nodiscard]] std::array<int, 3> getFragmentShaderVariants() const noexcept;
+        [[nodiscard]] std::array<int, 5> getFragmentShaderVariants() const noexcept;
         [[nodiscard]] FragmentShaderSpecializationData getFragmentShaderSpecializationData() const noexcept;
     };
 }
@@ -56,24 +62,34 @@ module :private;
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
-struct vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpecialization::VertexShaderSpecializationData {
+struct vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipelineSpecialization::VertexShaderSpecializationData {
     std::uint32_t positionComponentType;
     vk::Bool32 positionNormalized;
-    std::uint32_t baseColorTexcoordComponentType;
-    vk::Bool32 baseColorTexcoordNormalized;
+    std::uint32_t normalComponentType;
+    std::uint32_t tangentComponentType;
+    std::uint32_t texcoord0ComponentType;
+    std::uint32_t texcoord1ComponentType;
+    std::uint32_t texcoord2ComponentType;
+    std::uint32_t texcoord3ComponentType;
+    vk::Bool32 texcoord0Normalized;
+    vk::Bool32 texcoord1Normalized;
+    vk::Bool32 texcoord2Normalized;
+    vk::Bool32 texcoord3Normalized;
     std::uint32_t color0ComponentType;
     std::uint32_t color0ComponentCount;
     std::uint32_t positionMorphTargetCount;
+    std::uint32_t normalMorphTargetCount;
+    std::uint32_t tangentMorphTargetCount;
     std::uint32_t skinAttributeCount;
 };
 
-struct vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpecialization::FragmentShaderSpecializationData {
+struct vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipelineSpecialization::FragmentShaderSpecializationData {
     vk::Bool32 useTextureTransform;
 };
 
-vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpecialization::createPipeline(
+vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipelineSpecialization::createPipeline(
     const vk::raii::Device &device,
-    const pl::Primitive &layout,
+    const pl::Primitive &pipelineLayout,
     const rp::Scene &sceneRenderPass
 ) const {
     const auto vertexShaderSpecializationData = getVertexShaderSpecializationData();
@@ -91,12 +107,12 @@ vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpeci
     const vku::RefHolder pipelineStages = createPipelineStages(
         device,
         vku::Shader {
-            std::apply(LIFT(shader_selector::unlit_primitive_vert), getVertexShaderVariants()),
+            std::apply(LIFT(shader_selector::primitive_vert), getVertexShaderVariants()),
             vk::ShaderStageFlagBits::eVertex,
-            &vertexShaderSpecializationInfo
+            &vertexShaderSpecializationInfo,
         },
         vku::Shader {
-            std::apply(LIFT(shader_selector::unlit_primitive_frag), getFragmentShaderVariants()),
+            std::apply(LIFT(shader_selector::primitive_frag), getFragmentShaderVariants()),
             vk::ShaderStageFlagBits::eFragment,
             &fragmentShaderSpecializationInfo,
         });
@@ -109,31 +125,45 @@ vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpeci
     switch (alphaMode) {
         case fastgltf::AlphaMode::Opaque:
             return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                pipelineStages.get(), *layout, 1, true, vk::SampleCountFlagBits::e4)
+                pipelineStages.get(), *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
                 .setPInputAssemblyState(&inputAssemblyStateCreateInfo)
                 .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                     {},
-                    true, true, vk::CompareOp::eGreater, // Use reverse Z.
+                    true, true, vk::CompareOp::eGreater /* use reverse Z */, false,
+                    // Write stencil value as 1 if material is emissive.
+                    true,
+                    vk::StencilOpState { {}, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
+                    vk::StencilOpState { {}, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
                 }))
                 .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                     {},
-                    vku::unsafeProxy({
-                        vk::DynamicState::eViewport,
-                        vk::DynamicState::eScissor,
-                        vk::DynamicState::ePrimitiveTopology,
-                        vk::DynamicState::eCullMode,
-                    }),
+                    vku::unsafeProxy([&]() {
+                        boost::container::static_vector<vk::DynamicState, 5> result {
+                            vk::DynamicState::eViewport,
+                            vk::DynamicState::eScissor,
+                            vk::DynamicState::ePrimitiveTopology,
+                            vk::DynamicState::eCullMode,
+                        };
+                        if (!usePerFragmentEmissiveStencilExport) {
+                            result.push_back(vk::DynamicState::eStencilReference);
+                        }
+                        return result;
+                    }()),
                 }))
                 .setRenderPass(*sceneRenderPass)
                 .setSubpass(0)
             };
         case fastgltf::AlphaMode::Mask:
             return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                pipelineStages.get(), *layout, 1, true, vk::SampleCountFlagBits::e4)
+                pipelineStages.get(), *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
                 .setPInputAssemblyState(&inputAssemblyStateCreateInfo)
                 .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                     {},
-                    true, true, vk::CompareOp::eGreater, // Use reverse Z.
+                    true, true, vk::CompareOp::eGreater /* use reverse Z */, false,
+                    // Write stencil value as 1 if material is emissive.
+                    true,
+                    vk::StencilOpState { {}, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
+                    vk::StencilOpState { {}, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
                 }))
                 .setPMultisampleState(vku::unsafeAddress(vk::PipelineMultisampleStateCreateInfo {
                     {},
@@ -143,19 +173,25 @@ vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpeci
                 }))
                 .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                     {},
-                    vku::unsafeProxy({
-                        vk::DynamicState::eViewport,
-                        vk::DynamicState::eScissor,
-                        vk::DynamicState::ePrimitiveTopology,
-                        vk::DynamicState::eCullMode,
-                    }),
+                    vku::unsafeProxy([&]() {
+                        boost::container::static_vector<vk::DynamicState, 5> result {
+                            vk::DynamicState::eViewport,
+                            vk::DynamicState::eScissor,
+                            vk::DynamicState::ePrimitiveTopology,
+                            vk::DynamicState::eCullMode,
+                        };
+                        if (!usePerFragmentEmissiveStencilExport) {
+                            result.push_back(vk::DynamicState::eStencilReference);
+                        }
+                        return result;
+                    }()),
                 }))
                 .setRenderPass(*sceneRenderPass)
                 .setSubpass(0)
             };
         case fastgltf::AlphaMode::Blend:
             return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                pipelineStages.get(), *layout, 1, true, vk::SampleCountFlagBits::e4)
+                pipelineStages.get(), *pipelineLayout, 1, true, vk::SampleCountFlagBits::e4)
                 .setPInputAssemblyState(&inputAssemblyStateCreateInfo)
                 .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                     {},
@@ -169,7 +205,11 @@ vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpeci
                 .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
                     {},
                     // Translucent objects shouldn't interfere with the pre-rendered depth buffer. Use reverse Z.
-                    true, false, vk::CompareOp::eGreater,
+                    true, false, vk::CompareOp::eGreater, false,
+                    // Write stencil value as 1 if material is emissive.
+                    true,
+                    vk::StencilOpState { {}, vk::StencilOp::eReplace, {}, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
+                    vk::StencilOpState { {}, vk::StencilOp::eReplace, {}, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
                 }))
                 .setPColorBlendState(vku::unsafeAddress(vk::PipelineColorBlendStateCreateInfo {
                     {},
@@ -192,11 +232,17 @@ vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpeci
                 }))
                 .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
                     {},
-                    vku::unsafeProxy({
-                        vk::DynamicState::eViewport,
-                        vk::DynamicState::eScissor,
-                        vk::DynamicState::ePrimitiveTopology,
-                    }),
+                    vku::unsafeProxy([&]() {
+                        boost::container::static_vector<vk::DynamicState, 4> result {
+                            vk::DynamicState::eViewport,
+                            vk::DynamicState::eScissor,
+                            vk::DynamicState::ePrimitiveTopology,
+                        };
+                        if (!usePerFragmentEmissiveStencilExport) {
+                            result.push_back(vk::DynamicState::eStencilReference);
+                        }
+                        return result;
+                    }()),
                 }))
                 .setRenderPass(*sceneRenderPass)
                 .setSubpass(1)
@@ -205,25 +251,28 @@ vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpeci
     std::unreachable();
 }
 
-std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpecialization::getVertexShaderVariants() const noexcept {
+std::array<int, 3> vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipelineSpecialization::getVertexShaderVariants() const noexcept {
     return {
-        baseColorTexcoordComponentTypeAndNormalized.has_value(),
+        static_cast<int>(texcoordComponentTypeAndNormalized.size()),
         color0ComponentTypeAndCount.has_value(),
+        fragmentShaderGeneratedTBN,
     };
 }
 
-vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpecialization::VertexShaderSpecializationData vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpecialization::getVertexShaderSpecializationData() const noexcept {
+vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipelineSpecialization::VertexShaderSpecializationData vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipelineSpecialization::getVertexShaderSpecializationData() const noexcept {
     VertexShaderSpecializationData result {
         .positionComponentType = getGLComponentType(positionComponentType),
         .positionNormalized = positionNormalized,
+        .normalComponentType = normalComponentType.transform(fastgltf::getGLComponentType).value_or(0U),
+        .tangentComponentType = tangentComponentType.transform(fastgltf::getGLComponentType).value_or(0U),
         .positionMorphTargetCount = positionMorphTargetCount,
+        .normalMorphTargetCount = normalMorphTargetCount,
+        .tangentMorphTargetCount = tangentMorphTargetCount,
         .skinAttributeCount = skinAttributeCount,
     };
 
-    if (baseColorTexcoordComponentTypeAndNormalized) {
-        result.baseColorTexcoordComponentType = getGLComponentType(baseColorTexcoordComponentTypeAndNormalized->first);
-        result.baseColorTexcoordNormalized = baseColorTexcoordComponentTypeAndNormalized->second;
-    }
+    std::ranges::transform(texcoordComponentTypeAndNormalized | std::views::keys, &result.texcoord0ComponentType /* TODO: UB? */, fastgltf::getGLComponentType);
+    std::ranges::copy(texcoordComponentTypeAndNormalized | std::views::values, &result.texcoord0Normalized /* TODO: UB? */);
 
     if (color0ComponentTypeAndCount) {
         result.color0ComponentType = getGLComponentType(color0ComponentTypeAndCount->first);
@@ -233,14 +282,16 @@ vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpecialization::VertexSh
     return result;
 }
 
-std::array<int, 3> vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpecialization::getFragmentShaderVariants() const noexcept {
+std::array<int, 5> vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipelineSpecialization::getFragmentShaderVariants() const noexcept {
     return {
-        baseColorTexcoordComponentTypeAndNormalized.has_value(),
+        static_cast<int>(texcoordComponentTypeAndNormalized.size()),
         color0ComponentTypeAndCount.has_value(),
+        fragmentShaderGeneratedTBN,
         static_cast<int>(alphaMode),
+        usePerFragmentEmissiveStencilExport,
     };
 }
 
-vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpecialization::FragmentShaderSpecializationData vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRendererSpecialization::getFragmentShaderSpecializationData() const noexcept {
+vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipelineSpecialization::FragmentShaderSpecializationData vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipelineSpecialization::getFragmentShaderSpecializationData() const noexcept {
     return { useTextureTransform };
 }

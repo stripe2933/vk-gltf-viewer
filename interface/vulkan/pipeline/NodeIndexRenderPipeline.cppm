@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.pipeline.NodeIndexRenderer;
+export module vk_gltf_viewer.vulkan.pipeline.NodeIndexRenderPipeline;
 
 import std;
 export import fastgltf;
@@ -15,7 +15,7 @@ export import vk_gltf_viewer.vulkan.rp.MousePicking;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export class NodeIndexRendererSpecialization {
+    export class NodeIndexRenderPipelineSpecialization {
     public:
         std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
         fastgltf::ComponentType positionComponentType;
@@ -23,7 +23,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         std::uint32_t positionMorphTargetCount;
         std::uint32_t skinAttributeCount;
 
-        [[nodiscard]] bool operator==(const NodeIndexRendererSpecialization&) const = default;
+        [[nodiscard]] bool operator==(const NodeIndexRenderPipelineSpecialization&) const = default;
 
         [[nodiscard]] vk::raii::Pipeline createPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
@@ -45,14 +45,14 @@ module :private;
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
-struct vk_gltf_viewer::vulkan::pipeline::NodeIndexRendererSpecialization::VertexShaderSpecializationData {
+struct vk_gltf_viewer::vulkan::pipeline::NodeIndexRenderPipelineSpecialization::VertexShaderSpecializationData {
     std::uint32_t positionComponentType;
     vk::Bool32 positionNormalized;
     std::uint32_t positionMorphTargetCount;
     std::uint32_t skinAttributeCount;
 };
 
-[[nodiscard]] vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::NodeIndexRendererSpecialization::createPipeline(
+[[nodiscard]] vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::NodeIndexRenderPipelineSpecialization::createPipeline(
     const vk::raii::Device &device,
     const pl::PrimitiveNoShading &pipelineLayout,
     const rp::MousePicking &renderPass
@@ -92,7 +92,7 @@ struct vk_gltf_viewer::vulkan::pipeline::NodeIndexRendererSpecialization::Vertex
     };
 }
 
-[[nodiscard]] vk_gltf_viewer::vulkan::pipeline::NodeIndexRendererSpecialization::VertexShaderSpecializationData vk_gltf_viewer::vulkan::pipeline::NodeIndexRendererSpecialization::getVertexShaderSpecializationData() const noexcept {
+[[nodiscard]] vk_gltf_viewer::vulkan::pipeline::NodeIndexRenderPipelineSpecialization::VertexShaderSpecializationData vk_gltf_viewer::vulkan::pipeline::NodeIndexRenderPipelineSpecialization::getVertexShaderSpecializationData() const noexcept {
     return {
         .positionComponentType = getGLComponentType(positionComponentType),
         .positionNormalized = positionNormalized,

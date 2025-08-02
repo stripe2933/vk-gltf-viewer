@@ -4,7 +4,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.pipeline.JumpFloodComputer;
+export module vk_gltf_viewer.vulkan.pipeline.JumpFloodComputePipeline;
 
 import std;
 export import vku;
@@ -13,7 +13,7 @@ import vk_gltf_viewer.math.extended_arithmetic;
 import vk_gltf_viewer.shader.jump_flood_comp;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export class JumpFloodComputer {
+    export class JumpFloodComputePipeline {
     public:
         using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage>;
 
@@ -21,7 +21,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        explicit JumpFloodComputer(const vk::raii::Device &device LIFETIMEBOUND);
+        explicit JumpFloodComputePipeline(const vk::raii::Device &device LIFETIMEBOUND);
 
         [[nodiscard]] bool compute(
             vk::CommandBuffer commandBuffer,
@@ -39,12 +39,12 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 module :private;
 #endif
 
-struct vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::PushConstant {
+struct vk_gltf_viewer::vulkan::pipeline::JumpFloodComputePipeline::PushConstant {
     vk::Bool32 forward;
     std::uint32_t sampleOffset;
 };
 
-vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::JumpFloodComputer(const vk::raii::Device &device)
+vk_gltf_viewer::vulkan::pipeline::JumpFloodComputePipeline::JumpFloodComputePipeline(const vk::raii::Device &device)
     : descriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
         {},
         vku::unsafeProxy(DescriptorSetLayout::getBindings({ 1, vk::ShaderStageFlagBits::eCompute })),
@@ -65,7 +65,7 @@ vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::JumpFloodComputer(const vk:
         *pipelineLayout,
     } } { }
 
-bool vk_gltf_viewer::vulkan::pipeline::JumpFloodComputer::compute(
+bool vk_gltf_viewer::vulkan::pipeline::JumpFloodComputePipeline::compute(
     vk::CommandBuffer commandBuffer,
     vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
     std::uint32_t initialSampleOffset,
