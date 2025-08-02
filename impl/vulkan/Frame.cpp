@@ -172,9 +172,6 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
     translationlessProjectionViewMatrix = renderer->camera.getProjectionMatrix() * glm::mat4 { glm::mat3 { renderer->camera.getViewMatrix() } };
     passthruOffset = task.passthruOffset;
 
-    // Should be calculated on-demand (only if pipeline recreation is requested).
-    Lazy<AssetSpecialization> assetSpecialization { [&]() { return AssetSpecialization { gltfAsset->assetExtended->asset }; } };
-
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
         const bool usePerFragmentEmissiveStencilExport = renderer->bloom.raw().mode == Renderer::Bloom::PerFragment;
         CommandSeparationCriteria result {
@@ -202,12 +199,12 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
 
             if (material.unlit || isPrimitivePointsOrLineWithoutNormal) {
-                result.pipeline = sharedData.getUnlitPrimitiveRenderPipeline(assetSpecialization.get(), primitive);
+                result.pipeline = sharedData.getUnlitPrimitiveRenderPipeline(primitive);
                 // Disable stencil reference dynamic state when using unlit rendering pipeline.
                 result.stencilReference.reset();
             }
             else {
-                result.pipeline = sharedData.getPrimitiveRenderPipeline(assetSpecialization.get(), primitive, usePerFragmentEmissiveStencilExport);
+                result.pipeline = sharedData.getPrimitiveRenderPipeline(primitive, usePerFragmentEmissiveStencilExport);
                 if (!usePerFragmentEmissiveStencilExport) {
                     result.stencilReference.emplace(material.emissiveStrength > 1.f ? 1U : 0U);
                 }
@@ -215,12 +212,12 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else if (isPrimitivePointsOrLineWithoutNormal) {
-            result.pipeline = sharedData.getUnlitPrimitiveRenderPipeline(assetSpecialization.get(), primitive);
+            result.pipeline = sharedData.getUnlitPrimitiveRenderPipeline(primitive);
             // Disable stencil reference dynamic state when using unlit rendering pipeline.
             result.stencilReference.reset();
         }
         else {
-            result.pipeline = sharedData.getPrimitiveRenderPipeline(assetSpecialization.get(), primitive, usePerFragmentEmissiveStencilExport);
+            result.pipeline = sharedData.getPrimitiveRenderPipeline(primitive, usePerFragmentEmissiveStencilExport);
         }
         return result;
     };
@@ -237,7 +234,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         if (primitive.materialIndex) {
             const fastgltf::Material& material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
-                result.pipeline = sharedData.getMaskNodeIndexRenderPipeline(assetSpecialization.get(), primitive);
+                result.pipeline = sharedData.getMaskNodeIndexRenderPipeline(primitive);
             }
             else {
                 result.pipeline = sharedData.getNodeIndexRenderPipeline(primitive);
@@ -262,7 +259,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         if (primitive.materialIndex) {
             const fastgltf::Material& material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
-                result.pipeline = sharedData.getMaskMultiNodeMousePickingRenderPipeline(assetSpecialization.get(), primitive);
+                result.pipeline = sharedData.getMaskMultiNodeMousePickingRenderPipeline(primitive);
             }
             else {
                 result.pipeline = sharedData.getMultiNodeMousePickingRenderPipeline(primitive);
@@ -286,7 +283,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         if (primitive.materialIndex) {
             const fastgltf::Material &material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
-                result.pipeline = sharedData.getMaskJumpFloodSeedRenderPipeline(assetSpecialization.get(), primitive);
+                result.pipeline = sharedData.getMaskJumpFloodSeedRenderPipeline(primitive);
             }
             else {
                 result.pipeline = sharedData.getJumpFloodSeedRenderPipeline(primitive);

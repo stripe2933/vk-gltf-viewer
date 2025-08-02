@@ -35,6 +35,8 @@ namespace vk_gltf_viewer::gltf {
          */
         fastgltf::Asset asset;
 
+    	bool isTextureTransformUsed;
+
     	/**
 		 * @brief Association of primitive -> original material index.
 		 */
@@ -157,6 +159,7 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
 	: dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) }
     , directory { path.parent_path() }
     , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
+	, isTextureTransformUsed { ranges::contains(asset.extensionsUsed, "KHR_texture_transform"sv) }
     , sceneIndex { asset.defaultScene.value_or(0) }
     , sceneInverseHierarchy { asset, sceneIndex }
     , sceneNodeVisibilities { asset, sceneIndex, sceneInverseHierarchy }

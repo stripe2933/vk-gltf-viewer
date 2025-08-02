@@ -191,7 +191,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/Gpu.cppm
         interface/vulkan/imgui/PlatformResource.cppm
         interface/vulkan/mipmap.cppm
-        interface/vulkan/pipeline/AssetSpecialization.cppm
         interface/vulkan/pipeline/BloomApplyRenderPipeline.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderPipeline.cppm
         interface/vulkan/pipeline/InverseToneMappingRenderPipeline.cppm

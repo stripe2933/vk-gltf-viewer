@@ -672,8 +672,9 @@ void vk_gltf_viewer::MainApp::run() {
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::TextureTransformEnabled:
-                            if (!ranges::contains(assetExtended->asset.extensionsUsed, "KHR_texture_transform")) {
+                            if (!assetExtended->isTextureTransformUsed) {
                                 assetExtended->asset.extensionsUsed.push_back("KHR_texture_transform");
+                                assetExtended->isTextureTransformUsed = true;
 
                                 // Asset is loaded without KHR_texture_transform extension, and all pipelines were created
                                 // with texture transform disabled. Pipelines need to be recreated.
