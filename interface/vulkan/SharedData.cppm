@@ -15,7 +15,6 @@ export import vku;
 
 import vk_gltf_viewer.helpers.AggregateHasher;
 import vk_gltf_viewer.helpers.fastgltf;
-import vk_gltf_viewer.helpers.ranges;
 export import vk_gltf_viewer.vulkan.ag.ImGui;
 export import vk_gltf_viewer.vulkan.gltf.AssetExtended;
 export import vk_gltf_viewer.vulkan.Gpu;
@@ -28,7 +27,7 @@ import vk_gltf_viewer.vulkan.pipeline.MaskJumpFloodSeedRenderPipeline;
 import vk_gltf_viewer.vulkan.pipeline.MaskMultiNodeMousePickingRenderPipeline;
 import vk_gltf_viewer.vulkan.pipeline.MaskNodeIndexRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.MousePickingRenderPipeline;
-export import vk_gltf_viewer.vulkan.pipeline.MultiNodeMousePickingRenderPipeline;
+import vk_gltf_viewer.vulkan.pipeline.MultiNodeMousePickingRenderPipeline;
 import vk_gltf_viewer.vulkan.pipeline.NodeIndexRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.OutlineRenderPipeline;
 import vk_gltf_viewer.vulkan.pipeline.PrimitiveRenderPipeline;
@@ -131,14 +130,14 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         // glTF primitive rendering pipelines.
-        mutable std::unordered_map<NodeIndexRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> nodeIndexPipelines;
-        mutable std::unordered_map<MaskNodeIndexRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> maskNodeIndexPipelines;
-        mutable std::unordered_map<MultiNodeMousePickingRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> multiNodeMousePickingPipelines;
-        mutable std::unordered_map<MaskMultiNodeMousePickingRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> maskMultiNodeMousePickingPipelines;
-        mutable std::unordered_map<JumpFloodSeedRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> jumpFloodSeedPipelines;
-        mutable std::unordered_map<MaskJumpFloodSeedRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> maskJumpFloodSeedPipelines;
-        mutable std::unordered_map<PrimitiveRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> primitivePipelines;
-        mutable std::unordered_map<UnlitPrimitiveRenderPipelineSpecialization, vk::raii::Pipeline, AggregateHasher> unlitPrimitivePipelines;
+        mutable std::unordered_map<NodeIndexRenderPipeline::Config, NodeIndexRenderPipeline, AggregateHasher> nodeIndexPipelines;
+        mutable std::unordered_map<MaskNodeIndexRenderPipeline::Config, MaskNodeIndexRenderPipeline, AggregateHasher> maskNodeIndexPipelines;
+        mutable std::unordered_map<MultiNodeMousePickingRenderPipeline::Config, MultiNodeMousePickingRenderPipeline, AggregateHasher> multiNodeMousePickingPipelines;
+        mutable std::unordered_map<MaskMultiNodeMousePickingRenderPipeline::Config, MaskMultiNodeMousePickingRenderPipeline, AggregateHasher> maskMultiNodeMousePickingPipelines;
+        mutable std::unordered_map<JumpFloodSeedRenderPipeline::Config, JumpFloodSeedRenderPipeline, AggregateHasher> jumpFloodSeedPipelines;
+        mutable std::unordered_map<MaskJumpFloodSeedRenderPipeline::Config, MaskJumpFloodSeedRenderPipeline, AggregateHasher> maskJumpFloodSeedPipelines;
+        mutable std::unordered_map<PrimitiveRenderPipeline::Config, PrimitiveRenderPipeline, AggregateHasher> primitivePipelines;
+        mutable std::unordered_map<UnlitPrimitiveRenderPipeline::Config, UnlitPrimitiveRenderPipeline, AggregateHasher> unlitPrimitivePipelines;
     };
 }
 
@@ -201,7 +200,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getNodeIndexRenderPipeline(const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    NodeIndexRenderPipelineSpecialization specialization {
+    NodeIndexRenderPipeline::Config config {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -209,17 +208,15 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getNodeIndexRenderPipeline(cons
     };
 
     if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
-        specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+        config.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
     }
 
-    return ranges::try_emplace_if_not_exists(nodeIndexPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass);
-    }).first->second;
+    return *nodeIndexPipelines.try_emplace(config, gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass, config).first->second;
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskNodeIndexRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    MaskNodeIndexRenderPipelineSpecialization specialization {
+    MaskNodeIndexRenderPipeline::Config config {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -228,14 +225,14 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskNodeIndexRenderPipeline(
     };
 
     if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
-        specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+        config.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
     }
 
     if (!accessors.colors.empty()) {
         const fastgltf::Accessor &accessor = assetExtended->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
         if (accessor.type == fastgltf::AccessorType::Vec4) {
             // Alpha value exists only if COLOR_0 is Vec4 type.
-            specialization.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
+            config.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
         }
     }
 
@@ -243,18 +240,16 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskNodeIndexRenderPipeline(
         const fastgltf::Material &material = assetExtended->asset.materials[*primitive.materialIndex];
         if (const auto &textureInfo = material.pbrData.baseColorTexture) {
             const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
-            specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
+            config.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
         }
     }
 
-    return ranges::try_emplace_if_not_exists(maskNodeIndexPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass);
-    }).first->second;
+    return *maskNodeIndexPipelines.try_emplace(config, gpu.device, primitiveNoShadingPipelineLayout, mousePickingRenderPass, config).first->second;
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMultiNodeMousePickingRenderPipeline(const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    MultiNodeMousePickingRenderPipelineSpecialization specialization {
+    MultiNodeMousePickingRenderPipeline::Config config {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -262,17 +257,15 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMultiNodeMousePickingRenderP
     };
 
     if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
-        specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+        config.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
     }
 
-    return ranges::try_emplace_if_not_exists(multiNodeMousePickingPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu, multiNodeMousePickingPipelineLayout);
-    }).first->second;
+    return *multiNodeMousePickingPipelines.try_emplace(config, gpu, multiNodeMousePickingPipelineLayout, config).first->second;
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    MaskMultiNodeMousePickingRenderPipelineSpecialization specialization {
+    MaskMultiNodeMousePickingRenderPipeline::Config config {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -281,14 +274,14 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRen
     };
 
     if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
-        specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+        config.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
     }
 
     if (!accessors.colors.empty()) {
         const fastgltf::Accessor &accessor = assetExtended->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
         if (accessor.type == fastgltf::AccessorType::Vec4) {
             // Alpha value exists only if COLOR_0 is Vec4 type.
-            specialization.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
+            config.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
         }
     }
 
@@ -296,18 +289,16 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRen
         const fastgltf::Material &material = assetExtended->asset.materials[*primitive.materialIndex];
         if (const auto &textureInfo = material.pbrData.baseColorTexture) {
             const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
-            specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
+            config.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
         }
     }
 
-    return ranges::try_emplace_if_not_exists(maskMultiNodeMousePickingPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu, multiNodeMousePickingPipelineLayout);
-    }).first->second;
+    return *maskMultiNodeMousePickingPipelines.try_emplace(config, gpu, multiNodeMousePickingPipelineLayout, config).first->second;
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getJumpFloodSeedRenderPipeline(const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    JumpFloodSeedRenderPipelineSpecialization specialization {
+    JumpFloodSeedRenderPipeline::Config config {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -315,17 +306,15 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getJumpFloodSeedRenderPipeline(
     };
 
     if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
-        specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+        config.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
     }
 
-    return ranges::try_emplace_if_not_exists(jumpFloodSeedPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
-    }).first->second;
+    return *jumpFloodSeedPipelines.try_emplace(config, gpu.device, primitiveNoShadingPipelineLayout, config).first->second;
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    MaskJumpFloodSeedRenderPipelineSpecialization specialization {
+    MaskJumpFloodSeedRenderPipeline::Config config {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -334,14 +323,14 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderPipel
     };
 
     if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
-        specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+        config.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
     }
 
     if (!accessors.colors.empty()) {
         const fastgltf::Accessor &accessor = assetExtended->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
         if (accessor.type == fastgltf::AccessorType::Vec4) {
             // Alpha value exists only if COLOR_0 is Vec4 type.
-            specialization.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
+            config.color0AlphaComponentType.emplace(accessors.colors[0].attributeInfo.componentType);
         }
     }
 
@@ -349,18 +338,16 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderPipel
         const fastgltf::Material &material = assetExtended->asset.materials[*primitive.materialIndex];
         if (const auto &textureInfo = material.pbrData.baseColorTexture) {
             const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
-            specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
+            config.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
         }
     }
 
-    return ranges::try_emplace_if_not_exists(maskJumpFloodSeedPipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitiveNoShadingPipelineLayout);
-    }).first->second;
+    return *maskJumpFloodSeedPipelines.try_emplace(config, gpu.device, primitiveNoShadingPipelineLayout, config).first->second;
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive, bool usePerFragmentEmissiveStencilExport) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    PrimitiveRenderPipelineSpecialization specialization {
+    PrimitiveRenderPipeline::Config config {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -370,44 +357,42 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderPipeline(cons
     };
 
     if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
-        specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+        config.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
     }
 
     if (accessors.normal) {
-        specialization.normalComponentType = accessors.normal->attributeInfo.componentType;
-        specialization.normalMorphTargetCount = accessors.normal->morphTargets.size();
+        config.normalComponentType = accessors.normal->attributeInfo.componentType;
+        config.normalMorphTargetCount = accessors.normal->morphTargets.size();
     }
     else {
-        specialization.fragmentShaderGeneratedTBN = true;
+        config.fragmentShaderGeneratedTBN = true;
     }
 
     if (!accessors.colors.empty()) {
         const fastgltf::Accessor &accessor = assetExtended->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
-        specialization.color0ComponentTypeAndCount.emplace(accessors.colors[0].attributeInfo.componentType, static_cast<std::uint8_t>(getNumComponents(accessor.type)));
+        config.color0ComponentTypeAndCount.emplace(accessors.colors[0].attributeInfo.componentType, static_cast<std::uint8_t>(getNumComponents(accessor.type)));
     }
 
     if (primitive.materialIndex) {
         if (accessors.tangent) {
-            specialization.tangentComponentType = accessors.tangent->attributeInfo.componentType;
-            specialization.tangentMorphTargetCount = accessors.tangent->morphTargets.size();
+            config.tangentComponentType = accessors.tangent->attributeInfo.componentType;
+            config.tangentMorphTargetCount = accessors.tangent->morphTargets.size();
         }
 
         for (const auto &info : accessors.texcoords) {
-            specialization.texcoordComponentTypeAndNormalized.emplace_back(info.attributeInfo.componentType, info.attributeInfo.normalized);
+            config.texcoordComponentTypeAndNormalized.emplace_back(info.attributeInfo.componentType, info.attributeInfo.normalized);
         }
 
         const fastgltf::Material &material = assetExtended->asset.materials[*primitive.materialIndex];
-        specialization.alphaMode = material.alphaMode;
+        config.alphaMode = material.alphaMode;
     }
 
-    return ranges::try_emplace_if_not_exists(primitivePipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitivePipelineLayout, sceneRenderPass);
-    }).first->second;
+    return *primitivePipelines.try_emplace(config, gpu.device, primitivePipelineLayout, sceneRenderPass, config).first->second;
 }
 
 vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderPipeline(const AssetSpecialization &assetSpecialization, const fastgltf::Primitive &primitive) const {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
-    UnlitPrimitiveRenderPipelineSpecialization specialization {
+    UnlitPrimitiveRenderPipeline::Config config {
         .positionComponentType = accessors.position.attributeInfo.componentType,
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
@@ -416,27 +401,25 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderPipeline
     };
 
     if (!gpu.supportDynamicPrimitiveTopologyUnrestricted) {
-        specialization.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+        config.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
     }
 
     if (!accessors.colors.empty()) {
         const fastgltf::Accessor &accessor = assetExtended->asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
-        specialization.color0ComponentTypeAndCount.emplace(accessors.colors[0].attributeInfo.componentType, static_cast<std::uint8_t>(getNumComponents(accessor.type)));
+        config.color0ComponentTypeAndCount.emplace(accessors.colors[0].attributeInfo.componentType, static_cast<std::uint8_t>(getNumComponents(accessor.type)));
     }
 
     if (primitive.materialIndex) {
         const fastgltf::Material &material = assetExtended->asset.materials[*primitive.materialIndex];
         if (const auto &textureInfo = material.pbrData.baseColorTexture) {
             const vkgltf::PrimitiveAttributeBuffers::AttributeInfo &info = accessors.texcoords.at(getTexcoordIndex(*textureInfo)).attributeInfo;
-            specialization.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
+            config.baseColorTexcoordComponentTypeAndNormalized.emplace(info.componentType, info.normalized);
         }
 
-        specialization.alphaMode = material.alphaMode;
+        config.alphaMode = material.alphaMode;
     }
 
-    return ranges::try_emplace_if_not_exists(unlitPrimitivePipelines, specialization, [&]() {
-        return specialization.createPipeline(gpu.device, primitivePipelineLayout, sceneRenderPass);
-    }).first->second;
+    return *unlitPrimitivePipelines.try_emplace(config, gpu.device, primitivePipelineLayout, sceneRenderPass, config).first->second;
 }
 
 // --------------------

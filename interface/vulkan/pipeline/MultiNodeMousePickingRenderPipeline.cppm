@@ -15,25 +15,28 @@ export import vk_gltf_viewer.vulkan.pl.MultiNodeMousePicking;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export class MultiNodeMousePickingRenderPipelineSpecialization {
+    export class MultiNodeMousePickingRenderPipeline final : public vk::raii::Pipeline {
     public:
-        std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
-        fastgltf::ComponentType positionComponentType;
-        bool positionNormalized;
-        std::uint32_t positionMorphTargetCount;
-        std::uint32_t skinAttributeCount;
+        struct Config {
+            std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
+            fastgltf::ComponentType positionComponentType;
+            bool positionNormalized;
+            std::uint32_t positionMorphTargetCount;
+            std::uint32_t skinAttributeCount;
 
-        [[nodiscard]] bool operator==(const MultiNodeMousePickingRenderPipelineSpecialization&) const = default;
+            [[nodiscard]] bool operator==(const Config&) const = default;
+        };
 
-        [[nodiscard]] vk::raii::Pipeline createPipeline(
+        MultiNodeMousePickingRenderPipeline(
             const Gpu &gpu LIFETIMEBOUND,
-            const pl::MultiNodeMousePicking &pipelineLayout LIFETIMEBOUND
-        ) const;
+            const pl::MultiNodeMousePicking &pipelineLayout LIFETIMEBOUND,
+            const Config &config
+        );
 
     private:
-        struct VertexShaderSpecializationData;
+        struct VertexShaderSpecialization;
 
-        [[nodiscard]] VertexShaderSpecializationData getVertexShaderSpecializationData() const noexcept;
+        [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const Config &config) noexcept;
     };
 }
 
@@ -44,65 +47,66 @@ module :private;
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
-struct vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipelineSpecialization::VertexShaderSpecializationData {
+struct vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline::VertexShaderSpecialization {
     std::uint32_t positionComponentType;
     vk::Bool32 positionNormalized;
     std::uint32_t positionMorphTargetCount;
     std::uint32_t skinAttributeCount;
 };
 
-vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipelineSpecialization::createPipeline(
+vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline::MultiNodeMousePickingRenderPipeline(
     const Gpu &gpu,
-    const pl::MultiNodeMousePicking &pipelineLayout
-) const {
-    return { gpu.device, nullptr, vk::StructureChain {
-        vku::getDefaultGraphicsPipelineCreateInfo(
-            createPipelineStages(
-                gpu.device,
-                vku::Shader {
-                    shader::node_index_vert,
-                    vk::ShaderStageFlagBits::eVertex,
-                    vku::unsafeAddress(vk::SpecializationInfo {
-                        SpecializationMap<VertexShaderSpecializationData>::value,
-                        vku::unsafeProxy(getVertexShaderSpecializationData()),
+    const pl::MultiNodeMousePicking &pipelineLayout,
+    const Config &config
+) : Pipeline { [&] -> Pipeline {
+        return { gpu.device, nullptr, vk::StructureChain {
+            vku::getDefaultGraphicsPipelineCreateInfo(
+                createPipelineStages(
+                    gpu.device,
+                    vku::Shader {
+                        shader::node_index_vert,
+                        vk::ShaderStageFlagBits::eVertex,
+                        vku::unsafeAddress(vk::SpecializationInfo {
+                            SpecializationMap<VertexShaderSpecialization>::value,
+                            vku::unsafeProxy(getVertexShaderSpecialization(config)),
+                        }),
+                    },
+                    vku::Shader { shader::multi_node_mouse_picking_frag, vk::ShaderStageFlagBits::eFragment }).get(),
+                // See doc about Gpu::Workaround::attachmentLessRenderPass.
+                *pipelineLayout, 0, gpu.workaround.attachmentLessRenderPass)
+                .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
+                    {},
+                    config.topologyClass.value_or(vk::PrimitiveTopology::eTriangleList),
+                }))
+                .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
+                    {},
+                    false, false,
+                    vk::PolygonMode::eFill,
+                    vk::CullModeFlagBits::eNone, {},
+                    false, false, false, false,
+                    1.f,
+                }))
+                .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
+                    {},
+                    vku::unsafeProxy({
+                        vk::DynamicState::eViewport,
+                        vk::DynamicState::eScissor,
+                        vk::DynamicState::ePrimitiveTopology,
                     }),
-                },
-                vku::Shader { shader::multi_node_mouse_picking_frag, vk::ShaderStageFlagBits::eFragment }).get(),
-            // See doc about Gpu::Workaround::attachmentLessRenderPass.
-            *pipelineLayout, 0, gpu.workaround.attachmentLessRenderPass)
-            .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
+                })),
+            vk::PipelineRenderingCreateInfo {
                 {},
-                topologyClass.value_or(vk::PrimitiveTopology::eTriangleList),
-            }))
-            .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                 {},
-                false, false,
-                vk::PolygonMode::eFill,
-                vk::CullModeFlagBits::eNone, {},
-                false, false, false, false,
-                1.f,
-            }))
-            .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
-                {},
-                vku::unsafeProxy({
-                    vk::DynamicState::eViewport,
-                    vk::DynamicState::eScissor,
-                    vk::DynamicState::ePrimitiveTopology,
-                }),
-            })),
-        vk::PipelineRenderingCreateInfo {
-            {},
-            {},
-            gpu.workaround.attachmentLessRenderPass ? vk::Format::eD32Sfloat : vk::Format::eUndefined,
-        },
-    }.get() };
-}
+                gpu.workaround.attachmentLessRenderPass ? vk::Format::eD32Sfloat : vk::Format::eUndefined,
+            },
+        }.get() };
+    }() } { }
 
-vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipelineSpecialization::VertexShaderSpecializationData vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipelineSpecialization::getVertexShaderSpecializationData() const noexcept {
+vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline::VertexShaderSpecialization vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline::getVertexShaderSpecialization(const Config &config) noexcept {
     return {
-        .positionComponentType = getGLComponentType(positionComponentType),
-        .positionNormalized = positionNormalized,
-        .positionMorphTargetCount = positionMorphTargetCount,
-        .skinAttributeCount = skinAttributeCount,
+        .positionComponentType = getGLComponentType(config.positionComponentType),
+        .positionNormalized = config.positionNormalized,
+        .positionMorphTargetCount = config.positionMorphTargetCount,
+        .skinAttributeCount = config.skinAttributeCount,
     };
 }
