@@ -10,7 +10,7 @@ import vku;
 
 import vk_gltf_viewer.shader.jump_flood_seed_frag;
 import vk_gltf_viewer.shader.jump_flood_seed_vert;
-export import vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
+export import vk_gltf_viewer.vulkan.pipeline_layout.PrimitiveNoShading;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {

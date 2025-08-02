@@ -10,8 +10,8 @@ import vku;
 
 import vk_gltf_viewer.shader.node_index_frag;
 import vk_gltf_viewer.shader.node_index_vert;
-export import vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
-export import vk_gltf_viewer.vulkan.rp.MousePicking;
+export import vk_gltf_viewer.vulkan.pipeline_layout.PrimitiveNoShading;
+export import vk_gltf_viewer.vulkan.render_pass.MousePicking;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {

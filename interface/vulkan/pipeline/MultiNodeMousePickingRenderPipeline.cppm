@@ -11,7 +11,7 @@ import vku;
 import vk_gltf_viewer.shader.multi_node_mouse_picking_frag;
 import vk_gltf_viewer.shader.node_index_vert;
 export import vk_gltf_viewer.vulkan.Gpu;
-export import vk_gltf_viewer.vulkan.pl.MultiNodeMousePicking;
+export import vk_gltf_viewer.vulkan.pipeline_layout.MultiNodeMousePicking;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {

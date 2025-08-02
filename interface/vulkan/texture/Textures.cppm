@@ -15,7 +15,7 @@ export import vk_gltf_viewer.gltf.AssetExtended;
 export import vk_gltf_viewer.gltf.AssetProcessError;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.vulkan;
-import vk_gltf_viewer.vulkan.dsl.Asset;
+import vk_gltf_viewer.vulkan.descriptor_set_layout.Asset;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.texture.Fallback;
 

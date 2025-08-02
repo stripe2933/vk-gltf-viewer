@@ -33,11 +33,11 @@ import vk_gltf_viewer.vulkan.pipeline.PrimitiveRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.SkyboxRenderPipeline;
 import vk_gltf_viewer.vulkan.pipeline.UnlitPrimitiveRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.WeightedBlendedCompositionRenderPipeline;
-export import vk_gltf_viewer.vulkan.pl.MultiNodeMousePicking;
-export import vk_gltf_viewer.vulkan.pl.Primitive;
-export import vk_gltf_viewer.vulkan.pl.PrimitiveNoShading;
-export import vk_gltf_viewer.vulkan.rp.MousePicking;
-export import vk_gltf_viewer.vulkan.rp.Scene;
+export import vk_gltf_viewer.vulkan.pipeline_layout.MultiNodeMousePicking;
+export import vk_gltf_viewer.vulkan.pipeline_layout.Primitive;
+export import vk_gltf_viewer.vulkan.pipeline_layout.PrimitiveNoShading;
+export import vk_gltf_viewer.vulkan.render_pass.MousePicking;
+export import vk_gltf_viewer.vulkan.render_pass.Scene;
 
 namespace vk_gltf_viewer::vulkan {
     export class SharedData {

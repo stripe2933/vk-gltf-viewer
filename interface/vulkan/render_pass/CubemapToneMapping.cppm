@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.rp.CubemapToneMapping;
+export module vk_gltf_viewer.vulkan.render_pass.CubemapToneMapping;
 
 #ifdef _MSC_VER
 import std;

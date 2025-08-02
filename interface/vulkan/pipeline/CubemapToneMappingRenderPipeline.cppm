@@ -9,7 +9,7 @@ import std;
 import vk_gltf_viewer.shader.cubemap_tone_mapping_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;
 export import vk_gltf_viewer.vulkan.Gpu;
-export import vk_gltf_viewer.vulkan.rp.CubemapToneMapping;
+export import vk_gltf_viewer.vulkan.render_pass.CubemapToneMapping;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class CubemapToneMappingRenderPipeline {

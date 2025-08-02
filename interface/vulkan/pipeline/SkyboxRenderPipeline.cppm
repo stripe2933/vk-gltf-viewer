@@ -12,8 +12,8 @@ export import glm;
 import vk_gltf_viewer.shader.skybox_frag;
 import vk_gltf_viewer.shader.skybox_vert;
 export import vk_gltf_viewer.vulkan.buffer.CubeIndices;
-export import vk_gltf_viewer.vulkan.dsl.Skybox;
-export import vk_gltf_viewer.vulkan.rp.Scene;
+export import vk_gltf_viewer.vulkan.descriptor_set_layout.Skybox;
+export import vk_gltf_viewer.vulkan.render_pass.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class SkyboxRenderPipeline {

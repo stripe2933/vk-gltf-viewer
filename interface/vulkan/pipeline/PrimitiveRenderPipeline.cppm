@@ -12,8 +12,8 @@ export import fastgltf;
 
 import vk_gltf_viewer.shader_selector.primitive_frag;
 import vk_gltf_viewer.shader_selector.primitive_vert;
-export import vk_gltf_viewer.vulkan.pl.Primitive;
-export import vk_gltf_viewer.vulkan.rp.Scene;
+export import vk_gltf_viewer.vulkan.pipeline_layout.Primitive;
+export import vk_gltf_viewer.vulkan.render_pass.Scene;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {

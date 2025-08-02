@@ -10,7 +10,7 @@ export import vku;
 import vk_gltf_viewer.shader.screen_quad_vert;
 import vk_gltf_viewer.shader.weighted_blended_composition_frag;
 export import vk_gltf_viewer.vulkan.Gpu;
-export import vk_gltf_viewer.vulkan.rp.Scene;
+export import vk_gltf_viewer.vulkan.render_pass.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct WeightedBlendedCompositionRenderPipeline {
