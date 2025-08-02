@@ -4,7 +4,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module ibl.SphericalHarmonicCoefficientComputer;
+export module ibl.SphericalHarmonicCoefficientComputePipeline;
 
 import std;
 export import vku;
@@ -21,7 +21,7 @@ import ibl.shader.spherical_harmonic_coefficient_buffer_to_buffer_comp;
 }
 
 namespace ibl {
-    export class SphericalHarmonicCoefficientComputer {
+    export class SphericalHarmonicCoefficientComputePipeline {
     public:
         struct Config {
             std::uint32_t sampleMipLevel;
@@ -32,7 +32,7 @@ namespace ibl {
         static constexpr vk::DeviceSize requiredResultBufferSize = sizeof(float[27]);
         static constexpr vk::BufferUsageFlags requiredResultBufferUsageFlags = vk::BufferUsageFlagBits::eTransferDst;
 
-        SphericalHarmonicCoefficientComputer(
+        SphericalHarmonicCoefficientComputePipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             vma::Allocator allocator LIFETIMEBOUND,
             const vku::Image &cubemapImage LIFETIMEBOUND,
@@ -74,13 +74,13 @@ namespace ibl {
 module :private;
 #endif
 
-struct ibl::SphericalHarmonicCoefficientComputer::BufferToBufferPipelinePushConstant {
+struct ibl::SphericalHarmonicCoefficientComputePipeline::BufferToBufferPipelinePushConstant {
     std::uint32_t srcOffset;
     std::uint32_t count;
     std::uint32_t dstOffset;
 };
 
-ibl::SphericalHarmonicCoefficientComputer::SphericalHarmonicCoefficientComputer(
+ibl::SphericalHarmonicCoefficientComputePipeline::SphericalHarmonicCoefficientComputePipeline(
     const vk::raii::Device &device,
     vma::Allocator allocator,
     const vku::Image &cubemapImage,
@@ -147,23 +147,23 @@ ibl::SphericalHarmonicCoefficientComputer::SphericalHarmonicCoefficientComputer(
     cubemapImageView { device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, config.sampleMipLevel, 1, 0, 6 }, vk::ImageViewType::e2DArray) },
     reductionBuffer { createReductionBuffer() } { }
 
-void ibl::SphericalHarmonicCoefficientComputer::setCubemapImage(const vku::Image &cubemapImage) {
+void ibl::SphericalHarmonicCoefficientComputePipeline::setCubemapImage(const vku::Image &cubemapImage) {
     this->cubemapImage = cubemapImage;
     cubemapImageView = { device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, config.sampleMipLevel, 1, 0, 6 }, vk::ImageViewType::e2DArray) };
     reductionBuffer = createReductionBuffer();
 }
 
-void ibl::SphericalHarmonicCoefficientComputer::setSampleMipLevel(std::uint32_t level) {
+void ibl::SphericalHarmonicCoefficientComputePipeline::setSampleMipLevel(std::uint32_t level) {
     config.sampleMipLevel = level;
     cubemapImageView = { device, cubemapImage.get().getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, config.sampleMipLevel, 1, 0, 6 }, vk::ImageViewType::e2DArray) };
     reductionBuffer = createReductionBuffer();
 }
 
-void ibl::SphericalHarmonicCoefficientComputer::setResultBuffer(const vku::Buffer &buffer) {
+void ibl::SphericalHarmonicCoefficientComputePipeline::setResultBuffer(const vku::Buffer &buffer) {
     resultBuffer = buffer;
 }
 
-void ibl::SphericalHarmonicCoefficientComputer::recordCommands(vk::CommandBuffer computeCommandBuffer) const {
+void ibl::SphericalHarmonicCoefficientComputePipeline::recordCommands(vk::CommandBuffer computeCommandBuffer) const {
     const auto *d = device.get().getDispatcher();
 
     const auto memoryBarrier = [&]() {
@@ -215,11 +215,11 @@ void ibl::SphericalHarmonicCoefficientComputer::recordCommands(vk::CommandBuffer
     }, *d);
 }
 
-std::uint32_t ibl::SphericalHarmonicCoefficientComputer::getCubemapMipSize() const {
+std::uint32_t ibl::SphericalHarmonicCoefficientComputePipeline::getCubemapMipSize() const {
     return cubemapImage.get().extent.width >> config.sampleMipLevel;
 }
 
-vku::AllocatedBuffer ibl::SphericalHarmonicCoefficientComputer::createReductionBuffer() const {
+vku::AllocatedBuffer ibl::SphericalHarmonicCoefficientComputePipeline::createReductionBuffer() const {
     // Image -> Buffer: 32x32 texels will be reduced to a single 2nd-order spherical harmonic coefficients set (sizeof(float[27]).
     vk::DeviceSize coefficientSetCount = square(getCubemapMipSize() / 32);
     // Buffer -> Buffer: 256 2nd-order spherical harmonic coefficients sets will be reduced to a single set.

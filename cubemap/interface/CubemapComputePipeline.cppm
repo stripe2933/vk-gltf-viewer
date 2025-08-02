@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module cubemap.CubemapComputer;
+export module cubemap.CubemapComputePipeline;
 
 import std;
 export import vku;
@@ -13,7 +13,7 @@ namespace cubemap {
     /**
      * @brief Generate cubemap image from equirectangular map image using compute shader.
      */
-    export class CubemapComputer {
+    export class CubemapComputePipeline {
     public:
         /**
          * @brief Required image usage flags for equirectangular map image.
@@ -25,7 +25,7 @@ namespace cubemap {
          */
         static constexpr vk::ImageUsageFlags requiredCubemapImageUsageFlags = vk::ImageUsageFlagBits::eStorage;
 
-        CubemapComputer(
+        CubemapComputePipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const vku::Image &eqmapImage LIFETIMEBOUND,
             vk::Sampler eqmapSampler LIFETIMEBOUND,
@@ -53,7 +53,7 @@ namespace cubemap {
 module :private;
 #endif
 
-cubemap::CubemapComputer::CubemapComputer(
+cubemap::CubemapComputePipeline::CubemapComputePipeline(
     const vk::raii::Device &device,
     const vku::Image &eqmapImage,
     vk::Sampler eqmapSampler,
@@ -80,16 +80,16 @@ cubemap::CubemapComputer::CubemapComputer(
     eqmapImageView { device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
     cubemapImageView { device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::eCube) } { }
 
-void cubemap::CubemapComputer::setEqmapImage(const vku::Image &eqmapImage) {
+void cubemap::CubemapComputePipeline::setEqmapImage(const vku::Image &eqmapImage) {
     eqmapImageView = { device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) };
 }
 
-void cubemap::CubemapComputer::setCubemapImage(const vku::Image &cubemapImage) {
+void cubemap::CubemapComputePipeline::setCubemapImage(const vku::Image &cubemapImage) {
     this->cubemapImage = cubemapImage;
     cubemapImageView = { device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::eCube) };
 }
 
-void cubemap::CubemapComputer::recordCommands(vk::CommandBuffer computeCommandBuffer) const {
+void cubemap::CubemapComputePipeline::recordCommands(vk::CommandBuffer computeCommandBuffer) const {
     const auto *d = device.get().getDispatcher();
 
     computeCommandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline, *d);

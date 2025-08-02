@@ -78,7 +78,7 @@ namespace vk_gltf_viewer::vulkan {
         SkyboxRenderPipeline skyboxRenderPipeline;
         WeightedBlendedCompositionRenderPipeline weightedBlendedCompositionRenderPipeline;
         InverseToneMappingRenderPipeline inverseToneMappingRenderPipeline;
-        bloom::BloomComputer bloomComputer;
+        bloom::BloomComputePipeline bloomComputePipeline;
         BloomApplyRenderPipeline bloomApplyRenderPipeline;
 
         // --------------------
@@ -190,7 +190,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
     , skyboxRenderPipeline { gpu.device, skyboxDescriptorSetLayout, sceneRenderPass, cubeIndices }
     , weightedBlendedCompositionRenderPipeline { gpu, sceneRenderPass }
     , inverseToneMappingRenderPipeline { gpu, sceneRenderPass }
-    , bloomComputer { gpu.device, { .useAMDShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod } }
+    , bloomComputePipeline { gpu.device, { .useAMDShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod } }
     , bloomApplyRenderPipeline { gpu, bloomApplyRenderPass }
     , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
     , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }

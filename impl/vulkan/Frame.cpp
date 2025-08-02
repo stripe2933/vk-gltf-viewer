@@ -124,7 +124,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, 
             sharedData.outlineRenderPipeline.descriptorSetLayout,
             sharedData.weightedBlendedCompositionRenderPipeline.descriptorSetLayout,
             sharedData.inverseToneMappingRenderPipeline.descriptorSetLayout,
-            sharedData.bloomComputer.descriptorSetLayout,
+            sharedData.bloomComputePipeline.descriptorSetLayout,
             sharedData.bloomApplyRenderPipeline.descriptorSetLayout));
 
     // Allocate per-frame command buffers.
@@ -711,7 +711,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                 vk::MemoryBarrier { vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eShaderRead },
                 {}, {});
 
-            sharedData.bloomComputer.compute(sceneRenderingCommandBuffer, bloomSet, passthruResources->extent, passthruResources->bloomImage.mipLevels);
+            sharedData.bloomComputePipeline.compute(sceneRenderingCommandBuffer, bloomSet, passthruResources->extent, passthruResources->bloomImage.mipLevels);
 
             sceneRenderingCommandBuffer.pipelineBarrier(
                 vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eFragmentShader | vk::PipelineStageFlagBits::eColorAttachmentOutput,
@@ -978,7 +978,7 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eColorAttachment // written in InverseToneMappingRenderPipeline
-            | bloom::BloomComputer::requiredImageUsageFlags
+            | bloom::BloomComputePipeline::requiredImageUsageFlags
             | vk::ImageUsageFlagBits::eInputAttachment /* read in BloomApplyRenderPipeline */,
     } },
     bloomImageView { sharedData.gpu.device, bloomImage.getViewCreateInfo() },
@@ -1054,7 +1054,7 @@ vk::raii::DescriptorPool vk_gltf_viewer::vulkan::Frame::createDescriptorPool() c
         + 2 * getPoolSizes(sharedData.jumpFloodComputePipeline.descriptorSetLayout, sharedData.outlineRenderPipeline.descriptorSetLayout)
         + sharedData.weightedBlendedCompositionRenderPipeline.descriptorSetLayout.getPoolSize()
         + sharedData.inverseToneMappingRenderPipeline.descriptorSetLayout.getPoolSize()
-        + sharedData.bloomComputer.descriptorSetLayout.getPoolSize()
+        + sharedData.bloomComputePipeline.descriptorSetLayout.getPoolSize()
         + sharedData.bloomApplyRenderPipeline.descriptorSetLayout.getPoolSize();
     vk::DescriptorPoolCreateFlags flags{};
     if (sharedData.gpu.supportVariableDescriptorCount) {

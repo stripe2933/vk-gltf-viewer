@@ -1,3 +1,3 @@
 export module cubemap;
-export import cubemap.CubemapComputer;
-export import cubemap.SubgroupMipmapComputer;
+export import cubemap.CubemapComputePipeline;
+export import cubemap.SubgroupMipmapComputePipeline;

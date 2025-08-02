@@ -229,7 +229,7 @@ namespace vk_gltf_viewer::vulkan {
         vku::DescriptorSet<OutlineRenderPipeline::DescriptorSetLayout> selectedNodeOutlineSet;
         vku::DescriptorSet<WeightedBlendedCompositionRenderPipeline::DescriptorSetLayout> weightedBlendedCompositionSet;
         vku::DescriptorSet<InverseToneMappingRenderPipeline::DescriptorSetLayout> inverseToneMappingSet;
-        vku::DescriptorSet<bloom::BloomComputer::DescriptorSetLayout> bloomSet;
+        vku::DescriptorSet<bloom::BloomComputePipeline::DescriptorSetLayout> bloomSet;
         vku::DescriptorSet<BloomApplyRenderPipeline::DescriptorSetLayout> bloomApplySet;
 
         // Command buffers.

@@ -5,9 +5,9 @@ target_sources(ibl PUBLIC
     BASE_DIRS interface
     FILES
         interface/mod.cppm
-        interface/BrdfmapRenderer.cppm
-        interface/PrefilteredmapComputer.cppm
-        interface/SphericalHarmonicCoefficientComputer.cppm
+        interface/BrdfmapRenderPipeline.cppm
+        interface/PrefilteredmapComputePipeline.cppm
+        interface/SphericalHarmonicCoefficientComputePipeline.cppm
 )
 target_compile_features(ibl PUBLIC cxx_std_23)
 target_link_libraries(ibl PUBLIC vku::vku)

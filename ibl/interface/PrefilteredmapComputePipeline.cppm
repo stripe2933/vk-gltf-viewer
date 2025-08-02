@@ -4,7 +4,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module ibl.PrefilteredmapComputer;
+export module ibl.PrefilteredmapComputePipeline;
 
 import std;
 export import vku;
@@ -12,7 +12,7 @@ export import vku;
 import ibl.shader.prefilteredmap_comp;
 
 namespace ibl {
-    export class PrefilteredmapComputer {
+    export class PrefilteredmapComputePipeline {
     public:
         struct SpecializationConstants {
             std::uint32_t samples = 1024;
@@ -22,7 +22,7 @@ namespace ibl {
             /**
              * @brief Boolean indicates whether to utilize <tt>VK_AMD_shader_image_load_store_lod</tt> extension.
              *
-             * <tt>PrefilteredmapComputer</tt> writes to the mip level of given roughness level, therefore
+             * <tt>PrefilteredmapComputePipeline</tt> writes to the mip level of given roughness level, therefore
              * <tt>vk::ImageView</tt> for each mip level have to be bound to the pipeline via descriptor array. The
              * number of storage image descriptor bind count may exceed the system limit (especially in MoltenVK prior
              * to v1.2.11). If the extension is supported, compute shader can access the arbitrary mip level of the
@@ -36,7 +36,7 @@ namespace ibl {
         static constexpr vk::ImageUsageFlags requiredCubemapImageUsageFlags = vk::ImageUsageFlagBits::eSampled;
         static constexpr vk::ImageUsageFlags requiredPrefilteredmapImageUsageFlags = vk::ImageUsageFlagBits::eStorage;
 
-        PrefilteredmapComputer(
+        PrefilteredmapComputePipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const vku::Image &cubemapImage LIFETIMEBOUND,
             const vku::Image &prefilteredmapImage LIFETIMEBOUND,
@@ -77,12 +77,12 @@ namespace ibl {
 module :private;
 #endif
 
-struct ibl::PrefilteredmapComputer::PushConstant {
+struct ibl::PrefilteredmapComputePipeline::PushConstant {
     std::int32_t mipLevel;
     float roughness;
 };
 
-ibl::PrefilteredmapComputer::PrefilteredmapComputer(
+ibl::PrefilteredmapComputePipeline::PrefilteredmapComputePipeline(
     const vk::raii::Device &device LIFETIMEBOUND,
     const vku::Image &cubemapImage LIFETIMEBOUND,
     const vku::Image &prefilteredmapImage LIFETIMEBOUND,
@@ -97,11 +97,11 @@ ibl::PrefilteredmapComputer::PrefilteredmapComputer(
     cubemapImageView { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
     prefilteredmapMipImageViews { createPrefilteredmapMipImageViews() } { }
 
-void ibl::PrefilteredmapComputer::setCubemapImage(const vku::Image &cubemapImage LIFETIME_CAPTURE_BY(this)) {
+void ibl::PrefilteredmapComputePipeline::setCubemapImage(const vku::Image &cubemapImage LIFETIME_CAPTURE_BY(this)) {
     cubemapImageView = { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
 }
 
-void ibl::PrefilteredmapComputer::setPrefilteredmapImage(const vku::Image &prefilteredmapImage LIFETIME_CAPTURE_BY(this)) {
+void ibl::PrefilteredmapComputePipeline::setPrefilteredmapImage(const vku::Image &prefilteredmapImage LIFETIME_CAPTURE_BY(this)) {
     const bool descriptorSetLayoutChanged = !config.useShaderImageLoadStoreLod && (this->prefilteredmapImage.get().mipLevels != prefilteredmapImage.mipLevels);
     this->prefilteredmapImage = prefilteredmapImage;
     if (descriptorSetLayoutChanged) {
@@ -112,7 +112,7 @@ void ibl::PrefilteredmapComputer::setPrefilteredmapImage(const vku::Image &prefi
     prefilteredmapMipImageViews = createPrefilteredmapMipImageViews();
 }
 
-void ibl::PrefilteredmapComputer::recordCommands(vk::CommandBuffer computeCommandBuffer) const {
+void ibl::PrefilteredmapComputePipeline::recordCommands(vk::CommandBuffer computeCommandBuffer) const {
     const auto *d = device.get().getDispatcher();
 
     computeCommandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline, *d);
@@ -141,7 +141,7 @@ void ibl::PrefilteredmapComputer::recordCommands(vk::CommandBuffer computeComman
     }
 }
 
-[[nodiscard]] vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> ibl::PrefilteredmapComputer::createDescriptorSetLayout() const {
+[[nodiscard]] vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> ibl::PrefilteredmapComputePipeline::createDescriptorSetLayout() const {
     return {
         device,
         vk::DescriptorSetLayoutCreateInfo {
@@ -153,7 +153,7 @@ void ibl::PrefilteredmapComputer::recordCommands(vk::CommandBuffer computeComman
     };
 }
 
-[[nodiscard]] vk::raii::PipelineLayout ibl::PrefilteredmapComputer::createPipelineLayout() const {
+[[nodiscard]] vk::raii::PipelineLayout ibl::PrefilteredmapComputePipeline::createPipelineLayout() const {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
         *descriptorSetLayout,
@@ -164,7 +164,7 @@ void ibl::PrefilteredmapComputer::recordCommands(vk::CommandBuffer computeComman
     } };
 }
 
-[[nodiscard]] vk::raii::Pipeline ibl::PrefilteredmapComputer::createPipeline() const {
+[[nodiscard]] vk::raii::Pipeline ibl::PrefilteredmapComputePipeline::createPipeline() const {
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
         createPipelineStages(
@@ -186,7 +186,7 @@ void ibl::PrefilteredmapComputer::recordCommands(vk::CommandBuffer computeComman
     } };
 }
 
-[[nodiscard]] std::vector<vk::raii::ImageView> ibl::PrefilteredmapComputer::createPrefilteredmapMipImageViews() const {
+[[nodiscard]] std::vector<vk::raii::ImageView> ibl::PrefilteredmapComputePipeline::createPrefilteredmapMipImageViews() const {
     std::vector<vk::raii::ImageView> result;
     if (config.useShaderImageLoadStoreLod) {
         result.emplace_back(device, prefilteredmapImage.get().getViewCreateInfo(vk::ImageViewType::eCube));

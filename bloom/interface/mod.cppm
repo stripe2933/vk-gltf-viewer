@@ -11,7 +11,7 @@ import bloom.shader.downsample_comp;
 import bloom.shader.upsample_comp;
 
 namespace bloom {
-    export class BloomComputer {
+    export class BloomComputePipeline {
         std::reference_wrapper<const vk::raii::Device> device;
         vk::raii::Sampler linearSampler;
 
@@ -26,7 +26,7 @@ namespace bloom {
 
         DescriptorSetLayout descriptorSetLayout;
 
-        explicit BloomComputer(
+        explicit BloomComputePipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const Config &config = {
                 .useAMDShaderImageLoadStoreLod = false,
@@ -53,12 +53,12 @@ namespace bloom {
 module :private;
 #endif
 
-struct bloom::BloomComputer::PushConstant {
+struct bloom::BloomComputePipeline::PushConstant {
     std::int32_t srcMipLevel;
     std::int32_t dstMipLevel;
 };
 
-bloom::BloomComputer::BloomComputer(
+bloom::BloomComputePipeline::BloomComputePipeline(
     const vk::raii::Device &device,
     const Config &config
 ) : device { device },
@@ -107,7 +107,7 @@ bloom::BloomComputer::BloomComputer(
         *pipelineLayout,
     } } { }
 
-void bloom::BloomComputer::compute(vk::CommandBuffer computeCommandBuffer, vku::DescriptorSet<DescriptorSetLayout> descriptorSet, const vk::Extent2D &imageExtent, std::uint32_t imageMipLevels) const {
+void bloom::BloomComputePipeline::compute(vk::CommandBuffer computeCommandBuffer, vku::DescriptorSet<DescriptorSetLayout> descriptorSet, const vk::Extent2D &imageExtent, std::uint32_t imageMipLevels) const {
     constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) noexcept {
         return (num / denom) + (num % denom != 0);
     };
