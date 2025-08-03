@@ -115,6 +115,46 @@ namespace ImGui {
         Image(tex_ref, size, uv0, uv1);
     }
 
+    export void hoverableImage(ImTextureRef tex_ref, const ImVec2 &size) {
+        const ImVec2 texturePosition = GetCursorScreenPos();
+        Image(tex_ref, size);
+
+        if (BeginItemTooltip()) {
+            const ImGuiIO &io = GetIO();
+
+            const ImVec2 zoomedPortionSize = size / 4.f;
+            ImVec2 region = io.MousePos - texturePosition - zoomedPortionSize * 0.5f;
+            region.x = std::clamp(region.x, 0.f, size.x - zoomedPortionSize.x);
+            region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
+
+            constexpr float zoomScale = 4.0f;
+            Image(tex_ref, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
+            Text("Showing: [%.0f, %.0f]x[%.0f, %.0f]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y);
+
+            EndTooltip();
+        }
+    }
+
+    export void hoverableImageCheckerboardBackground(ImTextureRef texture_ref, const ImVec2 &size) {
+        const ImVec2 texturePosition = GetCursorScreenPos();
+        ImageCheckerboardBackground(texture_ref, size);
+
+        if (BeginItemTooltip()) {
+            const ImGuiIO &io = GetIO();
+
+            const ImVec2 zoomedPortionSize = size / 4.f;
+            ImVec2 region = io.MousePos - texturePosition - zoomedPortionSize * 0.5f;
+            region.x = std::clamp(region.x, 0.f, size.x - zoomedPortionSize.x);
+            region.y = std::clamp(region.y, 0.f, size.y - zoomedPortionSize.y);
+
+            constexpr float zoomScale = 4.0f;
+            ImageCheckerboardBackground(texture_ref, zoomedPortionSize * zoomScale, region / size, (region + zoomedPortionSize) / size);
+            Text("Showing: [%.0f, %.0f]x[%.0f, %.0f]", region.x, region.y, region.x + zoomedPortionSize.y, region.y + zoomedPortionSize.y);
+
+            EndTooltip();
+        }
+    }
+
     export template <std::invocable F>
     void WithLabel(std::string_view label, F &&imGuiFunc)
         requires std::is_void_v<std::invoke_result_t<F>>
