@@ -199,35 +199,20 @@ vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(std::queue<Task>
 vk_gltf_viewer::control::ImGuiTaskCollector::~ImGuiTaskCollector() {
     if (!assetInspectorCalled) {
         for (auto name : { "Asset Info", "Buffers", "Buffer Views", "Images", "Samplers", "Textures" }) {
-            if (ImGui::Begin(name)) {
-                ImGui::TextUnformatted("Asset not loaded."sv);
-            }
-            ImGui::End();
+            ImGui::windowWithCenteredText(name, "Asset is not loaded."sv);
         }
     }
     if (!materialEditorCalled) {
-        if (ImGui::Begin("Material Editor")) {
-            ImGui::TextUnformatted("Asset not loaded."sv);
-        }
-        ImGui::End();
+        ImGui::windowWithCenteredText("Material Editor", "Asset is not loaded."sv);
     }
     if (!sceneHierarchyCalled) {
-        if (ImGui::Begin("Scene Hierarchy")) {
-            ImGui::TextUnformatted("Asset not loaded."sv);
-        }
-        ImGui::End();
+        ImGui::windowWithCenteredText("Scene Hierarchy", "Asset is not loaded."sv);
     }
     if (!nodeInspectorCalled) {
-        if (ImGui::Begin("Node Inspector")) {
-            ImGui::TextUnformatted("Asset not loaded."sv);
-        }
-        ImGui::End();
+        ImGui::windowWithCenteredText("Node Inspector", "Asset is not loaded."sv);
     }
     if (!imageBasedLightingCalled) {
-        if (ImGui::Begin("IBL")) {
-            ImGui::TextUnformatted("Input equirectangular map not loaded."sv);
-        }
-        ImGui::End();
+        ImGui::windowWithCenteredText("IBL", "Input equirectangular map is not loaded."sv);
     }
 
     ImGui::Render();
@@ -1215,11 +1200,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
 }
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExtended &assetExtended) {
+    if (assetExtended.selectedNodes.empty()) {
+        ImGui::windowWithCenteredText("Node Inspector", "No node selected.");
+        nodeInspectorCalled = true;
+        return;
+    }
+
     if (ImGui::Begin("Node Inspector")) {
-        if (assetExtended.selectedNodes.empty()) {
-            ImGui::TextUnformatted("No nodes are selected."sv);
-        }
-        else if (assetExtended.selectedNodes.size() == 1) {
+        if (assetExtended.selectedNodes.size() == 1) {
             const std::size_t selectedNodeIndex = *assetExtended.selectedNodes.begin();
             fastgltf::Node &node = assetExtended.asset.nodes[selectedNodeIndex];
             ImGui::InputTextWithHint("Name", "<empty>", &node.name);

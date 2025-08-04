@@ -92,6 +92,7 @@ namespace ImGui {
     export using ImGui::BeginTable;
     export using ImGui::Button;
     export using ImGui::CalcItemWidth;
+    export using ImGui::CalcTextSize;
     export using ImGui::Checkbox;
     export using ImGui::CloseCurrentPopup;
     export using ImGui::CollapsingHeader;
@@ -156,6 +157,7 @@ namespace ImGui {
     export using ImGui::Selectable;
     export using ImGui::Separator;
     export using ImGui::SeparatorText;
+    export using ImGui::SetCursorPos;
     export using ImGui::SetCursorPosX;
     export using ImGui::SetCursorScreenPos;
     export using ImGui::SetItemDefaultFocus;

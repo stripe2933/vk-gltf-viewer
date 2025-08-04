@@ -195,6 +195,15 @@ namespace ImGui {
         }
     }
 
+    export void windowWithCenteredText(const char *windowName, std::string_view text) {
+        if (Begin(windowName)) {
+            const ImVec2 textSize = CalcTextSize(text.data(), text.data() + text.size());
+            SetCursorPos(ImVec2 { 0.5f, 0.5f } * (GetContentRegionAvail() - textSize) + GetStyle().FramePadding);
+            TextUnformatted(text);
+        }
+        End();
+    }
+
     export template <std::invocable F>
     void WithLabel(std::string_view label, F &&imGuiFunc)
         requires std::is_void_v<std::invoke_result_t<F>>
