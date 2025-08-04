@@ -1,12 +1,13 @@
 export module vk_gltf_viewer.gui.popup;
 export import vk_gltf_viewer.gui.popup.AnimationCollisionResolver;
+export import vk_gltf_viewer.gui.popup.NameChanger;
 export import vk_gltf_viewer.gui.popup.TextureViewer;
 
 import std;
 import imgui;
 
 namespace vk_gltf_viewer::gui::popup {
-    export using PopupVariant = std::variant<TextureViewer, AnimationCollisionResolver>;
+    export using PopupVariant = std::variant<TextureViewer, AnimationCollisionResolver, NameChanger>;
 
     export std::list<PopupVariant> waitList;
     std::list<PopupVariant> opened;

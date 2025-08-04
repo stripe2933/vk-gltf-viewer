@@ -588,14 +588,21 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
 
             ImGui::EndCombo();
         }
+        if (const auto &i = assetExtended.imGuiSelectedMaterialIndex) {
+            ImGui::SameLine();
+            if (ImGui::Button("Rename...")) {
+                gui::popup::waitList.emplace_back(
+                    std::in_place_type<gui::popup::NameChanger>,
+                    assetExtended.asset.materials[*i].name,
+                    std::format("Unnamed material {}", *i));
+            }
+        }
 
         if (const auto &selectedMaterialIndex = assetExtended.imGuiSelectedMaterialIndex) {
             fastgltf::Material &material = assetExtended.asset.materials[*selectedMaterialIndex];
             const auto notifyPropertyChanged = [&](task::MaterialPropertyChanged::Property property) {
                 tasks.emplace(std::in_place_type<task::MaterialPropertyChanged>, *selectedMaterialIndex, property);
             };
-
-            ImGui::InputTextWithHint("Name", "<empty>", &material.name);
 
             if (ImGui::Checkbox("Double sided", &material.doubleSided)) {
                 notifyPropertyChanged(task::MaterialPropertyChanged::DoubleSided);
@@ -889,7 +896,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
             ImGui::EndCombo();
         }
 
-        ImGui::InputTextWithHint("Name", "<empty>", &assetExtended.getScene().name);
+        ImGui::SameLine();
+        if (ImGui::Button("Rename")) {
+            gui::popup::waitList.emplace_back(
+                std::in_place_type<gui::popup::NameChanger>,
+                assetExtended.getScene().name,
+                std::format("Unnamed Scene {}", assetExtended.sceneIndex));
+        }
 
         static bool mergeSingleChildNodes = true;
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);

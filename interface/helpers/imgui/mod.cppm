@@ -14,11 +14,12 @@ import vk_gltf_viewer.imgui.UserData;
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
 namespace ImGui {
-    export bool InputTextWithHint(cpp_util::cstring_view label, cpp_util::cstring_view hint, std::pmr::string* str, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = nullptr, void* userData = nullptr) {
+    export template <typename Allocator>
+    bool InputTextWithHint(cpp_util::cstring_view label, cpp_util::cstring_view hint, std::basic_string<char, std::char_traits<char>, Allocator>* str, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = nullptr, void* userData = nullptr) {
         struct ChainedUserData {
-            std::pmr::string*       Str;
-            ImGuiInputTextCallback  ChainCallback;
-            void*                   ChainCallbackUserData;
+            std::basic_string<char, std::char_traits<char>, Allocator> *Str;
+            ImGuiInputTextCallback ChainCallback;
+            void *ChainCallbackUserData;
         };
 
         constexpr auto chainCallback = [](ImGuiInputTextCallbackData *data) -> int {

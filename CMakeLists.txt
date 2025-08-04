@@ -136,6 +136,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/util.cppm
         interface/gui/popup/mod.cppm
         interface/gui/popup/AnimationCollisionResolver.cppm
+        interface/gui/popup/NameChanger.cppm
         interface/gui/popup/TextureViewer.cppm
         interface/gui/utils.cppm
         interface/helpers/AggregateHasher.cppm
