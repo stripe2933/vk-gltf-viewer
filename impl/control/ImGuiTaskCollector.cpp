@@ -240,9 +240,36 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                     ImGui::MenuItem("<empty>", nullptr, false, false);
                 }
                 else {
+                    static std::string needle;
+                    ImGui::InputTextWithHint("Search", "Find from recent files...", &needle);
+
+                    ImGui::Separator();
+
                     for (const std::filesystem::path &path : recentGltfs) {
-                        if (ImGui::MenuItem(PATH_C_STR(path))) {
+                    #ifdef _WIN32
+                        const std::u8string pathOwnedStr = path.u8string();
+                        const cpp_util::cstring_view pathStr { cpp_util::cstring_view::null_terminated, reinterpret_cast<const char*>(pathOwnedStr.c_str()), pathOwnedStr.size() };
+                    #else
+                        const cpp_util::cstring_view pathStr { path.c_str() };
+                    #endif
+
+                        bool hasOccurrence = false;
+                        cpp_util::cstring_view haystack = pathStr;
+                        while (auto found = std::ranges::search(haystack, needle, {}, LIFT(std::tolower), LIFT(std::tolower))) {
+                            hasOccurrence = true;
+
+                            ImVec2 highlightOffset = ImGui::GetCursorScreenPos();
+                            highlightOffset.x += ImGui::CalcTextSize(pathStr.data(), found.data()).x;
+                            highlightOffset.y += 1.f; // TODO
+                            const ImVec2 highlightSize = ImGui::CalcTextSize(found.data(), found.data() + found.size());
+
+                            ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
+                            haystack = haystack.substr(found.end() - haystack.begin());
+                        }
+
+                        if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
                             tasks.emplace(std::in_place_type<task::LoadGltf>, path);
+                            needle.clear();
                         }
                     }
                 }
@@ -279,9 +306,36 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                     ImGui::MenuItem("<empty>", nullptr, false, false);
                 }
                 else {
+                    static std::string needle;
+                    ImGui::InputTextWithHint("Search", "Find from recent files...", &needle);
+
+                    ImGui::Separator();
+
                     for (const std::filesystem::path &path : recentSkyboxes) {
-                        if (ImGui::MenuItem(PATH_C_STR(path))) {
+                    #ifdef _WIN32
+                        const std::u8string pathOwnedStr = path.u8string();
+                        const cpp_util::cstring_view pathStr { cpp_util::cstring_view::null_terminated, reinterpret_cast<const char*>(pathOwnedStr.c_str()), pathOwnedStr.size() };
+                    #else
+                        const cpp_util::cstring_view pathStr { path.c_str() };
+                    #endif
+
+                        bool hasOccurrence = false;
+                        cpp_util::cstring_view haystack = pathStr;
+                        while (auto found = std::ranges::search(haystack, needle, {}, LIFT(std::tolower), LIFT(std::tolower))) {
+                            hasOccurrence = true;
+
+                            ImVec2 highlightOffset = ImGui::GetCursorScreenPos();
+                            highlightOffset.x += ImGui::CalcTextSize(pathStr.data(), found.data()).x;
+                            highlightOffset.y += 1.f; // TODO
+                            const ImVec2 highlightSize = ImGui::CalcTextSize(found.data(), found.data() + found.size());
+
+                            ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
+                            haystack = haystack.substr(found.end() - haystack.begin());
+                        }
+
+                        if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
                             tasks.emplace(std::in_place_type<task::LoadEqmap>, path);
+                            needle.clear();
                         }
                     }
                 }
