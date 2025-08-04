@@ -567,8 +567,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
         for (std::size_t i : ranges::views::upto(assetExtended.asset.textures.size())) {
             bool buttonClicked;
             const std::string_view label = gui::getDisplayName(assetExtended.asset.textures, i);
-            ImGui::WithID(i, [&]() {
-                buttonClicked = ImGui::ImageButtonWithText("", assetExtended.getTextureID(i), label, { 64, 64 });
+            ImGui::WithID(i, [&] {
+                constexpr ImVec2 buttonSize { 64, 64 };
+                ImVec2 imageDisplaySize = assetExtended.getTextureSize(i);
+                imageDisplaySize *= buttonSize / std::max(imageDisplaySize.x, imageDisplaySize.y);
+                buttonClicked = ImGui::ImageButtonWithText("", assetExtended.getTextureID(i), label, buttonSize, imageDisplaySize);
             });
             if (ImGui::BeginItemTooltip()) {
                 ImGui::TextUnformatted(label);
@@ -722,7 +725,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                 ImGui::WithID("basecolor", [&]() {
                     auto &baseColorTextureInfo = material.pbrData.baseColorTexture;
                     if (baseColorTextureInfo) {
-                        ImGui::hoverableImageCheckerboardBackground(assetExtended.getTextureID(baseColorTextureInfo->textureIndex), { 128.f, 128.f });
+                        ImGui::WithGroup([&] {
+                            const ImVec2 textureSize = assetExtended.getTextureSize(baseColorTextureInfo->textureIndex);
+                            const float displayRatio = std::max(textureSize.x, textureSize.y) / 128.f;
+                            ImGui::hoverableImageCheckerboardBackground(assetExtended.getTextureID(baseColorTextureInfo->textureIndex), textureSize / displayRatio, displayRatio);
+                        });
                         ImGui::SameLine();
                     }
                     ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
@@ -745,14 +752,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                     });
                 });
 
-                ImGui::WithDisabled([&]() {
+                ImGui::WithDisabled([&] {
                     ImGui::SeparatorText("Metallic/Roughness");
-                    ImGui::WithID("metallicroughness", [&]() {
+                    ImGui::WithID("metallicroughness", [&] {
                         auto &metallicRoughnessTextureInfo = material.pbrData.metallicRoughnessTexture;
                         if (metallicRoughnessTextureInfo) {
-                            ImGui::hoverableImage(assetExtended.getMetallicTextureID(*selectedMaterialIndex), { 128.f, 128.f });
-                            ImGui::SameLine();
-                            ImGui::hoverableImage(assetExtended.getRoughnessTextureID(*selectedMaterialIndex), { 128.f, 128.f });
+                            ImGui::WithGroup([&] {
+                                const ImVec2 textureSize = assetExtended.getTextureSize(metallicRoughnessTextureInfo->textureIndex);
+                                const float displayRatio = std::max(textureSize.x, textureSize.y) / 128.f;
+                                ImGui::hoverableImage(assetExtended.getMetallicTextureID(*selectedMaterialIndex), textureSize / displayRatio, displayRatio);
+                                ImGui::hoverableImage(assetExtended.getRoughnessTextureID(*selectedMaterialIndex), textureSize / displayRatio, displayRatio);
+                            });
                             ImGui::SameLine();
                         }
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
@@ -782,8 +792,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
 
             ImGui::WithID("normal", [&]() {
                 if (auto &textureInfo = material.normalTexture; textureInfo && ImGui::CollapsingHeader("Normal Mapping")) {
-                    ImGui::WithDisabled([&]() {
-                        ImGui::hoverableImage(assetExtended.getNormalTextureID(*selectedMaterialIndex), { 128.f, 128.f });
+                    ImGui::WithDisabled([&] {
+                        ImGui::WithGroup([&] {
+                            const ImVec2 textureSize = assetExtended.getTextureSize(textureInfo->textureIndex);
+                            const float displayRatio = std::max(textureSize.x, textureSize.y) / 128.f;
+                            ImGui::hoverableImage(assetExtended.getNormalTextureID(*selectedMaterialIndex), textureSize / displayRatio, displayRatio);
+                        });
                         ImGui::SameLine();
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                             ImGui::WithGroup([&]() {
@@ -807,8 +821,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
 
             ImGui::WithID("occlusion", [&]() {
                 if (auto &textureInfo = material.occlusionTexture; textureInfo && ImGui::CollapsingHeader("Occlusion Mapping")) {
-                    ImGui::WithDisabled([&]() {
-                        ImGui::hoverableImage(assetExtended.getOcclusionTextureID(*selectedMaterialIndex), { 128.f, 128.f });
+                    ImGui::WithDisabled([&] {
+                        ImGui::WithGroup([&] {
+                            const ImVec2 textureSize = assetExtended.getTextureSize(textureInfo->textureIndex);
+                            const float displayRatio = std::max(textureSize.x, textureSize.y) / 128.f;
+                            ImGui::hoverableImage(assetExtended.getOcclusionTextureID(*selectedMaterialIndex), textureSize / displayRatio, displayRatio);
+                        });
                         ImGui::SameLine();
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                             ImGui::WithGroup([&]() {
@@ -835,7 +853,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                     ImGui::WithDisabled([&]() {
                         auto &textureInfo = material.emissiveTexture;
                         if (textureInfo) {
-                            ImGui::hoverableImage(assetExtended.getEmissiveTextureID(*selectedMaterialIndex), { 128.f, 128.f });
+                            ImGui::WithGroup([&] {
+                                const ImVec2 textureSize = assetExtended.getTextureSize(textureInfo->textureIndex);
+                                const float displayRatio = std::max(textureSize.x, textureSize.y) / 128.f;
+                                ImGui::hoverableImage(assetExtended.getEmissiveTextureID(*selectedMaterialIndex), textureSize / displayRatio, displayRatio);
+                            });
                             ImGui::SameLine();
                         }
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
@@ -1500,9 +1522,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
 ) {
     if (ImGui::Begin("IBL")) {
         if (ImGui::CollapsingHeader("Equirectangular map")) {
-            const float eqmapAspectRatio = static_cast<float>(info.eqmap.dimension.y) / info.eqmap.dimension.x;
-            const ImVec2 eqmapTextureSize = ImVec2 { 1.f, eqmapAspectRatio } * ImGui::GetContentRegionAvail().x;
-            ImGui::hoverableImage(eqmapTextureRef, eqmapTextureSize);
+            const float displayRatio = static_cast<float>(info.eqmap.dimension.x) / ImGui::GetContentRegionAvail().x;
+            ImGui::hoverableImage(eqmapTextureRef, ImVec2 { static_cast<float>(info.eqmap.dimension.x), static_cast<float>(info.eqmap.dimension.y) } / displayRatio, displayRatio);
 
             ImGui::WithLabel("File"sv, [&]() {
                 ImGui::TextLinkOpenURL(PATH_C_STR(info.eqmap.path.filename()), PATH_C_STR(info.eqmap.path));

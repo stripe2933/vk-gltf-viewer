@@ -17,7 +17,7 @@ export import vk_gltf_viewer.vulkan.texture.Textures;
 namespace vk_gltf_viewer::vulkan::texture {
     export class ImGuiColorSpaceAndUsageCorrectedTextures final : public imgui::ColorSpaceAndUsageCorrectedTextures {
         std::deque<vk::raii::ImageView> imageViews;
-        std::vector<vk::DescriptorSet> textureDescriptorSets;
+        std::vector<std::pair<vk::DescriptorSet, ImVec2>> textureDescriptorSetAndExtents;
         std::vector<std::array<vk::DescriptorSet, 5>> materialTextureDescriptorSets; // [0] -> metallic, [1] -> roughness, [2] -> normal, [3] -> occlusion, [4] -> emissive
 
     public:
@@ -25,6 +25,7 @@ namespace vk_gltf_viewer::vulkan::texture {
         ~ImGuiColorSpaceAndUsageCorrectedTextures() override;
 
         [[nodiscard]] ImTextureID getTextureID(std::size_t textureIndex) const override;
+        [[nodiscard]] ImVec2 getTextureSize(std::size_t textureIndex) const override;
         [[nodiscard]] ImTextureID getMetallicTextureID(std::size_t materialIndex) const override;
         [[nodiscard]] ImTextureID getRoughnessTextureID(std::size_t materialIndex) const override;
         [[nodiscard]] ImTextureID getNormalTextureID(std::size_t materialIndex) const override;
@@ -42,37 +43,38 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
     const Textures &textures,
     const Gpu &gpu
 ) {
-    textureDescriptorSets
-        = asset.textures
-        | ranges::views::enumerate
-        | std::views::transform(decomposer([&](std::size_t textureIndex, const fastgltf::Texture &texture) -> vk::DescriptorSet {
-            auto [sampler, imageView, _] = textures.descriptorInfos[textureIndex];
-            const vku::Image &image = textures.images.at(getPreferredImageIndex(texture)).image;
-            if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
-                // Image view format is incompatible, need to be regenerated.
-                const vk::ComponentMapping components = [&]() -> vk::ComponentMapping {
-                    switch (componentCount(image.format)) {
-                        case 1:
-                            // Grayscale: red channel have to be propagated to green/blue channels.
-                            return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne };
-                        case 2:
-                            // Grayscale \w alpha: red channel have to be propagated to green/blue channels, and alpha channel uses given green value.
-                            return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG };
-                        case 4:
-                            // RGB or RGBA.
-                            return {};
-                        default:
-                            std::unreachable();
-                    }
-                }();
-                imageView = *imageViews.emplace_back(
-                    gpu.device,
-                    image.getViewCreateInfo().setFormat(convertSrgb(image.format)).setComponents(components));
-            }
+    textureDescriptorSetAndExtents.reserve(asset.textures.size());
+    for (const auto &[textureIndex, texture] : asset.textures | ranges::views::enumerate) {
+        auto [sampler, imageView, _] = textures.descriptorInfos[textureIndex];
+        const vku::Image &image = textures.images.at(getPreferredImageIndex(texture)).image;
+        if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
+            // Image view format is incompatible, need to be regenerated.
+            const vk::ComponentMapping components = [&]() -> vk::ComponentMapping {
+                switch (componentCount(image.format)) {
+                    case 1:
+                        // Grayscale: red channel have to be propagated to green/blue channels.
+                        return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne };
+                    case 2:
+                        // Grayscale \w alpha: red channel have to be propagated to green/blue channels, and alpha channel uses given green value.
+                        return { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG };
+                    case 4:
+                        // RGB or RGBA.
+                        return {};
+                    default:
+                        std::unreachable();
+                }
+            }();
+            imageView = *imageViews.emplace_back(
+                gpu.device,
+                image.getViewCreateInfo().setFormat(convertSrgb(image.format)).setComponents(components));
+        }
 
-            return ImGui_ImplVulkan_AddTexture(sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        }))
-        | std::ranges::to<std::vector>();
+        const auto [width, height] = vku::toExtent2D(image.extent);
+
+        textureDescriptorSetAndExtents.emplace_back(
+            ImGui_ImplVulkan_AddTexture(sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
+            ImVec2 { static_cast<float>(width), static_cast<float>(height) });
+    }
 
     materialTextureDescriptorSets.resize(asset.materials.size());
     for (const auto &[materialIndex, material] : asset.materials | ranges::views::enumerate) {
@@ -80,8 +82,8 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
             const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
             if (componentCount(image.format) == 1) {
                 // Texture is grayscale, channel propagating swizzling is unnecessary.
-                get<0>(materialTextureDescriptorSets[materialIndex]) = textureDescriptorSets[textureInfo->textureIndex];
-                get<1>(materialTextureDescriptorSets[materialIndex]) = textureDescriptorSets[textureInfo->textureIndex];
+                get<0>(materialTextureDescriptorSets[materialIndex]) = textureDescriptorSetAndExtents[textureInfo->textureIndex].first;
+                get<1>(materialTextureDescriptorSets[materialIndex]) = textureDescriptorSetAndExtents[textureInfo->textureIndex].first;
             }
             else {
                 vk::Format colorSpaceCompatibleFormat = image.format;
@@ -112,7 +114,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
                 const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
                 if (componentCount(image.format) == 1) {
                     // Alpha channel is sampled as 1, therefore can use the texture as is.
-                    return textureDescriptorSets[textureInfo->textureIndex];
+                    return textureDescriptorSetAndExtents[textureInfo->textureIndex].first;
                 }
                 else {
                     vk::Format colorSpaceCompatibleFormat = image.format;
@@ -135,7 +137,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
                 const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
                 if (componentCount(image.format) == 1) {
                     // Texture is grayscale, channel propagating swizzling is unnecessary.
-                    return textureDescriptorSets[textureInfo->textureIndex];
+                    return textureDescriptorSetAndExtents[textureInfo->textureIndex].first;
                 }
                 else {
                     vk::Format colorSpaceCompatibleFormat = image.format;
@@ -158,7 +160,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
                 const vku::Image &image = textures.images.at(getPreferredImageIndex(asset.textures[textureInfo->textureIndex])).image;
                 if (componentCount(image.format) == 1) {
                     // Alpha channel is sampled as 1, therefore can use the texture as is.
-                    return textureDescriptorSets[textureInfo->textureIndex];
+                    return textureDescriptorSetAndExtents[textureInfo->textureIndex].first;
                 }
                 else {
                     // Emissive texture must be sRGB encoded, therefore image view format must be mutated if color space
@@ -199,7 +201,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::~ImGu
             uniqueDescriptorSets.push_back(descriptorSet);
         }
     }
-    uniqueDescriptorSets.append_range(textureDescriptorSets);
+    uniqueDescriptorSets.append_range(textureDescriptorSetAndExtents | std::views::keys);
 
     // Remove duplicates.
     std::ranges::sort(uniqueDescriptorSets);
@@ -210,7 +212,11 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::~ImGu
 }
 
 [[nodiscard]] ImTextureID vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getTextureID(std::size_t textureIndex) const {
-    return vku::toUint64(textureDescriptorSets[textureIndex]);
+    return vku::toUint64(textureDescriptorSetAndExtents[textureIndex].first);
+}
+
+ImVec2 vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getTextureSize(std::size_t textureIndex) const {
+    return textureDescriptorSetAndExtents[textureIndex].second;
 }
 
 [[nodiscard]] ImTextureID vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::getMetallicTextureID(std::size_t materialIndex) const {

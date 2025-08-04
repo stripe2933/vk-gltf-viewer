@@ -26,7 +26,9 @@ module :private;
 #endif
 
 void vk_gltf_viewer::gui::popup::TextureViewer::show() {
-    ImGui::hoverableImageCheckerboardBackground(assetExtended.get().getTextureID(textureIndex), { 256, 256 });
+    const ImVec2 textureSize = assetExtended.get().getTextureSize(textureIndex);
+    const float displayRatio = std::max(textureSize.x, textureSize.y) / 256.f;
+    ImGui::hoverableImageCheckerboardBackground(assetExtended.get().getTextureID(textureIndex), textureSize / displayRatio, displayRatio);
 
     ImGui::SameLine();
 

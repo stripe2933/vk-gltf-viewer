@@ -130,6 +130,7 @@ namespace ImGui {
     export using ImGui::GetStyleColorVec4;
     export using ImGui::GetTextLineHeight;
     export using ImGui::GetTextLineHeightWithSpacing;
+    export using ImGui::GetWindowDrawList;
     export using ImGui::Image;
     export using ImGui::ImageButton;
     export using ImGui::InputInt;
