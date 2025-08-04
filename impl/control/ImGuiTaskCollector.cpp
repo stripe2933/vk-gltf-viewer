@@ -477,13 +477,44 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
                 });
             }, ImGuiTableColumnFlags_WidthStretch },
             ImGui::ColumnInfo { "MIME", [](const fastgltf::Image &image) {
-                visit([](const auto &source) {
+                visit([]<typename T>(const T &source) {
                     if constexpr (requires { { source.mimeType } -> std::convertible_to<fastgltf::MimeType>; }) {
-                        ImGui::TextUnformatted(to_string(source.mimeType));
+                        if (source.mimeType != fastgltf::MimeType::None) {
+                            ImGui::TextUnformatted(to_string(source.mimeType));
+                            return;
+                        }
                     }
-                    else {
-                        ImGui::TextDisabled("-");
+
+                    if constexpr (std::same_as<T, fastgltf::sources::URI>) {
+                        if (source.uri.isLocalPath()) {
+                            const std::filesystem::path extension = source.uri.fspath().extension();
+                            fastgltf::MimeType inferredMimeType = fastgltf::MimeType::None;
+                            if (extension == ".jpg" || extension == ".jpeg") {
+                                inferredMimeType = fastgltf::MimeType::JPEG;
+                            }
+                            else if (extension == ".png") {
+                                inferredMimeType = fastgltf::MimeType::PNG;
+                            }
+                            else if (extension == ".ktx2") {
+                                inferredMimeType = fastgltf::MimeType::KTX2;
+                            }
+                            else if (extension == ".dds") {
+                                inferredMimeType = fastgltf::MimeType::DDS;
+                            }
+                            else if (extension == ".webp") {
+                                inferredMimeType = fastgltf::MimeType::WEBP;
+                            }
+
+                            if (inferredMimeType != fastgltf::MimeType::None) {
+                                ImGui::TextUnformatted(to_string(inferredMimeType));
+                                ImGui::SameLine();
+                                ImGui::HelperMarker("(inferred)", "MIME type is not presented in the glTF asset and is inferred from the file extension.");
+                                return;
+                            }
+                        }
                     }
+
+                    ImGui::TextUnformatted("-");
                 }, image.data);
             }, ImGuiTableColumnFlags_WidthFixed },
             ImGui::ColumnInfo { "Location", [&](std::size_t i, const fastgltf::Image &image) {
