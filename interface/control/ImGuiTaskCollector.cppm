@@ -18,7 +18,7 @@ namespace vk_gltf_viewer::control {
         ImGuiTaskCollector(std::queue<Task> &tasks, const ImRect &oldPassthruRect);
         ~ImGuiTaskCollector();
 
-        void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
+        void menuBar(std::list<std::filesystem::path> &recentGltfs, std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
         void animations(gltf::AssetExtended &assetExtended);
         void assetInspector(gltf::AssetExtended &assetExtended);
         void materialEditor(gltf::AssetExtended &assetExtended);

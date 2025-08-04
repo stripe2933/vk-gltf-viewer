@@ -219,8 +219,8 @@ vk_gltf_viewer::control::ImGuiTaskCollector::~ImGuiTaskCollector() {
 }
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
-    const std::list<std::filesystem::path> &recentGltfs,
-    const std::list<std::filesystem::path> &recentSkyboxes,
+    std::list<std::filesystem::path> &recentGltfs,
+    std::list<std::filesystem::path> &recentSkyboxes,
     nfdwindowhandle_t windowHandle
 ) {
     if (ImGui::BeginMainMenuBar()) {
@@ -245,7 +245,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
 
                     ImGui::Separator();
 
-                    for (const std::filesystem::path &path : recentGltfs) {
+                    for (auto it = recentGltfs.begin(); it != recentGltfs.end(); ++it) {
+                        const std::filesystem::path &path = *it;
                     #ifdef _WIN32
                         const std::u8string pathOwnedStr = path.u8string();
                         const cpp_util::cstring_view pathStr { cpp_util::cstring_view::null_terminated, reinterpret_cast<const char*>(pathOwnedStr.c_str()), pathOwnedStr.size() };
@@ -268,8 +269,16 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                         }
 
                         if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
-                            tasks.emplace(std::in_place_type<task::LoadGltf>, path);
-                            needle.clear();
+                            if (exists(path)) {
+                                tasks.emplace(std::in_place_type<task::LoadGltf>, path);
+                                needle.clear();
+                            }
+                            else {
+                                // TODO: due to the ImGui's confusing popup ID stack system, RecentFileNotExist::modal == true
+                                //  by the implementation. However, this should be shown like a flyout, and
+                                //  ImGuiItemFlags_AutoClosePopups == false item flag needed to be pushed.
+                                gui::popup::waitList.emplace_back(std::in_place_type<gui::popup::RecentFileNotExist>, recentGltfs, it);
+                            }
                         }
                     }
                 }
@@ -311,7 +320,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
 
                     ImGui::Separator();
 
-                    for (const std::filesystem::path &path : recentSkyboxes) {
+                    for (auto it = recentSkyboxes.begin(); it != recentSkyboxes.end(); ++it) {
+                        const std::filesystem::path &path = *it;
                     #ifdef _WIN32
                         const std::u8string pathOwnedStr = path.u8string();
                         const cpp_util::cstring_view pathStr { cpp_util::cstring_view::null_terminated, reinterpret_cast<const char*>(pathOwnedStr.c_str()), pathOwnedStr.size() };
@@ -334,8 +344,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                         }
 
                         if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
-                            tasks.emplace(std::in_place_type<task::LoadEqmap>, path);
-                            needle.clear();
+                            if (exists(path)) {
+                                tasks.emplace(std::in_place_type<task::LoadEqmap>, path);
+                                needle.clear();
+                            }
+                            else {
+                                // TODO: see same code in recent glTF file handling.
+                                gui::popup::waitList.emplace_back(std::in_place_type<gui::popup::RecentFileNotExist>, recentSkyboxes, it);
+                            }
                         }
                     }
                 }
