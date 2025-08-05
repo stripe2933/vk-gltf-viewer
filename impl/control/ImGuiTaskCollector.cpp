@@ -268,20 +268,35 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                             haystack = haystack.substr(found.end() - haystack.begin());
                         }
 
+                        const bool isFileExists = exists(path);
+                        ImGui::PushItemFlag(ImGuiItemFlags_AutoClosePopups, isFileExists);
                         if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
-                            if (exists(path)) {
+                            if (isFileExists) {
                                 tasks.emplace(std::in_place_type<task::LoadGltf>, path);
                                 needle.clear();
                             }
                             else {
-                                // TODO: due to the ImGui's confusing popup ID stack system, RecentFileNotExist::modal == true
-                                //  by the implementation. However, this should be shown like a flyout, and
-                                //  ImGuiItemFlags_AutoClosePopups == false item flag needed to be pushed.
-                                gui::popup::waitList.emplace_back(std::in_place_type<gui::popup::RecentFileNotExist>, recentGltfs, it);
+                                gui::popup::open(static_cast<std::string>(PopupNames::fileNotExists), [&recentGltfs, it] {
+                                    ImGui::TextUnformatted("The file you selected does not exist anymore. Do you want to remove it from the recent files list?");
+                                    ImGui::Separator();
+                                    if (ImGui::Button("Remove")) {
+                                        recentGltfs.erase(it);
+                                        ImGui::CloseCurrentPopup();
+                                    }
+                                    ImGui::SetItemDefaultFocus();
+                                    ImGui::SameLine();
+                                    if (ImGui::Button("Cancel")) {
+                                        ImGui::CloseCurrentPopup();
+                                    }
+                                });
                             }
                         }
+                        ImGui::PopItemFlag();
                     }
+
+                    gui::popup::process(PopupNames::fileNotExists);
                 }
+
                 ImGui::EndMenu();
             }
             if (ImGui::MenuItem("Close glTF File", "Ctrl+W")) {
@@ -343,17 +358,33 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                             haystack = haystack.substr(found.end() - haystack.begin());
                         }
 
+                        const bool isFileExists = exists(path);
+                        ImGui::PushItemFlag(ImGuiItemFlags_AutoClosePopups, isFileExists);
                         if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
-                            if (exists(path)) {
+                            if (isFileExists) {
                                 tasks.emplace(std::in_place_type<task::LoadEqmap>, path);
                                 needle.clear();
                             }
                             else {
-                                // TODO: see same code in recent glTF file handling.
-                                gui::popup::waitList.emplace_back(std::in_place_type<gui::popup::RecentFileNotExist>, recentSkyboxes, it);
+                                gui::popup::open(static_cast<std::string>(PopupNames::fileNotExists), [&recentSkyboxes, it] {
+                                    ImGui::TextUnformatted("The file you selected does not exist anymore. Do you want to remove it from the recent files list?");
+                                    ImGui::Separator();
+                                    if (ImGui::Button("Remove")) {
+                                        recentSkyboxes.erase(it);
+                                        ImGui::CloseCurrentPopup();
+                                    }
+                                    ImGui::SetItemDefaultFocus();
+                                    ImGui::SameLine();
+                                    if (ImGui::Button("Cancel")) {
+                                        ImGui::CloseCurrentPopup();
+                                    }
+                                });
                             }
                         }
+                        ImGui::PopItemFlag();
                     }
+
+                    gui::popup::process(PopupNames::fileNotExists);
                 }
                 ImGui::EndMenu();
             }
@@ -402,7 +433,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(gltf::AssetExtended
                     else {
                         enabled = false;
 
-                        decltype(gui::popup::AnimationCollisionResolver::collisions) collisionByAnimation;
+                        std::map<std::size_t /* animation index */, std::map<std::size_t /* node index */, Flags<gltf::NodeAnimationUsage>>> collisionByAnimation;
                         for (std::size_t collidingAnimationIndex : collisionIndices) {
                             // Collect which paths are colliding.
                             auto &collisions = collisionByAnimation[collidingAnimationIndex];
@@ -414,11 +445,53 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(gltf::AssetExtended
                             }
                         }
 
-                        gui::popup::waitList.emplace_back(std::in_place_type<gui::popup::AnimationCollisionResolver>, assetExtended, animationIndex, std::move(collisionByAnimation));
+                        gui::popup::open(static_cast<std::string>(PopupNames::resolveAnimationCollision), [&assetExtended, collisionByAnimation = std::move(collisionByAnimation), animationIndex] {
+                            ImGui::TextUnformatted("The animation you're trying to enable is colliding by other enabled animations."sv);
+
+                            for (const auto &[i, collisionList] : collisionByAnimation) {
+                                if (ImGui::TreeNode(gui::getDisplayName(assetExtended.asset.animations, i).c_str())) {
+                                    ImGui::Table<false>(
+                                        "animation-collision-table",
+                                        ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg,
+                                        collisionList,
+                                        ImGui::ColumnInfo { "Node", decomposer([](std::size_t nodeIndex, auto) {
+                                            ImGui::Text("%zu", nodeIndex);
+                                        }) },
+                                        ImGui::ColumnInfo { "Path", decomposer([](auto, Flags<gltf::NodeAnimationUsage> usage) {
+                                            ImGui::TextUnformatted(tempStringBuffer.write("{::s}", usage).view());
+                                        }) });
+                                    ImGui::TreePop();
+                                }
+                            }
+
+                            ImGui::TextUnformatted("Would you like to disable these animations?"sv);
+
+                            ImGui::Separator();
+
+                            ImGui::Checkbox("Don't ask me and resolve automatically", &static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->resolveAnimationCollisionAutomatically);
+
+                            if (ImGui::Button("Yes")) {
+                                // Resolve the colliding animations.
+                                for (std::size_t collidingAnimationIndex : collisionByAnimation | std::views::keys) {
+                                    assetExtended.animations[collidingAnimationIndex].second = false;
+                                }
+                                assetExtended.animations[animationIndex].second = true;
+
+                                ImGui::CloseCurrentPopup();
+                            }
+                            ImGui::SetItemDefaultFocus();
+                            ImGui::SameLine();
+                            if (ImGui::Button("No")) {
+                                ImGui::CloseCurrentPopup();
+                            }
+
+                        }, true);
                     }
                 }
             }
         }
+
+        gui::popup::process(PopupNames::resolveAnimationCollision, ImGuiWindowFlags_AlwaysAutoResize);
     }
     ImGui::End();
 }
@@ -646,14 +719,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
 
     if (ImGui::Begin("Textures")) {
         const float windowVisibleX2 = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
-        for (std::size_t i : ranges::views::upto(assetExtended.asset.textures.size())) {
+        for (std::size_t textureIndex : ranges::views::upto(assetExtended.asset.textures.size())) {
             bool buttonClicked;
-            const std::string_view label = gui::getDisplayName(assetExtended.asset.textures, i);
-            ImGui::WithID(i, [&] {
+            const std::string_view label = gui::getDisplayName(assetExtended.asset.textures, textureIndex);
+            ImGui::WithID(textureIndex, [&] {
                 constexpr ImVec2 buttonSize { 64, 64 };
-                ImVec2 imageDisplaySize = assetExtended.getTextureSize(i);
+                ImVec2 imageDisplaySize = assetExtended.getTextureSize(textureIndex);
                 imageDisplaySize *= buttonSize / std::max(imageDisplaySize.x, imageDisplaySize.y);
-                buttonClicked = ImGui::ImageButtonWithText("", assetExtended.getTextureID(i), label, buttonSize, imageDisplaySize);
+                buttonClicked = ImGui::ImageButtonWithText("", assetExtended.getTextureID(textureIndex), label, buttonSize, imageDisplaySize);
             });
             if (ImGui::BeginItemTooltip()) {
                 ImGui::TextUnformatted(label);
@@ -661,15 +734,85 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             }
 
             if (buttonClicked) {
-                gui::popup::waitList.emplace_back(std::in_place_type<gui::popup::TextureViewer>, assetExtended, i);
+                gui::popup::open(static_cast<std::string>(PopupNames::textureViewer), [&assetExtended, textureIndex, selectedImageIndex = getPreferredImageIndex(assetExtended.asset.textures[textureIndex])] {
+                    const ImVec2 textureSize = assetExtended.getTextureSize(textureIndex);
+                    const float displayRatio = std::max(textureSize.x, textureSize.y) / 256.f;
+                    ImGui::hoverableImageCheckerboardBackground(assetExtended.getTextureID(textureIndex), textureSize / displayRatio, displayRatio);
+
+                    ImGui::SameLine();
+
+                    ImGui::WithGroup([&] {
+                        fastgltf::Texture &texture = assetExtended.asset.textures[textureIndex];
+                        ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.textures, textureIndex), &texture.name);
+                        if (ImGui::BeginCombo("Image Index", tempStringBuffer.write(selectedImageIndex).view().c_str())) {
+                            if (texture.imageIndex) {
+                                // TODO: do not disable this and load the image when the selection is changed.
+                                ImGui::WithDisabled([&] {
+                                    ImGui::Selectable(tempStringBuffer.write(*texture.imageIndex).view().c_str(), *texture.imageIndex == selectedImageIndex);
+                                }, !assetExtended.isImageLoaded(*texture.imageIndex));
+                            }
+                            if (texture.basisuImageIndex) {
+                                ImGui::WithDisabled([&] {
+                                    ImGui::Selectable(tempStringBuffer.write("{} (Basis Universal)", *texture.basisuImageIndex).view().c_str(), *texture.basisuImageIndex == selectedImageIndex);
+                                }, !assetExtended.isImageLoaded(*texture.basisuImageIndex));
+                            }
+                            if (texture.ddsImageIndex) {
+                                ImGui::WithDisabled([&] {
+                                    ImGui::Selectable(tempStringBuffer.write("{} (DDS)", *texture.ddsImageIndex).view().c_str(), *texture.ddsImageIndex == selectedImageIndex);
+                                }/*, assetExtended.isImageLoaded(*texture.ddsImageIndex)*/ /* TODO: currently application does not handle this format at all */);
+                            }
+                            if (texture.webpImageIndex) {
+                                ImGui::WithDisabled([&] {
+                                    if (ImGui::Selectable(tempStringBuffer.write("{} (WEBP)", *texture.webpImageIndex).view().c_str(), *texture.webpImageIndex == selectedImageIndex)) {
+                                        // TODO
+                                    }
+                                }/*, assetExtended.isImageLoaded(*texture.webpImageIndex)*/ /* TODO: currently application does not handle this format at all */);
+                            }
+
+                            ImGui::EndCombo();
+                        }
+                        if (texture.samplerIndex) {
+                            ImGui::LabelText("Sampler Index", "%zu", texture.samplerIndex.value_or(-1));
+                        }
+                        else {
+                            ImGui::WithLabel("Sampler Index", [] {
+                                ImGui::TextDisabled("-");
+                                ImGui::SameLine();
+                                ImGui::HelperMarker("(?)", "Default sampler will be used.");
+                            });
+                        }
+
+                        ImGui::SeparatorText("Texture used by:");
+
+                        ImGui::Table<false>(
+                            "",
+                            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable,
+                            assetExtended.textureUsages[textureIndex],
+                            ImGui::ColumnInfo { "Material", decomposer([&](std::size_t materialIndex, auto) {
+                                ImGui::WithID(materialIndex, [&] {
+                                    if (ImGui::TextLink(gui::getDisplayName(assetExtended.asset.materials, materialIndex).c_str())) {
+                                        gui::makeWindowVisible(ImGui::FindWindowByName("Material Editor"));
+                                        assetExtended.imGuiSelectedMaterialIndex.emplace(materialIndex);
+                                        ImGui::CloseCurrentPopup();
+                                    }
+                                });
+                            }), ImGuiTableColumnFlags_WidthFixed },
+                            ImGui::ColumnInfo { "Type", decomposer([](auto, Flags<gltf::TextureUsage> type) {
+                                ImGui::TextUnformatted(tempStringBuffer.write("{::s}", type).view());
+                            }), ImGuiTableColumnFlags_WidthStretch });
+                    });
+
+                });
             }
 
             const float lastButtonX2 = ImGui::GetItemRectMax().x;
             const float nextButtonX2 = lastButtonX2 + ImGui::GetStyle().ItemSpacing.x + 64;
-            if (i + 1 < assetExtended.asset.textures.size() && nextButtonX2 < windowVisibleX2) {
+            if (textureIndex + 1 < assetExtended.asset.textures.size() && nextButtonX2 < windowVisibleX2) {
                 ImGui::SameLine();
             }
         }
+
+        gui::popup::process(PopupNames::textureViewer);
     }
     ImGui::End();
 
@@ -707,11 +850,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
         if (const auto &i = assetExtended.imGuiSelectedMaterialIndex) {
             ImGui::SameLine();
             if (ImGui::Button("Rename...")) {
-                gui::popup::waitList.emplace_back(
-                    std::in_place_type<gui::popup::NameChanger>,
-                    assetExtended.asset.materials[*i].name,
-                    std::format("Unnamed Material {}", *i));
+                gui::popup::open(static_cast<std::string>(PopupNames::renameMaterial), [hintText = std::string { gui::getDisplayName(assetExtended.asset.materials, *i) }, &target = assetExtended.asset.materials[*i].name] {
+                    ImGui::InputTextWithHint("Name", hintText, &target);
+                });
             }
+            gui::popup::process(PopupNames::renameMaterial);
         }
 
         if (const auto &selectedMaterialIndex = assetExtended.imGuiSelectedMaterialIndex) {
@@ -1032,12 +1175,13 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
         }
 
         ImGui::SameLine();
-        if (ImGui::Button("Rename")) {
-            gui::popup::waitList.emplace_back(
-                std::in_place_type<gui::popup::NameChanger>,
-                assetExtended.getScene().name,
-                std::format("Unnamed Scene {}", assetExtended.sceneIndex));
+        if (ImGui::Button("Rename...")) {
+            gui::popup::open(static_cast<std::string>(PopupNames::renameScene), [hintText = std::string { gui::getDisplayName(assetExtended.asset.scenes, assetExtended.sceneIndex) }, &target = assetExtended.asset.scenes[assetExtended.sceneIndex].name] {
+                ImGui::InputTextWithHint("Name", hintText, &target);
+            });
         }
+
+        gui::popup::process(PopupNames::renameScene);
 
         static bool mergeSingleChildNodes = true;
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
