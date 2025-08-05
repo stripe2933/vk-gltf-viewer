@@ -436,10 +436,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             "gltf-buffers-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
             assetExtended.asset.buffers,
-            ImGui::ColumnInfo { "Name", [](std::size_t row, fastgltf::Buffer &buffer) {
-                ImGui::WithID(row, [&]() {
+            ImGui::ColumnInfo { "Name", [&](std::size_t bufferIndex, fastgltf::Buffer &buffer) {
+                ImGui::WithID(bufferIndex, [&]() {
                     ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
-                    ImGui::InputTextWithHint("##name", "<empty>", &buffer.name);
+                    ImGui::InputTextWithHint("##name", gui::getDisplayName(assetExtended.asset.buffers, bufferIndex), &buffer.name);
                 });
             }, ImGuiTableColumnFlags_WidthStretch },
             ImGui::ColumnInfo { "Size", [](const fastgltf::Buffer &buffer) {
@@ -481,10 +481,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             "gltf-buffer-views-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
             assetExtended.asset.bufferViews,
-            ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::BufferView &bufferView) {
-                ImGui::WithID(rowIndex, [&]() {
+            ImGui::ColumnInfo { "Name", [&](std::size_t bufferViewIndex, fastgltf::BufferView &bufferView) {
+                ImGui::WithID(bufferViewIndex, [&] {
                     ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
-                    ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
+                    ImGui::InputTextWithHint("##name", gui::getDisplayName(assetExtended.asset.bufferViews, bufferViewIndex), &bufferView.name);
                 });
             }, ImGuiTableColumnFlags_WidthStretch },
             ImGui::ColumnInfo { "Buffer", [](std::size_t i, const fastgltf::BufferView &bufferView) {
@@ -525,10 +525,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             "gltf-images-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
             assetExtended.asset.images,
-            ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Image &image) {
-                ImGui::WithID(rowIndex, [&]() {
+            ImGui::ColumnInfo { "Name", [&](std::size_t imageIndex, fastgltf::Image &image) {
+                ImGui::WithID(imageIndex, [&] {
                     ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
-                    ImGui::InputTextWithHint("##name", "<empty>", &image.name);
+                    ImGui::InputTextWithHint("##name", gui::getDisplayName(assetExtended.asset.images, imageIndex), &image.name);
                 });
             }, ImGuiTableColumnFlags_WidthStretch },
             ImGui::ColumnInfo { "MIME", [](const fastgltf::Image &image) {
@@ -625,10 +625,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             "gltf-samplers-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
             assetExtended.asset.samplers,
-            ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Sampler &sampler) {
-                ImGui::WithID(rowIndex, [&]() {
+            ImGui::ColumnInfo { "Name", [&](std::size_t samplerIndex, fastgltf::Sampler &sampler) {
+                ImGui::WithID(samplerIndex, [&] {
                     ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
-                    ImGui::InputTextWithHint("##name", "<empty>", &sampler.name);
+                    ImGui::InputTextWithHint("##name", gui::getDisplayName(assetExtended.asset.samplers, samplerIndex), &sampler.name);
                 });
             }, ImGuiTableColumnFlags_WidthStretch },
             ImGui::ColumnInfo { "Filter (Mag/Min)", [](const fastgltf::Sampler &sampler) {
@@ -710,7 +710,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                 gui::popup::waitList.emplace_back(
                     std::in_place_type<gui::popup::NameChanger>,
                     assetExtended.asset.materials[*i].name,
-                    std::format("Unnamed material {}", *i));
+                    std::format("Unnamed Material {}", *i));
             }
         }
 
@@ -1083,7 +1083,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
                         const fastgltf::Node &node = asset.nodes[nodeIndex];
 
                         if (std::string_view name = node.name; name.empty()) {
-                            tempStringBuffer.append("<Unnamed node {}>", nodeIndex);
+                            tempStringBuffer.append("Unnamed Node {}", nodeIndex);
                         }
                         else {
                             tempStringBuffer.append(name);
@@ -1307,7 +1307,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
         if (assetExtended.selectedNodes.size() == 1) {
             const std::size_t selectedNodeIndex = *assetExtended.selectedNodes.begin();
             fastgltf::Node &node = assetExtended.asset.nodes[selectedNodeIndex];
-            ImGui::InputTextWithHint("Name", "<empty>", &node.name);
+            ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.nodes, selectedNodeIndex), &node.name);
 
             ImGui::SeparatorText("Transform");
 
@@ -1403,7 +1403,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
             if (ImGui::BeginTabBar("node-tab-bar")) {
                 if (node.meshIndex && ImGui::BeginTabItem("Mesh")) {
                     fastgltf::Mesh &mesh = assetExtended.asset.meshes[*node.meshIndex];
-                    ImGui::InputTextWithHint("Name", "<empty>", &mesh.name);
+                    ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.meshes, *node.meshIndex), &mesh.name);
 
                     for (auto &&[primitiveIndex, primitive]: mesh.primitives | ranges::views::enumerate) {
                         if (ImGui::CollapsingHeader(tempStringBuffer.write("Primitive {}", primitiveIndex).view().c_str())) {
@@ -1502,7 +1502,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                 }
                 if (node.cameraIndex && ImGui::BeginTabItem("Camera")) {
                     auto &[camera, name] = assetExtended.asset.cameras[*node.cameraIndex];
-                    ImGui::InputTextWithHint("Name", "<empty>", &name);
+                    ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.cameras, *node.cameraIndex), &name);
 
                     ImGui::WithDisabled([&]() {
                         if (int type = camera.index(); ImGui::Combo("Type", &type, "Perspective\0Orthographic\0")) {
@@ -1564,7 +1564,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                 }
                 if (node.lightIndex && ImGui::BeginTabItem("Light")) {
                     fastgltf::Light &light = assetExtended.asset.lights[*node.lightIndex];
-                    ImGui::InputTextWithHint("Name", "<empty>", &light.name);
+                    ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.lights, *node.lightIndex), &light.name);
                     ImGui::EndTabItem();
                 }
 

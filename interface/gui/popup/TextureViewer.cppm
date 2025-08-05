@@ -43,7 +43,7 @@ void vk_gltf_viewer::gui::popup::TextureViewer::show() {
 
     ImGui::WithGroup([&] {
         fastgltf::Texture &texture = assetExtended.get().asset.textures[textureIndex];
-        ImGui::InputTextWithHint("Name", "<empty>", &texture.name);
+        ImGui::InputTextWithHint("Name", getDisplayName(assetExtended.get().asset.textures, textureIndex), &texture.name);
         if (ImGui::BeginCombo("Image Index", tempStringBuffer.write(selectedImageIndex).view().c_str())) {
             if (texture.imageIndex) {
                 // TODO: do not disable this and load the image when the selection is changed.
