@@ -128,6 +128,13 @@ namespace vk_gltf_viewer::gltf {
 
     	explicit AssetExtended(const std::filesystem::path &path);
 
+        /**
+         * @brief Return whether the data of the image at the given index is loaded or not.
+         * @param imageIndex Index of the image in the <tt>fastgltf::Asset::images</tt> vector.
+         * @return <tt>true</tt> if the image data is loaded, <tt>false</tt> otherwise.
+         */
+        [[nodiscard]] virtual bool isImageLoaded(std::size_t imageIndex) const noexcept = 0;
+
 		[[nodiscard]] fastgltf::Scene &getScene() noexcept { return asset.scenes[sceneIndex]; }
 		[[nodiscard]] const fastgltf::Scene &getScene() const noexcept { return asset.scenes[sceneIndex]; }
 

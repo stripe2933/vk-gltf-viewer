@@ -572,6 +572,33 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
                     ImGui::TextUnformatted("-");
                 }, image.data);
             }, ImGuiTableColumnFlags_WidthFixed },
+            ImGui::ColumnInfo { "Referenced Textures", [&](std::size_t i, const auto&) {
+                ImGui::WithID(i, [&] {
+                    bool multi = false;
+                    for (const auto &[textureIndex, texture] : assetExtended.asset.textures | ranges::views::enumerate) {
+                        for (const auto &index : { texture.imageIndex, texture.basisuImageIndex, texture.ddsImageIndex, texture.webpImageIndex }) {
+                            if (index == i) {
+                                if (multi) {
+                                    ImGui::SameLine();
+                                }
+                                if (ImGui::TextLink(tempStringBuffer.write(textureIndex).view().c_str())) {
+                                    gui::makeWindowVisible(ImGui::FindWindowByName("Textures"));
+                                }
+                                multi = true;
+                            }
+                        }
+                    }
+                });
+            }, ImGuiTableColumnFlags_WidthFixed },
+            ImGui::ColumnInfo { "Loaded", [&](std::size_t i, const auto&) {
+                // TODO: do not disable this checkbox and load/unload the image on click.
+                ImGui::WithDisabled([&] {
+                    ImGui::WithID(i, [&] {
+                        bool checked = assetExtended.isImageLoaded(i);
+                        ImGui::Checkbox("", &checked);
+                    });
+                });
+            }, ImGuiTableColumnFlags_WidthFixed },
             ImGui::ColumnInfo { "Location", [&](std::size_t i, const fastgltf::Image &image) {
                 visit(fastgltf::visitor {
                     [](const fastgltf::sources::Array&) {
