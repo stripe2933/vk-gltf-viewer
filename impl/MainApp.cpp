@@ -49,7 +49,7 @@ import imgui.vulkan;
 import vk_gltf_viewer.asset;
 import vk_gltf_viewer.global;
 import vk_gltf_viewer.gltf.algorithm.miniball;
-import vk_gltf_viewer.gui.dialog;
+import vk_gltf_viewer.gui.popup;
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;
@@ -59,7 +59,7 @@ import vk_gltf_viewer.imgui.TaskCollector;
 import vk_gltf_viewer.vulkan.FrameDeferredTask;
 import vk_gltf_viewer.vulkan.imgui.PlatformResource;
 import vk_gltf_viewer.vulkan.mipmap;
-import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderer;
+import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderPipeline;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
@@ -96,7 +96,7 @@ vk_gltf_viewer::MainApp::MainApp()
     , swapchain { gpu, window.getSurface(), getSwapchainExtent() }
     , sharedData { gpu, swapchain.extent, swapchain.images }
     , frames { ARRAY_OF(2, vulkan::Frame { renderer, sharedData }) } {
-    const ibl::BrdfmapRenderer brdfmapRenderer { gpu.device, brdfmapImage, {} };
+    const ibl::BrdfmapRenderPipeline brdfmapRenderPipeline { gpu.device, brdfmapImage, {} };
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
     vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
@@ -136,7 +136,7 @@ vk_gltf_viewer::MainApp::MainApp()
             });
 
         // Compute BRDF.
-        brdfmapRenderer.recordCommands(cb);
+        brdfmapRenderPipeline.recordCommands(cb);
 
         // brdfmapImage will be used as sampled image.
         cb.pipelineBarrier(
@@ -263,7 +263,7 @@ void vk_gltf_viewer::MainApp::run() {
             else {
                 imguiTaskCollector.imguizmo(*renderer);
             }
-            imguiTaskCollector.dialog();
+            gui::popup::process();
 
             if (drawSelectionRectangle) {
                 const glm::dvec2 cursorPos = window.getCursorPos();
@@ -415,7 +415,7 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [&](const control::task::WindowDrop &task) {
                     // Prevent drag-and-drop when any dialog is opened.
-                    if (!holds_alternative<std::monostate>(gui::currentDialog)) return;
+                    if (gui::popup::isDialogOpened()) return;
 
                     if (task.paths.empty()) return;
 
@@ -672,8 +672,9 @@ void vk_gltf_viewer::MainApp::run() {
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::TextureTransformEnabled:
-                            if (!ranges::contains(assetExtended->asset.extensionsUsed, "KHR_texture_transform")) {
+                            if (!assetExtended->isTextureTransformUsed) {
                                 assetExtended->asset.extensionsUsed.push_back("KHR_texture_transform");
+                                assetExtended->isTextureTransformUsed = true;
 
                                 // Asset is loaded without KHR_texture_transform extension, and all pipelines were created
                                 // with texture transform disabled. Pipelines need to be recreated.
@@ -987,7 +988,7 @@ vku::AllocatedImage vk_gltf_viewer::MainApp::createBrdfmapImage() const {
         1, 1,
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
-        ibl::BrdfmapRenderer::requiredResultImageUsageFlags | vk::ImageUsageFlagBits::eSampled,
+        ibl::BrdfmapRenderPipeline::requiredResultImageUsageFlags | vk::ImageUsageFlagBits::eSampled,
     } };
 }
 
@@ -1157,16 +1158,16 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         vku::Image::maxMipLevels(cubemapSize), 6,
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
-        cubemap::CubemapComputer::requiredCubemapImageUsageFlags
-            | cubemap::SubgroupMipmapComputer::requiredImageUsageFlags
-            | ibl::PrefilteredmapComputer::requiredCubemapImageUsageFlags
+        cubemap::CubemapComputePipeline::requiredCubemapImageUsageFlags
+            | cubemap::SubgroupMipmapComputePipeline::requiredImageUsageFlags
+            | ibl::PrefilteredmapComputePipeline::requiredCubemapImageUsageFlags
             | vk::ImageUsageFlagBits::eSampled,
     } };
 
     const vk::raii::Sampler eqmapSampler { gpu.device, vk::SamplerCreateInfo { {}, vk::Filter::eLinear, vk::Filter::eLinear }.setMaxLod(vk::LodClampNone) };
 
-    const cubemap::CubemapComputer cubemapComputer { gpu.device, eqmapImage, eqmapSampler, cubemapImage };
-    const cubemap::SubgroupMipmapComputer subgroupMipmapComputer { gpu.device, cubemapImage, {
+    const cubemap::CubemapComputePipeline cubemapComputePipeline { gpu.device, eqmapImage, eqmapSampler, cubemapImage };
+    const cubemap::SubgroupMipmapComputePipeline subgroupMipmapComputePipeline { gpu.device, cubemapImage, {
         .subgroupSize = gpu.subgroupSize,
         .useShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod,
     } };
@@ -1180,14 +1181,14 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         vku::Image::maxMipLevels(prefilteredmapSize), 6,
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
-        ibl::PrefilteredmapComputer::requiredPrefilteredmapImageUsageFlags | vk::ImageUsageFlagBits::eSampled,
+        ibl::PrefilteredmapComputePipeline::requiredPrefilteredmapImageUsageFlags | vk::ImageUsageFlagBits::eSampled,
     } };
     vku::MappedBuffer sphericalHarmonicsBuffer {
         gpu.allocator,
         vk::BufferCreateInfo {
             {},
-            ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferSize,
-            ibl::SphericalHarmonicCoefficientComputer::requiredResultBufferUsageFlags | vk::BufferUsageFlagBits::eUniformBuffer,
+            ibl::SphericalHarmonicCoefficientComputePipeline::requiredResultBufferSize,
+            ibl::SphericalHarmonicCoefficientComputePipeline::requiredResultBufferUsageFlags | vk::BufferUsageFlagBits::eUniformBuffer,
         },
         vma::AllocationCreateInfo {
             vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
@@ -1195,11 +1196,11 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         },
     };
 
-    const ibl::SphericalHarmonicCoefficientComputer sphericalHarmonicCoefficientComputer { gpu.device, gpu.allocator, cubemapImage, sphericalHarmonicsBuffer, {
+    const ibl::SphericalHarmonicCoefficientComputePipeline sphericalHarmonicCoefficientComputePipeline { gpu.device, gpu.allocator, cubemapImage, sphericalHarmonicsBuffer, {
         .sampleMipLevel = 0,
         .subgroupSize = gpu.subgroupSize,
     } };
-    const ibl::PrefilteredmapComputer prefilteredmapComputer { gpu.device, cubemapImage, prefilteredmapImage, {
+    const ibl::PrefilteredmapComputePipeline prefilteredmapComputePipeline { gpu.device, cubemapImage, prefilteredmapImage, {
         .useShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod,
         .specializationConstants = {
             .samples = 1024,
@@ -1208,7 +1209,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     // Generate Tone-mapped cubemap.
     const vulkan::rp::CubemapToneMapping cubemapToneMappingRenderPass { gpu.device };
-    const vulkan::CubemapToneMappingRenderer cubemapToneMappingRenderer { gpu, cubemapToneMappingRenderPass };
+    const vulkan::CubemapToneMappingRenderPipeline cubemapToneMappingRenderPipeline { gpu, cubemapToneMappingRenderPass };
 
     vku::AllocatedImage toneMappedCubemapImage { gpu.allocator, vk::ImageCreateInfo {
         vk::ImageCreateFlagBits::eCubeCompatible,
@@ -1411,7 +1412,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                     });
 
                 // Generate cubemap from eqmapImage.
-                cubemapComputer.recordCommands(cb);
+                cubemapComputePipeline.recordCommands(cb);
 
                 cb.pipelineBarrier(
                     vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
@@ -1421,7 +1422,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                     {}, {});
 
                 // Generate cubemapImage mipmaps.
-                subgroupMipmapComputer.recordCommands(cb);
+                subgroupMipmapComputePipeline.recordCommands(cb);
 
                 cb.pipelineBarrier2KHR({
                     {}, {}, {},
@@ -1446,10 +1447,10 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 });
 
                 // Generate prefiltered map.
-                prefilteredmapComputer.recordCommands(cb);
+                prefilteredmapComputePipeline.recordCommands(cb);
 
                 // Reduce spherical harmonic coefficients.
-                sphericalHarmonicCoefficientComputer.recordCommands(cb);
+                sphericalHarmonicCoefficientComputePipeline.recordCommands(cb);
 
                 cb.pipelineBarrier2KHR({
                     {}, {},
@@ -1516,11 +1517,11 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                     vku::unsafeProxy<vk::ClearValue>(vk::ClearColorValue{}),
                 }, vk::SubpassContents::eInline);
 
-                cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapToneMappingRenderer.pipeline);
+                cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapToneMappingRenderPipeline.pipeline);
                 cb.pushDescriptorSetKHR(
                     vk::PipelineBindPoint::eGraphics,
-                    *cubemapToneMappingRenderer.pipelineLayout,
-                    0, vulkan::CubemapToneMappingRenderer::DescriptorSetLayout::getWriteOne<0>({ {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal }));
+                    *cubemapToneMappingRenderPipeline.pipelineLayout,
+                    0, vulkan::CubemapToneMappingRenderPipeline::DescriptorSetLayout::getWriteOne<0>({ {}, *cubemapImageArrayView, vk::ImageLayout::eShaderReadOnlyOptimal }));
                 cb.setViewport(0, vku::unsafeProxy(vku::toViewport(vku::toExtent2D(toneMappedCubemapImage.extent))));
                 cb.setScissor(0, vku::unsafeProxy(vk::Rect2D { { 0, 0 }, vku::toExtent2D(toneMappedCubemapImage.extent) }));
                 cb.draw(3, 1, 0, 0);

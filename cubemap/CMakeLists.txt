@@ -5,8 +5,8 @@ target_sources(cubemap PUBLIC
     BASE_DIRS interface
     FILES
         interface/mod.cppm
-        interface/CubemapComputer.cppm
-        interface/SubgroupMipmapComputer.cppm
+        interface/CubemapComputePipeline.cppm
+        interface/SubgroupMipmapComputePipeline.cppm
 )
 target_compile_features(cubemap PUBLIC cxx_std_23)
 target_link_libraries(cubemap PUBLIC vku::vku)

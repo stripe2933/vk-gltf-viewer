@@ -221,16 +221,16 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::CommandPool graphicsCommandPool;
 
         // Descriptor sets.
-        vku::DescriptorSet<MousePickingRenderer::DescriptorSetLayout> mousePickingSet;
+        vku::DescriptorSet<MousePickingRenderPipeline::DescriptorSetLayout> mousePickingSet;
         vku::DescriptorSet<dsl::MultiNodeMousePicking> multiNodeMousePickingSet;
-        vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> hoveringNodeJumpFloodSet;
-        vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> selectedNodeJumpFloodSet;
-        vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> hoveringNodeOutlineSet;
-        vku::DescriptorSet<OutlineRenderer::DescriptorSetLayout> selectedNodeOutlineSet;
-        vku::DescriptorSet<WeightedBlendedCompositionRenderer::DescriptorSetLayout> weightedBlendedCompositionSet;
-        vku::DescriptorSet<InverseToneMappingRenderer::DescriptorSetLayout> inverseToneMappingSet;
-        vku::DescriptorSet<bloom::BloomComputer::DescriptorSetLayout> bloomSet;
-        vku::DescriptorSet<BloomApplyRenderer::DescriptorSetLayout> bloomApplySet;
+        vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> hoveringNodeJumpFloodSet;
+        vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> selectedNodeJumpFloodSet;
+        vku::DescriptorSet<OutlineRenderPipeline::DescriptorSetLayout> hoveringNodeOutlineSet;
+        vku::DescriptorSet<OutlineRenderPipeline::DescriptorSetLayout> selectedNodeOutlineSet;
+        vku::DescriptorSet<WeightedBlendedCompositionRenderPipeline::DescriptorSetLayout> weightedBlendedCompositionSet;
+        vku::DescriptorSet<InverseToneMappingRenderPipeline::DescriptorSetLayout> inverseToneMappingSet;
+        vku::DescriptorSet<bloom::BloomComputePipeline::DescriptorSetLayout> bloomSet;
+        vku::DescriptorSet<BloomApplyRenderPipeline::DescriptorSetLayout> bloomApplySet;
 
         // Command buffers.
         vk::CommandBuffer scenePrepassCommandBuffer;
@@ -257,7 +257,7 @@ namespace vk_gltf_viewer::vulkan {
 
         void recordScenePrepassCommands(vk::CommandBuffer cb) const;
         // Return true if last jump flood calculation direction is forward (result is in pong image), false if backward.
-        [[nodiscard]] bool recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputer::DescriptorSetLayout> descriptorSet, std::uint32_t initialSampleOffset) const;
+        [[nodiscard]] bool recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> descriptorSet, std::uint32_t initialSampleOffset) const;
         void recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const;
         bool recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const;
         void recordSkyboxDrawCommands(vk::CommandBuffer cb) const;

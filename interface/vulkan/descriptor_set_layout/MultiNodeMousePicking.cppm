@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.dsl.MultiNodeMousePicking;
+export module vk_gltf_viewer.vulkan.descriptor_set_layout.MultiNodeMousePicking;
 
 #ifdef _MSC_VER
 import std;

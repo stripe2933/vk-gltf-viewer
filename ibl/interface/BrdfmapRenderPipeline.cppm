@@ -4,7 +4,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module ibl.BrdfmapRenderer;
+export module ibl.BrdfmapRenderPipeline;
 
 import std;
 export import vku;
@@ -13,7 +13,7 @@ import ibl.shader.brdfmap_frag;
 import ibl.shader.screen_quad_vert;
 
 namespace ibl {
-    export class BrdfmapRenderer {
+    export class BrdfmapRenderPipeline {
     public:
         struct SpecializationConstants {
             std::uint32_t numSamples = 1024;
@@ -25,7 +25,7 @@ namespace ibl {
 
         static constexpr vk::ImageUsageFlags requiredResultImageUsageFlags = vk::ImageUsageFlagBits::eColorAttachment;
 
-        BrdfmapRenderer(
+        BrdfmapRenderPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const vku::Image &resultImage LIFETIMEBOUND,
             const Config &config = {
@@ -52,12 +52,12 @@ namespace ibl {
 module :private;
 #endif
 
-struct ibl::BrdfmapRenderer::PushConstant {
+struct ibl::BrdfmapRenderPipeline::PushConstant {
     float framebufferWidthRcp;
     float framebufferHeightRcp;
 };
 
-ibl::BrdfmapRenderer::BrdfmapRenderer(
+ibl::BrdfmapRenderPipeline::BrdfmapRenderPipeline(
     const vk::raii::Device &device,
     const vku::Image &resultImage,
     const Config &config
@@ -103,7 +103,7 @@ ibl::BrdfmapRenderer::BrdfmapRenderer(
     attachmentGroup.addColorAttachment(device, resultImage);
 }
 
-void ibl::BrdfmapRenderer::recordCommands(vk::CommandBuffer graphicsCommandBuffer) const {
+void ibl::BrdfmapRenderPipeline::recordCommands(vk::CommandBuffer graphicsCommandBuffer) const {
     const auto *d = device.get().getDispatcher();
 
     graphicsCommandBuffer.beginRenderingKHR(attachmentGroup.getRenderingInfo(

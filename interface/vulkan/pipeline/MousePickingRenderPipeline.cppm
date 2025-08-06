@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.pipeline.MousePickingRenderer;
+export module vk_gltf_viewer.vulkan.pipeline.MousePickingRenderPipeline;
 
 #ifdef _MSC_VER
 import std;
@@ -11,17 +11,17 @@ export import vku;
 
 import vk_gltf_viewer.shader.mouse_picking_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;
-export import vk_gltf_viewer.vulkan.rp.MousePicking;
+export import vk_gltf_viewer.vulkan.render_pass.MousePicking;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export struct MousePickingRenderer {
+    export struct MousePickingRenderPipeline {
         using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment, vk::DescriptorType::eStorageBuffer>;
 
         DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        MousePickingRenderer(
+        MousePickingRenderPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const rp::MousePicking &renderPass LIFETIMEBOUND
         );
@@ -32,7 +32,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::pipeline::MousePickingRenderer::MousePickingRenderer(
+vk_gltf_viewer::vulkan::pipeline::MousePickingRenderPipeline::MousePickingRenderPipeline(
     const vk::raii::Device &device,
     const rp::MousePicking &renderPass
 ) : descriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {

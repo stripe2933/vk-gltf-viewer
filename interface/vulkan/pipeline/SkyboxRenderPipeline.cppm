@@ -4,7 +4,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.pipeline.SkyboxRenderer;
+export module vk_gltf_viewer.vulkan.pipeline.SkyboxRenderPipeline;
 
 import std;
 export import glm;
@@ -12,11 +12,11 @@ export import glm;
 import vk_gltf_viewer.shader.skybox_frag;
 import vk_gltf_viewer.shader.skybox_vert;
 export import vk_gltf_viewer.vulkan.buffer.CubeIndices;
-export import vk_gltf_viewer.vulkan.dsl.Skybox;
-export import vk_gltf_viewer.vulkan.rp.Scene;
+export import vk_gltf_viewer.vulkan.descriptor_set_layout.Skybox;
+export import vk_gltf_viewer.vulkan.render_pass.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export class SkyboxRenderer {
+    export class SkyboxRenderPipeline {
     public:
         struct PushConstant {
             glm::mat4 projectionView;
@@ -25,7 +25,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        SkyboxRenderer(
+        SkyboxRenderPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const dsl::Skybox &descriptorSetLayout LIFETIMEBOUND,
             const rp::Scene &sceneRenderPass LIFETIMEBOUND,
@@ -43,7 +43,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
+vk_gltf_viewer::vulkan::pipeline::SkyboxRenderPipeline::SkyboxRenderPipeline(
     const vk::raii::Device &device,
     const dsl::Skybox &descriptorSetLayout,
     const rp::Scene &sceneRenderPass,
@@ -79,7 +79,7 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::SkyboxRenderer(
     },
     cubeIndices { cubeIndices } { }
 
-void vk_gltf_viewer::vulkan::pipeline::SkyboxRenderer::draw(vk::CommandBuffer commandBuffer, vku::DescriptorSet<dsl::Skybox> descriptorSet, const PushConstant &pushConstant) const {
+void vk_gltf_viewer::vulkan::pipeline::SkyboxRenderPipeline::draw(vk::CommandBuffer commandBuffer, vku::DescriptorSet<dsl::Skybox> descriptorSet, const PushConstant &pushConstant) const {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline);
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *pipelineLayout, 0, descriptorSet, {});
     commandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, pushConstant);

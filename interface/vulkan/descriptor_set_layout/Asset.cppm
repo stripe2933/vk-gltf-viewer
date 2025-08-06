@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.dsl.Asset;
+export module vk_gltf_viewer.vulkan.descriptor_set_layout.Asset;
 
 import std;
 

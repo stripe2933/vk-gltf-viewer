@@ -2,27 +2,31 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderer;
+export module vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderPipeline;
 
 import std;
 
-import vk_gltf_viewer.shader.cubemap_tone_mapping_frag;
+import vk_gltf_viewer.shader.bloom_apply_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;
 export import vk_gltf_viewer.vulkan.Gpu;
-export import vk_gltf_viewer.vulkan.rp.CubemapToneMapping;
+export import vk_gltf_viewer.vulkan.render_pass.BloomApply;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export class CubemapToneMappingRenderer {
+    export class BloomApplyRenderPipeline {
     public:
-        using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage>;
+        struct PushConstant {
+            float factor;
+        };
+
+        using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment, vk::DescriptorType::eInputAttachment>;
 
         DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        CubemapToneMappingRenderer(
+        BloomApplyRenderPipeline(
             const Gpu &gpu LIFETIMEBOUND,
-            const rp::CubemapToneMapping &renderPass LIFETIMEBOUND
+            const rp::BloomApply &renderPass LIFETIMEBOUND
         );
     };
 }
@@ -31,16 +35,22 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::pipeline::CubemapToneMappingRenderer::CubemapToneMappingRenderer(
+vk_gltf_viewer::vulkan::pipeline::BloomApplyRenderPipeline::BloomApplyRenderPipeline(
     const Gpu &gpu,
-    const rp::CubemapToneMapping &renderPass
+    const rp::BloomApply &renderPass
 ) : descriptorSetLayout { gpu.device, vk::DescriptorSetLayoutCreateInfo {
-        vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
-        vku::unsafeProxy(DescriptorSetLayout::getBindings({ 1, vk::ShaderStageFlagBits::eFragment })),
+        {},
+        vku::unsafeProxy(DescriptorSetLayout::getBindings(
+            { 1, vk::ShaderStageFlagBits::eFragment },
+            { 1, vk::ShaderStageFlagBits::eFragment })),
     } },
     pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
         {},
         *descriptorSetLayout,
+        vku::unsafeProxy(vk::PushConstantRange {
+            vk::ShaderStageFlagBits::eFragment,
+            0, sizeof(PushConstant),
+        }),
     } },
     pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
         createPipelineStages(
@@ -48,8 +58,8 @@ vk_gltf_viewer::vulkan::pipeline::CubemapToneMappingRenderer::CubemapToneMapping
             vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
             vku::Shader {
                 gpu.supportShaderTrinaryMinMax
-                    ? std::span<const std::uint32_t> { shader::cubemap_tone_mapping_frag<1> }
-                    : std::span<const std::uint32_t> { shader::cubemap_tone_mapping_frag<0> },
+                    ? std::span<const std::uint32_t> { shader::bloom_apply_frag<1> }
+                    : std::span<const std::uint32_t> { shader::bloom_apply_frag<0> },
                 vk::ShaderStageFlagBits::eFragment,
             }).get(),
         *pipelineLayout, 1)

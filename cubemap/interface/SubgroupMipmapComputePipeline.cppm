@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module cubemap.SubgroupMipmapComputer;
+export module cubemap.SubgroupMipmapComputePipeline;
 
 import std;
 export import vku;
@@ -10,7 +10,7 @@ export import vku;
 import cubemap.shader.subgroup_mipmap_comp;
 
 namespace cubemap {
-    export class SubgroupMipmapComputer {
+    export class SubgroupMipmapComputePipeline {
     public:
         struct Config {
             /**
@@ -21,7 +21,7 @@ namespace cubemap {
             /**
              * @brief Boolean indicates whether to utilize <tt>VK_AMD_shader_image_load_store_lod</tt> extension.
              *
-             * <tt>SubgroupMipmapComputer</tt> writes 5 mip levels of a storage image at once, therefore
+             * <tt>SubgroupMipmapComputePipeline</tt> writes 5 mip levels of a storage image at once, therefore
              * <tt>vk::ImageView</tt> for each mip level have to be bound to the pipeline via descriptor array. The
              * number of storage image descriptor bind count may exceed the system limit (especially in MoltenVK prior
              * to v1.2.11). If the extension is supported, compute shader can access the arbitrary mip level of the
@@ -32,7 +32,7 @@ namespace cubemap {
 
         static constexpr vk::ImageUsageFlags requiredImageUsageFlags = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage;
 
-        SubgroupMipmapComputer(
+        SubgroupMipmapComputePipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const vku::Image &image LIFETIMEBOUND,
             const Config &config
@@ -68,12 +68,12 @@ namespace cubemap {
 module :private;
 #endif
 
-struct cubemap::SubgroupMipmapComputer::PushConstant {
+struct cubemap::SubgroupMipmapComputePipeline::PushConstant {
     std::int32_t baseLevel;
     std::uint32_t remainingMipLevels;
 };
 
-cubemap::SubgroupMipmapComputer::SubgroupMipmapComputer(
+cubemap::SubgroupMipmapComputePipeline::SubgroupMipmapComputePipeline(
     const vk::raii::Device &device,
     const vku::Image &image,
     const Config &config
@@ -87,7 +87,7 @@ cubemap::SubgroupMipmapComputer::SubgroupMipmapComputer(
     imageView { device, image.getViewCreateInfo(vk::ImageViewType::e2DArray) },
     mipImageViews { createMipImageViews() } { }
 
-void cubemap::SubgroupMipmapComputer::setImage(const vku::Image &image) {
+void cubemap::SubgroupMipmapComputePipeline::setImage(const vku::Image &image) {
     const bool descriptorSetLayoutChanged = !config.useShaderImageLoadStoreLod && (this->image.get().mipLevels != image.mipLevels);
     this->image = image;
     if (descriptorSetLayoutChanged) {
@@ -99,7 +99,7 @@ void cubemap::SubgroupMipmapComputer::setImage(const vku::Image &image) {
     mipImageViews = createMipImageViews();
 }
 
-void cubemap::SubgroupMipmapComputer::recordCommands(vk::CommandBuffer computeCommandBuffer) const {
+void cubemap::SubgroupMipmapComputePipeline::recordCommands(vk::CommandBuffer computeCommandBuffer) const {
     const auto *d = device.get().getDispatcher();
 
     // Base image size must be greater than or equal to 32. Therefore, the first execution may process less than 5 mip levels.
@@ -165,7 +165,7 @@ void cubemap::SubgroupMipmapComputer::recordCommands(vk::CommandBuffer computeCo
     }
 }
 
-vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> cubemap::SubgroupMipmapComputer::createDescriptorSetLayout() const {
+vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> cubemap::SubgroupMipmapComputePipeline::createDescriptorSetLayout() const {
     return { device, vk::DescriptorSetLayoutCreateInfo {
         vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
         vku::unsafeProxy(decltype(descriptorSetLayout)::getBindings(
@@ -174,7 +174,7 @@ vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::Descript
     } };
 }
 
-vk::raii::PipelineLayout cubemap::SubgroupMipmapComputer::createPipelineLayout() const {
+vk::raii::PipelineLayout cubemap::SubgroupMipmapComputePipeline::createPipelineLayout() const {
     return { device, vk::PipelineLayoutCreateInfo {
         {},
         *descriptorSetLayout,
@@ -185,7 +185,7 @@ vk::raii::PipelineLayout cubemap::SubgroupMipmapComputer::createPipelineLayout()
     } };
 }
 
-vk::raii::Pipeline cubemap::SubgroupMipmapComputer::createPipeline() const {
+vk::raii::Pipeline cubemap::SubgroupMipmapComputePipeline::createPipeline() const {
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
         createPipelineStages(
@@ -206,7 +206,7 @@ vk::raii::Pipeline cubemap::SubgroupMipmapComputer::createPipeline() const {
     } };
 }
 
-std::vector<vk::raii::ImageView> cubemap::SubgroupMipmapComputer::createMipImageViews() const {
+std::vector<vk::raii::ImageView> cubemap::SubgroupMipmapComputePipeline::createMipImageViews() const {
     std::vector<vk::raii::ImageView> result;
     if (config.useShaderImageLoadStoreLod) {
         result.emplace_back(device, image.get().getViewCreateInfo(vk::ImageViewType::eCube));

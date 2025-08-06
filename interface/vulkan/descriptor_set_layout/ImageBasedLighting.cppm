@@ -2,7 +2,7 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.dsl.ImageBasedLighting;
+export module vk_gltf_viewer.vulkan.descriptor_set_layout.ImageBasedLighting;
 
 import std;
 import vku;
