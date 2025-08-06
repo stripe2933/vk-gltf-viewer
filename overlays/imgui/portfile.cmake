@@ -7,7 +7,7 @@ if ("docking-experimental" IN_LIST FEATURES)
         REF "v${VERSION}-docking"
         SHA512 a6bce731285669667df32092b58b95a246c9db2d695950b699cefcda33d8eb470cfd00e44fedd1e5bc79df5981669feee792b63440c671828fe629548f0f5dc5
         HEAD_REF docking
-        PATCHES no-static-inline.patch
+        PATCHES no-static-inline.patch no-static-inline2.patch
     )
 else()
     vcpkg_from_github(
@@ -16,7 +16,7 @@ else()
         REF "v${VERSION}"
         SHA512 58d1499dccfb43aa5b97c6c9cef9967979827443beec5ec1a42d120b935302f6c69bcc2a1247cada962ee0d80dc87726ffc8d0e0f7ba795f237a07c3bcc531fe
         HEAD_REF master
-        PATCHES no-static-inline.patch
+        PATCHES no-static-inline.patch no-static-inline2.patch
     )
 endif()
 

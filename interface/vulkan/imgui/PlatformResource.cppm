@@ -6,7 +6,7 @@ module;
 
 export module vk_gltf_viewer.vulkan.imgui.PlatformResource;
 
-import imgui.vulkan;
+import imgui_impl_vulkan;
 
 export import vk_gltf_viewer.imgui.UserData;
 export import vk_gltf_viewer.vulkan.Gpu;

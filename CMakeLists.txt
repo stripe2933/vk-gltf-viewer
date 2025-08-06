@@ -246,6 +246,11 @@ target_compile_definitions(vk-gltf-viewer PRIVATE
     GLFW_INCLUDE_NONE
 )
 
+set_source_files_properties(extlibs/module-ports/imgui/imgui.cppm
+    PROPERTIES
+        COMPILE_DEFINITIONS IMGUI_DEFINE_MATH_OPERATORS
+)
+
 if (CGAL_FOUND)
     target_link_libraries(vk-gltf-viewer PRIVATE CGAL::CGAL)
     target_compile_definitions(vk-gltf-viewer PRIVATE EXACT_BOUNDING_VOLUME_USING_CGAL)

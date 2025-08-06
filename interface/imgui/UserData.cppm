@@ -6,7 +6,7 @@ export module vk_gltf_viewer.imgui.UserData;
 
 import std;
 export import imgui;
-import imgui.internal;
+import imgui_internal;
 
 namespace vk_gltf_viewer::imgui {
     export struct UserData final {

@@ -7,7 +7,7 @@ export import :table;
 
 import std;
 export import imgui;
-import imgui.internal;
+import imgui_internal;
 
 import vk_gltf_viewer.imgui.UserData;
 

@@ -10,7 +10,7 @@ export module vk_gltf_viewer.vulkan.SharedData;
 import std;
 export import bloom;
 export import fastgltf;
-import imgui.vulkan;
+import imgui_impl_vulkan;
 export import vku;
 
 import vk_gltf_viewer.helpers.AggregateHasher;

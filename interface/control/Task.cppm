@@ -3,7 +3,7 @@ export module vk_gltf_viewer.control.Task;
 import std;
 export import fastgltf;
 export import glm;
-export import imgui.internal;
+export import imgui_internal;
 
 namespace vk_gltf_viewer::control {
     export namespace task {

@@ -43,8 +43,8 @@ module vk_gltf_viewer.MainApp;
 
 import cubemap;
 import ibl;
-import imgui.glfw;
-import imgui.vulkan;
+import imgui_impl_glfw;
+import imgui_impl_vulkan;
 
 import vk_gltf_viewer.asset;
 import vk_gltf_viewer.global;

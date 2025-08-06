@@ -7,7 +7,7 @@ export module vk_gltf_viewer.gui.utils;
 import std;
 export import cstring_view;
 export import fastgltf;
-export import imgui.internal;
+export import imgui_internal;
 
 import vk_gltf_viewer.helpers.TempStringBuffer;
 

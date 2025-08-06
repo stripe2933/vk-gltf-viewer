@@ -5,7 +5,7 @@ module;
 export module vk_gltf_viewer.vulkan.texture.ImGuiColorSpaceAndUsageCorrectedTextures;
 
 import std;
-export import imgui.vulkan;
+export import imgui_impl_vulkan;
 
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;

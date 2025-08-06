@@ -6,7 +6,7 @@ module;
 
 module vk_gltf_viewer.vulkan.Frame;
 
-import imgui.vulkan;
+import imgui_impl_vulkan;
 
 import vk_gltf_viewer.helpers.concepts;
 import vk_gltf_viewer.helpers.fastgltf;
