@@ -40,6 +40,9 @@ namespace vk_gltf_viewer::vulkan::gltf {
         [[nodiscard]] ImTextureID getOcclusionTextureID(std::size_t materialIndex) const override;
         [[nodiscard]] ImTextureID getRoughnessTextureID(std::size_t materialIndex) const override;
         [[nodiscard]] ImTextureID getTextureID(std::size_t textureIndex) const override;
+        [[nodiscard]] ImVec2 getTextureSize(std::size_t textureIndex) const override;
+
+        [[nodiscard]] bool isImageLoaded(std::size_t imageIndex) const noexcept override;
     };
 }
 
@@ -115,4 +118,12 @@ ImTextureID vk_gltf_viewer::vulkan::gltf::AssetExtended::getRoughnessTextureID(s
 
 ImTextureID vk_gltf_viewer::vulkan::gltf::AssetExtended::getTextureID(std::size_t textureIndex) const {
     return imGuiColorSpaceAndUsageCorrectedTextures.getTextureID(textureIndex);
+}
+
+ImVec2 vk_gltf_viewer::vulkan::gltf::AssetExtended::getTextureSize(std::size_t textureIndex) const {
+    return imGuiColorSpaceAndUsageCorrectedTextures.getTextureSize(textureIndex);
+}
+
+bool vk_gltf_viewer::vulkan::gltf::AssetExtended::isImageLoaded(std::size_t imageIndex) const noexcept {
+    return textures.images.contains(imageIndex);
 }

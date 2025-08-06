@@ -263,7 +263,6 @@ void vk_gltf_viewer::MainApp::run() {
             else {
                 imguiTaskCollector.imguizmo(*renderer);
             }
-            gui::popup::process();
 
             if (drawSelectionRectangle) {
                 const glm::dvec2 cursorPos = window.getCursorPos();
@@ -415,7 +414,7 @@ void vk_gltf_viewer::MainApp::run() {
                 },
                 [&](const control::task::WindowDrop &task) {
                     // Prevent drag-and-drop when any dialog is opened.
-                    if (gui::popup::isDialogOpened()) return;
+                    if (gui::popup::isModalPopupOpened()) return;
 
                     if (task.paths.empty()) return;
 
@@ -463,6 +462,9 @@ void vk_gltf_viewer::MainApp::run() {
                     frameDeferredTask.setPassthruExtent(extent);
                 },
                 [&](const control::task::LoadGltf &task) {
+                    for (auto name : control::ImGuiTaskCollector::assetPopupNames) {
+                        gui::popup::close(name);
+                    }
                     retainedAssetExtended[frameIndex % FRAMES_IN_FLIGHT] = assetExtended;
 
                     loadGltf(task.path);
@@ -475,6 +477,9 @@ void vk_gltf_viewer::MainApp::run() {
                     regenerateDrawCommands.fill(true);
                 },
                 [&](control::task::CloseGltf) {
+                    for (auto name : control::ImGuiTaskCollector::assetPopupNames) {
+                        gui::popup::close(name);
+                    }
                     retainedAssetExtended[frameIndex % FRAMES_IN_FLIGHT] = assetExtended;
 
                     closeGltf();

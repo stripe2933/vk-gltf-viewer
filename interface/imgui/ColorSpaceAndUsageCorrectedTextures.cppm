@@ -31,6 +31,7 @@ namespace vk_gltf_viewer::imgui {
         virtual ~ColorSpaceAndUsageCorrectedTextures() = default;
 
         [[nodiscard]] virtual ImTextureID getTextureID(std::size_t textureIndex) const = 0;
+        [[nodiscard]] virtual ImVec2 getTextureSize(std::size_t textureIndex) const = 0;
         [[nodiscard]] virtual ImTextureID getMetallicTextureID(std::size_t materialIndex) const = 0;
         [[nodiscard]] virtual ImTextureID getRoughnessTextureID(std::size_t materialIndex) const = 0;
         [[nodiscard]] virtual ImTextureID getNormalTextureID(std::size_t materialIndex) const = 0;

@@ -199,43 +199,28 @@ vk_gltf_viewer::control::ImGuiTaskCollector::ImGuiTaskCollector(std::queue<Task>
 vk_gltf_viewer::control::ImGuiTaskCollector::~ImGuiTaskCollector() {
     if (!assetInspectorCalled) {
         for (auto name : { "Asset Info", "Buffers", "Buffer Views", "Images", "Samplers", "Textures" }) {
-            if (ImGui::Begin(name)) {
-                ImGui::TextUnformatted("Asset not loaded."sv);
-            }
-            ImGui::End();
+            ImGui::windowWithCenteredText(name, "Asset is not loaded."sv);
         }
     }
     if (!materialEditorCalled) {
-        if (ImGui::Begin("Material Editor")) {
-            ImGui::TextUnformatted("Asset not loaded."sv);
-        }
-        ImGui::End();
+        ImGui::windowWithCenteredText("Material Editor", "Asset is not loaded."sv);
     }
     if (!sceneHierarchyCalled) {
-        if (ImGui::Begin("Scene Hierarchy")) {
-            ImGui::TextUnformatted("Asset not loaded."sv);
-        }
-        ImGui::End();
+        ImGui::windowWithCenteredText("Scene Hierarchy", "Asset is not loaded."sv);
     }
     if (!nodeInspectorCalled) {
-        if (ImGui::Begin("Node Inspector")) {
-            ImGui::TextUnformatted("Asset not loaded."sv);
-        }
-        ImGui::End();
+        ImGui::windowWithCenteredText("Node Inspector", "Asset is not loaded."sv);
     }
     if (!imageBasedLightingCalled) {
-        if (ImGui::Begin("IBL")) {
-            ImGui::TextUnformatted("Input equirectangular map not loaded."sv);
-        }
-        ImGui::End();
+        ImGui::windowWithCenteredText("IBL", "Input equirectangular map is not loaded."sv);
     }
 
     ImGui::Render();
 }
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
-    const std::list<std::filesystem::path> &recentGltfs,
-    const std::list<std::filesystem::path> &recentSkyboxes,
+    std::list<std::filesystem::path> &recentGltfs,
+    std::list<std::filesystem::path> &recentSkyboxes,
     nfdwindowhandle_t windowHandle
 ) {
     if (ImGui::BeginMainMenuBar()) {
@@ -255,12 +240,63 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                     ImGui::MenuItem("<empty>", nullptr, false, false);
                 }
                 else {
-                    for (const std::filesystem::path &path : recentGltfs) {
-                        if (ImGui::MenuItem(PATH_C_STR(path))) {
-                            tasks.emplace(std::in_place_type<task::LoadGltf>, path);
+                    static std::string needle;
+                    ImGui::InputTextWithHint("Search", "Find from recent files...", &needle);
+
+                    ImGui::Separator();
+
+                    for (auto it = recentGltfs.begin(); it != recentGltfs.end(); ++it) {
+                        const std::filesystem::path &path = *it;
+                    #ifdef _WIN32
+                        const std::u8string pathOwnedStr = path.u8string();
+                        const cpp_util::cstring_view pathStr { cpp_util::cstring_view::null_terminated, reinterpret_cast<const char*>(pathOwnedStr.c_str()), pathOwnedStr.size() };
+                    #else
+                        const cpp_util::cstring_view pathStr { path.c_str() };
+                    #endif
+
+                        bool hasOccurrence = false;
+                        cpp_util::cstring_view haystack = pathStr;
+                        while (auto found = std::ranges::search(haystack, needle, {}, LIFT(std::tolower), LIFT(std::tolower))) {
+                            hasOccurrence = true;
+
+                            ImVec2 highlightOffset = ImGui::GetCursorScreenPos();
+                            highlightOffset.x += ImGui::CalcTextSize(pathStr.data(), found.data()).x;
+                            highlightOffset.y += 1.f; // TODO
+                            const ImVec2 highlightSize = ImGui::CalcTextSize(found.data(), found.data() + found.size());
+
+                            ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
+                            haystack = haystack.substr(found.end() - haystack.begin());
                         }
+
+                        const bool isFileExists = exists(path);
+                        ImGui::PushItemFlag(ImGuiItemFlags_AutoClosePopups, isFileExists);
+                        if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
+                            if (isFileExists) {
+                                tasks.emplace(std::in_place_type<task::LoadGltf>, path);
+                                needle.clear();
+                            }
+                            else {
+                                gui::popup::open(static_cast<std::string>(PopupNames::fileNotExists), [&recentGltfs, it] {
+                                    ImGui::TextUnformatted("The file you selected does not exist anymore. Do you want to remove it from the recent files list?");
+                                    ImGui::Separator();
+                                    if (ImGui::Button("Remove")) {
+                                        recentGltfs.erase(it);
+                                        ImGui::CloseCurrentPopup();
+                                    }
+                                    ImGui::SetItemDefaultFocus();
+                                    ImGui::SameLine();
+                                    if (ImGui::Button("Cancel")) {
+                                        ImGui::CloseCurrentPopup();
+                                    }
+                                });
+                            }
+                        }
+                        ImGui::PopItemFlag();
                     }
+
+                    gui::popup::process(PopupNames::fileNotExists);
                 }
+
                 ImGui::EndMenu();
             }
             if (ImGui::MenuItem("Close glTF File", "Ctrl+W")) {
@@ -294,11 +330,61 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                     ImGui::MenuItem("<empty>", nullptr, false, false);
                 }
                 else {
-                    for (const std::filesystem::path &path : recentSkyboxes) {
-                        if (ImGui::MenuItem(PATH_C_STR(path))) {
-                            tasks.emplace(std::in_place_type<task::LoadEqmap>, path);
+                    static std::string needle;
+                    ImGui::InputTextWithHint("Search", "Find from recent files...", &needle);
+
+                    ImGui::Separator();
+
+                    for (auto it = recentSkyboxes.begin(); it != recentSkyboxes.end(); ++it) {
+                        const std::filesystem::path &path = *it;
+                    #ifdef _WIN32
+                        const std::u8string pathOwnedStr = path.u8string();
+                        const cpp_util::cstring_view pathStr { cpp_util::cstring_view::null_terminated, reinterpret_cast<const char*>(pathOwnedStr.c_str()), pathOwnedStr.size() };
+                    #else
+                        const cpp_util::cstring_view pathStr { path.c_str() };
+                    #endif
+
+                        bool hasOccurrence = false;
+                        cpp_util::cstring_view haystack = pathStr;
+                        while (auto found = std::ranges::search(haystack, needle, {}, LIFT(std::tolower), LIFT(std::tolower))) {
+                            hasOccurrence = true;
+
+                            ImVec2 highlightOffset = ImGui::GetCursorScreenPos();
+                            highlightOffset.x += ImGui::CalcTextSize(pathStr.data(), found.data()).x;
+                            highlightOffset.y += 1.f; // TODO
+                            const ImVec2 highlightSize = ImGui::CalcTextSize(found.data(), found.data() + found.size());
+
+                            ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
+                            haystack = haystack.substr(found.end() - haystack.begin());
                         }
+
+                        const bool isFileExists = exists(path);
+                        ImGui::PushItemFlag(ImGuiItemFlags_AutoClosePopups, isFileExists);
+                        if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
+                            if (isFileExists) {
+                                tasks.emplace(std::in_place_type<task::LoadEqmap>, path);
+                                needle.clear();
+                            }
+                            else {
+                                gui::popup::open(static_cast<std::string>(PopupNames::fileNotExists), [&recentSkyboxes, it] {
+                                    ImGui::TextUnformatted("The file you selected does not exist anymore. Do you want to remove it from the recent files list?");
+                                    ImGui::Separator();
+                                    if (ImGui::Button("Remove")) {
+                                        recentSkyboxes.erase(it);
+                                        ImGui::CloseCurrentPopup();
+                                    }
+                                    ImGui::SetItemDefaultFocus();
+                                    ImGui::SameLine();
+                                    if (ImGui::Button("Cancel")) {
+                                        ImGui::CloseCurrentPopup();
+                                    }
+                                });
+                            }
+                        }
+                        ImGui::PopItemFlag();
                     }
+
+                    gui::popup::process(PopupNames::fileNotExists);
                 }
                 ImGui::EndMenu();
             }
@@ -347,7 +433,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(gltf::AssetExtended
                     else {
                         enabled = false;
 
-                        decltype(gui::popup::AnimationCollisionResolver::collisions) collisionByAnimation;
+                        std::map<std::size_t /* animation index */, std::map<std::size_t /* node index */, Flags<gltf::NodeAnimationUsage>>> collisionByAnimation;
                         for (std::size_t collidingAnimationIndex : collisionIndices) {
                             // Collect which paths are colliding.
                             auto &collisions = collisionByAnimation[collidingAnimationIndex];
@@ -359,11 +445,53 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::animations(gltf::AssetExtended
                             }
                         }
 
-                        gui::popup::waitList.emplace_back(std::in_place_type<gui::popup::AnimationCollisionResolver>, assetExtended, animationIndex, std::move(collisionByAnimation));
+                        gui::popup::open(static_cast<std::string>(PopupNames::resolveAnimationCollision), [&assetExtended, collisionByAnimation = std::move(collisionByAnimation), animationIndex] {
+                            ImGui::TextUnformatted("The animation you're trying to enable is colliding by other enabled animations."sv);
+
+                            for (const auto &[i, collisionList] : collisionByAnimation) {
+                                if (ImGui::TreeNode(gui::getDisplayName(assetExtended.asset.animations, i).c_str())) {
+                                    ImGui::Table<false>(
+                                        "animation-collision-table",
+                                        ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg,
+                                        collisionList,
+                                        ImGui::ColumnInfo { "Node", decomposer([](std::size_t nodeIndex, auto) {
+                                            ImGui::Text("%zu", nodeIndex);
+                                        }) },
+                                        ImGui::ColumnInfo { "Path", decomposer([](auto, Flags<gltf::NodeAnimationUsage> usage) {
+                                            ImGui::TextUnformatted(tempStringBuffer.write("{::s}", usage).view());
+                                        }) });
+                                    ImGui::TreePop();
+                                }
+                            }
+
+                            ImGui::TextUnformatted("Would you like to disable these animations?"sv);
+
+                            ImGui::Separator();
+
+                            ImGui::Checkbox("Don't ask me and resolve automatically", &static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->resolveAnimationCollisionAutomatically);
+
+                            if (ImGui::Button("Yes")) {
+                                // Resolve the colliding animations.
+                                for (std::size_t collidingAnimationIndex : collisionByAnimation | std::views::keys) {
+                                    assetExtended.animations[collidingAnimationIndex].second = false;
+                                }
+                                assetExtended.animations[animationIndex].second = true;
+
+                                ImGui::CloseCurrentPopup();
+                            }
+                            ImGui::SetItemDefaultFocus();
+                            ImGui::SameLine();
+                            if (ImGui::Button("No")) {
+                                ImGui::CloseCurrentPopup();
+                            }
+
+                        }, true);
                     }
                 }
             }
         }
+
+        gui::popup::process(PopupNames::resolveAnimationCollision, ImGuiWindowFlags_AlwaysAutoResize);
     }
     ImGui::End();
 }
@@ -381,10 +509,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             "gltf-buffers-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
             assetExtended.asset.buffers,
-            ImGui::ColumnInfo { "Name", [](std::size_t row, fastgltf::Buffer &buffer) {
-                ImGui::WithID(row, [&]() {
+            ImGui::ColumnInfo { "Name", [&](std::size_t bufferIndex, fastgltf::Buffer &buffer) {
+                ImGui::WithID(bufferIndex, [&]() {
                     ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
-                    ImGui::InputTextWithHint("##name", "<empty>", &buffer.name);
+                    ImGui::InputTextWithHint("##name", gui::getDisplayName(assetExtended.asset.buffers, bufferIndex), &buffer.name);
                 });
             }, ImGuiTableColumnFlags_WidthStretch },
             ImGui::ColumnInfo { "Size", [](const fastgltf::Buffer &buffer) {
@@ -426,10 +554,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             "gltf-buffer-views-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
             assetExtended.asset.bufferViews,
-            ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::BufferView &bufferView) {
-                ImGui::WithID(rowIndex, [&]() {
+            ImGui::ColumnInfo { "Name", [&](std::size_t bufferViewIndex, fastgltf::BufferView &bufferView) {
+                ImGui::WithID(bufferViewIndex, [&] {
                     ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
-                    ImGui::InputTextWithHint("##name", "<empty>", &bufferView.name);
+                    ImGui::InputTextWithHint("##name", gui::getDisplayName(assetExtended.asset.bufferViews, bufferViewIndex), &bufferView.name);
                 });
             }, ImGuiTableColumnFlags_WidthStretch },
             ImGui::ColumnInfo { "Buffer", [](std::size_t i, const fastgltf::BufferView &bufferView) {
@@ -470,21 +598,79 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             "gltf-images-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
             assetExtended.asset.images,
-            ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Image &image) {
-                ImGui::WithID(rowIndex, [&]() {
+            ImGui::ColumnInfo { "Name", [&](std::size_t imageIndex, fastgltf::Image &image) {
+                ImGui::WithID(imageIndex, [&] {
                     ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
-                    ImGui::InputTextWithHint("##name", "<empty>", &image.name);
+                    ImGui::InputTextWithHint("##name", gui::getDisplayName(assetExtended.asset.images, imageIndex), &image.name);
                 });
             }, ImGuiTableColumnFlags_WidthStretch },
             ImGui::ColumnInfo { "MIME", [](const fastgltf::Image &image) {
-                visit([](const auto &source) {
+                visit([]<typename T>(const T &source) {
                     if constexpr (requires { { source.mimeType } -> std::convertible_to<fastgltf::MimeType>; }) {
-                        ImGui::TextUnformatted(to_string(source.mimeType));
+                        if (source.mimeType != fastgltf::MimeType::None) {
+                            ImGui::TextUnformatted(to_string(source.mimeType));
+                            return;
+                        }
                     }
-                    else {
-                        ImGui::TextDisabled("-");
+
+                    if constexpr (std::same_as<T, fastgltf::sources::URI>) {
+                        if (source.uri.isLocalPath()) {
+                            const std::filesystem::path extension = source.uri.fspath().extension();
+                            fastgltf::MimeType inferredMimeType = fastgltf::MimeType::None;
+                            if (extension == ".jpg" || extension == ".jpeg") {
+                                inferredMimeType = fastgltf::MimeType::JPEG;
+                            }
+                            else if (extension == ".png") {
+                                inferredMimeType = fastgltf::MimeType::PNG;
+                            }
+                            else if (extension == ".ktx2") {
+                                inferredMimeType = fastgltf::MimeType::KTX2;
+                            }
+                            else if (extension == ".dds") {
+                                inferredMimeType = fastgltf::MimeType::DDS;
+                            }
+                            else if (extension == ".webp") {
+                                inferredMimeType = fastgltf::MimeType::WEBP;
+                            }
+
+                            if (inferredMimeType != fastgltf::MimeType::None) {
+                                ImGui::TextUnformatted(to_string(inferredMimeType));
+                                ImGui::SameLine();
+                                ImGui::HelperMarker("(inferred)", "MIME type is not presented in the glTF asset and is inferred from the file extension.");
+                                return;
+                            }
+                        }
                     }
+
+                    ImGui::TextUnformatted("-");
                 }, image.data);
+            }, ImGuiTableColumnFlags_WidthFixed },
+            ImGui::ColumnInfo { "Referenced Textures", [&](std::size_t i, const auto&) {
+                ImGui::WithID(i, [&] {
+                    bool multi = false;
+                    for (const auto &[textureIndex, texture] : assetExtended.asset.textures | ranges::views::enumerate) {
+                        for (const auto &index : { texture.imageIndex, texture.basisuImageIndex, texture.ddsImageIndex, texture.webpImageIndex }) {
+                            if (index == i) {
+                                if (multi) {
+                                    ImGui::SameLine();
+                                }
+                                if (ImGui::TextLink(tempStringBuffer.write(textureIndex).view().c_str())) {
+                                    gui::makeWindowVisible(ImGui::FindWindowByName("Textures"));
+                                }
+                                multi = true;
+                            }
+                        }
+                    }
+                });
+            }, ImGuiTableColumnFlags_WidthFixed },
+            ImGui::ColumnInfo { "Loaded", [&](std::size_t i, const auto&) {
+                // TODO: do not disable this checkbox and load/unload the image on click.
+                ImGui::WithDisabled([&] {
+                    ImGui::WithID(i, [&] {
+                        bool checked = assetExtended.isImageLoaded(i);
+                        ImGui::Checkbox("", &checked);
+                    });
+                });
             }, ImGuiTableColumnFlags_WidthFixed },
             ImGui::ColumnInfo { "Location", [&](std::size_t i, const fastgltf::Image &image) {
                 visit(fastgltf::visitor {
@@ -512,10 +698,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             "gltf-samplers-table",
             ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_RowBg | ImGuiTableFlags_Hideable | ImGuiTableFlags_ScrollY,
             assetExtended.asset.samplers,
-            ImGui::ColumnInfo { "Name", [](std::size_t rowIndex, fastgltf::Sampler &sampler) {
-                ImGui::WithID(rowIndex, [&]() {
+            ImGui::ColumnInfo { "Name", [&](std::size_t samplerIndex, fastgltf::Sampler &sampler) {
+                ImGui::WithID(samplerIndex, [&] {
                     ImGui::SetNextItemWidth(-std::numeric_limits<float>::min());
-                    ImGui::InputTextWithHint("##name", "<empty>", &sampler.name);
+                    ImGui::InputTextWithHint("##name", gui::getDisplayName(assetExtended.asset.samplers, samplerIndex), &sampler.name);
                 });
             }, ImGuiTableColumnFlags_WidthStretch },
             ImGui::ColumnInfo { "Filter (Mag/Min)", [](const fastgltf::Sampler &sampler) {
@@ -533,11 +719,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
 
     if (ImGui::Begin("Textures")) {
         const float windowVisibleX2 = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
-        for (std::size_t i : ranges::views::upto(assetExtended.asset.textures.size())) {
+        for (std::size_t textureIndex : ranges::views::upto(assetExtended.asset.textures.size())) {
             bool buttonClicked;
-            const std::string_view label = gui::getDisplayName(assetExtended.asset.textures, i);
-            ImGui::WithID(i, [&]() {
-                buttonClicked = ImGui::ImageButtonWithText("", assetExtended.getTextureID(i), label, { 64, 64 });
+            const std::string_view label = gui::getDisplayName(assetExtended.asset.textures, textureIndex);
+            ImGui::WithID(textureIndex, [&] {
+                constexpr ImVec2 buttonSize { 64, 64 };
+                ImVec2 imageDisplaySize = assetExtended.getTextureSize(textureIndex);
+                imageDisplaySize *= buttonSize / std::max(imageDisplaySize.x, imageDisplaySize.y);
+                buttonClicked = ImGui::ImageButtonWithText("", assetExtended.getTextureID(textureIndex), label, buttonSize, imageDisplaySize);
             });
             if (ImGui::BeginItemTooltip()) {
                 ImGui::TextUnformatted(label);
@@ -545,15 +734,85 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             }
 
             if (buttonClicked) {
-                gui::popup::waitList.emplace_back(std::in_place_type<gui::popup::TextureViewer>, assetExtended, i);
+                gui::popup::open(static_cast<std::string>(PopupNames::textureViewer), [&assetExtended, textureIndex, selectedImageIndex = getPreferredImageIndex(assetExtended.asset.textures[textureIndex])] {
+                    const ImVec2 textureSize = assetExtended.getTextureSize(textureIndex);
+                    const float displayRatio = std::max(textureSize.x, textureSize.y) / 256.f;
+                    ImGui::hoverableImageCheckerboardBackground(assetExtended.getTextureID(textureIndex), textureSize / displayRatio, displayRatio);
+
+                    ImGui::SameLine();
+
+                    ImGui::WithGroup([&] {
+                        fastgltf::Texture &texture = assetExtended.asset.textures[textureIndex];
+                        ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.textures, textureIndex), &texture.name);
+                        if (ImGui::BeginCombo("Image Index", tempStringBuffer.write(selectedImageIndex).view().c_str())) {
+                            if (texture.imageIndex) {
+                                // TODO: do not disable this and load the image when the selection is changed.
+                                ImGui::WithDisabled([&] {
+                                    ImGui::Selectable(tempStringBuffer.write(*texture.imageIndex).view().c_str(), *texture.imageIndex == selectedImageIndex);
+                                }, !assetExtended.isImageLoaded(*texture.imageIndex));
+                            }
+                            if (texture.basisuImageIndex) {
+                                ImGui::WithDisabled([&] {
+                                    ImGui::Selectable(tempStringBuffer.write("{} (Basis Universal)", *texture.basisuImageIndex).view().c_str(), *texture.basisuImageIndex == selectedImageIndex);
+                                }, !assetExtended.isImageLoaded(*texture.basisuImageIndex));
+                            }
+                            if (texture.ddsImageIndex) {
+                                ImGui::WithDisabled([&] {
+                                    ImGui::Selectable(tempStringBuffer.write("{} (DDS)", *texture.ddsImageIndex).view().c_str(), *texture.ddsImageIndex == selectedImageIndex);
+                                }/*, assetExtended.isImageLoaded(*texture.ddsImageIndex)*/ /* TODO: currently application does not handle this format at all */);
+                            }
+                            if (texture.webpImageIndex) {
+                                ImGui::WithDisabled([&] {
+                                    if (ImGui::Selectable(tempStringBuffer.write("{} (WEBP)", *texture.webpImageIndex).view().c_str(), *texture.webpImageIndex == selectedImageIndex)) {
+                                        // TODO
+                                    }
+                                }/*, assetExtended.isImageLoaded(*texture.webpImageIndex)*/ /* TODO: currently application does not handle this format at all */);
+                            }
+
+                            ImGui::EndCombo();
+                        }
+                        if (texture.samplerIndex) {
+                            ImGui::LabelText("Sampler Index", "%zu", texture.samplerIndex.value_or(-1));
+                        }
+                        else {
+                            ImGui::WithLabel("Sampler Index", [] {
+                                ImGui::TextDisabled("-");
+                                ImGui::SameLine();
+                                ImGui::HelperMarker("(?)", "Default sampler will be used.");
+                            });
+                        }
+
+                        ImGui::SeparatorText("Texture used by:");
+
+                        ImGui::Table<false>(
+                            "",
+                            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable,
+                            assetExtended.textureUsages[textureIndex],
+                            ImGui::ColumnInfo { "Material", decomposer([&](std::size_t materialIndex, auto) {
+                                ImGui::WithID(materialIndex, [&] {
+                                    if (ImGui::TextLink(gui::getDisplayName(assetExtended.asset.materials, materialIndex).c_str())) {
+                                        gui::makeWindowVisible(ImGui::FindWindowByName("Material Editor"));
+                                        assetExtended.imGuiSelectedMaterialIndex.emplace(materialIndex);
+                                        ImGui::CloseCurrentPopup();
+                                    }
+                                });
+                            }), ImGuiTableColumnFlags_WidthFixed },
+                            ImGui::ColumnInfo { "Type", decomposer([](auto, Flags<gltf::TextureUsage> type) {
+                                ImGui::TextUnformatted(tempStringBuffer.write("{::s}", type).view());
+                            }), ImGuiTableColumnFlags_WidthStretch });
+                    });
+
+                });
             }
 
             const float lastButtonX2 = ImGui::GetItemRectMax().x;
             const float nextButtonX2 = lastButtonX2 + ImGui::GetStyle().ItemSpacing.x + 64;
-            if (i + 1 < assetExtended.asset.textures.size() && nextButtonX2 < windowVisibleX2) {
+            if (textureIndex + 1 < assetExtended.asset.textures.size() && nextButtonX2 < windowVisibleX2) {
                 ImGui::SameLine();
             }
         }
+
+        gui::popup::process(PopupNames::textureViewer);
     }
     ImGui::End();
 
@@ -588,14 +847,21 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
 
             ImGui::EndCombo();
         }
+        if (const auto &i = assetExtended.imGuiSelectedMaterialIndex) {
+            ImGui::SameLine();
+            if (ImGui::Button("Rename...")) {
+                gui::popup::open(static_cast<std::string>(PopupNames::renameMaterial), [hintText = std::string { gui::getDisplayName(assetExtended.asset.materials, *i) }, &target = assetExtended.asset.materials[*i].name] {
+                    ImGui::InputTextWithHint("Name", hintText, &target);
+                });
+            }
+            gui::popup::process(PopupNames::renameMaterial);
+        }
 
         if (const auto &selectedMaterialIndex = assetExtended.imGuiSelectedMaterialIndex) {
             fastgltf::Material &material = assetExtended.asset.materials[*selectedMaterialIndex];
             const auto notifyPropertyChanged = [&](task::MaterialPropertyChanged::Property property) {
                 tasks.emplace(std::in_place_type<task::MaterialPropertyChanged>, *selectedMaterialIndex, property);
             };
-
-            ImGui::InputTextWithHint("Name", "<empty>", &material.name);
 
             if (ImGui::Checkbox("Double sided", &material.doubleSided)) {
                 notifyPropertyChanged(task::MaterialPropertyChanged::DoubleSided);
@@ -684,7 +950,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                 ImGui::WithID("basecolor", [&]() {
                     auto &baseColorTextureInfo = material.pbrData.baseColorTexture;
                     if (baseColorTextureInfo) {
-                        ImGui::hoverableImageCheckerboardBackground(assetExtended.getTextureID(baseColorTextureInfo->textureIndex), { 128.f, 128.f });
+                        ImGui::WithGroup([&] {
+                            const ImVec2 textureSize = assetExtended.getTextureSize(baseColorTextureInfo->textureIndex);
+                            const float displayRatio = std::max(textureSize.x, textureSize.y) / 128.f;
+                            ImGui::hoverableImageCheckerboardBackground(assetExtended.getTextureID(baseColorTextureInfo->textureIndex), textureSize / displayRatio, displayRatio);
+                        });
                         ImGui::SameLine();
                     }
                     ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
@@ -707,14 +977,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                     });
                 });
 
-                ImGui::WithDisabled([&]() {
+                ImGui::WithDisabled([&] {
                     ImGui::SeparatorText("Metallic/Roughness");
-                    ImGui::WithID("metallicroughness", [&]() {
+                    ImGui::WithID("metallicroughness", [&] {
                         auto &metallicRoughnessTextureInfo = material.pbrData.metallicRoughnessTexture;
                         if (metallicRoughnessTextureInfo) {
-                            ImGui::hoverableImage(assetExtended.getMetallicTextureID(*selectedMaterialIndex), { 128.f, 128.f });
-                            ImGui::SameLine();
-                            ImGui::hoverableImage(assetExtended.getRoughnessTextureID(*selectedMaterialIndex), { 128.f, 128.f });
+                            ImGui::WithGroup([&] {
+                                const ImVec2 textureSize = assetExtended.getTextureSize(metallicRoughnessTextureInfo->textureIndex);
+                                const float displayRatio = std::max(textureSize.x, textureSize.y) / 128.f;
+                                ImGui::hoverableImage(assetExtended.getMetallicTextureID(*selectedMaterialIndex), textureSize / displayRatio, displayRatio);
+                                ImGui::hoverableImage(assetExtended.getRoughnessTextureID(*selectedMaterialIndex), textureSize / displayRatio, displayRatio);
+                            });
                             ImGui::SameLine();
                         }
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
@@ -744,8 +1017,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
 
             ImGui::WithID("normal", [&]() {
                 if (auto &textureInfo = material.normalTexture; textureInfo && ImGui::CollapsingHeader("Normal Mapping")) {
-                    ImGui::WithDisabled([&]() {
-                        ImGui::hoverableImage(assetExtended.getNormalTextureID(*selectedMaterialIndex), { 128.f, 128.f });
+                    ImGui::WithDisabled([&] {
+                        ImGui::WithGroup([&] {
+                            const ImVec2 textureSize = assetExtended.getTextureSize(textureInfo->textureIndex);
+                            const float displayRatio = std::max(textureSize.x, textureSize.y) / 128.f;
+                            ImGui::hoverableImage(assetExtended.getNormalTextureID(*selectedMaterialIndex), textureSize / displayRatio, displayRatio);
+                        });
                         ImGui::SameLine();
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                             ImGui::WithGroup([&]() {
@@ -769,8 +1046,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
 
             ImGui::WithID("occlusion", [&]() {
                 if (auto &textureInfo = material.occlusionTexture; textureInfo && ImGui::CollapsingHeader("Occlusion Mapping")) {
-                    ImGui::WithDisabled([&]() {
-                        ImGui::hoverableImage(assetExtended.getOcclusionTextureID(*selectedMaterialIndex), { 128.f, 128.f });
+                    ImGui::WithDisabled([&] {
+                        ImGui::WithGroup([&] {
+                            const ImVec2 textureSize = assetExtended.getTextureSize(textureInfo->textureIndex);
+                            const float displayRatio = std::max(textureSize.x, textureSize.y) / 128.f;
+                            ImGui::hoverableImage(assetExtended.getOcclusionTextureID(*selectedMaterialIndex), textureSize / displayRatio, displayRatio);
+                        });
                         ImGui::SameLine();
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
                             ImGui::WithGroup([&]() {
@@ -797,7 +1078,11 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                     ImGui::WithDisabled([&]() {
                         auto &textureInfo = material.emissiveTexture;
                         if (textureInfo) {
-                            ImGui::hoverableImage(assetExtended.getEmissiveTextureID(*selectedMaterialIndex), { 128.f, 128.f });
+                            ImGui::WithGroup([&] {
+                                const ImVec2 textureSize = assetExtended.getTextureSize(textureInfo->textureIndex);
+                                const float displayRatio = std::max(textureSize.x, textureSize.y) / 128.f;
+                                ImGui::hoverableImage(assetExtended.getEmissiveTextureID(*selectedMaterialIndex), textureSize / displayRatio, displayRatio);
+                            });
                             ImGui::SameLine();
                         }
                         ImGui::WithItemWidth(ImGui::CalcItemWidth() - ImGui::GetCursorPosX() + 2.f * ImGui::GetStyle().ItemInnerSpacing.x, [&]() {
@@ -889,7 +1174,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
             ImGui::EndCombo();
         }
 
-        ImGui::InputTextWithHint("Name", "<empty>", &assetExtended.getScene().name);
+        ImGui::SameLine();
+        if (ImGui::Button("Rename...")) {
+            gui::popup::open(static_cast<std::string>(PopupNames::renameScene), [hintText = std::string { gui::getDisplayName(assetExtended.asset.scenes, assetExtended.sceneIndex) }, &target = assetExtended.asset.scenes[assetExtended.sceneIndex].name] {
+                ImGui::InputTextWithHint("Name", hintText, &target);
+            });
+        }
+
+        gui::popup::process(PopupNames::renameScene);
 
         static bool mergeSingleChildNodes = true;
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
@@ -935,7 +1227,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
                         const fastgltf::Node &node = asset.nodes[nodeIndex];
 
                         if (std::string_view name = node.name; name.empty()) {
-                            tempStringBuffer.append("<Unnamed node {}>", nodeIndex);
+                            tempStringBuffer.append("Unnamed Node {}", nodeIndex);
                         }
                         else {
                             tempStringBuffer.append(name);
@@ -1149,14 +1441,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
 }
 
 void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExtended &assetExtended) {
+    if (assetExtended.selectedNodes.empty()) {
+        ImGui::windowWithCenteredText("Node Inspector", "No node selected.");
+        nodeInspectorCalled = true;
+        return;
+    }
+
     if (ImGui::Begin("Node Inspector")) {
-        if (assetExtended.selectedNodes.empty()) {
-            ImGui::TextUnformatted("No nodes are selected."sv);
-        }
-        else if (assetExtended.selectedNodes.size() == 1) {
+        if (assetExtended.selectedNodes.size() == 1) {
             const std::size_t selectedNodeIndex = *assetExtended.selectedNodes.begin();
             fastgltf::Node &node = assetExtended.asset.nodes[selectedNodeIndex];
-            ImGui::InputTextWithHint("Name", "<empty>", &node.name);
+            ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.nodes, selectedNodeIndex), &node.name);
 
             ImGui::SeparatorText("Transform");
 
@@ -1252,7 +1547,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
             if (ImGui::BeginTabBar("node-tab-bar")) {
                 if (node.meshIndex && ImGui::BeginTabItem("Mesh")) {
                     fastgltf::Mesh &mesh = assetExtended.asset.meshes[*node.meshIndex];
-                    ImGui::InputTextWithHint("Name", "<empty>", &mesh.name);
+                    ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.meshes, *node.meshIndex), &mesh.name);
 
                     for (auto &&[primitiveIndex, primitive]: mesh.primitives | ranges::views::enumerate) {
                         if (ImGui::CollapsingHeader(tempStringBuffer.write("Primitive {}", primitiveIndex).view().c_str())) {
@@ -1265,79 +1560,81 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                                 previewValue = gui::getDisplayName(assetExtended.asset.materials, *primitive.materialIndex).c_str();
                             }
 
-                            if (ImGui::BeginCombo("Material", previewValue)) {
-                                if (ImGui::Selectable(primitive.materialIndex ? "[Unassign material...]" : "-", !primitive.materialIndex) && primitive.materialIndex) {
-                                    // Unassign material.
-                                    primitive.materialIndex.reset();
-                                    primitiveMaterialChanged = true;
-                                }
-
-                                for (const auto &[materialIndex, material] : assetExtended.asset.materials | ranges::views::enumerate) {
-                                    ImGui::WithID(materialIndex, [&] {
-                                        ImGui::WithDisabled([&] {
-                                            if (ImGui::Selectable(gui::getDisplayName(assetExtended.asset.materials, materialIndex).c_str(), primitive.materialIndex == materialIndex) &&
-                                                primitive.materialIndex != materialIndex) {
-                                                primitive.materialIndex.emplace(materialIndex);
-                                                primitiveMaterialChanged = true;
-                                            }
-                                        }, !gltf::isMaterialCompatible(material, primitive));
-                                    });
-                                }
-
-                                if (ImGui::Selectable("[Assign new material...]")) {
-                                    const std::size_t newMaterialIndex = assetExtended.asset.materials.size();
-                                    assetExtended.asset.materials.push_back({});
-                                    tasks.emplace(std::in_place_type<task::MaterialAdded>);
-
-                                    primitive.materialIndex.emplace(newMaterialIndex);
-                                    primitiveMaterialChanged = true;
-                                }
-
-                                ImGui::EndCombo();
-                            }
-
-                            const auto &originalMaterialIndex = assetExtended.originalMaterialIndexByPrimitive.at(&primitive);
-                            if (to_optional(primitive.materialIndex) != originalMaterialIndex) {
-                                ImGui::SameLine();
-                                if (ImGui::SmallButton("Reset")) {
-                                    if (originalMaterialIndex) {
-                                        primitive.materialIndex.emplace(*originalMaterialIndex);
-                                    }
-                                    else {
+                            ImGui::WithID(primitiveIndex, [&] {
+                                if (ImGui::BeginCombo("Material", previewValue)) {
+                                    if (ImGui::Selectable(primitive.materialIndex ? "[Unassign material...]" : "-", !primitive.materialIndex) && primitive.materialIndex) {
+                                        // Unassign material.
                                         primitive.materialIndex.reset();
+                                        primitiveMaterialChanged = true;
                                     }
-                                    primitiveMaterialChanged = true;
-                                }
-                            }
 
-                            if (primitiveMaterialChanged) {
-                                if (!primitive.mappings.empty()) {
-                                    // If primitive is affected by KHR_materials_variants, current active material variant
-                                    // index needed to be recalculated.
-                                    assetExtended.imGuiSelectedMaterialVariantsIndex = gltf::getActiveMaterialVariantIndex(
-                                        assetExtended.asset,
-                                        [&](const fastgltf::Primitive &primitive) {
-                                            return assetExtended.originalMaterialIndexByPrimitive.at(&primitive);
+                                    for (const auto &[materialIndex, material] : assetExtended.asset.materials | ranges::views::enumerate) {
+                                        ImGui::WithID(materialIndex, [&] {
+                                            ImGui::WithDisabled([&] {
+                                                if (ImGui::Selectable(gui::getDisplayName(assetExtended.asset.materials, materialIndex).c_str(), primitive.materialIndex == materialIndex) &&
+                                                    primitive.materialIndex != materialIndex) {
+                                                    primitive.materialIndex.emplace(materialIndex);
+                                                    primitiveMaterialChanged = true;
+                                                }
+                                            }, !gltf::isMaterialCompatible(material, primitive));
                                         });
+                                    }
+
+                                    if (ImGui::Selectable("[Assign new material...]")) {
+                                        const std::size_t newMaterialIndex = assetExtended.asset.materials.size();
+                                        assetExtended.asset.materials.push_back({});
+                                        tasks.emplace(std::in_place_type<task::MaterialAdded>);
+
+                                        primitive.materialIndex.emplace(newMaterialIndex);
+                                        primitiveMaterialChanged = true;
+                                    }
+
+                                    ImGui::EndCombo();
                                 }
 
-                                // Assign assetExtended.imGuiSelectedMaterialIndex as primitive material index (maybe nullopt).
-                                if ((assetExtended.imGuiSelectedMaterialIndex = primitive.materialIndex)) {
-                                    // If assigned material is not nullopt, open the material editor.
-                                    // It will show the assigned material.
-                                    gui::makeWindowVisible(ImGui::FindWindowByName("Material Editor"));
+                                const auto &originalMaterialIndex = assetExtended.originalMaterialIndexByPrimitive.at(&primitive);
+                                if (to_optional(primitive.materialIndex) != originalMaterialIndex) {
+                                    ImGui::SameLine();
+                                    if (ImGui::SmallButton("Reset")) {
+                                        if (originalMaterialIndex) {
+                                            primitive.materialIndex.emplace(*originalMaterialIndex);
+                                        }
+                                        else {
+                                            primitive.materialIndex.reset();
+                                        }
+                                        primitiveMaterialChanged = true;
+                                    }
                                 }
 
-                                tasks.emplace(std::in_place_type<task::PrimitiveMaterialChanged>, &primitive);
-                            }
+                                if (primitiveMaterialChanged) {
+                                    if (!primitive.mappings.empty()) {
+                                        // If primitive is affected by KHR_materials_variants, current active material variant
+                                        // index needed to be recalculated.
+                                        assetExtended.imGuiSelectedMaterialVariantsIndex = gltf::getActiveMaterialVariantIndex(
+                                            assetExtended.asset,
+                                            [&](const fastgltf::Primitive &primitive) {
+                                                return assetExtended.originalMaterialIndexByPrimitive.at(&primitive);
+                                            });
+                                    }
 
-                            attributeTable(
-                                assetExtended.asset,
-                                ranges::views::concat(
-                                    to_range(primitive.indicesAccessor.transform([](std::size_t accessorIndex) {
-                                        return fastgltf::Attribute { "Index", accessorIndex };
-                                    })),
-                                    primitive.attributes));
+                                    // Assign assetExtended.imGuiSelectedMaterialIndex as primitive material index (maybe nullopt).
+                                    if ((assetExtended.imGuiSelectedMaterialIndex = primitive.materialIndex)) {
+                                        // If assigned material is not nullopt, open the material editor.
+                                        // It will show the assigned material.
+                                        gui::makeWindowVisible(ImGui::FindWindowByName("Material Editor"));
+                                    }
+
+                                    tasks.emplace(std::in_place_type<task::PrimitiveMaterialChanged>, &primitive);
+                                }
+
+                                attributeTable(
+                                    assetExtended.asset,
+                                    ranges::views::concat(
+                                        to_range(primitive.indicesAccessor.transform([](std::size_t accessorIndex) {
+                                            return fastgltf::Attribute { "Index", accessorIndex };
+                                        })),
+                                        primitive.attributes));
+                            });
                         }
                     }
 
@@ -1349,7 +1646,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                 }
                 if (node.cameraIndex && ImGui::BeginTabItem("Camera")) {
                     auto &[camera, name] = assetExtended.asset.cameras[*node.cameraIndex];
-                    ImGui::InputTextWithHint("Name", "<empty>", &name);
+                    ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.cameras, *node.cameraIndex), &name);
 
                     ImGui::WithDisabled([&]() {
                         if (int type = camera.index(); ImGui::Combo("Type", &type, "Perspective\0Orthographic\0")) {
@@ -1411,7 +1708,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
                 }
                 if (node.lightIndex && ImGui::BeginTabItem("Light")) {
                     fastgltf::Light &light = assetExtended.asset.lights[*node.lightIndex];
-                    ImGui::InputTextWithHint("Name", "<empty>", &light.name);
+                    ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.lights, *node.lightIndex), &light.name);
                     ImGui::EndTabItem();
                 }
 
@@ -1456,9 +1753,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
 ) {
     if (ImGui::Begin("IBL")) {
         if (ImGui::CollapsingHeader("Equirectangular map")) {
-            const float eqmapAspectRatio = static_cast<float>(info.eqmap.dimension.y) / info.eqmap.dimension.x;
-            const ImVec2 eqmapTextureSize = ImVec2 { 1.f, eqmapAspectRatio } * ImGui::GetContentRegionAvail().x;
-            ImGui::hoverableImage(eqmapTextureRef, eqmapTextureSize);
+            const float displayRatio = static_cast<float>(info.eqmap.dimension.x) / ImGui::GetContentRegionAvail().x;
+            ImGui::hoverableImage(eqmapTextureRef, ImVec2 { static_cast<float>(info.eqmap.dimension.x), static_cast<float>(info.eqmap.dimension.y) } / displayRatio, displayRatio);
 
             ImGui::WithLabel("File"sv, [&]() {
                 ImGui::TextLinkOpenURL(PATH_C_STR(info.eqmap.path.filename()), PATH_C_STR(info.eqmap.path));

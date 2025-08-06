@@ -34,9 +34,9 @@ namespace vk_gltf_viewer {
         AppState() noexcept;
         ~AppState();
 
-        [[nodiscard]] const std::list<std::filesystem::path>& getRecentGltfPaths() const { return recentGltfPaths; }
+        [[nodiscard]] std::list<std::filesystem::path>& getRecentGltfPaths() { return recentGltfPaths; }
         void pushRecentGltfPath(const std::filesystem::path &path);
-        [[nodiscard]] const std::list<std::filesystem::path>& getRecentSkyboxPaths() const { return recentSkyboxPaths; }
+        [[nodiscard]] std::list<std::filesystem::path>& getRecentSkyboxPaths() { return recentSkyboxPaths; }
         void pushRecentSkyboxPath(const std::filesystem::path &path);
 
     private:

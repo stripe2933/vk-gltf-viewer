@@ -14,11 +14,37 @@ export import vk_gltf_viewer.Renderer;
 
 namespace vk_gltf_viewer::control {
     export class ImGuiTaskCollector {
+        struct PopupNames {
+            static constexpr cpp_util::cstring_view fileNotExists = "File Not Exists";
+            static constexpr cpp_util::cstring_view resolveAnimationCollision = "Resolve Animation Collision";
+            static constexpr cpp_util::cstring_view textureViewer = "Texture Viewer";
+            static constexpr cpp_util::cstring_view renameMaterial = "Rename Material";
+            static constexpr cpp_util::cstring_view renameScene = "Rename Scene";
+        };
+
     public:
+        /**
+         * @brief Names of ImGui popups that are capturing the glTF asset by reference.
+         *
+         * Before the glTF asset is destroyed, you must close these popups, by calling <tt>gui::popup::close()</tt>.
+         * @example
+         * @code{.cpp}
+         * for (auto name : ImGuiTaskCollector::assetPopupNames) {
+         *     gui::popup::close(name);
+         * }
+         * @endcode
+         */
+        static constexpr auto assetPopupNames = {
+            PopupNames::resolveAnimationCollision,
+            PopupNames::textureViewer,
+            PopupNames::renameMaterial,
+            PopupNames::renameScene
+        };
+
         ImGuiTaskCollector(std::queue<Task> &tasks, const ImRect &oldPassthruRect);
         ~ImGuiTaskCollector();
 
-        void menuBar(const std::list<std::filesystem::path> &recentGltfs, const std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
+        void menuBar(std::list<std::filesystem::path> &recentGltfs, std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
         void animations(gltf::AssetExtended &assetExtended);
         void assetInspector(gltf::AssetExtended &assetExtended);
         void materialEditor(gltf::AssetExtended &assetExtended);
