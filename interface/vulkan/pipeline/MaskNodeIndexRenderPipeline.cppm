@@ -5,11 +5,11 @@ module;
 export module vk_gltf_viewer.vulkan.pipeline.MaskNodeIndexRenderPipeline;
 
 import std;
-export import fastgltf;
 import vku;
 
 import vk_gltf_viewer.shader_selector.mask_node_index_frag;
 import vk_gltf_viewer.shader_selector.mask_node_index_vert;
+export import vk_gltf_viewer.vulkan.pipeline.PrepassPipelineConfig;
 export import vk_gltf_viewer.vulkan.pipeline_layout.PrimitiveNoShading;
 export import vk_gltf_viewer.vulkan.render_pass.MousePicking;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
@@ -17,34 +17,21 @@ import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class MaskNodeIndexRenderPipeline final : public vk::raii::Pipeline {
     public:
-        struct Config {
-            std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
-            fastgltf::ComponentType positionComponentType;
-            bool positionNormalized;
-            std::optional<std::pair<fastgltf::ComponentType, bool>> baseColorTexcoordComponentTypeAndNormalized;
-            std::optional<fastgltf::ComponentType> color0AlphaComponentType;
-            std::uint32_t positionMorphTargetCount;
-            std::uint32_t skinAttributeCount;
-            bool useTextureTransform;
-
-            [[nodiscard]] bool operator==(const Config&) const = default;
-        };
-
         MaskNodeIndexRenderPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const pl::PrimitiveNoShading &pipelineLayout LIFETIMEBOUND,
             const rp::MousePicking &renderPass LIFETIMEBOUND,
-            const Config &config
+            const PrepassPipelineConfig<true> &config
         );
 
     private:
         struct VertexShaderSpecialization;
         struct FragmentShaderSpecialization;
 
-        [[nodiscard]] static std::array<int, 2> getVertexShaderVariants(const Config &config) noexcept;
-        [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const Config &config) noexcept;
-        [[nodiscard]] static std::array<int, 2> getFragmentShaderVariants(const Config &config) noexcept;
-        [[nodiscard]] static FragmentShaderSpecialization getFragmentShaderSpecialization(const Config &config) noexcept;
+        [[nodiscard]] static std::array<int, 2> getVertexShaderVariants(const PrepassPipelineConfig<true> &config) noexcept;
+        [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const PrepassPipelineConfig<true> &config) noexcept;
+        [[nodiscard]] static std::array<int, 2> getFragmentShaderVariants(const PrepassPipelineConfig<true> &config) noexcept;
+        [[nodiscard]] static FragmentShaderSpecialization getFragmentShaderSpecialization(const PrepassPipelineConfig<true> &config) noexcept;
     };
 }
 
@@ -73,7 +60,7 @@ vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::MaskNodeIndexRend
     const vk::raii::Device &device,
     const pl::PrimitiveNoShading &pipelineLayout,
     const rp::MousePicking &renderPass,
-    const Config &config
+    const PrepassPipelineConfig<true> &config
 ) : Pipeline { [&] -> Pipeline {
         return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
             createPipelineStages(
@@ -117,14 +104,14 @@ vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::MaskNodeIndexRend
         };
     }() } { }
 
-std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::getVertexShaderVariants(const Config &config) noexcept {
+std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::getVertexShaderVariants(const PrepassPipelineConfig<true> &config) noexcept {
     return {
         config.baseColorTexcoordComponentTypeAndNormalized.has_value(),
         config.color0AlphaComponentType.has_value(),
     };
 }
 
-vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::VertexShaderSpecialization vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::getVertexShaderSpecialization(const Config &config) noexcept {
+vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::VertexShaderSpecialization vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::getVertexShaderSpecialization(const PrepassPipelineConfig<true> &config) noexcept {
     VertexShaderSpecialization result {
         .positionComponentType = getGLComponentType(config.positionComponentType),
         .positionNormalized = config.positionNormalized,
@@ -141,13 +128,13 @@ vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::VertexShaderSpeci
     return result;
 }
 
-std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::getFragmentShaderVariants(const Config &config) noexcept {
+std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::getFragmentShaderVariants(const PrepassPipelineConfig<true> &config) noexcept {
     return {
         config.baseColorTexcoordComponentTypeAndNormalized.has_value(),
         config.color0AlphaComponentType.has_value(),
     };
 }
 
-vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::FragmentShaderSpecialization vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::getFragmentShaderSpecialization(const Config &config) noexcept {
+vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::FragmentShaderSpecialization vk_gltf_viewer::vulkan::pipeline::MaskNodeIndexRenderPipeline::getFragmentShaderSpecialization(const PrepassPipelineConfig<true> &config) noexcept {
     return { config.useTextureTransform };
 }

@@ -36,7 +36,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             fastgltf::AlphaMode alphaMode;
             bool usePerFragmentEmissiveStencilExport;
 
-            [[nodiscard]] bool operator==(const Config&) const noexcept = default;
+            [[nodiscard]] std::strong_ordering operator<=>(const Config&) const noexcept = default;
         };
 
         PrimitiveRenderPipeline(
