@@ -1,7 +1,12 @@
+module;
+
+#include <boost/container/static_vector.hpp>
+
 export module vk_gltf_viewer.Renderer;
 
 import std;
 export import glm;
+export import imgui.internal;
 export import ImGuizmo;
 
 export import vk_gltf_viewer.control.Camera;
@@ -65,9 +70,11 @@ namespace vk_gltf_viewer {
 
         control::Camera camera {
             glm::vec3 { 0.f, 0.f, 5.f }, normalize(glm::vec3 { 0.f, 0.f, -1.f }), glm::vec3 { 0.f, 1.f, 0.f },
-            glm::radians(45.f), 1.f /* will be determined by passthru rect dimension */, 1e-2f, 10.f,
+            glm::radians(45.f), 1.f /* will be determined by viewport extent */, 1e-2f, 10.f,
             5.f,
         };
+
+        std::uint32_t viewCount = 1;
 
         /**
          * @brief Boolean flag indicating whether the renderer should automatically adjust near and far planes based on
@@ -114,6 +121,8 @@ namespace vk_gltf_viewer {
         [[nodiscard]] bool canSelectSkyboxBackground() const noexcept;
         void setSkybox(std::monostate) noexcept;
 
+        [[nodiscard]] boost::container::static_vector<ImRect, 4> getViewportRect(const ImRect &passthruRect) const;
+
     private:
         bool _canSelectSkyboxBackground;
     };
@@ -130,4 +139,29 @@ bool vk_gltf_viewer::Renderer::canSelectSkyboxBackground() const noexcept {
 void vk_gltf_viewer::Renderer::setSkybox(std::monostate) noexcept {
     solidBackground.reset();
     _canSelectSkyboxBackground = true;
+}
+
+boost::container::static_vector<ImRect, 4> vk_gltf_viewer::Renderer::getViewportRect(const ImRect &passthruRect) const {
+    switch (viewCount) {
+        case 1:
+            return { passthruRect };
+        case 2: {
+            const float midX = std::midpoint(passthruRect.Min.x, passthruRect.Max.x);
+            return {
+                { passthruRect.Min, { midX, passthruRect.Max.y } },
+                { { midX, passthruRect.Min.y }, passthruRect.Max },
+            };
+        }
+        case 4: {
+            const ImVec2 mid = passthruRect.GetCenter();
+            return {
+                { passthruRect.Min, mid },
+                { { mid.x, passthruRect.Min.y }, { passthruRect.Max.x, mid.y } },
+                { { passthruRect.Min.x, mid.y }, { mid.x, passthruRect.Max.y } },
+                { mid, passthruRect.Max },
+            };
+        }
+        default:
+            std::unreachable();
+    }
 }

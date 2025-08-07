@@ -158,6 +158,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
         interface/imgui/UserData.cppm
         interface/MainApp.cppm
+        interface/math/bit.cppm
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
         interface/math/Plane.cppm
@@ -173,8 +174,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/shader_selector/unlit_primitive_vert.cppm
         interface/vulkan/attachment_group/MousePicking.cppm
         interface/vulkan/attachment_group/JumpFloodSeed.cppm
-        interface/vulkan/attachment_group/SceneOpaque.cppm
-        interface/vulkan/attachment_group/SceneWeightedBlended.cppm
+        interface/vulkan/attachment_group/Scene.cppm
         interface/vulkan/attachment_group/ImGui.cppm
         interface/vulkan/buffer/mod.cppm
         interface/vulkan/buffer/CubeIndices.cppm
@@ -184,7 +184,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/descriptor_set_layout/Asset.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
         interface/vulkan/descriptor_set_layout/MousePicking.cppm
-        interface/vulkan/descriptor_set_layout/Skybox.cppm
         interface/vulkan/Frame.cppm
         interface/vulkan/FrameDeferredTask.cppm
         interface/vulkan/gltf/AssetExtended.cppm

@@ -28,6 +28,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             const Gpu &gpu LIFETIMEBOUND,
             const rp::BloomApply &renderPass LIFETIMEBOUND
         );
+
+        void recreatePipeline(const Gpu &gpu, const rp::BloomApply &renderPass);
+
+    private:
+        [[nodiscard]] vk::raii::Pipeline createPipeline(const Gpu &gpu, const rp::BloomApply &renderPass) const;
     };
 }
 
@@ -52,7 +57,20 @@ vk_gltf_viewer::vulkan::pipeline::BloomApplyRenderPipeline::BloomApplyRenderPipe
             0, sizeof(PushConstant),
         }),
     } },
-    pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
+    pipeline { createPipeline(gpu, renderPass) } { }
+
+void vk_gltf_viewer::vulkan::BloomApplyRenderPipeline::recreatePipeline(
+    const Gpu &gpu,
+    const rp::BloomApply &renderPass
+) {
+    pipeline = createPipeline(gpu, renderPass);
+}
+
+vk::raii::Pipeline vk_gltf_viewer::vulkan::BloomApplyRenderPipeline::createPipeline(
+    const Gpu &gpu,
+    const rp::BloomApply &renderPass
+) const {
+    return { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
         createPipelineStages(
             gpu.device,
             vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
@@ -73,4 +91,5 @@ vk_gltf_viewer::vulkan::pipeline::BloomApplyRenderPipeline::BloomApplyRenderPipe
         }))
         .setRenderPass(*renderPass)
         .setSubpass(0),
-    } { }
+    };
+}

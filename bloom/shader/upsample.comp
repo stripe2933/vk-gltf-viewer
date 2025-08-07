@@ -5,8 +5,8 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #endif
 
-layout (set = 0, binding = 0) uniform sampler2D inputSampler;
-layout (set = 0, binding = 1) uniform writeonly image2D outputImages[];
+layout (set = 0, binding = 0) uniform sampler2DArray inputSampler;
+layout (set = 0, binding = 1) uniform writeonly image2DArray outputImages[];
 
 layout (local_size_x = 16, local_size_y = 16) in;
 
@@ -17,15 +17,16 @@ layout (push_constant, std430) uniform PushConstants {
 
 void main(){
 #if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
-    ivec2 outputImageSize = max(imageSize(outputImages[0]) >> pc.dstMipLevel, ivec2(1));
+    ivec2 outputImageSize = imageSize(outputImages[0]).xy;
+    outputImageSize = max(outputImageSize >> pc.dstMipLevel, ivec2(1));
 #else
-    ivec2 outputImageSize = imageSize(outputImages[pc.dstMipLevel]);
+    ivec2 outputImageSize = imageSize(outputImages[pc.dstMipLevel]).xy;
 #endif
     if (gl_GlobalInvocationID.x >= outputImageSize.x || gl_GlobalInvocationID.y >= outputImageSize.y) {
         return;
     }
 
-    vec2 texcoord = (gl_GlobalInvocationID.xy + 0.5) / vec2(outputImageSize);
+    vec3 texcoord = vec3((gl_GlobalInvocationID.xy + 0.5) / vec2(outputImageSize), gl_GlobalInvocationID.z);
 
     // Take 9 samples around current texel:
     // a - b - c
@@ -48,10 +49,10 @@ void main(){
     //  1   | 1 2 1 |
     // -- * | 2 4 2 |
     // 16   | 1 2 1 |
-    vec4 upsample = texelFetch(inputSampler, ivec2(gl_GlobalInvocationID.xy), pc.dstMipLevel) + (e * 4.0 + (b + d + f + h) * 2.0 + (a + c + g + i)) / 16.0;
+    vec4 upsample = texelFetch(inputSampler, ivec3(gl_GlobalInvocationID), pc.dstMipLevel) + (e * 4.0 + (b + d + f + h) * 2.0 + (a + c + g + i)) / 16.0;
 #if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
-    imageStoreLodAMD(outputImages[0], ivec2(gl_GlobalInvocationID.xy), pc.dstMipLevel, upsample);
+    imageStoreLodAMD(outputImages[0], ivec3(gl_GlobalInvocationID), pc.dstMipLevel, upsample);
 #else
-    imageStore(outputImages[pc.dstMipLevel], ivec2(gl_GlobalInvocationID.xy), upsample);
+    imageStore(outputImages[pc.dstMipLevel], ivec3(gl_GlobalInvocationID), upsample);
 #endif
 }

@@ -37,7 +37,8 @@ namespace bloom {
             vk::CommandBuffer computeCommandBuffer,
             vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
             const vk::Extent2D &imageExtent,
-            std::uint32_t imageMipLevels
+            std::uint32_t imageMipLevels,
+            std::uint32_t imageArrayLayers
         ) const;
 
     private:
@@ -107,7 +108,7 @@ bloom::BloomComputePipeline::BloomComputePipeline(
         *pipelineLayout,
     } } { }
 
-void bloom::BloomComputePipeline::compute(vk::CommandBuffer computeCommandBuffer, vku::DescriptorSet<DescriptorSetLayout> descriptorSet, const vk::Extent2D &imageExtent, std::uint32_t imageMipLevels) const {
+void bloom::BloomComputePipeline::compute(vk::CommandBuffer computeCommandBuffer, vku::DescriptorSet<DescriptorSetLayout> descriptorSet, const vk::Extent2D &imageExtent, std::uint32_t imageMipLevels, std::uint32_t imageArrayLayers) const {
     constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) noexcept {
         return (num / denom) + (num % denom != 0);
     };
@@ -126,7 +127,7 @@ void bloom::BloomComputePipeline::compute(vk::CommandBuffer computeCommandBuffer
         computeCommandBuffer.dispatch(
             divCeil(mipExtent.width, 16U),
             divCeil(mipExtent.height, 16U),
-            1,
+            imageArrayLayers,
             *d);
 
         computeCommandBuffer.pipelineBarrier(
@@ -147,7 +148,7 @@ void bloom::BloomComputePipeline::compute(vk::CommandBuffer computeCommandBuffer
         computeCommandBuffer.dispatch(
             divCeil(mipExtent.width, 16U),
             divCeil(mipExtent.height, 16U),
-            1,
+            imageArrayLayers,
             *d);
 
         if (srcMipLevel != 1) {

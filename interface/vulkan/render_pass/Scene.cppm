@@ -4,15 +4,14 @@ module;
 
 export module vk_gltf_viewer.vulkan.render_pass.Scene;
 
-#ifdef _MSC_VER
 import std;
-#endif
 
+import vk_gltf_viewer.math.bit;
 export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::rp {
     export struct Scene final : vk::raii::RenderPass {
-        explicit Scene(const Gpu &gpu LIFETIMEBOUND);
+        Scene(const Gpu &gpu LIFETIMEBOUND, std::uint32_t viewCount);
     };
 }
 
@@ -20,7 +19,7 @@ namespace vk_gltf_viewer::vulkan::rp {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
+vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu, std::uint32_t viewCount)
     : RenderPass { gpu.device, vk::RenderPassCreateInfo2 {
         {},
         vku::unsafeProxy({
@@ -109,7 +108,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 vk::SubpassDescription2 {
                     {},
                     vk::PipelineBindPoint::eGraphics,
-                    0,
+                    math::bit::ones(viewCount),
                     {},
                     vku::unsafeProxy(vk::AttachmentReference2 { 0, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
                     vku::unsafeProxy(vk::AttachmentReference2 { 1, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
@@ -132,7 +131,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 vk::SubpassDescription2 {
                     {},
                     vk::PipelineBindPoint::eGraphics,
-                    0,
+                    math::bit::ones(viewCount),
                     {},
                     vku::unsafeProxy({
                         vk::AttachmentReference2 { 4, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor },
@@ -160,7 +159,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
             vk::SubpassDescription2 {
                 {},
                 vk::PipelineBindPoint::eGraphics,
-                0,
+                math::bit::ones(viewCount),
                 vku::unsafeProxy({
                     vk::AttachmentReference2 { 5, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
                     vk::AttachmentReference2 { 7, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
@@ -171,7 +170,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
             vk::SubpassDescription2 {
                 {},
                 vk::PipelineBindPoint::eGraphics,
-                0,
+                math::bit::ones(viewCount),
                 vku::unsafeProxy({
                     vk::AttachmentReference2 { 1, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
                 }),
