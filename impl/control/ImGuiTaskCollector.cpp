@@ -1793,6 +1793,21 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imageBasedLighting(
 void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &renderer) {
     if (ImGui::Begin("Renderer Setting")){
         if (ImGui::CollapsingHeader("Camera")) {
+            assert(renderer.viewCount < 10 && "'0' + digit trick will not work!");
+            char displayText[2] = { static_cast<char>('0' + renderer.viewCount), 0 };
+            if (ImGui::BeginCombo("Viewport Count", displayText)) {
+                for (std::uint32_t viewCount : { 1, 2, 4 }) {
+                    displayText[0] = '0' + viewCount;
+                    const bool selected = renderer.viewCount == viewCount;
+                    if (ImGui::Selectable(displayText, selected) && !selected) {
+                        renderer.viewCount = viewCount;
+                        tasks.emplace(std::in_place_type<task::ViewCountChanged>);
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
+
             ImGui::DragFloat3("Position", value_ptr(renderer.camera.position), 0.1f);
             if (ImGui::DragFloat3("Direction", value_ptr(renderer.camera.direction), 0.1f, -1.f, 1.f)) {
                 renderer.camera.direction = normalize(renderer.camera.direction);

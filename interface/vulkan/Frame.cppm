@@ -17,8 +17,7 @@ export import vku;
 
 import vk_gltf_viewer.vulkan.ag.JumpFloodSeed;
 import vk_gltf_viewer.vulkan.ag.MousePicking;
-import vk_gltf_viewer.vulkan.ag.SceneOpaque;
-import vk_gltf_viewer.vulkan.ag.SceneWeightedBlended;
+import vk_gltf_viewer.vulkan.ag.Scene;
 import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
 export import vk_gltf_viewer.Renderer;
 export import vk_gltf_viewer.vulkan.SharedData;
@@ -153,12 +152,12 @@ namespace vk_gltf_viewer::vulkan {
 
         void recordCommandsAndSubmit(Swapchain &swapchain) const;
 
-        void setPassthruExtent(const vk::Extent2D &extent);
+        void setViewportExtent(const vk::Extent2D &extent);
 
         void updateAsset();
 
     private:
-        struct PassthruResources {
+        struct Viewport {
             struct JumpFloodResources {
                 vku::AllocatedImage image;
                 vk::raii::ImageView imageView;
@@ -179,8 +178,7 @@ namespace vk_gltf_viewer::vulkan {
             ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 
             // Scene rendering.
-            ag::SceneOpaque sceneOpaqueAttachmentGroup;
-            ag::SceneWeightedBlended sceneWeightedBlendedAttachmentGroup;
+            ag::Scene sceneAttachmentGroup;
 
             // Bloom.
             vku::AllocatedImage bloomImage;
@@ -191,7 +189,7 @@ namespace vk_gltf_viewer::vulkan {
             vk::raii::Framebuffer sceneFramebuffer;
             vk::raii::Framebuffer bloomApplyFramebuffer;
 
-            PassthruResources(const SharedData &sharedData LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
+            Viewport(const SharedData &sharedData LIFETIMEBOUND, const vk::Extent2D &extent, std::uint32_t viewCount, vk::CommandBuffer graphicsCommandBuffer);
         };
 
         struct RenderingNodes {
@@ -212,7 +210,7 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         // Buffer, image and image views.
-        std::optional<PassthruResources> passthruResources;
+        std::optional<Viewport> viewport;
 
         // Descriptor/command pools.
         vk::raii::DescriptorPool descriptorPool;
@@ -249,7 +247,7 @@ namespace vk_gltf_viewer::vulkan {
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
-        std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
+        std::variant<vku::DescriptorSet<SkyboxRenderPipeline::DescriptorSetLayout>, glm::vec3> background;
 
         [[nodiscard]] vk::raii::DescriptorPool createDescriptorPool() const;
 

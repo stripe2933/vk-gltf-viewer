@@ -13,14 +13,20 @@ export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.render_pass.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export struct WeightedBlendedCompositionRenderPipeline {
+    export class WeightedBlendedCompositionRenderPipeline {
+    public:
         using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment, vk::DescriptorType::eInputAttachment>;
 
         DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        WeightedBlendedCompositionRenderPipeline(const Gpu &gpu LIFETIMEBOUND, const rp::Scene &sceneRenderPass LIFETIMEBOUND);
+        WeightedBlendedCompositionRenderPipeline(const Gpu &gpu LIFETIMEBOUND, const rp::Scene &renderPass LIFETIMEBOUND);
+
+        void recreatePipeline(const Gpu &gpu, const rp::Scene &renderPass);
+
+    private:
+        [[nodiscard]] vk::raii::Pipeline createPipeline(const Gpu &gpu, const rp::Scene &renderPass) const;
     };
 }
 
@@ -30,7 +36,7 @@ module :private;
 
 vk_gltf_viewer::vulkan::pipeline::WeightedBlendedCompositionRenderPipeline::WeightedBlendedCompositionRenderPipeline(
     const Gpu &gpu,
-    const rp::Scene &sceneRenderPass
+    const rp::Scene &renderPass
 ) : descriptorSetLayout {
         gpu.device,
         vk::DescriptorSetLayoutCreateInfo {
@@ -44,7 +50,20 @@ vk_gltf_viewer::vulkan::pipeline::WeightedBlendedCompositionRenderPipeline::Weig
         {},
         *descriptorSetLayout
     } },
-    pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
+    pipeline { createPipeline(gpu, renderPass) } { }
+
+void vk_gltf_viewer::vulkan::WeightedBlendedCompositionRenderPipeline::recreatePipeline(
+    const Gpu &gpu,
+    const rp::Scene &renderPass
+) {
+    pipeline = createPipeline(gpu, renderPass);
+}
+
+vk::raii::Pipeline vk_gltf_viewer::vulkan::WeightedBlendedCompositionRenderPipeline::createPipeline(
+    const Gpu &gpu,
+    const rp::Scene &renderPass
+) const {
+    return { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
         createPipelineStages(
             gpu.device,
             vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
@@ -74,6 +93,7 @@ vk_gltf_viewer::vulkan::pipeline::WeightedBlendedCompositionRenderPipeline::Weig
             }),
             { 1.f, 1.f, 1.f, 1.f },
         }))
-        .setRenderPass(*sceneRenderPass)
+        .setRenderPass(*renderPass)
         .setSubpass(2)
-    } { }
+    };
+}

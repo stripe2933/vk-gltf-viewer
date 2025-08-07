@@ -5,8 +5,8 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #endif
 
-layout (set = 0, binding = 0) uniform sampler2D inputSampler;
-layout (set = 0, binding = 1) uniform writeonly image2D outputImages[];
+layout (set = 0, binding = 0) uniform sampler2DArray inputSampler;
+layout (set = 0, binding = 1) uniform writeonly image2DArray outputImages[];
 
 layout (local_size_x = 16, local_size_y = 16) in;
 
@@ -17,15 +17,16 @@ layout (push_constant, std430) uniform PushConstants {
 
 void main(){
 #if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
-    ivec2 outputImageSize = max(imageSize(outputImages[0]) >> pc.dstMipLevel, ivec2(1));
+    ivec2 outputImageSize = imageSize(outputImages[0]).xy;
+    outputImageSize = max(outputImageSize >> pc.dstMipLevel, ivec2(1));
 #else
-    ivec2 outputImageSize = imageSize(outputImages[pc.dstMipLevel]);
+    ivec2 outputImageSize = imageSize(outputImages[pc.dstMipLevel]).xy;
 #endif
     if (gl_GlobalInvocationID.x >= outputImageSize.x || gl_GlobalInvocationID.y >= outputImageSize.y) {
         return;
     }
 
-    vec2 texcoord = (gl_GlobalInvocationID.xy + 0.5) / vec2(outputImageSize);
+    vec3 texcoord = vec3((gl_GlobalInvocationID.xy + 0.5) / vec2(outputImageSize), gl_GlobalInvocationID.z);
 
     // Take 13 samples around current texel:
     // a - b - c
@@ -66,8 +67,8 @@ void main(){
     // 0.125*5 + 0.03125*4 + 0.0625*4 = 1
     vec4 downsample = e * 0.125 + (a + c + g + i) * 0.03125 + (b + d + f + h) * 0.0625 + (j + k + l + m) * 0.125;
 #if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
-    imageStoreLodAMD(outputImages[0], ivec2(gl_GlobalInvocationID.xy), pc.dstMipLevel, downsample);
+    imageStoreLodAMD(outputImages[0], ivec3(gl_GlobalInvocationID), pc.dstMipLevel, downsample);
 #else
-    imageStore(outputImages[pc.dstMipLevel], ivec2(gl_GlobalInvocationID.xy), downsample);
+    imageStore(outputImages[pc.dstMipLevel], ivec3(gl_GlobalInvocationID), downsample);
 #endif
 }

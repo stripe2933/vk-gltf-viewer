@@ -54,7 +54,6 @@ namespace vk_gltf_viewer::vulkan {
         dsl::Asset assetDescriptorSetLayout;
         dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout;
         dsl::MousePicking mousePickingDescriptorSetLayout;
-        dsl::Skybox skyboxDescriptorSetLayout;
 
         // Render passes.
         rp::Scene sceneRenderPass;
@@ -96,7 +95,7 @@ namespace vk_gltf_viewer::vulkan {
 
         // Descriptor sets.
         vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
-        vku::DescriptorSet<dsl::Skybox> skyboxDescriptorSet;
+        vku::DescriptorSet<SkyboxRenderPipeline::DescriptorSetLayout> skyboxDescriptorSet;
 
         // --------------------
         // glTF assets.
@@ -122,6 +121,8 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         void handleSwapchainResize(const vk::Extent2D &newSwapchainExtent, std::span<const vk::Image> newSwapchainImages);
+
+        void setViewCount(std::uint32_t viewCount);
     };
 }
 
@@ -153,24 +154,23 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
     , assetDescriptorSetLayout { gpu }
     , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
     , mousePickingDescriptorSetLayout { gpu.device }
-    , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
-    , sceneRenderPass { gpu }
-    , bloomApplyRenderPass { gpu }
+    , sceneRenderPass { gpu, 1 /* TODO */ }
+    , bloomApplyRenderPass { gpu, 1 /* TODO */ }
     , mousePickingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, mousePickingDescriptorSetLayout) }
     , primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
     , primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout }
     , jumpFloodComputePipeline { gpu.device }
-    , outlineRenderPipeline { gpu.device }
-    , skyboxRenderPipeline { gpu.device, skyboxDescriptorSetLayout, sceneRenderPass, cubeIndices }
+    , outlineRenderPipeline { gpu.device, 1 /* TODO */ }
+    , skyboxRenderPipeline { gpu.device, sceneRenderPass, cubeIndices }
     , weightedBlendedCompositionRenderPipeline { gpu, sceneRenderPass }
     , inverseToneMappingRenderPipeline { gpu, sceneRenderPass }
     , bloomComputePipeline { gpu.device, { .useAMDShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod } }
     , bloomApplyRenderPipeline { gpu, bloomApplyRenderPass }
     , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
-    , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
+    , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxRenderPipeline.descriptorSetLayout).getDescriptorPoolCreateInfo() }
     , fallbackTexture { gpu }{
     std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet) = vku::allocateDescriptorSets(
-        *descriptorPool, std::tie(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout));
+        *descriptorPool, std::tie(imageBasedLightingDescriptorSetLayout, skyboxRenderPipeline.descriptorSetLayout));
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::getPrepassPipelines(
@@ -322,4 +322,20 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderPipeline
 
 void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages) {
     imGuiAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
+}
+
+void vk_gltf_viewer::vulkan::SharedData::setViewCount(std::uint32_t viewCount) {
+    sceneRenderPass = { gpu, viewCount };
+    skyboxRenderPipeline.recreatePipeline(gpu.device, sceneRenderPass);
+    weightedBlendedCompositionRenderPipeline.recreatePipeline(gpu, sceneRenderPass);
+    inverseToneMappingRenderPipeline.recreatePipeline(gpu, sceneRenderPass);
+    prepassPipelines.clear();
+    maskPrepassPipelines.clear();
+    primitiveRenderPipelines.clear();
+    unlitPrimitiveRenderPipelines.clear();
+
+    bloomApplyRenderPass = { gpu, viewCount };
+    bloomApplyRenderPipeline.recreatePipeline(gpu, bloomApplyRenderPass);
+
+    outlineRenderPipeline.recreatePipeline(gpu.device, viewCount);
 }

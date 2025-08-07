@@ -8,11 +8,13 @@ import std;
 export import glm;
 export import vku;
 
+import vk_gltf_viewer.math.bit;
 import vk_gltf_viewer.shader.outline_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export struct OutlineRenderPipeline {
+    export class OutlineRenderPipeline {
+    public:
         struct PushConstant {
             glm::vec4 outlineColor;
             float outlineThickness;
@@ -24,7 +26,12 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        explicit OutlineRenderPipeline(const vk::raii::Device &device LIFETIMEBOUND);
+        OutlineRenderPipeline(const vk::raii::Device &device LIFETIMEBOUND, std::uint32_t viewCount);
+
+        void recreatePipeline(const vk::raii::Device &device, std::uint32_t viewCount);
+
+    private:
+        [[nodiscard]] vk::raii::Pipeline createPipeline(const vk::raii::Device &device, std::uint32_t viewCount) const;
     };
 }
 
@@ -33,7 +40,8 @@ module :private;
 #endif
 
 vk_gltf_viewer::vulkan::pipeline::OutlineRenderPipeline::OutlineRenderPipeline(
-    const vk::raii::Device &device
+    const vk::raii::Device &device,
+    std::uint32_t viewCount
 ) : descriptorSetLayout {
         device,
         vk::DescriptorSetLayoutCreateInfo {
@@ -49,7 +57,20 @@ vk_gltf_viewer::vulkan::pipeline::OutlineRenderPipeline::OutlineRenderPipeline(
             0, sizeof(PushConstant),
         }),
     } },
-    pipeline { device, nullptr, vk::StructureChain {
+    pipeline { createPipeline(device, viewCount) } { }
+
+void vk_gltf_viewer::vulkan::OutlineRenderPipeline::recreatePipeline(
+    const vk::raii::Device &device,
+    std::uint32_t viewCount
+) {
+    pipeline = createPipeline(device, viewCount);
+}
+
+vk::raii::Pipeline vk_gltf_viewer::vulkan::OutlineRenderPipeline::createPipeline(
+    const vk::raii::Device &device,
+    std::uint32_t viewCount
+) const {
+    return { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             createPipelineStages(
                 device,
@@ -77,7 +98,8 @@ vk_gltf_viewer::vulkan::pipeline::OutlineRenderPipeline::OutlineRenderPipeline(
             { 1.f, 1.f, 1.f, 1.f },
         })),
         vk::PipelineRenderingCreateInfo {
-            {},
+            math::bit::ones(viewCount),
             vku::unsafeProxy(vk::Format::eB8G8R8A8Srgb),
         },
-    }.get() } { }
+    }.get() };
+}

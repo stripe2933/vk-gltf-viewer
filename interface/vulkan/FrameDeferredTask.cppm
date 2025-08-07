@@ -26,7 +26,7 @@ namespace vk_gltf_viewer::vulkan {
          */
         void resetAssetRelated();
 
-        void setPassthruExtent(const vk::Extent2D &extent);
+        void setViewportExtent(const vk::Extent2D &extent);
         void updateNodeWorldTransform(std::size_t nodeIndex);
         void updateNodeWorldTransformHierarchical(std::size_t nodeIndex);
         void updateNodeWorldTransformScene(std::size_t sceneIndex);
@@ -42,7 +42,7 @@ namespace vk_gltf_viewer::vulkan {
             std::size_t sceneIndex;
         };
 
-        std::optional<vk::Extent2D> passthruExtent;
+        std::optional<vk::Extent2D> viewportExtent;
         std::variant<std::monostate, UpdateNodeWorldTransform, UpdateNodeWorldTransformScene> nodeWorldTransformUpdateTask;
         std::unordered_map<std::size_t /* node index */, std::pair<std::size_t /* weight start index */, std::size_t /* weight count */>> nodeTargetWeightUpdateTask;
     };
@@ -56,9 +56,9 @@ module :private;
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 void vk_gltf_viewer::vulkan::FrameDeferredTask::executeAndReset(Frame &frame) {
-    if (passthruExtent) {
-        frame.setPassthruExtent(*passthruExtent);
-        passthruExtent.reset();
+    if (viewportExtent) {
+        frame.setViewportExtent(*viewportExtent);
+        viewportExtent.reset();
     }
 
     visit(multilambda {
@@ -116,8 +116,8 @@ void vk_gltf_viewer::vulkan::FrameDeferredTask::resetAssetRelated() {
     nodeTargetWeightUpdateTask.clear();
 }
 
-void vk_gltf_viewer::vulkan::FrameDeferredTask::setPassthruExtent(const vk::Extent2D &extent) {
-    passthruExtent.emplace(extent);
+void vk_gltf_viewer::vulkan::FrameDeferredTask::setViewportExtent(const vk::Extent2D &extent) {
+    viewportExtent.emplace(extent);
 }
 
 void vk_gltf_viewer::vulkan::FrameDeferredTask::updateNodeWorldTransform(std::size_t nodeIndex) {
