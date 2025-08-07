@@ -204,6 +204,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/MultiNodeMousePickingRenderPipeline.cppm
         interface/vulkan/pipeline/NodeIndexRenderPipeline.cppm
         interface/vulkan/pipeline/OutlineRenderPipeline.cppm
+        interface/vulkan/pipeline/PrepassPipelineConfig.cppm
         interface/vulkan/pipeline/PrimitiveRenderPipeline.cppm
         interface/vulkan/pipeline/SkyboxRenderPipeline.cppm
         interface/vulkan/pipeline/UnlitPrimitiveRenderPipeline.cppm

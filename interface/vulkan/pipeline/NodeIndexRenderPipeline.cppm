@@ -10,6 +10,7 @@ import vku;
 
 import vk_gltf_viewer.shader.node_index_frag;
 import vk_gltf_viewer.shader.node_index_vert;
+export import vk_gltf_viewer.vulkan.pipeline.PrepassPipelineConfig;
 export import vk_gltf_viewer.vulkan.pipeline_layout.PrimitiveNoShading;
 export import vk_gltf_viewer.vulkan.render_pass.MousePicking;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
@@ -17,27 +18,17 @@ import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class NodeIndexRenderPipeline final : public vk::raii::Pipeline {
     public:
-        struct Config {
-            std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
-            fastgltf::ComponentType positionComponentType;
-            bool positionNormalized;
-            std::uint32_t positionMorphTargetCount;
-            std::uint32_t skinAttributeCount;
-
-            [[nodiscard]] bool operator==(const Config&) const = default;
-        };
-
         NodeIndexRenderPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const pl::PrimitiveNoShading &pipelineLayout LIFETIMEBOUND,
             const rp::MousePicking &renderPass LIFETIMEBOUND,
-            const Config &config
+            const PrepassPipelineConfig<false> &config
         );
 
     private:
         struct VertexShaderSpecialization;
 
-        [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const Config &config) noexcept;
+        [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const PrepassPipelineConfig<false> &config) noexcept;
     };
 }
 
@@ -59,7 +50,7 @@ vk_gltf_viewer::vulkan::pipeline::NodeIndexRenderPipeline::NodeIndexRenderPipeli
     const vk::raii::Device &device,
     const pl::PrimitiveNoShading &pipelineLayout,
     const rp::MousePicking &renderPass,
-    const Config &config
+    const PrepassPipelineConfig<false> &config
 ) : Pipeline { [&] -> Pipeline {
         return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
             createPipelineStages(
@@ -96,7 +87,7 @@ vk_gltf_viewer::vulkan::pipeline::NodeIndexRenderPipeline::NodeIndexRenderPipeli
         };
     }() } { }
 
-[[nodiscard]] vk_gltf_viewer::vulkan::pipeline::NodeIndexRenderPipeline::VertexShaderSpecialization vk_gltf_viewer::vulkan::pipeline::NodeIndexRenderPipeline::getVertexShaderSpecialization(const Config &config) noexcept {
+[[nodiscard]] vk_gltf_viewer::vulkan::pipeline::NodeIndexRenderPipeline::VertexShaderSpecialization vk_gltf_viewer::vulkan::pipeline::NodeIndexRenderPipeline::getVertexShaderSpecialization(const PrepassPipelineConfig<false> &config) noexcept {
     return {
         .positionComponentType = getGLComponentType(config.positionComponentType),
         .positionNormalized = config.positionNormalized,

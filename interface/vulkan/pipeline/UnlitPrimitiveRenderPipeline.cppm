@@ -30,7 +30,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             bool useTextureTransform;
             fastgltf::AlphaMode alphaMode;
 
-            [[nodiscard]] bool operator==(const Config&) const noexcept = default;
+            [[nodiscard]] std::strong_ordering operator<=>(const Config&) const noexcept = default;
         };
 
         UnlitPrimitiveRenderPipeline(

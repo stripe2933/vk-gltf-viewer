@@ -5,38 +5,28 @@ module;
 export module vk_gltf_viewer.vulkan.pipeline.MultiNodeMousePickingRenderPipeline;
 
 import std;
-export import fastgltf;
 import vku;
 
 import vk_gltf_viewer.shader.multi_node_mouse_picking_frag;
 import vk_gltf_viewer.shader.node_index_vert;
 export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.pipeline.PrepassPipelineConfig;
 export import vk_gltf_viewer.vulkan.pipeline_layout.MultiNodeMousePicking;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class MultiNodeMousePickingRenderPipeline final : public vk::raii::Pipeline {
     public:
-        struct Config {
-            std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
-            fastgltf::ComponentType positionComponentType;
-            bool positionNormalized;
-            std::uint32_t positionMorphTargetCount;
-            std::uint32_t skinAttributeCount;
-
-            [[nodiscard]] bool operator==(const Config&) const = default;
-        };
-
         MultiNodeMousePickingRenderPipeline(
             const Gpu &gpu LIFETIMEBOUND,
             const pl::MultiNodeMousePicking &pipelineLayout LIFETIMEBOUND,
-            const Config &config
+            const PrepassPipelineConfig<false> &config
         );
 
     private:
         struct VertexShaderSpecialization;
 
-        [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const Config &config) noexcept;
+        [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const PrepassPipelineConfig<false> &config) noexcept;
     };
 }
 
@@ -57,7 +47,7 @@ struct vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline::Ve
 vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline::MultiNodeMousePickingRenderPipeline(
     const Gpu &gpu,
     const pl::MultiNodeMousePicking &pipelineLayout,
-    const Config &config
+    const PrepassPipelineConfig<false> &config
 ) : Pipeline { [&] -> Pipeline {
         return { gpu.device, nullptr, vk::StructureChain {
             vku::getDefaultGraphicsPipelineCreateInfo(
@@ -102,7 +92,7 @@ vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline::MultiNode
         }.get() };
     }() } { }
 
-vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline::VertexShaderSpecialization vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline::getVertexShaderSpecialization(const Config &config) noexcept {
+vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline::VertexShaderSpecialization vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline::getVertexShaderSpecialization(const PrepassPipelineConfig<false> &config) noexcept {
     return {
         .positionComponentType = getGLComponentType(config.positionComponentType),
         .positionNormalized = config.positionNormalized,

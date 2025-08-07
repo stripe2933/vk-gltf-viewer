@@ -5,44 +5,31 @@ module;
 export module vk_gltf_viewer.vulkan.pipeline.MaskJumpFloodSeedRenderPipeline;
 
 import std;
-export import fastgltf;
 import vku;
 
 import vk_gltf_viewer.shader_selector.mask_jump_flood_seed_frag;
 import vk_gltf_viewer.shader_selector.mask_jump_flood_seed_vert;
+export import vk_gltf_viewer.vulkan.pipeline.PrepassPipelineConfig;
 export import vk_gltf_viewer.vulkan.pipeline_layout.PrimitiveNoShading;
 import vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class MaskJumpFloodSeedRenderPipeline final : public vk::raii::Pipeline {
     public:
-        struct Config {
-            std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
-            fastgltf::ComponentType positionComponentType;
-            bool positionNormalized;
-            std::optional<std::pair<fastgltf::ComponentType, bool>> baseColorTexcoordComponentTypeAndNormalized;
-            std::optional<fastgltf::ComponentType> color0AlphaComponentType;
-            std::uint32_t positionMorphTargetCount;
-            std::uint32_t skinAttributeCount;
-            bool useTextureTransform;
-
-            [[nodiscard]] bool operator==(const Config&) const = default;
-        };
-
         MaskJumpFloodSeedRenderPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const pl::PrimitiveNoShading &pipelineLayout LIFETIMEBOUND,
-            const Config &config
+            const PrepassPipelineConfig<true> &config
         );
 
     private:
         struct VertexShaderSpecialization;
         struct FragmentShaderSpecialization;
 
-        [[nodiscard]] static std::array<int, 2> getVertexShaderVariants(const Config &config) noexcept;
-        [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const Config &config) noexcept;
-        [[nodiscard]] static std::array<int, 2> getFragmentShaderVariants(const Config &config) noexcept;
-        [[nodiscard]] static FragmentShaderSpecialization getFragmentShaderSpecialization(const Config &config) noexcept;
+        [[nodiscard]] static std::array<int, 2> getVertexShaderVariants(const PrepassPipelineConfig<true> &config) noexcept;
+        [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const PrepassPipelineConfig<true> &config) noexcept;
+        [[nodiscard]] static std::array<int, 2> getFragmentShaderVariants(const PrepassPipelineConfig<true> &config) noexcept;
+        [[nodiscard]] static FragmentShaderSpecialization getFragmentShaderSpecialization(const PrepassPipelineConfig<true> &config) noexcept;
     };
 }
 
@@ -70,7 +57,7 @@ struct vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::Fragme
 vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::MaskJumpFloodSeedRenderPipeline::MaskJumpFloodSeedRenderPipeline(
     const vk::raii::Device &device,
     const pl::PrimitiveNoShading &pipelineLayout,
-    const Config &config
+    const PrepassPipelineConfig<true> &config
 ) : Pipeline { [&] -> Pipeline {
         return { device, nullptr, vk::StructureChain {
             vku::getDefaultGraphicsPipelineCreateInfo(
@@ -118,14 +105,14 @@ vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::MaskJumpFlood
         }.get() };
     }() } { }
 
-std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::getVertexShaderVariants(const Config &config) noexcept {
+std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::getVertexShaderVariants(const PrepassPipelineConfig<true> &config) noexcept {
     return {
         config.baseColorTexcoordComponentTypeAndNormalized.has_value(),
         config.color0AlphaComponentType.has_value(),
     };
 }
 
-vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::VertexShaderSpecialization vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::getVertexShaderSpecialization(const Config &config) noexcept {
+vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::VertexShaderSpecialization vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::getVertexShaderSpecialization(const PrepassPipelineConfig<true> &config) noexcept {
     VertexShaderSpecialization result {
         .positionComponentType = getGLComponentType(config.positionComponentType),
         .positionNormalized = config.positionNormalized,
@@ -142,13 +129,13 @@ vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::VertexShaderS
     return result;
 }
 
-std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::getFragmentShaderVariants(const Config &config) noexcept {
+std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::getFragmentShaderVariants(const PrepassPipelineConfig<true> &config) noexcept {
     return {
         config.baseColorTexcoordComponentTypeAndNormalized.has_value(),
         config.color0AlphaComponentType.has_value(),
     };
 }
 
-vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::FragmentShaderSpecialization vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::getFragmentShaderSpecialization(const Config &config) noexcept {
+vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::FragmentShaderSpecialization vk_gltf_viewer::vulkan::pipeline::MaskJumpFloodSeedRenderPipeline::getFragmentShaderSpecialization(const PrepassPipelineConfig<true> &config) noexcept {
     return { config.useTextureTransform };
 }
