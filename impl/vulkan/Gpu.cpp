@@ -240,14 +240,8 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     // using Metal compute command encoder, therefore it breaks the render pass and has performance defect. Since the
     // application already has CPU index conversion path, disable it.
     supportUint8Index = false;
-
-    // MoltenVK with Metal Argument Buffer does not work with variable descriptor count.
-    // Tracked issue: https://github.com/KhronosGroup/MoltenVK/issues/2343
-    // TODO: Remove this workaround when the issue is fixed.
-    supportVariableDescriptorCount = false;
 #else
     supportUint8Index = indexTypeUint8Features.indexTypeUint8;
-    supportVariableDescriptorCount = vulkan12Features.descriptorBindingVariableDescriptorCount;
 #endif
 
     if (availableExtensionNames.contains(vk::EXTExtendedDynamicStateExtensionName)) {
@@ -285,7 +279,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
             .setBufferDeviceAddress(true)
             .setDescriptorIndexing(true)
             .setDescriptorBindingSampledImageUpdateAfterBind(true)
-            .setDescriptorBindingVariableDescriptorCount(supportVariableDescriptorCount)
+            .setDescriptorBindingVariableDescriptorCount(true)
             .setRuntimeDescriptorArray(true)
             .setSeparateDepthStencilLayouts(true)
             .setStorageBuffer8BitAccess(true)

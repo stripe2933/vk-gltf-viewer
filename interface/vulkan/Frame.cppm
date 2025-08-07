@@ -74,9 +74,6 @@ namespace vk_gltf_viewer::vulkan {
 
             vku::MappedBuffer mousePickingResultBuffer;
 
-            // Used only if GPU does not support variable descriptor count.
-            std::optional<vk::raii::DescriptorPool> descriptorPool;
-
             std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
 
             explicit GltfAsset(const SharedData &sharedData LIFETIMEBOUND);

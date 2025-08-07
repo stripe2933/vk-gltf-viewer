@@ -1027,7 +1027,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
     //  so I'll just use it for now.
     gpu.device.waitIdle();
-    sharedData.setAsset(std::move(vkAssetExtended));
+    sharedData.assetExtended = std::move(vkAssetExtended);
     for (vulkan::Frame &frame : frames) {
         frame.updateAsset();
     }

@@ -113,6 +113,7 @@ The extensions and feature used in this application are quite common in the mode
     - `descriptorIndexing`
     - `descriptorBindingSampledImageUpdateAfterBind`
     - `descriptorBindingPartiallyBound`
+    - `descriptorBindingVariableDescriptorCount`
     - `runtimeDescriptorArray`
     - `separateDepthStencilLayouts`
     - `storageBuffer8BitAccess`
@@ -120,7 +121,6 @@ The extensions and feature used in this application are quite common in the mode
     - `timelineSemaphore`
     - `shaderInt8`
     - (optional) `drawIndirectCount` (If not presented, GPU frustum culling will be unavailable and fallback to the CPU frustum culling.)
-    - (optional) `descriptorBindingVariableDescriptorCount` (If not presented, graphics pipelines are dependent to the asset texture count; for every asset loading, the pipelines will be recreated as their texture count is changing.)
   - `VkPhysicalDeviceDynamicRenderingFeatures`
   - `VkPhysicalDeviceSynchronization2Features`
   - `VkPhysicalDeviceExtendedDynamicStateFeaturesEXT`

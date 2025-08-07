@@ -21,17 +21,17 @@ export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.InverseToneMappingRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.JumpFloodComputePipeline;
-import vk_gltf_viewer.vulkan.pipeline.JumpFloodSeedRenderPipeline;
-import vk_gltf_viewer.vulkan.pipeline.MaskJumpFloodSeedRenderPipeline;
-import vk_gltf_viewer.vulkan.pipeline.MaskMultiNodeMousePickingRenderPipeline;
-import vk_gltf_viewer.vulkan.pipeline.MaskNodeIndexRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.JumpFloodSeedRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.MaskJumpFloodSeedRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.MaskMultiNodeMousePickingRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.MaskNodeIndexRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.MousePickingRenderPipeline;
-import vk_gltf_viewer.vulkan.pipeline.MultiNodeMousePickingRenderPipeline;
-import vk_gltf_viewer.vulkan.pipeline.NodeIndexRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.MultiNodeMousePickingRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.NodeIndexRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.OutlineRenderPipeline;
-import vk_gltf_viewer.vulkan.pipeline.PrimitiveRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.PrimitiveRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.SkyboxRenderPipeline;
-import vk_gltf_viewer.vulkan.pipeline.UnlitPrimitiveRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.UnlitPrimitiveRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.WeightedBlendedCompositionRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline_layout.MultiNodeMousePicking;
 export import vk_gltf_viewer.vulkan.pipeline_layout.Primitive;
@@ -40,8 +40,7 @@ export import vk_gltf_viewer.vulkan.render_pass.MousePicking;
 export import vk_gltf_viewer.vulkan.render_pass.Scene;
 
 namespace vk_gltf_viewer::vulkan {
-    export class SharedData {
-    public:
+    export struct SharedData {
         const Gpu &gpu;
 
         // Buffer, image and image views and samplers.
@@ -79,6 +78,17 @@ namespace vk_gltf_viewer::vulkan {
         bloom::BloomComputePipeline bloomComputePipeline;
         BloomApplyRenderPipeline bloomApplyRenderPipeline;
 
+        // glTF primitive rendering pipelines.
+        // TODO: remove mutable
+        mutable std::unordered_map<NodeIndexRenderPipeline::Config, NodeIndexRenderPipeline, AggregateHasher> nodeIndexPipelines;
+        mutable std::unordered_map<MaskNodeIndexRenderPipeline::Config, MaskNodeIndexRenderPipeline, AggregateHasher> maskNodeIndexPipelines;
+        mutable std::unordered_map<MultiNodeMousePickingRenderPipeline::Config, MultiNodeMousePickingRenderPipeline, AggregateHasher> multiNodeMousePickingPipelines;
+        mutable std::unordered_map<MaskMultiNodeMousePickingRenderPipeline::Config, MaskMultiNodeMousePickingRenderPipeline, AggregateHasher> maskMultiNodeMousePickingPipelines;
+        mutable std::unordered_map<JumpFloodSeedRenderPipeline::Config, JumpFloodSeedRenderPipeline, AggregateHasher> jumpFloodSeedPipelines;
+        mutable std::unordered_map<MaskJumpFloodSeedRenderPipeline::Config, MaskJumpFloodSeedRenderPipeline, AggregateHasher> maskJumpFloodSeedPipelines;
+        mutable std::unordered_map<PrimitiveRenderPipeline::Config, PrimitiveRenderPipeline, AggregateHasher> primitivePipelines;
+        mutable std::unordered_map<UnlitPrimitiveRenderPipeline::Config, UnlitPrimitiveRenderPipeline, AggregateHasher> unlitPrimitivePipelines;
+
         // --------------------
         // Attachment groups.
         // --------------------
@@ -97,7 +107,7 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         texture::Fallback fallbackTexture;
-        std::shared_ptr<const vulkan::gltf::AssetExtended> assetExtended;
+        std::shared_ptr<const gltf::AssetExtended> assetExtended;
 
         SharedData(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages);
 
@@ -120,23 +130,6 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         void handleSwapchainResize(const vk::Extent2D &newSwapchainExtent, std::span<const vk::Image> newSwapchainImages);
-
-        void setAsset(std::shared_ptr<const vulkan::gltf::AssetExtended> assetExtended);
-
-    private:
-        // --------------------
-        // Pipelines.
-        // --------------------
-
-        // glTF primitive rendering pipelines.
-        mutable std::unordered_map<NodeIndexRenderPipeline::Config, NodeIndexRenderPipeline, AggregateHasher> nodeIndexPipelines;
-        mutable std::unordered_map<MaskNodeIndexRenderPipeline::Config, MaskNodeIndexRenderPipeline, AggregateHasher> maskNodeIndexPipelines;
-        mutable std::unordered_map<MultiNodeMousePickingRenderPipeline::Config, MultiNodeMousePickingRenderPipeline, AggregateHasher> multiNodeMousePickingPipelines;
-        mutable std::unordered_map<MaskMultiNodeMousePickingRenderPipeline::Config, MaskMultiNodeMousePickingRenderPipeline, AggregateHasher> maskMultiNodeMousePickingPipelines;
-        mutable std::unordered_map<JumpFloodSeedRenderPipeline::Config, JumpFloodSeedRenderPipeline, AggregateHasher> jumpFloodSeedPipelines;
-        mutable std::unordered_map<MaskJumpFloodSeedRenderPipeline::Config, MaskJumpFloodSeedRenderPipeline, AggregateHasher> maskJumpFloodSeedPipelines;
-        mutable std::unordered_map<PrimitiveRenderPipeline::Config, PrimitiveRenderPipeline, AggregateHasher> primitivePipelines;
-        mutable std::unordered_map<UnlitPrimitiveRenderPipeline::Config, UnlitPrimitiveRenderPipeline, AggregateHasher> unlitPrimitivePipelines;
     };
 }
 
@@ -165,14 +158,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
     , cubeIndices { gpu.allocator }
     , cubemapSampler { gpu.device }
     , brdfLutSampler { gpu.device }
-    , assetDescriptorSetLayout { [&]() {
-        if (gpu.supportVariableDescriptorCount) {
-            return dsl::Asset { gpu };
-        }
-        else {
-            return dsl::Asset { gpu, 1 }; // TODO: set proper initial texture count.
-        }
-    }() }
+    , assetDescriptorSetLayout { gpu }
     , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
     , multiNodeMousePickingDescriptorSetLayout { gpu.device }
     , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
@@ -428,26 +414,4 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderPipeline
 
 void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages) {
     imGuiAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
-}
-
-void vk_gltf_viewer::vulkan::SharedData::setAsset(std::shared_ptr<const vulkan::gltf::AssetExtended> _assetExtended) {
-    assetExtended = std::move(_assetExtended);
-
-    const std::uint32_t textureCount = 1 + assetExtended->asset.textures.size();
-    if (!gpu.supportVariableDescriptorCount && get<3>(assetDescriptorSetLayout.descriptorCounts) != textureCount) {
-        // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
-        nodeIndexPipelines.clear();
-        maskNodeIndexPipelines.clear();
-        multiNodeMousePickingPipelines.clear();
-        maskMultiNodeMousePickingPipelines.clear();
-        jumpFloodSeedPipelines.clear();
-        maskJumpFloodSeedPipelines.clear();
-        primitivePipelines.clear();
-        unlitPrimitivePipelines.clear();
-
-        assetDescriptorSetLayout = { gpu, textureCount };
-        multiNodeMousePickingPipelineLayout = { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) };
-        primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
-        primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
-    }
 }
