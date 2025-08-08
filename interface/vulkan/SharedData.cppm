@@ -22,9 +22,6 @@ export import vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.InverseToneMappingRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.JumpFloodComputePipeline;
 export import vk_gltf_viewer.vulkan.pipeline.JumpFloodSeedRenderPipeline;
-export import vk_gltf_viewer.vulkan.pipeline.MaskJumpFloodSeedRenderPipeline;
-export import vk_gltf_viewer.vulkan.pipeline.MaskMultiNodeMousePickingRenderPipeline;
-export import vk_gltf_viewer.vulkan.pipeline.MaskNodeIndexRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.MousePickingRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.MultiNodeMousePickingRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.NodeIndexRenderPipeline;
@@ -42,7 +39,11 @@ export import vk_gltf_viewer.vulkan.render_pass.Scene;
 namespace vk_gltf_viewer::vulkan {
     export struct SharedData {
         template <bool Mask>
-        struct PrepassPipelines;
+        struct PrepassPipelines {
+            NodeIndexRenderPipeline<Mask> nodeIndexRenderPipeline;
+            MultiNodeMousePickingRenderPipeline<Mask> multiNodeMousePickingRenderPipeline;
+            JumpFloodSeedRenderPipeline<Mask> jumpFloodSeedRenderingPipeline;
+        };
 
         const Gpu &gpu;
 
@@ -125,20 +126,6 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         void handleSwapchainResize(const vk::Extent2D &newSwapchainExtent, std::span<const vk::Image> newSwapchainImages);
-    };
-
-    export template <>
-    struct SharedData::PrepassPipelines<false> {
-        NodeIndexRenderPipeline nodeIndexRenderPipeline;
-        MultiNodeMousePickingRenderPipeline multiNodeMousePickingRenderPipeline;
-        JumpFloodSeedRenderPipeline jumpFloodSeedRenderingPipeline;
-    };
-
-    export template <>
-    struct SharedData::PrepassPipelines<true> {
-        MaskNodeIndexRenderPipeline nodeIndexRenderPipeline;
-        MaskMultiNodeMousePickingRenderPipeline multiNodeMousePickingRenderPipeline;
-        MaskJumpFloodSeedRenderPipeline jumpFloodSeedRenderingPipeline;
     };
 }
 
