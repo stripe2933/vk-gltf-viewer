@@ -227,15 +227,15 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         if (primitive.materialIndex) {
             const fastgltf::Material& material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
-                result.pipeline = sharedData.getMaskNodeIndexRenderPipeline(primitive);
+                result.pipeline = *sharedData.getMaskPrepassPipelines(primitive).nodeIndexRenderPipeline;
             }
             else {
-                result.pipeline = sharedData.getNodeIndexRenderPipeline(primitive);
+                result.pipeline = *sharedData.getPrepassPipelines(primitive).nodeIndexRenderPipeline;
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else {
-            result.pipeline = sharedData.getNodeIndexRenderPipeline(primitive);
+            result.pipeline = *sharedData.getPrepassPipelines(primitive).nodeIndexRenderPipeline;
         }
         return result;
     };
@@ -252,14 +252,14 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         if (primitive.materialIndex) {
             const fastgltf::Material& material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
-                result.pipeline = sharedData.getMaskMultiNodeMousePickingRenderPipeline(primitive);
+                result.pipeline = *sharedData.getMaskPrepassPipelines(primitive).multiNodeMousePickingRenderPipeline;
             }
             else {
-                result.pipeline = sharedData.getMultiNodeMousePickingRenderPipeline(primitive);
+                result.pipeline = *sharedData.getPrepassPipelines(primitive).multiNodeMousePickingRenderPipeline;
             }
         }
         else {
-            result.pipeline = sharedData.getMultiNodeMousePickingRenderPipeline(primitive);
+            result.pipeline = *sharedData.getPrepassPipelines(primitive).multiNodeMousePickingRenderPipeline;
         }
         return result;
     };
@@ -276,15 +276,15 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         if (primitive.materialIndex) {
             const fastgltf::Material &material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
-                result.pipeline = sharedData.getMaskJumpFloodSeedRenderPipeline(primitive);
+                result.pipeline = *sharedData.getMaskPrepassPipelines(primitive).jumpFloodSeedRenderingPipeline;
             }
             else {
-                result.pipeline = sharedData.getJumpFloodSeedRenderPipeline(primitive);
+                result.pipeline = *sharedData.getPrepassPipelines(primitive).jumpFloodSeedRenderingPipeline;
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else {
-            result.pipeline = sharedData.getJumpFloodSeedRenderPipeline(primitive);
+            result.pipeline = *sharedData.getPrepassPipelines(primitive).jumpFloodSeedRenderingPipeline;
         }
         return result;
     };
