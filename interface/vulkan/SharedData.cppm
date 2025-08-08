@@ -21,10 +21,7 @@ export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.InverseToneMappingRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.JumpFloodComputePipeline;
-import vk_gltf_viewer.vulkan.pipeline.JumpFloodSeedRenderPipeline;
-import vk_gltf_viewer.vulkan.pipeline.MaskJumpFloodSeedRenderPipeline;
-import vk_gltf_viewer.vulkan.pipeline.MaskMultiNodeMousePickingRenderPipeline;
-import vk_gltf_viewer.vulkan.pipeline.MaskNodeIndexRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.JumpFloodSeedRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.MousePickingRenderPipeline;
 import vk_gltf_viewer.vulkan.pipeline.MultiNodeMousePickingRenderPipeline;
 import vk_gltf_viewer.vulkan.pipeline.NodeIndexRenderPipeline;
@@ -41,6 +38,13 @@ export import vk_gltf_viewer.vulkan.render_pass.Scene;
 
 namespace vk_gltf_viewer::vulkan {
     export struct SharedData {
+        template <bool Mask>
+        struct PrepassPipelines {
+            NodeIndexRenderPipeline<Mask> nodeIndexRenderPipeline;
+            MultiNodeMousePickingRenderPipeline<Mask> multiNodeMousePickingRenderPipeline;
+            JumpFloodSeedRenderPipeline<Mask> jumpFloodSeedRenderingPipeline;
+        };
+
         const Gpu &gpu;
 
         // Buffer, image and image views and samplers.
@@ -122,20 +126,6 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         void handleSwapchainResize(const vk::Extent2D &newSwapchainExtent, std::span<const vk::Image> newSwapchainImages);
-    };
-
-    export template <>
-    struct SharedData::PrepassPipelines<false> {
-        NodeIndexRenderPipeline nodeIndexRenderPipeline;
-        MultiNodeMousePickingRenderPipeline multiNodeMousePickingRenderPipeline;
-        JumpFloodSeedRenderPipeline jumpFloodSeedRenderingPipeline;
-    };
-
-    export template <>
-    struct SharedData::PrepassPipelines<true> {
-        MaskNodeIndexRenderPipeline nodeIndexRenderPipeline;
-        MaskMultiNodeMousePickingRenderPipeline multiNodeMousePickingRenderPipeline;
-        MaskJumpFloodSeedRenderPipeline jumpFloodSeedRenderingPipeline;
     };
 }
 

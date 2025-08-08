@@ -196,9 +196,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/InverseToneMappingRenderPipeline.cppm
         interface/vulkan/pipeline/JumpFloodComputePipeline.cppm
         interface/vulkan/pipeline/JumpFloodSeedRenderPipeline.cppm
-        interface/vulkan/pipeline/MaskJumpFloodSeedRenderPipeline.cppm
-        interface/vulkan/pipeline/MaskMultiNodeMousePickingRenderPipeline.cppm
-        interface/vulkan/pipeline/MaskNodeIndexRenderPipeline.cppm
         interface/vulkan/pipeline/MousePickingRenderPipeline.cppm
         interface/vulkan/pipeline/MultiNodeMousePickingRenderPipeline.cppm
         interface/vulkan/pipeline/NodeIndexRenderPipeline.cppm
