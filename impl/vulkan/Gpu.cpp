@@ -234,6 +234,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
         vk::PhysicalDeviceVulkan12Features,
         vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
 
+    supportShaderBufferInt64Atomics = vulkan12Features.shaderBufferInt64Atomics;
     supportDrawIndirectCount = vulkan12Features.drawIndirectCount;
 #if __APPLE__
     // MoltenVK supports VK_KHR_index_type_uint8 from v1.3.0 by dynamically generating 16-bit indices from 8-bit indices

@@ -50,7 +50,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] static std::array<int, 2> getVertexShaderVariants(const PrepassPipelineConfig<true> &config) noexcept;
         [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const PrepassPipelineConfig<true> &config) noexcept;
-        [[nodiscard]] static std::array<int, 2> getFragmentShaderVariants(const PrepassPipelineConfig<true> &config) noexcept;
+        [[nodiscard]] static std::array<int, 3> getFragmentShaderVariants(const PrepassPipelineConfig<true> &config, bool supportShaderBufferInt64Atomics) noexcept;
         [[nodiscard]] static FragmentShaderSpecialization getFragmentShaderSpecialization(const PrepassPipelineConfig<true> &config) noexcept;
     };
 }
@@ -88,7 +88,12 @@ vk_gltf_viewer::vulkan::pipeline::NodeMousePickingRenderPipeline<false>::NodeMou
                             vku::unsafeProxy(getVertexShaderSpecialization(config)),
                         }),
                     },
-                    vku::Shader { shader::node_mouse_picking_frag, vk::ShaderStageFlagBits::eFragment }).get(),
+                    vku::Shader {
+                        gpu.supportShaderBufferInt64Atomics
+                            ? std::span<const std::uint32_t> { shader::node_mouse_picking_frag<1> }
+                            : std::span<const std::uint32_t> { shader::node_mouse_picking_frag<0> },
+                        vk::ShaderStageFlagBits::eFragment,
+                    }).get(),
                 // See doc about Gpu::Workaround::attachmentLessRenderPass.
                 *pipelineLayout, 0, gpu.workaround.attachmentLessRenderPass)
                 .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
@@ -157,7 +162,7 @@ vk_gltf_viewer::vulkan::pipeline::NodeMousePickingRenderPipeline<true>::NodeMous
                         }),
                     },
                     vku::Shader {
-                        std::apply(LIFT(shader_selector::mask_node_mouse_picking_frag), getFragmentShaderVariants(config)),
+                        std::apply(LIFT(shader_selector::mask_node_mouse_picking_frag), getFragmentShaderVariants(config, gpu.supportShaderBufferInt64Atomics)),
                         vk::ShaderStageFlagBits::eFragment,
                         vku::unsafeAddress(vk::SpecializationInfo {
                             SpecializationMap<FragmentShaderSpecialization>::value,
@@ -215,12 +220,14 @@ auto vk_gltf_viewer::vulkan::pipeline::NodeMousePickingRenderPipeline<true>::get
     return result;
 }
 
-std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::NodeMousePickingRenderPipeline<true>::getFragmentShaderVariants(
-    const PrepassPipelineConfig<true> &config
+std::array<int, 3> vk_gltf_viewer::vulkan::pipeline::NodeMousePickingRenderPipeline<true>::getFragmentShaderVariants(
+    const PrepassPipelineConfig<true> &config,
+    bool supportShaderBufferInt64Atomics
 ) noexcept {
     return {
         config.baseColorTexcoordComponentTypeAndNormalized.has_value(),
         config.color0AlphaComponentType.has_value(),
+        supportShaderBufferInt64Atomics,
     };
 }
 

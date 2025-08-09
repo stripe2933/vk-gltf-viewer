@@ -121,6 +121,7 @@ The extensions and feature used in this application are quite common in the mode
     - `timelineSemaphore`
     - `shaderInt8`
     - (optional) `drawIndirectCount` (If not presented, GPU frustum culling will be unavailable and fallback to the CPU frustum culling.)
+    - (optional) `shaderBufferInt64Atomics` (better mouse picking precision)
   - `VkPhysicalDeviceDynamicRenderingFeatures`
   - `VkPhysicalDeviceSynchronization2Features`
   - `VkPhysicalDeviceExtendedDynamicStateFeaturesEXT`
