@@ -23,16 +23,6 @@ module :private;
 
 vk_gltf_viewer::vulkan::ag::MousePicking::MousePicking(const Gpu &gpu, const vk::Extent2D &extent)
     : AttachmentGroup { extent } {
-    addColorAttachment(
-        gpu.device,
-        storeImage(createColorImage(gpu.allocator, vk::Format::eR16Uint,
-            vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment| vk::ImageUsageFlagBits::eTransientAttachment,
-            vma::AllocationCreateInfo {
-                {},
-                vma::MemoryUsage::eAutoPreferDevice,
-                {},
-                vk::MemoryPropertyFlagBits::eLazilyAllocated,
-            })));
     setDepthStencilAttachment(
         gpu.device,
         storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));

@@ -168,7 +168,6 @@ namespace vk_gltf_viewer::vulkan {
 
             // Mouse picking.
             ag::MousePicking mousePickingAttachmentGroup;
-            vk::raii::Framebuffer mousePickingFramebuffer;
 
             // Outline calculation using JFA.
             JumpFloodResources hoveringNodeOutlineJumpFloodResources;
@@ -218,8 +217,7 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::CommandPool graphicsCommandPool;
 
         // Descriptor sets.
-        vku::DescriptorSet<MousePickingRenderPipeline::DescriptorSetLayout> mousePickingSet;
-        vku::DescriptorSet<dsl::MultiNodeMousePicking> multiNodeMousePickingSet;
+        vku::DescriptorSet<dsl::MousePicking> mousePickingSet;
         vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> hoveringNodeJumpFloodSet;
         vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> selectedNodeJumpFloodSet;
         vku::DescriptorSet<OutlineRenderPipeline::DescriptorSetLayout> hoveringNodeOutlineSet;
