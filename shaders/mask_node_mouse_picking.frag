@@ -25,12 +25,14 @@ layout (location = 2) in FRAG_VARIADIC_IN {
 } variadic_in;
 #endif
 
-layout (location = 0) out uint outNodeIndex;
-
 layout (set = 0, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 layout (set = 0, binding = 3) uniform sampler2D textures[];
+
+layout (set = 1, binding = 0) buffer MousePickingResultBuffer {
+    uint packedNodeIndexAndDepth;
+};
 
 void main(){
     float baseColorAlpha = MATERIAL.baseColorFactor.a;
@@ -46,5 +48,5 @@ void main(){
 #endif
     if (baseColorAlpha < MATERIAL.alphaCutoff) discard;
 
-    outNodeIndex = inNodeIndex;
+    atomicMax(packedNodeIndexAndDepth, (uint(gl_FragCoord.z * 65535) << 16) | inNodeIndex);
 }
