@@ -190,7 +190,7 @@ auto vk_gltf_viewer::vulkan::SharedData::getPrepassPipelines(
 
     return ranges::try_emplace_if_not_exists(prepassPipelines, config, [&] -> PrepassPipelines<false> {
         return {
-            .nodeMousePickingRenderPipeline = { gpu.device, mousePickingPipelineLayout, config },
+            .nodeMousePickingRenderPipeline = { gpu, mousePickingPipelineLayout, config },
             .multiNodeMousePickingRenderPipeline = { gpu, mousePickingPipelineLayout, config },
             .jumpFloodSeedRenderingPipeline = { gpu.device, primitiveNoShadingPipelineLayout, config },
         };
@@ -231,7 +231,7 @@ auto vk_gltf_viewer::vulkan::SharedData::getMaskPrepassPipelines(
 
     return ranges::try_emplace_if_not_exists(maskPrepassPipelines, config, [&] -> PrepassPipelines<true> {
         return {
-            .nodeMousePickingRenderPipeline = { gpu.device, mousePickingPipelineLayout, config },
+            .nodeMousePickingRenderPipeline = { gpu, mousePickingPipelineLayout, config },
             .multiNodeMousePickingRenderPipeline = { gpu, mousePickingPipelineLayout, config },
             .jumpFloodSeedRenderingPipeline = { gpu.device, primitiveNoShadingPipelineLayout, config },
         };

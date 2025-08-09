@@ -1019,7 +1019,7 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
     const vk::Extent2D &extent,
     vk::CommandBuffer graphicsCommandBuffer
 ) : extent { extent },
-    mousePickingAttachmentGroup { sharedData.gpu, extent },
+    mousePickingAttachmentGroup { value_if(sharedData.gpu.workaround.attachmentLessRenderPass, [&] { return ag::MousePicking { sharedData.gpu, extent }; }) },
     hoveringNodeOutlineJumpFloodResources { sharedData.gpu, extent },
     hoveringNodeJumpFloodSeedAttachmentGroup { sharedData.gpu, hoveringNodeOutlineJumpFloodResources.image },
     selectedNodeOutlineJumpFloodResources { sharedData.gpu, extent },
@@ -1091,17 +1091,21 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
             image, subresourceRange
         };
     };
+
+    boost::container::static_vector<vk::ImageMemoryBarrier, 6> imageMemoryBarriers {
+        layoutTransitionBarrier(vk::ImageLayout::eGeneral, hoveringNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
+        layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, hoveringNodeJumpFloodSeedAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
+        layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
+        layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, selectedNodeJumpFloodSeedAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
+        layoutTransitionBarrier(vk::ImageLayout::eGeneral, bloomImage, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingArrayLayers, 0, 1 }),
+    };
+    if (mousePickingAttachmentGroup) {
+        imageMemoryBarriers.push_back(layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, mousePickingAttachmentGroup->depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)));
+    }
+
     graphicsCommandBuffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-        {}, {}, {},
-        {
-            layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, mousePickingAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
-            layoutTransitionBarrier(vk::ImageLayout::eGeneral, hoveringNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
-            layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, hoveringNodeJumpFloodSeedAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
-            layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, 1, 1 } /* pong image */),
-            layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, selectedNodeJumpFloodSeedAttachmentGroup.depthStencilAttachment->image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
-            layoutTransitionBarrier(vk::ImageLayout::eGeneral, bloomImage, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingArrayLayers, 0, 1 }),
-        });
+        {}, {}, {}, imageMemoryBarriers);
 }
 
 vk::raii::DescriptorPool vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const {
@@ -1268,11 +1272,13 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                     1,
                     0,
                     vk::ArrayProxyNoTemporaries<const vk::RenderingAttachmentInfo>{},
-                    vku::unsafeAddress(vk::RenderingAttachmentInfo {
-                        *passthruResources->mousePickingAttachmentGroup.depthStencilAttachment->view, vk::ImageLayout::eDepthAttachmentOptimal,
-                        {}, {}, {},
-                        vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare, vk::ClearDepthStencilValue { 0.f, 0U },
-                    }),
+                    value_address(passthruResources->mousePickingAttachmentGroup.transform([](const ag::MousePicking &ag) {
+                        return vk::RenderingAttachmentInfo {
+                            *ag.depthStencilAttachment->view, vk::ImageLayout::eDepthAttachmentOptimal,
+                            {}, {}, {},
+                            vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+                        };
+                    })),
                 });
                 drawPrimitives(renderingNodes->mousePickingIndirectDrawCommandBuffers);
                 cb.endRenderingKHR();
@@ -1342,11 +1348,13 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                     1,
                     0,
                     vk::ArrayProxyNoTemporaries<const vk::RenderingAttachmentInfo>{},
-                    sharedData.gpu.workaround.attachmentLessRenderPass ? vku::unsafeAddress(vk::RenderingAttachmentInfo {
-                        *passthruResources->mousePickingAttachmentGroup.depthStencilAttachment->view, vk::ImageLayout::eDepthAttachmentOptimal,
-                        {}, {}, {},
-                        vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-                    }) : nullptr,
+                    value_address(passthruResources->mousePickingAttachmentGroup.transform([](const ag::MousePicking &ag) {
+                        return vk::RenderingAttachmentInfo {
+                            *ag.depthStencilAttachment->view, vk::ImageLayout::eDepthAttachmentOptimal,
+                            {}, {}, {},
+                            vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+                        };
+                    })),
                 });
                 drawPrimitives(renderingNodes->multiNodeMousePickingIndirectDrawCommandBuffers);
                 cb.endRenderingKHR();

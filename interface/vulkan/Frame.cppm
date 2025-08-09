@@ -167,7 +167,7 @@ namespace vk_gltf_viewer::vulkan {
             vk::Extent2D extent;
 
             // Mouse picking.
-            ag::MousePicking mousePickingAttachmentGroup;
+            std::optional<ag::MousePicking> mousePickingAttachmentGroup; // has only value if Gpu::attachmentLessRenderPass == true.
 
             // Outline calculation using JFA.
             JumpFloodResources hoveringNodeOutlineJumpFloodResources;
