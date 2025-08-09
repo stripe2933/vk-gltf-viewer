@@ -3,6 +3,10 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_8bit_storage : require
+#if KHR_SHADER_ATOMIC_INT64 == 1
+#extension GL_EXT_shader_atomic_int64 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#endif
 
 #define FRAGMENT_SHADER
 #include "indexing.glsl"
@@ -36,7 +40,11 @@ layout (set = 0, binding = 3) uniform sampler2D textures[];
 #endif
 
 layout (set = 1, binding = 0) buffer MousePickingResultBuffer {
+#if KHR_SHADER_ATOMIC_INT64 == 1
+    uint64_t packedNodeIndexAndDepth;
+#else
     uint packedNodeIndexAndDepth;
+#endif
 };
 
 void main(){
@@ -57,5 +65,9 @@ void main(){
 #endif
     if (baseColorAlpha < MATERIAL.alphaCutoff) discard;
 
+#if KHR_SHADER_ATOMIC_INT64 == 1
+    atomicMax(packedNodeIndexAndDepth, packUint2x32(uvec2(inNodeIndex, floatBitsToUint(gl_FragCoord.z))));
+#else
     atomicMax(packedNodeIndexAndDepth, (uint(gl_FragCoord.z * 65535) << 16) | inNodeIndex);
+#endif
 }

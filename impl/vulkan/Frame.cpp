@@ -69,7 +69,7 @@ vk_gltf_viewer::vulkan::Frame::GltfAsset::GltfAsset(const SharedData &sharedData
         sharedData.gpu.allocator,
         vk::BufferCreateInfo {
             {},
-            sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(assetExtended->asset.nodes.size(), 32U),
+            std::max(sizeof(std::uint64_t), sizeof(std::uint32_t) * math::divCeil<std::uint32_t>(assetExtended->asset.nodes.size(), 32U)),
             vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
         },
         vma::AllocationCreateInfo {
@@ -148,8 +148,15 @@ vk_gltf_viewer::vulkan::Frame::ExecutionResult vk_gltf_viewer::vulkan::Frame::ge
                 }
             },
             [&](const vk::Offset2D&) {
-                const std::uint32_t packedNodeIndexAndDepth = gltfAsset->mousePickingResultBuffer.asValue<const std::uint32_t>();
-                if (std::uint16_t nodeIndex = packedNodeIndexAndDepth & 0xFFFF; nodeIndex != NO_INDEX) {
+                std::uint16_t nodeIndex;
+                if (sharedData.gpu.supportShaderBufferInt64Atomics) {
+                    nodeIndex = gltfAsset->mousePickingResultBuffer.asValue<const std::uint64_t>() & 0xFFFF;
+                }
+                else {
+                    nodeIndex = gltfAsset->mousePickingResultBuffer.asValue<const std::uint32_t>() & 0xFFFF;
+                }
+
+                if (nodeIndex != NO_INDEX) {
                     result.mousePickingResult.emplace<std::size_t>(nodeIndex);
                 }
             },
@@ -1218,7 +1225,12 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
     // Mouse picking.
     const bool makeMousePickingResultBufferAvailableToHost = renderingNodes && visit(multilambda {
         [&](const vk::Offset2D &offset) {
-            cb.updateBuffer<std::uint32_t>(gltfAsset->mousePickingResultBuffer, 0, NO_INDEX);
+            if (sharedData.gpu.supportShaderBufferInt64Atomics) {
+                cb.updateBuffer<std::uint64_t>(gltfAsset->mousePickingResultBuffer, 0, NO_INDEX);
+            }
+            else {
+                cb.updateBuffer<std::uint32_t>(gltfAsset->mousePickingResultBuffer, 0, NO_INDEX);
+            }
 
             if (renderingNodes->startMousePickingRenderPass) {
                 cb.pipelineBarrier(

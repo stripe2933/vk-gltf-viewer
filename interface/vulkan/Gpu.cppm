@@ -59,6 +59,7 @@ namespace vk_gltf_viewer::vulkan {
 
         bool isUmaDevice;
         bool supportSwapchainMutableFormat;
+        bool supportShaderBufferInt64Atomics;
         bool supportDrawIndirectCount;
         bool supportUint8Index;
         bool supportAttachmentFeedbackLoopLayout;

@@ -296,7 +296,6 @@ target_link_shaders(vk-gltf-viewer PRIVATE
         shaders/jump_flood_seed.vert
         shaders/jump_flood.comp
         shaders/multi_node_mouse_picking.frag
-        shaders/node_mouse_picking.frag
         shaders/node_mouse_picking.vert
         shaders/outline.frag
         shaders/screen_quad.vert
@@ -304,6 +303,14 @@ target_link_shaders(vk-gltf-viewer PRIVATE
         shaders/skybox.vert
 )
 
+target_link_shader_variants(vk-gltf-viewer PRIVATE
+    TARGET_ENV vulkan1.2
+    MACRO_DEFS "SEPARATE_IMAGE_SAMPLER=$<PLATFORM_ID:Darwin>"
+    FILES
+        shaders/node_mouse_picking.frag
+    MACRO_NAMES "KHR_SHADER_ATOMIC_INT64"
+    MACRO_VALUES 0 1
+)
 target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
@@ -318,9 +325,18 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     MACRO_DEFS "SEPARATE_IMAGE_SAMPLER=$<PLATFORM_ID:Darwin>"
     FILES
+        shaders/mask_node_mouse_picking.frag
+    MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_0_ALPHA_ATTRIBUTE" "KHR_SHADER_ATOMIC_INT64"
+    MACRO_VALUES
+        "0 0 0" "0 0 1" "0 1 0" "0 1 1"
+        "1 0 0" "1 0 1" "1 1 0" "1 1 1"
+)
+target_link_shader_variants(vk-gltf-viewer PRIVATE
+    TARGET_ENV vulkan1.2
+    MACRO_DEFS "SEPARATE_IMAGE_SAMPLER=$<PLATFORM_ID:Darwin>"
+    FILES
         shaders/mask_jump_flood_seed.frag
         shaders/mask_multi_node_mouse_picking.frag
-        shaders/mask_node_mouse_picking.frag
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_0_ALPHA_ATTRIBUTE"
     MACRO_VALUES
         "0 0" "0 1"
