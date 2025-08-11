@@ -54,7 +54,12 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     const Fallback &fallbackTexture,
     BS::thread_pool<> &threadPool
 ) {
-    if (1 + assetExtended.asset.textures.size() > dsl::Asset::maxTextureCount(gpu)) {
+#if __APPLE__
+    if (1 + assetExtended.asset.samplers.size() > dsl::Asset::maxSamplerCount(gpu) ||
+        1 + assetExtended.asset.images.size() > dsl::Asset::maxImageCount(gpu)) {
+#else
+    if (1 + assetExtended.asset.textures.size() > dsl::Asset::maxSamplerCount(gpu)) {
+#endif
         // If asset texture count exceeds the available texture count provided by the GPU, throw the error before
         // processing data to avoid unnecessary processing.
         throw gltf::AssetProcessError::TooManyTextureError;

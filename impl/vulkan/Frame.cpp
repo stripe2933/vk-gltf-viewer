@@ -75,14 +75,7 @@ vk_gltf_viewer::vulkan::Frame::GltfAsset::GltfAsset(const SharedData &sharedData
             vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
             vma::MemoryUsage::eAutoPreferDevice,
         },
-    },
-    descriptorPool { value_if(!sharedData.gpu.supportVariableDescriptorCount, [&]() {
-        return vk::raii::DescriptorPool {
-            sharedData.gpu.device,
-            sharedData.assetDescriptorSetLayout.getPoolSize()
-                .getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind),
-        };
-    }) } { }
+    } { }
 
 void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeWorldTransform(std::size_t nodeIndex) {
     nodeBuffer.update(nodeIndex, assetExtended->nodeWorldTransforms[nodeIndex], assetExtended->externalBuffers);
@@ -889,29 +882,31 @@ void vk_gltf_viewer::vulkan::Frame::setPassthruExtent(const vk::Extent2D &extent
 
 void vk_gltf_viewer::vulkan::Frame::updateAsset() {
     const auto &inner = gltfAsset.emplace(sharedData);
-    if (sharedData.gpu.supportVariableDescriptorCount) {
-        (*sharedData.gpu.device).freeDescriptorSets(*descriptorPool, assetDescriptorSet);
-        assetDescriptorSet = decltype(assetDescriptorSet) {
-            vku::unsafe,
-            (*sharedData.gpu.device).allocateDescriptorSets(vk::StructureChain {
-                 vk::DescriptorSetAllocateInfo {
-                     *descriptorPool,
-                     *sharedData.assetDescriptorSetLayout,
-                 },
-                 vk::DescriptorSetVariableDescriptorCountAllocateInfo {
-                     vku::unsafeProxy<std::uint32_t>(inner.assetExtended->asset.textures.size() + 1),
-                 },
-             }.get())[0],
-        };
-    }
-    else {
-        std::tie(assetDescriptorSet) = vku::allocateDescriptorSets(*inner.descriptorPool.value(), std::tie(sharedData.assetDescriptorSetLayout));
-    }
+    (*sharedData.gpu.device).freeDescriptorSets(*descriptorPool, assetDescriptorSet);
+    assetDescriptorSet = decltype(assetDescriptorSet) {
+        vku::unsafe,
+        (*sharedData.gpu.device).allocateDescriptorSets(vk::StructureChain {
+            vk::DescriptorSetAllocateInfo {
+                *descriptorPool,
+                *sharedData.assetDescriptorSetLayout,
+            },
+            vk::DescriptorSetVariableDescriptorCountAllocateInfo {
+            #if __APPLE__
+                vku::unsafeProxy<std::uint32_t>(1 + inner.assetExtended->asset.images.size()),
+            #else
+                vku::unsafeProxy<std::uint32_t>(1 + inner.assetExtended->asset.textures.size()),
+            #endif
+             },
+         }.get())[0],
+    };
 
-    std::vector<vk::DescriptorImageInfo> imageInfos;
-    imageInfos.reserve(inner.assetExtended->asset.textures.size() + 1);
-    imageInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-    imageInfos.append_range(inner.assetExtended->textures.descriptorInfos);
+#if __APPLE__
+    std::vector<vk::DescriptorImageInfo> samplerInfos;
+    samplerInfos.reserve(1 + inner.assetExtended->asset.samplers.size());
+    samplerInfos.emplace_back(*sharedData.fallbackTexture.sampler);
+    for (vk::Sampler sampler : inner.assetExtended->textures.samplers) {
+        samplerInfos.emplace_back(sampler);
+    }
 
     sharedData.gpu.device.updateDescriptorSets({
         mousePickingSet.getWriteOne<1>({ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) }),
@@ -919,8 +914,51 @@ void vk_gltf_viewer::vulkan::Frame::updateAsset() {
         assetDescriptorSet.getWrite<0>(inner.assetExtended->primitiveBuffer.descriptorInfo),
         assetDescriptorSet.getWrite<1>(inner.nodeBuffer.descriptorInfo),
         assetDescriptorSet.getWrite<2>(inner.assetExtended->materialBuffer.descriptorInfo),
-        assetDescriptorSet.getWrite<3>(imageInfos),
+        assetDescriptorSet.getWrite<3>(samplerInfos),
+        assetDescriptorSet.getWriteOne<4>({ {}, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
     }, {});
+
+    // Get chunks of contiguous image indices.
+    // For example, if asset has 16 images, and only 2, 3, 5, 6, 7, 10 are used, then total 3 vk::DescriptorImageInfo
+    // structs are needed and their corresponding dstArrayElement and descriptorCount are: (3, 2), (6, 3), (11, 1).
+    // Remind that the 0-th array element is reserved for the fallback texture, so 3, 6 and 11 are obtained by adding 1
+    // to the 2, 5, 10.
+
+    std::vector<std::size_t> usedImageIndices;
+    for (const fastgltf::Texture &texture : inner.assetExtended->asset.textures) {
+        usedImageIndices.push_back(getPreferredImageIndex(texture));
+    }
+    std::ranges::sort(usedImageIndices);
+    const auto [begin, end] = std::ranges::unique(usedImageIndices);
+    usedImageIndices.erase(begin, end);
+
+    std::vector<std::vector<vk::DescriptorImageInfo>> chunkedImageInfos;
+    sharedData.gpu.device.updateDescriptorSets(
+        usedImageIndices
+            | std::views::chunk_by([](auto a, auto b) { return b - a == 1; })
+            | std::views::transform([&](const auto &chunk) {
+                const auto &infos = chunkedImageInfos.emplace_back(std::from_range, chunk | std::views::transform([&](std::size_t imageIndex) {
+                    return vk::DescriptorImageInfo { {}, *inner.assetExtended->textures.images.at(imageIndex).view, vk::ImageLayout::eShaderReadOnlyOptimal };
+                }));
+                return assetDescriptorSet.getWrite<4>(infos).setDstArrayElement(1 + chunk.front());
+            })
+            | std::ranges::to<std::vector>(),
+        {});
+#else
+    std::vector<vk::DescriptorImageInfo> textureInfos;
+    textureInfos.reserve(inner.assetExtended->asset.textures.size() + 1);
+    textureInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+    textureInfos.append_range(inner.assetExtended->textures.descriptorInfos);
+
+    sharedData.gpu.device.updateDescriptorSets({
+        mousePickingSet.getWriteOne<1>({ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) }),
+        multiNodeMousePickingSet.getWriteOne<0>({ inner.mousePickingResultBuffer, 0, vk::WholeSize }),
+        assetDescriptorSet.getWrite<0>(inner.assetExtended->primitiveBuffer.descriptorInfo),
+        assetDescriptorSet.getWrite<1>(inner.nodeBuffer.descriptorInfo),
+        assetDescriptorSet.getWrite<2>(inner.assetExtended->materialBuffer.descriptorInfo),
+        assetDescriptorSet.getWrite<3>(textureInfos),
+    }, {});
+#endif
 }
 
 vk_gltf_viewer::vulkan::Frame::PassthruResources::JumpFloodResources::JumpFloodResources(
@@ -1045,21 +1083,16 @@ vk_gltf_viewer::vulkan::Frame::PassthruResources::PassthruResources(
 }
 
 vk::raii::DescriptorPool vk_gltf_viewer::vulkan::Frame::createDescriptorPool() const {
-    vku::PoolSizes poolSizes
+    const vku::PoolSizes poolSizes
         = sharedData.mousePickingRenderPipeline.descriptorSetLayout.getPoolSize()
         + sharedData.multiNodeMousePickingDescriptorSetLayout.getPoolSize()
         + 2 * getPoolSizes(sharedData.jumpFloodComputePipeline.descriptorSetLayout, sharedData.outlineRenderPipeline.descriptorSetLayout)
         + sharedData.weightedBlendedCompositionRenderPipeline.descriptorSetLayout.getPoolSize()
         + sharedData.inverseToneMappingRenderPipeline.descriptorSetLayout.getPoolSize()
         + sharedData.bloomComputePipeline.descriptorSetLayout.getPoolSize()
-        + sharedData.bloomApplyRenderPipeline.descriptorSetLayout.getPoolSize();
-    vk::DescriptorPoolCreateFlags flags{};
-    if (sharedData.gpu.supportVariableDescriptorCount) {
-        poolSizes += sharedData.assetDescriptorSetLayout.getPoolSize();
-        flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet | vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind;
-    }
-
-    return { sharedData.gpu.device, poolSizes.getDescriptorPoolCreateInfo(flags) };
+        + sharedData.bloomApplyRenderPipeline.descriptorSetLayout.getPoolSize()
+        + sharedData.assetDescriptorSetLayout.getPoolSize();
+    return { sharedData.gpu.device, poolSizes.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet | vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind) };
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer cb) const {

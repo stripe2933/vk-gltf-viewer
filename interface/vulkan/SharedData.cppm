@@ -121,8 +121,6 @@ namespace vk_gltf_viewer::vulkan {
 
         void handleSwapchainResize(const vk::Extent2D &newSwapchainExtent, std::span<const vk::Image> newSwapchainImages);
 
-        void setAsset(std::shared_ptr<const vulkan::gltf::AssetExtended> assetExtended);
-
     private:
         // --------------------
         // Pipelines.
@@ -165,14 +163,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
     , cubeIndices { gpu.allocator }
     , cubemapSampler { gpu.device }
     , brdfLutSampler { gpu.device }
-    , assetDescriptorSetLayout { [&]() {
-        if (gpu.supportVariableDescriptorCount) {
-            return dsl::Asset { gpu };
-        }
-        else {
-            return dsl::Asset { gpu, 1 }; // TODO: set proper initial texture count.
-        }
-    }() }
+    , assetDescriptorSetLayout { gpu }
     , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
     , multiNodeMousePickingDescriptorSetLayout { gpu.device }
     , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
@@ -428,26 +419,4 @@ vk::Pipeline vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderPipeline
 
 void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages) {
     imGuiAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
-}
-
-void vk_gltf_viewer::vulkan::SharedData::setAsset(std::shared_ptr<const vulkan::gltf::AssetExtended> _assetExtended) {
-    assetExtended = std::move(_assetExtended);
-
-    const std::uint32_t textureCount = 1 + assetExtended->asset.textures.size();
-    if (!gpu.supportVariableDescriptorCount && get<3>(assetDescriptorSetLayout.descriptorCounts) != textureCount) {
-        // If texture count is different, descriptor set layouts, pipeline layouts and pipelines have to be recreated.
-        nodeIndexPipelines.clear();
-        maskNodeIndexPipelines.clear();
-        multiNodeMousePickingPipelines.clear();
-        maskMultiNodeMousePickingPipelines.clear();
-        jumpFloodSeedPipelines.clear();
-        maskJumpFloodSeedPipelines.clear();
-        primitivePipelines.clear();
-        unlitPrimitivePipelines.clear();
-
-        assetDescriptorSetLayout = { gpu, textureCount };
-        multiNodeMousePickingPipelineLayout = { gpu.device, std::tie(assetDescriptorSetLayout, multiNodeMousePickingDescriptorSetLayout) };
-        primitivePipelineLayout = { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) };
-        primitiveNoShadingPipelineLayout = { gpu.device, assetDescriptorSetLayout };
-    }
 }

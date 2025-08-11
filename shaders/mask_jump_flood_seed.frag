@@ -29,7 +29,12 @@ layout (location = 0) out uvec2 outCoordinate;
 layout (set = 0, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
+#if SEPARATE_IMAGE_SAMPLER == 1
+layout (set = 0, binding = 3) uniform sampler samplers[];
+layout (set = 0, binding = 4) uniform texture2D images[];
+#else
 layout (set = 0, binding = 3) uniform sampler2D textures[];
+#endif
 
 void main(){
     float baseColorAlpha = MATERIAL.baseColorFactor.a;
@@ -38,7 +43,11 @@ void main(){
     if (USE_TEXTURE_TRANSFORM) {
         baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
+#if SEPARATE_IMAGE_SAMPLER == 1
+    baseColorAlpha *= texture(sampler2D(images[uint(MATERIAL.baseColorTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.baseColorTextureIndex) >> 12U]), baseColorTexcoord).a;
+#else
     baseColorAlpha *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], baseColorTexcoord).a;
+#endif
 #endif
 #if HAS_COLOR_0_ALPHA_ATTRIBUTE
     baseColorAlpha *= variadic_in.color0Alpha;

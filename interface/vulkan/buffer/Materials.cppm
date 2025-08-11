@@ -11,6 +11,7 @@ export import fastgltf;
 export import vkgltf; // vkgltf::StagingBufferStorage
 export import vku;
 
+import vk_gltf_viewer.helpers.fastgltf;
 export import vk_gltf_viewer.vulkan.shader_type.Material;
 
 namespace vk_gltf_viewer::vulkan::buffer {
@@ -46,11 +47,12 @@ namespace vk_gltf_viewer::vulkan::buffer {
          * if the buffer can store the new material. If the method returns <tt>false</tt>, use
          * <tt>enlarge(vk::CommandBuffer)</tt> to enlarge the buffer by 2x capacity.
          *
+         * @param asset Asset to which the material belongs.
          * @param material Material to add.
          * @param transferCommandBuffer If buffer is not host-visible memory and so is unable to be updated from the host, this command buffer will be used for recording the buffer update command. Then, its execution MUST be synchronized to be available to the buffer usage. Otherwise, this parameter is unused.
          * @return <tt>true</tt> if the buffer is not host-visible memory and the update command is recorded, <tt>false</tt> otherwise.
          */
-        [[nodiscard]] bool add(const fastgltf::Material &material, vk::CommandBuffer transferCommandBuffer);
+        [[nodiscard]] bool add(const fastgltf::Asset &asset, const fastgltf::Material &material, vk::CommandBuffer transferCommandBuffer);
 
         /**
          * @brief Update material property with field accessor.
@@ -108,7 +110,7 @@ module :private;
     };
 }
 
-[[nodiscard]] vk_gltf_viewer::vulkan::shader_type::Material getShaderMaterial(const fastgltf::Material &material) {
+[[nodiscard]] vk_gltf_viewer::vulkan::shader_type::Material getShaderMaterial(const fastgltf::Asset &asset, const fastgltf::Material &material) {
     vk_gltf_viewer::vulkan::shader_type::Material result {
         .baseColorFactor = glm::gtc::make_vec4(material.pbrData.baseColorFactor.data()),
         .metallicFactor = material.pbrData.metallicFactor,
@@ -118,9 +120,23 @@ module :private;
         .ior = material.ior,
     };
 
+    const auto getTextureIndex = [&](const fastgltf::TextureInfo &textureInfo) noexcept {
+    #if __APPLE__
+        std::uint16_t result = 0;
+        const fastgltf::Texture &texture = asset.textures[textureInfo.textureIndex];
+        if (texture.samplerIndex) {
+            result = (*texture.samplerIndex + 1) << 12;
+        }
+        result |= static_cast<std::uint16_t>(getPreferredImageIndex(texture)) + 1;
+        return result;
+    #else
+        return static_cast<std::uint16_t>(textureInfo.textureIndex) + 1;
+    #endif
+    };
+
     if (const auto& baseColorTexture = material.pbrData.baseColorTexture) {
         result.baseColorTexcoordIndex = baseColorTexture->texCoordIndex;
-        result.baseColorTextureIndex = static_cast<std::uint16_t>(baseColorTexture->textureIndex) + 1;
+        result.baseColorTextureIndex = baseColorTexture.transform(getTextureIndex).value_or(std::uint16_t{});
 
         if (const auto &transform = baseColorTexture->transform) {
             result.baseColorTextureTransform = getTextureTransform(*transform);
@@ -131,7 +147,7 @@ module :private;
     }
     if (const auto& metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture) {
         result.metallicRoughnessTexcoordIndex = metallicRoughnessTexture->texCoordIndex;
-        result.metallicRoughnessTextureIndex = static_cast<std::uint16_t>(metallicRoughnessTexture->textureIndex) + 1;
+        result.metallicRoughnessTextureIndex = metallicRoughnessTexture.transform(getTextureIndex).value_or(std::uint16_t{});
 
         if (const auto &transform = metallicRoughnessTexture->transform) {
             result.metallicRoughnessTextureTransform = getTextureTransform(*transform);
@@ -142,7 +158,7 @@ module :private;
     }
     if (const auto& normalTexture = material.normalTexture) {
         result.normalTexcoordIndex = normalTexture->texCoordIndex;
-        result.normalTextureIndex = static_cast<std::uint16_t>(normalTexture->textureIndex) + 1;
+        result.normalTextureIndex = normalTexture.transform(getTextureIndex).value_or(std::uint16_t{});
         result.normalScale = normalTexture->scale;
 
         if (const auto &transform = normalTexture->transform) {
@@ -154,7 +170,7 @@ module :private;
     }
     if (const auto& occlusionTexture = material.occlusionTexture) {
         result.occlusionTexcoordIndex = occlusionTexture->texCoordIndex;
-        result.occlusionTextureIndex = static_cast<std::uint16_t>(occlusionTexture->textureIndex) + 1;
+        result.occlusionTextureIndex = occlusionTexture.transform(getTextureIndex).value_or(std::uint16_t{});
         result.occlusionStrength = occlusionTexture->strength;
 
         if (const auto &transform = occlusionTexture->transform) {
@@ -166,7 +182,7 @@ module :private;
     }
     if (const auto& emissiveTexture = material.emissiveTexture) {
         result.emissiveTexcoordIndex = emissiveTexture->texCoordIndex;
-        result.emissiveTextureIndex = static_cast<std::uint16_t>(emissiveTexture->textureIndex) + 1;
+        result.emissiveTextureIndex = emissiveTexture.transform(getTextureIndex).value_or(std::uint16_t{});
 
         if (const auto &transform = emissiveTexture->transform) {
             result.emissiveTextureTransform = getTextureTransform(*transform);
@@ -200,7 +216,9 @@ vk_gltf_viewer::vulkan::buffer::Materials::Materials(
     count { 1 + asset.materials.size() } {
     auto it = std::span { static_cast<shader_type::Material*>(allocator.getAllocationInfo(allocation).pMappedData), 1 + asset.materials.size() }.begin();
     *it++ = {}; // Initialize fallback material.
-    std::ranges::transform(asset.materials, it, getShaderMaterial);
+    std::ranges::transform(asset.materials, it, [&](const fastgltf::Material &material) {
+        return getShaderMaterial(asset, material);
+    });
 
     if (!vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostCoherent)) {
         // Created buffer is non-coherent. Flush the mapped memory range.
@@ -250,10 +268,10 @@ bool vk_gltf_viewer::vulkan::buffer::Materials::canAddMaterial() const noexcept 
     return sizeof(shader_type::Material) * (count + 1) <= size;
 }
 
-bool vk_gltf_viewer::vulkan::buffer::Materials::add(const fastgltf::Material &material, vk::CommandBuffer transferCommandBuffer) {
+bool vk_gltf_viewer::vulkan::buffer::Materials::add(const fastgltf::Asset &asset, const fastgltf::Material &material, vk::CommandBuffer transferCommandBuffer) {
     assert(canAddMaterial() && "Buffer size is not enough to push back a new material.");
 
-    const shader_type::Material shaderMaterial = getShaderMaterial(material);
+    const shader_type::Material shaderMaterial = getShaderMaterial(asset, material);
     if (vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostVisible)) {
         allocator.copyMemoryToAllocation(&shaderMaterial, allocation, sizeof(shader_type::Material) * count++, sizeof(shader_type::Material));
         return false;

@@ -111,8 +111,9 @@ The extensions and feature used in this application are quite common in the mode
   - `VkPhysicalDeviceVulkan12Features`
     - `bufferDeviceAddress`
     - `descriptorIndexing`
-    - `descriptorBindingSampledImageUpdateAfterBind`
     - `descriptorBindingPartiallyBound`
+    - `descriptorBindingSampledImageUpdateAfterBind`
+    - `descriptorBindingVariableDescriptorCount`
     - `runtimeDescriptorArray`
     - `separateDepthStencilLayouts`
     - `storageBuffer8BitAccess`
@@ -120,7 +121,6 @@ The extensions and feature used in this application are quite common in the mode
     - `timelineSemaphore`
     - `shaderInt8`
     - (optional) `drawIndirectCount` (If not presented, GPU frustum culling will be unavailable and fallback to the CPU frustum culling.)
-    - (optional) `descriptorBindingVariableDescriptorCount` (If not presented, graphics pipelines are dependent to the asset texture count; for every asset loading, the pipelines will be recreated as their texture count is changing.)
   - `VkPhysicalDeviceDynamicRenderingFeatures`
   - `VkPhysicalDeviceSynchronization2Features`
   - `VkPhysicalDeviceExtendedDynamicStateFeaturesEXT`
@@ -129,7 +129,9 @@ The extensions and feature used in this application are quite common in the mode
 - Device Limits
   - Subgroup size must be at least 16.
   - Sampler anisotropy must support 16x.
-  - Loading asset texture count must be less than `maxDescriptorSetUpdateAfterBindSampledImages`
+  - Available asset texture count is restricted by:
+    - For Apple system, sampler and image count must be less than `maxDescriptorSetUpdateAfterBindSamplers` and `maxDescriptorSetUpdateAfterBindSampledImages`, respectively.
+    - Otherwise, texture count must be less than `maxDescriptorSetUpdateAfterBindSamplers`.
 
 </details>
 
