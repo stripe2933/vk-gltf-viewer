@@ -11,7 +11,7 @@ endif ()
 
 function(target_link_shaders TARGET SCOPE)
     set(oneValueArgs TARGET_ENV)
-    set(multiValueArgs FILES)
+    set(multiValueArgs MACRO_DEFS FILES)
     cmake_parse_arguments(arg "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if (NOT arg_TARGET_ENV)
@@ -20,6 +20,11 @@ function(target_link_shaders TARGET SCOPE)
 
     # Make target identifier.
     string(MAKE_C_IDENTIFIER ${TARGET} target_identifier)
+
+    set(macro_cli_defs "")
+    foreach (macro_def IN LISTS arg_MACRO_DEFS)
+        list(APPEND macro_cli_defs "-D${macro_def}")
+    endforeach()
 
     set(spirv_num_filenames "")
     set(shader_module_filenames "")
@@ -40,7 +45,7 @@ function(target_link_shaders TARGET SCOPE)
             set(depfile "${CMAKE_CURRENT_BINARY_DIR}/shader_depfile/${filename}.d")
             add_custom_command(
                 OUTPUT ${spirv_num_filename}
-                COMMAND Vulkan::glslc -MD -MF ${depfile} --target-env=${arg_TARGET_ENV} -mfmt=num ${source} -o ${spirv_num_filename}
+                COMMAND Vulkan::glslc -MD -MF ${depfile} --target-env=${arg_TARGET_ENV} -mfmt=num ${macro_cli_defs} ${source} -o ${spirv_num_filename}
                 DEPENDS ${source}
                 BYPRODUCTS ${depfile}
                 DEPFILE ${depfile}
@@ -50,7 +55,7 @@ function(target_link_shaders TARGET SCOPE)
         elseif (${Vulkan_glslangValidator_FOUND})
             add_custom_command(
                 OUTPUT ${spirv_num_filename}
-                COMMAND Vulkan::glslangValidator -V $<$<CONFIG:Release>:-Os> --target-env ${arg_TARGET_ENV} -x ${source} -o ${spirv_num_filename}
+                COMMAND Vulkan::glslangValidator -V $<$<CONFIG:Release>:-Os> --target-env ${arg_TARGET_ENV} -x ${macro_cli_defs} ${source} -o ${spirv_num_filename}
                 DEPENDS ${source}
                 COMMAND_EXPAND_LISTS
                 VERBATIM
@@ -77,7 +82,7 @@ endfunction()
 
 function(target_link_shader_variants TARGET SCOPE)
     set(oneValueArgs TARGET_ENV)
-    set(multiValueArgs FILES MACRO_NAMES MACRO_VALUES)
+    set(multiValueArgs MACRO_DEFS FILES MACRO_NAMES MACRO_VALUES)
     cmake_parse_arguments(arg "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if (NOT arg_TARGET_ENV)
@@ -86,7 +91,6 @@ function(target_link_shader_variants TARGET SCOPE)
 
     # Make target identifier.
     string(MAKE_C_IDENTIFIER ${TARGET} target_identifier)
-
 
     # "MACRO1;MACRO2;MACRO3" -> "int MACRO1, int MACRO2, int MACRO3"
     list(TRANSFORM arg_MACRO_NAMES PREPEND "int " OUTPUT_VARIABLE comma_separated_macro_params)
@@ -116,6 +120,9 @@ function(target_link_shader_variants TARGET SCOPE)
             # Create CLI macro definitions by zipping the macro names and values.
             # e.g. MACRO_NAMES=[MACRO1, MACRO2], macro_values=[0, 1] -> macro_cli_defs="-DMACRO1=0 -DMACRO2=1"
             set(macro_cli_defs "")
+            foreach (macro_def IN LISTS arg_MACRO_DEFS)
+                list(APPEND macro_cli_defs "-D${macro_def}")
+            endforeach ()
             foreach (macro_name macro_value IN ZIP_LISTS arg_MACRO_NAMES macro_values)
                 list(APPEND macro_cli_defs "-D${macro_name}=${macro_value}")
             endforeach ()
