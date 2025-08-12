@@ -1,6 +1,7 @@
 module;
 
 #include <boost/container_hash/hash.hpp>
+#include <boost/container/small_vector.hpp>
 #include <boost/container/static_vector.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
@@ -881,83 +882,116 @@ void vk_gltf_viewer::vulkan::Frame::setPassthruExtent(const vk::Extent2D &extent
 }
 
 void vk_gltf_viewer::vulkan::Frame::updateAsset() {
-    const auto &inner = gltfAsset.emplace(sharedData);
-    (*sharedData.gpu.device).freeDescriptorSets(*descriptorPool, assetDescriptorSet);
-    assetDescriptorSet = decltype(assetDescriptorSet) {
-        vku::unsafe,
-        (*sharedData.gpu.device).allocateDescriptorSets(vk::StructureChain {
-            vk::DescriptorSetAllocateInfo {
-                *descriptorPool,
-                *sharedData.assetDescriptorSetLayout,
-            },
-            vk::DescriptorSetVariableDescriptorCountAllocateInfo {
-            #if __APPLE__
-                vku::unsafeProxy<std::uint32_t>(1 + inner.assetExtended->asset.images.size()),
-            #else
-                vku::unsafeProxy<std::uint32_t>(1 + inner.assetExtended->asset.textures.size()),
-            #endif
-             },
-         }.get())[0],
+    constexpr auto getVariableDescriptorCount = [](const fastgltf::Asset &asset) noexcept {
+    #if __APPLE__
+        return static_cast<std::uint32_t>(1 + asset.images.size());
+    #else
+        return static_cast<std::uint32_t>(1 + asset.textures.size());
+    #endif
     };
 
+    const std::optional<std::uint32_t> oldVariableDescriptorCount = gltfAsset.transform([&](const GltfAsset &vkAsset) {
+        return getVariableDescriptorCount(vkAsset.assetExtended->asset);
+    });
+    const auto &inner = gltfAsset.emplace(sharedData);
+
+    bool assetDescriptorSetReallocated = false;
+    if (std::uint32_t variableDescriptorCount = getVariableDescriptorCount(inner.assetExtended->asset);
+        !oldVariableDescriptorCount || variableDescriptorCount > *oldVariableDescriptorCount) {
+        // If variable descriptor count has greater than the previous, descriptor set must be reallocated with the new
+        // increased count.
+        (*sharedData.gpu.device).freeDescriptorSets(*descriptorPool, assetDescriptorSet);
+        assetDescriptorSet = decltype(assetDescriptorSet) {
+            vku::unsafe,
+            (*sharedData.gpu.device).allocateDescriptorSets(vk::StructureChain {
+                vk::DescriptorSetAllocateInfo {
+                    *descriptorPool,
+                    *sharedData.assetDescriptorSetLayout,
+                },
+                vk::DescriptorSetVariableDescriptorCountAllocateInfo { vk::ArrayProxyNoTemporaries<const std::uint32_t> { variableDescriptorCount } },
+             }.get())[0],
+        };
+        assetDescriptorSetReallocated = true;
+    }
+
+    // Update the descriptors that are unrelated to the asset textures.
+    sharedData.gpu.device.updateDescriptorSets({
+        mousePickingSet.getWriteOne<1>({ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) }),
+        multiNodeMousePickingSet.getWriteOne<0>({ inner.mousePickingResultBuffer, 0, vk::WholeSize }),
+        assetDescriptorSet.getWrite<0>(inner.assetExtended->primitiveBuffer.descriptorInfo),
+        assetDescriptorSet.getWrite<1>(inner.nodeBuffer.descriptorInfo),
+        assetDescriptorSet.getWrite<2>(inner.assetExtended->materialBuffer.descriptorInfo),
+    }, {});
+
 #if __APPLE__
-    std::vector<vk::DescriptorImageInfo> samplerInfos;
+    std::vector<vk::WriteDescriptorSet> descriptorWrites;
+
+    // Usually, an asset does not have a sampler (it relies on the default sampler) or has only one sampler.
+    // Therefore, capacity of 2 is enough for storing the fallback texture sampler and the asset sampler.
+    boost::container::small_vector<vk::DescriptorImageInfo, 2> samplerInfos;
     samplerInfos.reserve(1 + inner.assetExtended->asset.samplers.size());
-    samplerInfos.emplace_back(*sharedData.fallbackTexture.sampler);
+
+    const vk::DescriptorImageInfo fallbackImageInfo { {}, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal };
+    if (assetDescriptorSetReallocated) {
+        // Write fallback texture sampler and image.
+        samplerInfos.emplace_back(*sharedData.fallbackTexture.sampler);
+        descriptorWrites.push_back(assetDescriptorSet.getWrite<4>(fallbackImageInfo));
+    }
+
     for (vk::Sampler sampler : inner.assetExtended->textures.samplers) {
         samplerInfos.emplace_back(sampler);
     }
 
-    sharedData.gpu.device.updateDescriptorSets({
-        mousePickingSet.getWriteOne<1>({ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) }),
-        multiNodeMousePickingSet.getWriteOne<0>({ inner.mousePickingResultBuffer, 0, vk::WholeSize }),
-        assetDescriptorSet.getWrite<0>(inner.assetExtended->primitiveBuffer.descriptorInfo),
-        assetDescriptorSet.getWrite<1>(inner.nodeBuffer.descriptorInfo),
-        assetDescriptorSet.getWrite<2>(inner.assetExtended->materialBuffer.descriptorInfo),
-        assetDescriptorSet.getWrite<3>(samplerInfos),
-        assetDescriptorSet.getWriteOne<4>({ {}, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-    }, {});
-
-    // Get chunks of contiguous image indices.
-    // For example, if asset has 16 images, and only 2, 3, 5, 6, 7, 10 are used, then total 3 vk::DescriptorImageInfo
-    // structs are needed and their corresponding dstArrayElement and descriptorCount are: (3, 2), (6, 3), (11, 1).
-    // Remind that the 0-th array element is reserved for the fallback texture, so 3, 6 and 11 are obtained by adding 1
-    // to the 2, 5, 10.
-
-    std::vector<std::size_t> usedImageIndices;
-    for (const fastgltf::Texture &texture : inner.assetExtended->asset.textures) {
-        usedImageIndices.push_back(getPreferredImageIndex(texture));
+    if (!samplerInfos.empty()) {
+        descriptorWrites.push_back(assetDescriptorSet.getWrite<3>(samplerInfos).setDstArrayElement(assetDescriptorSetReallocated ? 0 : 1));
     }
-    std::ranges::sort(usedImageIndices);
-    const auto [begin, end] = std::ranges::unique(usedImageIndices);
-    usedImageIndices.erase(begin, end);
 
     std::vector<std::vector<vk::DescriptorImageInfo>> chunkedImageInfos;
-    sharedData.gpu.device.updateDescriptorSets(
-        usedImageIndices
-            | std::views::chunk_by([](auto a, auto b) { return b - a == 1; })
-            | std::views::transform([&](const auto &chunk) {
-                const auto &infos = chunkedImageInfos.emplace_back(std::from_range, chunk | std::views::transform([&](std::size_t imageIndex) {
+    if (!inner.assetExtended->asset.textures.empty()) {
+        // Get chunks of contiguous image indices.
+        // For example, if asset has 16 images, and only 2, 3, 5, 6, 7, 10 are used, then total 3 vk::DescriptorImageInfo
+        // structs are needed and their corresponding dstArrayElement and descriptorCount are: (3, 2), (6, 3), (11, 1).
+        // Remind that the 0-th array element is reserved for the fallback texture, so 3, 6 and 11 are obtained by adding 1
+        // to the 2, 5, 10.
+
+        std::vector<std::size_t> usedImageIndices;
+        for (const fastgltf::Texture &texture : inner.assetExtended->asset.textures) {
+            usedImageIndices.push_back(getPreferredImageIndex(texture));
+        }
+        std::ranges::sort(usedImageIndices);
+        const auto [begin, end] = std::ranges::unique(usedImageIndices);
+        usedImageIndices.erase(begin, end);
+
+        for (const auto &chunk : usedImageIndices | std::views::chunk_by([](auto a, auto b) { return b - a == 1; })) {
+            std::span infos = chunkedImageInfos.emplace_back(
+                std::from_range,
+                chunk | std::views::transform([&](std::size_t imageIndex) {
                     return vk::DescriptorImageInfo { {}, *inner.assetExtended->textures.images.at(imageIndex).view, vk::ImageLayout::eShaderReadOnlyOptimal };
                 }));
-                return assetDescriptorSet.getWrite<4>(infos).setDstArrayElement(1 + chunk.front());
-            })
-            | std::ranges::to<std::vector>(),
-        {});
-#else
-    std::vector<vk::DescriptorImageInfo> textureInfos;
-    textureInfos.reserve(inner.assetExtended->asset.textures.size() + 1);
-    textureInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
-    textureInfos.append_range(inner.assetExtended->textures.descriptorInfos);
+            descriptorWrites.push_back(assetDescriptorSet.getWrite<4>(infos).setDstArrayElement(1 + chunk.front()));
+        }
+    }
 
-    sharedData.gpu.device.updateDescriptorSets({
-        mousePickingSet.getWriteOne<1>({ inner.mousePickingResultBuffer, 0, sizeof(std::uint32_t) }),
-        multiNodeMousePickingSet.getWriteOne<0>({ inner.mousePickingResultBuffer, 0, vk::WholeSize }),
-        assetDescriptorSet.getWrite<0>(inner.assetExtended->primitiveBuffer.descriptorInfo),
-        assetDescriptorSet.getWrite<1>(inner.nodeBuffer.descriptorInfo),
-        assetDescriptorSet.getWrite<2>(inner.assetExtended->materialBuffer.descriptorInfo),
-        assetDescriptorSet.getWrite<3>(textureInfos),
-    }, {});
+    if (!descriptorWrites.empty()) {
+        sharedData.gpu.device.updateDescriptorSets(descriptorWrites, {});
+    }
+#else
+    // If asset descriptor is not reallocated (therefore the previously written fallback texture info is still valid)
+    // then no need to write fallback texture info. Therefore, we should call vkUpdateDescriptorSets only if
+    // assetDescriptorSetReallocated == true || asset.textures.size() > 0.
+    if (std::uint32_t infoCount = inner.assetExtended->asset.textures.size() + assetDescriptorSetReallocated; infoCount > 0) {
+        std::vector<vk::DescriptorImageInfo> textureInfos;
+        textureInfos.reserve(infoCount);
+
+        std::uint32_t dstArrayElement = 1;
+        if (assetDescriptorSetReallocated) {
+            textureInfos.emplace_back(*sharedData.fallbackTexture.sampler, *sharedData.fallbackTexture.imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+            dstArrayElement = 0;
+        }
+        textureInfos.append_range(inner.assetExtended->textures.descriptorInfos);
+
+        sharedData.gpu.device.updateDescriptorSets(assetDescriptorSet.getWrite<3>(textureInfos).setDstArrayElement(dstArrayElement), {});
+    }
 #endif
 }
 
