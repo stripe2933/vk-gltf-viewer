@@ -64,10 +64,10 @@ namespace vk_gltf_viewer::vulkan {
         bool supportAttachmentFeedbackLoopLayout;
         std::uint32_t subgroupSize;
         std::uint32_t maxPerStageDescriptorUpdateAfterBindSamplers;
+        std::uint32_t maxPerStageDescriptorUpdateAfterBindSampledImages;
         bool supportShaderImageLoadStoreLod;
         bool supportShaderTrinaryMinMax;
         bool supportShaderStencilExport;
-        bool supportVariableDescriptorCount;
         bool supportR8SrgbImageFormat;
         bool supportR8G8SrgbImageFormat;
         bool supportS8UintDepthStencilAttachment;

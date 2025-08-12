@@ -33,7 +33,12 @@ layout (location = 1) out float outRevealage;
 layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
+#if SEPARATE_IMAGE_SAMPLER == 1
+layout (set = 1, binding = 3) uniform sampler samplers[];
+layout (set = 1, binding = 4) uniform texture2D images[];
+#else
 layout (set = 1, binding = 3) uniform sampler2D textures[];
+#endif
 
 #if ALPHA_MODE == 0 || ALPHA_MODE == 2
 layout (early_fragment_tests) in;
@@ -48,7 +53,11 @@ void writeOutput(vec4 color) {
     outColor = vec4(color.rgb, 1.0);
 #elif ALPHA_MODE == 1
 #if HAS_BASE_COLOR_TEXTURE
+#if SEPARATE_IMAGE_SAMPLER == 1
+    color.a *= 1.0 + geometricMean(textureQueryLod(sampler2D(images[uint(MATERIAL.baseColorTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.baseColorTextureIndex) >> 12U]), variadic_in.baseColorTexcoord)) * 0.25;
+#else
     color.a *= 1.0 + geometricMean(textureQueryLod(textures[uint(MATERIAL.baseColorTextureIndex)], variadic_in.baseColorTexcoord)) * 0.25;
+#endif
     // Apply sharpness to the alpha.
     // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
     color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
@@ -73,7 +82,11 @@ void main(){
     if (USE_TEXTURE_TRANSFORM) {
         baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
+#if SEPARATE_IMAGE_SAMPLER == 1
+    baseColor *= texture(sampler2D(images[uint(MATERIAL.baseColorTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.baseColorTextureIndex) >> 12U]), baseColorTexcoord);
+#else
     baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], baseColorTexcoord);
+#endif
 #endif
 #if HAS_COLOR_0_ATTRIBUTE
     baseColor *= variadic_in.color0;

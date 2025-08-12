@@ -569,7 +569,7 @@ void vk_gltf_viewer::MainApp::run() {
                     }
 
                     // Add the new material to the material buffer.
-                    hasUpdateData |= vkAsset.materialBuffer.add(assetExtended->asset.materials.back(), sharedDataUpdateCommandBuffer);
+                    hasUpdateData |= vkAsset.materialBuffer.add(assetExtended->asset, assetExtended->asset.materials.back(), sharedDataUpdateCommandBuffer);
                 },
                 [&](const control::task::MaterialPropertyChanged &task) {
                     const fastgltf::Material &changedMaterial = assetExtended->asset.materials[task.materialIndex];
@@ -1027,7 +1027,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // TODO: I'm aware that there are better solutions compare to the waitIdle, but I don't have much time for it
     //  so I'll just use it for now.
     gpu.device.waitIdle();
-    sharedData.setAsset(std::move(vkAssetExtended));
+    sharedData.assetExtended = std::move(vkAssetExtended);
     for (vulkan::Frame &frame : frames) {
         frame.updateAsset();
     }

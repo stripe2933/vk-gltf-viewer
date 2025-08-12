@@ -59,7 +59,12 @@ layout (set = 0, binding = 2) uniform sampler2D brdfmap;
 layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
+#if SEPARATE_IMAGE_SAMPLER == 1
+layout (set = 1, binding = 3) uniform sampler samplers[];
+layout (set = 1, binding = 4) uniform texture2D images[];
+#else
 layout (set = 1, binding = 3) uniform sampler2D textures[];
+#endif
 
 layout (push_constant, std430) uniform PushConstant {
     mat4 projectionView;
@@ -110,7 +115,11 @@ void writeOutput(vec4 color) {
     outColor = vec4(color.rgb, 1.0);
 #elif ALPHA_MODE == 1
 #if TEXCOORD_COUNT >= 1
+#if SEPARATE_IMAGE_SAMPLER == 1
+    color.a *= 1.0 + geometricMean(textureQueryLod(sampler2D(images[uint(MATERIAL.baseColorTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.baseColorTextureIndex) >> 12U]), getTexcoord(MATERIAL.baseColorTexcoordIndex))) * 0.25;
+#else
     color.a *= 1.0 + geometricMean(textureQueryLod(textures[uint(MATERIAL.baseColorTextureIndex)], getTexcoord(MATERIAL.baseColorTexcoordIndex))) * 0.25;
+#endif
     // Apply sharpness to the alpha.
     // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
     color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
@@ -135,7 +144,11 @@ void main(){
     if (USE_TEXTURE_TRANSFORM) {
         baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
+#if SEPARATE_IMAGE_SAMPLER == 1
+    baseColor *= texture(sampler2D(images[uint(MATERIAL.baseColorTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.baseColorTextureIndex) >> 12U]), baseColorTexcoord);
+#else
     baseColor *= texture(textures[uint(MATERIAL.baseColorTextureIndex)], baseColorTexcoord);
+#endif
 #endif
 #if HAS_COLOR_0_ATTRIBUTE
     baseColor *= variadic_in.color0;
@@ -148,7 +161,11 @@ void main(){
     if (USE_TEXTURE_TRANSFORM) {
         metallicRoughnessTexcoord = mat2(MATERIAL.metallicRoughnessTextureTransform) * metallicRoughnessTexcoord + MATERIAL.metallicRoughnessTextureTransform[2];
     }
+#if SEPARATE_IMAGE_SAMPLER == 1
+    vec2 metallicRoughness = texture(sampler2D(images[uint(MATERIAL.metallicRoughnessTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.metallicRoughnessTextureIndex) >> 12U]), metallicRoughnessTexcoord).bg;
+#else
     vec2 metallicRoughness = texture(textures[uint(MATERIAL.metallicRoughnessTextureIndex)], metallicRoughnessTexcoord).bg;
+#endif
     metallic *= metallicRoughness.x;
     roughness *= metallicRoughness.y;
 #endif
@@ -165,7 +182,11 @@ void main(){
         if (USE_TEXTURE_TRANSFORM) {
             normalTexcoord = mat2(MATERIAL.normalTextureTransform) * normalTexcoord + MATERIAL.normalTextureTransform[2];
         }
+    #if SEPARATE_IMAGE_SAMPLER == 1
+        vec3 tangentNormal = texture(sampler2D(images[uint(MATERIAL.normalTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.normalTextureIndex) >> 12U]), normalTexcoord).rgb;
+    #else
         vec3 tangentNormal = texture(textures[uint(MATERIAL.normalTextureIndex)], normalTexcoord).rgb;
+    #endif
         vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
         N = normalize(mat3(tangent, bitangent, N) * scaledNormal);
     }
@@ -176,7 +197,11 @@ void main(){
         if (USE_TEXTURE_TRANSFORM) {
             normalTexcoord = mat2(MATERIAL.normalTextureTransform) * normalTexcoord + MATERIAL.normalTextureTransform[2];
         }
+    #if SEPARATE_IMAGE_SAMPLER == 1
+        vec3 tangentNormal = texture(sampler2D(images[uint(MATERIAL.normalTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.normalTextureIndex) >> 12U]), normalTexcoord).rgb;
+    #else
         vec3 tangentNormal = texture(textures[uint(MATERIAL.normalTextureIndex)], normalTexcoord).rgb;
+    #endif
         vec3 scaledNormal = (2.0 * tangentNormal - 1.0) * vec3(MATERIAL.normalScale, MATERIAL.normalScale, 1.0);
         N = normalize(variadic_in.tbn * scaledNormal);
     }
@@ -193,7 +218,11 @@ void main(){
     if (USE_TEXTURE_TRANSFORM) {
         occlusionTexcoord = mat2(MATERIAL.occlusionTextureTransform) * occlusionTexcoord + MATERIAL.occlusionTextureTransform[2];
     }
+#if SEPARATE_IMAGE_SAMPLER == 1
+    occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(sampler2D(images[uint(MATERIAL.occlusionTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.occlusionTextureIndex) >> 12U]), occlusionTexcoord).r - 1.0);
+#else
     occlusion = 1.0 + MATERIAL.occlusionStrength * (texture(textures[uint(MATERIAL.occlusionTextureIndex)], occlusionTexcoord).r - 1.0);
+#endif
 #endif
 
     vec3 emissive = MATERIAL.emissive;
@@ -202,7 +231,11 @@ void main(){
     if (USE_TEXTURE_TRANSFORM) {
         emissiveTexcoord = mat2(MATERIAL.emissiveTextureTransform) * emissiveTexcoord + MATERIAL.emissiveTextureTransform[2];
     }
+#if SEPARATE_IMAGE_SAMPLER == 1
+    emissive *= texture(sampler2D(images[uint(MATERIAL.emissiveTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.emissiveTextureIndex) >> 12U]), emissiveTexcoord).rgb;
+#else
     emissive *= texture(textures[uint(MATERIAL.emissiveTextureIndex)], emissiveTexcoord).rgb;
+#endif
 #endif
 
 #if EXT_SHADER_STENCIL_EXPORT == 1
