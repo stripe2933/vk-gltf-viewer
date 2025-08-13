@@ -798,7 +798,7 @@ void vk_gltf_viewer::MainApp::run() {
             .gltf = value_if(static_cast<bool>(assetExtended), [&] {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex % FRAMES_IN_FLIGHT], false),
-                    .mousePickingInput = [&]() -> std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
+                    .mousePickingInput = [&] -> std::optional<vk::Rect2D> {
                         const glm::dvec2 cursorPos = window.getCursorPos();
                         if (drawSelectionRectangle) {
                             ImRect selectionRect {
@@ -814,7 +814,7 @@ void vk_gltf_viewer::MainApp::run() {
 
                             selectionRect.ClipWith(passthruRect);
 
-                            return vk::Rect2D {
+                            vk::Rect2D result {
                                 {
                                     static_cast<std::int32_t>(framebufferScale.x * (selectionRect.Min.x - passthruRect.Min.x)),
                                     static_cast<std::int32_t>(framebufferScale.y * (selectionRect.Min.y - passthruRect.Min.y)),
@@ -824,18 +824,25 @@ void vk_gltf_viewer::MainApp::run() {
                                     static_cast<std::uint32_t>(framebufferScale.y * selectionRect.GetHeight()),
                                 },
                             };
+
+                            // If its size is zero, mouse picking should not be performed.
+                            if (result.extent.width == 0 || result.extent.height == 0) {
+                                return std::nullopt;
+                            }
+
+                            return result;
                         }
-                        else if (passthruRect.Contains({ static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) }) && !ImGui::GetIO().WantCaptureMouse) {
+                        if (passthruRect.Contains({ static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) }) && !ImGui::GetIO().WantCaptureMouse) {
                             // Note: be aware of implicit vk::Offset2D -> vk::Rect2D promotion!
-                            return std::variant<std::monostate, vk::Offset2D, vk::Rect2D> {
-                                std::in_place_type<vk::Offset2D>,
-                                static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - passthruRect.Min.x)),
-                                static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - passthruRect.Min.y)),
+                            return vk::Rect2D {
+                                vk::Offset2D {
+                                    static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - passthruRect.Min.x)),
+                                    static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - passthruRect.Min.y)),
+                                },
+                                vk::Extent2D { 1, 1 },
                             };
                         }
-                        else {
-                            return std::monostate{};
-                        }
+                        return std::nullopt;
                     }(),
                 };
             }),
