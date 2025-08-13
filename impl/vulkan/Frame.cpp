@@ -1226,10 +1226,12 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
     const bool makeMousePickingResultBufferAvailableToHost = renderingNodes && visit(multilambda {
         [&](const vk::Offset2D &offset) {
             if (sharedData.gpu.supportShaderBufferInt64Atomics) {
-                cb.updateBuffer<std::uint64_t>(gltfAsset->mousePickingResultBuffer, 0, NO_INDEX);
+                constexpr std::uint64_t initialValue = NO_INDEX;
+                sharedData.gpu.allocator.copyMemoryToAllocation(&initialValue, gltfAsset->mousePickingResultBuffer.allocation, 0, sizeof(initialValue));
             }
             else {
-                cb.updateBuffer<std::uint32_t>(gltfAsset->mousePickingResultBuffer, 0, NO_INDEX);
+                constexpr std::uint32_t initialValue = NO_INDEX;
+                sharedData.gpu.allocator.copyMemoryToAllocation(&initialValue, gltfAsset->mousePickingResultBuffer.allocation, 0, sizeof(initialValue));
             }
 
             if (renderingNodes->startMousePickingRenderPass) {
@@ -1303,7 +1305,13 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         },
         [&](const vk::Rect2D &rect) {
             // Clear mousePickingResultBuffer as zeros.
+        #if __APPLE__
+            // Filling buffer with a value needs MTLBlitCommandEncoder in Metal, and it breaks the render pass.
+            // It is better to use host memset for this purpose.
+            std::memset(gltfAsset->mousePickingResultBuffer.data, 0, gltfAsset->mousePickingResultBuffer.size);
+        #else
             cb.fillBuffer(gltfAsset->mousePickingResultBuffer, 0, gltfAsset->mousePickingResultBuffer.size, 0U);
+        #endif
 
             if (rect.extent.width == 0 || rect.extent.height == 0) {
                 // Do nothing.
@@ -1311,12 +1319,14 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             }
 
             if (renderingNodes->startMousePickingRenderPass) {
+            #if !__APPLE__
                 cb.pipelineBarrier(
                     vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
                     {}, vk::MemoryBarrier {
                         vk::AccessFlagBits::eTransferWrite,
                         vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite,
                     }, {}, {});
+            #endif
 
                 auto drawPrimitives = [&, resourceBindingState = ResourceBindingState{}](const auto &indirectDrawCommandBuffers) mutable {
                     for (const auto &[criteria, indirectDrawCommandBuffer] : indirectDrawCommandBuffers) {
