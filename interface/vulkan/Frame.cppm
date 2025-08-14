@@ -73,7 +73,7 @@ namespace vk_gltf_viewer::vulkan {
 
             vku::MappedBuffer mousePickingResultBuffer;
 
-            std::optional<vk::Rect2D> mousePickingInput;
+            std::optional<std::pair<std::uint32_t, vk::Rect2D>> mousePickingInput;
 
             explicit GltfAsset(const SharedData &sharedData LIFETIMEBOUND);
 
@@ -118,7 +118,7 @@ namespace vk_gltf_viewer::vulkan {
                  *
                  * @note The rectangle must be sized, i.e. both its width and height must be greater than 0.
                  */
-                std::optional<vk::Rect2D> mousePickingInput;
+                std::optional<std::pair<std::uint32_t, vk::Rect2D>> mousePickingInput;
             };
 
             vk::Offset2D passthruOffset;
@@ -161,9 +161,9 @@ namespace vk_gltf_viewer::vulkan {
             struct JumpFloodResources {
                 vku::AllocatedImage image;
                 vk::raii::ImageView imageView;
-                std::array<vk::raii::ImageView, 2> perLayerImageViews;
+                std::array<vk::raii::ImageView, 2> pingPongImageViews;
 
-                JumpFloodResources(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent);
+                JumpFloodResources(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent, std::uint32_t viewCount);
             };
 
             vk::Extent2D extent;
@@ -210,6 +210,7 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         // Buffer, image and image views.
+        vku::AllocatedBuffer cameraBuffer;
         std::optional<Viewport> viewport;
 
         // Descriptor/command pools.
@@ -218,6 +219,7 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::CommandPool graphicsCommandPool;
 
         // Descriptor sets.
+        vku::DescriptorSet<dsl::Renderer> rendererSet;
         vku::DescriptorSet<dsl::MousePicking> mousePickingSet;
         vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> hoveringNodeJumpFloodSet;
         vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> selectedNodeJumpFloodSet;
@@ -242,12 +244,10 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::Fence inFlightFence;
 
         vk::Offset2D passthruOffset;
-        glm::mat4 projectionViewMatrix;
-        glm::mat4 translationlessProjectionViewMatrix;
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
-        std::variant<vku::DescriptorSet<SkyboxRenderPipeline::DescriptorSetLayout>, glm::vec3> background;
+        std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
 
         [[nodiscard]] vk::raii::DescriptorPool createDescriptorPool() const;
 

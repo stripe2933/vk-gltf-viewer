@@ -4,7 +4,7 @@ layout (location = 0) in vec3 inPosition;
 
 layout (location = 0) out vec4 outColor;
 
-layout (set = 0, binding = 0) uniform samplerCube cubemapSampler;
+layout (set = 1, binding = 0) uniform samplerCube cubemapSampler;
 
 layout (early_fragment_tests) in;
 

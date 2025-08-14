@@ -4,7 +4,7 @@
 
 layout (location = 0) flat in uint inNodeIndex;
 
-layout (set = 1, binding = 0, std430) buffer MousePickingResultBuffer {
+layout (set = 2, binding = 0, std430) buffer MousePickingResultBuffer {
     uint packedBits[];
 };
 

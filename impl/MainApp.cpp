@@ -95,6 +95,7 @@ vk_gltf_viewer::MainApp::MainApp()
     : instance { createInstance() }
     , window { instance }
     , drawSelectionRectangle { false }
+    , lastMouseEnteredViewIndex { 0 }
     , gpu { instance, window.getSurface() }
     , renderer { std::make_shared<Renderer>(Renderer::Capabilities {
         .perFragmentBloom = gpu.supportShaderStencilExport,
@@ -264,10 +265,10 @@ void vk_gltf_viewer::MainApp::run() {
             }
             imguiTaskCollector.rendererSetting(*renderer);
             if (assetExtended) {
-                imguiTaskCollector.imguizmo(*renderer, *assetExtended);
+                imguiTaskCollector.imguizmo(*renderer, lastMouseEnteredViewIndex, *assetExtended);
             }
             else {
-                imguiTaskCollector.imguizmo(*renderer);
+                imguiTaskCollector.imguizmo(*renderer, lastMouseEnteredViewIndex);
             }
 
             if (drawSelectionRectangle) {
@@ -357,6 +358,15 @@ void vk_gltf_viewer::MainApp::run() {
                     if (lastMouseDownPosition && distance2(*lastMouseDownPosition, task.position) >= 4.0) {
                         drawSelectionRectangle = true;
                     }
+
+                    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) != GLFW_PRESS) {
+                        for (const auto &[viewIndex, rect] : renderer->getViewportRect(passthruRect) | ranges::views::enumerate) {
+                            if (rect.Contains(toImVec2(task.position))) {
+                                lastMouseEnteredViewIndex = viewIndex;
+                                break;
+                            }
+                        }
+                    }
                 },
                 [&](const control::task::WindowMouseButton &task) {
                     const bool leftMouseButtonPressed = task.button == GLFW_MOUSE_BUTTON_LEFT && task.action == GLFW_RELEASE && lastMouseDownPosition;
@@ -409,19 +419,35 @@ void vk_gltf_viewer::MainApp::run() {
                         [](const control::task::WindowTrackpadZoom &zoom) { return zoom.scale; }
                     }(task);
 
-                    const float factor = std::powf(1.01f, -scale);
-                    const glm::vec3 displacementToTarget = renderer->camera.direction * renderer->camera.targetDistance;
-                    renderer->camera.targetDistance *= factor;
-                    renderer->camera.position += (1.f - factor) * displacementToTarget;
+                    for (const auto &[viewIndex, rect] : renderer->getViewportRect(passthruRect) | ranges::views::enumerate) {
+                        if (rect.Contains(toImVec2(window.getCursorPos()))) {
+                            control::Camera &camera = renderer->cameras[viewIndex];
+
+                            const float factor = std::powf(1.01f, -scale);
+                            const glm::vec3 displacementToTarget = camera.direction * camera.targetDistance;
+                            camera.targetDistance *= factor;
+                            camera.position += (1.f - factor) * displacementToTarget;
+
+                            break;
+                        }
+                    }
                 },
                 [this](const control::task::WindowTrackpadRotate &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
                     // Rotate the camera around the Y-axis lied on the target point.
-                    const glm::vec3 target = renderer->camera.position + renderer->camera.direction * renderer->camera.targetDistance;
-                    const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
-                    renderer->camera.direction = glm::mat3 { rotation } * renderer->camera.direction;
-                    renderer->camera.position = target - renderer->camera.direction * renderer->camera.targetDistance;
+                    for (const auto &[viewIndex, rect] : renderer->getViewportRect(passthruRect) | ranges::views::enumerate) {
+                        if (rect.Contains(toImVec2(window.getCursorPos()))) {
+                            control::Camera &camera = renderer->cameras[viewIndex];
+
+                            const glm::vec3 target = camera.position + camera.direction * camera.targetDistance;
+                            const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
+                            camera.direction = glm::mat3 { rotation } * camera.direction;
+                            camera.position = target - camera.direction * camera.targetDistance;
+
+                            break;
+                        }
+                    }
                 },
                 [&](const control::task::WindowDrop &task) {
                     // Prevent drag-and-drop when any dialog is opened.
@@ -460,14 +486,13 @@ void vk_gltf_viewer::MainApp::run() {
                     handleSwapchainResize();
                 },
                 [&](const control::task::ChangePassthruRect &task) {
-                    renderer->camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
                     passthruRect = task.newRect;
 
                     vk::Extent2D extent {
                         static_cast<std::uint32_t>(std::ceil(framebufferScale.x * task.newRect.GetWidth())),
                         static_cast<std::uint32_t>(std::ceil(framebufferScale.y * task.newRect.GetHeight())),
                     };
-                    switch (renderer->viewCount) {
+                    switch (renderer->cameras.size()) {
                         case 2:
                             extent.width = math::divCeil(extent.width, 2U);
                             break;
@@ -477,20 +502,39 @@ void vk_gltf_viewer::MainApp::run() {
                             break;
                     }
 
+                    const float aspectRatio = vku::aspect(extent);
+                    for (control::Camera &camera : renderer->cameras) {
+                        camera.aspectRatio = aspectRatio;
+                    }
+
                     currentFrameTask.setViewportExtent(extent);
                     frameDeferredTask.setViewportExtent(extent);
                 },
-                [&](control::task::ViewCountChanged) {
+                [&](const control::task::ChangeViewCount &task) {
                     gpu.device.waitIdle();
 
-                    sharedData.setViewCount(renderer->viewCount);
+                    if (renderer->cameras.size() < task.viewCount) {
+                        // Extend vector with last element.
+                        std::fill_n(std::back_inserter(renderer->cameras), task.viewCount - renderer->cameras.size(), renderer->cameras.back());
+                    }
+                    else {
+                        renderer->cameras.resize(task.viewCount);
+                        lastMouseEnteredViewIndex = task.viewCount - 1;
+                    }
+
+                    if (task.viewCount > 1) {
+                        // TODO: support multiview frustum culling
+                        renderer->frustumCullingMode = Renderer::FrustumCullingMode::Off;
+                    }
+
+                    sharedData.setViewCount(renderer->cameras.size());
                     regenerateDrawCommands.fill(true);
 
                     vk::Extent2D extent {
                         static_cast<std::uint32_t>(std::ceil(framebufferScale.x * passthruRect.GetWidth())),
                         static_cast<std::uint32_t>(std::ceil(framebufferScale.y * passthruRect.GetHeight())),
                     };
-                    switch (renderer->viewCount) {
+                    switch (renderer->cameras.size()) {
                         case 2:
                             extent.width = math::divCeil(extent.width, 2U);
                             break;
@@ -499,7 +543,11 @@ void vk_gltf_viewer::MainApp::run() {
                             extent.height = math::divCeil(extent.height, 2U);
                             break;
                     }
-                    renderer->camera.aspectRatio = vku::aspect(extent);
+
+                    const float aspectRatio = vku::aspect(extent);
+                    for (control::Camera &camera : renderer->cameras) {
+                        camera.aspectRatio = aspectRatio;
+                    }
 
                     currentFrameTask.setViewportExtent(extent);
                     frameDeferredTask.setViewportExtent(extent);
@@ -543,11 +591,13 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Adjust the camera based on the scene enclosing sphere.
                     const auto &[center, radius] = assetExtended->sceneMiniball.get();
-                    const float distance = radius / std::sin(renderer->camera.fov / 2.f);
-                    renderer->camera.position = glm::make_vec3(center.data()) - distance * normalize(renderer->camera.direction);
-                    renderer->camera.zMin = distance - radius;
-                    renderer->camera.zMax = distance + radius;
-                    renderer->camera.targetDistance = distance;
+                    for (control::Camera &camera : renderer->cameras) {
+                        const float distance = radius / std::sin(camera.fov / 2.f);
+                        camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
+                        camera.zMin = distance - radius;
+                        camera.zMax = distance + radius;
+                        camera.targetDistance = distance;
+                    }
 
                     transformedNodes.clear(); // They are all related to the previous glTF asset.
                     regenerateDrawCommands.fill(true);
@@ -818,7 +868,9 @@ void vk_gltf_viewer::MainApp::run() {
 
         if (renderer->automaticNearFarPlaneAdjustment && assetExtended) {
             const auto &[center, radius] = assetExtended->sceneMiniball.get();
-            renderer->camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+            for (control::Camera &camera : renderer->cameras) {
+                camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+            }
         }
 
         if (hasUpdateData) {
@@ -842,7 +894,7 @@ void vk_gltf_viewer::MainApp::run() {
             static_cast<std::uint32_t>(std::ceil(framebufferScale.x * passthruRect.GetWidth())),
             static_cast<std::uint32_t>(std::ceil(framebufferScale.y * passthruRect.GetHeight())),
         };
-        switch (renderer->viewCount) {
+        switch (renderer->cameras.size()) {
             case 2:
                 viewportExtent.width = math::divCeil(viewportExtent.width, 2U);
                 break;
@@ -857,7 +909,7 @@ void vk_gltf_viewer::MainApp::run() {
             .gltf = value_if(static_cast<bool>(assetExtended), [&] {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex % FRAMES_IN_FLIGHT], false),
-                    .mousePickingInput = [&] -> std::optional<vk::Rect2D> {
+                    .mousePickingInput = [&] -> std::optional<std::pair<std::uint32_t, vk::Rect2D>> {
                         const ImVec2 cursorPos = toImVec2(window.getCursorPos());
                         if (drawSelectionRectangle) {
                             const ImVec2 startPos = toImVec2(*lastMouseDownPosition);
@@ -870,46 +922,54 @@ void vk_gltf_viewer::MainApp::run() {
                                 std::swap(selectionRect.Min.y, selectionRect.Max.y);
                             }
 
-                            for (const ImRect &clipRect : renderer->getViewportRect(passthruRect)) {
+                            for (const auto &[viewIndex, clipRect] : renderer->getViewportRect(passthruRect) | ranges::views::enumerate) {
                                 if (clipRect.Contains(startPos)) {
                                     selectionRect.ClipWith(clipRect);
-                                    break;
+
+                                    vk::Extent2D extent {
+                                        static_cast<std::uint32_t>(framebufferScale.x * selectionRect.GetWidth()),
+                                        static_cast<std::uint32_t>(framebufferScale.y * selectionRect.GetHeight()),
+                                    };
+
+                                    // If its size is zero, mouse picking should not be performed.
+                                    if (extent.width == 0 || extent.height == 0) {
+                                        return std::nullopt;
+                                    }
+
+                                    return std::pair<std::uint32_t, vk::Rect2D> {
+                                        viewIndex,
+                                        vk::Rect2D {
+                                            vk::Offset2D {
+                                                static_cast<std::int32_t>(framebufferScale.x * (selectionRect.Min.x - clipRect.Min.x)),
+                                                static_cast<std::int32_t>(framebufferScale.y * (selectionRect.Min.y - clipRect.Min.y)),
+                                            },
+                                            extent,
+                                        },
+                                    };
                                 }
                             }
-
-                            vk::Extent2D extent {
-                                static_cast<std::uint32_t>(framebufferScale.x * selectionRect.GetWidth()),
-                                static_cast<std::uint32_t>(framebufferScale.y * selectionRect.GetHeight()),
-                            };
-
-                            // If its size is zero, mouse picking should not be performed.
-                            if (extent.width == 0 || extent.height == 0) {
-                                return std::nullopt;
-                            }
-
-                            vk::Offset2D framebufferSelectionRectOffsetFromPassthruRect {
-                                static_cast<std::int32_t>(framebufferScale.x * (selectionRect.Min.x - passthruRect.Min.x)),
-                                static_cast<std::int32_t>(framebufferScale.y * (selectionRect.Min.y - passthruRect.Min.y)),
-                            };
-                            if (renderer->viewCount > 1) {
-                                framebufferSelectionRectOffsetFromPassthruRect.x %= viewportExtent.width;
-                                framebufferSelectionRectOffsetFromPassthruRect.y %= viewportExtent.height;
-                            }
-
-                            return std::optional<vk::Rect2D> { std::in_place, framebufferSelectionRectOffsetFromPassthruRect, extent };
+                            std::unreachable(); // drawSelectionRectangle == true but no selection rectangle.
                         }
-                        if (passthruRect.Contains({ static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) }) && !ImGui::GetIO().WantCaptureMouse) {
-                            vk::Offset2D framebufferCursorPosFromPassthruRect {
-                                static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - passthruRect.Min.x)),
-                                static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - passthruRect.Min.y)),
-                            };
-                            if (renderer->viewCount > 1) {
-                                framebufferCursorPosFromPassthruRect.x %= viewportExtent.width;
-                                framebufferCursorPosFromPassthruRect.y %= viewportExtent.height;
-                            }
 
-                            return std::optional<vk::Rect2D> { std::in_place, framebufferCursorPosFromPassthruRect, vk::Extent2D { 1, 1 } };
+                        if (ImGui::GetIO().WantCaptureMouse) {
+                            return std::nullopt;
                         }
+
+                        for (const auto &[viewIndex, clipRect] : renderer->getViewportRect(passthruRect) | ranges::views::enumerate) {
+                            if (clipRect.Contains(cursorPos)) {
+                                return std::pair<std::uint32_t, vk::Rect2D> {
+                                    viewIndex,
+                                    vk::Rect2D {
+                                        vk::Offset2D {
+                                            static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - clipRect.Min.x)),
+                                            static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - clipRect.Min.y)),
+                                        },
+                                        vk::Extent2D { 1, 1 },
+                                    },
+                                };
+                            }
+                        }
+
                         return std::nullopt;
                     }(),
                 };
@@ -1119,11 +1179,13 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius] = assetExtended->sceneMiniball.get();
-    const float distance = radius / std::sin(renderer->camera.fov / 2.f);
-    renderer->camera.position = glm::make_vec3(center.data()) - distance * normalize(renderer->camera.direction);
-    renderer->camera.zMin = distance - radius;
-    renderer->camera.zMax = distance + radius;
-    renderer->camera.targetDistance = distance;
+    for (control::Camera &camera : renderer->cameras) {
+        const float distance = radius / std::sin(camera.fov / 2.f);
+        camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
+        camera.zMin = distance - radius;
+        camera.zMax = distance + radius;
+        camera.targetDistance = distance;
+    }
 }
 
 void vk_gltf_viewer::MainApp::closeGltf() {
