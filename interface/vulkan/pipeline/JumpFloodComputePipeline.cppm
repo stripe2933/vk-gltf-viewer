@@ -27,7 +27,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
             vk::CommandBuffer commandBuffer,
             vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
             std::uint32_t initialSampleOffset,
-            const vk::Extent2D &imageExtent
+            const vk::Extent2D &imageExtent,
+            std::uint32_t viewCount
         ) const;
 
     private:
@@ -69,7 +70,8 @@ bool vk_gltf_viewer::vulkan::pipeline::JumpFloodComputePipeline::compute(
     vk::CommandBuffer commandBuffer,
     vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
     std::uint32_t initialSampleOffset,
-    const vk::Extent2D &imageExtent
+    const vk::Extent2D &imageExtent,
+    std::uint32_t viewCount
 ) const {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *pipeline);
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {});
@@ -81,7 +83,7 @@ bool vk_gltf_viewer::vulkan::pipeline::JumpFloodComputePipeline::compute(
         commandBuffer.dispatch(
             math::divCeil(imageExtent.width, 16U),
             math::divCeil(imageExtent.height, 16U),
-            1);
+            viewCount);
 
         if (pushConstant.sampleOffset != 1U) {
             commandBuffer.pipelineBarrier(

@@ -53,8 +53,8 @@ namespace vk_gltf_viewer::control {
         void nodeInspector(gltf::AssetExtended &assetExtended);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureRef eqmapTextureImGuiDescriptorSet);
         void rendererSetting(Renderer &renderer);
-        void imguizmo(Renderer &renderer);
-        void imguizmo(Renderer &renderer, gltf::AssetExtended &assetExtended);
+        void imguizmo(Renderer &renderer, std::size_t viewIndex);
+        void imguizmo(Renderer &renderer, std::size_t viewIndex, gltf::AssetExtended &assetExtended);
 
     private:
         std::queue<Task> &tasks;

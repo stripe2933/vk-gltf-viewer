@@ -68,13 +68,13 @@ namespace vk_gltf_viewer {
 
         Capabilities capabilities;
 
-        control::Camera camera {
-            glm::vec3 { 0.f, 0.f, 5.f }, normalize(glm::vec3 { 0.f, 0.f, -1.f }), glm::vec3 { 0.f, 1.f, 0.f },
-            glm::radians(45.f), 1.f /* will be determined by viewport extent */, 1e-2f, 10.f,
-            5.f,
+        boost::container::static_vector<control::Camera, 4> cameras {
+            control::Camera {
+                glm::vec3 { 0.f, 0.f, 5.f }, normalize(glm::vec3 { 0.f, 0.f, -1.f }), glm::vec3 { 0.f, 1.f, 0.f },
+                glm::radians(45.f), 1.f /* will be determined by viewport extent */, 1e-2f, 10.f,
+                5.f,
+            }
         };
-
-        std::uint32_t viewCount = 1;
 
         /**
          * @brief Boolean flag indicating whether the renderer should automatically adjust near and far planes based on
@@ -142,7 +142,7 @@ void vk_gltf_viewer::Renderer::setSkybox(std::monostate) noexcept {
 }
 
 boost::container::static_vector<ImRect, 4> vk_gltf_viewer::Renderer::getViewportRect(const ImRect &passthruRect) const {
-    switch (viewCount) {
+    switch (cameras.size()) {
         case 1:
             return { passthruRect };
         case 2: {

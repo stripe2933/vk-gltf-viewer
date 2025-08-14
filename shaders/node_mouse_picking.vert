@@ -18,15 +18,19 @@ layout (constant_id = 3) const uint SKIN_ATTRIBUTE_COUNT = 0;
 
 layout (location = 0) flat out uint outNodeIndex;
 
-layout (set = 0, binding = 0, std430) readonly buffer PrimitiveBuffer {
+layout (set = 0, binding = 0) uniform CameraBuffer {
+    mat4 projectionViews[4];
+} camera;
+
+layout (set = 1, binding = 0, std430) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
-layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {
+layout (set = 1, binding = 1, std430) readonly buffer NodeBuffer {
     Node nodes[];
 };
 
 layout (push_constant) uniform PushConstant {
-    mat4 projectionView;
+    uint viewIndex;
 } pc;
 
 #include "vertex_pulling.glsl"
@@ -36,6 +40,6 @@ void main(){
     outNodeIndex = NODE_INDEX;
 
     vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_NORMALIZED, POSITION_MORPH_TARGET_COUNT);
-    gl_Position = pc.projectionView * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
+    gl_Position = camera.projectionViews[pc.viewIndex] * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
     gl_PointSize = 1.0;
 }

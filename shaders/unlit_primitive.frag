@@ -30,14 +30,14 @@ layout (location = 0) out vec4 outColor;
 layout (location = 1) out float outRevealage;
 #endif
 
-layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
+layout (set = 2, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 #if SEPARATE_IMAGE_SAMPLER == 1
-layout (set = 1, binding = 3) uniform sampler samplers[];
-layout (set = 1, binding = 4) uniform texture2D images[];
+layout (set = 2, binding = 3) uniform sampler samplers[];
+layout (set = 2, binding = 4) uniform texture2D images[];
 #else
-layout (set = 1, binding = 3) uniform sampler2D textures[];
+layout (set = 2, binding = 3) uniform sampler2D textures[];
 #endif
 
 #if ALPHA_MODE == 0 || ALPHA_MODE == 2

@@ -26,14 +26,14 @@ layout (location = 1) in FRAG_VARIDIC_IN {
 
 layout (location = 0) out uvec2 outCoordinate;
 
-layout (set = 0, binding = 2, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 #if SEPARATE_IMAGE_SAMPLER == 1
-layout (set = 0, binding = 3) uniform sampler samplers[];
-layout (set = 0, binding = 4) uniform texture2D images[];
+layout (set = 1, binding = 3) uniform sampler samplers[];
+layout (set = 1, binding = 4) uniform texture2D images[];
 #else
-layout (set = 0, binding = 3) uniform sampler2D textures[];
+layout (set = 1, binding = 3) uniform sampler2D textures[];
 #endif
 
 void main(){

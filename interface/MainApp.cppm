@@ -52,6 +52,7 @@ namespace vk_gltf_viewer {
         control::AppWindow window { instance };
         std::optional<glm::dvec2> lastMouseDownPosition;
         bool drawSelectionRectangle;
+        std::size_t lastMouseEnteredViewIndex;
 
         vulkan::Gpu gpu;
         std::shared_ptr<Renderer> renderer;

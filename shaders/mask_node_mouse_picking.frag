@@ -29,17 +29,17 @@ layout (location = 2) in FRAG_VARIADIC_IN {
 } variadic_in;
 #endif
 
-layout (set = 0, binding = 2, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 #if SEPARATE_IMAGE_SAMPLER == 1
-layout (set = 0, binding = 3) uniform sampler samplers[];
-layout (set = 0, binding = 4) uniform texture2D images[];
+layout (set = 1, binding = 3) uniform sampler samplers[];
+layout (set = 1, binding = 4) uniform texture2D images[];
 #else
-layout (set = 0, binding = 3) uniform sampler2D textures[];
+layout (set = 1, binding = 3) uniform sampler2D textures[];
 #endif
 
-layout (set = 1, binding = 0) buffer MousePickingResultBuffer {
+layout (set = 2, binding = 0) buffer MousePickingResultBuffer {
 #if KHR_SHADER_ATOMIC_INT64 == 1
     uint64_t packedNodeIndexAndDepth;
 #else

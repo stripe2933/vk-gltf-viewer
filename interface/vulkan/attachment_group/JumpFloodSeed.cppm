@@ -4,16 +4,18 @@ module;
 
 export module vk_gltf_viewer.vulkan.ag.JumpFloodSeed;
 
-#ifdef _MSC_VER
 import std;
-#endif
 export import vku;
 
 export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::ag {
-    export struct JumpFloodSeed final : vku::AttachmentGroup {
-        JumpFloodSeed(const Gpu &gpu LIFETIMEBOUND, const vku::Image &seedImage LIFETIMEBOUND);
+    export struct JumpFloodSeed {
+        vk::raii::ImageView seedImageView;
+        vku::AllocatedImage depthImage;
+        vk::raii::ImageView depthImageView;
+
+        JumpFloodSeed(const Gpu &gpu LIFETIMEBOUND, const vku::Image &seedImage LIFETIMEBOUND, std::uint32_t viewCount);
     };
 }
 
@@ -21,13 +23,24 @@ namespace vk_gltf_viewer::vulkan::ag {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::ag::JumpFloodSeed::JumpFloodSeed(const Gpu &gpu, const vku::Image &seedImage)
-    : AttachmentGroup { vku::toExtent2D(seedImage.extent) } {
-    addColorAttachment(
-        gpu.device,
-        seedImage,
-        seedImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } /* ping image subresource */));
-    setDepthStencilAttachment(
-        gpu.device,
-        storeImage(createDepthStencilImage(gpu.allocator, vk::Format::eD32Sfloat)));
+vk_gltf_viewer::vulkan::ag::JumpFloodSeed::JumpFloodSeed(const Gpu &gpu, const vku::Image &seedImage, std::uint32_t viewCount)
+    : seedImageView { gpu.device, seedImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, viewCount } /* ping image subresource */, vk::ImageViewType::e2DArray) }
+    , depthImage {
+        gpu.allocator,
+        vk::ImageCreateInfo {
+            {},
+            vk::ImageType::e2D,
+            vk::Format::eD32Sfloat,
+            seedImage.extent,
+            1, viewCount,
+            vk::SampleCountFlagBits::e1,
+            vk::ImageTiling::eOptimal,
+            vk::ImageUsageFlagBits::eDepthStencilAttachment,
+        },
+        vma::AllocationCreateInfo {
+            {},
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    }
+    , depthImageView { gpu.device, depthImage.getViewCreateInfo(vk::ImageViewType::e2DArray) } {
 }

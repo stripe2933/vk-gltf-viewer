@@ -16,6 +16,7 @@ export import vku;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.ranges;
 export import vk_gltf_viewer.vulkan.ag.ImGui;
+export import vk_gltf_viewer.vulkan.buffer.CubeIndices;
 export import vk_gltf_viewer.vulkan.gltf.AssetExtended;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderPipeline;
@@ -46,7 +47,7 @@ namespace vk_gltf_viewer::vulkan {
         const Gpu &gpu;
 
         // Buffer, image and image views and samplers.
-        buffer::CubeIndices cubeIndices;
+        buffer::CubeIndices cubeIndexBuffer;
         sampler::Cubemap cubemapSampler;
         sampler::BrdfLut brdfLutSampler;
 
@@ -54,6 +55,8 @@ namespace vk_gltf_viewer::vulkan {
         dsl::Asset assetDescriptorSetLayout;
         dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout;
         dsl::MousePicking mousePickingDescriptorSetLayout;
+        dsl::Renderer rendererDescriptorSetLayout;
+        dsl::Skybox skyboxDescriptorSetLayout;
 
         // Render passes.
         rp::Scene sceneRenderPass;
@@ -95,7 +98,7 @@ namespace vk_gltf_viewer::vulkan {
 
         // Descriptor sets.
         vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
-        vku::DescriptorSet<SkyboxRenderPipeline::DescriptorSetLayout> skyboxDescriptorSet;
+        vku::DescriptorSet<dsl::Skybox> skyboxDescriptorSet;
 
         // --------------------
         // glTF assets.
@@ -110,8 +113,8 @@ namespace vk_gltf_viewer::vulkan {
         // Pipeline selectors.
         // --------------------
 
-        [[nodiscard]] const PrepassPipelines<false> &getPrepassPipelines(const fastgltf::Primitive &primitive) const;
-        [[nodiscard]] const PrepassPipelines<true> &getMaskPrepassPipelines(const fastgltf::Primitive &primitive) const;
+        [[nodiscard]] const PrepassPipelines<false> &getPrepassPipelines(const fastgltf::Primitive &primitive, std::uint32_t viewCount) const;
+        [[nodiscard]] const PrepassPipelines<true> &getMaskPrepassPipelines(const fastgltf::Primitive &primitive, std::uint32_t viewCount) const;
         [[nodiscard]] vk::Pipeline getPrimitiveRenderPipeline(const fastgltf::Primitive &primitive, bool usePerFragmentEmissiveStencilExport) const;
         [[nodiscard]] vk::Pipeline getUnlitPrimitiveRenderPipeline(const fastgltf::Primitive &primitive) const;
 
@@ -148,33 +151,36 @@ vk::PrimitiveTopology getListPrimitiveTopology(fastgltf::PrimitiveType type) noe
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages)
     : gpu { gpu }
-    , cubeIndices { gpu.allocator }
+    , cubeIndexBuffer { gpu.allocator }
     , cubemapSampler { gpu.device }
     , brdfLutSampler { gpu.device }
     , assetDescriptorSetLayout { gpu }
     , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
     , mousePickingDescriptorSetLayout { gpu.device }
+    , rendererDescriptorSetLayout { gpu.device }
+    , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
     , sceneRenderPass { gpu, 1 /* TODO */ }
     , bloomApplyRenderPass { gpu, 1 /* TODO */ }
-    , mousePickingPipelineLayout { gpu.device, std::tie(assetDescriptorSetLayout, mousePickingDescriptorSetLayout) }
-    , primitivePipelineLayout { gpu.device, std::tie(imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
-    , primitiveNoShadingPipelineLayout { gpu.device, assetDescriptorSetLayout }
+    , mousePickingPipelineLayout { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout, mousePickingDescriptorSetLayout) }
+    , primitivePipelineLayout { gpu.device, std::tie(rendererDescriptorSetLayout, imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
+    , primitiveNoShadingPipelineLayout { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout) }
     , jumpFloodComputePipeline { gpu.device }
     , outlineRenderPipeline { gpu.device, 1 /* TODO */ }
-    , skyboxRenderPipeline { gpu.device, sceneRenderPass, cubeIndices }
+    , skyboxRenderPipeline { gpu.device, { rendererDescriptorSetLayout, skyboxDescriptorSetLayout }, sceneRenderPass }
     , weightedBlendedCompositionRenderPipeline { gpu, sceneRenderPass }
     , inverseToneMappingRenderPipeline { gpu, sceneRenderPass }
     , bloomComputePipeline { gpu.device, { .useAMDShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod } }
     , bloomApplyRenderPipeline { gpu, bloomApplyRenderPass }
     , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
-    , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxRenderPipeline.descriptorSetLayout).getDescriptorPoolCreateInfo() }
+    , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
     , fallbackTexture { gpu }{
     std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet) = vku::allocateDescriptorSets(
-        *descriptorPool, std::tie(imageBasedLightingDescriptorSetLayout, skyboxRenderPipeline.descriptorSetLayout));
+        *descriptorPool, std::tie(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout));
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::getPrepassPipelines(
-    const fastgltf::Primitive &primitive
+    const fastgltf::Primitive &primitive,
+    std::uint32_t viewCount
 ) const -> const PrepassPipelines<false>& {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
     PrepassPipelineConfig<false> config {
@@ -192,13 +198,14 @@ auto vk_gltf_viewer::vulkan::SharedData::getPrepassPipelines(
         return {
             .nodeMousePickingRenderPipeline = { gpu, mousePickingPipelineLayout, config },
             .multiNodeMousePickingRenderPipeline = { gpu, mousePickingPipelineLayout, config },
-            .jumpFloodSeedRenderingPipeline = { gpu.device, primitiveNoShadingPipelineLayout, config },
+            .jumpFloodSeedRenderingPipeline = { gpu.device, primitiveNoShadingPipelineLayout, config, viewCount },
         };
     }).first->second;
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::getMaskPrepassPipelines(
-    const fastgltf::Primitive &primitive
+    const fastgltf::Primitive &primitive,
+    std::uint32_t viewCount
 ) const -> const PrepassPipelines<true>& {
     const vkgltf::PrimitiveAttributeBuffers &accessors = assetExtended->primitiveAttributeBuffers.at(&primitive);
     PrepassPipelineConfig<true> config {
@@ -233,7 +240,7 @@ auto vk_gltf_viewer::vulkan::SharedData::getMaskPrepassPipelines(
         return {
             .nodeMousePickingRenderPipeline = { gpu, mousePickingPipelineLayout, config },
             .multiNodeMousePickingRenderPipeline = { gpu, mousePickingPipelineLayout, config },
-            .jumpFloodSeedRenderingPipeline = { gpu.device, primitiveNoShadingPipelineLayout, config },
+            .jumpFloodSeedRenderingPipeline = { gpu.device, primitiveNoShadingPipelineLayout, config, viewCount },
         };
     }).first->second;
 }

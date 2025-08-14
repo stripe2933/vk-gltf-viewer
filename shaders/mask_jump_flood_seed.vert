@@ -1,5 +1,6 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_multiview : require
 #extension GL_EXT_shader_8bit_storage : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference_uvec2 : require
@@ -33,19 +34,19 @@ layout (location = 1) out VS_VARIADIC_OUT {
 } variadic_out;
 #endif
 
-layout (set = 0, binding = 0, std430) readonly buffer PrimitiveBuffer {
+layout (set = 0, binding = 0) uniform CameraBuffer {
+    mat4 projectionViews[4];
+} camera;
+
+layout (set = 1, binding = 0, std430) readonly buffer PrimitiveBuffer {
     Primitive primitives[];
 };
-layout (set = 0, binding = 1, std430) readonly buffer NodeBuffer {
+layout (set = 1, binding = 1, std430) readonly buffer NodeBuffer {
     Node nodes[];
 };
-layout (set = 0, binding = 2, std430) readonly buffer MaterialBuffer {
+layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
-
-layout (push_constant, std430) uniform PushConstant {
-    mat4 projectionView;
-} pc;
 
 #include "vertex_pulling.glsl"
 #include "transform.glsl"
@@ -60,6 +61,6 @@ void main(){
 #endif
 
     vec3 inPosition = getPosition(POSITION_COMPONENT_TYPE, POSITION_NORMALIZED, POSITION_MORPH_TARGET_COUNT);
-    gl_Position = pc.projectionView * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
+    gl_Position = camera.projectionViews[gl_ViewIndex] * getTransform(SKIN_ATTRIBUTE_COUNT) * vec4(inPosition, 1.0);
     gl_PointSize = 1.0;
 }
