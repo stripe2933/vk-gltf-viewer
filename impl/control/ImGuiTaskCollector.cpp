@@ -1942,7 +1942,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
     // Set ImGuizmo rect.
     ImGuizmo::BeginFrame();
 
-    const ImRect targetViewportRect = renderer.getViewportRect(centerNodeRect)[viewIndex];
+    const ImRect targetViewportRect = renderer.getViewportRect(centerNodeRect, viewIndex);
     ImGuizmo::SetRect(targetViewportRect.Min.x, targetViewportRect.Min.y, targetViewportRect.GetWidth(), targetViewportRect.GetHeight());
 
     constexpr ImVec2 size { 64.f, 64.f };
@@ -1964,7 +1964,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
     // Set ImGuizmo rect.
     ImGuizmo::BeginFrame();
 
-    const ImRect targetViewportRect = renderer.getViewportRect(centerNodeRect)[viewIndex];
+    const ImRect targetViewportRect = renderer.getViewportRect(centerNodeRect, viewIndex);
     ImGuizmo::SetRect(targetViewportRect.Min.x, targetViewportRect.Min.y, targetViewportRect.GetWidth(), targetViewportRect.GetHeight());
 
     const auto isNodeUsedByEnabledAnimations = [&](std::size_t nodeIndex) {

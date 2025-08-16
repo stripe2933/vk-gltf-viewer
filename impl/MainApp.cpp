@@ -282,7 +282,7 @@ void vk_gltf_viewer::MainApp::run() {
                     std::swap(region.Min.y, region.Max.y);
                 }
 
-                for (const ImRect &clipRect : renderer->getViewportRect(passthruRect)) {
+                for (const ImRect &clipRect : renderer->getViewportRects(passthruRect)) {
                     if (clipRect.Contains(startPos)) {
                         region.ClipWith(clipRect);
                         break;
@@ -360,7 +360,7 @@ void vk_gltf_viewer::MainApp::run() {
                     }
 
                     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) != GLFW_PRESS) {
-                        for (const auto &[viewIndex, rect] : renderer->getViewportRect(passthruRect) | ranges::views::enumerate) {
+                        for (const auto &[viewIndex, rect] : renderer->getViewportRects(passthruRect) | ranges::views::enumerate) {
                             if (rect.Contains(toImVec2(task.position))) {
                                 lastMouseEnteredViewIndex = viewIndex;
                                 break;
@@ -419,33 +419,45 @@ void vk_gltf_viewer::MainApp::run() {
                         [](const control::task::WindowTrackpadZoom &zoom) { return zoom.scale; }
                     }(task);
 
-                    for (const auto &[viewIndex, rect] : renderer->getViewportRect(passthruRect) | ranges::views::enumerate) {
-                        if (rect.Contains(toImVec2(window.getCursorPos()))) {
-                            control::Camera &camera = renderer->cameras[viewIndex];
+                    const auto scaleCamera = [&](control::Camera &camera) {
+                        const float factor = std::powf(1.01f, -scale);
+                        const glm::vec3 displacementToTarget = camera.direction * camera.targetDistance;
+                        camera.targetDistance *= factor;
+                        camera.position += (1.f - factor) * displacementToTarget;
+                    };
 
-                            const float factor = std::powf(1.01f, -scale);
-                            const glm::vec3 displacementToTarget = camera.direction * camera.targetDistance;
-                            camera.targetDistance *= factor;
-                            camera.position += (1.f - factor) * displacementToTarget;
-
-                            break;
+                    if (ImGui::GetIO().KeyCtrl) {
+                        std::ranges::for_each(renderer->cameras, scaleCamera);
+                    }
+                    else {
+                        for (auto &&[camera, rect] : std::views::zip(renderer->cameras, renderer->getViewportRects(passthruRect))) {
+                            if (rect.Contains(toImVec2(window.getCursorPos()))) {
+                                scaleCamera(camera);
+                                break; // Only one camera will be adjusted.
+                            }
                         }
                     }
                 },
                 [this](const control::task::WindowTrackpadRotate &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
-                    // Rotate the camera around the Y-axis lied on the target point.
-                    for (const auto &[viewIndex, rect] : renderer->getViewportRect(passthruRect) | ranges::views::enumerate) {
-                        if (rect.Contains(toImVec2(window.getCursorPos()))) {
-                            control::Camera &camera = renderer->cameras[viewIndex];
+                    const auto rotateCamera = [&](control::Camera &camera) {
+                        // Rotate the camera around the Y-axis lied on the target point.
+                        const glm::vec3 target = camera.position + camera.direction * camera.targetDistance;
+                        const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
+                        camera.direction = glm::mat3 { rotation } * camera.direction;
+                        camera.position = target - camera.direction * camera.targetDistance;
+                    };
 
-                            const glm::vec3 target = camera.position + camera.direction * camera.targetDistance;
-                            const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
-                            camera.direction = glm::mat3 { rotation } * camera.direction;
-                            camera.position = target - camera.direction * camera.targetDistance;
-
-                            break;
+                    if (ImGui::GetIO().KeyCtrl) {
+                        std::ranges::for_each(renderer->cameras, rotateCamera);
+                    }
+                    else {
+                        for (auto &&[camera, rect] : std::views::zip(renderer->cameras, renderer->getViewportRects(passthruRect))) {
+                            if (rect.Contains(toImVec2(window.getCursorPos()))) {
+                                rotateCamera(camera);
+                                break; // Only one camera will be adjusted.
+                            }
                         }
                     }
                 },
@@ -925,7 +937,7 @@ void vk_gltf_viewer::MainApp::run() {
                                 std::swap(selectionRect.Min.y, selectionRect.Max.y);
                             }
 
-                            for (const auto &[viewIndex, clipRect] : renderer->getViewportRect(passthruRect) | ranges::views::enumerate) {
+                            for (const auto &[viewIndex, clipRect] : renderer->getViewportRects(passthruRect) | ranges::views::enumerate) {
                                 if (clipRect.Contains(startPos)) {
                                     selectionRect.ClipWith(clipRect);
 
@@ -958,7 +970,7 @@ void vk_gltf_viewer::MainApp::run() {
                             return std::nullopt;
                         }
 
-                        for (const auto &[viewIndex, clipRect] : renderer->getViewportRect(passthruRect) | ranges::views::enumerate) {
+                        for (const auto &[viewIndex, clipRect] : renderer->getViewportRects(passthruRect) | ranges::views::enumerate) {
                             if (clipRect.Contains(cursorPos)) {
                                 return std::pair<std::uint32_t, vk::Rect2D> {
                                     viewIndex,
