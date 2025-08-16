@@ -16,6 +16,7 @@ export using ::ImGuiCol_Header;
 export using ::ImGuiCol_HeaderActive;
 export using ::ImGuiCond_Appearing;
 export using ::ImGuiContext;
+export using ::ImGuiDragDropFlags_None;
 export using ::ImGuiInputTextCallback;
 export using ::ImGuiInputTextCallbackData;
 export using ::ImGuiInputTextFlags;
@@ -23,6 +24,7 @@ export using ::ImGuiID;
 export using ::ImGuiIO;
 export using ::ImGuiItemFlags_AutoClosePopups;
 export using ::ImGuiListClipper;
+export using ::ImGuiPayload;
 export using ::ImGuiStyle;
 export using ::ImGuiTableColumnFlags;
 export using ::ImGuiTableColumnFlags_DefaultHide;
@@ -77,10 +79,13 @@ namespace ImGui {
         IMGUI_CHECKVERSION();
     }
 
+    export using ImGui::AcceptDragDropPayload;
     export using ImGui::AlignTextToFramePadding;
     export using ImGui::Begin;
     export using ImGui::BeginCombo;
     export using ImGui::BeginDisabled;
+    export using ImGui::BeginDragDropSource;
+    export using ImGui::BeginDragDropTarget;
     export using ImGui::BeginItemTooltip;
     export using ImGui::BeginGroup;
     export using ImGui::BeginListBox;
@@ -111,6 +116,8 @@ namespace ImGui {
     export using ImGui::End;
     export using ImGui::EndCombo;
     export using ImGui::EndDisabled;
+    export using ImGui::EndDragDropSource;
+    export using ImGui::EndDragDropTarget;
     export using ImGui::EndGroup;
     export using ImGui::EndListBox;
     export using ImGui::EndMainMenuBar;
@@ -162,6 +169,7 @@ namespace ImGui {
     export using ImGui::SetCursorPos;
     export using ImGui::SetCursorPosX;
     export using ImGui::SetCursorScreenPos;
+    export using ImGui::SetDragDropPayload;
     export using ImGui::SetItemDefaultFocus;
     export using ImGui::SetNextItemAllowOverlap;
     export using ImGui::SetNextItemWidth;
