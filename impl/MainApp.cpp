@@ -514,11 +514,6 @@ void vk_gltf_viewer::MainApp::run() {
                             break;
                     }
 
-                    const float aspectRatio = vku::aspect(extent);
-                    for (control::Camera &camera : renderer->cameras) {
-                        camera.aspectRatio = aspectRatio;
-                    }
-
                     currentFrameTask.setViewportExtent(extent);
                     frameDeferredTask.setViewportExtent(extent);
                 },
@@ -554,11 +549,6 @@ void vk_gltf_viewer::MainApp::run() {
                             extent.width = math::divCeil(extent.width, 2U);
                             extent.height = math::divCeil(extent.height, 2U);
                             break;
-                    }
-
-                    const float aspectRatio = vku::aspect(extent);
-                    for (control::Camera &camera : renderer->cameras) {
-                        camera.aspectRatio = aspectRatio;
                     }
 
                     currentFrameTask.setViewportExtent(extent);

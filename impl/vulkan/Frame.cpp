@@ -191,9 +191,11 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
 
     // Update camera buffer.
     std::byte* const cameraBufferMapped = static_cast<std::byte*>(sharedData.gpu.allocator.getAllocationInfo(cameraBuffer.allocation).pMappedData);
-    std::ranges::transform(renderer->cameras, reinterpret_cast<glm::mat4*>(cameraBufferMapped), &control::Camera::getProjectionViewMatrix);
-    std::ranges::transform(renderer->cameras, reinterpret_cast<glm::mat4*>(cameraBufferMapped + 4 * sizeof(glm::mat4)), [](const control::Camera &camera) {
-        return camera.getProjectionMatrix() * glm::mat4 { glm::mat3 { camera.getViewMatrix() } };
+    std::ranges::transform(renderer->cameras, reinterpret_cast<glm::mat4*>(cameraBufferMapped), [this](const control::Camera &camera) {
+        return camera.getProjectionViewMatrix(vku::aspect(viewport->extent));
+    });
+    std::ranges::transform(renderer->cameras, reinterpret_cast<glm::mat4*>(cameraBufferMapped + 4 * sizeof(glm::mat4)), [this](const control::Camera &camera) {
+        return camera.getProjectionMatrix(vku::aspect(viewport->extent)) * glm::mat4 { glm::mat3 { camera.getViewMatrix() } };
     });
     std::ranges::transform(renderer->cameras, reinterpret_cast<glm::vec4*>(cameraBufferMapped + 8 * sizeof(glm::mat4)), [](const control::Camera &camera) {
         return glm::vec4 { camera.position, 0.f };
@@ -463,7 +465,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         if (renderer->frustumCullingMode != Renderer::FrustumCullingMode::Off) {
             assert(renderer->cameras.size() == 1 && "Multiview frustum culling is not supported yet");
 
-            const math::Frustum frustum = renderer->cameras[0].getFrustum();
+            const math::Frustum frustum = renderer->cameras[0].getFrustum(vku::aspect(viewport->extent));
             for (buffer::IndirectDrawCommands &buffer : renderingNodes->indirectDrawCommandBuffers | std::views::values) {
                 commandBufferCullingFunc(buffer, frustum);
             }
@@ -477,7 +479,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                 const float xmax = static_cast<float>(rect.offset.x + rect.extent.width) / viewport->extent.width;
                 const float ymin = 1.f - static_cast<float>(rect.offset.y + rect.extent.height) / viewport->extent.height;
                 const float ymax = 1.f - static_cast<float>(rect.offset.y) / viewport->extent.height;
-                const math::Frustum frustum = renderer->cameras[0].getFrustum(xmin, xmax, ymin, ymax);
+                const math::Frustum frustum = renderer->cameras[0].getFrustum(vku::aspect(viewport->extent), xmin, xmax, ymin, ymax);
 
                 auto &map = (rect.extent.width == 1 && rect.extent.height == 1)
                     ? renderingNodes->mousePickingIndirectDrawCommandBuffers
@@ -522,7 +524,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             if (renderer->frustumCullingMode != Renderer::FrustumCullingMode::Off) {
                 assert(renderer->cameras.size() == 1 && "Multiview frustum culling is not supported yet");
 
-                const math::Frustum frustum = renderer->cameras[0].getFrustum();
+                const math::Frustum frustum = renderer->cameras[0].getFrustum(vku::aspect(viewport->extent));
                 for (buffer::IndirectDrawCommands &buffer : selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers | std::views::values) {
                     commandBufferCullingFunc(buffer, frustum);
                 }
@@ -556,7 +558,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             if (renderer->frustumCullingMode != Renderer::FrustumCullingMode::Off) {
                 assert(renderer->cameras.size() == 1 && "Multiview frustum culling is not supported yet");
 
-                const math::Frustum frustum = renderer->cameras[0].getFrustum();
+                const math::Frustum frustum = renderer->cameras[0].getFrustum(vku::aspect(viewport->extent));
                 for (buffer::IndirectDrawCommands &buffer : hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers | std::views::values) {
                     commandBufferCullingFunc(buffer, frustum);
                 }

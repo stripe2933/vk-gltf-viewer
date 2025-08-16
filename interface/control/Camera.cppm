@@ -12,7 +12,6 @@ namespace vk_gltf_viewer::control {
         glm::vec3 up;
 
         float fov;
-        float aspectRatio;
         float zMin;
         float zMax;
 
@@ -29,16 +28,16 @@ namespace vk_gltf_viewer::control {
         bool automaticNearFarPlaneAdjustment = true;
 
         [[nodiscard]] glm::mat4 getViewMatrix() const noexcept;
-        [[nodiscard]] glm::mat4 getProjectionMatrix() const noexcept;
-        [[nodiscard]] glm::mat4 getProjectionMatrixForwardZ() const noexcept;
-        [[nodiscard]] glm::mat4 getProjectionViewMatrix() const noexcept;
-        [[nodiscard]] glm::mat4 getProjectionViewMatrixForwardZ() const noexcept;
+        [[nodiscard]] glm::mat4 getProjectionMatrix(float aspectRatio) const noexcept;
+        [[nodiscard]] glm::mat4 getProjectionMatrixForwardZ(float aspectRatio) const noexcept;
+        [[nodiscard]] glm::mat4 getProjectionViewMatrix(float aspectRatio) const noexcept;
+        [[nodiscard]] glm::mat4 getProjectionViewMatrixForwardZ(float aspectRatio) const noexcept;
         [[nodiscard]] glm::vec3 getRight() const noexcept;
 
         void tightenNearFar(const glm::vec3 &boundingSphereCenter, float boundingSphereRadius) noexcept;
 
-        [[nodiscard]] math::Frustum getFrustum() const;
-        [[nodiscard]] math::Frustum getFrustum(float xmin, float xmax, float ymin, float ymax) const;
+        [[nodiscard]] math::Frustum getFrustum(float aspectRatio) const;
+        [[nodiscard]] math::Frustum getFrustum(float aspectRatio, float xmin, float xmax, float ymin, float ymax) const;
     };
 }
 
@@ -50,20 +49,20 @@ glm::mat4 vk_gltf_viewer::control::Camera::getViewMatrix() const noexcept {
     return lookAt(position, position + direction, up);
 }
 
-glm::mat4 vk_gltf_viewer::control::Camera::getProjectionMatrix() const noexcept {
+glm::mat4 vk_gltf_viewer::control::Camera::getProjectionMatrix(float aspectRatio) const noexcept {
     return glm::perspectiveRH_ZO(fov, aspectRatio, zMax, zMin);
 }
 
-glm::mat4 vk_gltf_viewer::control::Camera::getProjectionMatrixForwardZ() const noexcept {
+glm::mat4 vk_gltf_viewer::control::Camera::getProjectionMatrixForwardZ(float aspectRatio) const noexcept {
     return glm::perspectiveRH_ZO(fov, aspectRatio, zMin, zMax);
 }
 
-glm::mat4 vk_gltf_viewer::control::Camera::getProjectionViewMatrix() const noexcept {
-    return getProjectionMatrix() * getViewMatrix();
+glm::mat4 vk_gltf_viewer::control::Camera::getProjectionViewMatrix(float aspectRatio) const noexcept {
+    return getProjectionMatrix(aspectRatio) * getViewMatrix();
 }
 
-glm::mat4 vk_gltf_viewer::control::Camera::getProjectionViewMatrixForwardZ() const noexcept {
-    return getProjectionMatrixForwardZ() * getViewMatrix();
+glm::mat4 vk_gltf_viewer::control::Camera::getProjectionViewMatrixForwardZ(float aspectRatio) const noexcept {
+    return getProjectionMatrixForwardZ(aspectRatio) * getViewMatrix();
 }
 
 glm::vec3 vk_gltf_viewer::control::Camera::getRight() const noexcept {
@@ -87,9 +86,9 @@ void vk_gltf_viewer::control::Camera::tightenNearFar(const glm::vec3 &boundingSp
     }
 }
 
-vk_gltf_viewer::math::Frustum vk_gltf_viewer::control::Camera::getFrustum() const {
+vk_gltf_viewer::math::Frustum vk_gltf_viewer::control::Camera::getFrustum(float aspectRatio) const {
     // Gribb & Hartmann method.
-    const glm::mat4 m = getProjectionViewMatrixForwardZ();
+    const glm::mat4 m = getProjectionViewMatrixForwardZ(aspectRatio);
     return {
         math::Plane::from(m[0].w + m[0].z, m[1].w + m[1].z, m[2].w + m[2].z, m[3].w + m[3].z), // Near
         math::Plane::from(m[0].w - m[0].z, m[1].w - m[1].z, m[2].w - m[2].z, m[3].w - m[3].z), // Far
@@ -100,7 +99,7 @@ vk_gltf_viewer::math::Frustum vk_gltf_viewer::control::Camera::getFrustum() cons
     };
 }
 
-vk_gltf_viewer::math::Frustum vk_gltf_viewer::control::Camera::getFrustum(float xmin, float xmax, float ymin, float ymax) const {
+vk_gltf_viewer::math::Frustum vk_gltf_viewer::control::Camera::getFrustum(float aspectRatio, float xmin, float xmax, float ymin, float ymax) const {
     const float nearWidth = 2.f * zMin * std::tan(fov / 2.f);
     const float nearHeight = nearWidth * aspectRatio;
     const glm::mat4 projection = glm::gtc::frustum(
