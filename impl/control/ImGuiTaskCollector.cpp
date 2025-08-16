@@ -2005,6 +2005,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
 
     const ImRect targetViewportRect = renderer.getViewportRect(centerNodeRect, viewIndex);
     ImGuizmo::SetRect(targetViewportRect.Min.x, targetViewportRect.Min.y, targetViewportRect.GetWidth(), targetViewportRect.GetHeight());
+    const float aspectRatio = targetViewportRect.GetWidth() / targetViewportRect.GetHeight();
 
     const auto isNodeUsedByEnabledAnimations = [&](std::size_t nodeIndex) {
         for (const auto &[animation, enabled] : assetExtended.animations) {
@@ -2031,7 +2032,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
 
         ImGuizmo::Enable(!isNodeUsedByEnabledAnimations(selectedNodeIndex));
 
-        if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
+        if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ(aspectRatio)), renderer.imGuizmoOperation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
             const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(assetExtended.nodeWorldTransforms[selectedNodeIndex]) * newWorldTransform;
 
             updateTransform(assetExtended.asset.nodes[selectedNodeIndex], [&](fastgltf::math::fmat4x4 &transformMatrix) {
@@ -2061,7 +2062,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
         ImGuizmo::Enable(std::ranges::none_of(assetExtended.selectedNodes, isNodeUsedByEnabledAnimations));
 
         if (fastgltf::math::fmat4x4 deltaMatrix;
-            Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data())) {
+            Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ(aspectRatio)), renderer.imGuizmoOperation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data())) {
             for (std::size_t nodeIndex : assetExtended.selectedNodes) {
                 const fastgltf::math::fmat4x4 inverseOldWorldTransform = affineInverse(assetExtended.nodeWorldTransforms[nodeIndex]);
 
