@@ -1806,29 +1806,45 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
                 ImGui::EndCombo();
             }
 
-            // TODO: support multiview frustum culling
-            if (renderer.cameras.size() == 1) {
-                constexpr auto to_string = [](Renderer::FrustumCullingMode mode) noexcept -> const char* {
-                    switch (mode) {
-                        case Renderer::FrustumCullingMode::Off: return "Off";
-                        case Renderer::FrustumCullingMode::On: return "On";
-                        case Renderer::FrustumCullingMode::OnWithInstancing: return "On with instancing";
+            ImGui::SeparatorText("Viewport Arrangement");
+
+            ImVec2 buttonSize;
+            buttonSize.x = ImGui::CalcItemWidth();
+            if (renderer.cameras.size() >= 2) {
+                // Make 2 buttons in a row.
+                buttonSize.x = buttonSize.x / 2.f - ImGui::GetStyle().ItemInnerSpacing.x;
+            }
+            buttonSize.y = buttonSize.x * centerNodeRect.GetHeight() / centerNodeRect.GetWidth();
+            if (renderer.cameras.size() == 2) {
+                buttonSize.y *= 2;
+            }
+
+            for (auto &&[cameraIndex, camera] : renderer.cameras | ranges::views::enumerate) {
+                if (cameraIndex % 2 == 1) {
+                    ImGui::SameLine();
+                }
+                ImGui::Button(tempStringBuffer.write("Camera {}##button", cameraIndex + 1).view().c_str(), buttonSize);
+
+                // Drag-and-drop between buttons should be available only if there are multiple cameras.
+                if (renderer.cameras.size() > 1) {
+                    constexpr auto payloadId = "CAMIDX";
+                    if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
+                        ImGui::SetDragDropPayload(payloadId, &cameraIndex, sizeof(cameraIndex));
+                        ImGui::Text("Swap camera settings");
+                        ImGui::EndDragDropSource();
                     }
-                    std::unreachable();
-                };
-                if (ImGui::BeginCombo("Frustum Culling", to_string(renderer.frustumCullingMode))) {
-                    for (auto mode : { Renderer::FrustumCullingMode::Off, Renderer::FrustumCullingMode::On, Renderer::FrustumCullingMode::OnWithInstancing }) {
-                        if (ImGui::Selectable(to_string(mode), renderer.frustumCullingMode == mode) && renderer.frustumCullingMode != mode) {
-                            renderer.frustumCullingMode = mode;
-                            ImGui::SetItemDefaultFocus();
+                    if (ImGui::BeginDragDropTarget()) {
+                        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(payloadId)) {
+                            assert(payload->DataSize == sizeof(cameraIndex));
+                            std::swap(camera, renderer.cameras[*static_cast<const std::size_t*>(payload->Data)]);
                         }
+                        ImGui::EndDragDropTarget();
                     }
-                    ImGui::EndCombo();
                 }
             }
 
-            for (auto &&[i, camera] : renderer.cameras | ranges::views::enumerate) {
-                if (ImGui::TreeNode(tempStringBuffer.write("Camera {}", i + 1).view().c_str())) {
+            for (auto &&[cameraIndex, camera] : renderer.cameras | ranges::views::enumerate) {
+                if (ImGui::TreeNode(tempStringBuffer.write("Camera {}", cameraIndex + 1).view().c_str())) {
                     ImGui::DragFloat3("Position", value_ptr(camera.position), 0.1f);
                     if (ImGui::DragFloat3("Direction", value_ptr(camera.direction), 0.1f, -1.f, 1.f)) {
                         camera.direction = normalize(camera.direction);
@@ -1850,6 +1866,29 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
                     ImGui::HelperMarker("(?)", "Near/Far plane will be automatically tightened to fit the scene bounding box.");
 
                     ImGui::TreePop();
+                }
+            }
+
+            // TODO: support multiview frustum culling
+            if (renderer.cameras.size() == 1) {
+                ImGui::SeparatorText("Frustum Culling");
+
+                constexpr auto to_string = [](Renderer::FrustumCullingMode mode) noexcept -> const char* {
+                    switch (mode) {
+                        case Renderer::FrustumCullingMode::Off: return "Off";
+                        case Renderer::FrustumCullingMode::On: return "On";
+                        case Renderer::FrustumCullingMode::OnWithInstancing: return "On with instancing";
+                    }
+                    std::unreachable();
+                };
+                if (ImGui::BeginCombo("Mode", to_string(renderer.frustumCullingMode))) {
+                    for (auto mode : { Renderer::FrustumCullingMode::Off, Renderer::FrustumCullingMode::On, Renderer::FrustumCullingMode::OnWithInstancing }) {
+                        if (ImGui::Selectable(to_string(mode), renderer.frustumCullingMode == mode) && renderer.frustumCullingMode != mode) {
+                            renderer.frustumCullingMode = mode;
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
                 }
             }
         }
