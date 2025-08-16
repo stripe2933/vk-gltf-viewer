@@ -115,7 +115,8 @@ namespace vk_gltf_viewer {
         [[nodiscard]] bool canSelectSkyboxBackground() const noexcept;
         void setSkybox(std::monostate) noexcept;
 
-        [[nodiscard]] boost::container::static_vector<ImRect, 4> getViewportRect(const ImRect &passthruRect) const;
+        [[nodiscard]] ImRect getViewportRect(const ImRect &passthruRect, std::size_t viewIndex) const noexcept;
+        [[nodiscard]] boost::container::static_vector<ImRect, 4> getViewportRects(const ImRect &passthruRect) const noexcept;
 
     private:
         bool _canSelectSkyboxBackground;
@@ -135,7 +136,31 @@ void vk_gltf_viewer::Renderer::setSkybox(std::monostate) noexcept {
     _canSelectSkyboxBackground = true;
 }
 
-boost::container::static_vector<ImRect, 4> vk_gltf_viewer::Renderer::getViewportRect(const ImRect &passthruRect) const {
+ImRect vk_gltf_viewer::Renderer::getViewportRect(const ImRect &passthruRect, std::size_t viewIndex) const noexcept {
+    assert(viewIndex < cameras.size());
+
+    switch (cameras.size()) {
+        case 1:
+            return passthruRect;
+        case 2:
+            if (viewIndex == 0) {
+                return { passthruRect.Min, { std::midpoint(passthruRect.Min.x, passthruRect.Max.x), passthruRect.Max.y } };
+            }
+            else {
+                return { { std::midpoint(passthruRect.Min.x, passthruRect.Max.x), passthruRect.Min.y }, passthruRect.Max };
+            }
+        case 4: {
+            const ImVec2 mid = passthruRect.GetCenter();
+            const ImVec2 extent { passthruRect.Max.x - mid.x, passthruRect.Max.y - mid.y };
+            const ImVec2 min { (viewIndex % 2 == 0) ? passthruRect.Min.x : mid.x, (viewIndex / 2 == 0) ? passthruRect.Min.y : mid.y };
+            return { min, min + extent };
+        }
+        default:
+            std::unreachable();
+    }
+}
+
+boost::container::static_vector<ImRect, 4> vk_gltf_viewer::Renderer::getViewportRects(const ImRect &passthruRect) const noexcept {
     switch (cameras.size()) {
         case 1:
             return { passthruRect };
