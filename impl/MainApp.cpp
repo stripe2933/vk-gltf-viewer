@@ -866,10 +866,13 @@ void vk_gltf_viewer::MainApp::run() {
             assetExtended->sceneMiniball.invalidate();
         }
 
-        if (renderer->automaticNearFarPlaneAdjustment && assetExtended) {
+        // Tighten camera's near/far plane based on the updated scene bounds.
+        if (assetExtended) {
             const auto &[center, radius] = assetExtended->sceneMiniball.get();
             for (control::Camera &camera : renderer->cameras) {
-                camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+                if (camera.automaticNearFarPlaneAdjustment) {
+                    camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+                }
             }
         }
 

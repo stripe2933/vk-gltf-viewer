@@ -77,12 +77,6 @@ namespace vk_gltf_viewer {
         };
 
         /**
-         * @brief Boolean flag indicating whether the renderer should automatically adjust near and far planes based on
-         * the scene bounding box.
-         */
-        bool automaticNearFarPlaneAdjustment = true;
-
-        /**
          * @brief Background color, or <tt>std::nullopt</tt> if the renderer should use skybox.
          */
         full_optional<glm::vec3> solidBackground { std::in_place, 0.f, 0.f, 0.f };
