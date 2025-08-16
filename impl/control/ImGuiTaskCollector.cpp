@@ -1806,10 +1806,6 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
                 ImGui::EndCombo();
             }
 
-            ImGui::Checkbox("Automatic Near/Far Adjustment", &renderer.automaticNearFarPlaneAdjustment);
-            ImGui::SameLine();
-            ImGui::HelperMarker("(?)", "Near/Far plane will be automatically tightened to fit the scene bounding box.");
-
             // TODO: support multiview frustum culling
             if (renderer.cameras.size() == 1) {
                 constexpr auto to_string = [](Renderer::FrustumCullingMode mode) noexcept -> const char* {
@@ -1832,24 +1828,28 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
             }
 
             for (auto &&[i, camera] : renderer.cameras | ranges::views::enumerate) {
-                if (ImGui::CollapsingHeader(tempStringBuffer.write("Camera {}", i + 1).view().c_str())) {
-                    ImGui::WithID(i, [&] {
-                        ImGui::DragFloat3("Position", value_ptr(camera.position), 0.1f);
-                        if (ImGui::DragFloat3("Direction", value_ptr(camera.direction), 0.1f, -1.f, 1.f)) {
-                            camera.direction = normalize(camera.direction);
-                        }
-                        if (ImGui::DragFloat3("Up", value_ptr(camera.up), 0.1f, -1.f, 1.f)) {
-                            camera.up = normalize(camera.up);
-                        }
+                if (ImGui::TreeNode(tempStringBuffer.write("Camera {}", i + 1).view().c_str())) {
+                    ImGui::DragFloat3("Position", value_ptr(camera.position), 0.1f);
+                    if (ImGui::DragFloat3("Direction", value_ptr(camera.direction), 0.1f, -1.f, 1.f)) {
+                        camera.direction = normalize(camera.direction);
+                    }
+                    if (ImGui::DragFloat3("Up", value_ptr(camera.up), 0.1f, -1.f, 1.f)) {
+                        camera.up = normalize(camera.up);
+                    }
 
-                        if (float fovInDegree = glm::degrees(camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
-                            camera.fov = glm::radians(fovInDegree);
-                        }
+                    if (float fovInDegree = glm::degrees(camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
+                        camera.fov = glm::radians(fovInDegree);
+                    }
 
-                        ImGui::WithDisabled([&] {
-                            ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
-                        }, renderer.automaticNearFarPlaneAdjustment);
-                    });
+                    ImGui::WithDisabled([&] {
+                        ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+                    }, camera.automaticNearFarPlaneAdjustment);
+
+                    ImGui::Checkbox("Automatic Near/Far Adjustment", &camera.automaticNearFarPlaneAdjustment);
+                    ImGui::SameLine();
+                    ImGui::HelperMarker("(?)", "Near/Far plane will be automatically tightened to fit the scene bounding box.");
+
+                    ImGui::TreePop();
                 }
             }
         }
