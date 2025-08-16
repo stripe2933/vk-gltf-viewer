@@ -195,7 +195,9 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         return camera.getProjectionViewMatrix(vku::aspect(viewport->extent));
     });
     std::ranges::transform(renderer->cameras, reinterpret_cast<glm::mat4*>(cameraBufferMapped + 4 * sizeof(glm::mat4)), [this](const control::Camera &camera) {
-        return camera.getProjectionMatrix(vku::aspect(viewport->extent)) * glm::mat4 { glm::mat3 { camera.getViewMatrix() } };
+        // Skybox only works with perspective projection.
+        return glm::perspectiveRH_ZO(camera.getEquivalentYFov(), vku::aspect(viewport->extent), camera.zMax, camera.zMin)
+            * glm::mat4 { glm::mat3 { camera.getViewMatrix() } };
     });
     std::ranges::transform(renderer->cameras, reinterpret_cast<glm::vec4*>(cameraBufferMapped + 8 * sizeof(glm::mat4)), [](const control::Camera &camera) {
         return glm::vec4 { camera.position, 0.f };

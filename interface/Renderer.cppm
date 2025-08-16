@@ -71,7 +71,7 @@ namespace vk_gltf_viewer {
         boost::container::static_vector<control::Camera, 4> cameras {
             control::Camera {
                 glm::vec3 { 0.f, 0.f, 5.f }, normalize(glm::vec3 { 0.f, 0.f, -1.f }), glm::vec3 { 0.f, 1.f, 0.f },
-                glm::radians(45.f), 1e-2f, 10.f,
+                control::Camera::Perspective { glm::radians(45.f) }, 1e-2f, 10.f,
                 5.f,
             }
         };
