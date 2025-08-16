@@ -421,9 +421,14 @@ void vk_gltf_viewer::MainApp::run() {
 
                     const auto scaleCamera = [&](control::Camera &camera) {
                         const float factor = std::powf(1.01f, -scale);
-                        const glm::vec3 displacementToTarget = camera.direction * camera.targetDistance;
-                        camera.targetDistance *= factor;
-                        camera.position += (1.f - factor) * displacementToTarget;
+                        if (auto *orthographic = get_if<control::Camera::Orthographic>(&camera.projection)) {
+                            orthographic->ymag *= factor;
+                        }
+                        else {
+                            const glm::vec3 displacementToTarget = camera.direction * camera.targetDistance;
+                            camera.targetDistance *= factor;
+                            camera.position += (1.f - factor) * displacementToTarget;
+                        }
                     };
 
                     if (ImGui::GetIO().KeyCtrl) {
@@ -562,6 +567,28 @@ void vk_gltf_viewer::MainApp::run() {
 
                     loadGltf(task.path);
 
+                    // Adjust the camera based on the scene enclosing sphere.
+                    const auto &[center, radius] = assetExtended->sceneMiniball.get();
+                    const float aspectRatio = [&] {
+                        vk::Extent2D extent {
+                            static_cast<std::uint32_t>(std::ceil(framebufferScale.x * passthruRect.GetWidth())),
+                            static_cast<std::uint32_t>(std::ceil(framebufferScale.y * passthruRect.GetHeight())),
+                        };
+                        switch (renderer->cameras.size()) {
+                            case 2:
+                                extent.width = math::divCeil(extent.width, 2U);
+                                break;
+                            case 4:
+                                extent.width = math::divCeil(extent.width, 2U);
+                                extent.height = math::divCeil(extent.height, 2U);
+                                break;
+                        }
+                        return vku::aspect(extent);
+                    }();
+                    for (control::Camera &camera : renderer->cameras) {
+                        camera.adjustMiniball(glm::gtc::make_vec3(center.data()), radius, aspectRatio);
+                    }
+
                     // All planned updates related to the previous glTF asset have to be canceled.
                     currentFrameTask.resetAssetRelated();
                     frameDeferredTask.resetAssetRelated();
@@ -593,12 +620,24 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Adjust the camera based on the scene enclosing sphere.
                     const auto &[center, radius] = assetExtended->sceneMiniball.get();
+                    const float aspectRatio = [&] {
+                        vk::Extent2D extent {
+                            static_cast<std::uint32_t>(std::ceil(framebufferScale.x * passthruRect.GetWidth())),
+                            static_cast<std::uint32_t>(std::ceil(framebufferScale.y * passthruRect.GetHeight())),
+                        };
+                        switch (renderer->cameras.size()) {
+                            case 2:
+                                extent.width = math::divCeil(extent.width, 2U);
+                                break;
+                            case 4:
+                                extent.width = math::divCeil(extent.width, 2U);
+                                extent.height = math::divCeil(extent.height, 2U);
+                                break;
+                        }
+                        return vku::aspect(extent);
+                    }();
                     for (control::Camera &camera : renderer->cameras) {
-                        const float distance = radius / std::sin(camera.fov / 2.f);
-                        camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
-                        camera.zMin = distance - radius;
-                        camera.zMax = distance + radius;
-                        camera.targetDistance = distance;
+                        camera.adjustMiniball(glm::gtc::make_vec3(center.data()), radius, aspectRatio);
                     }
 
                     transformedNodes.clear(); // They are all related to the previous glTF asset.
@@ -1181,16 +1220,6 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     appState.pushRecentGltfPath(path);
 
     renderer->bloom.set_active(!assetExtended->bloomMaterials.empty());
-
-    // Adjust the camera based on the scene enclosing sphere.
-    const auto &[center, radius] = assetExtended->sceneMiniball.get();
-    for (control::Camera &camera : renderer->cameras) {
-        const float distance = radius / std::sin(camera.fov / 2.f);
-        camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
-        camera.zMin = distance - radius;
-        camera.zMax = distance + radius;
-        camera.targetDistance = distance;
-    }
 }
 
 void vk_gltf_viewer::MainApp::closeGltf() {

@@ -1853,9 +1853,30 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
                         camera.up = normalize(camera.up);
                     }
 
-                    if (float fovInDegree = glm::degrees(camera.fov); ImGui::DragFloat("FOV", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
-                        camera.fov = glm::radians(fovInDegree);
+                    if (bool perspective = std::holds_alternative<Camera::Perspective>(camera.projection);
+                        ImGui::BeginCombo("Projection", perspective ? "Perspective" : "Orthographic")) {
+                        if (ImGui::Selectable("Perspective", perspective) && !perspective) {
+                            camera.projection.emplace<Camera::Perspective>(camera.getEquivalentYFov());
+                            ImGui::SetItemDefaultFocus();
+                        }
+                        if (ImGui::Selectable("Orthographic", !perspective) && perspective) {
+                            camera.projection.emplace<Camera::Orthographic>(camera.getEquivalentYMag());
+                            ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::EndCombo();
                     }
+
+                    visit(multilambda {
+                        [](Camera::Perspective &perspective) {
+                            if (float fovInDegree = glm::degrees(perspective.yfov); ImGui::DragFloat("Y-Fov", &fovInDegree, 0.1f, 15.f, 120.f, "%.2f deg")) {
+                                perspective.yfov = glm::radians(fovInDegree);
+                            }
+                        },
+                        [](Camera::Orthographic &orthographic) {
+                            ImGui::DragFloat("Y-Mag", &orthographic.ymag, 1.f, 0.f, std::numeric_limits<float>::max());
+                        },
+                    }, camera.projection);
+
 
                     ImGui::WithDisabled([&] {
                         ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
