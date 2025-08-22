@@ -1159,7 +1159,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(gltf::AssetEx
     ImGui::End();
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExtended &assetExtended) {
+void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &renderer, gltf::AssetExtended &assetExtended) {
     if (ImGui::Begin("Scene Hierarchy")) {
         if (ImGui::BeginCombo("Scene", gui::getDisplayName(assetExtended.asset.scenes, assetExtended.sceneIndex).c_str())) {
             for (std::size_t i : ranges::views::upto(assetExtended.asset.scenes.size())) {
@@ -1406,9 +1406,34 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
 
                 if (node.cameraIndex) {
                     ImGui::TableSetColumnIndex(3);
-                    ImGui::WithDisabled([&]() {
-                        ImGui::Button(ICON_FA_CAMERA); // TODO
-                    });
+                    if (ImGui::Button(ICON_FA_CAMERA)) {
+                        const fastgltf::math::fmat4x4 &nodeWorldTransform = assetExtended.nodeWorldTransforms[nodeIndex];
+
+                        fastgltf::TRS trs;
+                        decomposeTransformMatrix(nodeWorldTransform, trs.scale, trs.rotation, trs.translation);
+
+                        renderer.cameras[0].position = glm::gtc::make_vec3(trs.translation.data());
+                        renderer.cameras[0].direction = glm::rotate(glm::gtc::make_quat(trs.rotation.data()), glm::vec3 { 0.f, 0.f, -1.f });
+                        renderer.cameras[0].up = { 0.f, 1.f, 0.f };
+
+                        const fastgltf::math::fvec3 &center = assetExtended.sceneMiniball.get().first;
+                        renderer.cameras[0].targetDistance = dot(glm::gtc::make_vec3(center.data()) - renderer.cameras[0].position, renderer.cameras[0].direction);
+
+                        visit(fastgltf::visitor {
+                            [&](const fastgltf::Camera::Perspective &perspective) {
+                                renderer.cameras[0].projection.emplace<Camera::Perspective>(perspective.yfov);
+                                renderer.cameras[0].zMin = perspective.znear;
+                                if (perspective.zfar) {
+                                    renderer.cameras[0].zMax = *perspective.zfar;
+                                }
+                            },
+                            [&](const fastgltf::Camera::Orthographic &orthographic) {
+                                renderer.cameras[0].projection.emplace<Camera::Orthographic>(orthographic.ymag);
+                                renderer.cameras[0].zMin = orthographic.znear;
+                                renderer.cameras[0].zMax = orthographic.zfar;
+                            },
+                        }, asset.cameras[*node.cameraIndex].camera);
+                    }
                 }
 
                 if (isTreeNodeOpen) {

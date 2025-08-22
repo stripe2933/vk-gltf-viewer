@@ -49,7 +49,7 @@ namespace vk_gltf_viewer::control {
         void assetInspector(gltf::AssetExtended &assetExtended);
         void materialEditor(gltf::AssetExtended &assetExtended);
         void materialVariants(gltf::AssetExtended &assetExtended);
-        void sceneHierarchy(gltf::AssetExtended &assetExtended);
+        void sceneHierarchy(Renderer &renderer, gltf::AssetExtended &assetExtended);
         void nodeInspector(gltf::AssetExtended &assetExtended);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureRef eqmapTextureImGuiDescriptorSet);
         void rendererSetting(Renderer &renderer);

@@ -253,7 +253,7 @@ void vk_gltf_viewer::MainApp::run() {
                 if (!assetExtended->asset.materialVariants.empty()) {
                     imguiTaskCollector.materialVariants(*assetExtended);
                 }
-                imguiTaskCollector.sceneHierarchy(*assetExtended);
+                imguiTaskCollector.sceneHierarchy(*renderer, *assetExtended);
                 imguiTaskCollector.nodeInspector(*assetExtended);
 
                 if (!assetExtended->asset.animations.empty()) {
