@@ -74,7 +74,7 @@ namespace vk_gltf_viewer::vulkan {
 
             vku::MappedBuffer mousePickingResultBuffer;
 
-            std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
+            std::optional<vk::Rect2D> mousePickingInput;
 
             explicit GltfAsset(const SharedData &sharedData LIFETIMEBOUND);
 
@@ -110,13 +110,16 @@ namespace vk_gltf_viewer::vulkan {
                 bool regenerateDrawCommands;
 
                 /**
-                 * @brief Cursor position or selection rectangle for handling mouse picking.
+                 * @brief Selection rectangle for handling mouse picking.
                  *
-                 * - If mouse picking has to be done inside the selection rectangle, passthrough rectangle aligned, framebuffer-scale <tt>vk::Rect2D</tt> used.
-                 * - If mouse picking has to be done under the current cursor, passthrough rectangle aligned <tt>vk::Offset2D</tt> used.
-                 * - Otherwise, <tt>std::monostate</tt> used.
+                 * - If it has a value whose extent is 1x1, a node that is rasterized under the offset is selected.
+                 * - If it has a value whose extent is greater than 1x1, every node that are rasterized inside the rectangle
+                 *   (regardless of it its cull mode and occlusion) are selected.
+                 * - If it is valueless, mouse picking is not performed.
+                 *
+                 * @note The rectangle must be sized, i.e. both its width and height must be greater than 0.
                  */
-                std::variant<std::monostate, vk::Offset2D, vk::Rect2D> mousePickingInput;
+                std::optional<vk::Rect2D> mousePickingInput;
             };
 
             vk::Offset2D passthruOffset;
@@ -167,8 +170,7 @@ namespace vk_gltf_viewer::vulkan {
             vk::Extent2D extent;
 
             // Mouse picking.
-            ag::MousePicking mousePickingAttachmentGroup;
-            vk::raii::Framebuffer mousePickingFramebuffer;
+            std::optional<ag::MousePicking> mousePickingAttachmentGroup; // has only value if Gpu::attachmentLessRenderPass == true.
 
             // Outline calculation using JFA.
             JumpFloodResources hoveringNodeOutlineJumpFloodResources;
@@ -218,8 +220,7 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::CommandPool graphicsCommandPool;
 
         // Descriptor sets.
-        vku::DescriptorSet<MousePickingRenderPipeline::DescriptorSetLayout> mousePickingSet;
-        vku::DescriptorSet<dsl::MultiNodeMousePicking> multiNodeMousePickingSet;
+        vku::DescriptorSet<dsl::MousePicking> mousePickingSet;
         vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> hoveringNodeJumpFloodSet;
         vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> selectedNodeJumpFloodSet;
         vku::DescriptorSet<OutlineRenderPipeline::DescriptorSetLayout> hoveringNodeOutlineSet;

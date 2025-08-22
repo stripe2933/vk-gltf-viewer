@@ -162,8 +162,8 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/math/Frustum.cppm
         interface/math/Plane.cppm
         interface/Renderer.cppm
-        interface/shader_selector/mask_node_index_frag.cppm
-        interface/shader_selector/mask_node_index_vert.cppm
+        interface/shader_selector/mask_node_mouse_picking_frag.cppm
+        interface/shader_selector/mask_node_mouse_picking_vert.cppm
         interface/shader_selector/mask_jump_flood_seed_frag.cppm
         interface/shader_selector/mask_jump_flood_seed_vert.cppm
         interface/shader_selector/mask_multi_node_mouse_picking_frag.cppm
@@ -183,7 +183,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/buffer/PrimitiveAttributes.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
-        interface/vulkan/descriptor_set_layout/MultiNodeMousePicking.cppm
+        interface/vulkan/descriptor_set_layout/MousePicking.cppm
         interface/vulkan/descriptor_set_layout/Skybox.cppm
         interface/vulkan/Frame.cppm
         interface/vulkan/FrameDeferredTask.cppm
@@ -196,21 +196,19 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/InverseToneMappingRenderPipeline.cppm
         interface/vulkan/pipeline/JumpFloodComputePipeline.cppm
         interface/vulkan/pipeline/JumpFloodSeedRenderPipeline.cppm
-        interface/vulkan/pipeline/MousePickingRenderPipeline.cppm
         interface/vulkan/pipeline/MultiNodeMousePickingRenderPipeline.cppm
-        interface/vulkan/pipeline/NodeIndexRenderPipeline.cppm
+        interface/vulkan/pipeline/NodeMousePickingRenderPipeline.cppm
         interface/vulkan/pipeline/OutlineRenderPipeline.cppm
         interface/vulkan/pipeline/PrepassPipelineConfig.cppm
         interface/vulkan/pipeline/PrimitiveRenderPipeline.cppm
         interface/vulkan/pipeline/SkyboxRenderPipeline.cppm
         interface/vulkan/pipeline/UnlitPrimitiveRenderPipeline.cppm
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderPipeline.cppm
-        interface/vulkan/pipeline_layout/MultiNodeMousePicking.cppm
+        interface/vulkan/pipeline_layout/MousePicking.cppm
         interface/vulkan/pipeline_layout/Primitive.cppm
         interface/vulkan/pipeline_layout/PrimitiveNoShading.cppm
         interface/vulkan/render_pass/BloomApply.cppm
         interface/vulkan/render_pass/CubemapToneMapping.cppm
-        interface/vulkan/render_pass/MousePicking.cppm
         interface/vulkan/render_pass/Scene.cppm
         interface/vulkan/sampler/BrdfLut.cppm
         interface/vulkan/sampler/Cubemap.cppm
@@ -297,10 +295,8 @@ target_link_shaders(vk-gltf-viewer PRIVATE
         shaders/jump_flood_seed.frag
         shaders/jump_flood_seed.vert
         shaders/jump_flood.comp
-        shaders/mouse_picking.frag
         shaders/multi_node_mouse_picking.frag
-        shaders/node_index.frag
-        shaders/node_index.vert
+        shaders/node_mouse_picking.vert
         shaders/outline.frag
         shaders/screen_quad.vert
         shaders/skybox.frag
@@ -309,9 +305,17 @@ target_link_shaders(vk-gltf-viewer PRIVATE
 
 target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
+    MACRO_DEFS "SEPARATE_IMAGE_SAMPLER=$<PLATFORM_ID:Darwin>"
+    FILES
+        shaders/node_mouse_picking.frag
+    MACRO_NAMES "KHR_SHADER_ATOMIC_INT64"
+    MACRO_VALUES 0 1
+)
+target_link_shader_variants(vk-gltf-viewer PRIVATE
+    TARGET_ENV vulkan1.2
     FILES
         shaders/mask_jump_flood_seed.vert
-        shaders/mask_node_index.vert
+        shaders/mask_node_mouse_picking.vert
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_0_ALPHA_ATTRIBUTE"
     MACRO_VALUES
         "0 0" "0 1"
@@ -321,9 +325,18 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     MACRO_DEFS "SEPARATE_IMAGE_SAMPLER=$<PLATFORM_ID:Darwin>"
     FILES
+        shaders/mask_node_mouse_picking.frag
+    MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_0_ALPHA_ATTRIBUTE" "KHR_SHADER_ATOMIC_INT64"
+    MACRO_VALUES
+        "0 0 0" "0 0 1" "0 1 0" "0 1 1"
+        "1 0 0" "1 0 1" "1 1 0" "1 1 1"
+)
+target_link_shader_variants(vk-gltf-viewer PRIVATE
+    TARGET_ENV vulkan1.2
+    MACRO_DEFS "SEPARATE_IMAGE_SAMPLER=$<PLATFORM_ID:Darwin>"
+    FILES
         shaders/mask_jump_flood_seed.frag
         shaders/mask_multi_node_mouse_picking.frag
-        shaders/mask_node_index.frag
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_0_ALPHA_ATTRIBUTE"
     MACRO_VALUES
         "0 0" "0 1"
