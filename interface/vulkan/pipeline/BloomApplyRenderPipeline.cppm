@@ -5,34 +5,22 @@ module;
 export module vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderPipeline;
 
 import std;
+import vku;
+export import vulkan_hpp;
 
 import vk_gltf_viewer.shader.bloom_apply_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;
 export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.pipeline_layout.BloomApply;
 export import vk_gltf_viewer.vulkan.render_pass.BloomApply;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export class BloomApplyRenderPipeline {
-    public:
-        struct PushConstant {
-            float factor;
-        };
-
-        using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment, vk::DescriptorType::eInputAttachment>;
-
-        DescriptorSetLayout descriptorSetLayout;
-        vk::raii::PipelineLayout pipelineLayout;
-        vk::raii::Pipeline pipeline;
-
+    export struct BloomApplyRenderPipeline final : vk::raii::Pipeline {
         BloomApplyRenderPipeline(
             const Gpu &gpu LIFETIMEBOUND,
+            const pl::BloomApply &layout LIFETIMEBOUND,
             const rp::BloomApply &renderPass LIFETIMEBOUND
         );
-
-        void recreatePipeline(const Gpu &gpu, const rp::BloomApply &renderPass);
-
-    private:
-        [[nodiscard]] vk::raii::Pipeline createPipeline(const Gpu &gpu, const rp::BloomApply &renderPass) const;
     };
 }
 
@@ -42,35 +30,9 @@ module :private;
 
 vk_gltf_viewer::vulkan::pipeline::BloomApplyRenderPipeline::BloomApplyRenderPipeline(
     const Gpu &gpu,
+    const pl::BloomApply &layout,
     const rp::BloomApply &renderPass
-) : descriptorSetLayout { gpu.device, vk::DescriptorSetLayoutCreateInfo {
-        {},
-        vku::unsafeProxy(DescriptorSetLayout::getBindings(
-            { 1, vk::ShaderStageFlagBits::eFragment },
-            { 1, vk::ShaderStageFlagBits::eFragment })),
-    } },
-    pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
-        {},
-        *descriptorSetLayout,
-        vku::unsafeProxy(vk::PushConstantRange {
-            vk::ShaderStageFlagBits::eFragment,
-            0, sizeof(PushConstant),
-        }),
-    } },
-    pipeline { createPipeline(gpu, renderPass) } { }
-
-void vk_gltf_viewer::vulkan::BloomApplyRenderPipeline::recreatePipeline(
-    const Gpu &gpu,
-    const rp::BloomApply &renderPass
-) {
-    pipeline = createPipeline(gpu, renderPass);
-}
-
-vk::raii::Pipeline vk_gltf_viewer::vulkan::BloomApplyRenderPipeline::createPipeline(
-    const Gpu &gpu,
-    const rp::BloomApply &renderPass
-) const {
-    return { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
+) : Pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
         createPipelineStages(
             gpu.device,
             vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
@@ -80,7 +42,7 @@ vk::raii::Pipeline vk_gltf_viewer::vulkan::BloomApplyRenderPipeline::createPipel
                     : std::span<const std::uint32_t> { shader::bloom_apply_frag<0> },
                 vk::ShaderStageFlagBits::eFragment,
             }).get(),
-        *pipelineLayout, 1)
+        *layout, 1)
         .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
             {},
             false, false,
@@ -91,5 +53,4 @@ vk::raii::Pipeline vk_gltf_viewer::vulkan::BloomApplyRenderPipeline::createPipel
         }))
         .setRenderPass(*renderPass)
         .setSubpass(0),
-    };
-}
+    } { }

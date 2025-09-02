@@ -127,12 +127,12 @@ vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, 
             sharedData.mousePickingDescriptorSetLayout,
             sharedData.jumpFloodComputePipeline.descriptorSetLayout,
             sharedData.jumpFloodComputePipeline.descriptorSetLayout,
-            sharedData.outlineRenderPipeline.descriptorSetLayout,
-            sharedData.outlineRenderPipeline.descriptorSetLayout,
-            sharedData.weightedBlendedCompositionRenderPipeline.descriptorSetLayout,
-            sharedData.inverseToneMappingRenderPipeline.descriptorSetLayout,
+            sharedData.outlineDescriptorSetLayout,
+            sharedData.outlineDescriptorSetLayout,
+            sharedData.weightedBlendedCompositionDescriptorSetLayout,
+            sharedData.inverseToneMappingDescriptorSetLayout,
             sharedData.bloomComputePipeline.descriptorSetLayout,
-            sharedData.bloomApplyRenderPipeline.descriptorSetLayout));
+            sharedData.bloomApplyDescriptorSetLayout));
 
     // Update descriptor sets.
     sharedData.gpu.device.updateDescriptorSets(
@@ -709,10 +709,10 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             // Weighted blended composition.
             sceneRenderingCommandBuffer.bindPipeline(
                 vk::PipelineBindPoint::eGraphics,
-                sharedData.weightedBlendedCompositionRenderPipeline.pipeline);
+                *sharedData.weightedBlendedCompositionRenderPipeline);
             sceneRenderingCommandBuffer.bindDescriptorSets(
                 vk::PipelineBindPoint::eGraphics,
-                sharedData.weightedBlendedCompositionRenderPipeline.pipelineLayout,
+                *sharedData.weightedBlendedCompositionPipelineLayout,
                 0, weightedBlendedCompositionSet, {});
             sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
         }
@@ -721,8 +721,8 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
 
         // Inverse tone-map the result image to bloomImage[mipLevel=0] when bloom is enabled.
         if (renderer->bloom) {
-            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingRenderPipeline.pipeline);
-            sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingRenderPipeline.pipelineLayout, 0, inverseToneMappingSet, {});
+            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingRenderPipeline);
+            sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingPipelineLayout, 0, inverseToneMappingSet, {});
             sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
         }
 
@@ -757,12 +757,12 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                 }),
             }, vk::SubpassContents::eInline);
 
-            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.bloomApplyRenderPipeline.pipeline);
-            sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.bloomApplyRenderPipeline.pipelineLayout, 0, bloomApplySet, {});
-            sceneRenderingCommandBuffer.pushConstants<BloomApplyRenderPipeline::PushConstant>(
-                *sharedData.bloomApplyRenderPipeline.pipelineLayout,
+            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.bloomApplyRenderPipeline);
+            sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.bloomApplyPipelineLayout, 0, bloomApplySet, {});
+            sceneRenderingCommandBuffer.pushConstants<pl::BloomApply::PushConstant>(
+                *sharedData.bloomApplyPipelineLayout,
                 vk::ShaderStageFlagBits::eFragment,
-                0, BloomApplyRenderPipeline::PushConstant { .factor = renderer->bloom->intensity });
+                0, pl::BloomApply::PushConstant { .factor = renderer->bloom->intensity });
             sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
 
             sceneRenderingCommandBuffer.endRenderPass();
@@ -1170,11 +1170,11 @@ vk::raii::DescriptorPool vk_gltf_viewer::vulkan::Frame::createDescriptorPool() c
     const vku::PoolSizes poolSizes
         = sharedData.rendererDescriptorSetLayout.getPoolSize()
         + sharedData.mousePickingDescriptorSetLayout.getPoolSize()
-        + 2 * getPoolSizes(sharedData.jumpFloodComputePipeline.descriptorSetLayout, sharedData.outlineRenderPipeline.descriptorSetLayout)
-        + sharedData.weightedBlendedCompositionRenderPipeline.descriptorSetLayout.getPoolSize()
-        + sharedData.inverseToneMappingRenderPipeline.descriptorSetLayout.getPoolSize()
+        + 2 * getPoolSizes(sharedData.jumpFloodComputePipeline.descriptorSetLayout, sharedData.outlineDescriptorSetLayout)
+        + sharedData.weightedBlendedCompositionDescriptorSetLayout.getPoolSize()
+        + sharedData.inverseToneMappingDescriptorSetLayout.getPoolSize()
         + sharedData.bloomComputePipeline.descriptorSetLayout.getPoolSize()
-        + sharedData.bloomApplyRenderPipeline.descriptorSetLayout.getPoolSize()
+        + sharedData.bloomApplyDescriptorSetLayout.getPoolSize()
         + sharedData.assetDescriptorSetLayout.getPoolSize();
     return { sharedData.gpu.device, poolSizes.getDescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet | vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind) };
 }
@@ -1540,8 +1540,8 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer cb) const {
-    cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxRenderPipeline.pipeline);
-    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxRenderPipeline.pipelineLayout, 0, { rendererSet, sharedData.skyboxDescriptorSet }, {});
+    cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxRenderPipeline);
+    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxPipelineLayout, 0, { rendererSet, sharedData.skyboxDescriptorSet }, {});
     cb.bindIndexBuffer(sharedData.cubeIndexBuffer, 0, vk::IndexType::eUint16);
     cb.drawIndexed(36, 1, 0, 0, 0);
 }
@@ -1596,12 +1596,12 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
 
     // Draw hovering/selected node outline if exists.
     if (selectedNodes) {
-        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderPipeline.pipeline);
-        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderPipeline.pipelineLayout, 0,
+        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderPipeline);
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.outlinePipelineLayout, 0,
             selectedNodeOutlineSet, {});
-        cb.pushConstants<OutlineRenderPipeline::PushConstant>(
-            *sharedData.outlineRenderPipeline.pipelineLayout, vk::ShaderStageFlagBits::eFragment,
-            0, OutlineRenderPipeline::PushConstant {
+        cb.pushConstants<pl::Outline::PushConstant>(
+            *sharedData.outlinePipelineLayout, vk::ShaderStageFlagBits::eFragment,
+            0, pl::Outline::PushConstant {
                 .outlineColor = renderer->selectedNodeOutline->color,
                 .outlineThickness = renderer->selectedNodeOutline->thickness,
             });
@@ -1612,14 +1612,14 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
             // TODO: pipeline barrier required.
         }
         else {
-            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderPipeline.pipeline);
+            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderPipeline);
         }
 
-        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderPipeline.pipelineLayout, 0,
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.outlinePipelineLayout, 0,
             hoveringNodeOutlineSet, {});
-        cb.pushConstants<OutlineRenderPipeline::PushConstant>(
-            *sharedData.outlineRenderPipeline.pipelineLayout, vk::ShaderStageFlagBits::eFragment,
-            0, OutlineRenderPipeline::PushConstant {
+        cb.pushConstants<pl::Outline::PushConstant>(
+            *sharedData.outlinePipelineLayout, vk::ShaderStageFlagBits::eFragment,
+            0, pl::Outline::PushConstant {
                 .outlineColor = renderer->hoveringNodeOutline->color,
                 .outlineThickness = renderer->hoveringNodeOutline->thickness,
             });

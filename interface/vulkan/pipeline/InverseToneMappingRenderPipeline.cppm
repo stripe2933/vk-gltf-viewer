@@ -7,27 +7,22 @@ module;
 export module vk_gltf_viewer.vulkan.pipeline.InverseToneMappingRenderPipeline;
 
 import std;
+import vku;
+export import vulkan_hpp;
 
 import vk_gltf_viewer.shader.inverse_tone_mapping_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;
 export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.pipeline_layout.InverseToneMapping;
 export import vk_gltf_viewer.vulkan.render_pass.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export class InverseToneMappingRenderPipeline {
-    public:
-        using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment>;
-
-        DescriptorSetLayout descriptorSetLayout;
-        vk::raii::PipelineLayout pipelineLayout;
-        vk::raii::Pipeline pipeline;
-
-        InverseToneMappingRenderPipeline(const Gpu &gpu LIFETIMEBOUND, const rp::Scene &renderPass LIFETIMEBOUND);
-
-        void recreatePipeline(const Gpu &gpu, const rp::Scene &renderPass);
-
-    private:
-        [[nodiscard]] vk::raii::Pipeline createPipeline(const Gpu &gpu, const rp::Scene &renderPass) const;
+    export struct InverseToneMappingRenderPipeline final : vk::raii::Pipeline {
+        InverseToneMappingRenderPipeline(
+            const Gpu &gpu LIFETIMEBOUND,
+            const pl::InverseToneMapping &layout LIFETIMEBOUND,
+            const rp::Scene &renderPass LIFETIMEBOUND
+        );
     };
 }
 
@@ -35,30 +30,11 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::pipeline::InverseToneMappingRenderPipeline::InverseToneMappingRenderPipeline(const Gpu &gpu, const rp::Scene &renderPass)
-    : descriptorSetLayout { gpu.device, vk::DescriptorSetLayoutCreateInfo {
-        {},
-        vku::unsafeProxy(DescriptorSetLayout::getBindings(
-            { 1, vk::ShaderStageFlagBits::eFragment })),
-    } }
-    , pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
-        {},
-        *descriptorSetLayout,
-    } }
-    , pipeline { createPipeline(gpu, renderPass) } { }
-
-void vk_gltf_viewer::vulkan::pipeline::InverseToneMappingRenderPipeline::recreatePipeline(
+vk_gltf_viewer::vulkan::pipeline::InverseToneMappingRenderPipeline::InverseToneMappingRenderPipeline(
     const Gpu &gpu,
+    const pl::InverseToneMapping &layout,
     const rp::Scene &renderPass
-) {
-    pipeline = createPipeline(gpu, renderPass);
-}
-
-vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::InverseToneMappingRenderPipeline::createPipeline(
-    const Gpu &gpu,
-    const rp::Scene &renderPass
-) const {
-    return { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
+) : Pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
         createPipelineStages(
             gpu.device,
             vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
@@ -68,7 +44,7 @@ vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::InverseToneMappingRenderPip
                     : std::span<const std::uint32_t> { shader::inverse_tone_mapping_frag<0> },
                 vk::ShaderStageFlagBits::eFragment,
             }).get(),
-        *pipelineLayout, 1, true)
+        *layout, 1, true)
         .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
             {},
             false, false,
@@ -88,5 +64,4 @@ vk::raii::Pipeline vk_gltf_viewer::vulkan::pipeline::InverseToneMappingRenderPip
         }))
         .setRenderPass(*renderPass)
         .setSubpass(3),
-    };
-}
+    } { }

@@ -182,10 +182,14 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/buffer/Materials.cppm
         interface/vulkan/buffer/PrimitiveAttributes.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
+        interface/vulkan/descriptor_set_layout/BloomApply.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
+        interface/vulkan/descriptor_set_layout/InverseToneMapping.cppm
         interface/vulkan/descriptor_set_layout/MousePicking.cppm
+        interface/vulkan/descriptor_set_layout/Outline.cppm
         interface/vulkan/descriptor_set_layout/Renderer.cppm
         interface/vulkan/descriptor_set_layout/Skybox.cppm
+        interface/vulkan/descriptor_set_layout/WeightedBlendedComposition.cppm
         interface/vulkan/Frame.cppm
         interface/vulkan/FrameDeferredTask.cppm
         interface/vulkan/gltf/AssetExtended.cppm
@@ -205,9 +209,14 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/SkyboxRenderPipeline.cppm
         interface/vulkan/pipeline/UnlitPrimitiveRenderPipeline.cppm
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderPipeline.cppm
+        interface/vulkan/pipeline_layout/BloomApply.cppm
+        interface/vulkan/pipeline_layout/InverseToneMapping.cppm
         interface/vulkan/pipeline_layout/MousePicking.cppm
+        interface/vulkan/pipeline_layout/Outline.cppm
         interface/vulkan/pipeline_layout/Primitive.cppm
         interface/vulkan/pipeline_layout/PrimitiveNoShading.cppm
+        interface/vulkan/pipeline_layout/Skybox.cppm
+        interface/vulkan/pipeline_layout/WeightedBlendedComposition.cppm
         interface/vulkan/render_pass/BloomApply.cppm
         interface/vulkan/render_pass/CubemapToneMapping.cppm
         interface/vulkan/render_pass/Scene.cppm

@@ -53,23 +53,28 @@ namespace vk_gltf_viewer::vulkan {
 
         // Descriptor set layouts.
         dsl::Asset assetDescriptorSetLayout;
+        dsl::BloomApply bloomApplyDescriptorSetLayout;
         dsl::ImageBasedLighting imageBasedLightingDescriptorSetLayout;
+        dsl::InverseToneMapping inverseToneMappingDescriptorSetLayout;
         dsl::MousePicking mousePickingDescriptorSetLayout;
+        dsl::Outline outlineDescriptorSetLayout;
         dsl::Renderer rendererDescriptorSetLayout;
         dsl::Skybox skyboxDescriptorSetLayout;
+        dsl::WeightedBlendedComposition weightedBlendedCompositionDescriptorSetLayout;
 
         // Render passes.
         rp::Scene sceneRenderPass;
         rp::BloomApply bloomApplyRenderPass;
 
         // Pipeline layouts.
+        pl::BloomApply bloomApplyPipelineLayout;
+        pl::InverseToneMapping inverseToneMappingPipelineLayout;
         pl::MousePicking mousePickingPipelineLayout;
+        pl::Outline outlinePipelineLayout;
         pl::Primitive primitivePipelineLayout;
         pl::PrimitiveNoShading primitiveNoShadingPipelineLayout;
-
-        // --------------------
-        // Pipelines.
-        // --------------------
+        pl::Skybox skyboxPipelineLayout;
+        pl::WeightedBlendedComposition weightedBlendedCompositionPipelineLayout;
 
         // Primitive unrelated pipelines.
         JumpFloodComputePipeline jumpFloodComputePipeline;
@@ -155,22 +160,31 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
     , cubemapSampler { gpu.device }
     , brdfLutSampler { gpu.device }
     , assetDescriptorSetLayout { gpu }
+    , bloomApplyDescriptorSetLayout { gpu.device }
     , imageBasedLightingDescriptorSetLayout { gpu.device, cubemapSampler, brdfLutSampler }
+    , inverseToneMappingDescriptorSetLayout { gpu.device }
     , mousePickingDescriptorSetLayout { gpu.device }
+    , outlineDescriptorSetLayout { gpu.device }
     , rendererDescriptorSetLayout { gpu.device }
     , skyboxDescriptorSetLayout { gpu.device, cubemapSampler }
+    , weightedBlendedCompositionDescriptorSetLayout { gpu.device }
     , sceneRenderPass { gpu, 1 /* TODO */ }
     , bloomApplyRenderPass { gpu, 1 /* TODO */ }
+    , bloomApplyPipelineLayout { gpu.device, bloomApplyDescriptorSetLayout }
+    , inverseToneMappingPipelineLayout { gpu.device, inverseToneMappingDescriptorSetLayout }
+    , outlinePipelineLayout { gpu.device, outlineDescriptorSetLayout }
     , mousePickingPipelineLayout { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout, mousePickingDescriptorSetLayout) }
     , primitivePipelineLayout { gpu.device, std::tie(rendererDescriptorSetLayout, imageBasedLightingDescriptorSetLayout, assetDescriptorSetLayout) }
     , primitiveNoShadingPipelineLayout { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout) }
+    , skyboxPipelineLayout { gpu.device, { rendererDescriptorSetLayout, skyboxDescriptorSetLayout } }
+    , weightedBlendedCompositionPipelineLayout { gpu.device, weightedBlendedCompositionDescriptorSetLayout }
     , jumpFloodComputePipeline { gpu.device }
-    , outlineRenderPipeline { gpu.device, 1 /* TODO */ }
-    , skyboxRenderPipeline { gpu.device, { rendererDescriptorSetLayout, skyboxDescriptorSetLayout }, sceneRenderPass }
-    , weightedBlendedCompositionRenderPipeline { gpu, sceneRenderPass }
-    , inverseToneMappingRenderPipeline { gpu, sceneRenderPass }
+    , outlineRenderPipeline { gpu.device, outlinePipelineLayout, 1 /* TODO */ }
+    , skyboxRenderPipeline { gpu.device, skyboxPipelineLayout, sceneRenderPass }
+    , weightedBlendedCompositionRenderPipeline { gpu, weightedBlendedCompositionPipelineLayout, sceneRenderPass }
+    , inverseToneMappingRenderPipeline { gpu, inverseToneMappingPipelineLayout, sceneRenderPass }
     , bloomComputePipeline { gpu.device, { .useAMDShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod } }
-    , bloomApplyRenderPipeline { gpu, bloomApplyRenderPass }
+    , bloomApplyRenderPipeline { gpu, bloomApplyPipelineLayout, bloomApplyRenderPass }
     , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
     , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
     , fallbackTexture { gpu }{
@@ -333,16 +347,16 @@ void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2
 
 void vk_gltf_viewer::vulkan::SharedData::setViewCount(std::uint32_t viewCount) {
     sceneRenderPass = { gpu, viewCount };
-    skyboxRenderPipeline.recreatePipeline(gpu.device, sceneRenderPass);
-    weightedBlendedCompositionRenderPipeline.recreatePipeline(gpu, sceneRenderPass);
-    inverseToneMappingRenderPipeline.recreatePipeline(gpu, sceneRenderPass);
+    skyboxRenderPipeline = { gpu.device, skyboxPipelineLayout, sceneRenderPass };
+    weightedBlendedCompositionRenderPipeline = { gpu, weightedBlendedCompositionPipelineLayout, sceneRenderPass };
+    inverseToneMappingRenderPipeline = { gpu, inverseToneMappingPipelineLayout, sceneRenderPass };
     prepassPipelines.clear();
     maskPrepassPipelines.clear();
     primitiveRenderPipelines.clear();
     unlitPrimitiveRenderPipelines.clear();
 
     bloomApplyRenderPass = { gpu, viewCount };
-    bloomApplyRenderPipeline.recreatePipeline(gpu, bloomApplyRenderPass);
+    bloomApplyRenderPipeline = { gpu, bloomApplyPipelineLayout, bloomApplyRenderPass };
 
-    outlineRenderPipeline.recreatePipeline(gpu.device, viewCount);
+    outlineRenderPipeline = { gpu.device, outlinePipelineLayout, viewCount };
 }

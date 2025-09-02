@@ -223,12 +223,12 @@ namespace vk_gltf_viewer::vulkan {
         vku::DescriptorSet<dsl::MousePicking> mousePickingSet;
         vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> hoveringNodeJumpFloodSet;
         vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> selectedNodeJumpFloodSet;
-        vku::DescriptorSet<OutlineRenderPipeline::DescriptorSetLayout> hoveringNodeOutlineSet;
-        vku::DescriptorSet<OutlineRenderPipeline::DescriptorSetLayout> selectedNodeOutlineSet;
-        vku::DescriptorSet<WeightedBlendedCompositionRenderPipeline::DescriptorSetLayout> weightedBlendedCompositionSet;
-        vku::DescriptorSet<InverseToneMappingRenderPipeline::DescriptorSetLayout> inverseToneMappingSet;
+        vku::DescriptorSet<dsl::Outline> hoveringNodeOutlineSet;
+        vku::DescriptorSet<dsl::Outline> selectedNodeOutlineSet;
+        vku::DescriptorSet<dsl::WeightedBlendedComposition> weightedBlendedCompositionSet;
+        vku::DescriptorSet<dsl::InverseToneMapping> inverseToneMappingSet;
         vku::DescriptorSet<bloom::BloomComputePipeline::DescriptorSetLayout> bloomSet;
-        vku::DescriptorSet<BloomApplyRenderPipeline::DescriptorSetLayout> bloomApplySet;
+        vku::DescriptorSet<dsl::BloomApply> bloomApplySet;
 
         // Command buffers.
         vk::CommandBuffer scenePrepassCommandBuffer;
