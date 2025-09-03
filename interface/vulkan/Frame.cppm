@@ -168,6 +168,8 @@ namespace vk_gltf_viewer::vulkan {
 
             vk::Extent2D extent;
 
+            const SharedData::ViewCountDependentResources *shared;
+
             // Mouse picking.
             std::optional<ag::MousePicking> mousePickingAttachmentGroup; // has only value if Gpu::attachmentLessRenderPass == true.
 
@@ -189,7 +191,7 @@ namespace vk_gltf_viewer::vulkan {
             vk::raii::Framebuffer sceneFramebuffer;
             vk::raii::Framebuffer bloomApplyFramebuffer;
 
-            Viewport(const SharedData &sharedData LIFETIMEBOUND, const vk::Extent2D &extent, std::uint32_t viewCount, vk::CommandBuffer graphicsCommandBuffer);
+            Viewport(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent, const SharedData::ViewCountDependentResources &shared LIFETIMEBOUND, vk::CommandBuffer graphicsCommandBuffer);
         };
 
         struct RenderingNodes {
