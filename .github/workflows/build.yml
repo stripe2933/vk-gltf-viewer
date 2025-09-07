@@ -22,7 +22,7 @@ jobs:
         include:
           - { os: 'windows-latest', compiler: 'msvc' }
           - { os: 'windows-latest', compiler: 'mingw-clang' }
-          - { os: 'macos-15', compiler: 'clang' }
+          - { os: 'macos-latest', compiler: 'clang' }
           - { os: 'ubuntu-latest', compiler: 'clang' }
 
     steps:
