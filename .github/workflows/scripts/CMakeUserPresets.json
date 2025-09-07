@@ -31,7 +31,7 @@
       }
     },
     {
-      "name": "macos-15-clang",
+      "name": "macos-latest-clang",
       "inherits": "ci",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
