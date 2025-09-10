@@ -905,7 +905,8 @@ void vk_gltf_viewer::vulkan::Frame::setViewportExtent(const vk::Extent2D &extent
     vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
     vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
         const std::uint32_t viewCount = static_cast<std::uint32_t>(renderer->cameras.size());
-        viewport.emplace(sharedData.gpu, extent, sharedData.viewCountDependentResources.at(viewCount), cb);
+        const std::uint32_t viewMask = math::bit::ones(viewCount);
+        viewport.emplace(sharedData.gpu, extent, viewCount, sharedData.viewMaskDependentResources.at(viewMask), cb);
     }, *fence);
 
     std::vector<vk::DescriptorImageInfo> bloomSetDescriptorInfos;
@@ -1075,22 +1076,23 @@ vk_gltf_viewer::vulkan::Frame::Viewport::JumpFloodResources::JumpFloodResources(
 vk_gltf_viewer::vulkan::Frame::Viewport::Viewport(
     const Gpu &gpu,
     const vk::Extent2D &extent,
-    const SharedData::ViewCountDependentResources &shared,
+    std::uint32_t viewCount,
+    const SharedData::ViewMaskDependentResources &shared,
     vk::CommandBuffer graphicsCommandBuffer
 ) : extent { extent },
     shared { &shared },
     mousePickingAttachmentGroup { value_if(gpu.workaround.attachmentLessRenderPass, [&] { return ag::MousePicking { gpu, extent }; }) },
-    hoveringNodeOutlineJumpFloodResources { gpu, extent, shared.getViewCount() },
-    hoveringNodeJumpFloodSeedAttachmentGroup { gpu, hoveringNodeOutlineJumpFloodResources.image, shared.getViewCount() },
-    selectedNodeOutlineJumpFloodResources { gpu, extent, shared.getViewCount() },
-    selectedNodeJumpFloodSeedAttachmentGroup { gpu, selectedNodeOutlineJumpFloodResources.image, shared.getViewCount() },
-    sceneAttachmentGroup { gpu, extent, shared.getViewCount() },
+    hoveringNodeOutlineJumpFloodResources { gpu, extent, viewCount },
+    hoveringNodeJumpFloodSeedAttachmentGroup { gpu, hoveringNodeOutlineJumpFloodResources.image, viewCount },
+    selectedNodeOutlineJumpFloodResources { gpu, extent, viewCount },
+    selectedNodeJumpFloodSeedAttachmentGroup { gpu, selectedNodeOutlineJumpFloodResources.image, viewCount },
+    sceneAttachmentGroup { gpu, extent, viewCount },
     bloomImage { gpu.allocator, vk::ImageCreateInfo {
         {},
         vk::ImageType::e2D,
         vk::Format::eR16G16B16A16Sfloat,
         vk::Extent3D { extent, 1 },
-        vku::Image::maxMipLevels(extent), shared.getViewCount(),
+        vku::Image::maxMipLevels(extent), viewCount,
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eColorAttachment // written in InverseToneMappingRenderPipeline
@@ -1153,9 +1155,9 @@ vk_gltf_viewer::vulkan::Frame::Viewport::Viewport(
     };
 
     boost::container::static_vector<vk::ImageMemoryBarrier, 6> imageMemoryBarriers {
-        layoutTransitionBarrier(vk::ImageLayout::eGeneral, hoveringNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, shared.getViewCount(), vk::RemainingArrayLayers } /* pong image */),
+        layoutTransitionBarrier(vk::ImageLayout::eGeneral, hoveringNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, viewCount, vk::RemainingArrayLayers } /* pong image */),
         layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, hoveringNodeJumpFloodSeedAttachmentGroup.depthImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
-        layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, shared.getViewCount(), vk::RemainingArrayLayers } /* pong image */),
+        layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, viewCount, vk::RemainingArrayLayers } /* pong image */),
         layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, selectedNodeJumpFloodSeedAttachmentGroup.depthImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
         layoutTransitionBarrier(vk::ImageLayout::eGeneral, bloomImage, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingMipLevels, 0, vk::RemainingArrayLayers }),
     };

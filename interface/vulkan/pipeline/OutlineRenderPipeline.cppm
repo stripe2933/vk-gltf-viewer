@@ -8,7 +8,6 @@ import std;
 import vku;
 export import vulkan_hpp;
 
-import vk_gltf_viewer.math.bit;
 import vk_gltf_viewer.shader.outline_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;
 export import vk_gltf_viewer.vulkan.pipeline_layout.Outline;
@@ -18,7 +17,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         OutlineRenderPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const pl::Outline &layout LIFETIMEBOUND,
-            std::uint32_t viewCount
+            std::uint32_t viewMask
         );
     };
 }
@@ -30,7 +29,7 @@ module :private;
 vk_gltf_viewer::vulkan::OutlineRenderPipeline::OutlineRenderPipeline(
     const vk::raii::Device &device,
     const pl::Outline &layout,
-    std::uint32_t viewCount
+    std::uint32_t viewMask
 ) : Pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             createPipelineStages(
@@ -58,7 +57,7 @@ vk_gltf_viewer::vulkan::OutlineRenderPipeline::OutlineRenderPipeline(
             { 1.f, 1.f, 1.f, 1.f },
         })),
         vk::PipelineRenderingCreateInfo {
-            math::bit::ones(viewCount),
+            viewMask,
             vku::unsafeProxy(vk::Format::eB8G8R8A8Srgb),
         },
     }.get() } { }

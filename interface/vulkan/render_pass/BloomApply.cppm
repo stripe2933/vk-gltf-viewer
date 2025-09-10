@@ -6,12 +6,11 @@ export module vk_gltf_viewer.vulkan.render_pass.BloomApply;
 
 import std;
 
-import vk_gltf_viewer.math.bit;
 export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::rp {
     export struct BloomApply : vk::raii::RenderPass {
-        BloomApply(const Gpu &gpu LIFETIMEBOUND, std::uint32_t viewCount);
+        BloomApply(const Gpu &gpu LIFETIMEBOUND, std::uint32_t viewMask);
     };
 }
 
@@ -19,7 +18,7 @@ namespace vk_gltf_viewer::vulkan::rp {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::rp::BloomApply::BloomApply(const Gpu &gpu, std::uint32_t viewCount)
+vk_gltf_viewer::vulkan::rp::BloomApply::BloomApply(const Gpu &gpu, std::uint32_t viewMask)
     : RenderPass { gpu.device, vk::StructureChain {
         vk::RenderPassCreateInfo {
             {},
@@ -52,7 +51,7 @@ vk_gltf_viewer::vulkan::rp::BloomApply::BloomApply(const Gpu &gpu, std::uint32_t
             }),
         },
         vk::RenderPassMultiviewCreateInfo {
-            vku::unsafeProxy(math::bit::ones(viewCount)),
+            viewMask,
             {},
             vku::unsafeProxy(0U),
         },
