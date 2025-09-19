@@ -876,14 +876,16 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
     ImGui_ImplGlfw_InitForVulkan(window, true);
     const vk::Format colorAttachmentFormat = gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb;
     ImGui_ImplVulkan_InitInfo initInfo {
+        .ApiVersion = vk::makeApiVersion(0, 1, 2, 0),
         .Instance = instance,
         .PhysicalDevice = *gpu.physicalDevice,
         .Device = *gpu.device,
+        .QueueFamily = gpu.queueFamilies.graphicsPresent,
         .Queue = gpu.queues.graphicsPresent,
+        .DescriptorPoolSize = 512,
         // ImGui requires ImGui_ImplVulkan_InitInfo::{MinImageCount,ImageCount} ≥ 2 (I don't know why...).
         .MinImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
         .ImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
-        .DescriptorPoolSize = 512,
         .UseDynamicRendering = true,
         .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
             {},

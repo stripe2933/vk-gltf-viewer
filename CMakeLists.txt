@@ -236,6 +236,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     nfd::nfd
     vkgltf::bindless
     vku::vku
+    $<$<PLATFORM_ID:Linux>:-lX11> # Starting from ImGui v1.92.3, using GLFW backend on Linux/BSD etc. requires linking with -lX11.
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE
     GLFW_INCLUDE_NONE

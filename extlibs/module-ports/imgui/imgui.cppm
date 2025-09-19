@@ -333,6 +333,7 @@ export {
     using ::ImGuiInputTextFlags_CallbackCharFilter;
     using ::ImGuiInputTextFlags_CallbackResize;
     using ::ImGuiInputTextFlags_CallbackEdit;
+    using ::ImGuiInputTextFlags_WordWrap;
 
     using ::ImGuiItemFlags_;
     using ::ImGuiItemFlags_None;
@@ -510,6 +511,10 @@ export {
     using ::ImGuiMod_Super;
     using ::ImGuiMod_Mask_;
 
+    using ::ImGuiListClipperFlags_;
+    using ::ImGuiListClipperFlags_None;
+    using ::ImGuiListClipperFlags_NoSetTableRowCounters;
+
     using ::ImGuiMouseButton_;
     using ::ImGuiMouseButton_Left;
     using ::ImGuiMouseButton_Right;
@@ -578,6 +583,7 @@ export {
     using ::ImGuiSelectableFlags_Disabled;
     using ::ImGuiSelectableFlags_AllowOverlap;
     using ::ImGuiSelectableFlags_Highlight;
+    using ::ImGuiSelectableFlags_SelectOnNav;
 
     using ::ImGuiSelectionRequestType;
     using ::ImGuiSelectionRequestType_None;
@@ -622,6 +628,7 @@ export {
     using ::ImGuiStyleVar_CellPadding;
     using ::ImGuiStyleVar_ScrollbarSize;
     using ::ImGuiStyleVar_ScrollbarRounding;
+    using ::ImGuiStyleVar_ScrollbarPadding;
     using ::ImGuiStyleVar_GrabMinSize;
     using ::ImGuiStyleVar_GrabRounding;
     using ::ImGuiStyleVar_ImageBorderSize;
@@ -886,6 +893,7 @@ export {
     using ::ImDrawFlags;
     using ::ImDrawIdx;
     using ::ImDrawListFlags;
+    using ::ImDrawTextFlags;
     using ::ImFontAtlasFlags;
     using ::ImFontAtlasRectId;
     using ::ImFontFlags;
@@ -908,6 +916,7 @@ export {
     using ::ImGuiInputTextFlags;
     using ::ImGuiItemFlags;
     using ::ImGuiKeyChord;
+    using ::ImGuiListClipperFlags;
     using ::ImGuiMemAllocFunc;
     using ::ImGuiMemFreeFunc;
     using ::ImGuiMouseButton;
