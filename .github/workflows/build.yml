@@ -51,9 +51,11 @@ jobs:
         if: ${{ runner.os == 'Windows' && matrix.compiler == 'msvc' }}
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Workaround for CMake bug that cannot find __CMAKE::CXX23 target when using homebrew libc++ (macOS)
+      - name: Workaround C++ standard library module bug (macOS)
         if: ${{ runner.os == 'macOS' }}
-        run: sed -i '' 's|libc++.modules.json|../../c++/libc++.modules.json|g' /opt/homebrew/opt/cmake/share/cmake/Modules/Compiler/Clang-CXX-CXXImportStd.cmake # https://gitlab.kitware.com/cmake/cmake/-/issues/25965#note_1523575
+        run: |
+          ln -s /opt/homebrew/etc/clang ~/.config/clang
+          sed -i '' 's|-print-file-name=${_clang_modules_json_impl}.modules.json|-print-file-name=../../c++/${_clang_modules_json_impl}.modules.json|g' /opt/homebrew/opt/cmake/share/cmake/Modules/Compiler/Clang-CXX-CXXImportStd.cmake # https://github.com/llvm/llvm-project/issues/109895
 
       - name: Add NuGet sources (Windows)
         if: ${{ runner.os == 'Windows' }}
