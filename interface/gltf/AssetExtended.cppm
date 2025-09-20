@@ -150,6 +150,7 @@ using namespace std::string_view_literals;
 
 fastgltf::Parser parser {
 	fastgltf::Extensions::KHR_materials_emissive_strength
+		| fastgltf::Extensions::KHR_draco_mesh_compression
 		| fastgltf::Extensions::KHR_materials_ior
 		| fastgltf::Extensions::KHR_materials_unlit
 		| fastgltf::Extensions::KHR_materials_variants

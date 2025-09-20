@@ -39,6 +39,7 @@ find_package(vku CONFIG REQUIRED)
 # --------------------
 
 find_package(CGAL CONFIG)
+find_package(draco CONFIG)
 find_package(Ktx CONFIG)
 find_package(OpenEXR CONFIG)
 
@@ -81,6 +82,7 @@ add_subdirectory(cubemap)
 add_subdirectory(ibl)
 set(VKGLTF_USE_MIKKTSPACE ON)
 set(VKGLTF_USE_KTX ${Ktx_FOUND})
+set(VKGLTF_USE_DRACO ${draco_FOUND})
 set(VKGLTF_USE_BINDLESS ON)
 add_subdirectory(vkgltf)
 

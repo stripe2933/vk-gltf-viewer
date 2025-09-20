@@ -1,5 +1,10 @@
 module;
 
+#include <cassert>
+
+#ifdef USE_DRACO
+#include <draco/compression/decode.h>
+#endif
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 #include <lifetimebound.hpp>
@@ -11,6 +16,8 @@ export import fastgltf;
 export import vku;
 
 export import vkgltf.StagingBufferStorage;
+
+#define INDEX_SEQ(Is, N, ...) [&]<auto ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 
 template <typename T, typename... Ts>
 concept one_of = (std::same_as<T, Ts> || ...);
@@ -281,6 +288,10 @@ namespace vkgltf {
 
             template <typename BufferDataAdapter>
             IData(const fastgltf::Asset &asset, const Config<BufferDataAdapter> &config) {
+            #ifdef USE_DRACO
+                draco::Decoder dracoDecoder;
+            #endif
+
                 for (const fastgltf::Mesh &mesh : asset.meshes) {
                     for (const fastgltf::Primitive &primitive : mesh.primitives) {
                         // glTF 2.0 specification:
@@ -294,6 +305,12 @@ namespace vkgltf {
                         }
 
                         if (fastgltf::PrimitiveType type = std::invoke(config.topologyConvertFn, primitive.type); type != primitive.type) {
+                        #ifdef USE_DRACO
+                            if (primitive.dracoCompression) {
+                                throw std::runtime_error { "Topology conversion of Draco-compressed primitive is not supported" }; // TODO
+                            }
+                        #endif
+
                             std::unique_ptr<std::byte[]> &newIndexBytes = generatedBytes.emplace_back();
                             std::uint32_t newIndexByteSize;
 
@@ -388,6 +405,54 @@ namespace vkgltf {
                         else if (primitive.indicesAccessor) {
                             const fastgltf::Accessor &accessor = asset.accessors[*primitive.indicesAccessor];
                             const auto getBytes = [&]<typename T>() -> std::span<const std::byte> {
+                            #ifdef USE_DRACO
+                                if (const auto &draco = primitive.dracoCompression) {
+                                    draco::DecoderBuffer dracoDecoderBuffer;
+
+                                    const std::span<const std::byte> bufferViewBytes = config.adapter(asset, draco->bufferView);
+                                    dracoDecoderBuffer.Init(reinterpret_cast<const char*>(bufferViewBytes.data()), bufferViewBytes.size());
+
+                                    if (draco::Decoder::GetEncodedGeometryType(&dracoDecoderBuffer).value() != draco::EncodedGeometryType::TRIANGULAR_MESH) {
+                                        throw std::runtime_error { "Only triangular mesh is supported" };
+                                    }
+
+                                    std::unique_ptr<const draco::Mesh> dracoMesh = dracoDecoder.DecodeMeshFromBuffer(&dracoDecoderBuffer).value();
+
+                                    const std::size_t byteSize = sizeof(T) * accessor.count;
+                                    auto bytes = std::make_unique_for_overwrite<std::byte[]>(byteSize);
+                                    std::span result { generatedBytes.emplace_back(std::move(bytes)).get(), byteSize };
+
+                                    auto it = result.begin();
+                                    if (primitive.type == fastgltf::PrimitiveType::Triangles) {
+                                        // For each face in the mesh, three indices are copied.
+                                        for (draco::FaceIndex faceIndex { 0 }; faceIndex < dracoMesh->num_faces(); ++faceIndex) {
+                                            INDEX_SEQ(Is, 3, {
+                                                ((it = std::ranges::copy(
+                                                    std::bit_cast<std::array<std::byte, sizeof(T)>>(static_cast<T>(get<Is>(dracoMesh->face(faceIndex)).value())),
+                                                    it).out), ...);
+                                            });
+                                        }
+                                    }
+                                    else if (primitive.type == fastgltf::PrimitiveType::TriangleStrip) {
+                                        // The first face's three indices are copied, then for each subsequent face,
+                                        // only the third index is copied.
+                                        INDEX_SEQ(Is, 3, {
+                                            ((it = std::ranges::copy(
+                                                std::bit_cast<std::array<std::byte, sizeof(T)>>(static_cast<T>(get<Is>(dracoMesh->face(draco::FaceIndex { 0 })).value())),
+                                                it).out), ...);
+                                        });
+                                        for (draco::FaceIndex faceIndex { 1 }; faceIndex < dracoMesh->num_faces(); ++faceIndex) {
+                                            it = std::ranges::copy(
+                                                std::bit_cast<std::array<std::byte, sizeof(T)>>(static_cast<T>(get<2>(dracoMesh->face(faceIndex)).value())),
+                                                it).out;
+                                        }
+                                    }
+                                    assert(it == result.end() && "Size estimation failed");
+
+                                    return result;
+                                }
+                            #endif
+
                                 if (accessor.sparse || !accessor.bufferViewIndex || accessor.componentType != fastgltf::ElementTraits<T>::enum_component_type) {
                                     // Accessor data is not compatible with the Vulkan index buffer, so it has to be generated.
                                     const std::size_t byteSize = sizeof(T) * accessor.count;
@@ -395,10 +460,9 @@ namespace vkgltf {
                                     copyFromAccessor<T>(asset, accessor, bytes.get(), config.adapter);
                                     return { generatedBytes.emplace_back(std::move(bytes)).get(), byteSize };
                                 }
-                                else {
-                                    // Can use the already loaded buffer view data.
-                                    return config.adapter(asset, *accessor.bufferViewIndex).subspan(accessor.byteOffset, sizeof(T) * accessor.count);
-                                }
+
+                                // Can use the already loaded buffer view data.
+                                return config.adapter(asset, *accessor.bufferViewIndex).subspan(accessor.byteOffset, sizeof(T) * accessor.count);
                             };
 
                             switch (accessor.componentType) {

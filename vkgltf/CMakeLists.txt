@@ -2,6 +2,7 @@ project(vkgltf LANGUAGES CXX)
 
 option(VKGLTF_USE_MIKKTSPACE "Use MikkTSpace dependency for tangent space generation")
 option(VKGLTF_USE_KTX "Use KTX dependency for KHR_texture_basisu support")
+option(VKGLTF_USE_DRACO "Use draco dependency for KHR_draco_mesh_compression support")
 option(VKGLTF_USE_BINDLESS "Bindless")
 
 # ----- External dependencies -----
@@ -16,6 +17,10 @@ endif()
 
 if (VKGLTF_USE_KTX)
     find_package(Ktx CONFIG REQUIRED)
+endif()
+
+if (VKGLTF_USE_DRACO)
+    find_package(draco CONFIG REQUIRED)
 endif()
 
 # ----- Module configurations for the external dependencies -----
@@ -85,6 +90,11 @@ endif()
 if (VKGLTF_USE_KTX)
     target_link_libraries(vkgltf PRIVATE KTX::ktx)
     target_compile_definitions(vkgltf PRIVATE USE_KTX)
+endif()
+
+if (VKGLTF_USE_DRACO)
+    target_link_libraries(vkgltf PRIVATE draco::draco)
+    target_compile_definitions(vkgltf PRIVATE USE_DRACO)
 endif()
 
 # ----- vkgltf::bindless -----

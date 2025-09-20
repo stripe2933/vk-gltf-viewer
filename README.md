@@ -19,6 +19,7 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - Multiple scenes.
   - Binary format (`.glb`).
 - Support glTF 2.0 extensions:
+  - [`KHR_draco_mesh_compression`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_draco_mesh_compression)
   - [`KHR_materials_emissive_strength`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_emissive_strength)
   - [`KHR_materials_ior`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_ior)
   - [`KHR_materials_unlit`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_unlit) for lighting independent material shading
@@ -170,6 +171,7 @@ This project depends on:
 Dependencies will be automatically fetched via vcpkg.
 
 Also, there are some optional dependencies that are enabling the features. These are not included in `vcpkg.json` by default.
+- [draco](https://www.cgal.org) for support `KHR_draco_mesh_compression` extension.
 - [CGAL](https://www.cgal.org) for exact bounding volume calculation (due to its usage, **this project is licensed under GPL**.)
 - [KTX-Software](https://github.com/KhronosGroup/KTX-Software) for support `KHR_texture_basisu` extension.
 - [OpenEXR](https://openexr.com/en/latest/) if you want to use `.exr` skybox.

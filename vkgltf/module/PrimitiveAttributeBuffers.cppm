@@ -2,6 +2,10 @@ module;
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
+#ifdef USE_DRACO
+#include <draco/compression/decode.h>
+#endif
+
 export module vkgltf.PrimitiveAttributeBuffers;
 
 import std;
@@ -41,6 +45,10 @@ using ComponentTypeVariant = std::variant<std::type_identity<std::int8_t>, std::
  * @throw std::invalid_argument If <tt>attributeName[prefixSize:]</tt> is not a valid index.
  */
 [[nodiscard]] std::size_t parseIndex(std::string_view attributeName, std::size_t prefixSize);
+
+#ifdef USE_DRACO
+[[nodiscard]] draco::DataType getDracoEquivalentDataType(fastgltf::ComponentType type);
+#endif
 
 namespace vkgltf {
     export class PrimitiveAttributeBuffers {
@@ -202,7 +210,24 @@ namespace vkgltf {
                             continue;
                         }
 
+                    #ifdef USE_DRACO
+                        std::unordered_set<std::string_view> dracoAttributes;
+                        if (const auto &draco = primitive.dracoCompression) {
+                            dracoAttributes = { std::from_range, draco->attributes | std::views::transform(&fastgltf::Attribute::name) };
+                        }
+                    #endif
+
                         for (const auto &[attributeName, accessorIndex] : primitive.attributes) {
+                        #ifdef USE_DRACO
+                            if (dracoAttributes.contains(attributeName)) {
+                                // KHR_draco_mesh_compression:
+                                //   If additional attributes are defined in primitive's attributes, but not defined in
+                                //   KHR_draco_mesh_compression's attributes, then the loader must process the
+                                //   additional attributes as usual.
+                                continue;
+                            }
+                        #endif
+
                             const fastgltf::Accessor &accessor = asset.accessors[accessorIndex];
                             if (!accessor.bufferViewIndex) continue;
 
@@ -424,6 +449,147 @@ namespace vkgltf {
             const Config<BufferDataAdapter> &config = {}
         ) : asset { asset },
             primitive { primitive } {
+            // Adjust size of indexed attribute vectors.
+            const auto getIndexedAttributeCount = [&](std::string_view prefix) noexcept -> std::size_t {
+                return std::ranges::count_if(primitive.attributes, [prefix](const fastgltf::Attribute &attribute) noexcept {
+                    return attribute.name.starts_with(prefix);
+                });
+            };
+
+            texcoords.resize(std::min(getIndexedAttributeCount("TEXCOORD_"), config.maxTexcoordAttributeCount));
+            colors.resize(std::min(getIndexedAttributeCount("COLOR_"), config.maxColorAttributeCount));
+            joints.resize(std::min(getIndexedAttributeCount("JOINTS_"), config.maxJointsAttributeCount));
+            weights.resize(std::min(getIndexedAttributeCount("WEIGHTS_"), config.maxWeightsAttributeCount));
+
+            const auto getDstAttributeInfo = [&](std::string_view attributeName) -> AttributeInfo* {
+                if (attributeName == "POSITION"sv) {
+                    return &position.attributeInfo;
+                }
+                if (attributeName == "NORMAL"sv) {
+                    return &normal.emplace().attributeInfo;
+                }
+                if (attributeName == "TANGENT"sv) {
+                    return &tangent.emplace().attributeInfo;
+                }
+
+                if (attributeName.starts_with("TEXCOORD_")) {
+                    if (std::size_t attributeIndex = parseIndex(attributeName, 9); attributeIndex < config.maxTexcoordAttributeCount) {
+                        return &texcoords[attributeIndex].attributeInfo;
+                    }
+                }
+                else if (attributeName.starts_with("COLOR_")) {
+                    if (std::size_t attributeIndex = parseIndex(attributeName, 6); attributeIndex < config.maxColorAttributeCount) {
+                        return &colors[attributeIndex].attributeInfo;
+                    }
+                }
+                else if (attributeName.starts_with("JOINTS_")) {
+                    if (std::size_t attributeIndex = parseIndex(attributeName, 7); attributeIndex < config.maxJointsAttributeCount) {
+                        return &joints[attributeIndex];
+                    }
+                }
+                else if (attributeName.starts_with("WEIGHTS_")) {
+                    if (std::size_t attributeIndex = parseIndex(attributeName, 8); attributeIndex < config.maxWeightsAttributeCount) {
+                        return &weights[attributeIndex];
+                    }
+                }
+
+                return nullptr;
+            };
+
+        #ifdef USE_DRACO
+            // KHR_draco_mesh_compression:
+            //   If the loader does support the Draco extension, and will process KHR_draco_mesh_compression then:
+            //     The loader must process KHR_draco_mesh_compression first. The loader must get the data from
+            //     KHR_draco_mesh_compression's bufferView property and decompress the data using a Draco decoder to a
+            //     Draco geometry.
+
+            std::unordered_set<std::string_view> dracoAttributes;
+            if (const auto &draco = primitive.dracoCompression) {
+                draco::Decoder dracoDecoder;
+                draco::DecoderBuffer dracoDecoderBuffer;
+
+                const std::span<const std::byte> bufferViewBytes = config.adapter(asset, draco->bufferView);
+                dracoDecoderBuffer.Init(reinterpret_cast<const char*>(bufferViewBytes.data()), bufferViewBytes.size());
+
+                if (draco::Decoder::GetEncodedGeometryType(&dracoDecoderBuffer).value() != draco::EncodedGeometryType::TRIANGULAR_MESH) {
+                    throw std::runtime_error { "Only triangular mesh is supported" };
+                }
+
+                std::unique_ptr<const draco::Mesh> dracoMesh = dracoDecoder.DecodeMeshFromBuffer(&dracoDecoderBuffer).value();
+
+                for (const auto &[attributeName, attributeId] : draco->attributes) {
+                    AttributeInfo* const targetAttributeInfo = getDstAttributeInfo(attributeName);
+                    if (!targetAttributeInfo) {
+                        // The attribute is not used in this application.
+                        continue;
+                    }
+
+                    const fastgltf::Accessor &accessor = asset.accessors[primitive.findAttribute(attributeName)->accessorIndex];
+
+                    const fastgltf::ComponentType componentType = config.componentTypeFn(accessor);
+                    const std::size_t elementByteSize = getElementByteSize(accessor.type, componentType);
+
+                    // glTF 2.0 specification:
+                    //   For performance and compatibility reasons, each element of a vertex attribute MUST be aligned to 4-byte
+                    //   boundaries inside a bufferView (i.e., accessor.byteOffset and bufferView.byteStride MUST be multiples
+                    //   of 4).
+                    //   https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#data-alignment
+                    const vk::DeviceSize byteStride = (elementByteSize / 4 + (elementByteSize % 4 != 0)) * 4;
+
+                    *targetAttributeInfo = {
+                        .buffer = std::make_shared<vku::AllocatedBuffer>(
+                            allocator,
+                            vk::BufferCreateInfo {
+                                {},
+                                byteStride * accessor.count,
+                                config.usageFlags,
+                                config.queueFamilies.size() < 2 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+                                config.queueFamilies,
+                            },
+                            config.allocationCreateInfo),
+                        .offset = 0,
+                        .size = byteStride * (accessor.count - 1) + elementByteSize,
+                        .stride = byteStride,
+                        .componentType = componentType,
+                        // glTF 2.0 specification:
+                        //   Specifies whether integer data values are normalized (true) to [0, 1] (for unsigned types) or to
+                        //   [-1, 1] (for signed types) when they are accessed. This property MUST NOT be set to true for
+                        //   accessors with FLOAT or UNSIGNED_INT component type.
+                        //   https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_accessor_normalized
+                        // If accessor component type is converted to FLOAT, normalized must be false.
+                        .normalized = accessor.normalized && componentType != fastgltf::ComponentType::Float,
+                    };
+
+                    std::byte* const mapped = static_cast<std::byte*>(allocator.mapMemory(targetAttributeInfo->buffer->allocation));
+
+                    const draco::PointAttribute* const attribute = dracoMesh->GetAttributeByUniqueId(attributeId);
+                    const draco::PointIndex pointCount { static_cast<unsigned>(attribute->is_mapping_identity() ? attribute->size() : attribute->indices_map_size()) };
+                    if (draco::DataType dracoType = getDracoEquivalentDataType(componentType); attribute->data_type() != dracoType) {
+                        // Need data type conversion.
+                        assert(attribute->num_components() < 4);
+                        visit([&]<typename T>(std::type_identity<T>) {
+                            T buffer[4];
+                            for (draco::PointIndex i { 0 }; i < pointCount; ++i) {
+                                attribute->ConvertValue<T>(attribute->mapped_index(i), attribute->num_components(), buffer);
+                                std::memcpy(mapped + targetAttributeInfo->stride * i.value(), buffer, sizeof(T) * attribute->num_components());
+                            }
+                        }, getComponentTypeVariant(componentType));
+                    }
+                    else {
+                        for (draco::PointIndex i { 0 }; i < pointCount; ++i) {
+                            attribute->GetMappedValue(i, mapped + targetAttributeInfo->stride * i.value());
+                        }
+                    }
+
+                    allocator.unmapMemory(targetAttributeInfo->buffer->allocation);
+                    allocator.flushAllocation(targetAttributeInfo->buffer->allocation, 0, vk::WholeSize);
+
+                    // Emplace processed attribute name to skip processing it again below.
+                    dracoAttributes.emplace(attributeName);
+                }
+            }
+        #endif
+
             const auto getAttributeInfo = [&](std::size_t accessorIndex) -> AttributeInfo {
                 if (config.cache) {
                     if (auto it = config.cache->accessorAttributeInfos.find(accessorIndex); it != config.cache->accessorAttributeInfos.end()) {
@@ -486,60 +652,20 @@ namespace vkgltf {
                 return result;
             };
 
-            std::vector<std::pair<std::size_t, std::size_t>> orderedTexcoordAccessors;
-            std::vector<std::pair<std::size_t, std::size_t>> orderedColorAccessors;
-            std::vector<std::pair<std::size_t, std::size_t>> orderedJointsAccessors;
-            std::vector<std::pair<std::size_t, std::size_t>> orderedWeightsAccessors;
             for (const auto &[attributeName, accessorIndex] : primitive.attributes) {
-                if (attributeName == "POSITION"sv) {
-                    position.attributeInfo = getAttributeInfo(accessorIndex);
+            #ifdef USE_DRACO
+                if (dracoAttributes.contains(attributeName)) {
+                    // KHR_draco_mesh_compression:
+                    //   If additional attributes are defined in primitive's attributes, but not defined in
+                    //   KHR_draco_mesh_compression's attributes, then the loader must process the additional attributes
+                    //   as usual.
+                    continue;
                 }
-                else if (attributeName == "NORMAL"sv) {
-                    normal.emplace(getAttributeInfo(accessorIndex));
-                }
-                else if (attributeName == "TANGENT"sv) {
-                    tangent.emplace(getAttributeInfo(accessorIndex));
-                }
-                else if (attributeName.starts_with("TEXCOORD")) {
-                    if (std::size_t attributeIndex = parseIndex(attributeName, 9); attributeIndex < config.maxTexcoordAttributeCount) {
-                        orderedTexcoordAccessors.emplace_back(attributeIndex, accessorIndex);
-                    }
-                }
-                else if (attributeName.starts_with("COLOR")) {
-                    if (std::size_t attributeIndex = parseIndex(attributeName, 6); attributeIndex < config.maxColorAttributeCount) {
-                        orderedColorAccessors.emplace_back(attributeIndex, accessorIndex);
-                    }
-                }
-                else if (attributeName.starts_with("JOINTS")) {
-                    if (std::size_t attributeIndex = parseIndex(attributeName, 7); attributeIndex < config.maxJointsAttributeCount) {
-                        orderedJointsAccessors.emplace_back(attributeIndex, accessorIndex);
-                    }
-                }
-                else if (attributeName.starts_with("WEIGHTS")) {
-                    if (std::size_t attributeIndex = parseIndex(attributeName, 8); attributeIndex < config.maxWeightsAttributeCount) {
-                        orderedWeightsAccessors.emplace_back(attributeIndex, accessorIndex);
-                    }
-                }
-            }
+            #endif
 
-            std::ranges::sort(orderedTexcoordAccessors);
-            for (std::size_t accessorIndex : orderedTexcoordAccessors | std::views::values) {
-                texcoords.emplace_back(getAttributeInfo(accessorIndex));
-            }
-
-            std::ranges::sort(orderedColorAccessors);
-            for (std::size_t accessorIndex : orderedColorAccessors | std::views::values) {
-                colors.emplace_back(getAttributeInfo(accessorIndex));
-            }
-
-            std::ranges::sort(orderedJointsAccessors);
-            for (std::size_t accessorIndex : orderedJointsAccessors | std::views::values) {
-                joints.emplace_back(getAttributeInfo(accessorIndex));
-            }
-
-            std::ranges::sort(orderedWeightsAccessors);
-            for (std::size_t accessorIndex : orderedWeightsAccessors | std::views::values) {
-                weights.emplace_back(getAttributeInfo(accessorIndex));
+                if (AttributeInfo *targetAttributeInfo = getDstAttributeInfo(attributeName)) {
+                    *targetAttributeInfo = getAttributeInfo(accessorIndex);
+                }
             }
 
             if (tangent && !normal) {
@@ -752,6 +878,29 @@ std::size_t parseIndex(std::string_view attributeName, std::size_t prefixSize) {
     //   TEXCOORD_01 is not allowed).
     throw std::invalid_argument { "Invalid indexed attribute name format" };
 }
+
+#ifdef USE_DRACO
+draco::DataType getDracoEquivalentDataType(fastgltf::ComponentType componentType) {
+    switch (componentType) {
+        case fastgltf::ComponentType::Byte:
+            return draco::DT_INT8;
+        case fastgltf::ComponentType::UnsignedByte:
+            return draco::DT_UINT8;
+        case fastgltf::ComponentType::Short:
+            return draco::DT_INT16;
+        case fastgltf::ComponentType::UnsignedShort:
+            return draco::DT_UINT16;
+        case fastgltf::ComponentType::Int:
+            return draco::DT_INT32;
+        case fastgltf::ComponentType::UnsignedInt:
+            return draco::DT_UINT32;
+        case fastgltf::ComponentType::Float:
+            return draco::DT_FLOAT32;
+        default:
+            throw std::invalid_argument { "Unsupported glTF accessor component type" };
+    }
+}
+#endif
 
 vkgltf::PrimitiveAttributeBuffers::AttributeInfo vkgltf::PrimitiveAttributeBuffers::AttributeInfoCache::createAttributeInfoFromBufferViewCache(
     const fastgltf::Asset &asset,
