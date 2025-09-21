@@ -275,14 +275,20 @@ if (APPLE)
             MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION}"
         )
 
+        set(HOMEBREW_LLVM_ROOT "/opt/homebrew/opt/llvm")
+        set(LIBCXX_LIB "${HOMEBREW_LLVM_ROOT}/lib/c++/libc++.1.dylib")
+        set(LIBCXXABI_LIB "${HOMEBREW_LLVM_ROOT}/lib/c++/libc++abi.1.dylib")
+
         find_package(Vulkan COMPONENTS MoltenVK REQUIRED)
-        set(APP_BUNDLE_CONTENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/vk-gltf-viewer.app/Contents")
         add_custom_command(TARGET vk-gltf-viewer POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_BUNDLE_CONTENTS_DIR}/lib" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
-                && ${CMAKE_COMMAND} -E copy ${Vulkan_LIBRARY} ${Vulkan_MoltenVK_LIBRARY} "${APP_BUNDLE_CONTENTS_DIR}/lib" # Copy libvulkan.dylib, libMoltenVK.dylib
-                && ${CMAKE_COMMAND} -E rename "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.dylib" "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.1.dylib"
-                && ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/asset/resources" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
-                && install_name_tool -add_rpath "@executable_path/../lib/" "${APP_BUNDLE_CONTENTS_DIR}/MacOS/vk-gltf-viewer")
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_DIR:vk-gltf-viewer>/Contents/Frameworks" "$<TARGET_BUNDLE_DIR:vk-gltf-viewer>/Contents/Resources"
+            COMMAND ${CMAKE_COMMAND} -E copy ${LIBCXX_LIB} ${LIBCXXABI_LIB} ${Vulkan_LIBRARY} ${Vulkan_MoltenVK_LIBRARY} "$<TARGET_BUNDLE_DIR:vk-gltf-viewer>/Contents/Frameworks"
+            COMMAND ${CMAKE_COMMAND} -E rename "$<TARGET_BUNDLE_DIR:vk-gltf-viewer>/Contents/Frameworks/libvulkan.dylib" "$<TARGET_BUNDLE_DIR:vk-gltf-viewer>/Contents/Frameworks/libvulkan.1.dylib"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/asset/resources" "$<TARGET_BUNDLE_DIR:vk-gltf-viewer>/Contents/Resources"
+            COMMAND install_name_tool -change "${LIBCXX_LIB}" "@rpath/libc++.1.dylib" "$<TARGET_FILE:vk-gltf-viewer>"
+            COMMAND install_name_tool -change "${LIBCXXABI_LIB}" "@rpath/libc++abi.1.dylib" "$<TARGET_FILE:vk-gltf-viewer>"
+            COMMAND install_name_tool -add_rpath "@executable_path/../Frameworks/" "$<TARGET_FILE:vk-gltf-viewer>"
+        )
     endif()
 endif()
 

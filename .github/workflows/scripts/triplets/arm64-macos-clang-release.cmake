@@ -7,3 +7,6 @@ set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
 set(VCPKG_OSX_ARCHITECTURES arm64)
 
 set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../macos-homebrew-clang-toolchain.cmake)
+set(VCPKG_C_FLAGS "")
+set(VCPKG_CXX_FLAGS "-nostdinc++ -isystem /opt/homebrew/opt/llvm/include/c++/v1")
+set(VCPKG_LINKER_FLAGS "-nostdlib++ -L/opt/homebrew/opt/llvm/lib/c++ -lc++ -Wl,-rpath,/opt/homebrew/opt/llvm/lib/c++")
