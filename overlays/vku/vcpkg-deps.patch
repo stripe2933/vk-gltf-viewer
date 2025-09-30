@@ -1,0 +1,47 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fc822a5..25db7ec 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -26,7 +26,7 @@ option(VKU_ENABLE_TEST "Enable the test targets.")
+ 
+ find_package(Vulkan 1.4.304 REQUIRED)
+ find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+-find_package(VulkanMemoryAllocator-Hpp CONFIG REQUIRED)
++find_package(unofficial-vulkan-memory-allocator-hpp CONFIG REQUIRED)
+ 
+ if (VKU_USE_SHADERC)
+     find_package(Vulkan COMPONENTS shaderc_combined REQUIRED)
+@@ -79,7 +79,7 @@ target_compile_features(vku PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
+ target_link_libraries(vku PUBLIC
+     Vulkan::Vulkan
+     GPUOpen::VulkanMemoryAllocator
+-    VulkanMemoryAllocator-Hpp::VulkanMemoryAllocator-Hpp
++    unofficial::VulkanMemoryAllocator-Hpp::VulkanMemoryAllocator-Hpp
+     $<$<BOOL:${VKU_USE_SHADERC}>:Vulkan::shaderc_combined>
+ )
+ target_compile_definitions(vku PUBLIC
+diff --git a/cmake/config.cmake.in b/cmake/config.cmake.in
+index d130d94..8adb3c1 100644
+--- a/cmake/config.cmake.in
++++ b/cmake/config.cmake.in
+@@ -8,6 +8,6 @@ if (@VKU_USE_SHADERC@)
+     find_dependency(Vulkan COMPONENTS shaderc_combined)
+ endif()
+ find_dependency(VulkanMemoryAllocator)
+-find_dependency(VulkanMemoryAllocator-Hpp)
++find_dependency(unofficial-vulkan-memory-allocator-hpp)
+ 
+ check_required_components(@PROJECT_NAME@)
+\ No newline at end of file
+diff --git a/extlibs/module-ports/vk_mem_alloc.cppm b/extlibs/module-ports/vk_mem_alloc.cppm
+index 5f2a7a3..516df93 100644
+--- a/extlibs/module-ports/vk_mem_alloc.cppm
++++ b/extlibs/module-ports/vk_mem_alloc.cppm
+@@ -1,6 +1,6 @@
+ module;
+ #define VMA_IMPLEMENTATION
+-#include <vk_mem_alloc.hpp>
++#include <vulkan-memory-allocator-hpp/vk_mem_alloc.hpp>
+ export module vk_mem_alloc_hpp;
+ 
+ export namespace VMA_HPP_NAMESPACE {

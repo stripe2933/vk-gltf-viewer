@@ -1,0 +1,12 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index dd63e0b..45e10b9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -36,6 +36,7 @@ endif()
+ add_library(vku)
+ target_sources(vku PUBLIC
+     FILE_SET CXX_MODULES
++    BASE_DIRS ${Vulkan_INCLUDE_DIRS} .
+     FILES
+         ${Vulkan_INCLUDE_DIRS}/vulkan/vulkan.cppm
+         extlibs/module-ports/vk_mem_alloc.cppm

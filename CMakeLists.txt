@@ -275,14 +275,18 @@ if (APPLE)
             MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION}"
         )
 
-        find_package(Vulkan COMPONENTS MoltenVK REQUIRED)
-        set(APP_BUNDLE_CONTENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/vk-gltf-viewer.app/Contents")
-        add_custom_command(TARGET vk-gltf-viewer POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_BUNDLE_CONTENTS_DIR}/lib" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
-                && ${CMAKE_COMMAND} -E copy ${Vulkan_LIBRARY} ${Vulkan_MoltenVK_LIBRARY} "${APP_BUNDLE_CONTENTS_DIR}/lib" # Copy libvulkan.dylib, libMoltenVK.dylib
-                && ${CMAKE_COMMAND} -E rename "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.dylib" "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.1.dylib"
-                && ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/asset/resources" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
-                && install_name_tool -add_rpath "@executable_path/../lib/" "${APP_BUNDLE_CONTENTS_DIR}/MacOS/vk-gltf-viewer")
+        # Statically link MoltenVK.xcframework.
+        find_library(MOLTENVK_LIB MoltenVK NO_DEFAULT_PATH PATHS "/usr/local/lib")
+
+        add_library(MoltenVK SHARED IMPORTED)
+        set_property(TARGET MoltenVK PROPERTY FRAMEWORK 1)
+        set_property(TARGET MoltenVK APPEND PROPERTY IMPORTED_CONFIGURATIONS Release)
+        set_target_properties(MoltenVK PROPERTIES
+            IMPORTED_LOCATION_RELEASE "${MOLTENVK_LIB}"
+            IMPORTED_SONAME_RELEASE "@rpath/MoltenVK.framework/Versions/A/MoltenVK"
+        )
+
+        target_link_libraries(vk-gltf-viewer PRIVATE MoltenVK)
     endif()
 endif()
 

@@ -1,0 +1,20 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d58c249..72ad313 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -80,7 +80,7 @@ target_sources(vku PUBLIC
+ )
+ target_compile_features(vku PUBLIC cxx_std_23)
+ target_link_libraries(vku PUBLIC
+-    Vulkan::Vulkan
++    Vulkan::Headers
+     GPUOpen::VulkanMemoryAllocator
+     unofficial::VulkanMemoryAllocator-Hpp::VulkanMemoryAllocator-Hpp
+     $<$<BOOL:${VKU_USE_SHADERC}>:Vulkan::shaderc_combined>
+@@ -137,4 +137,4 @@ install(FILES
+     "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+     "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
+     DESTINATION cmake/${PROJECT_NAME}
+-)
+\ No newline at end of file
++)
