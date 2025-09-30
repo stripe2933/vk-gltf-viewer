@@ -276,7 +276,7 @@ if (APPLE)
         )
 
         # Statically link MoltenVK.xcframework.
-        find_library(MOLTENVK_LIB MoltenVK NO_DEFAULT_PATH PATHS "/usr/local/lib")
+        find_library(MOLTENVK_LIB MoltenVK NO_DEFAULT_PATH PATHS "MoltenVK/Package/Latest/MoltenVK/static")
 
         add_library(MoltenVK SHARED IMPORTED)
         set_property(TARGET MoltenVK PROPERTY FRAMEWORK 1)
@@ -287,6 +287,8 @@ if (APPLE)
         )
 
         target_link_libraries(vk-gltf-viewer PRIVATE MoltenVK)
+    else()
+        target_link_libraries(vk-gltf-viewer PRIVATE Vulkan::Vulkan)
     endif()
 endif()
 
