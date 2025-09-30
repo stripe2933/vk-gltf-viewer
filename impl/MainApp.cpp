@@ -853,7 +853,7 @@ void vk_gltf_viewer::MainApp::run() {
     gpu.device.waitIdle();
 }
 
-vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &window, vk::Instance instance, const vulkan::Gpu &gpu) {
+vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &window, vk::Instance instance, vulkan::Gpu &gpu) {
     ImGui::CheckVersion();
     ImGui::CreateContext();
 
@@ -872,6 +872,14 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
     fontConfig.MergeMode = true;
     constexpr ImWchar fontAwesomeIconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
     io.Fonts->AddFontFromMemoryCompressedBase85TTF(asset::font::fontawesome_webfont_ttf_compressed_data_base85, 0.f, &fontConfig, fontAwesomeIconRanges);
+
+    ImGui_ImplVulkan_LoadFunctions(
+        vk::makeApiVersion(0, 1, 2, 0),
+        [](const char *function_name, void *user_data) {
+            const vk::raii::Device &device = *static_cast<const vk::raii::Device*>(user_data);
+            return device.getDispatcher()->vkGetDeviceProcAddr(*device, function_name);
+        },
+        &gpu.device);
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
     const vk::Format colorAttachmentFormat = gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb;

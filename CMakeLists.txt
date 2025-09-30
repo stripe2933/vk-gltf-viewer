@@ -286,7 +286,10 @@ if (APPLE)
             IMPORTED_SONAME_RELEASE "@rpath/MoltenVK.framework/Versions/A/MoltenVK"
         )
 
-        target_link_libraries(vk-gltf-viewer PRIVATE MoltenVK)
+        target_link_libraries(vk-gltf-viewer PRIVATE
+            MoltenVK
+            "-framework IOSurface"
+        )
     else()
         target_link_libraries(vk-gltf-viewer PRIVATE Vulkan::Vulkan)
     endif()

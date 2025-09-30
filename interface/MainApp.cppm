@@ -24,7 +24,7 @@ namespace vk_gltf_viewer {
         struct ImGuiContext {
             imgui::UserData userData;
 
-            ImGuiContext(const control::AppWindow &window, vk::Instance instance, const vulkan::Gpu &gpu);
+            ImGuiContext(const control::AppWindow &window, vk::Instance instance, vulkan::Gpu &gpu);
             ~ImGuiContext();
         };
         
