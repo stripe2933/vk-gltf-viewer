@@ -46,7 +46,7 @@ jobs:
           git clone --depth 1 https://github.com/KhronosGroup/MoltenVK.git
           cd MoltenVK
           ./fetchDependencies --macos
-          make macos install
+          sudo make macos install
 
       - name: Install build dependencies (Linux)
         if: ${{ runner.os == 'Linux' }}
