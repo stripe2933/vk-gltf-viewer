@@ -27,7 +27,7 @@ namespace vk_gltf_viewer::math {
          * @param radius Radius of the sphere.
          * @return <tt>true</tt> if the sphere is overlapping with the frustum, <tt>false</tt> otherwise.
          */
-        [[nodiscard]] bool isOverlapApprox(const glm::vec3 &center, float radius) const noexcept;
+        [[nodiscard]] bool isOverlapApprox(const glm::dvec3 &center, double radius) const noexcept;
     };
 }
 
@@ -35,7 +35,7 @@ namespace vk_gltf_viewer::math {
 module :private;
 #endif
 
-bool vk_gltf_viewer::math::Frustum::isOverlapApprox(const glm::vec3 &center, float radius) const noexcept {
+bool vk_gltf_viewer::math::Frustum::isOverlapApprox(const glm::dvec3 &center, double radius) const noexcept {
     for (const Plane &plane : planes) {
         if (plane.getSignedDistance(center) < -radius) {
             return false;

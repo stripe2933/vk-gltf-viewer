@@ -7,20 +7,20 @@ export import vk_gltf_viewer.math.Frustum;
 
 namespace vk_gltf_viewer::control {
     export struct Camera {
-        glm::vec3 position;
+        glm::dvec3 position;
         glm::vec3 direction;
         glm::vec3 up;
 
         float fov;
         float aspectRatio;
-        float zMin;
-        float zMax;
+        double zMin;
+        double zMax;
 
         /**
          * A distance to be used for <tt>ImGuizmo::ViewManipulate</tt>, which is the distance between pivot and
          * <tt>position</tt>.
          */
-        float targetDistance;
+        double targetDistance;
 
         /**
          * @brief If <tt>true</tt>, the renderer will automatically adjust the near and far planes based on the scene
@@ -35,7 +35,7 @@ namespace vk_gltf_viewer::control {
         [[nodiscard]] glm::mat4 getProjectionViewMatrixForwardZ() const noexcept;
         [[nodiscard]] glm::vec3 getRight() const noexcept;
 
-        void tightenNearFar(const glm::vec3 &boundingSphereCenter, float boundingSphereRadius) noexcept;
+        void tightenNearFar(const glm::dvec3 &boundingSphereCenter, double boundingSphereRadius) noexcept;
 
         [[nodiscard]] math::Frustum getFrustum() const;
         [[nodiscard]] math::Frustum getFrustum(float xmin, float xmax, float ymin, float ymax) const;
@@ -47,15 +47,15 @@ module :private;
 #endif
 
 glm::mat4 vk_gltf_viewer::control::Camera::getViewMatrix() const noexcept {
-    return lookAt(position, position + direction, up);
+    return lookAt(position, position + glm::dvec3 { direction }, glm::dvec3 { up });
 }
 
 glm::mat4 vk_gltf_viewer::control::Camera::getProjectionMatrix() const noexcept {
-    return glm::perspectiveRH_ZO(fov, aspectRatio, zMax, zMin);
+    return glm::perspectiveRH_ZO(fov, aspectRatio, static_cast<float>(zMax), static_cast<float>(zMin));
 }
 
 glm::mat4 vk_gltf_viewer::control::Camera::getProjectionMatrixForwardZ() const noexcept {
-    return glm::perspectiveRH_ZO(fov, aspectRatio, zMin, zMax);
+    return glm::perspectiveRH_ZO(fov, aspectRatio, static_cast<float>(zMin), static_cast<float>(zMax));
 }
 
 glm::mat4 vk_gltf_viewer::control::Camera::getProjectionViewMatrix() const noexcept {
@@ -70,19 +70,19 @@ glm::vec3 vk_gltf_viewer::control::Camera::getRight() const noexcept {
     return cross(direction, up);
 }
 
-void vk_gltf_viewer::control::Camera::tightenNearFar(const glm::vec3 &boundingSphereCenter, float boundingSphereRadius) noexcept {
+void vk_gltf_viewer::control::Camera::tightenNearFar(const glm::dvec3 &boundingSphereCenter, double boundingSphereRadius) noexcept {
     // Get projection of the displacement vector (from camera position to bounding sphere center) on the direction vector.
-    const glm::vec3 displacement = boundingSphereCenter - position;
-    const float displacementProjectionLength = dot(displacement, direction);
-    const float displacementNearProjectionLength = displacementProjectionLength - boundingSphereRadius;
-    const float displacementFarProjectionLength = displacementProjectionLength + boundingSphereRadius;
-    if (displacementFarProjectionLength <= 0.f) {
+    const glm::dvec3 displacement = boundingSphereCenter - position;
+    const double displacementProjectionLength = dot(displacement, glm::dvec3 { direction });
+    const double displacementNearProjectionLength = displacementProjectionLength - boundingSphereRadius;
+    const double displacementFarProjectionLength = displacementProjectionLength + boundingSphereRadius;
+    if (displacementFarProjectionLength <= 0.0) {
         // The bounding sphere is behind the camera.
-        zMin = 1e-2f;
-        zMax = 1e2f;
+        zMin = 1e-2;
+        zMax = 1e2;
     }
     else {
-        zMin = std::max(1e-2f, displacementNearProjectionLength);
+        zMin = std::max(1e-2, displacementNearProjectionLength);
         zMax = displacementFarProjectionLength;
     }
 }
@@ -101,12 +101,12 @@ vk_gltf_viewer::math::Frustum vk_gltf_viewer::control::Camera::getFrustum() cons
 }
 
 vk_gltf_viewer::math::Frustum vk_gltf_viewer::control::Camera::getFrustum(float xmin, float xmax, float ymin, float ymax) const {
-    const float nearWidth = 2.f * zMin * std::tan(fov / 2.f);
-    const float nearHeight = nearWidth * aspectRatio;
-    const glm::mat4 projection = glm::gtc::frustum(
-        nearWidth * (xmin - 0.5f), nearWidth * (xmax - 0.5f),
-        nearHeight * (ymin - 0.5f), nearHeight * (ymax - 0.5f),
-        zMin, zMax);
+    const double nearWidth = 2.0 * zMin * std::tan(fov / 2.f);
+    const double nearHeight = nearWidth * aspectRatio;
+    const glm::mat4 projection = glm::gtc::frustum<float>(
+        static_cast<float>(nearWidth * (xmin - 0.5f)), static_cast<float>(nearWidth * (xmax - 0.5f)),
+        static_cast<float>(nearHeight * (ymin - 0.5f)), static_cast<float>(nearHeight * (ymax - 0.5f)),
+        static_cast<float>(zMin), static_cast<float>(zMax));
 
     // Gribb & Hartmann method.
     const glm::mat4 m = projection * getViewMatrix();

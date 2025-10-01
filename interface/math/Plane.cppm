@@ -17,14 +17,14 @@ namespace vk_gltf_viewer::math {
         /**
          * @brief Normal vector of the plane.
          */
-        glm::vec3 normal;
+        glm::dvec3 normal;
 
         /**
          * @brief Signed distance of the plane and the origin.
          *
          * The sign is positive if the displacement vector is toward to \p normal, otherwise it is negative.
          */
-        float distance;
+        double distance;
 
         /**
          * @brief Get signed distance of the Plane and given \p point.
@@ -34,7 +34,7 @@ namespace vk_gltf_viewer::math {
          * @param point Point to get the signed distance for.
          * @return Signed distance.
          */
-        [[nodiscard]] float getSignedDistance(const glm::vec3 &point) const noexcept;
+        [[nodiscard]] double getSignedDistance(const glm::dvec3 &point) const noexcept;
 
         /**
          * @brief Create Plane from normal and a point that lying on the plane.
@@ -42,7 +42,7 @@ namespace vk_gltf_viewer::math {
          * @param pointInPlane A point that lying on the plane.
          * @return Plane instance.
          */
-        [[nodiscard]] static Plane from(const glm::vec3 &normal, const glm::vec3 &pointInPlane) noexcept;
+        [[nodiscard]] static Plane from(const glm::dvec3 &normal, const glm::dvec3 &pointInPlane) noexcept;
 
         /**
          * @brief Create Plane from coefficients of the plane equation (ax + by + cz + d = 0).
@@ -52,7 +52,7 @@ namespace vk_gltf_viewer::math {
          * @param d Coefficient of the constant term.
          * @return Plane instance.
          */
-        [[nodiscard]] static Plane from(float a, float b, float c, float d) noexcept;
+        [[nodiscard]] static Plane from(double a, double b, double c, double d) noexcept;
     };
 }
 
@@ -60,15 +60,15 @@ namespace vk_gltf_viewer::math {
 module :private;
 #endif
 
-float vk_gltf_viewer::math::Plane::getSignedDistance(const glm::vec3 &point) const noexcept {
+double vk_gltf_viewer::math::Plane::getSignedDistance(const glm::dvec3 &point) const noexcept {
     return dot(normal, point) + distance;
 }
 
-vk_gltf_viewer::math::Plane vk_gltf_viewer::math::Plane::from(const glm::vec3 &normal, const glm::vec3 &pointInPlane) noexcept {
+vk_gltf_viewer::math::Plane vk_gltf_viewer::math::Plane::from(const glm::dvec3 &normal, const glm::dvec3 &pointInPlane) noexcept {
     return { normal, -dot(normal, pointInPlane) };
 }
 
-vk_gltf_viewer::math::Plane vk_gltf_viewer::math::Plane::from(float a, float b, float c, float d) noexcept {
-    const float inverseLength = 1.f / std::hypot(a, b, c);
-    return { inverseLength * glm::vec3 { a, b, c }, inverseLength * d };
+vk_gltf_viewer::math::Plane vk_gltf_viewer::math::Plane::from(double a, double b, double c, double d) noexcept {
+    const double inverseLength = 1.f / std::hypot(a, b, c);
+    return { inverseLength * glm::dvec3 { a, b, c }, inverseLength * d };
 }

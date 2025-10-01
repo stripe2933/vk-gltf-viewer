@@ -465,10 +465,10 @@ void vk_gltf_viewer::MainApp::run() {
 
                     const auto rotateCamera = [&](control::Camera &camera) {
                         // Rotate the camera around the Y-axis lied on the target point.
-                        const glm::vec3 target = camera.position + camera.direction * camera.targetDistance;
+                        const glm::dvec3 target = camera.position + glm::dvec3 { camera.direction } * camera.targetDistance;
                         const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
                         camera.direction = glm::mat3 { rotation } * camera.direction;
-                        camera.position = target - camera.direction * camera.targetDistance;
+                        camera.position = target - glm::dvec3 { camera.direction } * camera.targetDistance;
                     };
 
                     if (ImGui::GetIO().KeyCtrl) {
@@ -627,8 +627,8 @@ void vk_gltf_viewer::MainApp::run() {
                     // Adjust the camera based on the scene enclosing sphere.
                     const auto &[center, radius] = assetExtended->sceneMiniball.get();
                     for (control::Camera &camera : renderer->cameras) {
-                        const float distance = radius / std::sin(camera.fov / 2.f);
-                        camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
+                        const double distance = radius / std::sin(camera.fov / 2.f);
+                        camera.position = glm::make_vec3(center.data()) - distance * glm::dvec3 { normalize(camera.direction) };
                         camera.zMin = distance - radius;
                         camera.zMax = distance + radius;
                         camera.targetDistance = distance;
@@ -1245,8 +1245,8 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius] = assetExtended->sceneMiniball.get();
     for (control::Camera &camera : renderer->cameras) {
-        const float distance = radius / std::sin(camera.fov / 2.f);
-        camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
+        const double distance = radius / std::sin(camera.fov / 2.f);
+        camera.position = glm::make_vec3(center.data()) - distance * glm::dvec3 { normalize(camera.direction) };
         camera.zMin = distance - radius;
         camera.zMax = distance + radius;
         camera.targetDistance = distance;

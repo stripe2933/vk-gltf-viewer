@@ -371,8 +371,8 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             const auto [min, max] = getBoundingBoxMinMax(gltfAsset->assetExtended->primitiveBuffer.getPrimitive(primitiveIndex), node, gltfAsset->assetExtended->asset);
 
             const auto pred = [&](const fastgltf::math::fmat4x4 &worldTransform) -> bool {
-                const fastgltf::math::fvec3 transformedMin { worldTransform * fastgltf::math::fvec4 { min.x(), min.y(), min.z(), 1.f } };
-                const fastgltf::math::fvec3 transformedMax { worldTransform * fastgltf::math::fvec4 { max.x(), max.y(), max.z(), 1.f } };
+                const fastgltf::math::fvec3 transformedMin { worldTransform * fastgltf::math::fvec4 { static_cast<float>(min.x()), static_cast<float>(min.y()), static_cast<float>(min.z()), 1.f } };
+                const fastgltf::math::fvec3 transformedMax { worldTransform * fastgltf::math::fvec4 { static_cast<float>(max.x()), static_cast<float>(max.y()), static_cast<float>(max.z()), 1.f } };
 
                 const fastgltf::math::fvec3 halfDisplacement = (transformedMax - transformedMin) / 2.f;
                 const fastgltf::math::fvec3 center = transformedMin + halfDisplacement;

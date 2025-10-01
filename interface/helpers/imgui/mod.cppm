@@ -14,6 +14,46 @@ import vk_gltf_viewer.imgui.UserData;
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
 namespace ImGui {
+    template <typename T>
+    [[nodiscard]] consteval ImGuiDataType dataType() noexcept {
+        if constexpr (std::same_as<T, std::int8_t>) {
+            return ImGuiDataType_S8;
+        }
+        else if constexpr (std::same_as<T, std::uint8_t>) {
+            return ImGuiDataType_U8;
+        }
+        else if constexpr (std::same_as<T, std::int16_t>) {
+            return ImGuiDataType_S16;
+        }
+        else if constexpr (std::same_as<T, std::uint16_t>) {
+            return ImGuiDataType_U16;
+        }
+        else if constexpr (std::same_as<T, std::int32_t>) {
+            return ImGuiDataType_S32;
+        }
+        else if constexpr (std::same_as<T, std::uint32_t>) {
+            return ImGuiDataType_U32;
+        }
+        else if constexpr (std::same_as<T, std::int64_t>) {
+            return ImGuiDataType_S64;
+        }
+        else if constexpr (std::same_as<T, std::uint64_t>) {
+            return ImGuiDataType_U64;
+        }
+        else if constexpr (std::same_as<T, float>) {
+            return ImGuiDataType_Float;
+        }
+        else if constexpr (std::same_as<T, double>) {
+            return ImGuiDataType_Double;
+        }
+        else if constexpr (std::same_as<T, bool>) {
+            return ImGuiDataType_Bool;
+        }
+        else {
+            static_assert(!sizeof(T*), "Unsupported type");
+        }
+    }
+
     export template <typename Allocator>
     bool InputTextWithHint(cpp_util::cstring_view label, cpp_util::cstring_view hint, std::basic_string<char, std::char_traits<char>, Allocator>* str, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = nullptr, void* userData = nullptr) {
         struct ChainedUserData {
@@ -202,6 +242,78 @@ namespace ImGui {
             TextUnformatted(text);
         }
         End();
+    }
+
+    export template <int N, typename T> requires (N >= 1)
+    bool Drag(cpp_util::cstring_view label, T v[N], float v_speed, T v_min = {}, T v_max = {}, const char *format = nullptr, ImGuiSliderFlags flags = 0) {
+        // If there's ImGui equivalent function, use it (to prevent void* casting).
+        if constexpr (std::same_as<T, int>) {
+            if constexpr (N == 1) {
+                return DragInt(label.c_str(), v, v_speed, v_min, v_max, format, flags);
+            }
+            else if constexpr (N == 2) {
+                return DragInt2(label.c_str(), v, v_speed, v_min, v_max, format, flags);
+            }
+            else if constexpr (N == 3) {
+                return DragInt3(label.c_str(), v, v_speed, v_min, v_max, format, flags);
+            }
+            else if constexpr (N == 4) {
+                return DragInt4(label.c_str(), v, v_speed, v_min, v_max, format, flags);
+            }
+        }
+        else if constexpr (std::same_as<T, float>) {
+            if constexpr (N == 1) {
+                return DragFloat(label.c_str(), v, v_speed, v_min, v_max, format, flags);
+            }
+            else if constexpr (N == 2) {
+                return DragFloat2(label.c_str(), v, v_speed, v_min, v_max, format, flags);
+            }
+            else if constexpr (N == 3) {
+                return DragFloat3(label.c_str(), v, v_speed, v_min, v_max, format, flags);
+            }
+            else if constexpr (N == 4) {
+                return DragFloat4(label.c_str(), v, v_speed, v_min, v_max, format, flags);
+            }
+        }
+
+        if constexpr (N == 1) {
+            return DragScalar(label.c_str(), dataType<T>(), v, v_speed, &v_min, &v_max, format, flags);
+        }
+        else {
+            return DragScalarN(label.c_str(), dataType<T>(), v, N, v_speed, &v_min, &v_max, format, flags);
+        }
+    }
+
+    export template <typename T>
+    bool DragRange2(cpp_util::cstring_view label, T *v_current_min, T *v_current_max, float v_speed, T v_min = {}, T v_max = {}, const char* format = "%.3f", const char *format_max = nullptr, ImGuiSliderFlags flags = 0) {
+        // Code from implementation of ImGui::DragFloatRange2() in v1.92.3.
+        ImGuiWindow* window = GetCurrentWindow();
+        if (window->SkipItems)
+            return false;
+
+        PushID(label.c_str());
+        BeginGroup();
+        PushMultiItemsWidths(2, CalcItemWidth());
+
+        T min_min = (v_min >= v_max) ? std::numeric_limits<T>::lowest() : v_min;
+        T min_max = (v_min >= v_max) ? *v_current_max : ImMin(v_max, *v_current_max);
+        ImGuiSliderFlags min_flags = flags | ((min_min == min_max) ? ImGuiSliderFlags_ReadOnly : 0);
+        bool value_changed = Drag<1>("##min", v_current_min, v_speed, min_min, min_max, format, min_flags);
+        PopItemWidth();
+        SameLine(0, GetStyle().ItemInnerSpacing.x);
+
+        T max_min = (v_min >= v_max) ? *v_current_min : ImMax(v_min, *v_current_min);
+        T max_max = (v_min >= v_max) ? std::numeric_limits<T>::max() : v_max;
+        ImGuiSliderFlags max_flags = flags | ((max_min == max_max) ? ImGuiSliderFlags_ReadOnly : 0);
+        value_changed |= Drag<1>("##max", v_current_max, v_speed, max_min, max_max, format_max ? format_max : format, max_flags);
+        PopItemWidth();
+        SameLine(0, GetStyle().ItemInnerSpacing.x);
+
+        TextEx(label.c_str(), FindRenderedTextEnd(label.c_str(), label.c_str() + label.size()));
+        EndGroup();
+        PopID();
+
+        return value_changed;
     }
 
     export template <std::invocable F>

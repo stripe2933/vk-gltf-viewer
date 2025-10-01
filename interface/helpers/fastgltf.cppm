@@ -405,7 +405,7 @@ namespace fastgltf {
      * @note Skinned meshes are not supported, as the bounding box of skinned meshes cannot be determined by the primitive's <tt>POSITION</tt> accessor min/max values.
      */
     export
-    [[nodiscard]] std::array<math::fvec3, 2> getBoundingBoxMinMax(const Primitive &primitive, const Node &node, const Asset &asset);
+    [[nodiscard]] std::array<math::dvec3, 2> getBoundingBoxMinMax(const Primitive &primitive, const Node &node, const Asset &asset);
 
     /**
      * @brief Get 8 corner points of \p primitive's bounding box, which are ordered by:
@@ -425,9 +425,46 @@ namespace fastgltf {
      * @note Skinned meshes are not supported, as the bounding box of skinned meshes cannot be determined by the primitive's <tt>POSITION</tt> accessor min/max values.
      */
     export
-    [[nodiscard]] std::array<math::fvec3, 8> getBoundingBoxCornerPoints(const Primitive &primitive, const Node &node, const Asset &asset);
+    [[nodiscard]] std::array<math::dvec3, 8> getBoundingBoxCornerPoints(const Primitive &primitive, const Node &node, const Asset &asset);
 
 namespace math {
+    /**
+     * @brief Convert the vector of type \tp U to the vector of type \tp T.
+     *
+     * @tparam T Destination vector component type.
+     * @tparam U Source vector component type.
+     * @tparam N Number of vector components.
+     * @param v Source vector.
+     * @return Converted vector.
+     */
+    export template <typename T, typename U, std::size_t N> requires (!std::same_as<T, U>)
+    [[nodiscard]] vec<T, N> cast(const vec<U, N> &v) noexcept {
+        vec<T, N> result;
+        INDEX_SEQ(Is, N, {
+            ((void)(result.data()[Is] = static_cast<T>(v.data()[Is])), ...);
+        });
+        return result;
+    }
+
+    /**
+     * @brief Convert the matrix of type \tp U to the matrix of type \tp T.
+     *
+     * @tparam T Destination matrix component type.
+     * @tparam U Source matrix component type.
+     * @tparam Col Number of matrix columns.
+     * @tparam Row Number of matrix rows.
+     * @param m Source matrix.
+     * @return Converted matrix.
+     */
+    export template <typename T, typename U, std::size_t Col, std::size_t Row> requires (!std::same_as<T, U>)
+    [[nodiscard]] mat<T, Col, Row> cast(const mat<U, Col, Row> &m) noexcept {
+        mat<T, Col, Row> result;
+        INDEX_SEQ(Is, Col, {
+            ((void)(result[Is] = cast<T>(m[Is])), ...);
+        });
+        return result;
+    }
+
     /**
      * @brief Get component-wise minimum of two vectors.
      * @tparam T Vector component type.
@@ -663,38 +700,38 @@ std::size_t fastgltf::getTargetWeightCount(const Node &node, const Asset &asset)
     return count;
 }
 
-std::array<fastgltf::math::fvec3, 2> fastgltf::getBoundingBoxMinMax(const Primitive &primitive, const Node &node, const Asset &asset) {
+std::array<fastgltf::math::dvec3, 2> fastgltf::getBoundingBoxMinMax(const Primitive &primitive, const Node &node, const Asset &asset) {
     constexpr auto getAccessorMinMax = [](const Accessor &accessor) {
-        constexpr auto copyAccessorData = [](const AccessorBoundsArray &accessor, math::fvec3 &out) {
+        constexpr auto copyAccessorData = [](const AccessorBoundsArray &accessor, math::dvec3 &out) {
             assert(accessor.size() == 3);
             switch (accessor.type()) {
                 case AccessorBoundsArray::BoundsType::float64:
-                    INDEX_SEQ(Is, 3, { std::ignore = ((out[Is] = static_cast<float>(accessor.get<double>(Is))), ...); });
+                    INDEX_SEQ(Is, 3, { std::ignore = ((out[Is] = accessor.get<double>(Is)), ...); });
                     return;
                 case AccessorBoundsArray::BoundsType::int64:
-                    INDEX_SEQ(Is, 3, { std::ignore = ((out[Is] = static_cast<float>(accessor.get<std::int64_t>(Is))), ...); });
+                    INDEX_SEQ(Is, 3, { std::ignore = ((out[Is] = accessor.get<std::int64_t>(Is)), ...); });
                     return;
             }
             std::unreachable();
         };
 
-        std::array<math::fvec3, 2> result;
+        std::array<math::dvec3, 2> result;
         copyAccessorData(accessor.min.value(), get<0>(result));
         copyAccessorData(accessor.max.value(), get<1>(result));
 
         if (accessor.normalized) {
             switch (accessor.componentType) {
             case ComponentType::Byte:
-                get<0>(result) = cwiseMax(get<0>(result) / 127, math::fvec3(-1));
-                get<1>(result) = cwiseMax(get<1>(result) / 127, math::fvec3(-1));
+                get<0>(result) = cwiseMax(get<0>(result) / 127, math::dvec3(-1));
+                get<1>(result) = cwiseMax(get<1>(result) / 127, math::dvec3(-1));
                 break;
             case ComponentType::UnsignedByte:
                 get<0>(result) /= 255;
                 get<1>(result) /= 255;
                 break;
             case ComponentType::Short:
-                get<0>(result) = cwiseMax(get<0>(result) / 32767, math::fvec3(-1));
-                get<1>(result) = cwiseMax(get<1>(result) / 32767, math::fvec3(-1));
+                get<0>(result) = cwiseMax(get<0>(result) / 32767, math::dvec3(-1));
+                get<1>(result) = cwiseMax(get<1>(result) / 32767, math::dvec3(-1));
                 break;
             case ComponentType::UnsignedShort:
                 get<0>(result) /= 65535;
@@ -732,7 +769,7 @@ std::array<fastgltf::math::fvec3, 2> fastgltf::getBoundingBoxMinMax(const Primit
     return bound;
 }
 
-std::array<fastgltf::math::fvec3, 8> fastgltf::getBoundingBoxCornerPoints(const Primitive &primitive, const Node &node, const Asset &asset) {
+std::array<fastgltf::math::dvec3, 8> fastgltf::getBoundingBoxCornerPoints(const Primitive &primitive, const Node &node, const Asset &asset) {
     const auto [min, max] = getBoundingBoxMinMax(primitive, node, asset);
     return {
         min,

@@ -1845,7 +1845,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
 
             for (auto &&[cameraIndex, camera] : renderer.cameras | ranges::views::enumerate) {
                 if (ImGui::TreeNode(tempStringBuffer.write("Camera {}", cameraIndex + 1).view().c_str())) {
-                    ImGui::DragFloat3("Position", value_ptr(camera.position), 0.1f);
+                    ImGui::Drag<3>("Position", value_ptr(camera.position), 0.1f, 0.0, 0.0, "%.3g");
                     if (ImGui::DragFloat3("Direction", value_ptr(camera.direction), 0.1f, -1.f, 1.f)) {
                         camera.direction = normalize(camera.direction);
                     }
@@ -1858,7 +1858,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
                     }
 
                     ImGui::WithDisabled([&] {
-                        ImGui::DragFloatRange2("Near/Far", &camera.zMin, &camera.zMax, 1.f, 1e-6f, 1e-6f, "%.2e", nullptr, ImGuiSliderFlags_Logarithmic);
+                        ImGui::DragRange2("Near/Far", &camera.zMin, &camera.zMax, 1.f, 1e-6, 1e-6, "%.2g", nullptr, ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_AlwaysClamp);
                     }, camera.automaticNearFarPlaneAdjustment);
 
                     ImGui::Checkbox("Automatic Near/Far Adjustment", &camera.automaticNearFarPlaneAdjustment);
