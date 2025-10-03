@@ -500,32 +500,44 @@ void vk_gltf_viewer::MainApp::run() {
                 [&](const control::task::ChangePassthruRect &task) {
                     passthruRect = task.newRect;
 
-                    // Update frame viewports.
+                    // Calculate viewport extent and make sure its width and heights are even.
                     vk::Extent2D extent {
                         static_cast<std::uint32_t>(std::ceil(framebufferScale.x * task.newRect.GetWidth())),
                         static_cast<std::uint32_t>(std::ceil(framebufferScale.y * task.newRect.GetHeight())),
                     };
+                    extent.width += extent.width % 2; // Make sure the width is even number.
+                    extent.height += extent.height % 2; // Make sure the height is even number.
+
+                    // Update frame viewports.
                     currentFrameTask.setViewportExtent(extent);
                     frameDeferredTask.setViewportExtent(extent);
 
                     // Calculate camera aspect ratio and apply it to the cameras.
-                    switch (renderer->cameras.size()) {
-                        case 2:
-                            extent.width = math::divCeil(extent.width, 2U);
-                            break;
-                        case 4:
-                            extent.width = math::divCeil(extent.width, 2U);
-                            extent.height = math::divCeil(extent.height, 2U);
-                            break;
+                    float aspectRatio = vku::aspect(extent);
+                    if (renderer->cameras.size() == 2) {
+                        aspectRatio /= 2.f;
                     }
 
-                    const float aspectRatio = vku::aspect(extent);
                     for (control::Camera &camera : renderer->cameras) {
                         camera.aspectRatio = aspectRatio;
                     }
                 },
                 [&](const control::task::ChangeViewCount &task) {
                     gpu.device.waitIdle();
+
+                    // The below aspect ratio multiplication logic is assuming that this task is called only if the
+                    // before/after view count is really changed.
+                    assert(renderer->cameras.size() != task.viewCount);
+
+                    float aspectRatioMultiplier = 1.f;
+                    if (renderer->cameras.size() == 2) {
+                        // View count is changed from 2 to 1 or 4. Aspect ratio is doubled.
+                        aspectRatioMultiplier = 2.f;
+                    }
+                    else if (task.viewCount == 2) {
+                        // View count is changed from 1 or 4 to 2. Aspect ratio is halved.
+                        aspectRatioMultiplier = 0.5f;
+                    }
 
                     if (renderer->cameras.size() < task.viewCount) {
                         // Extend vector with last element.
@@ -534,6 +546,10 @@ void vk_gltf_viewer::MainApp::run() {
                     else {
                         renderer->cameras.resize(task.viewCount);
                         lastMouseEnteredViewIndex = task.viewCount - 1;
+                    }
+
+                    for (control::Camera &camera : renderer->cameras) {
+                        camera.aspectRatio *= aspectRatioMultiplier;
                     }
 
                     if (task.viewCount > 1) {
@@ -546,27 +562,8 @@ void vk_gltf_viewer::MainApp::run() {
                     currentFrameTask.updateViewportCount();
                     frameDeferredTask.updateViewportCount();
 
+                    // TODO: only re-generate jump flood seed rendering commands only
                     regenerateDrawCommands.fill(true);
-
-                    // Calculate camera aspect ratio and apply it to the cameras.
-                    vk::Extent2D extent {
-                        static_cast<std::uint32_t>(std::ceil(framebufferScale.x * passthruRect.GetWidth())),
-                        static_cast<std::uint32_t>(std::ceil(framebufferScale.y * passthruRect.GetHeight())),
-                    };
-                    switch (renderer->cameras.size()) {
-                        case 2:
-                            extent.width = math::divCeil(extent.width, 2U);
-                            break;
-                        case 4:
-                            extent.width = math::divCeil(extent.width, 2U);
-                            extent.height = math::divCeil(extent.height, 2U);
-                            break;
-                    }
-
-                    const float aspectRatio = vku::aspect(extent);
-                    for (control::Camera &camera : renderer->cameras) {
-                        camera.aspectRatio = aspectRatio;
-                    }
                 },
                 [&](const control::task::LoadGltf &task) {
                     for (auto name : control::ImGuiTaskCollector::assetPopupNames) {
@@ -955,8 +952,8 @@ void vk_gltf_viewer::MainApp::run() {
                                         return std::nullopt;
                                     }
 
-                                    return std::pair<std::uint32_t, vk::Rect2D> {
-                                        viewIndex,
+                                    return std::pair {
+                                        static_cast<std::uint32_t>(viewIndex),
                                         vk::Rect2D {
                                             vk::Offset2D {
                                                 static_cast<std::int32_t>(framebufferScale.x * (selectionRect.Min.x - clipRect.Min.x)),
@@ -976,8 +973,8 @@ void vk_gltf_viewer::MainApp::run() {
 
                         for (const auto &[viewIndex, clipRect] : renderer->getViewportRects(passthruRect) | ranges::views::enumerate) {
                             if (clipRect.Contains(cursorPos)) {
-                                return std::pair<std::uint32_t, vk::Rect2D> {
-                                    viewIndex,
+                                return std::pair {
+                                    static_cast<std::uint32_t>(viewIndex),
                                     vk::Rect2D {
                                         vk::Offset2D {
                                             static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - clipRect.Min.x)),
