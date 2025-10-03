@@ -145,7 +145,7 @@ namespace vk_gltf_viewer::vulkan {
         std::optional<GltfAsset> gltfAsset;
         vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
 
-        Frame(std::shared_ptr<const Renderer> renderer, const SharedData &sharedData LIFETIMEBOUND);
+        Frame(std::shared_ptr<const Renderer> renderer, const SharedData &sharedData LIFETIMEBOUND, const vk::Extent2D &swapchainExtent);
 
         [[nodiscard]] ExecutionResult getExecutionResult();
         void update(const ExecutionTask &task);
@@ -153,6 +153,7 @@ namespace vk_gltf_viewer::vulkan {
         void recordCommandsAndSubmit(Swapchain &swapchain) const;
 
         void setViewportExtent(const vk::Extent2D &extent);
+        void updateViewportCount();
 
         void updateAsset();
 
@@ -167,6 +168,7 @@ namespace vk_gltf_viewer::vulkan {
             };
 
             vk::Extent2D extent;
+            boost::container::static_vector<vk::Rect2D, 4> rects;
 
             const SharedData::ViewMaskDependentResources *shared;
 
@@ -179,17 +181,10 @@ namespace vk_gltf_viewer::vulkan {
             JumpFloodResources selectedNodeOutlineJumpFloodResources;
             ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 
-            // Scene rendering.
-            ag::Scene sceneAttachmentGroup;
-
             // Bloom.
             vku::AllocatedImage bloomImage;
             vk::raii::ImageView bloomImageView;
             std::vector<vk::raii::ImageView> bloomMipImageViews;
-
-            // Framebuffers.
-            vk::raii::Framebuffer sceneFramebuffer;
-            vk::raii::Framebuffer bloomApplyFramebuffer;
 
             Viewport(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent, std::uint32_t viewCount, const SharedData::ViewMaskDependentResources &shared LIFETIMEBOUND, vk::CommandBuffer graphicsCommandBuffer);
         };
@@ -213,6 +208,7 @@ namespace vk_gltf_viewer::vulkan {
 
         // Buffer, image and image views.
         vku::AllocatedBuffer cameraBuffer;
+        ag::Scene sceneAttachmentGroup;
         std::optional<Viewport> viewport;
 
         // Descriptor/command pools.

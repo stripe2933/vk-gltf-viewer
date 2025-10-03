@@ -54,6 +54,22 @@ constexpr auto emulatedPrimitiveTopologies = {
     std::unreachable();
 }
 
+// TODO: replace it with vku::toViewport() when adopted.
+[[nodiscard]] vk::Viewport toViewport(const vk::Rect2D &rect, bool useNegativeHeight = false) noexcept {
+    vk::Viewport result {
+        static_cast<float>(rect.offset.x), static_cast<float>(rect.offset.y),
+        static_cast<float>(rect.extent.width), static_cast<float>(rect.extent.height),
+        0.f, 1.f,
+    };
+
+    if (useNegativeHeight) {
+        result.y += result.height;
+        result.height = -result.height;
+    }
+
+    return result;
+}
+
 vk_gltf_viewer::vulkan::Frame::GltfAsset::GltfAsset(const SharedData &sharedData)
     : assetExtended { sharedData.assetExtended }
     , nodeBuffer {
@@ -97,7 +113,7 @@ void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeTargetWeights(std::size
         nodeBuffer.getMorphTargetWeights(nodeIndex).subspan(startIndex, count).begin());
 }
 
-vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, const SharedData &sharedData)
+vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, const SharedData &sharedData, const vk::Extent2D &swapchainExtent)
     : sharedData { sharedData }
     , renderer { std::move(_renderer) }
     , cameraBuffer {
@@ -112,6 +128,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, 
             vma::MemoryUsage::eAutoPreferDevice,
         },
     }
+    , sceneAttachmentGroup { sharedData.gpu, swapchainExtent, sharedData.sceneRenderPass, sharedData.bloomApplyRenderPass }
     , descriptorPool { createDescriptorPool() }
     , computeCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.compute } }
     , graphicsCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.graphicsPresent } }
@@ -230,12 +247,12 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             result.subpass = material.alphaMode == fastgltf::AlphaMode::Blend;
 
             if (material.unlit || isPrimitivePointsOrLineWithoutNormal) {
-                result.pipeline = *viewport->shared->getUnlitPrimitiveRenderPipeline(gltfAsset->assetExtended->getUnlitPrimitivePipelineConfig(primitive));
+                result.pipeline = *sharedData.getUnlitPrimitiveRenderPipeline(gltfAsset->assetExtended->getUnlitPrimitivePipelineConfig(primitive));
                 // Disable stencil reference dynamic state when using unlit rendering pipeline.
                 result.stencilReference.reset();
             }
             else {
-                result.pipeline = *viewport->shared->getPrimitiveRenderPipeline(gltfAsset->assetExtended->getPrimitivePipelineConfig(primitive, usePerFragmentEmissiveStencilExport));
+                result.pipeline = *sharedData.getPrimitiveRenderPipeline(gltfAsset->assetExtended->getPrimitivePipelineConfig(primitive, usePerFragmentEmissiveStencilExport));
                 if (!usePerFragmentEmissiveStencilExport) {
                     result.stencilReference.emplace(material.emissiveStrength > 1.f ? 1U : 0U);
                 }
@@ -243,12 +260,12 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else if (isPrimitivePointsOrLineWithoutNormal) {
-            result.pipeline = *viewport->shared->getUnlitPrimitiveRenderPipeline(gltfAsset->assetExtended->getUnlitPrimitivePipelineConfig(primitive));
+            result.pipeline = *sharedData.getUnlitPrimitiveRenderPipeline(gltfAsset->assetExtended->getUnlitPrimitivePipelineConfig(primitive));
             // Disable stencil reference dynamic state when using unlit rendering pipeline.
             result.stencilReference.reset();
         }
         else {
-            result.pipeline = *viewport->shared->getPrimitiveRenderPipeline(gltfAsset->assetExtended->getPrimitivePipelineConfig(primitive, usePerFragmentEmissiveStencilExport));
+            result.pipeline = *sharedData.getPrimitiveRenderPipeline(gltfAsset->assetExtended->getPrimitivePipelineConfig(primitive, usePerFragmentEmissiveStencilExport));
         }
         return result;
     };
@@ -665,17 +682,46 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
     {
         sceneRenderingCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-        sceneRenderingCommandBuffer.setViewport(0, vku::toViewport(viewport->extent, true));
-        sceneRenderingCommandBuffer.setScissor(0, vk::Rect2D { { 0, 0 }, viewport->extent });
+        if (renderer->bloom) {
+            // Clear the first mip level of bloomImage as black to initialize the bloom calculation.
+            // As the image is written by storage in InverseToneMappingRenderPipeline, it cannot be cleared by the
+            // render pass loadOp=CLEAR. Therefore, it must be manually cleared by vkCmdClearColorImage().
+
+            sceneRenderingCommandBuffer.pipelineBarrier(
+                vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+                {}, {}, {},
+                vk::ImageMemoryBarrier {
+                    {}, vk::AccessFlagBits::eTransferWrite,
+                    vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferDstOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    viewport->bloomImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, vk::RemainingArrayLayers },
+                });
+
+            sceneRenderingCommandBuffer.clearColorImage(
+                viewport->bloomImage,
+                vk::ImageLayout::eTransferDstOptimal,
+                vk::ClearColorValue{},
+                vku::unsafeProxy(vk::ImageSubresourceRange { vk::ImageAspectFlagBits::eColor, 0, 1, 0, vk::RemainingArrayLayers }));
+
+            sceneRenderingCommandBuffer.pipelineBarrier(
+                vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
+                {}, {}, {},
+                vk::ImageMemoryBarrier {
+                    vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eShaderWrite,
+                    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eGeneral,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    viewport->bloomImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, vk::RemainingArrayLayers },
+                });
+        }
 
         vk::ClearColorValue backgroundColor { 0.f, 0.f, 0.f, 0.f };
         if (renderer->solidBackground) {
             backgroundColor.setFloat32({ renderer->solidBackground->x, renderer->solidBackground->y, renderer->solidBackground->z, 1.f });
         }
         sceneRenderingCommandBuffer.beginRenderPass({
-            *viewport->shared->sceneRenderPass,
-            *viewport->sceneFramebuffer,
-            vk::Rect2D { { 0, 0 }, viewport->extent },
+            *sharedData.sceneRenderPass,
+            *sceneAttachmentGroup.sceneFramebuffer,
+            vk::Rect2D { { 0, 0 }, sceneAttachmentGroup.extent },
             vku::unsafeProxy<vk::ClearValue>({
                 backgroundColor,
                 vk::ClearColorValue{},
@@ -685,7 +731,6 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                 vk::ClearColorValue{},
                 vk::ClearColorValue { 1.f, 0.f, 0.f, 0.f },
                 vk::ClearColorValue{},
-                vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
             }),
         }, vk::SubpassContents::eInline);
 
@@ -705,11 +750,14 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
 
         sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
 
+        sceneRenderingCommandBuffer.setViewport(0, vku::toViewport(sceneAttachmentGroup.extent, true));
+        sceneRenderingCommandBuffer.setScissor(0, vk::Rect2D { { 0, 0 }, sceneAttachmentGroup.extent });
+
         if (hasBlendMesh) {
             // Weighted blended composition.
             sceneRenderingCommandBuffer.bindPipeline(
                 vk::PipelineBindPoint::eGraphics,
-                *viewport->shared->weightedBlendedCompositionRenderPipeline);
+                *sharedData.weightedBlendedCompositionRenderPipeline);
             sceneRenderingCommandBuffer.bindDescriptorSets(
                 vk::PipelineBindPoint::eGraphics,
                 *sharedData.weightedBlendedCompositionPipelineLayout,
@@ -721,7 +769,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
 
         // Inverse tone-map the result image to bloomImage[mipLevel=0] when bloom is enabled.
         if (renderer->bloom) {
-            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *viewport->shared->inverseToneMappingRenderPipeline);
+            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingRenderPipeline);
             sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingPipelineLayout, 0, inverseToneMappingSet, {});
             sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
         }
@@ -748,16 +796,13 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                 });
 
             sceneRenderingCommandBuffer.beginRenderPass({
-                *viewport->shared->bloomApplyRenderPass,
-                *viewport->bloomApplyFramebuffer,
-                vk::Rect2D { { 0, 0 }, viewport->extent },
-                vku::unsafeProxy<vk::ClearValue>({
-                    vk::ClearColorValue{},
-                    vk::ClearColorValue{},
-                }),
+                *sharedData.bloomApplyRenderPass,
+                *sceneAttachmentGroup.bloomApplyFramebuffer,
+                vk::Rect2D { { 0, 0 }, sceneAttachmentGroup.extent },
+                vku::unsafeProxy<vk::ClearValue>(vk::ClearColorValue{}),
             }, vk::SubpassContents::eInline);
 
-            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *viewport->shared->bloomApplyRenderPipeline);
+            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.bloomApplyRenderPipeline);
             sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.bloomApplyPipelineLayout, 0, bloomApplySet, {});
             sceneRenderingCommandBuffer.pushConstants<pl::BloomApply::PushConstant>(
                 *sharedData.bloomApplyPipelineLayout,
@@ -798,7 +843,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                     vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
                     vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    viewport->sceneAttachmentGroup.colorImage, vku::fullSubresourceRange(),
+                    sceneAttachmentGroup.colorImage, vku::fullSubresourceRange(),
                 },
                 // Change swapchain image layout from PresentSrcKHR to TransferDstOptimal.
                 vk::ImageMemoryBarrier {
@@ -810,38 +855,15 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             }));
 
         // Copy from composited image to swapchain image.
-        boost::container::static_vector<vk::Offset2D, 4> copyRegionOffsets;
-        switch (renderer->cameras.size()) {
-            case 1:
-                copyRegionOffsets.push_back(passthruOffset);
-                break;
-            case 2:
-                copyRegionOffsets.push_back(passthruOffset);
-                copyRegionOffsets.emplace_back(passthruOffset.x + viewport->extent.width, passthruOffset.y);
-                break;
-            case 4:
-                copyRegionOffsets.push_back(passthruOffset);
-                copyRegionOffsets.emplace_back(passthruOffset.x + viewport->extent.width, passthruOffset.y);
-                copyRegionOffsets.emplace_back(passthruOffset.x, passthruOffset.y + viewport->extent.height);
-                copyRegionOffsets.emplace_back(passthruOffset.x + viewport->extent.width, passthruOffset.y + viewport->extent.height);
-                break;
-            default:
-                std::unreachable(); // Only 1, 2, and 4 views are supported.
-        }
         compositionCommandBuffer.copyImage(
-            viewport->sceneAttachmentGroup.colorImage, vk::ImageLayout::eTransferSrcOptimal,
+            sceneAttachmentGroup.colorImage, vk::ImageLayout::eTransferSrcOptimal,
             swapchain.images[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal,
-            copyRegionOffsets
-                | ranges::views::enumerate
-                | std::views::transform(decomposer([this](std::uint32_t imageLayer, const vk::Offset2D &offset) {
-                    return vk::ImageCopy {
-                        { vk::ImageAspectFlagBits::eColor, 0, imageLayer, 1 },
-                        { 0, 0, 0 },
-                        { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-                        vk::Offset3D { offset, 0 }, vk::Extent3D { viewport->extent, 1 },
-                    };
-                }))
-                | std::ranges::to<boost::container::static_vector<vk::ImageCopy, 4>>());
+            vk::ImageCopy {
+                { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+                { 0, 0, 0 },
+                { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+                vk::Offset3D { passthruOffset, 0 }, sceneAttachmentGroup.colorImage.extent,
+            });
 
         // Change swapchain image layout from TransferDstOptimal to ColorAttachmentOptimal.
         compositionCommandBuffer.pipelineBarrier(
@@ -902,34 +924,56 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
 }
 
 void vk_gltf_viewer::vulkan::Frame::setViewportExtent(const vk::Extent2D &extent) {
+    // Recreate attachment images and framebuffers with the new extent.
+    sceneAttachmentGroup = { sharedData.gpu, extent, sharedData.sceneRenderPass, sharedData.bloomApplyRenderPass };
+
+    sharedData.gpu.device.updateDescriptorSets({
+        weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
+            vk::DescriptorImageInfo { {}, *sceneAttachmentGroup.accumulationImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+            vk::DescriptorImageInfo { {}, *sceneAttachmentGroup.revealageImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+        })),
+        inverseToneMappingSet.getWriteOne<0>({ {}, *sceneAttachmentGroup.colorImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        bloomApplySet.getWriteOne<0>({ {}, *sceneAttachmentGroup.colorImageView, vk::ImageLayout::eGeneral }),
+    }, {});
+
+    updateViewportCount();
+}
+
+void vk_gltf_viewer::vulkan::Frame::updateViewportCount() {
     vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
     vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+        vk::Extent2D extent = sceneAttachmentGroup.extent;
+        if (renderer->cameras.size() >= 2) {
+            assert(extent.width % 2 == 0);
+            extent.width /= 2;
+        }
+        if (renderer->cameras.size() == 4) {
+            assert(extent.height % 2 == 0);
+            extent.height /= 2;
+        }
+
         const std::uint32_t viewCount = static_cast<std::uint32_t>(renderer->cameras.size());
         const std::uint32_t viewMask = math::bit::ones(viewCount);
         viewport.emplace(sharedData.gpu, extent, viewCount, sharedData.viewMaskDependentResources.at(viewMask), cb);
     }, *fence);
 
-    std::vector<vk::DescriptorImageInfo> bloomSetDescriptorInfos;
-    if (sharedData.gpu.supportShaderImageLoadStoreLod) {
-        bloomSetDescriptorInfos.push_back({ {}, *viewport->bloomImageView, vk::ImageLayout::eGeneral });
-    }
-    else {
-        bloomSetDescriptorInfos.append_range(viewport->bloomMipImageViews | std::views::transform([this](vk::ImageView imageView) {
-            return vk::DescriptorImageInfo{ {}, imageView, vk::ImageLayout::eGeneral };
-        }));
-    }
-
     sharedData.gpu.device.updateDescriptorSets({
         hoveringNodeJumpFloodSet.getWriteOne<0>({ {}, *viewport->hoveringNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
         selectedNodeJumpFloodSet.getWriteOne<0>({ {}, *viewport->selectedNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
-        weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
-            vk::DescriptorImageInfo { {}, *viewport->sceneAttachmentGroup.accumulationImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
-            vk::DescriptorImageInfo { {}, *viewport->sceneAttachmentGroup.revealageImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
-        })),
-        inverseToneMappingSet.getWriteOne<0>({ {}, *viewport->sceneAttachmentGroup.colorImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        inverseToneMappingSet.getWriteOne<1>({ {}, *viewport->bloomMipImageViews[0], vk::ImageLayout::eGeneral }),
         bloomSet.getWriteOne<0>({ {}, *viewport->bloomImageView, vk::ImageLayout::eGeneral }),
-        bloomSet.getWrite<1>(bloomSetDescriptorInfos),
-        bloomApplySet.getWriteOne<0>({ {}, *viewport->sceneAttachmentGroup.colorImageView, vk::ImageLayout::eGeneral }),
+        bloomSet.getWrite<1>(vku::unsafeProxy([this] {
+            std::vector<vk::DescriptorImageInfo> result;
+            if (sharedData.gpu.supportShaderImageLoadStoreLod) {
+                result.push_back({ {}, *viewport->bloomImageView, vk::ImageLayout::eGeneral });
+            }
+            else {
+                result.append_range(viewport->bloomMipImageViews | std::views::transform([this](vk::ImageView imageView) {
+                    return vk::DescriptorImageInfo{ {}, imageView, vk::ImageLayout::eGeneral };
+                }));
+            }
+            return result;
+        }())),
         bloomApplySet.getWriteOne<1>({ {}, *viewport->bloomMipImageViews[0], vk::ImageLayout::eShaderReadOnlyOptimal }),
     }, {});
 
@@ -1080,13 +1124,24 @@ vk_gltf_viewer::vulkan::Frame::Viewport::Viewport(
     const SharedData::ViewMaskDependentResources &shared,
     vk::CommandBuffer graphicsCommandBuffer
 ) : extent { extent },
+    rects { [&] {
+        boost::container::static_vector<vk::Rect2D, 4> result { vk::Rect2D { vk::Offset2D{}, extent } };
+        if (viewCount >= 2) {
+            result.emplace_back(vk::Offset2D { static_cast<std::int32_t>(extent.width), 0 }, extent);
+        }
+        if (viewCount == 4) {
+            result.emplace_back(vk::Offset2D { 0, static_cast<std::int32_t>(extent.height) }, extent);
+            result.emplace_back(vku::toOffset2D(extent), extent);
+        }
+
+        return result;
+    }() },
     shared { &shared },
     mousePickingAttachmentGroup { value_if(gpu.workaround.attachmentLessRenderPass, [&] { return ag::MousePicking { gpu, extent }; }) },
     hoveringNodeOutlineJumpFloodResources { gpu, extent, viewCount },
     hoveringNodeJumpFloodSeedAttachmentGroup { gpu, hoveringNodeOutlineJumpFloodResources.image, viewCount },
     selectedNodeOutlineJumpFloodResources { gpu, extent, viewCount },
     selectedNodeJumpFloodSeedAttachmentGroup { gpu, selectedNodeOutlineJumpFloodResources.image, viewCount },
-    sceneAttachmentGroup { gpu, extent, viewCount },
     bloomImage { gpu.allocator, vk::ImageCreateInfo {
         {},
         vk::ImageType::e2D,
@@ -1095,9 +1150,10 @@ vk_gltf_viewer::vulkan::Frame::Viewport::Viewport(
         vku::Image::maxMipLevels(extent), viewCount,
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eColorAttachment // written in InverseToneMappingRenderPipeline
+        vk::ImageUsageFlagBits::eTransferDst // cleared by vkCmdClearColorImage() right before the scene render pass
+            | vk::ImageUsageFlagBits::eStorage // written in InverseToneMappingRenderPipeline
             | bloom::BloomComputePipeline::requiredImageUsageFlags
-            | vk::ImageUsageFlagBits::eInputAttachment /* read in BloomApplyRenderPipeline */,
+            | vk::ImageUsageFlagBits::eSampled /* read in BloomApplyRenderPipeline */,
     } },
     bloomImageView { gpu.device, bloomImage.getViewCreateInfo(vk::ImageViewType::e2DArray) },
     bloomMipImageViews { [&] {
@@ -1115,32 +1171,7 @@ vk_gltf_viewer::vulkan::Frame::Viewport::Viewport(
         }
 
         return result;
-    }() },
-    sceneFramebuffer { gpu.device, vk::FramebufferCreateInfo {
-        {},
-        *shared.sceneRenderPass,
-        vku::unsafeProxy({
-            *sceneAttachmentGroup.multisampleColorImageView,
-            *sceneAttachmentGroup.colorImageView,
-            *sceneAttachmentGroup.depthStencilImageView,
-            *sceneAttachmentGroup.stencilResolveImageView,
-            *sceneAttachmentGroup.multisampleAccumulationImageView,
-            *sceneAttachmentGroup.accumulationImageView,
-            *sceneAttachmentGroup.multisampleRevealageImageView,
-            *sceneAttachmentGroup.revealageImageView,
-            *bloomMipImageViews[0],
-        }),
-        extent.width, extent.height, 1,
-    } },
-    bloomApplyFramebuffer { gpu.device, vk::FramebufferCreateInfo {
-        {},
-        *shared.bloomApplyRenderPass,
-        vku::unsafeProxy({
-            *sceneAttachmentGroup.colorImageView,
-            *bloomMipImageViews[0],
-        }),
-        extent.width, extent.height, 1,
-    } } {
+    }() } {
     constexpr auto layoutTransitionBarrier = [](
         vk::ImageLayout newLayout,
         vk::Image image,
@@ -1154,11 +1185,12 @@ vk_gltf_viewer::vulkan::Frame::Viewport::Viewport(
         };
     };
 
-    boost::container::static_vector<vk::ImageMemoryBarrier, 6> imageMemoryBarriers {
+    boost::container::static_vector<vk::ImageMemoryBarrier, 7> imageMemoryBarriers {
         layoutTransitionBarrier(vk::ImageLayout::eGeneral, hoveringNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, viewCount, vk::RemainingArrayLayers } /* pong image */),
         layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, hoveringNodeJumpFloodSeedAttachmentGroup.depthImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
         layoutTransitionBarrier(vk::ImageLayout::eGeneral, selectedNodeOutlineJumpFloodResources.image, { vk::ImageAspectFlagBits::eColor, 0, 1, viewCount, vk::RemainingArrayLayers } /* pong image */),
         layoutTransitionBarrier(vk::ImageLayout::eDepthAttachmentOptimal, selectedNodeJumpFloodSeedAttachmentGroup.depthImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eDepth)),
+        layoutTransitionBarrier(vk::ImageLayout::eShaderReadOnlyOptimal, bloomImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, vk::RemainingArrayLayers }),
         layoutTransitionBarrier(vk::ImageLayout::eGeneral, bloomImage, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingMipLevels, 0, vk::RemainingArrayLayers }),
     };
     if (mousePickingAttachmentGroup) {
@@ -1482,7 +1514,17 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
                 gltfAsset->assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
                 *resourceBindingState.indexType);
         }
-        indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
+
+        for (const auto &[viewportIndex, viewportRect] : viewport->rects | ranges::views::enumerate) {
+            cb.pushConstants<pl::Primitive::PushConstant>(*sharedData.primitivePipelineLayout, pl::Primitive::PushConstant::range.stageFlags, 0, pl::Primitive::PushConstant {
+                .viewIndex = static_cast<std::uint32_t>(viewportIndex),
+            });
+
+            cb.setViewport(0, toViewport(viewportRect, true));
+            cb.setScissor(0, viewportRect);
+
+            indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
+        }
     }
 }
 
@@ -1536,7 +1578,18 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
                 gltfAsset->assetExtended->combinedIndexBuffer.getIndexOffsetAndSize(*resourceBindingState.indexType).first,
                 *resourceBindingState.indexType);
         }
-        indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
+
+        for (const auto &[viewportIndex, viewportRect] : viewport->rects | ranges::views::enumerate) {
+            cb.pushConstants<pl::Primitive::PushConstant>(*sharedData.primitivePipelineLayout, pl::Primitive::PushConstant::range.stageFlags, 0, pl::Primitive::PushConstant {
+                .viewIndex = static_cast<std::uint32_t>(viewportIndex),
+            });
+
+            cb.setViewport(0, toViewport(viewportRect, true));
+            cb.setScissor(0, viewportRect);
+
+            indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
+        }
+
         hasBlendMesh = true;
     }
 
@@ -1544,10 +1597,20 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer cb) const {
-    cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *viewport->shared->skyboxRenderPipeline);
+    cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxRenderPipeline);
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxPipelineLayout, 0, { rendererSet, sharedData.skyboxDescriptorSet }, {});
     cb.bindIndexBuffer(sharedData.cubeIndexBuffer, 0, vk::IndexType::eUint16);
-    cb.drawIndexed(36, 1, 0, 0, 0);
+
+    for (const auto &[viewportIndex, viewportRect] : viewport->rects | ranges::views::enumerate) {
+        cb.pushConstants<pl::Skybox::PushConstant>(*sharedData.skyboxPipelineLayout, pl::Skybox::PushConstant::range.stageFlags, 0, pl::Skybox::PushConstant {
+            .viewIndex = static_cast<std::uint32_t>(viewportIndex),
+        });
+
+        cb.setViewport(0, toViewport(viewportRect, true));
+        cb.setScissor(0, viewportRect);
+
+        cb.drawIndexed(36, 1, 0, 0, 0);
+    }
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
@@ -1582,16 +1645,16 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
     }
 
     // Set viewport and scissor.
-    cb.setViewport(0, vku::toViewport(viewport->extent));
-    cb.setScissor(0, vk::Rect2D { { 0, 0 }, viewport->extent });
+    cb.setViewport(0, vku::toViewport(sceneAttachmentGroup.extent));
+    cb.setScissor(0, vk::Rect2D { { 0, 0 }, sceneAttachmentGroup.extent });
 
     cb.beginRenderingKHR(vk::RenderingInfo {
         {},
-        { { 0, 0 }, viewport->extent },
+        { { 0, 0 }, sceneAttachmentGroup.extent },
         1,
-        math::bit::ones(renderer->cameras.size()),
+        {},
         vku::unsafeProxy(vk::RenderingAttachmentInfo {
-            *viewport->sceneAttachmentGroup.colorImageView,
+            *sceneAttachmentGroup.colorImageView,
             vk::ImageLayout::eColorAttachmentOptimal,
             {}, {}, {},
             vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore,
@@ -1600,7 +1663,7 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
 
     // Draw hovering/selected node outline if exists.
     if (selectedNodes) {
-        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *viewport->shared->outlineRenderPipeline);
+        cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderPipeline);
         cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.outlinePipelineLayout, 0,
             selectedNodeOutlineSet, {});
         cb.pushConstants<pl::Outline::PushConstant>(
@@ -1616,7 +1679,7 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
             // TODO: pipeline barrier required.
         }
         else {
-            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *viewport->shared->outlineRenderPipeline);
+            cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.outlineRenderPipeline);
         }
 
         cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.outlinePipelineLayout, 0,

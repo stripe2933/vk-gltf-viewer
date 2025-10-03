@@ -10,7 +10,7 @@ import std;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::dsl {
-    export struct InverseToneMapping : vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment> {
+    export struct InverseToneMapping final : vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment, vk::DescriptorType::eStorageImage> {
         explicit InverseToneMapping(const vk::raii::Device &device LIFETIMEBOUND);
     };
 }
@@ -22,5 +22,7 @@ module :private;
 vk_gltf_viewer::vulkan::dsl::InverseToneMapping::InverseToneMapping(const vk::raii::Device &device)
     : DescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
         {},
-        vku::unsafeProxy(getBindings({ 1, vk::ShaderStageFlagBits::eFragment })),
+        vku::unsafeProxy(getBindings(
+            { 1, vk::ShaderStageFlagBits::eFragment },
+            { 1, vk::ShaderStageFlagBits::eFragment })),
     } } { }

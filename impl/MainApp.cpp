@@ -102,7 +102,7 @@ vk_gltf_viewer::MainApp::MainApp()
     }) }
     , swapchain { gpu, window.getSurface(), getSwapchainExtent() }
     , sharedData { gpu, swapchain.extent, swapchain.images }
-    , frames { ARRAY_OF(2, vulkan::Frame { renderer, sharedData }) } {
+    , frames { ARRAY_OF(2, vulkan::Frame { renderer, sharedData, swapchain.extent }) } {
     const ibl::BrdfmapRenderPipeline brdfmapRenderPipeline { gpu.device, brdfmapImage, {} };
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
@@ -500,10 +500,15 @@ void vk_gltf_viewer::MainApp::run() {
                 [&](const control::task::ChangePassthruRect &task) {
                     passthruRect = task.newRect;
 
+                    // Update frame viewports.
                     vk::Extent2D extent {
                         static_cast<std::uint32_t>(std::ceil(framebufferScale.x * task.newRect.GetWidth())),
                         static_cast<std::uint32_t>(std::ceil(framebufferScale.y * task.newRect.GetHeight())),
                     };
+                    currentFrameTask.setViewportExtent(extent);
+                    frameDeferredTask.setViewportExtent(extent);
+
+                    // Calculate camera aspect ratio and apply it to the cameras.
                     switch (renderer->cameras.size()) {
                         case 2:
                             extent.width = math::divCeil(extent.width, 2U);
@@ -518,9 +523,6 @@ void vk_gltf_viewer::MainApp::run() {
                     for (control::Camera &camera : renderer->cameras) {
                         camera.aspectRatio = aspectRatio;
                     }
-
-                    currentFrameTask.setViewportExtent(extent);
-                    frameDeferredTask.setViewportExtent(extent);
                 },
                 [&](const control::task::ChangeViewCount &task) {
                     gpu.device.waitIdle();
@@ -540,8 +542,13 @@ void vk_gltf_viewer::MainApp::run() {
                     }
 
                     sharedData.setViewCount(renderer->cameras.size());
+
+                    currentFrameTask.updateViewportCount();
+                    frameDeferredTask.updateViewportCount();
+
                     regenerateDrawCommands.fill(true);
 
+                    // Calculate camera aspect ratio and apply it to the cameras.
                     vk::Extent2D extent {
                         static_cast<std::uint32_t>(std::ceil(framebufferScale.x * passthruRect.GetWidth())),
                         static_cast<std::uint32_t>(std::ceil(framebufferScale.y * passthruRect.GetHeight())),
@@ -560,9 +567,6 @@ void vk_gltf_viewer::MainApp::run() {
                     for (control::Camera &camera : renderer->cameras) {
                         camera.aspectRatio = aspectRatio;
                     }
-
-                    currentFrameTask.setViewportExtent(extent);
-                    frameDeferredTask.setViewportExtent(extent);
                 },
                 [&](const control::task::LoadGltf &task) {
                     for (auto name : control::ImGuiTaskCollector::assetPopupNames) {

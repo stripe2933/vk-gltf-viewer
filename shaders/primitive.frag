@@ -1,6 +1,5 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
-#extension GL_EXT_multiview : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_8bit_storage : require
@@ -70,6 +69,10 @@ layout (set = 2, binding = 4) uniform texture2D images[];
 #else
 layout (set = 2, binding = 3) uniform sampler2D textures[];
 #endif
+
+layout (push_constant) uniform PushConstant {
+    uint viewIndex;
+} pc;
 
 #if (ALPHA_MODE == 0 || ALPHA_MODE == 2) && (EXT_SHADER_STENCIL_EXPORT == 0)
 layout (early_fragment_tests) in;
@@ -242,7 +245,7 @@ void main(){
     gl_FragStencilRefARB = trinaryMax(emissive) > 1.0 ? 1 : 0;
 #endif
 
-    vec3 V = normalize(camera.viewPositions[gl_ViewIndex] - inPosition);
+    vec3 V = normalize(camera.viewPositions[pc.viewIndex] - inPosition);
     float NdotV = dot(N, V);
     // If normal is not facing the camera, normal have to be flipped.
     if (NdotV < 0.0) {

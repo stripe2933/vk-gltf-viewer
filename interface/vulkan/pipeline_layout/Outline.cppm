@@ -14,7 +14,7 @@ import vku;
 export import vk_gltf_viewer.vulkan.descriptor_set_layout.Outline;
 
 namespace vk_gltf_viewer::vulkan::pl {
-    export struct Outline : vk::raii::PipelineLayout {
+    export struct Outline final : vk::raii::PipelineLayout {
         struct PushConstant {
             static constexpr vk::PushConstantRange range = {
                 vk::ShaderStageFlagBits::eFragment,

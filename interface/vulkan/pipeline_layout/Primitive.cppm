@@ -13,7 +13,16 @@ export import vk_gltf_viewer.vulkan.descriptor_set_layout.ImageBasedLighting;
 export import vk_gltf_viewer.vulkan.descriptor_set_layout.Renderer;
 
 namespace vk_gltf_viewer::vulkan::pl {
-    export struct Primitive : vk::raii::PipelineLayout {
+    export struct Primitive final : vk::raii::PipelineLayout {
+        struct PushConstant {
+            static constexpr vk::PushConstantRange range = {
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                0, 4,
+            };
+
+            std::uint32_t viewIndex;
+        };
+
         Primitive(
             const vk::raii::Device &device LIFETIMEBOUND,
             std::tuple<const dsl::Renderer&, const dsl::ImageBasedLighting&, const dsl::Asset&> descriptorSetLayouts LIFETIMEBOUND
@@ -31,4 +40,5 @@ vk_gltf_viewer::vulkan::pl::Primitive::Primitive(
 ) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
         vku::unsafeProxy({ *get<0>(descriptorSetLayouts), *get<1>(descriptorSetLayouts), *get<2>(descriptorSetLayouts) }),
+        PushConstant::range,
     } } { }

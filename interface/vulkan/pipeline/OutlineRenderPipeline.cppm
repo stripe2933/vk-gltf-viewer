@@ -16,8 +16,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     export struct OutlineRenderPipeline final : vk::raii::Pipeline {
         OutlineRenderPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
-            const pl::Outline &layout LIFETIMEBOUND,
-            std::uint32_t viewMask
+            const pl::Outline &layout LIFETIMEBOUND
         );
     };
 }
@@ -28,8 +27,7 @@ module :private;
 
 vk_gltf_viewer::vulkan::OutlineRenderPipeline::OutlineRenderPipeline(
     const vk::raii::Device &device,
-    const pl::Outline &layout,
-    std::uint32_t viewMask
+    const pl::Outline &layout
 ) : Pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             createPipelineStages(
@@ -57,7 +55,7 @@ vk_gltf_viewer::vulkan::OutlineRenderPipeline::OutlineRenderPipeline(
             { 1.f, 1.f, 1.f, 1.f },
         })),
         vk::PipelineRenderingCreateInfo {
-            viewMask,
+            {},
             vku::unsafeProxy(vk::Format::eB8G8R8A8Srgb),
         },
     }.get() } { }

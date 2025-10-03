@@ -1,6 +1,5 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
-#extension GL_EXT_multiview : require
 #extension GL_EXT_shader_8bit_storage : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference_uvec2 : require
@@ -73,6 +72,10 @@ layout (set = 2, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
+layout (push_constant) uniform PushConstant {
+    uint viewIndex;
+} pc;
+
 #include "vertex_pulling.glsl"
 #include "transform.glsl"
 
@@ -112,6 +115,6 @@ void main(){
     variadic_out.color0 = getColor0(COLOR_0_COMPONENT_TYPE, COLOR_0_COMPONENT_COUNT);
 #endif
 
-    gl_Position = camera.projectionViews[gl_ViewIndex] * vec4(outPosition, 1.0);
+    gl_Position = camera.projectionViews[pc.viewIndex] * vec4(outPosition, 1.0);
     gl_PointSize = 1.0;
 }

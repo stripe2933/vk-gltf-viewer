@@ -27,6 +27,8 @@ namespace vk_gltf_viewer::vulkan {
         void resetAssetRelated();
 
         void setViewportExtent(const vk::Extent2D &extent);
+        void updateViewportCount();
+
         void updateNodeWorldTransform(std::size_t nodeIndex);
         void updateNodeWorldTransformHierarchical(std::size_t nodeIndex);
         void updateNodeWorldTransformScene(std::size_t sceneIndex);
@@ -43,6 +45,8 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         std::optional<vk::Extent2D> viewportExtent;
+        bool needUpdateViewportCount = false;
+
         std::variant<std::monostate, UpdateNodeWorldTransform, UpdateNodeWorldTransformScene> nodeWorldTransformUpdateTask;
         std::unordered_map<std::size_t /* node index */, std::pair<std::size_t /* weight start index */, std::size_t /* weight count */>> nodeTargetWeightUpdateTask;
     };
@@ -59,6 +63,13 @@ void vk_gltf_viewer::vulkan::FrameDeferredTask::executeAndReset(Frame &frame) {
     if (viewportExtent) {
         frame.setViewportExtent(*viewportExtent);
         viewportExtent.reset();
+
+        // Frame::setViewportExtent(const vk::Extent2D&) also calls Frame::updateViewportCount().
+        needUpdateViewportCount = false;
+    }
+    else if (needUpdateViewportCount) {
+        frame.updateViewportCount();
+        needUpdateViewportCount = false;
     }
 
     visit(multilambda {
@@ -118,6 +129,10 @@ void vk_gltf_viewer::vulkan::FrameDeferredTask::resetAssetRelated() {
 
 void vk_gltf_viewer::vulkan::FrameDeferredTask::setViewportExtent(const vk::Extent2D &extent) {
     viewportExtent.emplace(extent);
+}
+
+void vk_gltf_viewer::vulkan::FrameDeferredTask::updateViewportCount() {
+    needUpdateViewportCount = true;
 }
 
 void vk_gltf_viewer::vulkan::FrameDeferredTask::updateNodeWorldTransform(std::size_t nodeIndex) {

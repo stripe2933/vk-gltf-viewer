@@ -10,7 +10,7 @@ import std;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::dsl {
-    export struct BloomApply : vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment, vk::DescriptorType::eInputAttachment> {
+    export struct BloomApply final : vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment, vk::DescriptorType::eSampledImage> {
         explicit BloomApply(const vk::raii::Device &device LIFETIMEBOUND);
     };
 }
