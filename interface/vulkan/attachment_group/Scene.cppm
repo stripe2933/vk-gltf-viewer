@@ -13,8 +13,6 @@ export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::ag {
     export struct Scene {
-        vk::Extent2D extent;
-
         vku::AllocatedImage multisampleColorImage;
         vk::raii::ImageView multisampleColorImageView;
         vku::AllocatedImage colorImage;
@@ -52,8 +50,7 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
     const vk::Extent2D &extent, 
     const rp::Scene &sceneRenderPass, 
     const rp::BloomApply& bloomApplyRenderPass
-) : extent { extent },
-    multisampleColorImage {
+) : multisampleColorImage {
         gpu.allocator,
         vk::ImageCreateInfo {
             {},

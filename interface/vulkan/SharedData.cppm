@@ -38,8 +38,8 @@ export import vk_gltf_viewer.vulkan.render_pass.Scene;
 
 namespace vk_gltf_viewer::vulkan {
     export struct SharedData {
-        class ViewMaskDependentResources {
-            std::reference_wrapper<const Gpu> gpu;
+        class MultiviewPipelines {
+            std::reference_wrapper<const vk::raii::Device> device;
             std::reference_wrapper<const pl::PrimitiveNoShading> primitiveNoShadingPipelineLayout;
 
             std::uint32_t viewMask;
@@ -49,7 +49,7 @@ namespace vk_gltf_viewer::vulkan {
             mutable std::map<PrepassPipelineConfig<false>, JumpFloodSeedRenderPipeline<false>> jumpFloodSeedRenderPipelines;
             mutable std::map<PrepassPipelineConfig<true>, JumpFloodSeedRenderPipeline<true>> maskJumpFloodSeedRenderPipelines;
 
-            ViewMaskDependentResources(
+            MultiviewPipelines(
                 const Gpu &gpu LIFETIMEBOUND,
                 const pl::PrimitiveNoShading &primitiveNoShadingPipelineLayout LIFETIMEBOUND,
                 std::uint32_t viewMask
@@ -90,10 +90,6 @@ namespace vk_gltf_viewer::vulkan {
         pl::Skybox skyboxPipelineLayout;
         pl::WeightedBlendedComposition weightedBlendedCompositionPipelineLayout;
 
-        // --------------------
-        // Render passes and pipelines that are independent to the view mask.
-        // --------------------
-
         rp::Scene sceneRenderPass;
         rp::BloomApply bloomApplyRenderPass;
 
@@ -113,11 +109,7 @@ namespace vk_gltf_viewer::vulkan {
         mutable std::map<PrimitiveRenderPipeline::Config, PrimitiveRenderPipeline> primitiveRenderPipelines;
         mutable std::map<UnlitPrimitiveRenderPipeline::Config, UnlitPrimitiveRenderPipeline> unlitPrimitiveRenderPipelines;
 
-        // --------------------
-        // Render passes and pipelines that are dependent to the view mask.
-        // --------------------
-
-        std::unordered_map<std::uint32_t, ViewMaskDependentResources> viewMaskDependentResources;
+        std::unordered_map<std::uint32_t, MultiviewPipelines> multiviewPipelines;
 
         // --------------------
         // Attachment groups.
@@ -164,24 +156,24 @@ namespace vk_gltf_viewer::vulkan {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::SharedData::ViewMaskDependentResources::ViewMaskDependentResources(
+vk_gltf_viewer::vulkan::SharedData::MultiviewPipelines::MultiviewPipelines(
     const Gpu &gpu,
     const pl::PrimitiveNoShading &primitiveNoShadingPipelineLayout,
     std::uint32_t viewMask
-) : gpu { gpu },
+) : device { gpu.device },
     primitiveNoShadingPipelineLayout { primitiveNoShadingPipelineLayout },
     viewMask { viewMask } { }
 
-auto vk_gltf_viewer::vulkan::SharedData::ViewMaskDependentResources::getJumpFloodSeedRenderPipeline(
+auto vk_gltf_viewer::vulkan::SharedData::MultiviewPipelines::getJumpFloodSeedRenderPipeline(
     const PrepassPipelineConfig<false> &config
 ) const -> const JumpFloodSeedRenderPipeline<false>& {
-    return jumpFloodSeedRenderPipelines.try_emplace(config, gpu.get().device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
+    return jumpFloodSeedRenderPipelines.try_emplace(config, device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
 }
 
-auto vk_gltf_viewer::vulkan::SharedData::ViewMaskDependentResources::getMaskJumpFloodSeedRenderPipeline(
+auto vk_gltf_viewer::vulkan::SharedData::MultiviewPipelines::getMaskJumpFloodSeedRenderPipeline(
     const PrepassPipelineConfig<true> &config
 ) const -> const JumpFloodSeedRenderPipeline<true>& {
-    return maskJumpFloodSeedRenderPipelines.try_emplace(config, gpu.get().device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
+    return maskJumpFloodSeedRenderPipelines.try_emplace(config, device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
 }
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages)
@@ -219,7 +211,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
     , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
     , fallbackTexture { gpu }{
     // Initialize view count dependent resources for viewMask=0b1 at the launch time.
-    viewMaskDependentResources.try_emplace(0b1U, gpu, primitiveNoShadingPipelineLayout, 0b1U);
+    multiviewPipelines.try_emplace(0b1U, gpu, primitiveNoShadingPipelineLayout, 0b1U);
 
     std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet) = vku::allocateDescriptorSets(
         *descriptorPool, std::tie(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout));
@@ -236,7 +228,7 @@ void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2
 
 void vk_gltf_viewer::vulkan::SharedData::setViewCount(std::uint32_t viewCount) {
     const std::uint32_t viewMask = math::bit::ones(viewCount);
-    viewMaskDependentResources.try_emplace(viewMask, gpu, primitiveNoShadingPipelineLayout, viewMask);
+    multiviewPipelines.try_emplace(viewMask, gpu, primitiveNoShadingPipelineLayout, viewMask);
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::getNodeMousePickingRenderPipeline(

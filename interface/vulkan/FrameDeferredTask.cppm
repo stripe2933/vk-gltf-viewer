@@ -27,7 +27,7 @@ namespace vk_gltf_viewer::vulkan {
         void resetAssetRelated();
 
         void setViewportExtent(const vk::Extent2D &extent);
-        void updateViewportCount();
+        void updateViewCount();
 
         void updateNodeWorldTransform(std::size_t nodeIndex);
         void updateNodeWorldTransformHierarchical(std::size_t nodeIndex);
@@ -45,7 +45,7 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         std::optional<vk::Extent2D> viewportExtent;
-        bool needUpdateViewportCount = false;
+        bool needUpdateViewCount = false;
 
         std::variant<std::monostate, UpdateNodeWorldTransform, UpdateNodeWorldTransformScene> nodeWorldTransformUpdateTask;
         std::unordered_map<std::size_t /* node index */, std::pair<std::size_t /* weight start index */, std::size_t /* weight count */>> nodeTargetWeightUpdateTask;
@@ -64,12 +64,12 @@ void vk_gltf_viewer::vulkan::FrameDeferredTask::executeAndReset(Frame &frame) {
         frame.setViewportExtent(*viewportExtent);
         viewportExtent.reset();
 
-        // Frame::setViewportExtent(const vk::Extent2D&) also calls Frame::updateViewportCount().
-        needUpdateViewportCount = false;
+        // Frame::setViewportExtent(const vk::Extent2D&) will also re-construct the view count related resources.
+        needUpdateViewCount = false;
     }
-    else if (needUpdateViewportCount) {
-        frame.updateViewportCount();
-        needUpdateViewportCount = false;
+    else if (needUpdateViewCount) {
+        frame.updateViewCount();
+        needUpdateViewCount = false;
     }
 
     visit(multilambda {
@@ -131,8 +131,8 @@ void vk_gltf_viewer::vulkan::FrameDeferredTask::setViewportExtent(const vk::Exte
     viewportExtent.emplace(extent);
 }
 
-void vk_gltf_viewer::vulkan::FrameDeferredTask::updateViewportCount() {
-    needUpdateViewportCount = true;
+void vk_gltf_viewer::vulkan::FrameDeferredTask::updateViewCount() {
+    needUpdateViewCount = true;
 }
 
 void vk_gltf_viewer::vulkan::FrameDeferredTask::updateNodeWorldTransform(std::size_t nodeIndex) {

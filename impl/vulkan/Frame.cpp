@@ -113,7 +113,7 @@ void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeTargetWeights(std::size
         nodeBuffer.getMorphTargetWeights(nodeIndex).subspan(startIndex, count).begin());
 }
 
-vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, const SharedData &sharedData, const vk::Extent2D &swapchainExtent)
+vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, const SharedData &sharedData)
     : sharedData { sharedData }
     , renderer { std::move(_renderer) }
     , cameraBuffer {
@@ -128,7 +128,6 @@ vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, 
             vma::MemoryUsage::eAutoPreferDevice,
         },
     }
-    , sceneAttachmentGroup { sharedData.gpu, swapchainExtent, sharedData.sceneRenderPass, sharedData.bloomApplyRenderPass }
     , descriptorPool { createDescriptorPool() }
     , computeCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.compute } }
     , graphicsCommandPool { sharedData.gpu.device, vk::CommandPoolCreateInfo { {}, sharedData.gpu.queueFamilies.graphicsPresent } }
@@ -319,7 +318,12 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         return result;
     };
 
-    const auto jumpFloodSeedCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
+    const auto jumpFloodSeedCriteriaGetter = [
+        &,
+        // asset could be in the loaded state at the first frame (whose viewport will not be initialized), and for the
+        // case view count must be 1.
+        &mp = sharedData.multiviewPipelines.at(math::bit::ones(viewport.transform([](const Viewport &viewport) noexcept { return viewport.viewCount; }).value_or(1U)))
+    ](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result {
             .indexType = value_if(ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor.has_value(), [&]() {
                 return gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
@@ -331,15 +335,15 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         if (primitive.materialIndex) {
             const fastgltf::Material &material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
-                result.pipeline = *viewport->shared->getMaskJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<true>(primitive));
+                result.pipeline = *mp.getMaskJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<true>(primitive));
             }
             else {
-                result.pipeline = *viewport->shared->getJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<false>(primitive));
+                result.pipeline = *mp.getJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<false>(primitive));
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else {
-            result.pipeline = *viewport->shared->getJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<false>(primitive));
+            result.pipeline = *mp.getJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<false>(primitive));
         }
         return result;
     };
@@ -487,7 +491,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
 
             // Do frustum culling and do mouse picking only if there's any mesh primitive inside the frustum.
             renderingNodes->startMousePickingRenderPass = false;
-            if (task.gltf->mousePickingInput) {
+            if (viewport && task.gltf->mousePickingInput) {
                 const auto &rect = task.gltf->mousePickingInput->second;
                 // TODO: use ray-sphere intersection test instead of frustum overlap test when extent is 1x1.
                 const float xmin = static_cast<float>(rect.offset.x) / viewport->extent.width;
@@ -720,8 +724,8 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
         }
         sceneRenderingCommandBuffer.beginRenderPass({
             *sharedData.sceneRenderPass,
-            *sceneAttachmentGroup.sceneFramebuffer,
-            vk::Rect2D { { 0, 0 }, sceneAttachmentGroup.extent },
+            *viewport->sceneAttachmentGroup.sceneFramebuffer,
+            vk::Rect2D { { 0, 0 }, viewport->extent },
             vku::unsafeProxy<vk::ClearValue>({
                 backgroundColor,
                 vk::ClearColorValue{},
@@ -750,8 +754,8 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
 
         sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
 
-        sceneRenderingCommandBuffer.setViewport(0, vku::toViewport(sceneAttachmentGroup.extent, true));
-        sceneRenderingCommandBuffer.setScissor(0, vk::Rect2D { { 0, 0 }, sceneAttachmentGroup.extent });
+        sceneRenderingCommandBuffer.setViewport(0, vku::toViewport(viewport->extent, true));
+        sceneRenderingCommandBuffer.setScissor(0, vk::Rect2D { { 0, 0 }, viewport->extent });
 
         if (hasBlendMesh) {
             // Weighted blended composition.
@@ -783,7 +787,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                 vk::MemoryBarrier { vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eShaderRead },
                 {}, {});
 
-            sharedData.bloomComputePipeline.compute(sceneRenderingCommandBuffer, bloomSet, viewport->extent, viewport->bloomImage.mipLevels, renderer->cameras.size());
+            sharedData.bloomComputePipeline.compute(sceneRenderingCommandBuffer, bloomSet, viewport->subextent, viewport->bloomImage.mipLevels, renderer->cameras.size());
 
             sceneRenderingCommandBuffer.pipelineBarrier(
                 vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eFragmentShader | vk::PipelineStageFlagBits::eColorAttachmentOutput,
@@ -797,8 +801,8 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
 
             sceneRenderingCommandBuffer.beginRenderPass({
                 *sharedData.bloomApplyRenderPass,
-                *sceneAttachmentGroup.bloomApplyFramebuffer,
-                vk::Rect2D { { 0, 0 }, sceneAttachmentGroup.extent },
+                *viewport->sceneAttachmentGroup.bloomApplyFramebuffer,
+                vk::Rect2D { { 0, 0 }, viewport->extent },
                 vku::unsafeProxy<vk::ClearValue>(vk::ClearColorValue{}),
             }, vk::SubpassContents::eInline);
 
@@ -843,7 +847,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                     vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
                     vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    sceneAttachmentGroup.colorImage, vku::fullSubresourceRange(),
+                    viewport->sceneAttachmentGroup.colorImage, vku::fullSubresourceRange(),
                 },
                 // Change swapchain image layout from PresentSrcKHR to TransferDstOptimal.
                 vk::ImageMemoryBarrier {
@@ -856,13 +860,13 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
 
         // Copy from composited image to swapchain image.
         compositionCommandBuffer.copyImage(
-            sceneAttachmentGroup.colorImage, vk::ImageLayout::eTransferSrcOptimal,
+            viewport->sceneAttachmentGroup.colorImage, vk::ImageLayout::eTransferSrcOptimal,
             swapchain.images[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal,
             vk::ImageCopy {
                 { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
                 { 0, 0, 0 },
                 { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-                vk::Offset3D { passthruOffset, 0 }, sceneAttachmentGroup.colorImage.extent,
+                vk::Offset3D { passthruOffset, 0 }, viewport->sceneAttachmentGroup.colorImage.extent,
             });
 
         // Change swapchain image layout from TransferDstOptimal to ColorAttachmentOptimal.
@@ -876,7 +880,12 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                 swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(),
             });
 
-        recordImGuiCompositionCommands(compositionCommandBuffer, swapchainImageIndex);
+        // Draw ImGui.
+        compositionCommandBuffer.beginRenderingKHR(sharedData.imGuiAttachmentGroup.getRenderingInfo(
+            vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
+            swapchainImageIndex));
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), compositionCommandBuffer);
+        compositionCommandBuffer.endRenderingKHR();
 
         // Change swapchain image layout from ColorAttachmentOptimal to PresentSrcKHR.
         compositionCommandBuffer.pipelineBarrier(
@@ -923,38 +932,125 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
     catch (const vk::OutOfDateKHRError&) { }
 }
 
+void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame(Swapchain &swapchain) const {
+    // Acquire the next swapchain image.
+    std::uint32_t swapchainImageIndex;
+    try {
+        vk::Result result [[maybe_unused]];
+        std::tie(result, swapchainImageIndex) = (*sharedData.gpu.device).acquireNextImageKHR(
+            *swapchain.swapchain, ~0ULL, *swapchainImageAcquireSema);
+
+    #if __APPLE__
+        // MoltenVK does not allow presenting suboptimal swapchain image.
+        // Issue tracked: https://github.com/KhronosGroup/MoltenVK/issues/2542
+        if (result == vk::Result::eSuboptimalKHR) {
+            return;
+        }
+    #endif
+    }
+    catch (const vk::OutOfDateKHRError&) {
+        return;
+    }
+
+    // Record commands.
+    graphicsCommandPool.reset();
+
+    compositionCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+
+    // Change swapchain image layout from PresentSrcKHR to ColorAttachmentOptimal.
+    compositionCommandBuffer.pipelineBarrier(
+        vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+        {}, {}, {},
+        vk::ImageMemoryBarrier {
+            {}, vk::AccessFlagBits::eColorAttachmentWrite,
+            vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
+            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+            swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(),
+        });
+
+    // Draw ImGui.
+    // Note: unlike viewport.has_value() == true, here the loadOp must be CLEAR as the viewport image is not copied
+    // to the passthru rect region and the content is undefined.
+    compositionCommandBuffer.beginRenderingKHR(sharedData.imGuiAttachmentGroup.getRenderingInfo(
+        vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearColorValue{} },
+        swapchainImageIndex));
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), compositionCommandBuffer);
+    compositionCommandBuffer.endRenderingKHR();
+
+    // Change swapchain image layout from ColorAttachmentOptimal to PresentSrcKHR.
+    compositionCommandBuffer.pipelineBarrier(
+        vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
+        {}, {}, {},
+        vk::ImageMemoryBarrier {
+            vk::AccessFlagBits::eColorAttachmentWrite, {},
+            vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
+            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+            swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(),
+        });
+
+    compositionCommandBuffer.end();
+
+    sharedData.gpu.device.resetFences(*inFlightFence);
+    sharedData.gpu.queues.graphicsPresent.submit(vk::SubmitInfo {
+        *swapchainImageAcquireSema,
+        vku::unsafeProxy<vk::PipelineStageFlags>(vk::PipelineStageFlagBits::eColorAttachmentOutput),
+        compositionCommandBuffer,
+        *swapchain.imageReadySemaphores[swapchainImageIndex],
+    }, *inFlightFence);
+
+    // Present the rendered swapchain image to swapchain.
+    try {
+        std::ignore = sharedData.gpu.queues.graphicsPresent.presentKHR({
+            *swapchain.imageReadySemaphores[swapchainImageIndex],
+            *swapchain.swapchain,
+            swapchainImageIndex,
+        });
+    }
+    catch (const vk::OutOfDateKHRError&) { }
+}
+
 void vk_gltf_viewer::vulkan::Frame::setViewportExtent(const vk::Extent2D &extent) {
-    // Recreate attachment images and framebuffers with the new extent.
-    sceneAttachmentGroup = { sharedData.gpu, extent, sharedData.sceneRenderPass, sharedData.bloomApplyRenderPass };
+    vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
+    vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
+        const std::uint32_t viewCount = static_cast<std::uint32_t>(renderer->cameras.size());
+        viewport.emplace(sharedData.gpu, extent, viewCount, sharedData.sceneRenderPass, sharedData.bloomApplyRenderPass, cb);
+    }, *fence);
 
     sharedData.gpu.device.updateDescriptorSets({
         weightedBlendedCompositionSet.getWrite<0>(vku::unsafeProxy({
-            vk::DescriptorImageInfo { {}, *sceneAttachmentGroup.accumulationImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
-            vk::DescriptorImageInfo { {}, *sceneAttachmentGroup.revealageImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+            vk::DescriptorImageInfo { {}, *viewport->sceneAttachmentGroup.accumulationImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+            vk::DescriptorImageInfo { {}, *viewport->sceneAttachmentGroup.revealageImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
         })),
-        inverseToneMappingSet.getWriteOne<0>({ {}, *sceneAttachmentGroup.colorImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-        bloomApplySet.getWriteOne<0>({ {}, *sceneAttachmentGroup.colorImageView, vk::ImageLayout::eGeneral }),
+        inverseToneMappingSet.getWriteOne<0>({ {}, *viewport->sceneAttachmentGroup.colorImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
+        bloomApplySet.getWriteOne<0>({ {}, *viewport->sceneAttachmentGroup.colorImageView, vk::ImageLayout::eGeneral }),
+        hoveringNodeJumpFloodSet.getWriteOne<0>({ {}, *viewport->hoveringNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
+        selectedNodeJumpFloodSet.getWriteOne<0>({ {}, *viewport->selectedNodeOutlineJumpFloodResources.imageView, vk::ImageLayout::eGeneral }),
+        inverseToneMappingSet.getWriteOne<1>({ {}, *viewport->bloomMipImageViews[0], vk::ImageLayout::eGeneral }),
+        bloomSet.getWriteOne<0>({ {}, *viewport->bloomImageView, vk::ImageLayout::eGeneral }),
+        bloomSet.getWrite<1>(vku::unsafeProxy([this] {
+            std::vector<vk::DescriptorImageInfo> result;
+            if (sharedData.gpu.supportShaderImageLoadStoreLod) {
+                result.push_back({ {}, *viewport->bloomImageView, vk::ImageLayout::eGeneral });
+            }
+            else {
+                result.append_range(viewport->bloomMipImageViews | std::views::transform([this](vk::ImageView imageView) {
+                    return vk::DescriptorImageInfo{ {}, imageView, vk::ImageLayout::eGeneral };
+                }));
+            }
+            return result;
+        }())),
+        bloomApplySet.getWriteOne<1>({ {}, *viewport->bloomMipImageViews[0], vk::ImageLayout::eShaderReadOnlyOptimal }),
     }, {});
 
-    updateViewportCount();
+    // TODO: can this operation be non-blocking?
+    std::ignore = sharedData.gpu.device.waitForFences(*fence, true, ~0ULL);
 }
 
-void vk_gltf_viewer::vulkan::Frame::updateViewportCount() {
+void vk_gltf_viewer::vulkan::Frame::updateViewCount() {
     vk::raii::Fence fence { sharedData.gpu.device, vk::FenceCreateInfo{} };
     vku::executeSingleCommand(*sharedData.gpu.device, *graphicsCommandPool, sharedData.gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-        vk::Extent2D extent = sceneAttachmentGroup.extent;
-        if (renderer->cameras.size() >= 2) {
-            assert(extent.width % 2 == 0);
-            extent.width /= 2;
-        }
-        if (renderer->cameras.size() == 4) {
-            assert(extent.height % 2 == 0);
-            extent.height /= 2;
-        }
-
         const std::uint32_t viewCount = static_cast<std::uint32_t>(renderer->cameras.size());
-        const std::uint32_t viewMask = math::bit::ones(viewCount);
-        viewport.emplace(sharedData.gpu, extent, viewCount, sharedData.viewMaskDependentResources.at(viewMask), cb);
+        viewport->setViewCount(viewCount, cb);
     }, *fence);
 
     sharedData.gpu.device.updateDescriptorSets({
@@ -1121,57 +1217,125 @@ vk_gltf_viewer::vulkan::Frame::Viewport::Viewport(
     const Gpu &gpu,
     const vk::Extent2D &extent,
     std::uint32_t viewCount,
-    const SharedData::ViewMaskDependentResources &shared,
+    const rp::Scene &sceneRenderPass,
+    const rp::BloomApply &bloomApplyRenderPass,
     vk::CommandBuffer graphicsCommandBuffer
-) : extent { extent },
-    rects { [&] {
-        boost::container::static_vector<vk::Rect2D, 4> result { vk::Rect2D { vk::Offset2D{}, extent } };
+) : gpu { gpu },
+    extent { extent },
+    sceneAttachmentGroup { gpu, extent, sceneRenderPass, bloomApplyRenderPass },
+    subextent { [&, result = extent] mutable {
         if (viewCount >= 2) {
-            result.emplace_back(vk::Offset2D { static_cast<std::int32_t>(extent.width), 0 }, extent);
+            result.width /= 2;
         }
         if (viewCount == 4) {
-            result.emplace_back(vk::Offset2D { 0, static_cast<std::int32_t>(extent.height) }, extent);
-            result.emplace_back(vku::toOffset2D(extent), extent);
+            result.height /= 2;
         }
-
         return result;
     }() },
-    shared { &shared },
-    mousePickingAttachmentGroup { value_if(gpu.workaround.attachmentLessRenderPass, [&] { return ag::MousePicking { gpu, extent }; }) },
-    hoveringNodeOutlineJumpFloodResources { gpu, extent, viewCount },
+    viewCount { viewCount },
+    hoveringNodeOutlineJumpFloodResources { gpu, subextent, viewCount },
     hoveringNodeJumpFloodSeedAttachmentGroup { gpu, hoveringNodeOutlineJumpFloodResources.image, viewCount },
-    selectedNodeOutlineJumpFloodResources { gpu, extent, viewCount },
+    selectedNodeOutlineJumpFloodResources { gpu, subextent, viewCount },
     selectedNodeJumpFloodSeedAttachmentGroup { gpu, selectedNodeOutlineJumpFloodResources.image, viewCount },
-    bloomImage { gpu.allocator, vk::ImageCreateInfo {
+    bloomImage { createBloomImage() },
+    bloomImageView { gpu.device, bloomImage.getViewCreateInfo(vk::ImageViewType::e2DArray) },
+    bloomMipImageViews { createBloomMipImageViews() } {
+    assert(extent.width % 2 == 0 && extent.height % 2 == 0 && "Viewport extent must be even.");
+    assert(ranges::one_of(viewCount, { 1, 2, 4 }) && "viewCount must be 1, 2 or 4.");
+
+    if (gpu.workaround.attachmentLessRenderPass) {
+        mousePickingAttachmentGroup.emplace(gpu, subextent);
+    }
+
+    recordImageLayoutTransitionCommands(graphicsCommandBuffer);
+}
+
+boost::container::static_vector<vk::Rect2D, 4> vk_gltf_viewer::vulkan::Frame::Viewport::getSubrects() const noexcept {
+    switch (viewCount) {
+        case 1:
+            return { vk::Rect2D { { 0, 0 }, extent } };
+        case 2:
+            return {
+                vk::Rect2D { { 0, 0 }, subextent },
+                vk::Rect2D { { static_cast<int32_t>(subextent.width), 0 }, subextent },
+            };
+        case 4:
+            return {
+                vk::Rect2D { { 0, 0 }, subextent },
+                vk::Rect2D { { static_cast<int32_t>(subextent.width), 0 }, subextent },
+                vk::Rect2D { { 0, static_cast<int32_t>(subextent.height) }, subextent },
+                vk::Rect2D { vku::toOffset2D(subextent), subextent },
+            };
+        default:
+            std::unreachable();
+    }
+}
+
+void vk_gltf_viewer::vulkan::Frame::Viewport::setViewCount(std::uint32_t count, vk::CommandBuffer graphicsCommandBuffer) {
+    assert(viewCount != count);
+    assert(ranges::one_of(count, { 1, 2, 4 }));
+
+    // subextent
+    subextent = extent;
+    if (count >= 2) {
+        subextent.width /= 2;
+    }
+    if (count == 4) {
+        subextent.height /= 2;
+    }
+
+    viewCount = count;
+
+    if (gpu.get().workaround.attachmentLessRenderPass) {
+        mousePickingAttachmentGroup.emplace(gpu, subextent);
+    }
+
+    hoveringNodeOutlineJumpFloodResources = { gpu, subextent, viewCount };
+    hoveringNodeJumpFloodSeedAttachmentGroup = { gpu, hoveringNodeOutlineJumpFloodResources.image, viewCount };
+    selectedNodeOutlineJumpFloodResources = { gpu, subextent, viewCount };
+    selectedNodeJumpFloodSeedAttachmentGroup = { gpu, selectedNodeOutlineJumpFloodResources.image, viewCount };
+    bloomImage = createBloomImage();
+    bloomImageView = { gpu.get().device, bloomImage.getViewCreateInfo(vk::ImageViewType::e2DArray) };
+    bloomMipImageViews = createBloomMipImageViews();
+
+    recordImageLayoutTransitionCommands(graphicsCommandBuffer);
+}
+
+vku::AllocatedImage vk_gltf_viewer::vulkan::Frame::Viewport::createBloomImage() const {
+    return { gpu.get().allocator, vk::ImageCreateInfo {
         {},
         vk::ImageType::e2D,
         vk::Format::eR16G16B16A16Sfloat,
-        vk::Extent3D { extent, 1 },
-        vku::Image::maxMipLevels(extent), viewCount,
+        vk::Extent3D { subextent, 1 },
+        vku::Image::maxMipLevels(subextent), viewCount,
         vk::SampleCountFlagBits::e1,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eTransferDst // cleared by vkCmdClearColorImage() right before the scene render pass
             | vk::ImageUsageFlagBits::eStorage // written in InverseToneMappingRenderPipeline
             | bloom::BloomComputePipeline::requiredImageUsageFlags
             | vk::ImageUsageFlagBits::eSampled /* read in BloomApplyRenderPipeline */,
-    } },
-    bloomImageView { gpu.device, bloomImage.getViewCreateInfo(vk::ImageViewType::e2DArray) },
-    bloomMipImageViews { [&] {
-        std::vector<vk::raii::ImageView> result;
-        result.emplace_back(gpu.device, bloomImage.getViewCreateInfo(
-            { vk::ImageAspectFlagBits::eColor, 0, 1, 0, vk::RemainingArrayLayers }, vk::ImageViewType::e2DArray));
+    } };
+}
 
-        if (!gpu.supportShaderImageLoadStoreLod) {
-            result.append_range(
-                bloomImage.getMipViewCreateInfos(vk::ImageViewType::e2DArray)
-                | std::views::drop(1)
-                | std::views::transform([&](const vk::ImageViewCreateInfo& createInfo) {
-                    return vk::raii::ImageView{ gpu.device, createInfo };
-                }));
-        }
+std::vector<vk::raii::ImageView> vk_gltf_viewer::vulkan::Frame::Viewport::createBloomMipImageViews() const {
+    std::vector<vk::raii::ImageView> result;
+    result.emplace_back(gpu.get().device, bloomImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, vk::RemainingArrayLayers }, vk::ImageViewType::e2DArray));
 
-        return result;
-    }() } {
+    if (!gpu.get().supportShaderImageLoadStoreLod) {
+        result.append_range(
+            bloomImage.getMipViewCreateInfos(vk::ImageViewType::e2DArray)
+            | std::views::drop(1)
+            | std::views::transform([&](const vk::ImageViewCreateInfo& createInfo) {
+                return vk::raii::ImageView{ gpu.get().device, createInfo };
+            }));
+    }
+
+    return result;
+}
+
+void vk_gltf_viewer::vulkan::Frame::Viewport::recordImageLayoutTransitionCommands(
+    vk::CommandBuffer graphicsCommandBuffer
+) const {
     constexpr auto layoutTransitionBarrier = [](
         vk::ImageLayout newLayout,
         vk::Image image,
@@ -1240,8 +1404,8 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
             {}, {}, {}, memoryBarriers);
 
-        cb.setViewport(0, vku::toViewport(viewport->extent, true));
-        cb.setScissor(0, vk::Rect2D{ { 0, 0 }, viewport->extent });
+        cb.setViewport(0, vku::toViewport(viewport->subextent, true));
+        cb.setScissor(0, vk::Rect2D{ { 0, 0 }, viewport->subextent });
 
         struct ResourceBindingState {
             vk::Pipeline pipeline;
@@ -1289,7 +1453,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         if (hoveringNode) {
             cb.beginRenderingKHR({
                 {},
-                { {}, viewport->extent },
+                { {}, viewport->subextent },
                 static_cast<std::uint32_t>(renderer->cameras.size()),
                 math::bit::ones(renderer->cameras.size()),
                 vku::unsafeProxy(vk::RenderingAttachmentInfo {
@@ -1311,7 +1475,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         if (selectedNodes) {
             cb.beginRenderingKHR({
                 {},
-                { {}, viewport->extent },
+                { {}, viewport->subextent },
                 static_cast<std::uint32_t>(renderer->cameras.size()),
                 math::bit::ones(renderer->cameras.size()),
                 vku::unsafeProxy(vk::RenderingAttachmentInfo {
@@ -1366,9 +1530,9 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 {},
                 rect,
                 1,
-                // See doc about Gpu::Workaround::attachmentLessRenderPass.
                 0,
                 vk::ArrayProxyNoTemporaries<const vk::RenderingAttachmentInfo>{},
+                // See doc about Gpu::Workaround::attachmentLessRenderPass.
                 value_address(viewport->mousePickingAttachmentGroup.transform([](const ag::MousePicking &ag) {
                     return vk::RenderingAttachmentInfo {
                         *ag.depthStencilAttachment->view, vk::ImageLayout::eDepthAttachmentOptimal,
@@ -1378,7 +1542,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 })),
             });
 
-            cb.setViewport(0, vku::toViewport(viewport->extent, true));
+            cb.setViewport(0, vku::toViewport(viewport->subextent, true));
             cb.setScissor(0, rect);
 
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.mousePickingPipelineLayout,
@@ -1515,13 +1679,13 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
                 *resourceBindingState.indexType);
         }
 
-        for (const auto &[viewportIndex, viewportRect] : viewport->rects | ranges::views::enumerate) {
+        for (const auto &[viewIndex, subrect] : viewport->getSubrects() | ranges::views::enumerate) {
             cb.pushConstants<pl::Primitive::PushConstant>(*sharedData.primitivePipelineLayout, pl::Primitive::PushConstant::range.stageFlags, 0, pl::Primitive::PushConstant {
-                .viewIndex = static_cast<std::uint32_t>(viewportIndex),
+                .viewIndex = static_cast<std::uint32_t>(viewIndex),
             });
 
-            cb.setViewport(0, toViewport(viewportRect, true));
-            cb.setScissor(0, viewportRect);
+            cb.setViewport(0, toViewport(subrect, true));
+            cb.setScissor(0, subrect);
 
             indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
         }
@@ -1579,13 +1743,13 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
                 *resourceBindingState.indexType);
         }
 
-        for (const auto &[viewportIndex, viewportRect] : viewport->rects | ranges::views::enumerate) {
+        for (const auto &[viewIndex, subrect] : viewport->getSubrects() | ranges::views::enumerate) {
             cb.pushConstants<pl::Primitive::PushConstant>(*sharedData.primitivePipelineLayout, pl::Primitive::PushConstant::range.stageFlags, 0, pl::Primitive::PushConstant {
-                .viewIndex = static_cast<std::uint32_t>(viewportIndex),
+                .viewIndex = static_cast<std::uint32_t>(viewIndex),
             });
 
-            cb.setViewport(0, toViewport(viewportRect, true));
-            cb.setScissor(0, viewportRect);
+            cb.setViewport(0, toViewport(subrect, true));
+            cb.setScissor(0, subrect);
 
             indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
         }
@@ -1601,13 +1765,13 @@ void vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer c
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxPipelineLayout, 0, { rendererSet, sharedData.skyboxDescriptorSet }, {});
     cb.bindIndexBuffer(sharedData.cubeIndexBuffer, 0, vk::IndexType::eUint16);
 
-    for (const auto &[viewportIndex, viewportRect] : viewport->rects | ranges::views::enumerate) {
+    for (const auto &[viewIndex, subrect] : viewport->getSubrects() | ranges::views::enumerate) {
         cb.pushConstants<pl::Skybox::PushConstant>(*sharedData.skyboxPipelineLayout, pl::Skybox::PushConstant::range.stageFlags, 0, pl::Skybox::PushConstant {
-            .viewIndex = static_cast<std::uint32_t>(viewportIndex),
+            .viewIndex = static_cast<std::uint32_t>(viewIndex),
         });
 
-        cb.setViewport(0, toViewport(viewportRect, true));
-        cb.setScissor(0, viewportRect);
+        cb.setViewport(0, toViewport(subrect, true));
+        cb.setScissor(0, subrect);
 
         cb.drawIndexed(36, 1, 0, 0, 0);
     }
@@ -1645,16 +1809,16 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
     }
 
     // Set viewport and scissor.
-    cb.setViewport(0, vku::toViewport(sceneAttachmentGroup.extent));
-    cb.setScissor(0, vk::Rect2D { { 0, 0 }, sceneAttachmentGroup.extent });
+    cb.setViewport(0, vku::toViewport(viewport->extent));
+    cb.setScissor(0, vk::Rect2D { { 0, 0 }, viewport->extent });
 
     cb.beginRenderingKHR(vk::RenderingInfo {
         {},
-        { { 0, 0 }, sceneAttachmentGroup.extent },
+        { { 0, 0 }, viewport->extent },
         1,
         {},
         vku::unsafeProxy(vk::RenderingAttachmentInfo {
-            *sceneAttachmentGroup.colorImageView,
+            *viewport->sceneAttachmentGroup.colorImageView,
             vk::ImageLayout::eColorAttachmentOptimal,
             {}, {}, {},
             vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore,
@@ -1691,22 +1855,6 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
                 .outlineThickness = renderer->hoveringNodeOutline->thickness,
             });
         cb.draw(3, 1, 0, 0);
-    }
-
-    cb.endRenderingKHR();
-}
-
-void vk_gltf_viewer::vulkan::Frame::recordImGuiCompositionCommands(
-    vk::CommandBuffer cb,
-    std::uint32_t swapchainImageIndex
-) const {
-    cb.beginRenderingKHR(sharedData.imGuiAttachmentGroup.getRenderingInfo(
-        vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eLoad, vk::AttachmentStoreOp::eStore },
-        swapchainImageIndex));
-
-    // Draw ImGui.
-    if (ImDrawData *drawData = ImGui::GetDrawData()) {
-        ImGui_ImplVulkan_RenderDrawData(drawData, cb);
     }
 
     cb.endRenderingKHR();

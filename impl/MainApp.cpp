@@ -102,7 +102,7 @@ vk_gltf_viewer::MainApp::MainApp()
     }) }
     , swapchain { gpu, window.getSurface(), getSwapchainExtent() }
     , sharedData { gpu, swapchain.extent, swapchain.images }
-    , frames { ARRAY_OF(2, vulkan::Frame { renderer, sharedData, swapchain.extent }) } {
+    , frames { ARRAY_OF(2, vulkan::Frame { renderer, sharedData }) } {
     const ibl::BrdfmapRenderPipeline brdfmapRenderPipeline { gpu.device, brdfmapImage, {} };
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
@@ -235,11 +235,22 @@ void vk_gltf_viewer::MainApp::run() {
         // Collect task from window event (mouse, keyboard, drag and drop, ...).
         window.pollEvents(tasks);
 
-        // Collect task from ImGui (button click, menu selection, ...).
-        static ImRect passthruRect{};
+        // ImGui is not rendered at the first frame, and its passthrough region is evaluated as the window size.
+        // Currently, the application detects the passthrough region size update by comparing the old and the new values,
+        // therefore if this value is default initialized by (0, 0), control::task::ChangePassthruRect will be dispatched
+        // at the first execution of the frame, and frame attachment images are created with the swapchain extent.
+        // This could be significant memory impact, as usually the typical passthrough region size is much smaller
+        // (about 3x) than the swapchain extent.
+        // To avoid this, the passthrough region is initialized with the window size. Then the compare result will be
+        // same and control::task::ChangePassthruRect will be dispatched at the second execution of the frame, which
+        // will have the correct passthrough region size.
+        static ImRect passthruRect { {}, toImVec2(window.getSize()) };
+
         {
             ImGui_ImplGlfw_NewFrame();
             ImGui_ImplVulkan_NewFrame();
+
+            // Collect task from ImGui (button click, menu selection, ...).
             control::ImGuiTaskCollector imguiTaskCollector { tasks, passthruRect };
 
             // Get native window handle.
@@ -559,8 +570,8 @@ void vk_gltf_viewer::MainApp::run() {
 
                     sharedData.setViewCount(renderer->cameras.size());
 
-                    currentFrameTask.updateViewportCount();
-                    frameDeferredTask.updateViewportCount();
+                    currentFrameTask.updateViewCount();
+                    frameDeferredTask.updateViewCount();
 
                     // TODO: only re-generate jump flood seed rendering commands only
                     regenerateDrawCommands.fill(true);
@@ -926,6 +937,11 @@ void vk_gltf_viewer::MainApp::run() {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex % FRAMES_IN_FLIGHT], false),
                     .mousePickingInput = [&] -> std::optional<std::pair<std::uint32_t, vk::Rect2D>> {
+                        if (frameIndex == 0) {
+                            // Passthrough region is not defined at the first frame (as ImGui is not rendered).
+                            return std::nullopt;
+                        }
+
                         const ImVec2 cursorPos = toImVec2(window.getCursorPos());
                         if (drawSelectionRectangle) {
                             const ImVec2 startPos = toImVec2(*lastMouseDownPosition);
@@ -992,7 +1008,12 @@ void vk_gltf_viewer::MainApp::run() {
             }),
         });
 
-        frame.recordCommandsAndSubmit(swapchain);
+        if (frameIndex == 0) {
+            frame.recordCommandsAndSubmitFirstFrame(swapchain);
+        }
+        else {
+            frame.recordCommandsAndSubmit(swapchain);
+        }
     }
     gpu.device.waitIdle();
 }
