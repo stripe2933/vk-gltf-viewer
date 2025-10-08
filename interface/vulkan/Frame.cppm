@@ -17,8 +17,7 @@ export import vku;
 
 import vk_gltf_viewer.vulkan.ag.JumpFloodSeed;
 import vk_gltf_viewer.vulkan.ag.MousePicking;
-import vk_gltf_viewer.vulkan.ag.SceneOpaque;
-import vk_gltf_viewer.vulkan.ag.SceneWeightedBlended;
+import vk_gltf_viewer.vulkan.ag.Scene;
 import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
 export import vk_gltf_viewer.Renderer;
 export import vk_gltf_viewer.vulkan.SharedData;
@@ -74,7 +73,7 @@ namespace vk_gltf_viewer::vulkan {
 
             vku::MappedBuffer mousePickingResultBuffer;
 
-            std::optional<vk::Rect2D> mousePickingInput;
+            std::optional<std::pair<std::uint32_t, vk::Rect2D>> mousePickingInput;
 
             explicit GltfAsset(const SharedData &sharedData LIFETIMEBOUND);
 
@@ -119,7 +118,7 @@ namespace vk_gltf_viewer::vulkan {
                  *
                  * @note The rectangle must be sized, i.e. both its width and height must be greater than 0.
                  */
-                std::optional<vk::Rect2D> mousePickingInput;
+                std::optional<std::pair<std::uint32_t, vk::Rect2D>> mousePickingInput;
             };
 
             vk::Offset2D passthruOffset;
@@ -152,25 +151,48 @@ namespace vk_gltf_viewer::vulkan {
         void update(const ExecutionTask &task);
 
         void recordCommandsAndSubmit(Swapchain &swapchain) const;
+        void recordCommandsAndSubmitFirstFrame(Swapchain &swapchain) const;
 
-        void setPassthruExtent(const vk::Extent2D &extent);
+        void setViewportExtent(const vk::Extent2D &extent);
+        void updateViewCount();
 
         void updateAsset();
 
     private:
-        struct PassthruResources {
-            struct JumpFloodResources {
+        class Viewport {
+            std::reference_wrapper<const Gpu> gpu;
+
+        public:
+            class JumpFloodResources {
+            public:
                 vku::AllocatedImage image;
                 vk::raii::ImageView imageView;
-                std::array<vk::raii::ImageView, 2> perLayerImageViews;
+                std::array<vk::raii::ImageView, 2> pingPongImageViews;
 
-                JumpFloodResources(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent);
+            private:
+                friend class Viewport; // This class can only be constructed by a Viewport instance.
+
+                JumpFloodResources(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &extent, std::uint32_t viewCount);
             };
 
+            /// Viewport extent
             vk::Extent2D extent;
 
+            /// Attachment group (including images, image views and framebuffers) for the primary scene rendering.
+            /// Its extent is as same as `extent`.
+            ag::Scene sceneAttachmentGroup;
+
+            /// Extent of the divided viewports.
+            /// If `viewCount` is 1, it is same as `extent`.
+            /// If `viewCount` is 2, its width is half of `extent`'s width, and height is same as `extent`'s height.
+            /// If `viewCount` is 4, both its width and height are half of `extent`'s width and height.
+            vk::Extent2D subextent;
+
+            /// Number of views in the viewport. It must be 1, 2 or 4.
+            std::uint32_t viewCount;
+
             // Mouse picking.
-            std::optional<ag::MousePicking> mousePickingAttachmentGroup; // has only value if Gpu::attachmentLessRenderPass == true.
+            std::optional<ag::MousePicking> mousePickingAttachmentGroup; // has value only if Gpu::attachmentLessRenderPass == true.
 
             // Outline calculation using JFA.
             JumpFloodResources hoveringNodeOutlineJumpFloodResources;
@@ -178,20 +200,29 @@ namespace vk_gltf_viewer::vulkan {
             JumpFloodResources selectedNodeOutlineJumpFloodResources;
             ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 
-            // Scene rendering.
-            ag::SceneOpaque sceneOpaqueAttachmentGroup;
-            ag::SceneWeightedBlended sceneWeightedBlendedAttachmentGroup;
-
             // Bloom.
             vku::AllocatedImage bloomImage;
             vk::raii::ImageView bloomImageView;
             std::vector<vk::raii::ImageView> bloomMipImageViews;
 
-            // Framebuffers.
-            vk::raii::Framebuffer sceneFramebuffer;
-            vk::raii::Framebuffer bloomApplyFramebuffer;
+            Viewport(
+                const Gpu &gpu LIFETIMEBOUND,
+                const vk::Extent2D &extent,
+                std::uint32_t viewCount,
+                const rp::Scene &sceneRenderPass LIFETIMEBOUND,
+                const rp::BloomApply &bloomApplyRenderPass LIFETIMEBOUND,
+                vk::CommandBuffer graphicsCommandBuffer
+            );
 
-            PassthruResources(const SharedData &sharedData LIFETIMEBOUND, const vk::Extent2D &extent, vk::CommandBuffer graphicsCommandBuffer);
+            [[nodiscard]] boost::container::static_vector<vk::Rect2D, 4> getSubrects() const noexcept;
+
+            void setViewCount(std::uint32_t count, vk::CommandBuffer graphicsCommandBuffer);
+
+        private:
+            [[nodiscard]] vku::AllocatedImage createBloomImage() const;
+            [[nodiscard]] std::vector<vk::raii::ImageView> createBloomMipImageViews() const;
+
+            void recordImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const;
         };
 
         struct RenderingNodes {
@@ -212,7 +243,8 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         // Buffer, image and image views.
-        std::optional<PassthruResources> passthruResources;
+        vku::AllocatedBuffer cameraBuffer;
+        std::optional<Viewport> viewport;
 
         // Descriptor/command pools.
         vk::raii::DescriptorPool descriptorPool;
@@ -220,15 +252,16 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::CommandPool graphicsCommandPool;
 
         // Descriptor sets.
+        vku::DescriptorSet<dsl::Renderer> rendererSet;
         vku::DescriptorSet<dsl::MousePicking> mousePickingSet;
         vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> hoveringNodeJumpFloodSet;
         vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> selectedNodeJumpFloodSet;
-        vku::DescriptorSet<OutlineRenderPipeline::DescriptorSetLayout> hoveringNodeOutlineSet;
-        vku::DescriptorSet<OutlineRenderPipeline::DescriptorSetLayout> selectedNodeOutlineSet;
-        vku::DescriptorSet<WeightedBlendedCompositionRenderPipeline::DescriptorSetLayout> weightedBlendedCompositionSet;
-        vku::DescriptorSet<InverseToneMappingRenderPipeline::DescriptorSetLayout> inverseToneMappingSet;
+        vku::DescriptorSet<dsl::Outline> hoveringNodeOutlineSet;
+        vku::DescriptorSet<dsl::Outline> selectedNodeOutlineSet;
+        vku::DescriptorSet<dsl::WeightedBlendedComposition> weightedBlendedCompositionSet;
+        vku::DescriptorSet<dsl::InverseToneMapping> inverseToneMappingSet;
         vku::DescriptorSet<bloom::BloomComputePipeline::DescriptorSetLayout> bloomSet;
-        vku::DescriptorSet<BloomApplyRenderPipeline::DescriptorSetLayout> bloomApplySet;
+        vku::DescriptorSet<dsl::BloomApply> bloomApplySet;
 
         // Command buffers.
         vk::CommandBuffer scenePrepassCommandBuffer;
@@ -244,8 +277,6 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::Fence inFlightFence;
 
         vk::Offset2D passthruOffset;
-        glm::mat4 projectionViewMatrix;
-        glm::mat4 translationlessProjectionViewMatrix;
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
@@ -260,6 +291,5 @@ namespace vk_gltf_viewer::vulkan {
         bool recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const;
         void recordSkyboxDrawCommands(vk::CommandBuffer cb) const;
         void recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward) const;
-        void recordImGuiCompositionCommands(vk::CommandBuffer cb, std::uint32_t swapchainImageIndex) const;
     };
 }

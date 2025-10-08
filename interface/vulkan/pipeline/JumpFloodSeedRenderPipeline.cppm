@@ -25,7 +25,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         JumpFloodSeedRenderPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const pl::PrimitiveNoShading &pipelineLayout LIFETIMEBOUND,
-            const PrepassPipelineConfig<false> &config
+            const PrepassPipelineConfig<false> &config,
+            std::uint32_t viewMask
         );
 
     private:
@@ -40,7 +41,8 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         JumpFloodSeedRenderPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
             const pl::PrimitiveNoShading &pipelineLayout LIFETIMEBOUND,
-            const PrepassPipelineConfig<true> &config
+            const PrepassPipelineConfig<true> &config,
+            std::uint32_t viewMask
         );
 
     private:
@@ -73,7 +75,8 @@ struct vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRenderPipeline<false>::Ver
 vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRenderPipeline<false>::JumpFloodSeedRenderPipeline(
     const vk::raii::Device &device,
     const pl::PrimitiveNoShading &pipelineLayout,
-    const PrepassPipelineConfig<false> &config
+    const PrepassPipelineConfig<false> &config,
+    std::uint32_t viewMask
 ) : Pipeline { [&] -> Pipeline {
         return { device, nullptr, vk::StructureChain {
             vku::getDefaultGraphicsPipelineCreateInfo(
@@ -107,7 +110,7 @@ vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRenderPipeline<false>::JumpFloodS
                     }),
                 })),
             vk::PipelineRenderingCreateInfo {
-                {},
+                viewMask,
                 vku::unsafeProxy(vk::Format::eR16G16Uint),
                 vk::Format::eD32Sfloat,
             }
@@ -144,7 +147,8 @@ struct vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRenderPipeline<true>::Frag
 vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRenderPipeline<true>::JumpFloodSeedRenderPipeline::JumpFloodSeedRenderPipeline(
     const vk::raii::Device &device,
     const pl::PrimitiveNoShading &pipelineLayout,
-    const PrepassPipelineConfig<true> &config
+    const PrepassPipelineConfig<true> &config,
+    std::uint32_t viewMask
 ) : Pipeline { [&] -> Pipeline {
         return { device, nullptr, vk::StructureChain {
             vku::getDefaultGraphicsPipelineCreateInfo(
@@ -185,7 +189,7 @@ vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRenderPipeline<true>::JumpFloodSe
                     }),
                 })),
             vk::PipelineRenderingCreateInfo {
-                {},
+                viewMask,
                 vku::unsafeProxy(vk::Format::eR16G16Uint),
                 vk::Format::eD32Sfloat,
             }

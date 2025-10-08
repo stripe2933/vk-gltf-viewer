@@ -1,7 +1,12 @@
+module;
+
+#include <boost/container/static_vector.hpp>
+
 export module vk_gltf_viewer.Renderer;
 
 import std;
 export import glm;
+export import imgui.internal;
 export import ImGuizmo;
 
 export import vk_gltf_viewer.control.Camera;
@@ -63,17 +68,13 @@ namespace vk_gltf_viewer {
 
         Capabilities capabilities;
 
-        control::Camera camera {
-            glm::vec3 { 0.f, 0.f, 5.f }, normalize(glm::vec3 { 0.f, 0.f, -1.f }), glm::vec3 { 0.f, 1.f, 0.f },
-            glm::radians(45.f), 1.f /* will be determined by passthru rect dimension */, 1e-2f, 10.f,
-            5.f,
+        boost::container::static_vector<control::Camera, 4> cameras {
+            control::Camera {
+                glm::vec3 { 0.f, 0.f, 5.f }, normalize(glm::vec3 { 0.f, 0.f, -1.f }), glm::vec3 { 0.f, 1.f, 0.f },
+                glm::radians(45.f), 1.f /* will be determined by viewport extent */, 1e-2f, 10.f,
+                5.f,
+            }
         };
-
-        /**
-         * @brief Boolean flag indicating whether the renderer should automatically adjust near and far planes based on
-         * the scene bounding box.
-         */
-        bool automaticNearFarPlaneAdjustment = true;
 
         /**
          * @brief Background color, or <tt>std::nullopt</tt> if the renderer should use skybox.
@@ -114,6 +115,9 @@ namespace vk_gltf_viewer {
         [[nodiscard]] bool canSelectSkyboxBackground() const noexcept;
         void setSkybox(std::monostate) noexcept;
 
+        [[nodiscard]] ImRect getViewportRect(const ImRect &passthruRect, std::size_t viewIndex) const noexcept;
+        [[nodiscard]] boost::container::static_vector<ImRect, 4> getViewportRects(const ImRect &passthruRect) const noexcept;
+
     private:
         bool _canSelectSkyboxBackground;
     };
@@ -130,4 +134,53 @@ bool vk_gltf_viewer::Renderer::canSelectSkyboxBackground() const noexcept {
 void vk_gltf_viewer::Renderer::setSkybox(std::monostate) noexcept {
     solidBackground.reset();
     _canSelectSkyboxBackground = true;
+}
+
+ImRect vk_gltf_viewer::Renderer::getViewportRect(const ImRect &passthruRect, std::size_t viewIndex) const noexcept {
+    assert(viewIndex < cameras.size());
+
+    switch (cameras.size()) {
+        case 1:
+            return passthruRect;
+        case 2:
+            if (viewIndex == 0) {
+                return { passthruRect.Min, { std::midpoint(passthruRect.Min.x, passthruRect.Max.x), passthruRect.Max.y } };
+            }
+            else {
+                return { { std::midpoint(passthruRect.Min.x, passthruRect.Max.x), passthruRect.Min.y }, passthruRect.Max };
+            }
+        case 4: {
+            const ImVec2 mid = passthruRect.GetCenter();
+            const ImVec2 extent { passthruRect.Max.x - mid.x, passthruRect.Max.y - mid.y };
+            const ImVec2 min { (viewIndex % 2 == 0) ? passthruRect.Min.x : mid.x, (viewIndex / 2 == 0) ? passthruRect.Min.y : mid.y };
+            return { min, min + extent };
+        }
+        default:
+            std::unreachable();
+    }
+}
+
+boost::container::static_vector<ImRect, 4> vk_gltf_viewer::Renderer::getViewportRects(const ImRect &passthruRect) const noexcept {
+    switch (cameras.size()) {
+        case 1:
+            return { passthruRect };
+        case 2: {
+            const float midX = std::midpoint(passthruRect.Min.x, passthruRect.Max.x);
+            return {
+                { passthruRect.Min, { midX, passthruRect.Max.y } },
+                { { midX, passthruRect.Min.y }, passthruRect.Max },
+            };
+        }
+        case 4: {
+            const ImVec2 mid = passthruRect.GetCenter();
+            return {
+                { passthruRect.Min, mid },
+                { { mid.x, passthruRect.Min.y }, { passthruRect.Max.x, mid.y } },
+                { { passthruRect.Min.x, mid.y }, { mid.x, passthruRect.Max.y } },
+                { mid, passthruRect.Max },
+            };
+        }
+        default:
+            std::unreachable();
+    }
 }

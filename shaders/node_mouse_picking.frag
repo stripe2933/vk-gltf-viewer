@@ -6,7 +6,7 @@
 
 layout (location = 0) flat in uint inNodeIndex;
 
-layout (set = 1, binding = 0) buffer MousePickingResultBuffer {
+layout (set = 2, binding = 0) buffer MousePickingResultBuffer {
 #if KHR_SHADER_ATOMIC_INT64 == 1
     uint64_t packedNodeIndexAndDepth;
 #else

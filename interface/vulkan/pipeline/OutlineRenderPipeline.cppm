@@ -5,26 +5,19 @@ module;
 export module vk_gltf_viewer.vulkan.pipeline.OutlineRenderPipeline;
 
 import std;
-export import glm;
-export import vku;
+import vku;
+export import vulkan_hpp;
 
 import vk_gltf_viewer.shader.outline_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;
+export import vk_gltf_viewer.vulkan.pipeline_layout.Outline;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export struct OutlineRenderPipeline {
-        struct PushConstant {
-            glm::vec4 outlineColor;
-            float outlineThickness;
-        };
-
-        using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage>;
-
-        DescriptorSetLayout descriptorSetLayout;
-        vk::raii::PipelineLayout pipelineLayout;
-        vk::raii::Pipeline pipeline;
-
-        explicit OutlineRenderPipeline(const vk::raii::Device &device LIFETIMEBOUND);
+    export struct OutlineRenderPipeline final : vk::raii::Pipeline {
+        OutlineRenderPipeline(
+            const vk::raii::Device &device LIFETIMEBOUND,
+            const pl::Outline &layout LIFETIMEBOUND
+        );
     };
 }
 
@@ -32,31 +25,16 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::pipeline::OutlineRenderPipeline::OutlineRenderPipeline(
-    const vk::raii::Device &device
-) : descriptorSetLayout {
-        device,
-        vk::DescriptorSetLayoutCreateInfo {
-            {},
-            vku::unsafeProxy(DescriptorSetLayout::getBindings({ 1, vk::ShaderStageFlagBits::eFragment })),
-        },
-    },
-    pipelineLayout { device, vk::PipelineLayoutCreateInfo{
-        {},
-        *descriptorSetLayout,
-        vku::unsafeProxy(vk::PushConstantRange {
-            vk::ShaderStageFlagBits::eFragment,
-            0, sizeof(PushConstant),
-        }),
-    } },
-    pipeline { device, nullptr, vk::StructureChain {
+vk_gltf_viewer::vulkan::OutlineRenderPipeline::OutlineRenderPipeline(
+    const vk::raii::Device &device,
+    const pl::Outline &layout
+) : Pipeline { device, nullptr, vk::StructureChain {
         vku::getDefaultGraphicsPipelineCreateInfo(
             createPipelineStages(
                 device,
                 vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
                 vku::Shader { shader::outline_frag, vk::ShaderStageFlagBits::eFragment }).get(),
-            *pipelineLayout,
-            1)
+            *layout, 1)
             .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
                 {},
                 false, false,

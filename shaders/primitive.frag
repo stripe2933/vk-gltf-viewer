@@ -50,25 +50,28 @@ layout (location = 0) out vec4 outColor;
 layout (location = 1) out float outRevealage;
 #endif
 
-layout (set = 0, binding = 0, scalar) uniform SphericalHarmonicsBuffer {
+layout (set = 0, binding = 0) uniform CameraBuffer {
+    layout (offset = 512) vec3 viewPositions[4];
+} camera;
+
+layout (set = 1, binding = 0, scalar) uniform SphericalHarmonicsBuffer {
     vec3 coefficients[9];
 } sphericalHarmonics;
-layout (set = 0, binding = 1) uniform samplerCube prefilteredmap;
-layout (set = 0, binding = 2) uniform sampler2D brdfmap;
+layout (set = 1, binding = 1) uniform samplerCube prefilteredmap;
+layout (set = 1, binding = 2) uniform sampler2D brdfmap;
 
-layout (set = 1, binding = 2, std430) readonly buffer MaterialBuffer {
+layout (set = 2, binding = 2, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 #if SEPARATE_IMAGE_SAMPLER == 1
-layout (set = 1, binding = 3) uniform sampler samplers[];
-layout (set = 1, binding = 4) uniform texture2D images[];
+layout (set = 2, binding = 3) uniform sampler samplers[];
+layout (set = 2, binding = 4) uniform texture2D images[];
 #else
-layout (set = 1, binding = 3) uniform sampler2D textures[];
+layout (set = 2, binding = 3) uniform sampler2D textures[];
 #endif
 
-layout (push_constant, std430) uniform PushConstant {
-    mat4 projectionView;
-    vec3 viewPosition;
+layout (push_constant) uniform PushConstant {
+    uint viewIndex;
 } pc;
 
 #if (ALPHA_MODE == 0 || ALPHA_MODE == 2) && (EXT_SHADER_STENCIL_EXPORT == 0)
@@ -242,7 +245,7 @@ void main(){
     gl_FragStencilRefARB = trinaryMax(emissive) > 1.0 ? 1 : 0;
 #endif
 
-    vec3 V = normalize(pc.viewPosition - inPosition);
+    vec3 V = normalize(camera.viewPositions[pc.viewIndex] - inPosition);
     float NdotV = dot(N, V);
     // If normal is not facing the camera, normal have to be flipped.
     if (NdotV < 0.0) {

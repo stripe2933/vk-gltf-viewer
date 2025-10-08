@@ -4,9 +4,7 @@ module;
 
 export module vk_gltf_viewer.vulkan.render_pass.Scene;
 
-#ifdef _MSC_VER
 import std;
-#endif
 
 export import vk_gltf_viewer.vulkan.Gpu;
 
@@ -94,14 +92,6 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 {}, {},
                 {}, vk::ImageLayout::eShaderReadOnlyOptimal,
             },
-            // (8) Inverse tone mapping image.
-            vk::AttachmentDescription2 {
-                {},
-                vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e1,
-                vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
-                {}, {},
-                {}, vk::ImageLayout::eGeneral,
-            },
         }),
         vku::unsafeProxy({
             // Opaque pass.
@@ -109,7 +99,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 vk::SubpassDescription2 {
                     {},
                     vk::PipelineBindPoint::eGraphics,
-                    0,
+                    {},
                     {},
                     vku::unsafeProxy(vk::AttachmentReference2 { 0, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
                     vku::unsafeProxy(vk::AttachmentReference2 { 1, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
@@ -132,7 +122,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 vk::SubpassDescription2 {
                     {},
                     vk::PipelineBindPoint::eGraphics,
-                    0,
+                    {},
                     {},
                     vku::unsafeProxy({
                         vk::AttachmentReference2 { 4, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor },
@@ -160,7 +150,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
             vk::SubpassDescription2 {
                 {},
                 vk::PipelineBindPoint::eGraphics,
-                0,
+                {},
                 vku::unsafeProxy({
                     vk::AttachmentReference2 { 5, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
                     vk::AttachmentReference2 { 7, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
@@ -171,11 +161,11 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
             vk::SubpassDescription2 {
                 {},
                 vk::PipelineBindPoint::eGraphics,
-                0,
+                {},
                 vku::unsafeProxy({
                     vk::AttachmentReference2 { 1, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
                 }),
-                vku::unsafeProxy(vk::AttachmentReference2 { 8, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
+                {},
                 {},
                 vku::unsafeAddress(vk::AttachmentReference2 {
                     3,
@@ -208,12 +198,12 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader,
                 vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eInputAttachmentRead,
             },
-            // Dependency between inverse tone mapping pass and background composition pass:
-            // Input attachment reading must be finished before its layout is transited to ColorAttachmentOptimal.
+            // Dependency between WBOIT composition pass and inverse tone mapping pass:
+            // Composited image attachment must be written before its layout is read as the input attachment.
             vk::SubpassDependency2 {
                 2, 3,
-                vk::PipelineStageFlagBits::eFragmentShader, vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                vk::AccessFlagBits::eInputAttachmentRead, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
+                vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader,
+                vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eInputAttachmentRead,
             },
         }),
     } } { }

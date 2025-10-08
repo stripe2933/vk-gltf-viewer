@@ -22,6 +22,12 @@ namespace vk_gltf_viewer::control {
          */
         float targetDistance;
 
+        /**
+         * @brief If <tt>true</tt>, the renderer will automatically adjust the near and far planes based on the scene
+         * bounding box.
+         */
+        bool automaticNearFarPlaneAdjustment = true;
+
         [[nodiscard]] glm::mat4 getViewMatrix() const noexcept;
         [[nodiscard]] glm::mat4 getProjectionMatrix() const noexcept;
         [[nodiscard]] glm::mat4 getProjectionMatrixForwardZ() const noexcept;

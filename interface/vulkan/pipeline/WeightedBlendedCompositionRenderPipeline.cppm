@@ -5,22 +5,22 @@ module;
 export module vk_gltf_viewer.vulkan.pipeline.WeightedBlendedCompositionRenderPipeline;
 
 import std;
-export import vku;
+import vku;
+export import vulkan_hpp;
 
 import vk_gltf_viewer.shader.screen_quad_vert;
 import vk_gltf_viewer.shader.weighted_blended_composition_frag;
 export import vk_gltf_viewer.vulkan.Gpu;
+export import vk_gltf_viewer.vulkan.pipeline_layout.WeightedBlendedComposition;
 export import vk_gltf_viewer.vulkan.render_pass.Scene;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export struct WeightedBlendedCompositionRenderPipeline {
-        using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eInputAttachment, vk::DescriptorType::eInputAttachment>;
-
-        DescriptorSetLayout descriptorSetLayout;
-        vk::raii::PipelineLayout pipelineLayout;
-        vk::raii::Pipeline pipeline;
-
-        WeightedBlendedCompositionRenderPipeline(const Gpu &gpu LIFETIMEBOUND, const rp::Scene &sceneRenderPass LIFETIMEBOUND);
+    export struct WeightedBlendedCompositionRenderPipeline final : vk::raii::Pipeline {
+        WeightedBlendedCompositionRenderPipeline(
+            const Gpu &gpu LIFETIMEBOUND,
+            const pl::WeightedBlendedComposition &layout LIFETIMEBOUND,
+            const rp::Scene &renderPass LIFETIMEBOUND
+        );
     };
 }
 
@@ -30,21 +30,9 @@ module :private;
 
 vk_gltf_viewer::vulkan::pipeline::WeightedBlendedCompositionRenderPipeline::WeightedBlendedCompositionRenderPipeline(
     const Gpu &gpu,
-    const rp::Scene &sceneRenderPass
-) : descriptorSetLayout {
-        gpu.device,
-        vk::DescriptorSetLayoutCreateInfo {
-            {},
-            vku::unsafeProxy(DescriptorSetLayout::getBindings(
-                { 1, vk::ShaderStageFlagBits::eFragment },
-                { 1, vk::ShaderStageFlagBits::eFragment })),
-        }
-    },
-    pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
-        {},
-        *descriptorSetLayout
-    } },
-    pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
+    const pl::WeightedBlendedComposition &layout,
+    const rp::Scene &renderPass
+) : Pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
         createPipelineStages(
             gpu.device,
             vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
@@ -54,7 +42,7 @@ vk_gltf_viewer::vulkan::pipeline::WeightedBlendedCompositionRenderPipeline::Weig
                     : std::span<const std::uint32_t> { shader::weighted_blended_composition_frag<0> },
                 vk::ShaderStageFlagBits::eFragment,
             }).get(),
-        *pipelineLayout, 1)
+        *layout, 1)
         .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
             {},
             false, false,
@@ -74,6 +62,6 @@ vk_gltf_viewer::vulkan::pipeline::WeightedBlendedCompositionRenderPipeline::Weig
             }),
             { 1.f, 1.f, 1.f, 1.f },
         }))
-        .setRenderPass(*sceneRenderPass)
+        .setRenderPass(*renderPass)
         .setSubpass(2)
     } { }

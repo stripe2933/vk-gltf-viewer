@@ -158,6 +158,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
         interface/imgui/UserData.cppm
         interface/MainApp.cppm
+        interface/math/bit.cppm
         interface/math/extended_arithmetic.cppm
         interface/math/Frustum.cppm
         interface/math/Plane.cppm
@@ -173,8 +174,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/shader_selector/unlit_primitive_vert.cppm
         interface/vulkan/attachment_group/MousePicking.cppm
         interface/vulkan/attachment_group/JumpFloodSeed.cppm
-        interface/vulkan/attachment_group/SceneOpaque.cppm
-        interface/vulkan/attachment_group/SceneWeightedBlended.cppm
+        interface/vulkan/attachment_group/Scene.cppm
         interface/vulkan/attachment_group/ImGui.cppm
         interface/vulkan/buffer/mod.cppm
         interface/vulkan/buffer/CubeIndices.cppm
@@ -182,9 +182,14 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/buffer/Materials.cppm
         interface/vulkan/buffer/PrimitiveAttributes.cppm
         interface/vulkan/descriptor_set_layout/Asset.cppm
+        interface/vulkan/descriptor_set_layout/BloomApply.cppm
         interface/vulkan/descriptor_set_layout/ImageBasedLighting.cppm
+        interface/vulkan/descriptor_set_layout/InverseToneMapping.cppm
         interface/vulkan/descriptor_set_layout/MousePicking.cppm
+        interface/vulkan/descriptor_set_layout/Outline.cppm
+        interface/vulkan/descriptor_set_layout/Renderer.cppm
         interface/vulkan/descriptor_set_layout/Skybox.cppm
+        interface/vulkan/descriptor_set_layout/WeightedBlendedComposition.cppm
         interface/vulkan/Frame.cppm
         interface/vulkan/FrameDeferredTask.cppm
         interface/vulkan/gltf/AssetExtended.cppm
@@ -204,9 +209,14 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline/SkyboxRenderPipeline.cppm
         interface/vulkan/pipeline/UnlitPrimitiveRenderPipeline.cppm
         interface/vulkan/pipeline/WeightedBlendedCompositionRenderPipeline.cppm
+        interface/vulkan/pipeline_layout/BloomApply.cppm
+        interface/vulkan/pipeline_layout/InverseToneMapping.cppm
         interface/vulkan/pipeline_layout/MousePicking.cppm
+        interface/vulkan/pipeline_layout/Outline.cppm
         interface/vulkan/pipeline_layout/Primitive.cppm
         interface/vulkan/pipeline_layout/PrimitiveNoShading.cppm
+        interface/vulkan/pipeline_layout/Skybox.cppm
+        interface/vulkan/pipeline_layout/WeightedBlendedComposition.cppm
         interface/vulkan/render_pass/BloomApply.cppm
         interface/vulkan/render_pass/CubemapToneMapping.cppm
         interface/vulkan/render_pass/Scene.cppm

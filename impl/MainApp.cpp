@@ -56,6 +56,7 @@ import vk_gltf_viewer.helpers.functional;
 import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.imgui.TaskCollector;
+import vk_gltf_viewer.math.extended_arithmetic;
 import vk_gltf_viewer.vulkan.FrameDeferredTask;
 import vk_gltf_viewer.vulkan.imgui.PlatformResource;
 import vk_gltf_viewer.vulkan.mipmap;
@@ -70,6 +71,11 @@ import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderPipeline;
 #else
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
+
+template <typename T, glm::qualifier Q>
+[[nodiscard]] constexpr ImVec2 toImVec2(const glm::vec<2, T, Q> &v) noexcept {
+    return { static_cast<float>(v.x), static_cast<float>(v.y) };
+}
 
 [[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform *transform) noexcept {
     if (transform) {
@@ -89,6 +95,7 @@ vk_gltf_viewer::MainApp::MainApp()
     : instance { createInstance() }
     , window { instance }
     , drawSelectionRectangle { false }
+    , lastMouseEnteredViewIndex { 0 }
     , gpu { instance, window.getSurface() }
     , renderer { std::make_shared<Renderer>(Renderer::Capabilities {
         .perFragmentBloom = gpu.supportShaderStencilExport,
@@ -228,11 +235,22 @@ void vk_gltf_viewer::MainApp::run() {
         // Collect task from window event (mouse, keyboard, drag and drop, ...).
         window.pollEvents(tasks);
 
-        // Collect task from ImGui (button click, menu selection, ...).
-        static ImRect passthruRect{};
+        // ImGui is not rendered at the first frame, and its passthrough region is evaluated as the window size.
+        // Currently, the application detects the passthrough region size update by comparing the old and the new values,
+        // therefore if this value is default initialized by (0, 0), control::task::ChangePassthruRect will be dispatched
+        // at the first execution of the frame, and frame attachment images are created with the swapchain extent.
+        // This could be significant memory impact, as usually the typical passthrough region size is much smaller
+        // (about 3x) than the swapchain extent.
+        // To avoid this, the passthrough region is initialized with the window size. Then the compare result will be
+        // same and control::task::ChangePassthruRect will be dispatched at the second execution of the frame, which
+        // will have the correct passthrough region size.
+        static ImRect passthruRect { {}, toImVec2(window.getSize()) };
+
         {
             ImGui_ImplGlfw_NewFrame();
             ImGui_ImplVulkan_NewFrame();
+
+            // Collect task from ImGui (button click, menu selection, ...).
             control::ImGuiTaskCollector imguiTaskCollector { tasks, passthruRect };
 
             // Get native window handle.
@@ -258,23 +276,28 @@ void vk_gltf_viewer::MainApp::run() {
             }
             imguiTaskCollector.rendererSetting(*renderer);
             if (assetExtended) {
-                imguiTaskCollector.imguizmo(*renderer, *assetExtended);
+                imguiTaskCollector.imguizmo(*renderer, lastMouseEnteredViewIndex, *assetExtended);
             }
             else {
-                imguiTaskCollector.imguizmo(*renderer);
+                imguiTaskCollector.imguizmo(*renderer, lastMouseEnteredViewIndex);
             }
 
             if (drawSelectionRectangle) {
-                const glm::dvec2 cursorPos = window.getCursorPos();
-                ImRect region {
-                    ImVec2 { static_cast<float>(lastMouseDownPosition->x), static_cast<float>(lastMouseDownPosition->y) },
-                    ImVec2 { static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) },
-                };
+                const ImVec2 startPos = toImVec2(*lastMouseDownPosition);
+
+                ImRect region { startPos, toImVec2(window.getCursorPos()) };
                 if (region.Min.x > region.Max.x) {
                     std::swap(region.Min.x, region.Max.x);
                 }
                 if (region.Min.y > region.Max.y) {
                     std::swap(region.Min.y, region.Max.y);
+                }
+
+                for (const ImRect &clipRect : renderer->getViewportRects(passthruRect)) {
+                    if (clipRect.Contains(startPos)) {
+                        region.ClipWith(clipRect);
+                        break;
+                    }
                 }
 
                 ImGui::GetBackgroundDrawList()->AddRectFilled(region.Min, region.Max, ImGui::GetColorU32({ 1.f, 1.f, 1.f, 0.2f }));
@@ -346,6 +369,15 @@ void vk_gltf_viewer::MainApp::run() {
                     if (lastMouseDownPosition && distance2(*lastMouseDownPosition, task.position) >= 4.0) {
                         drawSelectionRectangle = true;
                     }
+
+                    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) != GLFW_PRESS) {
+                        for (const auto &[viewIndex, rect] : renderer->getViewportRects(passthruRect) | ranges::views::enumerate) {
+                            if (rect.Contains(toImVec2(task.position))) {
+                                lastMouseEnteredViewIndex = viewIndex;
+                                break;
+                            }
+                        }
+                    }
                 },
                 [&](const control::task::WindowMouseButton &task) {
                     const bool leftMouseButtonPressed = task.button == GLFW_MOUSE_BUTTON_LEFT && task.action == GLFW_RELEASE && lastMouseDownPosition;
@@ -398,19 +430,47 @@ void vk_gltf_viewer::MainApp::run() {
                         [](const control::task::WindowTrackpadZoom &zoom) { return zoom.scale; }
                     }(task);
 
-                    const float factor = std::powf(1.01f, -scale);
-                    const glm::vec3 displacementToTarget = renderer->camera.direction * renderer->camera.targetDistance;
-                    renderer->camera.targetDistance *= factor;
-                    renderer->camera.position += (1.f - factor) * displacementToTarget;
+                    const auto scaleCamera = [&](control::Camera &camera) {
+                        const float factor = std::powf(1.01f, -scale);
+                        const glm::vec3 displacementToTarget = camera.direction * camera.targetDistance;
+                        camera.targetDistance *= factor;
+                        camera.position += (1.f - factor) * displacementToTarget;
+                    };
+
+                    if (ImGui::GetIO().KeyCtrl) {
+                        std::ranges::for_each(renderer->cameras, scaleCamera);
+                    }
+                    else {
+                        for (auto &&[camera, rect] : std::views::zip(renderer->cameras, renderer->getViewportRects(passthruRect))) {
+                            if (rect.Contains(toImVec2(window.getCursorPos()))) {
+                                scaleCamera(camera);
+                                break; // Only one camera will be adjusted.
+                            }
+                        }
+                    }
                 },
                 [this](const control::task::WindowTrackpadRotate &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
-                    // Rotate the camera around the Y-axis lied on the target point.
-                    const glm::vec3 target = renderer->camera.position + renderer->camera.direction * renderer->camera.targetDistance;
-                    const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
-                    renderer->camera.direction = glm::mat3 { rotation } * renderer->camera.direction;
-                    renderer->camera.position = target - renderer->camera.direction * renderer->camera.targetDistance;
+                    const auto rotateCamera = [&](control::Camera &camera) {
+                        // Rotate the camera around the Y-axis lied on the target point.
+                        const glm::vec3 target = camera.position + camera.direction * camera.targetDistance;
+                        const glm::mat4 rotation = rotate(-glm::radians<float>(task.angle), glm::vec3 { 0.f, 1.f, 0.f });
+                        camera.direction = glm::mat3 { rotation } * camera.direction;
+                        camera.position = target - camera.direction * camera.targetDistance;
+                    };
+
+                    if (ImGui::GetIO().KeyCtrl) {
+                        std::ranges::for_each(renderer->cameras, rotateCamera);
+                    }
+                    else {
+                        for (auto &&[camera, rect] : std::views::zip(renderer->cameras, renderer->getViewportRects(passthruRect))) {
+                            if (rect.Contains(toImVec2(window.getCursorPos()))) {
+                                rotateCamera(camera);
+                                break; // Only one camera will be adjusted.
+                            }
+                        }
+                    }
                 },
                 [&](const control::task::WindowDrop &task) {
                     // Prevent drag-and-drop when any dialog is opened.
@@ -449,17 +509,72 @@ void vk_gltf_viewer::MainApp::run() {
                     handleSwapchainResize();
                 },
                 [&](const control::task::ChangePassthruRect &task) {
-                    renderer->camera.aspectRatio = task.newRect.GetWidth() / task.newRect.GetHeight();
                     passthruRect = task.newRect;
 
-                    const vk::Extent2D extent {
-                        static_cast<std::uint32_t>(framebufferScale.x * task.newRect.GetWidth()),
-                        static_cast<std::uint32_t>(framebufferScale.y * task.newRect.GetHeight()),
+                    // Calculate viewport extent and make sure its width and heights are even.
+                    vk::Extent2D extent {
+                        static_cast<std::uint32_t>(std::ceil(framebufferScale.x * task.newRect.GetWidth())),
+                        static_cast<std::uint32_t>(std::ceil(framebufferScale.y * task.newRect.GetHeight())),
                     };
+                    extent.width += extent.width % 2; // Make sure the width is even number.
+                    extent.height += extent.height % 2; // Make sure the height is even number.
 
-                    // It replaces the previously set passthru extent with the new one.
-                    currentFrameTask.setPassthruExtent(extent);
-                    frameDeferredTask.setPassthruExtent(extent);
+                    // Update frame viewports.
+                    currentFrameTask.setViewportExtent(extent);
+                    frameDeferredTask.setViewportExtent(extent);
+
+                    // Calculate camera aspect ratio and apply it to the cameras.
+                    float aspectRatio = vku::aspect(extent);
+                    if (renderer->cameras.size() == 2) {
+                        aspectRatio /= 2.f;
+                    }
+
+                    for (control::Camera &camera : renderer->cameras) {
+                        camera.aspectRatio = aspectRatio;
+                    }
+                },
+                [&](const control::task::ChangeViewCount &task) {
+                    gpu.device.waitIdle();
+
+                    // The below aspect ratio multiplication logic is assuming that this task is called only if the
+                    // before/after view count is really changed.
+                    assert(renderer->cameras.size() != task.viewCount);
+
+                    float aspectRatioMultiplier = 1.f;
+                    if (renderer->cameras.size() == 2) {
+                        // View count is changed from 2 to 1 or 4. Aspect ratio is doubled.
+                        aspectRatioMultiplier = 2.f;
+                    }
+                    else if (task.viewCount == 2) {
+                        // View count is changed from 1 or 4 to 2. Aspect ratio is halved.
+                        aspectRatioMultiplier = 0.5f;
+                    }
+
+                    if (renderer->cameras.size() < task.viewCount) {
+                        // Extend vector with last element.
+                        std::fill_n(std::back_inserter(renderer->cameras), task.viewCount - renderer->cameras.size(), renderer->cameras.back());
+                    }
+                    else {
+                        renderer->cameras.resize(task.viewCount);
+                        lastMouseEnteredViewIndex = task.viewCount - 1;
+                    }
+
+                    for (control::Camera &camera : renderer->cameras) {
+                        camera.aspectRatio *= aspectRatioMultiplier;
+                    }
+
+                    if (task.viewCount > 1) {
+                        // TODO: support multiview frustum culling
+                        renderer->frustumCullingMode = Renderer::FrustumCullingMode::Off;
+                    }
+
+                    sharedData.setViewCount(renderer->cameras.size());
+
+                    currentFrameTask.updateViewCount();
+                    frameDeferredTask.updateViewCount();
+
+                    // TODO: only re-generate jump flood seed rendering commands only
+                    regenerateDrawCommands.fill(true);
                 },
                 [&](const control::task::LoadGltf &task) {
                     for (auto name : control::ImGuiTaskCollector::assetPopupNames) {
@@ -500,11 +615,13 @@ void vk_gltf_viewer::MainApp::run() {
 
                     // Adjust the camera based on the scene enclosing sphere.
                     const auto &[center, radius] = assetExtended->sceneMiniball.get();
-                    const float distance = radius / std::sin(renderer->camera.fov / 2.f);
-                    renderer->camera.position = glm::make_vec3(center.data()) - distance * normalize(renderer->camera.direction);
-                    renderer->camera.zMin = distance - radius;
-                    renderer->camera.zMax = distance + radius;
-                    renderer->camera.targetDistance = distance;
+                    for (control::Camera &camera : renderer->cameras) {
+                        const float distance = radius / std::sin(camera.fov / 2.f);
+                        camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
+                        camera.zMin = distance - radius;
+                        camera.zMax = distance + radius;
+                        camera.targetDistance = distance;
+                    }
 
                     transformedNodes.clear(); // They are all related to the previous glTF asset.
                     regenerateDrawCommands.fill(true);
@@ -773,9 +890,14 @@ void vk_gltf_viewer::MainApp::run() {
             assetExtended->sceneMiniball.invalidate();
         }
 
-        if (renderer->automaticNearFarPlaneAdjustment && assetExtended) {
+        // Tighten camera's near/far plane based on the updated scene bounds.
+        if (assetExtended) {
             const auto &[center, radius] = assetExtended->sceneMiniball.get();
-            renderer->camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+            for (control::Camera &camera : renderer->cameras) {
+                if (camera.automaticNearFarPlaneAdjustment) {
+                    camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+                }
+            }
         }
 
         if (hasUpdateData) {
@@ -790,21 +912,41 @@ void vk_gltf_viewer::MainApp::run() {
         // Update frame resources.
         currentFrameTask.executeAndReset(frame);
 
+        const vk::Offset2D passthruOffset = {
+            static_cast<std::int32_t>(framebufferScale.x * passthruRect.Min.x),
+            static_cast<std::int32_t>(framebufferScale.y * passthruRect.Min.y),
+        };
+
+        vk::Extent2D viewportExtent {
+            static_cast<std::uint32_t>(std::ceil(framebufferScale.x * passthruRect.GetWidth())),
+            static_cast<std::uint32_t>(std::ceil(framebufferScale.y * passthruRect.GetHeight())),
+        };
+        switch (renderer->cameras.size()) {
+            case 2:
+                viewportExtent.width = math::divCeil(viewportExtent.width, 2U);
+                break;
+            case 4:
+                viewportExtent.width = math::divCeil(viewportExtent.width, 2U);
+                viewportExtent.height = math::divCeil(viewportExtent.height, 2U);
+                break;
+        }
+
         frame.update({
-            .passthruOffset = {
-                static_cast<std::int32_t>(framebufferScale.x * passthruRect.Min.x),
-                static_cast<std::int32_t>(framebufferScale.y * passthruRect.Min.y),
-            },
+            .passthruOffset = passthruOffset,
             .gltf = value_if(static_cast<bool>(assetExtended), [&] {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex % FRAMES_IN_FLIGHT], false),
-                    .mousePickingInput = [&] -> std::optional<vk::Rect2D> {
-                        const glm::dvec2 cursorPos = window.getCursorPos();
+                    .mousePickingInput = [&] -> std::optional<std::pair<std::uint32_t, vk::Rect2D>> {
+                        if (frameIndex == 0) {
+                            // Passthrough region is not defined at the first frame (as ImGui is not rendered).
+                            return std::nullopt;
+                        }
+
+                        const ImVec2 cursorPos = toImVec2(window.getCursorPos());
                         if (drawSelectionRectangle) {
-                            ImRect selectionRect {
-                                { static_cast<float>(lastMouseDownPosition->x), static_cast<float>(lastMouseDownPosition->y) },
-                                { static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) },
-                            };
+                            const ImVec2 startPos = toImVec2(*lastMouseDownPosition);
+
+                            ImRect selectionRect { startPos, cursorPos };
                             if (selectionRect.Min.x > selectionRect.Max.x) {
                                 std::swap(selectionRect.Min.x, selectionRect.Max.x);
                             }
@@ -812,43 +954,66 @@ void vk_gltf_viewer::MainApp::run() {
                                 std::swap(selectionRect.Min.y, selectionRect.Max.y);
                             }
 
-                            selectionRect.ClipWith(passthruRect);
+                            for (const auto &[viewIndex, clipRect] : renderer->getViewportRects(passthruRect) | ranges::views::enumerate) {
+                                if (clipRect.Contains(startPos)) {
+                                    selectionRect.ClipWith(clipRect);
 
-                            vk::Rect2D result {
-                                {
-                                    static_cast<std::int32_t>(framebufferScale.x * (selectionRect.Min.x - passthruRect.Min.x)),
-                                    static_cast<std::int32_t>(framebufferScale.y * (selectionRect.Min.y - passthruRect.Min.y)),
-                                },
-                                {
-                                    static_cast<std::uint32_t>(framebufferScale.x * selectionRect.GetWidth()),
-                                    static_cast<std::uint32_t>(framebufferScale.y * selectionRect.GetHeight()),
-                                },
-                            };
+                                    vk::Extent2D extent {
+                                        static_cast<std::uint32_t>(framebufferScale.x * selectionRect.GetWidth()),
+                                        static_cast<std::uint32_t>(framebufferScale.y * selectionRect.GetHeight()),
+                                    };
 
-                            // If its size is zero, mouse picking should not be performed.
-                            if (result.extent.width == 0 || result.extent.height == 0) {
-                                return std::nullopt;
+                                    // If its size is zero, mouse picking should not be performed.
+                                    if (extent.width == 0 || extent.height == 0) {
+                                        return std::nullopt;
+                                    }
+
+                                    return std::pair {
+                                        static_cast<std::uint32_t>(viewIndex),
+                                        vk::Rect2D {
+                                            vk::Offset2D {
+                                                static_cast<std::int32_t>(framebufferScale.x * (selectionRect.Min.x - clipRect.Min.x)),
+                                                static_cast<std::int32_t>(framebufferScale.y * (selectionRect.Min.y - clipRect.Min.y)),
+                                            },
+                                            extent,
+                                        },
+                                    };
+                                }
                             }
+                            std::unreachable(); // drawSelectionRectangle == true but no selection rectangle.
+                        }
 
-                            return result;
+                        if (ImGui::GetIO().WantCaptureMouse) {
+                            return std::nullopt;
                         }
-                        if (passthruRect.Contains({ static_cast<float>(cursorPos.x), static_cast<float>(cursorPos.y) }) && !ImGui::GetIO().WantCaptureMouse) {
-                            // Note: be aware of implicit vk::Offset2D -> vk::Rect2D promotion!
-                            return vk::Rect2D {
-                                vk::Offset2D {
-                                    static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - passthruRect.Min.x)),
-                                    static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - passthruRect.Min.y)),
-                                },
-                                vk::Extent2D { 1, 1 },
-                            };
+
+                        for (const auto &[viewIndex, clipRect] : renderer->getViewportRects(passthruRect) | ranges::views::enumerate) {
+                            if (clipRect.Contains(cursorPos)) {
+                                return std::pair {
+                                    static_cast<std::uint32_t>(viewIndex),
+                                    vk::Rect2D {
+                                        vk::Offset2D {
+                                            static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - clipRect.Min.x)),
+                                            static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - clipRect.Min.y)),
+                                        },
+                                        vk::Extent2D { 1, 1 },
+                                    },
+                                };
+                            }
                         }
+
                         return std::nullopt;
                     }(),
                 };
             }),
         });
 
-        frame.recordCommandsAndSubmit(swapchain);
+        if (frameIndex == 0) {
+            frame.recordCommandsAndSubmitFirstFrame(swapchain);
+        }
+        else {
+            frame.recordCommandsAndSubmit(swapchain);
+        }
     }
     gpu.device.waitIdle();
 }
@@ -1051,11 +1216,13 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius] = assetExtended->sceneMiniball.get();
-    const float distance = radius / std::sin(renderer->camera.fov / 2.f);
-    renderer->camera.position = glm::make_vec3(center.data()) - distance * normalize(renderer->camera.direction);
-    renderer->camera.zMin = distance - radius;
-    renderer->camera.zMax = distance + radius;
-    renderer->camera.targetDistance = distance;
+    for (control::Camera &camera : renderer->cameras) {
+        const float distance = radius / std::sin(camera.fov / 2.f);
+        camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
+        camera.zMin = distance - radius;
+        camera.zMax = distance + radius;
+        camera.targetDistance = distance;
+    }
 }
 
 void vk_gltf_viewer::MainApp::closeGltf() {
