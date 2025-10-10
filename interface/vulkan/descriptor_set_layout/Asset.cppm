@@ -17,9 +17,9 @@ namespace vk_gltf_viewer::vulkan::dsl {
     //
     // For workaround, we'll manually separate the sampler and image (see SEPARATE_IMAGE_SAMPLER macro definition in the
     // primitive rendering pipeline's fragment shader).
-    export struct Asset : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eSampler, vk::DescriptorType::eSampledImage> {
+    export struct Asset : vku::raii::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eSampler, vk::DescriptorType::eSampledImage> {
 #else
-    export struct Asset : vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eCombinedImageSampler> {
+    export struct Asset : vku::raii::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eStorageBuffer, vk::DescriptorType::eCombinedImageSampler> {
 #endif
         explicit Asset(const Gpu &gpu LIFETIMEBOUND);
 
@@ -51,19 +51,20 @@ vk_gltf_viewer::vulkan::dsl::Asset::Asset(const Gpu &gpu)
     : DescriptorSetLayout { gpu.device, vk::StructureChain {
         vk::DescriptorSetLayoutCreateInfo {
             vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
-            vku::unsafeProxy(getBindings(
-                { 1, vk::ShaderStageFlagBits::eVertex },
-                { 1, vk::ShaderStageFlagBits::eVertex },
-                { 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment },
+            vku::lvalue({
+                DescriptorSetLayout::getCreateInfoBinding<0>(1, vk::ShaderStageFlagBits::eVertex),
+                DescriptorSetLayout::getCreateInfoBinding<1>(1, vk::ShaderStageFlagBits::eVertex),
+                DescriptorSetLayout::getCreateInfoBinding<2>(1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment),
             #if __APPLE__
-                { maxSamplerCount(gpu), vk::ShaderStageFlagBits::eFragment },
-                { maxImageCount(gpu), vk::ShaderStageFlagBits::eFragment })),
+                DescriptorSetLayout::getCreateInfoBinding<3>(maxSamplerCount(gpu), vk::ShaderStageFlagBits::eFragment),
+                DescriptorSetLayout::getCreateInfoBinding<4>(maxImageCount(gpu), vk::ShaderStageFlagBits::eFragment),
             #else
-                { maxSamplerCount(gpu), vk::ShaderStageFlagBits::eFragment })),
+                DescriptorSetLayout::getCreateInfoBinding<3>(maxSamplerCount(gpu), vk::ShaderStageFlagBits::eFragment),
             #endif
+            }),
         },
         vk::DescriptorSetLayoutBindingFlagsCreateInfo {
-            vku::unsafeProxy<vk::DescriptorBindingFlags>({
+            vku::lvalue<vk::DescriptorBindingFlags>({
                 {},
                 {},
                 {},

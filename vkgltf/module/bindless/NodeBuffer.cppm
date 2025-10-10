@@ -73,7 +73,7 @@ namespace vkgltf {
      *     |        ...       |
      *     |------------------|
      */
-    export class NodeBuffer : public vku::AllocatedBuffer {
+    export class NodeBuffer : public vku::raii::AllocatedBuffer {
     public:
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         class Config {

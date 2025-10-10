@@ -15,7 +15,7 @@ import vk_gltf_viewer.shader.jump_flood_comp;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class JumpFloodComputePipeline {
     public:
-        using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eStorageImage>;
+        using DescriptorSetLayout = vku::raii::DescriptorSetLayout<vk::DescriptorType::eStorageImage>;
 
         DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
@@ -25,7 +25,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
         [[nodiscard]] bool compute(
             vk::CommandBuffer commandBuffer,
-            vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
+            vk::DescriptorSet descriptorSet,
             std::uint32_t initialSampleOffset,
             const vk::Extent2D &imageExtent,
             std::uint32_t viewCount
@@ -48,27 +48,33 @@ struct vk_gltf_viewer::vulkan::pipeline::JumpFloodComputePipeline::PushConstant 
 vk_gltf_viewer::vulkan::pipeline::JumpFloodComputePipeline::JumpFloodComputePipeline(const vk::raii::Device &device)
     : descriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
         {},
-        vku::unsafeProxy(DescriptorSetLayout::getBindings({ 1, vk::ShaderStageFlagBits::eCompute })),
+        vku::lvalue(DescriptorSetLayout::getCreateInfoBinding<0>(1, vk::ShaderStageFlagBits::eCompute)),
     } }
     , pipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
         *descriptorSetLayout,
-        vku::unsafeProxy(vk::PushConstantRange {
+        vku::lvalue(vk::PushConstantRange {
             vk::ShaderStageFlagBits::eCompute,
             0, sizeof(PushConstant),
         }),
     } }
     , pipeline { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        createPipelineStages(
-            device,
-            vku::Shader { shader::jump_flood_comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
+        vk::PipelineShaderStageCreateInfo {
+            {},
+            vk::ShaderStageFlagBits::eCompute,
+            *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                {},
+                shader::jump_flood_comp,
+            } }),
+            "main",
+        },
         *pipelineLayout,
     } } { }
 
 bool vk_gltf_viewer::vulkan::pipeline::JumpFloodComputePipeline::compute(
     vk::CommandBuffer commandBuffer,
-    vku::DescriptorSet<DescriptorSetLayout> descriptorSet,
+    vk::DescriptorSet descriptorSet,
     std::uint32_t initialSampleOffset,
     const vk::Extent2D &imageExtent,
     std::uint32_t viewCount

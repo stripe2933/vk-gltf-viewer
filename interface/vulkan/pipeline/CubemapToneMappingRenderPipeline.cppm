@@ -14,7 +14,7 @@ export import vk_gltf_viewer.vulkan.render_pass.CubemapToneMapping;
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class CubemapToneMappingRenderPipeline {
     public:
-        using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage>;
+        using DescriptorSetLayout = vku::raii::DescriptorSetLayout<vk::DescriptorType::eSampledImage>;
 
         DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
@@ -36,31 +36,52 @@ vk_gltf_viewer::vulkan::pipeline::CubemapToneMappingRenderPipeline::CubemapToneM
     const rp::CubemapToneMapping &renderPass
 ) : descriptorSetLayout { gpu.device, vk::DescriptorSetLayoutCreateInfo {
         vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
-        vku::unsafeProxy(DescriptorSetLayout::getBindings({ 1, vk::ShaderStageFlagBits::eFragment })),
+        vku::lvalue(DescriptorSetLayout::getCreateInfoBinding<0>(1, vk::ShaderStageFlagBits::eFragment)),
     } },
     pipelineLayout { gpu.device, vk::PipelineLayoutCreateInfo {
         {},
         *descriptorSetLayout,
     } },
-    pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-        createPipelineStages(
-            gpu.device,
-            vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
-            vku::Shader {
-                gpu.supportShaderTrinaryMinMax
-                    ? std::span<const std::uint32_t> { shader::cubemap_tone_mapping_frag<1> }
-                    : std::span<const std::uint32_t> { shader::cubemap_tone_mapping_frag<0> },
+    pipeline { gpu.device, nullptr, vk::GraphicsPipelineCreateInfo {
+        {},
+        vku::lvalue({
+            vk::PipelineShaderStageCreateInfo {
+                {},
+                vk::ShaderStageFlagBits::eVertex,
+                *vku::lvalue(vk::raii::ShaderModule { gpu.device, vk::ShaderModuleCreateInfo {
+                    {},
+                    shader::screen_quad_vert,
+                } }),
+                "main",
+            },
+            vk::PipelineShaderStageCreateInfo {
+                {},
                 vk::ShaderStageFlagBits::eFragment,
-            }).get(),
-        *pipelineLayout, 1)
-        .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
+                *vku::lvalue(vk::raii::ShaderModule { gpu.device, vk::ShaderModuleCreateInfo {
+                    {},
+                    vku::lvalue(gpu.supportShaderTrinaryMinMax
+                        ? std::span<const std::uint32_t> { shader::cubemap_tone_mapping_frag<1> }
+                        : std::span<const std::uint32_t> { shader::cubemap_tone_mapping_frag<0> }),
+                } }),
+                "main",
+            },
+        }),
+        &vku::lvalue(vk::PipelineVertexInputStateCreateInfo{}),
+        &vku::lvalue(vku::defaultPipelineInputAssemblyState(vk::PrimitiveTopology::eTriangleList)),
+        nullptr,
+        &vku::lvalue(vk::PipelineViewportStateCreateInfo {
             {},
-            false, false,
-            vk::PolygonMode::eFill,
-            vk::CullModeFlagBits::eNone, {},
-            {}, {}, {}, {},
-            1.f,
-        }))
-        .setRenderPass(*renderPass)
-        .setSubpass(0),
-    } { }
+            1, nullptr,
+            1, nullptr,
+        }),
+        &vku::lvalue(vku::defaultPipelineRasterizationState()),
+        &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e1 }),
+        nullptr,
+        &vku::lvalue(vku::defaultPipelineColorBlendState(1)),
+        &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
+            {},
+            vku::lvalue({ vk::DynamicState::eViewport, vk::DynamicState::eScissor }),
+        }),
+        *pipelineLayout,
+        *renderPass, 0,
+    } } { }

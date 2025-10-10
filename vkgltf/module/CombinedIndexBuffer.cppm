@@ -135,7 +135,7 @@ namespace vkgltf {
      * | u32 indices | ... | u32 indices | u16 indices | ... | u16 indices | u8 indices | ... | u8 indices |
      * +---------------------------------------------------------------------------------------------------+
      */
-    export class CombinedIndexBuffer final : public vku::AllocatedBuffer {
+    export class CombinedIndexBuffer final : public vku::raii::AllocatedBuffer {
         struct DefaultTopologyConvertFn {
             static fastgltf::PrimitiveType operator()(fastgltf::PrimitiveType type) noexcept {
                 return type == fastgltf::PrimitiveType::LineLoop ? fastgltf::PrimitiveType::LineStrip : type;

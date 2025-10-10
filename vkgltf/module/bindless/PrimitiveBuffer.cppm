@@ -87,7 +87,7 @@ namespace vkgltf {
      *     |         ...       |
      *     +-------------------+
      */
-    export class PrimitiveBuffer : public vku::AllocatedBuffer {
+    export class PrimitiveBuffer : public vku::raii::AllocatedBuffer {
     public:
         struct Config {
             struct DefaultMaterialIndexFn {

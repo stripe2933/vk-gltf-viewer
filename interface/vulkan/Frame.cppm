@@ -71,7 +71,7 @@ namespace vk_gltf_viewer::vulkan {
 
             vkgltf::NodeBuffer nodeBuffer;
 
-            vku::MappedBuffer mousePickingResultBuffer;
+            vku::raii::AllocatedBuffer mousePickingResultBuffer;
 
             std::optional<std::pair<std::uint32_t, vk::Rect2D>> mousePickingInput;
 
@@ -143,7 +143,7 @@ namespace vk_gltf_viewer::vulkan {
         // --------------------
 
         std::optional<GltfAsset> gltfAsset;
-        vku::DescriptorSet<dsl::Asset> assetDescriptorSet;
+        vk::DescriptorSet assetDescriptorSet;
 
         Frame(std::shared_ptr<const Renderer> renderer, const SharedData &sharedData LIFETIMEBOUND);
 
@@ -165,7 +165,7 @@ namespace vk_gltf_viewer::vulkan {
         public:
             class JumpFloodResources {
             public:
-                vku::AllocatedImage image;
+                vku::raii::AllocatedImage image;
                 vk::raii::ImageView imageView;
                 std::array<vk::raii::ImageView, 2> pingPongImageViews;
 
@@ -201,7 +201,7 @@ namespace vk_gltf_viewer::vulkan {
             ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 
             // Bloom.
-            vku::AllocatedImage bloomImage;
+            vku::raii::AllocatedImage bloomImage;
             vk::raii::ImageView bloomImageView;
             std::vector<vk::raii::ImageView> bloomMipImageViews;
 
@@ -219,7 +219,7 @@ namespace vk_gltf_viewer::vulkan {
             void setViewCount(std::uint32_t count, vk::CommandBuffer graphicsCommandBuffer);
 
         private:
-            [[nodiscard]] vku::AllocatedImage createBloomImage() const;
+            [[nodiscard]] vku::raii::AllocatedImage createBloomImage() const;
             [[nodiscard]] std::vector<vk::raii::ImageView> createBloomMipImageViews() const;
 
             void recordImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const;
@@ -243,7 +243,7 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         // Buffer, image and image views.
-        vku::AllocatedBuffer cameraBuffer;
+        vku::raii::AllocatedBuffer cameraBuffer;
         std::optional<Viewport> viewport;
 
         // Descriptor/command pools.
@@ -252,16 +252,16 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::CommandPool graphicsCommandPool;
 
         // Descriptor sets.
-        vku::DescriptorSet<dsl::Renderer> rendererSet;
-        vku::DescriptorSet<dsl::MousePicking> mousePickingSet;
-        vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> hoveringNodeJumpFloodSet;
-        vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> selectedNodeJumpFloodSet;
-        vku::DescriptorSet<dsl::Outline> hoveringNodeOutlineSet;
-        vku::DescriptorSet<dsl::Outline> selectedNodeOutlineSet;
-        vku::DescriptorSet<dsl::WeightedBlendedComposition> weightedBlendedCompositionSet;
-        vku::DescriptorSet<dsl::InverseToneMapping> inverseToneMappingSet;
-        vku::DescriptorSet<bloom::BloomComputePipeline::DescriptorSetLayout> bloomSet;
-        vku::DescriptorSet<dsl::BloomApply> bloomApplySet;
+        vk::DescriptorSet rendererSet;
+        vk::DescriptorSet mousePickingSet;
+        vk::DescriptorSet hoveringNodeJumpFloodSet;
+        vk::DescriptorSet selectedNodeJumpFloodSet;
+        vk::DescriptorSet hoveringNodeOutlineSet;
+        vk::DescriptorSet selectedNodeOutlineSet;
+        vk::DescriptorSet weightedBlendedCompositionSet;
+        vk::DescriptorSet inverseToneMappingSet;
+        vk::DescriptorSet bloomSet;
+        vk::DescriptorSet bloomApplySet;
 
         // Command buffers.
         vk::CommandBuffer scenePrepassCommandBuffer;
@@ -280,13 +280,13 @@ namespace vk_gltf_viewer::vulkan {
         std::optional<RenderingNodes> renderingNodes;
         std::optional<SelectedNodes> selectedNodes;
         std::optional<HoveringNode> hoveringNode;
-        std::variant<vku::DescriptorSet<dsl::Skybox>, glm::vec3> background;
+        std::variant<vk::DescriptorSet, glm::vec3> background;
 
         [[nodiscard]] vk::raii::DescriptorPool createDescriptorPool() const;
 
         void recordScenePrepassCommands(vk::CommandBuffer cb) const;
         // Return true if last jump flood calculation direction is forward (result is in pong image), false if backward.
-        [[nodiscard]] bool recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> descriptorSet, std::uint32_t initialSampleOffset) const;
+        [[nodiscard]] bool recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vk::DescriptorSet descriptorSet, std::uint32_t initialSampleOffset) const;
         void recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const;
         bool recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const;
         void recordSkyboxDrawCommands(vk::CommandBuffer cb) const;

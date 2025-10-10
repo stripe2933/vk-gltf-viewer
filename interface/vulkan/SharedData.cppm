@@ -121,8 +121,8 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::DescriptorPool descriptorPool;
 
         // Descriptor sets.
-        vku::DescriptorSet<dsl::ImageBasedLighting> imageBasedLightingDescriptorSet;
-        vku::DescriptorSet<dsl::Skybox> skyboxDescriptorSet;
+        vk::DescriptorSet imageBasedLightingDescriptorSet;
+        vk::DescriptorSet skyboxDescriptorSet;
 
         // --------------------
         // glTF assets.
@@ -207,14 +207,23 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
     , weightedBlendedCompositionRenderPipeline { gpu, weightedBlendedCompositionPipelineLayout, sceneRenderPass }
     , inverseToneMappingRenderPipeline { gpu, inverseToneMappingPipelineLayout, sceneRenderPass }
     , bloomApplyRenderPipeline { gpu, bloomApplyPipelineLayout, bloomApplyRenderPass }
-    , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
-    , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
+    , imGuiAttachmentGroup { gpu, swapchainImages }
+    , descriptorPool { [&] {
+        const vku::DescriptorPoolSize poolSize { imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout };
+        return vk::raii::DescriptorPool { gpu.device, vk::DescriptorPoolCreateInfo {
+            {},
+            poolSize.getSetCount(),
+            vku::lvalue(poolSize.getDescriptorPoolSizes()),
+        } };
+    }() }
     , fallbackTexture { gpu }{
     // Initialize view count dependent resources for viewMask=0b1 at the launch time.
     multiviewPipelines.try_emplace(0b1U, gpu, primitiveNoShadingPipelineLayout, 0b1U);
 
-    std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet) = vku::allocateDescriptorSets(
-        *descriptorPool, std::tie(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout));
+    vku::allocateDescriptorSets(gpu.device, *descriptorPool, {
+        { imageBasedLightingDescriptorSetLayout, std::ref(imageBasedLightingDescriptorSet) },
+        { skyboxDescriptorSetLayout, std::ref(skyboxDescriptorSet) },
+    });
 }
 
 // --------------------
@@ -223,7 +232,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
 // --------------------
 
 void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages) {
-    imGuiAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
+    imGuiAttachmentGroup = { gpu, swapchainImages };
 }
 
 void vk_gltf_viewer::vulkan::SharedData::setViewCount(std::uint32_t viewCount) {

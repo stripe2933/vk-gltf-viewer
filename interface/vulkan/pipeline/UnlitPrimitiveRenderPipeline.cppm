@@ -20,7 +20,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
     export class UnlitPrimitiveRenderPipeline final : public vk::raii::Pipeline {
     public:
         struct Config {
-            std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
+            std::optional<vku::TopologyClass> topologyClass;
             fastgltf::ComponentType positionComponentType;
             bool positionNormalized;
             std::optional<std::pair<fastgltf::ComponentType, bool>> baseColorTexcoordComponentTypeAndNormalized;
@@ -91,121 +91,116 @@ vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRenderPipeline::UnlitPrimitiveRe
             vk::ArrayProxyNoTemporaries<const FragmentShaderSpecialization> { fragmentShaderSpecialization },
         };
 
-        const vku::RefHolder pipelineStages = createPipelineStages(
-            device,
-            vku::Shader {
-                std::apply(LIFT(shader_selector::unlit_primitive_vert), getVertexShaderVariants(config)),
+        const vk::raii::ShaderModule vertexShaderModule { device, vk::ShaderModuleCreateInfo {
+            {},
+            vku::lvalue(std::apply(LIFT(shader_selector::unlit_primitive_vert), getVertexShaderVariants(config))),
+        } };
+        const vk::raii::ShaderModule fragmentShaderModule { device, vk::ShaderModuleCreateInfo {
+            {},
+            vku::lvalue(std::apply(LIFT(shader_selector::unlit_primitive_frag), getFragmentShaderVariants(config))),
+        } };
+
+        const std::array pipelineShaderStageCreateInfos {
+            vk::PipelineShaderStageCreateInfo {
+                {},
                 vk::ShaderStageFlagBits::eVertex,
+                *vertexShaderModule,
+                "main",
                 &vertexShaderSpecializationInfo
             },
-            vku::Shader {
-                std::apply(LIFT(shader_selector::unlit_primitive_frag), getFragmentShaderVariants(config)),
+            vk::PipelineShaderStageCreateInfo {
+                {},
                 vk::ShaderStageFlagBits::eFragment,
+                *fragmentShaderModule,
+                "main",
                 &fragmentShaderSpecializationInfo,
-            });
+            },
+        };
 
-        const vk::PipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo {
+        constexpr vk::PipelineVertexInputStateCreateInfo vertexInputStateCreateInfo{};
+        const auto inputAssemblyStateCreateInfo = vku::defaultPipelineInputAssemblyState(vku::getListPrimitiveTopology(config.topologyClass.value_or(vku::TopologyClass::eTriangle)));
+        constexpr vk::PipelineViewportStateCreateInfo viewportStateCreateInfo {
             {},
-            config.topologyClass.value_or(vk::PrimitiveTopology::eTriangleList),
+            1, nullptr,
+            1, nullptr,
+        };
+        auto rasterizationStateCreateInfo = vku::defaultPipelineRasterizationState({}, vk::CullModeFlagBits::eBack);
+        vk::PipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo { {}, true, true, vk::CompareOp::eGreater }; // Use reverse Z.
+        vk::PipelineMultisampleStateCreateInfo multisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e4 };
+
+        constexpr auto opaqueColorBlendStateCreateInfo = vku::defaultPipelineColorBlendState(1);
+
+        constexpr std::array translucentColorBlendAttachmentStates {
+            vk::PipelineColorBlendAttachmentState {
+                true,
+                vk::BlendFactor::eOne, vk::BlendFactor::eOne, vk::BlendOp::eAdd,
+                vk::BlendFactor::eOne, vk::BlendFactor::eOne, vk::BlendOp::eAdd,
+                vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+            },
+            vk::PipelineColorBlendAttachmentState {
+                true,
+                vk::BlendFactor::eZero, vk::BlendFactor::eOneMinusSrcColor, vk::BlendOp::eAdd,
+                vk::BlendFactor::eZero, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
+                vk::ColorComponentFlagBits::eR,
+            },
+        };
+        const vk::PipelineColorBlendStateCreateInfo translucentColorBlendStateCreateInfo {
+            {},
+            false, {},
+            translucentColorBlendAttachmentStates,
+            { 1.f, 1.f, 1.f, 1.f },
+        };
+
+        constexpr std::array dynamicStates {
+            vk::DynamicState::eViewport,
+            vk::DynamicState::eScissor,
+            vk::DynamicState::ePrimitiveTopology,
+            vk::DynamicState::eCullMode,
+        };
+        vk::PipelineDynamicStateCreateInfo dynamicStateCreateInfo { {}, dynamicStates };
+
+        vk::GraphicsPipelineCreateInfo createInfo {
+            {},
+            pipelineShaderStageCreateInfos,
+            &vertexInputStateCreateInfo,
+            &inputAssemblyStateCreateInfo,
+            nullptr,
+            &viewportStateCreateInfo,
+            &rasterizationStateCreateInfo,
+            &multisampleStateCreateInfo,
+            &depthStencilStateCreateInfo,
+            nullptr, // Set later based on alpha mode.
+            &dynamicStateCreateInfo,
+            *layout,
+            *sceneRenderPass,
         };
 
         switch (config.alphaMode) {
             case fastgltf::AlphaMode::Opaque:
-                return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                    pipelineStages.get(), *layout, 1, true, vk::SampleCountFlagBits::e4)
-                    .setPInputAssemblyState(&inputAssemblyStateCreateInfo)
-                    .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
-                        {},
-                        true, true, vk::CompareOp::eGreater, // Use reverse Z.
-                    }))
-                    .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
-                        {},
-                        vku::unsafeProxy({
-                            vk::DynamicState::eViewport,
-                            vk::DynamicState::eScissor,
-                            vk::DynamicState::ePrimitiveTopology,
-                            vk::DynamicState::eCullMode,
-                        }),
-                    }))
-                    .setRenderPass(*sceneRenderPass)
-                    .setSubpass(0)
-                };
+                createInfo.pColorBlendState = &opaqueColorBlendStateCreateInfo;
+                createInfo.subpass = 0;
+                break;
             case fastgltf::AlphaMode::Mask:
-                return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                    pipelineStages.get(), *layout, 1, true, vk::SampleCountFlagBits::e4)
-                    .setPInputAssemblyState(&inputAssemblyStateCreateInfo)
-                    .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
-                        {},
-                        true, true, vk::CompareOp::eGreater, // Use reverse Z.
-                    }))
-                    .setPMultisampleState(vku::unsafeAddress(vk::PipelineMultisampleStateCreateInfo {
-                        {},
-                        vk::SampleCountFlagBits::e4,
-                        {}, {}, {},
-                        true,
-                    }))
-                    .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
-                        {},
-                        vku::unsafeProxy({
-                            vk::DynamicState::eViewport,
-                            vk::DynamicState::eScissor,
-                            vk::DynamicState::ePrimitiveTopology,
-                            vk::DynamicState::eCullMode,
-                        }),
-                    }))
-                    .setRenderPass(*sceneRenderPass)
-                    .setSubpass(0)
-                };
+                multisampleStateCreateInfo.alphaToCoverageEnable = true;
+                createInfo.pColorBlendState = &opaqueColorBlendStateCreateInfo;
+                createInfo.subpass = 0;
+                break;
             case fastgltf::AlphaMode::Blend:
-                return { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-                    pipelineStages.get(), *layout, 1, true, vk::SampleCountFlagBits::e4)
-                    .setPInputAssemblyState(&inputAssemblyStateCreateInfo)
-                    .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
-                        {},
-                        false, false,
-                        vk::PolygonMode::eFill,
-                        // Translucent objects' back faces shouldn't be culled.
-                        vk::CullModeFlagBits::eNone, {},
-                        false, {}, {}, {},
-                        1.f,
-                    }))
-                    .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
-                        {},
-                        // Translucent objects shouldn't interfere with the pre-rendered depth buffer. Use reverse Z.
-                        true, false, vk::CompareOp::eGreater,
-                    }))
-                    .setPColorBlendState(vku::unsafeAddress(vk::PipelineColorBlendStateCreateInfo {
-                        {},
-                        false, {},
-                        vku::unsafeProxy({
-                            vk::PipelineColorBlendAttachmentState {
-                                true,
-                                vk::BlendFactor::eOne, vk::BlendFactor::eOne, vk::BlendOp::eAdd,
-                                vk::BlendFactor::eOne, vk::BlendFactor::eOne, vk::BlendOp::eAdd,
-                                vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-                            },
-                            vk::PipelineColorBlendAttachmentState {
-                                true,
-                                vk::BlendFactor::eZero, vk::BlendFactor::eOneMinusSrcColor, vk::BlendOp::eAdd,
-                                vk::BlendFactor::eZero, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
-                                vk::ColorComponentFlagBits::eR,
-                            },
-                        }),
-                        { 1.f, 1.f, 1.f, 1.f },
-                    }))
-                    .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
-                        {},
-                        vku::unsafeProxy({
-                            vk::DynamicState::eViewport,
-                            vk::DynamicState::eScissor,
-                            vk::DynamicState::ePrimitiveTopology,
-                        }),
-                    }))
-                    .setRenderPass(*sceneRenderPass)
-                    .setSubpass(1)
-                };
+                // Translucent objects' back faces shouldn't be culled.
+                rasterizationStateCreateInfo.cullMode = vk::CullModeFlagBits::eNone;
+
+                static_assert(dynamicStates.size() == 4 && dynamicStates[3] == vk::DynamicState::eCullMode, "dynamicStates modified");
+                dynamicStateCreateInfo.dynamicStateCount = 3;
+
+                // Translucent objects shouldn't interfere with the pre-rendered depth buffer.
+                depthStencilStateCreateInfo.depthWriteEnable = false;
+
+                createInfo.pColorBlendState = &translucentColorBlendStateCreateInfo;
+                createInfo.subpass = 1;
+                break;
         }
-        std::unreachable();
+
+        return { device, nullptr, createInfo };
     }() } { }
 
 std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRenderPipeline::getVertexShaderVariants(const Config &config) noexcept {

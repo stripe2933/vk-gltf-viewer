@@ -38,7 +38,7 @@ struct StagingData {
     vk::Format format;
     std::uint32_t mipLevels;
 
-    std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> data;
+    std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> data;
     void *hostBackedData;
 
     [[nodiscard]] static StagingData fromJpgPng(const char *path, const std::function<vk::Format(int)> &formatFn, vma::Allocator *allocator);
@@ -188,7 +188,7 @@ namespace vkgltf {
         #endif
         };
 
-        vku::AllocatedImage image;
+        vku::raii::AllocatedImage image;
 
         /**
          * @brief Vulkan image view for \p image with the same format and component mapping defined as below:
@@ -209,11 +209,11 @@ namespace vkgltf {
             vma::Allocator allocator,
             const Config<BufferDataAdapter> &config = {}
         ) : image { createImage(asset, image, directory, device, allocator, config) },
-            view { device, this->image.getViewCreateInfo().setComponents(getComponentMapping(componentCount(this->image.format))) } { }
+            view { device, this->image.getViewCreateInfo(vk::ImageViewType::e2D).setComponents(getComponentMapping(componentCount(this->image.format))) } { }
 
     private:
         template <typename BufferDataAdapter>
-        [[nodiscard]] static vku::AllocatedImage createImage(
+        [[nodiscard]] static vku::raii::AllocatedImage createImage(
             const fastgltf::Asset &asset,
             const fastgltf::Image &image,
             const std::filesystem::path &directory,
@@ -317,7 +317,7 @@ namespace vkgltf {
         #endif
             {
                 if (config.uncompressedImageMipmapPolicy != MipmapPolicy::No) {
-                    createInfo.get().mipLevels = vku::Image::maxMipLevels(stagingData.extent);
+                    createInfo.get().mipLevels = vku::maxMipLevels(stagingData.extent);
                 }
 
                 createInfo.get().usage = config.uncompressedImageUsageFlags
@@ -338,7 +338,7 @@ namespace vkgltf {
             }
         #endif
 
-            vku::AllocatedImage result { allocator, createInfo.get(), config.allocationCreateInfo };
+            vku::raii::AllocatedImage result { allocator, createInfo.get(), config.allocationCreateInfo };
 
             vk::ImageLayout dstLayout;
         #ifdef USE_KTX
@@ -545,7 +545,7 @@ StagingData StagingData::fromJpgPng(const vk::Extent2D &extent, stbi_uc *&&data,
         .mipLevels = 1,
         .data = [&] {
             if (allocator) {
-                std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> result {
+                std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> result {
                     std::in_place_index<0>,
                     std::piecewise_construct,
                     std::forward_as_tuple(
@@ -574,7 +574,7 @@ StagingData StagingData::fromJpgPng(const vk::Extent2D &extent, stbi_uc *&&data,
                 return result;
             }
             else {
-                return std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
+                return std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
                     std::in_place_index<1>,
                     {
                         vk::MemoryToImageCopy {
@@ -633,7 +633,7 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocat
         .mipLevels = texture->numLevels,
         .data = [&] {
             if (allocator) {
-                std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> resultVariant {
+                std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> resultVariant {
                     std::in_place_index<0>,
                     std::piecewise_construct,
                     std::forward_as_tuple(
@@ -659,7 +659,7 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocat
                                 return vk::BufferImageCopy {
                                     offset, 0, 0,
                                     vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
-                                    vk::Offset3D{}, vk::Extent3D { vku::Image::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
+                                    vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
                                 };
                             })),
                 };
@@ -675,7 +675,7 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocat
                 return resultVariant;
             }
             else {
-                return std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
+                return std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
                     std::in_place_index<1>,
                     std::from_range,
                     std::views::iota(std::uint32_t{}, texture->numLevels)
@@ -688,7 +688,7 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocat
                             return vk::MemoryToImageCopy {
                                 data + offset, 0, 0,
                                 vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
-                                vk::Offset3D{}, vk::Extent3D { vku::Image::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
+                                vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
                             };
                         }),
                 };

@@ -2,7 +2,7 @@ export module vk_gltf_viewer.vulkan.pipeline.PrepassPipelineConfig;
 
 import std;
 export import fastgltf;
-export import vulkan_hpp;
+export import vku;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
     export template <bool Mask>
@@ -10,7 +10,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
     export template <>
     struct PrepassPipelineConfig<false> {
-        std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
+        std::optional<vku::TopologyClass> topologyClass;
         fastgltf::ComponentType positionComponentType;
         bool positionNormalized;
         std::uint32_t positionMorphTargetCount;
@@ -21,7 +21,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 
     export template <>
     struct PrepassPipelineConfig<true> {
-        std::optional<vk::PrimitiveTopology> topologyClass; // Only list topology will be used in here.
+        std::optional<vku::TopologyClass> topologyClass;
         fastgltf::ComponentType positionComponentType;
         bool positionNormalized;
         std::optional<std::pair<fastgltf::ComponentType, bool>> baseColorTexcoordComponentTypeAndNormalized;

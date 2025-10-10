@@ -8,7 +8,6 @@ option(VKGLTF_USE_BINDLESS "Bindless")
 
 find_package(fastgltf CONFIG REQUIRED)
 find_package(Stb REQUIRED)
-find_package(vku CONFIG REQUIRED)
 
 if (VKGLTF_USE_MIKKTSPACE)
     find_package(mikktspace CONFIG REQUIRED)
@@ -64,7 +63,7 @@ target_sources(vkgltf PUBLIC
 )
 target_link_libraries(vkgltf PUBLIC
     fastgltf::module
-    vku::vku
+    vku::module
 )
 set_target_properties(vkgltf PROPERTIES CXX_MODULE_STD 1)
 
@@ -109,7 +108,7 @@ if (VKGLTF_USE_BINDLESS)
     target_link_libraries(vkgltf_bindless
         PUBLIC
             vkgltf::vkgltf
-            vku::vku # TODO: this need to be transitively included by vkgltf::vkgltf, but CMake cannot configure it.
+            vku::module # TODO: this need to be transitively included by vkgltf::vkgltf, but CMake cannot configure it.
         PRIVATE vkgltf::util
     )
 

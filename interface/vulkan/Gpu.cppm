@@ -21,11 +21,6 @@ namespace vk_gltf_viewer::vulkan {
         vk::Queue compute, graphicsPresent, transfer;
 
         Queues(vk::Device device, const QueueFamilies& queueFamilies) noexcept;
-
-        [[nodiscard]] static vku::RefHolder<std::vector<vk::DeviceQueueCreateInfo>> getCreateInfos(
-            vk::PhysicalDevice,
-            const QueueFamilies &queueFamilies
-        ) noexcept;
     };
 
     export class Gpu {

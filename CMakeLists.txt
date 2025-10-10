@@ -32,7 +32,6 @@ find_package(imguizmo CONFIG REQUIRED)
 find_package(meshoptimizer CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
 find_package(Stb REQUIRED)
-find_package(vku CONFIG REQUIRED)
 
 # --------------------
 # Optional external dependencies.
@@ -75,6 +74,10 @@ add_library(glm::module ALIAS glm_module)
 # --------------------
 
 include(cmake/CompileShader.cmake)
+
+set(VKU_DISPATCH_LOADER_DYNAMIC ON)
+set(VKU_BUILD_MODULE ON)
+add_subdirectory(vku)
 
 add_subdirectory(bloom)
 add_subdirectory(cubemap)
@@ -154,7 +157,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/span.cppm
         interface/helpers/TempStringBuffer.cppm
         interface/helpers/type_map.cppm
-        interface/helpers/vulkan.cppm
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
         interface/imgui/UserData.cppm
         interface/MainApp.cppm
@@ -176,7 +178,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/attachment_group/JumpFloodSeed.cppm
         interface/vulkan/attachment_group/Scene.cppm
         interface/vulkan/attachment_group/ImGui.cppm
-        interface/vulkan/buffer/mod.cppm
         interface/vulkan/buffer/CubeIndices.cppm
         interface/vulkan/buffer/IndirectDrawCommands.cppm
         interface/vulkan/buffer/Materials.cppm
@@ -245,7 +246,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     meshoptimizer::meshoptimizer
     nfd::nfd
     vkgltf::bindless
-    vku::vku
+    vku::module
     $<$<PLATFORM_ID:Linux>:-lX11> # Starting from ImGui v1.92.3, using GLFW backend on Linux/BSD etc. requires linking with -lX11.
 )
 target_compile_definitions(vk-gltf-viewer PRIVATE
