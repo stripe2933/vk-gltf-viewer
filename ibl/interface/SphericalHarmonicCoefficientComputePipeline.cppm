@@ -16,10 +16,6 @@ import ibl.shader.spherical_harmonic_coefficient_buffer_to_buffer_comp;
     return num * num;
 }
 
-[[nodiscard]] constexpr std::uint32_t divCeil(std::uint32_t num, std::uint32_t denom) noexcept {
-    return (num / denom) + (num % denom != 0);
-}
-
 namespace ibl {
     export class SphericalHarmonicCoefficientComputePipeline {
     public:
@@ -55,18 +51,18 @@ namespace ibl {
         std::reference_wrapper<const vku::Image> cubemapImage;
         std::reference_wrapper<const vku::Buffer> resultBuffer;
         vk::raii::Sampler cubemapLinearSampler;
-        vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageBuffer> imageToBufferPipelineDescriptorSetLayout;
+        vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageBuffer> imageToBufferPipelineDescriptorSetLayout;
         vk::raii::PipelineLayout imageToBufferPipelineLayout;
         vk::raii::Pipeline imageToBufferPipeline;
-        vku::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer> bufferToBufferPipelineDescriptorSetLayout;
+        vku::raii::DescriptorSetLayout<vk::DescriptorType::eStorageBuffer> bufferToBufferPipelineDescriptorSetLayout;
         vk::raii::PipelineLayout bufferToBufferPipelineLayout;
         vk::raii::Pipeline bufferToBufferPipeline;
         vk::raii::ImageView cubemapImageView;
-        vku::AllocatedBuffer reductionBuffer;
+        vku::raii::AllocatedBuffer reductionBuffer;
 
         [[nodiscard]] std::uint32_t getCubemapMipSize() const;
 
-        [[nodiscard]] vku::AllocatedBuffer createReductionBuffer() const;
+        [[nodiscard]] vku::raii::AllocatedBuffer createReductionBuffer() const;
     };
 }
 
@@ -94,9 +90,10 @@ ibl::SphericalHarmonicCoefficientComputePipeline::SphericalHarmonicCoefficientCo
     cubemapLinearSampler { device, vk::SamplerCreateInfo { {}, vk::Filter::eLinear, vk::Filter::eLinear }.setMaxLod(vk::LodClampNone) },
     imageToBufferPipelineDescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
         vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor,
-        vku::unsafeProxy(decltype(imageToBufferPipelineDescriptorSetLayout)::getBindings(
-            { 1, vk::ShaderStageFlagBits::eCompute, &*cubemapLinearSampler },
-            { 1, vk::ShaderStageFlagBits::eCompute })),
+        vku::lvalue({
+            decltype(imageToBufferPipelineDescriptorSetLayout)::getCreateInfoBinding<0>(vk::ShaderStageFlagBits::eCompute, *cubemapLinearSampler),
+            decltype(imageToBufferPipelineDescriptorSetLayout)::getCreateInfoBinding<1>(1, vk::ShaderStageFlagBits::eCompute),
+        }),
     } },
     imageToBufferPipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
@@ -104,58 +101,62 @@ ibl::SphericalHarmonicCoefficientComputePipeline::SphericalHarmonicCoefficientCo
     } },
     imageToBufferPipeline { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        createPipelineStages(
-            device,
-            vku::Shader {
+        vk::PipelineShaderStageCreateInfo {
+            {},
+            vk::ShaderStageFlagBits::eCompute,
+            *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                {},
                 shader::spherical_harmonic_coefficient_image_to_buffer_comp,
-                vk::ShaderStageFlagBits::eCompute,
-                // TODO: use vku::SpecializationMap when available.
-                vku::unsafeAddress(vk::SpecializationInfo {
-                    vku::unsafeProxy(vk::SpecializationMapEntry { 0, 0, sizeof(std::uint32_t) }),
-                    vk::ArrayProxyNoTemporaries<const std::uint32_t> { config.subgroupSize },
-                }),
-            }).get()[0],
+            } }),
+            "main",
+            &vku::lvalue(vk::SpecializationInfo {
+                vku::lvalue(vk::SpecializationMapEntry { 0, 0, sizeof(std::uint32_t) }),
+                vk::ArrayProxyNoTemporaries<const std::uint32_t> { config.subgroupSize },
+            })
+        },
         *imageToBufferPipelineLayout,
     } },
     bufferToBufferPipelineDescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
         vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor,
-        vku::unsafeProxy(decltype(bufferToBufferPipelineDescriptorSetLayout)::getBindings({ 1, vk::ShaderStageFlagBits::eCompute })),
+        vku::lvalue(decltype(bufferToBufferPipelineDescriptorSetLayout)::getCreateInfoBinding<0>(1, vk::ShaderStageFlagBits::eCompute)),
     } },
     bufferToBufferPipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
         *bufferToBufferPipelineDescriptorSetLayout,
-        vku::unsafeProxy(vk::PushConstantRange {
+        vku::lvalue(vk::PushConstantRange {
             vk::ShaderStageFlagBits::eCompute,
             0, sizeof(BufferToBufferPipelinePushConstant),
         }),
     } },
     bufferToBufferPipeline { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        createPipelineStages(
-            device,
-            vku::Shader {
+        vk::PipelineShaderStageCreateInfo {
+            {},
+            vk::ShaderStageFlagBits::eCompute,
+            *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                {},
                 shader::spherical_harmonic_coefficient_buffer_to_buffer_comp,
-                vk::ShaderStageFlagBits::eCompute,
-                // TODO: use vku::SpecializationMap when available.
-                vku::unsafeAddress(vk::SpecializationInfo {
-                    vku::unsafeProxy(vk::SpecializationMapEntry { 0, 0, sizeof(std::uint32_t) }),
-                    vk::ArrayProxyNoTemporaries<const std::uint32_t> { config.subgroupSize },
-                }),
-            }).get()[0],
+            } }),
+            "main",
+            &vku::lvalue(vk::SpecializationInfo {
+                vku::lvalue(vk::SpecializationMapEntry { 0, 0, sizeof(std::uint32_t) }),
+                vk::ArrayProxyNoTemporaries<const std::uint32_t> { config.subgroupSize },
+            })
+        },
         *bufferToBufferPipelineLayout,
     } },
-    cubemapImageView { device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, config.sampleMipLevel, 1, 0, 6 }, vk::ImageViewType::e2DArray) },
+    cubemapImageView { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray, { vk::ImageAspectFlagBits::eColor, config.sampleMipLevel, 1, 0, 6 }) },
     reductionBuffer { createReductionBuffer() } { }
 
 void ibl::SphericalHarmonicCoefficientComputePipeline::setCubemapImage(const vku::Image &cubemapImage) {
     this->cubemapImage = cubemapImage;
-    cubemapImageView = { device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, config.sampleMipLevel, 1, 0, 6 }, vk::ImageViewType::e2DArray) };
+    cubemapImageView = { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray, { vk::ImageAspectFlagBits::eColor, config.sampleMipLevel, 1, 0, 6 }) };
     reductionBuffer = createReductionBuffer();
 }
 
 void ibl::SphericalHarmonicCoefficientComputePipeline::setSampleMipLevel(std::uint32_t level) {
     config.sampleMipLevel = level;
-    cubemapImageView = { device, cubemapImage.get().getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, config.sampleMipLevel, 1, 0, 6 }, vk::ImageViewType::e2DArray) };
+    cubemapImageView = { device, cubemapImage.get().getViewCreateInfo(vk::ImageViewType::e2DArray, { vk::ImageAspectFlagBits::eColor, config.sampleMipLevel, 1, 0, 6 }) };
     reductionBuffer = createReductionBuffer();
 }
 
@@ -182,8 +183,8 @@ void ibl::SphericalHarmonicCoefficientComputePipeline::recordCommands(vk::Comman
     computeCommandBuffer.pushDescriptorSetKHR(
         vk::PipelineBindPoint::eCompute, *imageToBufferPipelineLayout,
         0, {
-            decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteOne<0>({ {}, cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-            decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteOne<1>({ reductionBuffer, 0, sizeof(float[27]) * square(dispatchCountXY) }),
+            decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteDescriptorSet<0>({}, 0, vku::lvalue(vk::DescriptorImageInfo { {}, cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+            decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteDescriptorSet<1>({}, 0, vku::lvalue(reductionBuffer.getDescriptorInfo(0, sizeof(float[27]) * square(dispatchCountXY)))),
         }, *d);
     computeCommandBuffer.dispatch(dispatchCountXY, dispatchCountXY, 1, *d);
 
@@ -192,7 +193,7 @@ void ibl::SphericalHarmonicCoefficientComputePipeline::recordCommands(vk::Comman
     computeCommandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *bufferToBufferPipeline, *d);
     computeCommandBuffer.pushDescriptorSetKHR(
         vk::PipelineBindPoint::eCompute, *bufferToBufferPipelineLayout,
-        0, decltype(bufferToBufferPipelineDescriptorSetLayout)::getWriteOne<0>({ reductionBuffer, 0, vk::WholeSize }), *d);
+        0, decltype(bufferToBufferPipelineDescriptorSetLayout)::getWriteDescriptorSet<0>({}, 0, vku::lvalue(reductionBuffer.getDescriptorInfo())), *d);
 
     // Buffer -> Buffer reduction.
     BufferToBufferPipelinePushConstant pushConstant {
@@ -202,7 +203,7 @@ void ibl::SphericalHarmonicCoefficientComputePipeline::recordCommands(vk::Comman
     };
     while (pushConstant.count > 1) {
         computeCommandBuffer.pushConstants<BufferToBufferPipelinePushConstant>(*bufferToBufferPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, pushConstant, *d);
-        const std::uint32_t dispatchCount = divCeil(pushConstant.count, 256);
+        const std::uint32_t dispatchCount = vku::divCeil(pushConstant.count, 256U);
         computeCommandBuffer.dispatch(dispatchCount, 1, 1, *d);
         memoryBarrier();
 
@@ -219,11 +220,11 @@ std::uint32_t ibl::SphericalHarmonicCoefficientComputePipeline::getCubemapMipSiz
     return cubemapImage.get().extent.width >> config.sampleMipLevel;
 }
 
-vku::AllocatedBuffer ibl::SphericalHarmonicCoefficientComputePipeline::createReductionBuffer() const {
+vku::raii::AllocatedBuffer ibl::SphericalHarmonicCoefficientComputePipeline::createReductionBuffer() const {
     // Image -> Buffer: 32x32 texels will be reduced to a single 2nd-order spherical harmonic coefficients set (sizeof(float[27]).
-    vk::DeviceSize coefficientSetCount = square(getCubemapMipSize() / 32);
+    std::uint32_t coefficientSetCount = square(getCubemapMipSize() / 32);
     // Buffer -> Buffer: 256 2nd-order spherical harmonic coefficients sets will be reduced to a single set.
-    coefficientSetCount += divCeil(coefficientSetCount, 256);
+    coefficientSetCount += vku::divCeil(coefficientSetCount, 256U);
 
     return {
         allocator,

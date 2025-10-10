@@ -32,7 +32,7 @@ namespace vkgltf {
          * @return <tt>true</tt> if \p buffer is staged, <tt>false</tt> if \p buffer is already device local and does
          * not need staging.
          */
-        bool stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage, vk::ArrayProxy<const std::uint32_t> queueFamilies = {});
+        bool stage(vku::raii::AllocatedBuffer &buffer, vk::BufferUsageFlags usage, vk::ArrayProxy<const std::uint32_t> queueFamilies = {});
 
         /**
          * @brief Take ownership of \p buffer and record buffer to image copy command.
@@ -42,7 +42,7 @@ namespace vkgltf {
          * @param layout Destination image layout.
          * @param copyRegions Regions to be copied from the buffer to the image.
          */
-        void stage(vku::AllocatedBuffer &&buffer, vk::Image image, vk::ImageLayout layout, vk::ArrayProxy<const vk::BufferImageCopy> copyRegions);
+        void stage(vku::raii::AllocatedBuffer &&buffer, vk::Image image, vk::ImageLayout layout, vk::ArrayProxy<const vk::BufferImageCopy> copyRegions);
 
         /**
          * @brief Record pipeline barrier with <tt>vk::ImageMemoryBarrier</tt>, whose layout transition from
@@ -63,7 +63,7 @@ namespace vkgltf {
             vk::ImageLayout dstLayout,
             std::uint32_t srcQueueFamilyIndex = vk::QueueFamilyIgnored,
             std::uint32_t dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-            const vk::ImageSubresourceRange &subresourceRange = vku::fullSubresourceRange()
+            const vk::ImageSubresourceRange &subresourceRange = vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor)
         );
 
         /**
@@ -113,7 +113,7 @@ namespace vkgltf {
             vk::ImageLayout dstLayout,
             std::uint32_t srcQueueFamilyIndex = vk::QueueFamilyIgnored,
             std::uint32_t dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-            const vk::ImageSubresourceRange &subresourceRange = vku::fullSubresourceRange()
+            const vk::ImageSubresourceRange &subresourceRange = vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor)
         );
 
         /**
@@ -152,7 +152,7 @@ namespace vkgltf {
         vk::CommandBuffer cb;
         bool commandRecorded;
 
-        std::vector<vku::AllocatedBuffer> stagingBuffers;
+        std::vector<vku::raii::AllocatedBuffer> stagingBuffers;
         std::vector<vk::BufferMemoryBarrier> bufferMemoryBarriersToBottom;
         std::vector<vk::ImageMemoryBarrier> imageMemoryBarriersToBottom;
     };
@@ -187,7 +187,7 @@ namespace vkgltf {
          * @param queueFamilies Queue family indices that the buffer can be concurrently accessed. If its size is less than 2, buffer sharing mode will be set to <tt>vk::SharingMode::eExclusive</tt>.
          * @return <tt>true</tt> if \p buffer is staged, <tt>false</tt> if \p buffer is already device local and does not need staging.
          */
-        bool stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usageFlags, vk::ArrayProxy<const std::uint32_t> queueFamilies = {}) const;
+        bool stage(vku::raii::AllocatedBuffer &buffer, vk::BufferUsageFlags usageFlags, vk::ArrayProxy<const std::uint32_t> queueFamilies = {}) const;
     };
 }
 
@@ -214,18 +214,18 @@ vkgltf::StagingBufferStorage::~StagingBufferStorage() {
     }
 }
 
-bool vkgltf::StagingBufferStorage::stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usage, vk::ArrayProxy<const std::uint32_t> queueFamilies) {
+bool vkgltf::StagingBufferStorage::stage(vku::raii::AllocatedBuffer &buffer, vk::BufferUsageFlags usage, vk::ArrayProxy<const std::uint32_t> queueFamilies) {
     if (vku::contains(buffer.allocator.getAllocationMemoryProperties(buffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
         return false;
     }
 
-    vku::AllocatedBuffer deviceLocalBuffer {
+    vku::raii::AllocatedBuffer deviceLocalBuffer {
         buffer.allocator,
         vk::BufferCreateInfo {
             {},
             buffer.size,
             vk::BufferUsageFlagBits::eTransferDst | usage,
-            queueFamilies.size() < 2 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+            vku::getSharingMode(queueFamilies),
             queueFamilies,
         },
         vma::AllocationCreateInfo { {}, vma::MemoryUsage::eAutoPreferDevice },
@@ -242,7 +242,7 @@ bool vkgltf::StagingBufferStorage::stage(vku::AllocatedBuffer &buffer, vk::Buffe
 }
 
 void vkgltf::StagingBufferStorage::stage(
-    vku::AllocatedBuffer &&buffer,
+    vku::raii::AllocatedBuffer &&buffer,
     vk::Image image,
     vk::ImageLayout layout,
     vk::ArrayProxy<const vk::BufferImageCopy> copyRegions
@@ -338,7 +338,7 @@ void vkgltf::StagingBufferStorage::reset(bool beginCommandBuffer) {
     }
 }
 
-bool vkgltf::StagingInfo::stage(vku::AllocatedBuffer &buffer, vk::BufferUsageFlags usageFlags, vk::ArrayProxy<const std::uint32_t> queueFamilies) const {
+bool vkgltf::StagingInfo::stage(vku::raii::AllocatedBuffer &buffer, vk::BufferUsageFlags usageFlags, vk::ArrayProxy<const std::uint32_t> queueFamilies) const {
     std::unique_lock<std::mutex> lock;
     if (mutex) {
         lock = std::unique_lock { *mutex };

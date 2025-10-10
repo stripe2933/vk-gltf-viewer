@@ -24,21 +24,12 @@ export import vkgltf.StagingBufferStorage;
 template <typename T, typename... Ts>
 concept one_of = (std::same_as<T, Ts> || ...);
 
-/**
- * @brief Convert sRGB format to linear format, or vice versa.
- * @param format Format to convert. Must have the corresponding sRGB toggled format.
- * @return Corresponding sRGB toggled format.
- * @throw std::invalid_argument If the given format does not have the corresponding sRGB toggled format.
- */
-export
-[[nodiscard]] vk::Format toggleSrgb(vk::Format format);
-
 struct StagingData {
     vk::Extent2D extent;
     vk::Format format;
     std::uint32_t mipLevels;
 
-    std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> data;
+    std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> data;
     void *hostBackedData;
 
     [[nodiscard]] static StagingData fromJpgPng(const char *path, const std::function<vk::Format(int)> &formatFn, vma::Allocator *allocator);
@@ -188,7 +179,7 @@ namespace vkgltf {
         #endif
         };
 
-        vku::AllocatedImage image;
+        vku::raii::AllocatedImage image;
 
         /**
          * @brief Vulkan image view for \p image with the same format and component mapping defined as below:
@@ -209,11 +200,11 @@ namespace vkgltf {
             vma::Allocator allocator,
             const Config<BufferDataAdapter> &config = {}
         ) : image { createImage(asset, image, directory, device, allocator, config) },
-            view { device, this->image.getViewCreateInfo().setComponents(getComponentMapping(componentCount(this->image.format))) } { }
+            view { device, this->image.getViewCreateInfo(vk::ImageViewType::e2D).setComponents(getComponentMapping(componentCount(this->image.format))) } { }
 
     private:
         template <typename BufferDataAdapter>
-        [[nodiscard]] static vku::AllocatedImage createImage(
+        [[nodiscard]] static vku::raii::AllocatedImage createImage(
             const fastgltf::Asset &asset,
             const fastgltf::Image &image,
             const std::filesystem::path &directory,
@@ -299,7 +290,7 @@ namespace vkgltf {
                     vk::SampleCountFlagBits::e1,
                     vk::ImageTiling::eOptimal,
                     {},
-                    config.queueFamilies.size() < 2 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+                    vku::getSharingMode(config.queueFamilies.size()),
                     config.queueFamilies,
                 },
                 vk::ImageFormatListCreateInfo { formatList },
@@ -317,7 +308,7 @@ namespace vkgltf {
         #endif
             {
                 if (config.uncompressedImageMipmapPolicy != MipmapPolicy::No) {
-                    createInfo.get().mipLevels = vku::Image::maxMipLevels(stagingData.extent);
+                    createInfo.get().mipLevels = vku::maxMipLevels(stagingData.extent);
                 }
 
                 createInfo.get().usage = config.uncompressedImageUsageFlags
@@ -326,7 +317,7 @@ namespace vkgltf {
 
             if (config.allowMutateSrgbFormat) {
                 createInfo.get().flags |= vk::ImageCreateFlagBits::eMutableFormat;
-                get<1>(formatList) = toggleSrgb(stagingData.format);
+                get<1>(formatList) = vku::toggleSrgb(stagingData.format);
             }
             else {
                 createInfo.unlink<vk::ImageFormatListCreateInfo>();
@@ -338,7 +329,7 @@ namespace vkgltf {
             }
         #endif
 
-            vku::AllocatedImage result { allocator, createInfo.get(), config.allocationCreateInfo };
+            vku::raii::AllocatedImage result { allocator, createInfo.get(), config.allocationCreateInfo };
 
             vk::ImageLayout dstLayout;
         #ifdef USE_KTX
@@ -450,50 +441,6 @@ namespace vkgltf {
 module :private;
 #endif
 
-vk::Format toggleSrgb(vk::Format format) {
-    switch (format) {
-        #define BIMAP(x, y) \
-            case vk::Format::x: return vk::Format::y; \
-            case vk::Format::y: return vk::Format::x
-        BIMAP(eR8Unorm, eR8Srgb);
-        BIMAP(eR8G8Unorm, eR8G8Srgb);
-        BIMAP(eR8G8B8Unorm, eR8G8B8Srgb);
-        BIMAP(eB8G8R8Unorm, eB8G8R8Srgb);
-        BIMAP(eR8G8B8A8Unorm, eR8G8B8A8Srgb);
-        BIMAP(eB8G8R8A8Unorm, eB8G8R8A8Srgb);
-        BIMAP(eA8B8G8R8UnormPack32, eA8B8G8R8SrgbPack32);
-        BIMAP(eBc1RgbUnormBlock, eBc1RgbSrgbBlock);
-        BIMAP(eBc1RgbaUnormBlock, eBc1RgbaSrgbBlock);
-        BIMAP(eBc2UnormBlock, eBc2SrgbBlock);
-        BIMAP(eBc3UnormBlock, eBc3SrgbBlock);
-        BIMAP(eBc7UnormBlock, eBc7SrgbBlock);
-        BIMAP(eEtc2R8G8B8UnormBlock, eEtc2R8G8B8SrgbBlock);
-        BIMAP(eEtc2R8G8B8A1UnormBlock, eEtc2R8G8B8A1SrgbBlock);
-        BIMAP(eEtc2R8G8B8A8UnormBlock, eEtc2R8G8B8A8SrgbBlock);
-        BIMAP(eAstc4x4UnormBlock, eAstc4x4SrgbBlock);
-        BIMAP(eAstc5x4UnormBlock, eAstc5x4SrgbBlock);
-        BIMAP(eAstc5x5UnormBlock, eAstc5x5SrgbBlock);
-        BIMAP(eAstc6x5UnormBlock, eAstc6x5SrgbBlock);
-        BIMAP(eAstc6x6UnormBlock, eAstc6x6SrgbBlock);
-        BIMAP(eAstc8x5UnormBlock, eAstc8x5SrgbBlock);
-        BIMAP(eAstc8x6UnormBlock, eAstc8x6SrgbBlock);
-        BIMAP(eAstc8x8UnormBlock, eAstc8x8SrgbBlock);
-        BIMAP(eAstc10x5UnormBlock, eAstc10x5SrgbBlock);
-        BIMAP(eAstc10x6UnormBlock, eAstc10x6SrgbBlock);
-        BIMAP(eAstc10x8UnormBlock, eAstc10x8SrgbBlock);
-        BIMAP(eAstc10x10UnormBlock, eAstc10x10SrgbBlock);
-        BIMAP(eAstc12x10UnormBlock, eAstc12x10SrgbBlock);
-        BIMAP(eAstc12x12UnormBlock, eAstc12x12SrgbBlock);
-        BIMAP(ePvrtc12BppUnormBlockIMG, ePvrtc12BppSrgbBlockIMG);
-        BIMAP(ePvrtc14BppUnormBlockIMG, ePvrtc14BppSrgbBlockIMG);
-        BIMAP(ePvrtc22BppUnormBlockIMG, ePvrtc22BppSrgbBlockIMG);
-        BIMAP(ePvrtc24BppUnormBlockIMG, ePvrtc24BppSrgbBlockIMG);
-        #undef BIMAP
-        default:
-            throw std::invalid_argument { "No corresponding conversion format" };
-    }
-}
-
 StagingData StagingData::fromJpgPng(
     const char *path,
     const std::function<vk::Format(int)> &formatFn,
@@ -545,7 +492,7 @@ StagingData StagingData::fromJpgPng(const vk::Extent2D &extent, stbi_uc *&&data,
         .mipLevels = 1,
         .data = [&] {
             if (allocator) {
-                std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> result {
+                std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> result {
                     std::in_place_index<0>,
                     std::piecewise_construct,
                     std::forward_as_tuple(
@@ -574,7 +521,7 @@ StagingData StagingData::fromJpgPng(const vk::Extent2D &extent, stbi_uc *&&data,
                 return result;
             }
             else {
-                return std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
+                return std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
                     std::in_place_index<1>,
                     {
                         vk::MemoryToImageCopy {
@@ -633,7 +580,7 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocat
         .mipLevels = texture->numLevels,
         .data = [&] {
             if (allocator) {
-                std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> resultVariant {
+                std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> resultVariant {
                     std::in_place_index<0>,
                     std::piecewise_construct,
                     std::forward_as_tuple(
@@ -659,7 +606,7 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocat
                                 return vk::BufferImageCopy {
                                     offset, 0, 0,
                                     vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
-                                    vk::Offset3D{}, vk::Extent3D { vku::Image::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
+                                    vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
                                 };
                             })),
                 };
@@ -675,7 +622,7 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocat
                 return resultVariant;
             }
             else {
-                return std::variant<std::pair<vku::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
+                return std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
                     std::in_place_index<1>,
                     std::from_range,
                     std::views::iota(std::uint32_t{}, texture->numLevels)
@@ -688,7 +635,7 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocat
                             return vk::MemoryToImageCopy {
                                 data + offset, 0, 0,
                                 vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
-                                vk::Offset3D{}, vk::Extent3D { vku::Image::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
+                                vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
                             };
                         }),
                 };

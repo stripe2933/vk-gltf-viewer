@@ -6,6 +6,16 @@ module vk_gltf_viewer.vulkan.Gpu;
 
 import vk_gltf_viewer.helpers.ranges;
 
+#ifdef _MSC_VER
+// FIXME: MSVC is not recognizing vk::StructureChain as a tuple-like type. Remove it when fixed.
+
+template <typename... Ts>
+struct std::tuple_size<vk::StructureChain<Ts...>> : std::integral_constant<std::size_t, sizeof...(Ts)> {};
+
+template <std::size_t I, typename... Ts>
+struct std::tuple_element<I, vk::StructureChain<Ts...>> : std::tuple_element<I, std::tuple<Ts...>> {};
+#endif
+
 constexpr std::array requiredExtensions {
 #if __APPLE__
     vk::KHRPortabilitySubsetExtensionName,
@@ -40,13 +50,45 @@ constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatur
     .setFragmentStoresAndAtomics(true);
 
 vk_gltf_viewer::vulkan::QueueFamilies::QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface) {
-    const std::vector queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
+    const std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
 
-    compute = vku::getComputeSpecializedQueueFamily(queueFamilyProperties)
-        .or_else([&]() { return vku::getComputeQueueFamily(queueFamilyProperties); })
-        .value();
-    graphicsPresent = vku::getGraphicsPresentQueueFamily(physicalDevice, surface, queueFamilyProperties).value();
-    transfer = vku::getTransferSpecializedQueueFamily(queueFamilyProperties).value_or(compute);
+    compute = [&] -> std::uint32_t {
+        for (const auto &[queueFamilyIndex, props] : queueFamilyProperties | ranges::views::enumerate) {
+            if (vku::contains(props.queueFlags, vk::QueueFlagBits::eCompute) &&
+                !vku::contains(props.queueFlags, vk::QueueFlagBits::eGraphics)) {
+                return queueFamilyIndex;
+            }
+        }
+
+        for (const auto &[queueFamilyIndex, props] : queueFamilyProperties | ranges::views::enumerate) {
+            if (vku::contains(props.queueFlags, vk::QueueFlagBits::eCompute)) {
+                return queueFamilyIndex;
+            }
+        }
+
+        // Vulkan always guarantees at least one queue family that supports compute.
+        std::unreachable();
+    }();
+    graphicsPresent = [&] -> std::uint32_t {
+        for (const auto &[queueFamilyIndex, props] : queueFamilyProperties | ranges::views::enumerate) {
+            if (vku::contains(props.queueFlags, vk::QueueFlagBits::eGraphics)) {
+                return queueFamilyIndex;
+            }
+        }
+
+        throw std::runtime_error { "The GPU does not have graphics capability." };
+    }();
+    transfer = [&] -> std::uint32_t {
+        for (const auto &[queueFamilyIndex, props] : queueFamilyProperties | ranges::views::enumerate) {
+            if (vku::contains(props.queueFlags, vk::QueueFlagBits::eTransfer) &&
+                !vku::contains(props.queueFlags, vk::QueueFlagBits::eGraphics) &&
+                !vku::contains(props.queueFlags, vk::QueueFlagBits::eCompute)) {
+                return queueFamilyIndex;
+            }
+        }
+
+        return compute;
+    }();
 
     // Calculate unique queue family indices.
     uniqueIndices = { compute, graphicsPresent, transfer };
@@ -59,24 +101,6 @@ vk_gltf_viewer::vulkan::Queues::Queues(vk::Device device, const QueueFamilies& q
     : compute { device.getQueue(queueFamilies.compute, 0) }
     , graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) }
     , transfer { device.getQueue(queueFamilies.transfer, 0) } { }
-
-vku::RefHolder<std::vector<vk::DeviceQueueCreateInfo>> vk_gltf_viewer::vulkan::Queues::getCreateInfos(
-    vk::PhysicalDevice,
-    const QueueFamilies &queueFamilies
-) noexcept {
-    return vku::RefHolder { [&]() {
-        static constexpr std::array priorities { 1.f };
-        return queueFamilies.uniqueIndices
-            | std::views::transform([=](std::uint32_t queueFamilyIndex) {
-                return vk::DeviceQueueCreateInfo {
-                    {},
-                    queueFamilyIndex,
-                    priorities,
-                };
-            })
-            | std::ranges::to<std::vector>();
-    } };
-}
 
 vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::SurfaceKHR surface)
     : physicalDevice { selectPhysicalDevice(instance, surface) }
@@ -263,11 +287,22 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     supportR8G8SrgbImageFormat = vku::contains(physicalDevice.getFormatProperties(vk::Format::eR8G8Srgb).optimalTilingFeatures, requiredFormatFeatureFlags);
     supportS8UintDepthStencilAttachment = vku::contains(physicalDevice.getFormatProperties(vk::Format::eS8Uint).optimalTilingFeatures, vk::FormatFeatureFlagBits::eDepthStencilAttachment);
 
-	const vku::RefHolder queueCreateInfos = Queues::getCreateInfos(physicalDevice, queueFamilies);
+    std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
+    queueCreateInfos.reserve(queueFamilies.uniqueIndices.size());
+
+    constexpr float priority = 1.f;
+    for (std::uint32_t queueFamilyIndex : queueFamilies.uniqueIndices) {
+        queueCreateInfos.push_back({
+            {},
+            queueFamilyIndex,
+            vk::ArrayProxyNoTemporaries<const float> { priority },
+        });
+    }
+
     vk::StructureChain createInfo {
         vk::DeviceCreateInfo {
             {},
-            queueCreateInfos.get(),
+            queueCreateInfos,
             {},
             extensions,
         },
@@ -324,7 +359,7 @@ vma::Allocator vk_gltf_viewer::vulkan::Gpu::createAllocator(const vk::raii::Inst
         vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
         *physicalDevice, *device,
         {}, {}, {}, {},
-        vku::unsafeAddress(vma::VulkanFunctions{
+        &vku::lvalue(vma::VulkanFunctions{
             instance.getDispatcher()->vkGetInstanceProcAddr,
             device.getDispatcher()->vkGetDeviceProcAddr,
         }),

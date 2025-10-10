@@ -21,7 +21,7 @@ module :private;
 vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
     : RenderPass { gpu.device, vk::RenderPassCreateInfo2 {
         {},
-        vku::unsafeProxy({
+        vku::lvalue({
             // (0) Opaque MSAA color attachment.
             vk::AttachmentDescription2 {
                 {},
@@ -93,7 +93,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 {}, vk::ImageLayout::eShaderReadOnlyOptimal,
             },
         }),
-        vku::unsafeProxy({
+        vku::lvalue({
             // Opaque pass.
             vk::StructureChain {
                 vk::SubpassDescription2 {
@@ -101,14 +101,14 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                     vk::PipelineBindPoint::eGraphics,
                     {},
                     {},
-                    vku::unsafeProxy(vk::AttachmentReference2 { 0, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
-                    vku::unsafeProxy(vk::AttachmentReference2 { 1, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
-                    vku::unsafeAddress(vk::AttachmentReference2 { 2, vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil }),
+                    vku::lvalue(vk::AttachmentReference2 { 0, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
+                    vku::lvalue(vk::AttachmentReference2 { 1, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
+                    &vku::lvalue(vk::AttachmentReference2 { 2, vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil }),
                 },
                 vk::SubpassDescriptionDepthStencilResolve {
                     vk::ResolveModeFlagBits::eNone,
                     vk::ResolveModeFlagBits::eSampleZero,
-                    vku::unsafeAddress(vk::AttachmentReference2 {
+                    &vku::lvalue(vk::AttachmentReference2 {
                         3,
                         gpu.supportS8UintDepthStencilAttachment && !gpu.workaround.depthStencilResolveDifferentFormat
                             ? vk::ImageLayout::eStencilAttachmentOptimal
@@ -124,20 +124,20 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                     vk::PipelineBindPoint::eGraphics,
                     {},
                     {},
-                    vku::unsafeProxy({
+                    vku::lvalue({
                         vk::AttachmentReference2 { 4, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor },
                         vk::AttachmentReference2 { 6, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor },
                     }),
-                    vku::unsafeProxy({
+                    vku::lvalue({
                         vk::AttachmentReference2 { 5, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor },
                         vk::AttachmentReference2 { 7, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor },
                     }),
-                    vku::unsafeAddress(vk::AttachmentReference2 { 2, vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil }),
+                    &vku::lvalue(vk::AttachmentReference2 { 2, vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil }),
                 },
                 vk::SubpassDescriptionDepthStencilResolve {
                     vk::ResolveModeFlagBits::eNone,
                     vk::ResolveModeFlagBits::eSampleZero,
-                    vku::unsafeAddress(vk::AttachmentReference2 {
+                    &vku::lvalue(vk::AttachmentReference2 {
                         3,
                         gpu.supportS8UintDepthStencilAttachment && !gpu.workaround.depthStencilResolveDifferentFormat
                             ? vk::ImageLayout::eStencilAttachmentOptimal
@@ -151,23 +151,23 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 {},
                 vk::PipelineBindPoint::eGraphics,
                 {},
-                vku::unsafeProxy({
+                vku::lvalue({
                     vk::AttachmentReference2 { 5, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
                     vk::AttachmentReference2 { 7, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
                 }),
-                vku::unsafeProxy(vk::AttachmentReference2 { 1, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
+                vku::lvalue(vk::AttachmentReference2 { 1, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor }),
             },
             // Inverse tone mapping pass.
             vk::SubpassDescription2 {
                 {},
                 vk::PipelineBindPoint::eGraphics,
                 {},
-                vku::unsafeProxy({
+                vku::lvalue({
                     vk::AttachmentReference2 { 1, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor },
                 }),
                 {},
                 {},
-                vku::unsafeAddress(vk::AttachmentReference2 {
+                &vku::lvalue(vk::AttachmentReference2 {
                     3,
                     gpu.supportS8UintDepthStencilAttachment && !gpu.workaround.depthStencilResolveDifferentFormat
                         ? vk::ImageLayout::eStencilAttachmentOptimal
@@ -176,7 +176,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 }),
             },
         }),
-        vku::unsafeProxy({
+        vku::lvalue({
             // Dependency between opaque pass and weighted blended pass:
             // Since weighted blended uses the result of depth attachment from opaque pass, it must be finished before weighted blended pass.
             vk::SubpassDependency2 {

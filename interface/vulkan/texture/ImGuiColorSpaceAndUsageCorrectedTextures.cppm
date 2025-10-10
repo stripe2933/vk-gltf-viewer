@@ -10,7 +10,6 @@ export import imgui.vulkan;
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;
 import vk_gltf_viewer.helpers.ranges;
-import vk_gltf_viewer.helpers.vulkan;
 export import vk_gltf_viewer.imgui.ColorSpaceAndUsageCorrectedTextures;
 export import vk_gltf_viewer.vulkan.texture.Textures;
 
@@ -47,7 +46,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
     for (const auto &[textureIndex, texture] : asset.textures | ranges::views::enumerate) {
         auto [sampler, imageView, _] = textures.descriptorInfos[textureIndex];
         const vku::Image &image = textures.images.at(getPreferredImageIndex(texture)).image;
-        if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
+        if (gpu.supportSwapchainMutableFormat == vku::isSrgb(image.format)) {
             // Image view format is incompatible, need to be regenerated.
             const vk::ComponentMapping components = [&]() -> vk::ComponentMapping {
                 switch (componentCount(image.format)) {
@@ -66,7 +65,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
             }();
             imageView = *imageViews.emplace_back(
                 gpu.device,
-                image.getViewCreateInfo().setFormat(convertSrgb(image.format)).setComponents(components));
+                image.getViewCreateInfo(vk::ImageViewType::e2D).setFormat(vku::toggleSrgb(image.format)).setComponents(components));
         }
 
         const auto [width, height] = vku::toExtent2D(image.extent);
@@ -87,14 +86,14 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
             }
             else {
                 vk::Format colorSpaceCompatibleFormat = image.format;
-                if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
-                    colorSpaceCompatibleFormat = convertSrgb(image.format);
+                if (gpu.supportSwapchainMutableFormat == vku::isSrgb(image.format)) {
+                    colorSpaceCompatibleFormat = vku::toggleSrgb(image.format);
                 }
 
                 // Metallic.
                 get<0>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
                     textures.descriptorInfos[textureInfo->textureIndex].sampler,
-                    *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
+                    *imageViews.emplace_back(gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2D)
                         .setFormat(colorSpaceCompatibleFormat)
                         .setComponents({ vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eOne })),
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -102,7 +101,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
                 // Roughness.
                 get<1>(materialTextureDescriptorSets[materialIndex]) = ImGui_ImplVulkan_AddTexture(
                     textures.descriptorInfos[textureInfo->textureIndex].sampler,
-                    *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
+                    *imageViews.emplace_back(gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2D)
                         .setFormat(colorSpaceCompatibleFormat)
                         .setComponents({ vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eOne })),
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -118,13 +117,13 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
                 }
                 else {
                     vk::Format colorSpaceCompatibleFormat = image.format;
-                    if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
-                        colorSpaceCompatibleFormat = convertSrgb(image.format);
+                    if (gpu.supportSwapchainMutableFormat == vku::isSrgb(image.format)) {
+                        colorSpaceCompatibleFormat = vku::toggleSrgb(image.format);
                     }
 
                     return ImGui_ImplVulkan_AddTexture(
                         textures.descriptorInfos[textureInfo->textureIndex].sampler,
-                        *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
+                        *imageViews.emplace_back(gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2D)
                             .setFormat(colorSpaceCompatibleFormat)
                             .setComponents({ {}, {}, {}, vk::ComponentSwizzle::eOne })),
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -141,13 +140,13 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
                 }
                 else {
                     vk::Format colorSpaceCompatibleFormat = image.format;
-                    if (gpu.supportSwapchainMutableFormat == isSrgbFormat(image.format)) {
-                        colorSpaceCompatibleFormat = convertSrgb(image.format);
+                    if (gpu.supportSwapchainMutableFormat == vku::isSrgb(image.format)) {
+                        colorSpaceCompatibleFormat = vku::toggleSrgb(image.format);
                     }
 
                     return ImGui_ImplVulkan_AddTexture(
                         textures.descriptorInfos[textureInfo->textureIndex].sampler,
-                        *imageViews.emplace_back(gpu.device, image.getViewCreateInfo()
+                        *imageViews.emplace_back(gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2D)
                             .setFormat(colorSpaceCompatibleFormat)
                             .setComponents({ vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne })),
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -167,7 +166,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
                     // is not sRGB.
                     vk::Format colorSpaceCompatibleFormat = image.format;
                     if (gpu.supportSwapchainMutableFormat) {
-                        colorSpaceCompatibleFormat = convertSrgb(image.format);
+                        colorSpaceCompatibleFormat = vku::toggleSrgb(image.format);
                     }
 
                     const vk::ComponentMapping components = [&]() -> vk::ComponentMapping {
@@ -186,7 +185,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::ImGui
 
                     return ImGui_ImplVulkan_AddTexture(
                         textures.descriptorInfos[textureInfo->textureIndex].sampler,
-                        *imageViews.emplace_back(gpu.device, image.getViewCreateInfo().setFormat(colorSpaceCompatibleFormat).setComponents(components)),
+                        *imageViews.emplace_back(gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2D).setFormat(colorSpaceCompatibleFormat).setComponents(components)),
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 }
             }();

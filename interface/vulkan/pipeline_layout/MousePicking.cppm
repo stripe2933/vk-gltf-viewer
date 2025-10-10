@@ -13,7 +13,7 @@ export import vk_gltf_viewer.vulkan.descriptor_set_layout.MousePicking;
 export import vk_gltf_viewer.vulkan.descriptor_set_layout.Renderer;
 
 namespace vk_gltf_viewer::vulkan::pl {
-    export struct MousePicking : vk::raii::PipelineLayout {
+    export struct MousePicking final : vk::raii::PipelineLayout {
         struct PushConstant {
             static constexpr vk::PushConstantRange range {
                 vk::ShaderStageFlagBits::eVertex,
@@ -37,6 +37,6 @@ vk_gltf_viewer::vulkan::pl::MousePicking::MousePicking(
     std::tuple<const dsl::Renderer&, const dsl::Asset&, const dsl::MousePicking&> descriptorSetLayouts
 ) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy({ *get<0>(descriptorSetLayouts), *get<1>(descriptorSetLayouts), *get<2>(descriptorSetLayouts) }),
+        vku::lvalue({ *get<0>(descriptorSetLayouts), *get<1>(descriptorSetLayouts), *get<2>(descriptorSetLayouts) }),
         PushConstant::range,
     } } { }

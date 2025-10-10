@@ -104,7 +104,7 @@ std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers
 
     // ----- Collect distinct buffers for staging -----
 
-    std::unordered_set<vku::AllocatedBuffer*> distinctBuffers;
+    std::unordered_set<vku::raii::AllocatedBuffer*> distinctBuffers;
     for (const vkgltf::PrimitiveAttributeBuffers &attributeBuffers : result | std::views::values) {
         // POSITION
         distinctBuffers.emplace(attributeBuffers.position.attributeInfo.buffer.get());
@@ -149,7 +149,7 @@ std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers
         }
     }
 
-    for (vku::AllocatedBuffer *buffer : distinctBuffers) {
+    for (vku::raii::AllocatedBuffer *buffer : distinctBuffers) {
         stagingBufferStorage.stage(*buffer, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
     }
 

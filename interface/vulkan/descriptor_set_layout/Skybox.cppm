@@ -12,7 +12,7 @@ export import vku;
 export import vk_gltf_viewer.vulkan.sampler.Cubemap;
 
 namespace vk_gltf_viewer::vulkan::dsl {
-    export struct Skybox : vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler> {
+    export struct Skybox final : vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler> {
         explicit Skybox(const vk::raii::Device &device LIFETIMEBOUND, const sampler::Cubemap &cubemapSampler LIFETIMEBOUND);
     };
 }
@@ -24,5 +24,5 @@ module :private;
 vk_gltf_viewer::vulkan::dsl::Skybox::Skybox(const vk::raii::Device &device, const sampler::Cubemap &cubemapSampler)
     : DescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
         {},
-        vku::unsafeProxy(getBindings({ 1, vk::ShaderStageFlagBits::eFragment, &*cubemapSampler })),
+        vku::lvalue(DescriptorSetLayout::getCreateInfoBinding<0>(vk::ShaderStageFlagBits::eFragment, *cubemapSampler)),
     } } { }

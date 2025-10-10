@@ -87,7 +87,7 @@ namespace vkgltf {
      *     |         ...       |
      *     +-------------------+
      */
-    export class PrimitiveBuffer : public vku::AllocatedBuffer {
+    export class PrimitiveBuffer : public vku::raii::AllocatedBuffer {
     public:
         struct Config {
             struct DefaultMaterialIndexFn {
@@ -270,7 +270,7 @@ vkgltf::PrimitiveBuffer::PrimitiveBuffer(
             intermediateData.bufferSize,
             config.usageFlags
                 | (config.stagingInfo ? vk::Flags { vk::BufferUsageFlagBits::eTransferSrc } : vk::BufferUsageFlags{}),
-            config.queueFamilies.size() < 2 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+            vku::getSharingMode(config.queueFamilies),
             config.queueFamilies,
         },
         config.allocationCreateInfo,

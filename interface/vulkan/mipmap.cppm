@@ -46,9 +46,9 @@ void vk_gltf_viewer::vulkan::recordMipmapGenerationCommand(vk::CommandBuffer cb,
             image, vk::ImageLayout::eTransferDstOptimal,
             vk::ImageBlit {
                 { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
-                { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(srcLevel)) },
+                { vk::Offset3D{}, vku::toOffset3D(vku::mipExtent(image.extent, srcLevel)) },
                 { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-                { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(dstLevel)) },
+                { vk::Offset3D{}, vku::toOffset3D(vku::mipExtent(image.extent, dstLevel)) },
             },
             vk::Filter::eLinear);
 
@@ -88,9 +88,9 @@ void vk_gltf_viewer::vulkan::recordBatchedMipmapGenerationCommand(vk::CommandBuf
                 image, vk::ImageLayout::eTransferDstOptimal,
                 vk::ImageBlit {
                     { vk::ImageAspectFlagBits::eColor, srcLevel, 0, 1 },
-                    { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(srcLevel)) },
+                    { vk::Offset3D{}, vku::toOffset3D(vku::mipExtent(image.extent, srcLevel)) },
                     { vk::ImageAspectFlagBits::eColor, dstLevel, 0, 1 },
-                    { vk::Offset3D{}, vku::toOffset3D(image.mipExtent(dstLevel)) },
+                    { vk::Offset3D{}, vku::toOffset3D(vku::mipExtent(image.extent, dstLevel)) },
                 },
                 vk::Filter::eLinear);
 

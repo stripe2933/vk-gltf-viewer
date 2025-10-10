@@ -9,6 +9,7 @@ export import fastgltf;
 export import vku;
 
 import vk_gltf_viewer.helpers.concepts;
+import vk_gltf_viewer.helpers.functional;
 import vk_gltf_viewer.helpers.ranges;
 
 namespace vk_gltf_viewer::vulkan::buffer {
@@ -21,12 +22,12 @@ namespace vk_gltf_viewer::vulkan::buffer {
      *
      * It provides some convenient methods that reorder the draw commands based on the predicate, and a method to reset the draw count to its maximum buffer size.
      */
-    export struct IndirectDrawCommands : vku::MappedBuffer {
+    export struct IndirectDrawCommands : vku::raii::AllocatedBuffer {
         bool indexed;
 
         template <concepts::one_of<vk::DrawIndirectCommand, vk::DrawIndexedIndirectCommand> Command>
         IndirectDrawCommands(vma::Allocator allocator, std::span<const Command> commands)
-            : MappedBuffer {
+            : AllocatedBuffer {
                 allocator,
                 vk::BufferCreateInfo {
                     {},
@@ -136,7 +137,9 @@ module :private;
 #endif
 
 std::uint32_t vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::drawCount() const noexcept {
-    return asValue<const std::uint32_t>();
+    std::uint32_t result;
+    allocator.copyAllocationToMemory(allocation, 0, &result, sizeof(result));
+    return result;
 }
 
 void vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::setDrawCount(std::uint32_t drawCount) {
@@ -144,7 +147,7 @@ void vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::setDrawCount(std::uin
         throw std::invalid_argument { "drawCount > maxDrawCount" };
     }
 
-    asValue<std::uint32_t>() = drawCount;
+    allocator.copyMemoryToAllocation(&drawCount, allocation, 0, sizeof(drawCount));
 }
 
 std::uint32_t vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::maxDrawCount() const noexcept {
@@ -152,20 +155,22 @@ std::uint32_t vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::maxDrawCount
 }
 
 std::variant<std::span<const vk::DrawIndirectCommand>, std::span<const vk::DrawIndexedIndirectCommand>> vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::drawIndirectCommands() const noexcept {
+    const void* const start = vku::offsetPtr(allocator.getAllocationInfo(allocation).pMappedData, sizeof(std::uint32_t));
     if (indexed) {
-        return asRange<const vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
+        return std::span { static_cast<const vk::DrawIndexedIndirectCommand*>(start), maxDrawCount() };
     }
     else {
-        return asRange<const vk::DrawIndirectCommand>(sizeof(std::uint32_t));
+        return std::span { static_cast<const vk::DrawIndirectCommand*>(start), maxDrawCount() };
     }
 }
 
 std::variant<std::span<vk::DrawIndirectCommand>, std::span<vk::DrawIndexedIndirectCommand>> vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::drawIndirectCommands() noexcept {
+    void* const start = vku::offsetPtr(allocator.getAllocationInfo(allocation).pMappedData, sizeof(std::uint32_t));
     if (indexed) {
-        return asRange<vk::DrawIndexedIndirectCommand>(sizeof(std::uint32_t));
+        return std::span { static_cast<vk::DrawIndexedIndirectCommand*>(start), maxDrawCount() };
     }
     else {
-        return asRange<vk::DrawIndirectCommand>(sizeof(std::uint32_t));
+        return std::span { static_cast<vk::DrawIndirectCommand*>(start), maxDrawCount() };
     }
 }
 

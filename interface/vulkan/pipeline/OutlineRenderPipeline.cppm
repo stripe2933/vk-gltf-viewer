@@ -29,33 +29,58 @@ vk_gltf_viewer::vulkan::OutlineRenderPipeline::OutlineRenderPipeline(
     const vk::raii::Device &device,
     const pl::Outline &layout
 ) : Pipeline { device, nullptr, vk::StructureChain {
-        vku::getDefaultGraphicsPipelineCreateInfo(
-            createPipelineStages(
-                device,
-                vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
-                vku::Shader { shader::outline_frag, vk::ShaderStageFlagBits::eFragment }).get(),
-            *layout, 1)
-            .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
+        vk::GraphicsPipelineCreateInfo {
+            {},
+            vku::lvalue({
+                vk::PipelineShaderStageCreateInfo {
+                    {},
+                    vk::ShaderStageFlagBits::eVertex,
+                    *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                        {},
+                        shader::screen_quad_vert,
+                    } }),
+                    "main",
+                },
+                vk::PipelineShaderStageCreateInfo {
+                    {},
+                    vk::ShaderStageFlagBits::eFragment,
+                    *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                        {},
+                        shader::outline_frag,
+                    } }),
+                    "main",
+                },
+            }),
+            &vku::lvalue(vk::PipelineVertexInputStateCreateInfo{}),
+            &vku::lvalue(vku::defaultPipelineInputAssemblyState(vk::PrimitiveTopology::eTriangleList)),
+            nullptr,
+            &vku::lvalue(vk::PipelineViewportStateCreateInfo {
                 {},
-                false, false,
-                vk::PolygonMode::eFill,
-                vk::CullModeFlagBits::eNone, {},
-                {}, {}, {}, {},
-                1.0f,
-            }))
-            .setPColorBlendState(vku::unsafeAddress(vk::PipelineColorBlendStateCreateInfo {
+                1, nullptr,
+                1, nullptr,
+            }),
+            &vku::lvalue(vku::defaultPipelineRasterizationState()),
+            &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e1 }),
+            nullptr,
+            &vku::lvalue(vk::PipelineColorBlendStateCreateInfo {
                 {},
                 false, {},
-                vku::unsafeProxy(vk::PipelineColorBlendAttachmentState {
+                vku::lvalue(vk::PipelineColorBlendAttachmentState {
                     true,
                     vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
                     vk::BlendFactor::eOne, vk::BlendFactor::eZero, vk::BlendOp::eAdd,
                     vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
                 }),
-            { 1.f, 1.f, 1.f, 1.f },
-        })),
+                { 1.f, 1.f, 1.f, 1.f },
+            }),
+            &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
+                {},
+                vku::lvalue({ vk::DynamicState::eViewport, vk::DynamicState::eScissor }),
+            }),
+            *layout,
+        },
         vk::PipelineRenderingCreateInfo {
             {},
-            vku::unsafeProxy(vk::Format::eB8G8R8A8Srgb),
+            vku::lvalue(vk::Format::eB8G8R8A8Srgb),
         },
     }.get() } { }

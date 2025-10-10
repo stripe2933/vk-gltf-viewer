@@ -15,7 +15,7 @@ import vk_gltf_viewer.helpers.fastgltf;
 export import vk_gltf_viewer.vulkan.shader_type.Material;
 
 namespace vk_gltf_viewer::vulkan::buffer {
-    export class Materials final : public vku::AllocatedBuffer {
+    export class Materials final : public vku::raii::AllocatedBuffer {
     public:
         vk::DescriptorBufferInfo descriptorInfo;
 
@@ -230,7 +230,7 @@ vk_gltf_viewer::vulkan::buffer::Materials::Materials(
     }
 }
 
-std::optional<vku::AllocatedBuffer> vk_gltf_viewer::vulkan::buffer::Materials::enlarge(vk::CommandBuffer transferCommandBuffer) {
+std::optional<vku::raii::AllocatedBuffer> vk_gltf_viewer::vulkan::buffer::Materials::enlarge(vk::CommandBuffer transferCommandBuffer) {
     // Create new buffer with doubled size.
     AllocatedBuffer newBuffer {
         allocator,
