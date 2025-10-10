@@ -10,7 +10,7 @@ import std;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::dsl {
-    export struct Renderer : vku::DescriptorSetLayout<vk::DescriptorType::eUniformBuffer> {
+    export struct Renderer final : vku::raii::DescriptorSetLayout<vk::DescriptorType::eUniformBuffer> {
         explicit Renderer(const vk::raii::Device &device LIFETIMEBOUND);
     };
 }
@@ -22,6 +22,5 @@ module :private;
 vk_gltf_viewer::vulkan::dsl::Renderer::Renderer(const vk::raii::Device &device)
     : DescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
         {},
-        vku::unsafeProxy(getBindings(
-            { 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment })),
+        vku::lvalue(DescriptorSetLayout::getCreateInfoBinding<0>(1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment)),
     } } { }

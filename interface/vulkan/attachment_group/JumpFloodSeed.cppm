@@ -12,7 +12,7 @@ export import vk_gltf_viewer.vulkan.Gpu;
 namespace vk_gltf_viewer::vulkan::ag {
     export struct JumpFloodSeed {
         vk::raii::ImageView seedImageView;
-        vku::AllocatedImage depthImage;
+        vku::raii::AllocatedImage depthImage;
         vk::raii::ImageView depthImageView;
 
         JumpFloodSeed(const Gpu &gpu LIFETIMEBOUND, const vku::Image &seedImage LIFETIMEBOUND, std::uint32_t viewCount);
@@ -24,7 +24,7 @@ module :private;
 #endif
 
 vk_gltf_viewer::vulkan::ag::JumpFloodSeed::JumpFloodSeed(const Gpu &gpu, const vku::Image &seedImage, std::uint32_t viewCount)
-    : seedImageView { gpu.device, seedImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, viewCount } /* ping image subresource */, vk::ImageViewType::e2DArray) }
+    : seedImageView { gpu.device, seedImage.getViewCreateInfo(vk::ImageViewType::e2DArray, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, viewCount } /* ping image subresource */) }
     , depthImage {
         gpu.allocator,
         vk::ImageCreateInfo {

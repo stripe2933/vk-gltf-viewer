@@ -100,6 +100,11 @@ namespace ranges {
         return contains(candidates, value);
     }
 
+    export void copy_n(std::ranges::input_range auto &&src, auto &...dest) {
+        auto it = std::ranges::begin(src);
+        ((void)(dest = *it++), ...);
+    }
+
 namespace views {
     export template <std::integral T>
     [[nodiscard]] constexpr auto upto(T n) noexcept {

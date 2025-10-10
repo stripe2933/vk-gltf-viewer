@@ -34,34 +34,54 @@ vk_gltf_viewer::vulkan::pipeline::InverseToneMappingRenderPipeline::InverseToneM
     const Gpu &gpu,
     const pl::InverseToneMapping &layout,
     const rp::Scene &renderPass
-) : Pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-        createPipelineStages(
-            gpu.device,
-            vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
-            vku::Shader {
-                gpu.supportShaderTrinaryMinMax
-                    ? std::span<const std::uint32_t> { shader::inverse_tone_mapping_frag<1> }
-                    : std::span<const std::uint32_t> { shader::inverse_tone_mapping_frag<0> },
+) : Pipeline { gpu.device, nullptr, vk::GraphicsPipelineCreateInfo {
+        {},
+        vku::lvalue({
+            vk::PipelineShaderStageCreateInfo {
+                {},
+                vk::ShaderStageFlagBits::eVertex,
+                *vku::lvalue(vk::raii::ShaderModule { gpu.device, vk::ShaderModuleCreateInfo {
+                    {},
+                    shader::screen_quad_vert,
+                } }),
+                "main",
+            },
+            vk::PipelineShaderStageCreateInfo {
+                {},
                 vk::ShaderStageFlagBits::eFragment,
-            }).get(),
-        *layout, 1, true)
-        .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
+                *vku::lvalue(vk::raii::ShaderModule { gpu.device, vk::ShaderModuleCreateInfo {
+                    {},
+                    vku::lvalue(gpu.supportShaderTrinaryMinMax
+                        ? std::span<const std::uint32_t> { shader::inverse_tone_mapping_frag<1> }
+                        : std::span<const std::uint32_t> { shader::inverse_tone_mapping_frag<0> }),
+                } }),
+                "main",
+            },
+        }),
+        &vku::lvalue(vk::PipelineVertexInputStateCreateInfo{}),
+        &vku::lvalue(vku::defaultPipelineInputAssemblyState(vk::PrimitiveTopology::eTriangleList)),
+        nullptr,
+        &vku::lvalue(vk::PipelineViewportStateCreateInfo {
             {},
-            false, false,
-            vk::PolygonMode::eFill,
-            vk::CullModeFlagBits::eNone, {},
-            {}, {}, {}, {},
-            1.f,
-        }))
+            1, nullptr,
+            1, nullptr,
+        }),
+        &vku::lvalue(vku::defaultPipelineRasterizationState()),
+        &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e1 }),
         // Only stencil test passed fragment's (which indicates the fragment's corresponding material's emissive
         // strength > 1.0) subpass input will be inverse tone mapped.
-        .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
+        &vku::lvalue(vk::PipelineDepthStencilStateCreateInfo {
             {},
             false, false, {}, false,
             true,
             vk::StencilOpState { vk::StencilOp::eKeep, vk::StencilOp::eKeep, {}, vk::CompareOp::eEqual, ~0U, {}, 1U },
             vk::StencilOpState { vk::StencilOp::eKeep, vk::StencilOp::eKeep, {}, vk::CompareOp::eEqual, ~0U, {}, 1U },
-        }))
-        .setRenderPass(*renderPass)
-        .setSubpass(3),
-    } { }
+        }),
+        &vku::lvalue(vku::defaultPipelineColorBlendState(1)),
+        &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
+            {},
+            vku::lvalue({ vk::DynamicState::eViewport, vk::DynamicState::eScissor }),
+        }),
+        *layout,
+        *renderPass, 3,
+    } } { }

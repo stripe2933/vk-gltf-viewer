@@ -12,7 +12,7 @@ export import vk_gltf_viewer.vulkan.descriptor_set_layout.Asset;
 export import vk_gltf_viewer.vulkan.descriptor_set_layout.Renderer;
 
 namespace vk_gltf_viewer::vulkan::pl {
-    export struct PrimitiveNoShading : vk::raii::PipelineLayout {
+    export struct PrimitiveNoShading final : vk::raii::PipelineLayout {
         PrimitiveNoShading(
             const vk::raii::Device &device LIFETIMEBOUND,
             std::pair<const dsl::Renderer&, const dsl::Asset&> descriptorSetLayouts
@@ -29,5 +29,5 @@ vk_gltf_viewer::vulkan::pl::PrimitiveNoShading::PrimitiveNoShading(
     std::pair<const dsl::Renderer&, const dsl::Asset&> descriptorSetLayouts
 ) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy({ *descriptorSetLayouts.first, *descriptorSetLayouts.second }),
+        vku::lvalue({ *descriptorSetLayouts.first, *descriptorSetLayouts.second }),
     } } { }

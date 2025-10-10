@@ -39,6 +39,6 @@ vk_gltf_viewer::vulkan::pl::Primitive::Primitive(
     std::tuple<const dsl::Renderer&, const dsl::ImageBasedLighting&, const dsl::Asset&> descriptorSetLayouts
 ) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy({ *get<0>(descriptorSetLayouts), *get<1>(descriptorSetLayouts), *get<2>(descriptorSetLayouts) }),
+        vku::lvalue({ *get<0>(descriptorSetLayouts), *get<1>(descriptorSetLayouts), *get<2>(descriptorSetLayouts) }),
         PushConstant::range,
     } } { }

@@ -13,21 +13,21 @@ export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::ag {
     export struct Scene {
-        vku::AllocatedImage multisampleColorImage;
+        vku::raii::AllocatedImage multisampleColorImage;
         vk::raii::ImageView multisampleColorImageView;
-        vku::AllocatedImage colorImage;
+        vku::raii::AllocatedImage colorImage;
         vk::raii::ImageView colorImageView;
-        vku::AllocatedImage depthStencilImage;
+        vku::raii::AllocatedImage depthStencilImage;
         vk::raii::ImageView depthStencilImageView;
-        vku::AllocatedImage stencilResolveImage;
+        vku::raii::AllocatedImage stencilResolveImage;
         vk::raii::ImageView stencilResolveImageView;
-        vku::AllocatedImage multisampleAccumulationImage;
+        vku::raii::AllocatedImage multisampleAccumulationImage;
         vk::raii::ImageView multisampleAccumulationImageView;
-        vku::AllocatedImage accumulationImage;
+        vku::raii::AllocatedImage accumulationImage;
         vk::raii::ImageView accumulationImageView;
-        vku::AllocatedImage multisampleRevealageImage;
+        vku::raii::AllocatedImage multisampleRevealageImage;
         vk::raii::ImageView multisampleRevealageImageView;
-        vku::AllocatedImage revealageImage;
+        vku::raii::AllocatedImage revealageImage;
         vk::raii::ImageView revealageImageView;
 
         vk::raii::Framebuffer sceneFramebuffer;
@@ -69,7 +69,7 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
             vk::MemoryPropertyFlagBits::eLazilyAllocated,
         },
     },
-    multisampleColorImageView { gpu.device, multisampleColorImage.getViewCreateInfo() },
+    multisampleColorImageView { gpu.device, multisampleColorImage.getViewCreateInfo(vk::ImageViewType::e2D) },
     colorImage {
         gpu.allocator,
         vk::ImageCreateInfo {
@@ -90,7 +90,7 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
             vma::MemoryUsage::eAutoPreferDevice,
         },
     },
-    colorImageView { gpu.device, colorImage.getViewCreateInfo() },
+    colorImageView { gpu.device, colorImage.getViewCreateInfo(vk::ImageViewType::e2D) },
     depthStencilImage {
         gpu.allocator,
         vk::ImageCreateInfo {
@@ -114,7 +114,7 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
         #endif
         },
     },
-    depthStencilImageView { gpu.device, depthStencilImage.getViewCreateInfo() },
+    depthStencilImageView { gpu.device, depthStencilImage.getViewCreateInfo(vk::ImageViewType::e2D) },
     stencilResolveImage {
         gpu.allocator,
         vk::ImageCreateInfo {
@@ -142,7 +142,7 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
         #endif
         },
     },
-    stencilResolveImageView { gpu.device, stencilResolveImage.getViewCreateInfo() },
+    stencilResolveImageView { gpu.device, stencilResolveImage.getViewCreateInfo(vk::ImageViewType::e2D) },
     multisampleAccumulationImage {
         gpu.allocator,
         vk::ImageCreateInfo {
@@ -162,7 +162,7 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
             vk::MemoryPropertyFlagBits::eLazilyAllocated,
         },
     },
-    multisampleAccumulationImageView { gpu.device, multisampleAccumulationImage.getViewCreateInfo() },
+    multisampleAccumulationImageView { gpu.device, multisampleAccumulationImage.getViewCreateInfo(vk::ImageViewType::e2D) },
     accumulationImage {
         gpu.allocator,
         vk::ImageCreateInfo {
@@ -186,7 +186,7 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
         #endif
         },
     },
-    accumulationImageView { gpu.device, accumulationImage.getViewCreateInfo() },
+    accumulationImageView { gpu.device, accumulationImage.getViewCreateInfo(vk::ImageViewType::e2D) },
     multisampleRevealageImage {
         gpu.allocator,
         vk::ImageCreateInfo {
@@ -206,7 +206,7 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
             vk::MemoryPropertyFlagBits::eLazilyAllocated,
         },
     },
-    multisampleRevealageImageView { gpu.device, multisampleRevealageImage.getViewCreateInfo() },
+    multisampleRevealageImageView { gpu.device, multisampleRevealageImage.getViewCreateInfo(vk::ImageViewType::e2D) },
     revealageImage {
         gpu.allocator,
         vk::ImageCreateInfo {
@@ -230,11 +230,11 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
         #endif
         },
     },
-    revealageImageView { gpu.device, revealageImage.getViewCreateInfo() },
+    revealageImageView { gpu.device, revealageImage.getViewCreateInfo(vk::ImageViewType::e2D) },
     sceneFramebuffer { gpu.device, vk::FramebufferCreateInfo {
         {},
         *sceneRenderPass,
-        vku::unsafeProxy({
+        vku::lvalue({
             *multisampleColorImageView,
             *colorImageView,
             *depthStencilImageView,

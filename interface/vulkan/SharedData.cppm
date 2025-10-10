@@ -207,14 +207,22 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
     , weightedBlendedCompositionRenderPipeline { gpu, weightedBlendedCompositionPipelineLayout, sceneRenderPass }
     , inverseToneMappingRenderPipeline { gpu, inverseToneMappingPipelineLayout, sceneRenderPass }
     , bloomApplyRenderPipeline { gpu, bloomApplyPipelineLayout, bloomApplyRenderPass }
-    , imGuiAttachmentGroup { gpu, swapchainExtent, swapchainImages }
-    , descriptorPool { gpu.device, getPoolSizes(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout).getDescriptorPoolCreateInfo() }
+    , imGuiAttachmentGroup { gpu, swapchainImages }
+    , descriptorPool { [&] {
+        const auto [maxSets, poolSizes] = vku::DescriptorPoolSizeBuilder{}
+            .add(imageBasedLightingDescriptorSetLayout)
+            .add(skyboxDescriptorSetLayout)
+            .build();
+        return vk::raii::DescriptorPool { gpu.device, vk::DescriptorPoolCreateInfo { {}, maxSets, poolSizes } };
+    }() }
     , fallbackTexture { gpu }{
     // Initialize view count dependent resources for viewMask=0b1 at the launch time.
     multiviewPipelines.try_emplace(0b1U, gpu, primitiveNoShadingPipelineLayout, 0b1U);
 
-    std::tie(imageBasedLightingDescriptorSet, skyboxDescriptorSet) = vku::allocateDescriptorSets(
-        *descriptorPool, std::tie(imageBasedLightingDescriptorSetLayout, skyboxDescriptorSetLayout));
+    vku::DescriptorSetAllocationBuilder{}
+        .add(imageBasedLightingDescriptorSetLayout, imageBasedLightingDescriptorSet)
+        .add(skyboxDescriptorSetLayout, skyboxDescriptorSet)
+        .allocate(gpu.device, *descriptorPool);
 }
 
 // --------------------
@@ -223,7 +231,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
 // --------------------
 
 void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages) {
-    imGuiAttachmentGroup = { gpu, swapchainExtent, swapchainImages };
+    imGuiAttachmentGroup = { gpu, swapchainImages };
 }
 
 void vk_gltf_viewer::vulkan::SharedData::setViewCount(std::uint32_t viewCount) {

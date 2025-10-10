@@ -51,13 +51,13 @@ namespace cubemap {
         std::reference_wrapper<const vku::Image> image;
 
         vk::raii::Sampler linearSampler;
-        vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> descriptorSetLayout;
+        vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
         vk::raii::ImageView imageView;
         std::vector<vk::raii::ImageView> mipImageViews;
 
-        [[nodiscard]] vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> createDescriptorSetLayout() const;
+        [[nodiscard]] vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> createDescriptorSetLayout() const;
         [[nodiscard]] vk::raii::PipelineLayout createPipelineLayout() const;
         [[nodiscard]] vk::raii::Pipeline createPipeline() const;
         [[nodiscard]] std::vector<vk::raii::ImageView> createMipImageViews() const;
@@ -130,8 +130,8 @@ void cubemap::SubgroupMipmapComputePipeline::recordCommands(vk::CommandBuffer co
     computeCommandBuffer.pushDescriptorSetKHR(
         vk::PipelineBindPoint::eCompute, *pipelineLayout,
         0, {
-            decltype(descriptorSetLayout)::getWriteOne<0>({ {}, *imageView, vk::ImageLayout::eGeneral }),
-            decltype(descriptorSetLayout)::getWrite<1>(vku::unsafeProxy(
+            decltype(descriptorSetLayout)::getWriteDescriptorSet<0>({}, 0, vku::lvalue(vk::DescriptorImageInfo { {}, *imageView, vk::ImageLayout::eGeneral })),
+            decltype(descriptorSetLayout)::getWriteDescriptorSet<1>({}, 0, vku::lvalue(
                 mipImageViews
                     | std::views::transform([](vk::ImageView view) {
                         return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
@@ -165,12 +165,13 @@ void cubemap::SubgroupMipmapComputePipeline::recordCommands(vk::CommandBuffer co
     }
 }
 
-vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> cubemap::SubgroupMipmapComputePipeline::createDescriptorSetLayout() const {
+vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> cubemap::SubgroupMipmapComputePipeline::createDescriptorSetLayout() const {
     return { device, vk::DescriptorSetLayoutCreateInfo {
         vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
-        vku::unsafeProxy(decltype(descriptorSetLayout)::getBindings(
-            { 1, vk::ShaderStageFlagBits::eCompute, &*linearSampler },
-            { config.useShaderImageLoadStoreLod ? 1U : image.get().mipLevels, vk::ShaderStageFlagBits::eCompute })),
+        vku::lvalue({
+            decltype(descriptorSetLayout)::getCreateInfoBinding<0>(vk::ShaderStageFlagBits::eCompute, *linearSampler),
+            decltype(descriptorSetLayout)::getCreateInfoBinding<1>(config.useShaderImageLoadStoreLod ? 1U : image.get().mipLevels, vk::ShaderStageFlagBits::eCompute),
+        }),
     } };
 }
 
@@ -178,7 +179,7 @@ vk::raii::PipelineLayout cubemap::SubgroupMipmapComputePipeline::createPipelineL
     return { device, vk::PipelineLayoutCreateInfo {
         {},
         *descriptorSetLayout,
-        vku::unsafeProxy(vk::PushConstantRange {
+        vku::lvalue(vk::PushConstantRange {
             vk::ShaderStageFlagBits::eCompute,
             0, sizeof(PushConstant),
         }),
@@ -188,20 +189,21 @@ vk::raii::PipelineLayout cubemap::SubgroupMipmapComputePipeline::createPipelineL
 vk::raii::Pipeline cubemap::SubgroupMipmapComputePipeline::createPipeline() const {
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        createPipelineStages(
-            device,
-            vku::Shader {
-                config.useShaderImageLoadStoreLod
+        vk::PipelineShaderStageCreateInfo {
+            {},
+            vk::ShaderStageFlagBits::eCompute,
+            *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                {},
+                vku::lvalue(config.useShaderImageLoadStoreLod
                     ? std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<1> }
-                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<0> },
-                vk::ShaderStageFlagBits::eCompute,
-                vku::unsafeAddress(vk::SpecializationInfo {
-                    vku::unsafeProxy(vk::SpecializationMapEntry {
-                        0, 0, sizeof(std::uint32_t),
-                    }),
-                    vk::ArrayProxyNoTemporaries<const std::uint32_t> { config.subgroupSize },
-                }),
-            }).get()[0],
+                    : std::span<const std::uint32_t> { shader::subgroup_mipmap_comp<0> }),
+            } }),
+            "main",
+            &vku::lvalue(vk::SpecializationInfo {
+                vku::lvalue(vk::SpecializationMapEntry { 0, 0, sizeof(std::uint32_t) }),
+                vk::ArrayProxyNoTemporaries<const std::uint32_t> { config.subgroupSize },
+            }),
+        },
         *pipelineLayout,
     } };
 }
@@ -212,7 +214,7 @@ std::vector<vk::raii::ImageView> cubemap::SubgroupMipmapComputePipeline::createM
         result.emplace_back(device, image.get().getViewCreateInfo(vk::ImageViewType::eCube));
     }
     else {
-        result.append_range(image.get().getMipViewCreateInfos(vk::ImageViewType::eCube)
+        result.append_range(image.get().getPerMipLevelViewCreateInfos(vk::ImageViewType::eCube)
             | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
                 return vk::raii::ImageView { device, createInfo };
             }));

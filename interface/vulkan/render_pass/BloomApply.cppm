@@ -25,7 +25,7 @@ module :private;
 vk_gltf_viewer::vulkan::rp::BloomApply::BloomApply(const Gpu &gpu)
     : RenderPass { gpu.device, vk::RenderPassCreateInfo {
         {},
-        vku::unsafeProxy({
+        vku::lvalue({
             // Result image.
             vk::AttachmentDescription {
                 {},
@@ -35,10 +35,10 @@ vk_gltf_viewer::vulkan::rp::BloomApply::BloomApply(const Gpu &gpu)
                 vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal,
             },
         }),
-        vku::unsafeProxy(vk::SubpassDescription {
+        vku::lvalue(vk::SubpassDescription {
             {},
             vk::PipelineBindPoint::eGraphics,
-            vku::unsafeProxy(vk::AttachmentReference { 0, gpu.supportAttachmentFeedbackLoopLayout ? vk::ImageLayout::eAttachmentFeedbackLoopOptimalEXT : vk::ImageLayout::eGeneral }),
-            vku::unsafeProxy(vk::AttachmentReference { 0, vk::ImageLayout::eGeneral }),
+            vku::lvalue(vk::AttachmentReference { 0, gpu.supportAttachmentFeedbackLoopLayout ? vk::ImageLayout::eAttachmentFeedbackLoopOptimalEXT : vk::ImageLayout::eGeneral }),
+            vku::lvalue(vk::AttachmentReference { 0, vk::ImageLayout::eGeneral }),
         }),
     } } { }

@@ -60,13 +60,13 @@ namespace ibl {
         std::reference_wrapper<const vk::raii::Device> device;
         std::reference_wrapper<const vku::Image> prefilteredmapImage;
         vk::raii::Sampler cubemapSampler;
-        vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> descriptorSetLayout;
+        vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
         vk::raii::ImageView cubemapImageView;
         std::vector<vk::raii::ImageView> prefilteredmapMipImageViews;
 
-        [[nodiscard]] vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> createDescriptorSetLayout() const;
+        [[nodiscard]] vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> createDescriptorSetLayout() const;
         [[nodiscard]] vk::raii::PipelineLayout createPipelineLayout() const;
         [[nodiscard]] vk::raii::Pipeline createPipeline() const;
         [[nodiscard]] std::vector<vk::raii::ImageView> createPrefilteredmapMipImageViews() const;
@@ -119,8 +119,8 @@ void ibl::PrefilteredmapComputePipeline::recordCommands(vk::CommandBuffer comput
     computeCommandBuffer.pushDescriptorSetKHR(
         vk::PipelineBindPoint::eCompute, *pipelineLayout,
         0, {
-            decltype(descriptorSetLayout)::getWriteOne<0>({ {}, *cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-            decltype(descriptorSetLayout)::getWrite<1>(vku::unsafeProxy(prefilteredmapMipImageViews
+            decltype(descriptorSetLayout)::getWriteDescriptorSet<0>({}, 0, vku::lvalue(vk::DescriptorImageInfo { {}, *cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+            decltype(descriptorSetLayout)::getWriteDescriptorSet<1>({}, 0, vku::lvalue(prefilteredmapMipImageViews
                 | std::views::transform([](vk::ImageView view) {
                     return vk::DescriptorImageInfo { {}, view, vk::ImageLayout::eGeneral };
                 })
@@ -133,22 +133,20 @@ void ibl::PrefilteredmapComputePipeline::recordCommands(vk::CommandBuffer comput
             .roughness = static_cast<float>(level) / (prefilteredmapImage.get().mipLevels - 1),
         }, *d);
 
-        constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) noexcept {
-            return (num / denom) + (num % denom != 0);
-        };
-        const std::uint32_t groupCountXY = divCeil(prefilteredmapImage.get().extent.width >> level, 16U);
+        const std::uint32_t groupCountXY = vku::divCeil(prefilteredmapImage.get().extent.width >> level, 16U);
         computeCommandBuffer.dispatch(groupCountXY, groupCountXY, 6, *d);
     }
 }
 
-[[nodiscard]] vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> ibl::PrefilteredmapComputePipeline::createDescriptorSetLayout() const {
+[[nodiscard]] vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> ibl::PrefilteredmapComputePipeline::createDescriptorSetLayout() const {
     return {
         device,
         vk::DescriptorSetLayoutCreateInfo {
             vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
-            vku::unsafeProxy(decltype(descriptorSetLayout)::getBindings(
-                { 1, vk::ShaderStageFlagBits::eCompute, &*cubemapSampler },
-                { config.useShaderImageLoadStoreLod ? 1U : prefilteredmapImage.get().mipLevels, vk::ShaderStageFlagBits::eCompute })),
+            vku::lvalue({
+                decltype(descriptorSetLayout)::getCreateInfoBinding<0>(vk::ShaderStageFlagBits::eCompute, *cubemapSampler),
+                decltype(descriptorSetLayout)::getCreateInfoBinding<1>(config.useShaderImageLoadStoreLod ? 1U : prefilteredmapImage.get().mipLevels, vk::ShaderStageFlagBits::eCompute),
+            }),
         },
     };
 }
@@ -157,7 +155,7 @@ void ibl::PrefilteredmapComputePipeline::recordCommands(vk::CommandBuffer comput
     return { device, vk::PipelineLayoutCreateInfo {
         {},
         *descriptorSetLayout,
-        vku::unsafeProxy(vk::PushConstantRange {
+        vku::lvalue(vk::PushConstantRange {
             vk::ShaderStageFlagBits::eCompute,
             0, sizeof(PushConstant),
         }),
@@ -167,21 +165,21 @@ void ibl::PrefilteredmapComputePipeline::recordCommands(vk::CommandBuffer comput
 [[nodiscard]] vk::raii::Pipeline ibl::PrefilteredmapComputePipeline::createPipeline() const {
     return { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        createPipelineStages(
-            device,
-            vku::Shader {
-                config.useShaderImageLoadStoreLod
+        vk::PipelineShaderStageCreateInfo {
+            {},
+            vk::ShaderStageFlagBits::eCompute,
+            *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                {},
+                vku::lvalue(config.useShaderImageLoadStoreLod
                     ? std::span<const std::uint32_t> { shader::prefilteredmap_comp<1> }
-                    : std::span<const std::uint32_t> { shader::prefilteredmap_comp<0> },
-                vk::ShaderStageFlagBits::eCompute,
-                vku::unsafeAddress(vk::SpecializationInfo {
-                    // TODO: use vku::SpecializationMap when available.
-                    vku::unsafeProxy({
-                        vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, samples), sizeof(SpecializationConstants::samples) },
-                    }),
-                    vk::ArrayProxyNoTemporaries<const SpecializationConstants> { config.specializationConstants },
-                }),
-            }).get()[0],
+                    : std::span<const std::uint32_t> { shader::prefilteredmap_comp<0> }),
+            } }),
+            "main",
+            &vku::lvalue(vk::SpecializationInfo {
+                vku::lvalue(vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, samples), sizeof(SpecializationConstants::samples) }),
+                vk::ArrayProxyNoTemporaries<const SpecializationConstants> { config.specializationConstants },
+            }),
+        },
         *pipelineLayout,
     } };
 }
@@ -192,7 +190,7 @@ void ibl::PrefilteredmapComputePipeline::recordCommands(vk::CommandBuffer comput
         result.emplace_back(device, prefilteredmapImage.get().getViewCreateInfo(vk::ImageViewType::eCube));
     }
     else {
-        result.append_range(prefilteredmapImage.get().getMipViewCreateInfos(vk::ImageViewType::eCube)
+        result.append_range(prefilteredmapImage.get().getPerMipLevelViewCreateInfos(vk::ImageViewType::eCube)
             | std::views::transform([this](const vk::ImageViewCreateInfo &createInfo) {
                 return vk::raii::ImageView { device, createInfo };
             }));
