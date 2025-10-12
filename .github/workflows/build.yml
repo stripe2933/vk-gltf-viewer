@@ -49,7 +49,11 @@ jobs:
         uses: ./.github/actions/build-gcc
         with:
           version: '15.2.0',
-          path: /opt/gcc
+          path: '/opt/gcc'
+
+      - name: Install build dependencies (Linux + Clang)
+        if: ${{ runner.os == 'Linux' && matrix.compiler == 'clang' }}
+        run: sudo apt-get install libc++-dev libc++abi-dev
 
       - name: Enable Developer Command Prompt (Windows + MSVC)
         if: ${{ runner.os == 'Windows' && matrix.compiler == 'msvc' }}
