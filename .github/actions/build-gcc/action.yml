@@ -1,0 +1,41 @@
+name: Build GCC
+
+inputs:
+  version:
+    description: 'GCC version to build'
+    required: true
+
+  path:
+    description: 'Directory to build GCC in'
+    required: true
+
+  cache:
+    description: 'Enable caching'
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+
+  steps:
+    - name: Restore cached build
+      if: ${{ inputs.cache == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.path }}
+        key: gcc-${{ inputs.version }}
+
+    - name: Build GCC when cache miss
+      if: steps.restore.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        wget https://ftp.gnu.org/gnu/gcc/gcc-${{ inputs.version }}/gcc-${{ inputs.version }}.tar.xz
+        tar -xf gcc-${{ inputs.version }}.tar.xz
+        rm gcc-${{ inputs.version }}.tar.xz
+        cd gcc-${{ inputs.version }}
+        mkdir build
+        cd build
+        sudo apt install libgmp-dev libmpfr-dev libmpc-dev
+        ../configure --prefix=${{ inputs.path }} --disable-multilib --enable-languages=c,c++
+        make -j$(nproc)
+        make install

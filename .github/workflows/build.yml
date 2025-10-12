@@ -20,10 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: 'windows-latest', compiler: 'msvc' }
-          - { os: 'windows-latest', compiler: 'mingw-clang' }
-          - { os: 'macos-latest', compiler: 'clang' }
-          - { os: 'ubuntu-latest', compiler: 'clang' }
+          - { os: 'ubuntu-latest', compiler: 'gcc' }
 
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +42,14 @@ jobs:
 
       - name: Install build dependencies (Linux)
         if: ${{ runner.os == 'Linux' }}
-        run: sudo apt-get install libc++-dev libc++abi-dev mono-devel xorg-dev libtool libltdl-dev
+        run: sudo apt-get install mono-devel xorg-dev libtool libltdl-dev
+
+      - name: Build GCC (Linux + GCC)
+        if: ${{ runner.os == 'Linux' && matrix.compiler == 'gcc' }}
+        uses: ./.github/actions/build-gcc
+        with:
+          version: '15.2.0',
+          path: /opt/gcc
 
       - name: Enable Developer Command Prompt (Windows + MSVC)
         if: ${{ runner.os == 'Windows' && matrix.compiler == 'msvc' }}

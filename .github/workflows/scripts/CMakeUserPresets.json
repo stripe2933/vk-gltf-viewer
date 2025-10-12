@@ -40,6 +40,18 @@
       }
     },
     {
+      "name": "ubuntu-latest-gcc",
+      "inherits": "ci",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/opt/gcc/bin/gcc",
+        "CMAKE_CXX_COMPILER": "/opt/gcc/bin/g++"
+      }
+    },
+    {
+      "name": "ubuntu-24.04-arm-gcc",
+      "inherits": "ubuntu-latest-gcc"
+    },
+    {
       "name": "ubuntu-latest-clang",
       "inherits": "ci",
       "cacheVariables": {
