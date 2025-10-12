@@ -48,7 +48,7 @@ jobs:
         if: ${{ runner.os == 'Linux' && matrix.compiler == 'gcc' }}
         uses: ./.github/actions/build-gcc
         with:
-          version: '15.2.0',
+          version: '15.2.0'
           path: '/opt/gcc'
 
       - name: Install build dependencies (Linux + Clang)
