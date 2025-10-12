@@ -44,7 +44,7 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         run: sudo apt-get install mono-devel xorg-dev libtool libltdl-dev
 
-      - name: Build GCC (Linux + GCC)
+      - name: Install build dependencies (Linux + GCC)
         if: ${{ runner.os == 'Linux' && matrix.compiler == 'gcc' }}
         uses: ./.github/actions/build-gcc
         with:

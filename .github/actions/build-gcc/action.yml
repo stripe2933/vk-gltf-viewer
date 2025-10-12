@@ -15,7 +15,7 @@ inputs:
     default: 'true'
 
 runs:
-  using: composite
+  using: 'composite'
 
   steps:
     - name: Restore cached build
