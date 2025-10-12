@@ -1,4 +1,4 @@
-name: Build GCC
+name: 'Build GCC'
 
 inputs:
   version:
@@ -29,13 +29,19 @@ runs:
       if: steps.restore.outputs.cache-hit != 'true'
       shell: bash
       run: |
+        sudo apt install libgmp-dev libmpfr-dev libmpc-dev
         wget https://ftp.gnu.org/gnu/gcc/gcc-${{ inputs.version }}/gcc-${{ inputs.version }}.tar.xz
         tar -xf gcc-${{ inputs.version }}.tar.xz
         rm gcc-${{ inputs.version }}.tar.xz
         cd gcc-${{ inputs.version }}
         mkdir build
         cd build
-        sudo apt install libgmp-dev libmpfr-dev libmpc-dev
-        ../configure --prefix=${{ inputs.path }} --disable-multilib --enable-languages=c,c++
+        ../configure --prefix=${{ inputs.path }} \
+          --disable-bootstrap \
+          --disable-multilib \
+          --enable-languages=c,c++ \
+          --disable-libsanitizer \
+          --disable-libstdcxx-pch \
+          --disable-shared
         make -j$(nproc)
-        make install
+        sudo make install
