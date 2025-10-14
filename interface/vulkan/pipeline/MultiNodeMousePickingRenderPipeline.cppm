@@ -116,7 +116,7 @@ vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline<false>::Mu
                 {},
                 true, true, vk::CompareOp::eGreater, // Use reverse Z.
             }),
-            &vku::lvalue(vku::defaultPipelineColorBlendState()),
+            &vku::lvalue(vku::defaultPipelineColorBlendState(0)),
             &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
                 {},
                 vku::lvalue({
@@ -210,7 +210,7 @@ vk_gltf_viewer::vulkan::pipeline::MultiNodeMousePickingRenderPipeline<true>::Mul
                 {},
                 true, true, vk::CompareOp::eGreater, // Use reverse Z.
             }),
-            &vku::lvalue(vku::defaultPipelineColorBlendState()),
+            &vku::lvalue(vku::defaultPipelineColorBlendState(0)),
             &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
                 {},
                 vku::lvalue({

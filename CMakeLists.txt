@@ -32,6 +32,7 @@ find_package(imguizmo CONFIG REQUIRED)
 find_package(meshoptimizer CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
 find_package(Stb REQUIRED)
+find_package(vku CONFIG REQUIRED)
 
 # --------------------
 # Optional external dependencies.
@@ -69,15 +70,42 @@ target_compile_definitions(glm_module PRIVATE
 )
 add_library(glm::module ALIAS glm_module)
 
+get_target_property(
+    VulkanMemoryAllocator_Hpp_INCLUDE_DIR
+    unofficial::VulkanMemoryAllocator-Hpp::VulkanMemoryAllocator-Hpp
+    INTERFACE_INCLUDE_DIRECTORIES
+)
+
+add_library(vku_module)
+target_sources(vku_module PUBLIC
+    FILE_SET CXX_MODULES
+    BASE_DIRS
+        ${Vulkan_INCLUDE_DIRS}/vulkan
+        ${VulkanMemoryAllocator_Hpp_INCLUDE_DIR}/vulkan-memory-allocator-hpp
+        extlibs/module-ports
+    FILES
+        ${Vulkan_INCLUDE_DIRS}/vulkan/vulkan.cppm
+        ${VulkanMemoryAllocator_Hpp_INCLUDE_DIR}/vulkan-memory-allocator-hpp/vk_mem_alloc.cppm
+        extlibs/module-ports/vku.cppm
+)
+target_compile_definitions(vku_module
+    PUBLIC
+        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+    PRIVATE
+        VMA_STATIC_VULKAN_FUNCTIONS=0 VMA_DYNAMIC_VULKAN_FUNCTIONS=1 VMA_ENABLE_VULKAN_HPP_MODULE
+        VULKAN_HPP_NO_SMART_HANDLE
+        VULKAN_HPP_NO_TO_STRING
+        $<$<PLATFORM_ID:Windows>:VK_USE_PLATFORM_WIN32_KHR>
+        $<$<PLATFORM_ID:Darwin>:VK_USE_PLATFORM_METAL_EXT VK_ENABLE_BETA_EXTENSIONS> # For VK_KHR_portability_subset availability.
+)
+target_link_libraries(vku_module PUBLIC vku::vku)
+add_library(vku::module ALIAS vku_module)
+
 # --------------------
 # Internal dependencies.
 # --------------------
 
 include(cmake/CompileShader.cmake)
-
-set(VKU_DISPATCH_LOADER_DYNAMIC ON)
-set(VKU_BUILD_MODULE ON)
-add_subdirectory(vku)
 
 add_subdirectory(bloom)
 add_subdirectory(cubemap)

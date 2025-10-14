@@ -20,6 +20,6 @@
     "mikktspace",
     "nativefiledialog-extended",
     "stb",
-    "vulkan-memory-allocator-hpp"
+    "vku"
   ]
 }

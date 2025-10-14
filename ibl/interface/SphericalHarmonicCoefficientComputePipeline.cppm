@@ -222,9 +222,9 @@ std::uint32_t ibl::SphericalHarmonicCoefficientComputePipeline::getCubemapMipSiz
 
 vku::raii::AllocatedBuffer ibl::SphericalHarmonicCoefficientComputePipeline::createReductionBuffer() const {
     // Image -> Buffer: 32x32 texels will be reduced to a single 2nd-order spherical harmonic coefficients set (sizeof(float[27]).
-    vk::DeviceSize coefficientSetCount = square(getCubemapMipSize() / 32);
+    std::uint32_t coefficientSetCount = square(getCubemapMipSize() / 32);
     // Buffer -> Buffer: 256 2nd-order spherical harmonic coefficients sets will be reduced to a single set.
-    coefficientSetCount += vku::divCeil(coefficientSetCount, 256ULL);
+    coefficientSetCount += vku::divCeil(coefficientSetCount, 256U);
 
     return {
         allocator,

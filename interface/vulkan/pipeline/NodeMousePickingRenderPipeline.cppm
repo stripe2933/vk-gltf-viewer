@@ -115,7 +115,7 @@ vk_gltf_viewer::vulkan::pipeline::NodeMousePickingRenderPipeline<false>::NodeMou
             &vku::lvalue(vku::defaultPipelineRasterizationState({}, vk::CullModeFlagBits::eBack)),
             &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e1 }),
             gpu.workaround.attachmentLessRenderPass ? &vku::lvalue(vk::PipelineDepthStencilStateCreateInfo{}) : nullptr,
-            &vku::lvalue(vku::defaultPipelineColorBlendState()),
+            &vku::lvalue(vku::defaultPipelineColorBlendState(0)),
             &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
                 {},
                 vku::lvalue({
@@ -207,7 +207,7 @@ vk_gltf_viewer::vulkan::pipeline::NodeMousePickingRenderPipeline<true>::NodeMous
             &vku::lvalue(vku::defaultPipelineRasterizationState({}, vk::CullModeFlagBits::eBack)),
             &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e1 }),
             gpu.workaround.attachmentLessRenderPass ? &vku::lvalue(vk::PipelineDepthStencilStateCreateInfo{}) : nullptr,
-            &vku::lvalue(vku::defaultPipelineColorBlendState()),
+            &vku::lvalue(vku::defaultPipelineColorBlendState(0)),
             &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
                 {},
                 vku::lvalue({
