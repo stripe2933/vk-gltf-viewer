@@ -32,36 +32,56 @@ vk_gltf_viewer::vulkan::pipeline::WeightedBlendedCompositionRenderPipeline::Weig
     const Gpu &gpu,
     const pl::WeightedBlendedComposition &layout,
     const rp::Scene &renderPass
-) : Pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-        createPipelineStages(
-            gpu.device,
-            vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
-            vku::Shader {
-                gpu.supportShaderTrinaryMinMax
-                    ? std::span<const std::uint32_t> { shader::weighted_blended_composition_frag<1> }
-                    : std::span<const std::uint32_t> { shader::weighted_blended_composition_frag<0> },
+) : Pipeline { gpu.device, nullptr, vk::GraphicsPipelineCreateInfo {
+        {},
+        vku::lvalue({
+            vk::PipelineShaderStageCreateInfo {
+                {},
+                vk::ShaderStageFlagBits::eVertex,
+                *vku::lvalue(vk::raii::ShaderModule { gpu.device, vk::ShaderModuleCreateInfo {
+                    {},
+                    shader::screen_quad_vert,
+                } }),
+                "main",
+            },
+            vk::PipelineShaderStageCreateInfo {
+                {},
                 vk::ShaderStageFlagBits::eFragment,
-            }).get(),
-        *layout, 1)
-        .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
+                *vku::lvalue(vk::raii::ShaderModule { gpu.device, vk::ShaderModuleCreateInfo {
+                    {},
+                    vku::lvalue(gpu.supportShaderTrinaryMinMax
+                        ? std::span<const std::uint32_t> { shader::weighted_blended_composition_frag<1> }
+                        : std::span<const std::uint32_t> { shader::weighted_blended_composition_frag<0> }),
+                } }),
+                "main",
+            },
+        }),
+        &vku::lvalue(vk::PipelineVertexInputStateCreateInfo{}),
+        &vku::lvalue(vku::defaultPipelineInputAssemblyState(vk::PrimitiveTopology::eTriangleList)),
+        nullptr,
+        &vku::lvalue(vk::PipelineViewportStateCreateInfo {
             {},
-            false, false,
-            vk::PolygonMode::eFill,
-            vk::CullModeFlagBits::eNone, {},
-            {}, {}, {}, {},
-            1.f,
-        }))
-        .setPColorBlendState(vku::unsafeAddress(vk::PipelineColorBlendStateCreateInfo {
+            1, nullptr,
+            1, nullptr,
+        }),
+        &vku::lvalue(vku::defaultPipelineRasterizationState()),
+        &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e1 }),
+        nullptr,
+        &vku::lvalue(vk::PipelineColorBlendStateCreateInfo {
             {},
             false, {},
-            vku::unsafeProxy(vk::PipelineColorBlendAttachmentState {
+            vku::lvalue(vk::PipelineColorBlendAttachmentState {
                 true,
                 vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
                 vk::BlendFactor::eOne, vk::BlendFactor::eOneMinusSrcAlpha, vk::BlendOp::eAdd,
                 vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
             }),
             { 1.f, 1.f, 1.f, 1.f },
-        }))
-        .setRenderPass(*renderPass)
-        .setSubpass(2)
-    } { }
+        }),
+        &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
+            {},
+            vku::lvalue({ vk::DynamicState::eViewport, vk::DynamicState::eScissor }),
+        }),
+        *layout,
+        *renderPass, 2,
+    } } { }

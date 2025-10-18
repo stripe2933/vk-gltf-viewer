@@ -10,7 +10,7 @@ target_sources(ibl PUBLIC
         interface/SphericalHarmonicCoefficientComputePipeline.cppm
 )
 target_compile_features(ibl PUBLIC cxx_std_23)
-target_link_libraries(ibl PUBLIC vku::vku)
+target_link_libraries(ibl PUBLIC vku::module)
 set_target_properties(ibl PROPERTIES CXX_MODULE_STD 1)
 
 target_link_shaders(ibl PUBLIC

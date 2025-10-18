@@ -12,7 +12,7 @@ export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::texture {
     export struct Checkerboard {
-        vku::AllocatedImage image;
+        vku::raii::AllocatedImage image;
         vk::raii::ImageView imageView;
         vk::raii::Sampler sampler;
 
@@ -39,19 +39,26 @@ constexpr unsigned char data[] = {
 };
 
 vk_gltf_viewer::vulkan::texture::Checkerboard::Checkerboard(const Gpu &gpu)
-    : image { gpu.allocator, vk::ImageCreateInfo {
-        {},
-        vk::ImageType::e2D,
-        vk::Format::eBc4UnormBlock,
-        { 16, 16, 1 },
-        1, 1,
-        vk::SampleCountFlagBits::e1,
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
-    } }
-    , imageView { gpu.device, image.getViewCreateInfo().setComponents({ vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne }) }
+    : image {
+        gpu.allocator,
+        vk::ImageCreateInfo {
+            {},
+            vk::ImageType::e2D,
+            vk::Format::eBc4UnormBlock,
+            { 16, 16, 1 },
+            1, 1,
+            vk::SampleCountFlagBits::e1,
+            vk::ImageTiling::eOptimal,
+            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+        },
+        vma::AllocationCreateInfo {
+            {},
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    }
+    , imageView { gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2D).setComponents({ vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eOne }) }
     , sampler { gpu.device, vk::SamplerCreateInfo{}.setMaxLod(vk::LodClampNone) } {
-    vku::AllocatedBuffer stagingBuffer {
+    vku::raii::AllocatedBuffer stagingBuffer {
         gpu.allocator,
         vk::BufferCreateInfo {
             {},
@@ -75,7 +82,7 @@ vk_gltf_viewer::vulkan::texture::Checkerboard::Checkerboard(const Gpu &gpu)
                 {}, vk::AccessFlagBits::eTransferWrite,
                 {}, vk::ImageLayout::eTransferDstOptimal,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                image, vku::fullSubresourceRange(),
+                image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
             });
 
         cb.copyBufferToImage(stagingBuffer, image, vk::ImageLayout::eTransferDstOptimal, vk::BufferImageCopy {
@@ -91,7 +98,7 @@ vk_gltf_viewer::vulkan::texture::Checkerboard::Checkerboard(const Gpu &gpu)
                 vk::AccessFlagBits::eTransferWrite, {},
                 vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                image, vku::fullSubresourceRange(),
+                image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
             });
     }, *fence);
     std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL);

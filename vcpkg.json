@@ -20,11 +20,6 @@
     "mikktspace",
     "nativefiledialog-extended",
     "stb",
-    {
-      "name": "vku",
-      "features": [
-        "dynamic-dispatcher"
-      ]
-    }
+    "vku"
   ]
 }

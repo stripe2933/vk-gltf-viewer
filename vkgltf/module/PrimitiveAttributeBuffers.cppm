@@ -50,7 +50,7 @@ namespace vkgltf {
              * @brief Vulkan buffer that contains the attribute data.
              * Ownership of the buffer is shared across the instances of <tt>PrimitiveAttributeBuffers</tt>.
              */
-            std::shared_ptr<vku::AllocatedBuffer> buffer;
+            std::shared_ptr<vku::raii::AllocatedBuffer> buffer;
 
             /**
              * @brief Offset in <tt>buffer</tt> where the attribute data starts.
@@ -166,7 +166,7 @@ namespace vkgltf {
             /**
              * @brief Vulkan buffers that have glTF buffer view data.
              */
-            std::unordered_map<std::size_t /* buffer view index */, std::shared_ptr<vku::AllocatedBuffer>> bufferViewBuffers;
+            std::unordered_map<std::size_t /* buffer view index */, std::shared_ptr<vku::raii::AllocatedBuffer>> bufferViewBuffers;
 
             /**
              * @brief Cached attribute infos for glTF accessors.
@@ -271,13 +271,13 @@ namespace vkgltf {
                     const std::span<const std::byte> bufferViewData = config.adapter(asset, bufferViewIndex);
                     auto &buffer = bufferViewBuffers.emplace(
                         bufferViewIndex,
-                        std::make_shared<vku::AllocatedBuffer>(
+                        std::make_shared<vku::raii::AllocatedBuffer>(
                             allocator,
                             vk::BufferCreateInfo {
                                 {},
                                 bufferViewData.size(),
                                 usage,
-                                config.queueFamilies.size() < 2 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+                                vku::getSharingMode(config.queueFamilies),
                                 config.queueFamilies,
                             },
                             config.allocationCreateInfo)).first->second;
@@ -445,13 +445,13 @@ namespace vkgltf {
                 const vk::DeviceSize byteStride = (elementByteSize / 4 + (elementByteSize % 4 != 0)) * 4;
 
                 AttributeInfo result {
-                    .buffer = std::make_shared<vku::AllocatedBuffer>(
+                    .buffer = std::make_shared<vku::raii::AllocatedBuffer>(
                         allocator,
                         vk::BufferCreateInfo {
                             {},
                             byteStride * accessor.count,
                             config.usageFlags,
-                            config.queueFamilies.size() < 2 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+                            vku::getSharingMode(config.queueFamilies),
                             config.queueFamilies,
                         },
                         config.allocationCreateInfo),
@@ -628,13 +628,13 @@ namespace vkgltf {
             const std::span generatedBytes = visit([](const auto &generated) { return as_bytes(std::span { generated }); }, generated);
 
             tangent.emplace().attributeInfo = {
-                .buffer = std::make_shared<vku::AllocatedBuffer>(
+                .buffer = std::make_shared<vku::raii::AllocatedBuffer>(
                     allocator,
                     vk::BufferCreateInfo {
                         {},
                         generatedBytes.size_bytes(),
                         usageFlags,
-                        queueFamilies.size() < 2 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+                        vku::getSharingMode(queueFamilies),
                         queueFamilies,
                     },
                     allocationCreateInfo),

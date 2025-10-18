@@ -33,24 +33,47 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderPipeline::SkyboxRenderPipeline(
     const vk::raii::Device &device,
     const pl::Skybox &layout,
     const rp::Scene &renderPass
-) : Pipeline { device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-        createPipelineStages(
-            device,
-            vku::Shader { shader::skybox_vert, vk::ShaderStageFlagBits::eVertex },
-            vku::Shader { shader::skybox_frag, vk::ShaderStageFlagBits::eFragment }).get(),
-        *layout, 1, true, vk::SampleCountFlagBits::e4)
-        .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
+) : Pipeline { device, nullptr, vk::GraphicsPipelineCreateInfo {
+        {},
+        vku::lvalue({
+            vk::PipelineShaderStageCreateInfo {
+                {},
+                vk::ShaderStageFlagBits::eVertex,
+                *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                    {},
+                    shader::skybox_vert,
+                } }),
+                "main",
+            },
+            vk::PipelineShaderStageCreateInfo {
+                {},
+                vk::ShaderStageFlagBits::eFragment,
+                *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                    {},
+                    shader::skybox_frag,
+                } }),
+                "main",
+            },
+        }),
+        &vku::lvalue(vk::PipelineVertexInputStateCreateInfo{}),
+        &vku::lvalue(vku::defaultPipelineInputAssemblyState(vk::PrimitiveTopology::eTriangleList)),
+        nullptr,
+        &vku::lvalue(vk::PipelineViewportStateCreateInfo {
             {},
-            false, false,
-            vk::PolygonMode::eFill,
-            vk::CullModeFlagBits::eNone, {},
-            {}, {}, {}, {},
-            1.f,
-        }))
-        .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
+            1, nullptr,
+            1, nullptr,
+        }),
+        &vku::lvalue(vku::defaultPipelineRasterizationState()),
+        &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e4 }),
+        &vku::lvalue(vk::PipelineDepthStencilStateCreateInfo {
             {},
             true, false, vk::CompareOp::eEqual,
-        }))
-        .setRenderPass(*renderPass)
-        .setSubpass(0),
-    } { }
+        }),
+        &vku::lvalue(vku::defaultPipelineColorBlendState(1)),
+        &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
+            {},
+            vku::lvalue({ vk::DynamicState::eViewport, vk::DynamicState::eScissor }),
+        }),
+        *layout,
+        *renderPass, 0,
+    } } { }

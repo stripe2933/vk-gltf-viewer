@@ -71,7 +71,7 @@ namespace vk_gltf_viewer::vulkan {
 
             vkgltf::NodeBuffer nodeBuffer;
 
-            vku::MappedBuffer mousePickingResultBuffer;
+            vku::raii::AllocatedBuffer mousePickingResultBuffer;
 
             std::optional<std::pair<std::uint32_t, vk::Rect2D>> mousePickingInput;
 
@@ -165,7 +165,7 @@ namespace vk_gltf_viewer::vulkan {
         public:
             class JumpFloodResources {
             public:
-                vku::AllocatedImage image;
+                vku::raii::AllocatedImage image;
                 vk::raii::ImageView imageView;
                 std::array<vk::raii::ImageView, 2> pingPongImageViews;
 
@@ -201,7 +201,7 @@ namespace vk_gltf_viewer::vulkan {
             ag::JumpFloodSeed selectedNodeJumpFloodSeedAttachmentGroup;
 
             // Bloom.
-            vku::AllocatedImage bloomImage;
+            vku::raii::AllocatedImage bloomImage;
             vk::raii::ImageView bloomImageView;
             std::vector<vk::raii::ImageView> bloomMipImageViews;
 
@@ -219,7 +219,7 @@ namespace vk_gltf_viewer::vulkan {
             void setViewCount(std::uint32_t count, vk::CommandBuffer graphicsCommandBuffer);
 
         private:
-            [[nodiscard]] vku::AllocatedImage createBloomImage() const;
+            [[nodiscard]] vku::raii::AllocatedImage createBloomImage() const;
             [[nodiscard]] std::vector<vk::raii::ImageView> createBloomMipImageViews() const;
 
             void recordImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const;
@@ -243,7 +243,7 @@ namespace vk_gltf_viewer::vulkan {
         };
 
         // Buffer, image and image views.
-        vku::AllocatedBuffer cameraBuffer;
+        vku::raii::AllocatedBuffer cameraBuffer;
         std::optional<Viewport> viewport;
 
         // Descriptor/command pools.

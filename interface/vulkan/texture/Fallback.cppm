@@ -22,7 +22,7 @@ namespace vk_gltf_viewer::vulkan::texture {
         /**
          * @brief 1x1 white image.
          */
-        vku::AllocatedImage image;
+        vku::raii::AllocatedImage image;
 
         /**
          * @brief Image view for <tt>image</tt>.
@@ -43,17 +43,24 @@ module :private;
 #endif
 
 vk_gltf_viewer::vulkan::texture::Fallback::Fallback(const Gpu &gpu)
-    : image { gpu.allocator, vk::ImageCreateInfo {
-        {},
-        vk::ImageType::e2D,
-        vk::Format::eR8G8B8A8Unorm,
-        { 1, 1, 1 },
-        1, 1,
-        vk::SampleCountFlagBits::e1,
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
-    } }
-    , imageView { gpu.device, image.getViewCreateInfo() }
+    : image {
+        gpu.allocator,
+        vk::ImageCreateInfo {
+            {},
+            vk::ImageType::e2D,
+            vk::Format::eR8G8B8A8Unorm,
+            { 1, 1, 1 },
+            1, 1,
+            vk::SampleCountFlagBits::e1,
+            vk::ImageTiling::eOptimal,
+            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+        },
+        vma::AllocationCreateInfo {
+            {},
+            vma::MemoryUsage::eAutoPreferDevice,
+        },
+    }
+    , imageView { gpu.device, image.getViewCreateInfo(vk::ImageViewType::e2D) }
     , sampler { gpu.device, vk::SamplerCreateInfo {
         {},
         vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear,
@@ -74,12 +81,12 @@ vk_gltf_viewer::vulkan::texture::Fallback::Fallback(const Gpu &gpu)
                 {}, vk::AccessFlagBits::eTransferWrite,
                 {}, vk::ImageLayout::eTransferDstOptimal,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                image, vku::fullSubresourceRange(),
+                image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
             });
         cb.clearColorImage(
             image, vk::ImageLayout::eTransferDstOptimal,
             vk::ClearColorValue { 1.f, 1.f, 1.f, 1.f },
-            vku::fullSubresourceRange());
+            vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor));
         cb.pipelineBarrier(
             vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
             {}, {}, {},
@@ -87,7 +94,7 @@ vk_gltf_viewer::vulkan::texture::Fallback::Fallback(const Gpu &gpu)
                 vk::AccessFlagBits::eTransferWrite, {},
                 vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                image, vku::fullSubresourceRange(),
+                image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
             });
     }, *fence);
     // Wait for the command to be executed.
