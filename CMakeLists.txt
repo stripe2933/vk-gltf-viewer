@@ -57,8 +57,14 @@ target_sources(cstring_view_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/mod
 target_link_libraries(cstring_view_module PRIVATE cpp_util::cstring_view)
 add_library(cpp_util::cstring_view::module ALIAS cstring_view_module)
 
+get_target_property(glm_INCLUDE_DIR glm::glm-header-only INTERFACE_INCLUDE_DIRECTORIES)
+
 add_library(glm_module)
-target_sources(glm_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/module-ports/glm.cppm)
+target_sources(glm_module PUBLIC
+    FILE_SET CXX_MODULES
+    BASE_DIRS ${glm_INCLUDE_DIR}/glm
+    FILES ${glm_INCLUDE_DIR}/glm/glm.cppm
+)
 target_link_libraries(glm_module PRIVATE glm::glm)
 target_compile_definitions(glm_module PRIVATE
     GLM_FORCE_DEPTH_ZERO_TO_ONE
