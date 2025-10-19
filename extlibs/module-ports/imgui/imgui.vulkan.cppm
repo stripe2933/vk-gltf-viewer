@@ -10,9 +10,10 @@ export {
     // ----- Types -----
 
     using ::ImDrawData;
+    using ::ImGuiViewport;
     using ::ImGui_ImplVulkanH_Window;
     using ::ImGui_ImplVulkan_InitInfo;
-    using ::ImGui_ImplVulkan_MainPipelineCreateInfo;
+    using ::ImGui_ImplVulkan_PipelineInfo;
     using ::ImTextureData;
     using ::PFN_vkVoidFunction;
     using ::VkAllocationCallbacks;
@@ -22,6 +23,7 @@ export {
     using ::VkDevice;
     using ::VkFormat;
     using ::VkImageLayout;
+    using ::VkImageUsageFlags;
     using ::VkImageView;
     using ::VkInstance;
     using ::VkPhysicalDevice;
@@ -35,6 +37,7 @@ export {
     using ::ImGui_ImplVulkanH_CreateOrResizeWindow;
     using ::ImGui_ImplVulkanH_DestroyWindow;
     using ::ImGui_ImplVulkanH_GetMinImageCountFromPresentMode;
+    using ::ImGui_ImplVulkanH_GetWindowDataFromViewport;
     using ::ImGui_ImplVulkanH_SelectPhysicalDevice;
     using ::ImGui_ImplVulkanH_SelectPresentMode;
     using ::ImGui_ImplVulkanH_SelectQueueFamilyIndex;

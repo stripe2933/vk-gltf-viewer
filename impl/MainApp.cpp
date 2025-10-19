@@ -1062,11 +1062,14 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
         // ImGui requires ImGui_ImplVulkan_InitInfo::{MinImageCount,ImageCount} ≥ 2 (I don't know why...).
         .MinImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
         .ImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
-        .UseDynamicRendering = true,
-        .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
-            {},
-            colorAttachmentFormat,
+        .PipelineInfoMain = {
+            .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
+                {},
+                vku::lvalue(vk::Format::eB8G8R8A8Srgb),
+            },
+            .SwapChainImageUsage = static_cast<vk::ImageUsageFlags::MaskType>(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc),
         },
+        .UseDynamicRendering = true,
     };
     ImGui_ImplVulkan_Init(&initInfo);
 

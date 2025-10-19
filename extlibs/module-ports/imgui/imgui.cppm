@@ -63,9 +63,10 @@ export {
     using ::ImGuiBackendFlags_HasSetMousePos;
     using ::ImGuiBackendFlags_RendererHasVtxOffset;
     using ::ImGuiBackendFlags_RendererHasTextures;
+    using ::ImGuiBackendFlags_RendererHasViewports;
     using ::ImGuiBackendFlags_PlatformHasViewports;
     using ::ImGuiBackendFlags_HasMouseHoveredViewport;
-    using ::ImGuiBackendFlags_RendererHasViewports;
+    using ::ImGuiBackendFlags_HasParentViewport;
 
     using ::ImGuiButtonFlags_;
     using ::ImGuiButtonFlags_None;
@@ -144,6 +145,7 @@ export {
     using ::ImGuiCol_TextSelectedBg;
     using ::ImGuiCol_TreeLines;
     using ::ImGuiCol_DragDropTarget;
+    using ::ImGuiCol_UnsavedMarker;
     using ::ImGuiCol_NavCursor;
     using ::ImGuiCol_NavWindowingHighlight;
     using ::ImGuiCol_NavWindowingDimBg;
