@@ -22,10 +22,10 @@ namespace vk_gltf_viewer::gltf::algorithm {
      * @param sceneIndex Index of scene to be calculated.
      * @param nodeWorldTransforms Node world transform matrices ordered by node indices in the asset.
      * @param adapter Buffer data adapter.
-     * @return The pair of the miniball's center and radius.
+     * @return The tuple of (miniball center, miniball radius, world space positions of camera or light nodes)
      */
     export
-    [[nodiscard]] std::pair<fastgltf::math::dvec3, double> getMiniball(
+    [[nodiscard]] std::tuple<fastgltf::math::dvec3, double, std::vector<fastgltf::math::fvec3>> getMiniball(
         const fastgltf::Asset &asset,
         std::size_t sceneIndex,
         std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
@@ -37,7 +37,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
 module :private;
 #endif
 
-[[nodiscard]] std::pair<fastgltf::math::dvec3, double> vk_gltf_viewer::gltf::algorithm::getMiniball(
+[[nodiscard]] std::tuple<fastgltf::math::dvec3, double, std::vector<fastgltf::math::fvec3>> vk_gltf_viewer::gltf::algorithm::getMiniball(
     const fastgltf::Asset &asset,
     std::size_t sceneIndex,
     std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
@@ -51,6 +51,7 @@ module :private;
     fastgltf::math::dvec3 min(std::numeric_limits<double>::max());
     fastgltf::math::dvec3 max(std::numeric_limits<double>::lowest());
 #endif
+    std::vector<fastgltf::math::fvec3> cameraOrLightPoints;
 
     traverseScene(asset, asset.scenes[sceneIndex], [&](std::size_t nodeIndex) {
         const fastgltf::Node &node = asset.nodes[nodeIndex];
@@ -87,13 +88,7 @@ module :private;
         }
 
         if (node.lightIndex || node.cameraIndex) {
-            const fastgltf::math::dvec3 position { cast<double>(worldTransform.col(3)) };
-        #ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
-            scenePoints.emplace_back(position.x(), position.y(), position.z());
-        #else
-            min = cwiseMin(min, position);
-            max = cwiseMax(max, position);
-        #endif
+            cameraOrLightPoints.emplace_back(worldTransform.col(3));
         }
     });
 
@@ -102,9 +97,9 @@ module :private;
 
     fastgltf::math::dvec3 center;
     std::copy(ms.center_cartesian_begin(), ms.center_cartesian_end(), center.data());
-    return { center, ms.radius() };
+    return { center, ms.radius(), std::move(cameraOrLightPoints) };
 #else
     const fastgltf::math::dvec3 halfDisplacement = (max - min) / 2.0;
-    return { min + halfDisplacement, fastgltf::math::length(halfDisplacement) };
+    return { min + halfDisplacement, fastgltf::math::length(halfDisplacement), std::move(cameraOrLightPoints) };
 #endif
 }

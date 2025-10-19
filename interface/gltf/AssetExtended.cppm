@@ -124,7 +124,7 @@ namespace vk_gltf_viewer::gltf {
          *
 		 * The first of the pair is the center, and the second is the radius of the miniball.
 		 */
-        Lazy<std::pair<fastgltf::math::dvec3, double>> sceneMiniball;
+        Lazy<std::tuple<fastgltf::math::dvec3, double, std::vector<fastgltf::math::fvec3>>> sceneMiniball;
 
     	explicit AssetExtended(const std::filesystem::path &path);
 
@@ -170,7 +170,7 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
     , sceneIndex { asset.defaultScene.value_or(0) }
     , sceneInverseHierarchy { asset, sceneIndex }
     , sceneNodeVisibilities { asset, sceneIndex, sceneInverseHierarchy }
-    , sceneMiniball { [this]() {
+    , sceneMiniball { [this] {
         return algorithm::getMiniball(asset, sceneIndex, nodeWorldTransforms, externalBuffers);
     } } {
 	// originalMaterialIndexByPrimitive
