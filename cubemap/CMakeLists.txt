@@ -9,7 +9,7 @@ target_sources(cubemap PUBLIC
         interface/SubgroupMipmapComputePipeline.cppm
 )
 target_compile_features(cubemap PUBLIC cxx_std_23)
-target_link_libraries(cubemap PUBLIC vku::vku)
+target_link_libraries(cubemap PUBLIC vku::module)
 set_target_properties(cubemap PROPERTIES CXX_MODULE_STD 1)
 
 target_link_shaders(cubemap PUBLIC

@@ -73,7 +73,7 @@ namespace vkgltf {
      *     |        ...       |
      *     |------------------|
      */
-    export class NodeBuffer : public vku::AllocatedBuffer {
+    export class NodeBuffer : public vku::raii::AllocatedBuffer {
     public:
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         class Config {
@@ -239,7 +239,7 @@ namespace vkgltf {
                     {},
                     intermediateData.bufferSize,
                     config.usageFlags,
-                    config.queueFamilies.size() < 2 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+                    vku::getSharingMode(config.queueFamilies),
                     config.queueFamilies,
                 },
                 config.allocationCreateInfo,

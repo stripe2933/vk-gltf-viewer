@@ -35,6 +35,10 @@ jobs:
           vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
           vulkan-use-cache: true
 
+      - name: Fix missing vulkan.cppm error (macOS)
+        if: ${{ runner.os == 'macOS' }}
+        run: curl -o ${{ env.VULKAN_SDK }}/include/vulkan/vulkan.cppm https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/vulkan-sdk-${{ env.VULKAN_SDK_VERSION }}/include/vulkan/vulkan.cppm
+
       - name: Install MinGW Clang (Windows + MinGW Clang)
         if: ${{ runner.os == 'Windows' && matrix.compiler == 'mingw-clang' }}
         run: C:\msys64\usr\bin\bash -lc 'pacman --noconfirm -S mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-libc++ mingw-w64-clang-x86_64-libwinpthread-git'

@@ -32,25 +32,46 @@ vk_gltf_viewer::vulkan::pipeline::BloomApplyRenderPipeline::BloomApplyRenderPipe
     const Gpu &gpu,
     const pl::BloomApply &layout,
     const rp::BloomApply &renderPass
-) : Pipeline { gpu.device, nullptr, vku::getDefaultGraphicsPipelineCreateInfo(
-        createPipelineStages(
-            gpu.device,
-            vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
-            vku::Shader {
-                gpu.supportShaderTrinaryMinMax
-                    ? std::span<const std::uint32_t> { shader::bloom_apply_frag<1> }
-                    : std::span<const std::uint32_t> { shader::bloom_apply_frag<0> },
+) : Pipeline { gpu.device, nullptr, vk::GraphicsPipelineCreateInfo {
+        {},
+        vku::lvalue({
+            vk::PipelineShaderStageCreateInfo {
+                {},
+                vk::ShaderStageFlagBits::eVertex,
+                *vku::lvalue(vk::raii::ShaderModule { gpu.device, vk::ShaderModuleCreateInfo {
+                    {},
+                    shader::screen_quad_vert,
+                } }),
+                "main",
+            },
+            vk::PipelineShaderStageCreateInfo {
+                {},
                 vk::ShaderStageFlagBits::eFragment,
-            }).get(),
-        *layout, 1)
-        .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
+                *vku::lvalue(vk::raii::ShaderModule { gpu.device, vk::ShaderModuleCreateInfo {
+                    {},
+                    vku::lvalue(gpu.supportShaderTrinaryMinMax
+                        ? std::span<const std::uint32_t> { shader::bloom_apply_frag<1> }
+                        : std::span<const std::uint32_t> { shader::bloom_apply_frag<0> }),
+                } }),
+                "main",
+            },
+        }),
+        &vku::lvalue(vk::PipelineVertexInputStateCreateInfo{}),
+        &vku::lvalue(vku::defaultPipelineInputAssemblyState(vk::PrimitiveTopology::eTriangleList)),
+        nullptr,
+        &vku::lvalue(vk::PipelineViewportStateCreateInfo {
             {},
-            false, false,
-            vk::PolygonMode::eFill,
-            vk::CullModeFlagBits::eNone, {},
-            {}, {}, {}, {},
-            1.f,
-        }))
-        .setRenderPass(*renderPass)
-        .setSubpass(0),
-    } { }
+            1, nullptr,
+            1, nullptr,
+        }),
+        &vku::lvalue(vku::defaultPipelineRasterizationState()),
+        &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e1 }),
+        nullptr,
+        &vku::lvalue(vku::defaultPipelineColorBlendState(1)),
+        &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
+            {},
+            vku::lvalue({ vk::DynamicState::eViewport, vk::DynamicState::eScissor }),
+        }),
+        *layout,
+        *renderPass, 0,
+    } } { }

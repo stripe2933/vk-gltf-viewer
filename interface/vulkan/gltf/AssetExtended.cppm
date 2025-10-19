@@ -18,9 +18,13 @@ export import vk_gltf_viewer.vulkan.pipeline.UnlitPrimitiveRenderPipeline;
 export import vk_gltf_viewer.vulkan.texture.Textures;
 export import vk_gltf_viewer.vulkan.texture.ImGuiColorSpaceAndUsageCorrectedTextures;
 
-vk::PrimitiveTopology getListPrimitiveTopology(fastgltf::PrimitiveType type) noexcept;
-
 namespace vk_gltf_viewer::vulkan::gltf {
+    export
+    [[nodiscard]] vk::PrimitiveTopology getPrimitiveTopology(fastgltf::PrimitiveType type) noexcept;
+
+    export
+    [[nodiscard]] vku::TopologyClass getTopologyClass(fastgltf::PrimitiveType type) noexcept;
+
     export class AssetExtended final : public vk_gltf_viewer::gltf::AssetExtended {
         std::reference_wrapper<const Gpu> gpu;
 
@@ -62,7 +66,7 @@ namespace vk_gltf_viewer::vulkan::gltf {
             };
 
             if (!gpu.get().supportDynamicPrimitiveTopologyUnrestricted) {
-                result.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+                result.topologyClass.emplace(getTopologyClass(primitive.type));
             }
 
             if constexpr (Mask) {
@@ -96,6 +100,46 @@ namespace vk_gltf_viewer::vulkan::gltf {
 #if !defined(__GNUC__) || defined(__clang__)
 module :private;
 #endif
+
+vk::PrimitiveTopology vk_gltf_viewer::vulkan::gltf::getPrimitiveTopology(fastgltf::PrimitiveType type) noexcept {
+    switch (type) {
+        case fastgltf::PrimitiveType::Points:
+            return vk::PrimitiveTopology::ePointList;
+        case fastgltf::PrimitiveType::Lines:
+            return vk::PrimitiveTopology::eLineList;
+            // There is no GL_LINE_LOOP equivalent in Vulkan, so we use GL_LINE_STRIP instead.
+        case fastgltf::PrimitiveType::LineLoop:
+        case fastgltf::PrimitiveType::LineStrip:
+            return vk::PrimitiveTopology::eLineStrip;
+        case fastgltf::PrimitiveType::Triangles:
+            return vk::PrimitiveTopology::eTriangleList;
+        case fastgltf::PrimitiveType::TriangleStrip:
+            return vk::PrimitiveTopology::eTriangleStrip;
+        case fastgltf::PrimitiveType::TriangleFan:
+    #if __APPLE__
+            return vk::PrimitiveTopology::eTriangleList;
+    #else
+            return vk::PrimitiveTopology::eTriangleFan;
+    #endif
+    }
+    std::unreachable();
+}
+
+vku::TopologyClass vk_gltf_viewer::vulkan::gltf::getTopologyClass(fastgltf::PrimitiveType type) noexcept {
+    switch (type) {
+        case fastgltf::PrimitiveType::Points:
+            return vku::TopologyClass::ePoint;
+        case fastgltf::PrimitiveType::Lines:
+        case fastgltf::PrimitiveType::LineLoop:
+        case fastgltf::PrimitiveType::LineStrip:
+            return vku::TopologyClass::eLine;
+        case fastgltf::PrimitiveType::Triangles:
+        case fastgltf::PrimitiveType::TriangleStrip:
+        case fastgltf::PrimitiveType::TriangleFan:
+            return vku::TopologyClass::eTriangle;
+    }
+    std::unreachable();
+}
 
 vk::PrimitiveTopology getListPrimitiveTopology(fastgltf::PrimitiveType type) noexcept {
     switch (type) {
@@ -138,7 +182,7 @@ vk_gltf_viewer::vulkan::gltf::AssetExtended::AssetExtended(
         },
         .usageFlags = vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferSrc,
         .queueFamilies = gpu.queueFamilies.uniqueIndices,
-        .stagingInfo = vku::unsafeAddress(vkgltf::StagingInfo { stagingBufferStorage }),
+        .stagingInfo = &vku::lvalue(vkgltf::StagingInfo { stagingBufferStorage }),
     } },
     primitiveAttributeBuffers { buffer::createPrimitiveAttributeBuffers(*this, gpu, stagingBufferStorage, threadPool) },
     primitiveBuffer { asset, primitiveAttributeBuffers, gpu.device, gpu.allocator, vkgltf::PrimitiveBuffer::Config {
@@ -149,13 +193,13 @@ vk_gltf_viewer::vulkan::gltf::AssetExtended::AssetExtended(
         },
         .usageFlags = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
         .queueFamilies = gpu.queueFamilies.uniqueIndices,
-        .stagingInfo = vku::unsafeAddress(vkgltf::StagingInfo { stagingBufferStorage }),
+        .stagingInfo = &vku::lvalue(vkgltf::StagingInfo { stagingBufferStorage }),
     } },
     skinBuffer { vkgltf::SkinBuffer::from(asset, gpu.allocator, vkgltf::SkinBuffer::Config {
         .adapter = externalBuffers,
         .usageFlags = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
         .queueFamilies = gpu.queueFamilies.uniqueIndices,
-        .stagingInfo = vku::unsafeAddress(vkgltf::StagingInfo { stagingBufferStorage }),
+        .stagingInfo = &vku::lvalue(vkgltf::StagingInfo { stagingBufferStorage }),
     }) },
     textures { *this, gpu, fallbackTexture, threadPool },
     imGuiColorSpaceAndUsageCorrectedTextures { asset, textures, gpu } { }
@@ -207,7 +251,7 @@ vk_gltf_viewer::vulkan::PrimitiveRenderPipeline::Config vk_gltf_viewer::vulkan::
     };
 
     if (!gpu.get().supportDynamicPrimitiveTopologyUnrestricted) {
-        result.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+        result.topologyClass.emplace(getTopologyClass(primitive.type));
     }
 
     if (accessors.normal) {
@@ -253,7 +297,7 @@ vk_gltf_viewer::vulkan::UnlitPrimitiveRenderPipeline::Config vk_gltf_viewer::vul
     };
 
     if (!gpu.get().supportDynamicPrimitiveTopologyUnrestricted) {
-        result.topologyClass.emplace(getListPrimitiveTopology(primitive.type));
+        result.topologyClass.emplace(getTopologyClass(primitive.type));
     }
 
     if (!accessors.colors.empty()) {

@@ -41,7 +41,7 @@ namespace cubemap {
         std::reference_wrapper<const vk::raii::Device> device;
         std::reference_wrapper<const vku::Image> cubemapImage;
 
-        vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> descriptorSetLayout;
+        vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
         vk::raii::ImageView eqmapImageView;
@@ -62,9 +62,10 @@ cubemap::CubemapComputePipeline::CubemapComputePipeline(
     cubemapImage { cubemapImage },
     descriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
         vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor,
-        vku::unsafeProxy(decltype(descriptorSetLayout)::getBindings(
-            { 1, vk::ShaderStageFlagBits::eCompute, &eqmapSampler },
-            { 1, vk::ShaderStageFlagBits::eCompute })),
+        vku::lvalue({
+            decltype(descriptorSetLayout)::getCreateInfoBinding<0>(vk::ShaderStageFlagBits::eCompute, eqmapSampler),
+            decltype(descriptorSetLayout)::getCreateInfoBinding<1>(1, vk::ShaderStageFlagBits::eCompute),
+        }),
     } },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
@@ -72,21 +73,27 @@ cubemap::CubemapComputePipeline::CubemapComputePipeline(
     } },
     pipeline { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        createPipelineStages(
-            device,
-            vku::Shader { shader::cubemap_comp, vk::ShaderStageFlagBits::eCompute }).get()[0],
+        vk::PipelineShaderStageCreateInfo {
+            {},
+            vk::ShaderStageFlagBits::eCompute,
+            *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                {},
+                shader::cubemap_comp,
+            } }),
+            "main",
+        },
         *pipelineLayout,
     } },
-    eqmapImageView { device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
-    cubemapImageView { device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::eCube) } { }
+    eqmapImageView { device, eqmapImage.getViewCreateInfo(vk::ImageViewType::e2D, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
+    cubemapImageView { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }) } { }
 
 void cubemap::CubemapComputePipeline::setEqmapImage(const vku::Image &eqmapImage) {
-    eqmapImageView = { device, eqmapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) };
+    eqmapImageView = { device, eqmapImage.getViewCreateInfo(vk::ImageViewType::e2D, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) };
 }
 
 void cubemap::CubemapComputePipeline::setCubemapImage(const vku::Image &cubemapImage) {
     this->cubemapImage = cubemapImage;
-    cubemapImageView = { device, cubemapImage.getViewCreateInfo({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }, vk::ImageViewType::eCube) };
+    cubemapImageView = { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }) };
 }
 
 void cubemap::CubemapComputePipeline::recordCommands(vk::CommandBuffer computeCommandBuffer) const {
@@ -96,8 +103,8 @@ void cubemap::CubemapComputePipeline::recordCommands(vk::CommandBuffer computeCo
     computeCommandBuffer.pushDescriptorSetKHR(
         vk::PipelineBindPoint::eCompute, *pipelineLayout,
         0, {
-            decltype(descriptorSetLayout)::getWriteOne<0>({ {}, *eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal }),
-            decltype(descriptorSetLayout)::getWriteOne<1>({ {}, *cubemapImageView, vk::ImageLayout::eGeneral }),
+            decltype(descriptorSetLayout)::getWriteDescriptorSet<0>({}, 0, vku::lvalue(vk::DescriptorImageInfo { {}, *eqmapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+            decltype(descriptorSetLayout)::getWriteDescriptorSet<1>({}, 0, vku::lvalue(vk::DescriptorImageInfo { {}, *cubemapImageView, vk::ImageLayout::eGeneral })),
         }, *d);
     computeCommandBuffer.dispatch(cubemapImage.get().extent.width / 16U, cubemapImage.get().extent.height / 16U, 6, *d);
 }

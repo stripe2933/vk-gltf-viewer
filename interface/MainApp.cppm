@@ -29,9 +29,9 @@ namespace vk_gltf_viewer {
         };
         
         struct SkyboxResources {
-            vku::AllocatedImage reducedEqmapImage;
+            vku::raii::AllocatedImage reducedEqmapImage;
             vk::raii::ImageView reducedEqmapImageView;
-            vku::AllocatedImage cubemapImage;
+            vku::raii::AllocatedImage cubemapImage;
             vk::raii::ImageView cubemapImageView;
             vk::DescriptorSet imGuiEqmapTextureDescriptorSet;
 
@@ -39,8 +39,8 @@ namespace vk_gltf_viewer {
         };
 
         struct ImageBasedLightingResources {
-            vku::AllocatedBuffer cubemapSphericalHarmonicsBuffer;
-            vku::AllocatedImage prefilteredmapImage;
+            vku::raii::AllocatedBuffer cubemapSphericalHarmonicsBuffer;
+            vku::raii::AllocatedImage prefilteredmapImage;
             vk::raii::ImageView prefilteredmapImageView;
         };
 
@@ -69,8 +69,8 @@ namespace vk_gltf_viewer {
 
         ImageBasedLightingResources imageBasedLightingResources = createDefaultImageBasedLightingResources();
         std::optional<SkyboxResources> skyboxResources{};
-        vku::AllocatedImage brdfmapImage = createBrdfmapImage();
-        vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo() };
+        vku::raii::AllocatedImage brdfmapImage = createBrdfmapImage();
+        vk::raii::ImageView brdfmapImageView { gpu.device, brdfmapImage.getViewCreateInfo(vk::ImageViewType::e2D) };
         vk::raii::Sampler reducedEqmapSampler = createEqmapSampler();
 
         // --------------------
@@ -84,7 +84,7 @@ namespace vk_gltf_viewer {
 
         [[nodiscard]] ImageBasedLightingResources createDefaultImageBasedLightingResources() const;
         [[nodiscard]] vk::raii::Sampler createEqmapSampler() const;
-        [[nodiscard]] vku::AllocatedImage createBrdfmapImage() const;
+        [[nodiscard]] vku::raii::AllocatedImage createBrdfmapImage() const;
 
         void loadGltf(const std::filesystem::path &path);
         void closeGltf();

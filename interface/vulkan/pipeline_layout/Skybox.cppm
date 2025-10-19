@@ -36,6 +36,6 @@ vk_gltf_viewer::vulkan::pl::Skybox::Skybox(
     std::pair<const dsl::Renderer&, const dsl::Skybox&> descriptorSetLayouts
 ) : PipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
-        vku::unsafeProxy({ *descriptorSetLayouts.first, *descriptorSetLayouts.second }),
+        vku::lvalue({ *descriptorSetLayouts.first, *descriptorSetLayouts.second }),
         PushConstant::range,
     } } { }

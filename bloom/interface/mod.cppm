@@ -20,7 +20,7 @@ namespace bloom {
             bool useAMDShaderImageLoadStoreLod = false;
         };
 
-        using DescriptorSetLayout = vku::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage>;
+        using DescriptorSetLayout = vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage>;
 
         static constexpr vk::ImageUsageFlags requiredImageUsageFlags = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage;
 
@@ -70,49 +70,52 @@ bloom::BloomComputePipeline::BloomComputePipeline(
     }.setMaxLod(vk::LodClampNone) },
     descriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
         {},
-        vku::unsafeProxy(DescriptorSetLayout::getBindings(
-            { 1, vk::ShaderStageFlagBits::eCompute, &*linearSampler },
+        vku::lvalue({
+            DescriptorSetLayout::getCreateInfoBinding<0>(vk::ShaderStageFlagBits::eCompute, *linearSampler),
             // TODO: use variable descriptor count or partially bounding
-            { config.useAMDShaderImageLoadStoreLod ? 1U : 16U, vk::ShaderStageFlagBits::eCompute })),
+            DescriptorSetLayout::getCreateInfoBinding<1>(config.useAMDShaderImageLoadStoreLod ? 1U : 16U, vk::ShaderStageFlagBits::eCompute),
+        }),
     } },
     pipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
         *descriptorSetLayout,
-        vku::unsafeProxy(vk::PushConstantRange {
+        vku::lvalue(vk::PushConstantRange {
             vk::ShaderStageFlagBits::eCompute,
             0, sizeof(PushConstant),
         })
     } },
     downsamplePipeline { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        createPipelineStages(
-            device,
-            vku::Shader {
-                config.useAMDShaderImageLoadStoreLod
+        vk::PipelineShaderStageCreateInfo {
+            {},
+            vk::ShaderStageFlagBits::eCompute,
+            *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                {},
+                vku::lvalue(config.useAMDShaderImageLoadStoreLod
                     ? std::span<const std::uint32_t> { shader::downsample_comp<1> }
-                    : std::span<const std::uint32_t> { shader::downsample_comp<0> },
-                vk::ShaderStageFlagBits::eCompute,
-            }).get()[0],
+                    : std::span<const std::uint32_t> { shader::downsample_comp<0> }),
+            } }),
+            "main",
+        },
         *pipelineLayout,
     } },
     upsamplePipeline { device, nullptr, vk::ComputePipelineCreateInfo {
         {},
-        createPipelineStages(
-            device,
-            vku::Shader {
-                config.useAMDShaderImageLoadStoreLod
+        vk::PipelineShaderStageCreateInfo {
+            {},
+            vk::ShaderStageFlagBits::eCompute,
+            *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                {},
+                vku::lvalue(config.useAMDShaderImageLoadStoreLod
                     ? std::span<const std::uint32_t> { shader::upsample_comp<1> }
-                    : std::span<const std::uint32_t> { shader::upsample_comp<0> },
-                vk::ShaderStageFlagBits::eCompute,
-            }).get()[0],
+                    : std::span<const std::uint32_t> { shader::upsample_comp<0> }),
+            } }),
+            "main",
+        },
         *pipelineLayout,
     } } { }
 
 void bloom::BloomComputePipeline::compute(vk::CommandBuffer computeCommandBuffer, vku::DescriptorSet<DescriptorSetLayout> descriptorSet, const vk::Extent2D &imageExtent, std::uint32_t imageMipLevels, std::uint32_t imageArrayLayers) const {
-    constexpr auto divCeil = [](std::uint32_t num, std::uint32_t denom) noexcept {
-        return (num / denom) + (num % denom != 0);
-    };
-
     const auto *d = device.get().getDispatcher();
     computeCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *pipelineLayout, 0, descriptorSet, {}, *d);
 
@@ -123,10 +126,10 @@ void bloom::BloomComputePipeline::compute(vk::CommandBuffer computeCommandBuffer
                 .srcMipLevel = dstMipLevel - 1,
                 .dstMipLevel = dstMipLevel,
             }, *d);
-        const vk::Extent2D mipExtent = vku::Image::mipExtent(imageExtent, dstMipLevel);
+        const vk::Extent2D mipExtent = vku::mipExtent(imageExtent, dstMipLevel);
         computeCommandBuffer.dispatch(
-            divCeil(mipExtent.width, 16U),
-            divCeil(mipExtent.height, 16U),
+            vku::divCeil(mipExtent.width, 16U),
+            vku::divCeil(mipExtent.height, 16U),
             imageArrayLayers,
             *d);
 
@@ -144,10 +147,10 @@ void bloom::BloomComputePipeline::compute(vk::CommandBuffer computeCommandBuffer
                 .srcMipLevel = srcMipLevel,
                 .dstMipLevel = srcMipLevel - 1,
             }, *d);
-        const vk::Extent2D mipExtent = vku::Image::mipExtent(imageExtent, srcMipLevel - 1);
+        const vk::Extent2D mipExtent = vku::mipExtent(imageExtent, srcMipLevel - 1);
         computeCommandBuffer.dispatch(
-            divCeil(mipExtent.width, 16U),
-            divCeil(mipExtent.height, 16U),
+            vku::divCeil(mipExtent.width, 16U),
+            vku::divCeil(mipExtent.height, 16U),
             imageArrayLayers,
             *d);
 

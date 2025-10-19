@@ -9,7 +9,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
      * (-1.0, -1.0, -1.0), (-1.0, -1.0,  1.0), (-1.0,  1.0, -1.0), (-1.0,  1.0,  1.0)
      * ( 1.0, -1.0, -1.0), ( 1.0, -1.0,  1.0), ( 1.0,  1.0, -1.0), ( 1.0,  1.0,  1.0)
      */
-    export struct CubeIndices final : vku::AllocatedBuffer {
+    export struct CubeIndices final : vku::raii::AllocatedBuffer {
         explicit CubeIndices(vma::Allocator allocator);
     };
 }

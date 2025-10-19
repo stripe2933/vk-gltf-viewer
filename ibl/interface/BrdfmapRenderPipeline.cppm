@@ -44,7 +44,7 @@ namespace ibl {
         std::reference_wrapper<const vku::Image> resultImage;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
-        vku::AttachmentGroup attachmentGroup;
+        vk::raii::ImageView imageView;
     };
 }
 
@@ -66,50 +66,80 @@ ibl::BrdfmapRenderPipeline::BrdfmapRenderPipeline(
     pipelineLayout { device, vk::PipelineLayoutCreateInfo {
         {},
         {},
-        vku::unsafeProxy(vk::PushConstantRange {
+        vku::lvalue(vk::PushConstantRange {
             vk::ShaderStageFlagBits::eFragment,
             0, sizeof(PushConstant),
         }),
     } },
     pipeline { device, nullptr, vk::StructureChain {
-        vku::getDefaultGraphicsPipelineCreateInfo(
-            vku::createPipelineStages(
-                device,
-                vku::Shader { shader::screen_quad_vert, vk::ShaderStageFlagBits::eVertex },
-                vku::Shader {
-                    shader::brdfmap_frag,
+        vk::GraphicsPipelineCreateInfo {
+            {},
+            vku::lvalue({
+                vk::PipelineShaderStageCreateInfo {
+                    {},
+                    vk::ShaderStageFlagBits::eVertex,
+                    *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                        {},
+                        shader::screen_quad_vert,
+                    } }),
+                    "main",
+                },
+                vk::PipelineShaderStageCreateInfo {
+                    {},
                     vk::ShaderStageFlagBits::eFragment,
-                    // TODO: use vku::SpecializationMap when available.
-                    vku::unsafeAddress(vk::SpecializationInfo {
-                        vku::unsafeProxy(vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, numSamples), sizeof(SpecializationConstants::numSamples) }),
+                    *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                        {},
+                        shader::brdfmap_frag,
+                    } }),
+                    "main",
+                    &vku::lvalue(vk::SpecializationInfo {
+                        vku::lvalue(vk::SpecializationMapEntry { 0, offsetof(SpecializationConstants, numSamples), sizeof(SpecializationConstants::numSamples) }),
                         vk::ArrayProxyNoTemporaries<const SpecializationConstants> { config.specializationConstants },
                     }),
-                }).get(),
-            *pipelineLayout, 1)
-            .setPRasterizationState(vku::unsafeAddress(vk::PipelineRasterizationStateCreateInfo {
+                },
+            }),
+            &vku::lvalue(vk::PipelineVertexInputStateCreateInfo{}),
+            &vku::lvalue(vku::defaultPipelineInputAssemblyState(vk::PrimitiveTopology::eTriangleList)),
+            nullptr,
+            &vku::lvalue(vk::PipelineViewportStateCreateInfo {
                 {},
-                false, false,
-                vk::PolygonMode::eFill,
-                vk::CullModeFlagBits::eNone, {},
-                false, 0.f, 0.f, 0.f,
-                1.f,
-            })),
+                1, nullptr,
+                1, nullptr,
+            }),
+            &vku::lvalue(vku::defaultPipelineRasterizationState()),
+            &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e1 }),
+            nullptr,
+            &vku::lvalue(vku::defaultPipelineColorBlendState(1)),
+            &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
+                {},
+                vku::lvalue({ vk::DynamicState::eViewport, vk::DynamicState::eScissor }),
+            }),
+            *pipelineLayout,
+        },
         vk::PipelineRenderingCreateInfo {
             {},
             resultImage.format,
         },
     }.get() },
-    attachmentGroup { vku::toExtent2D(resultImage.extent) } {
-    attachmentGroup.addColorAttachment(device, resultImage);
-}
+    imageView { device, resultImage.getViewCreateInfo(vk::ImageViewType::e2D) } { }
 
 void ibl::BrdfmapRenderPipeline::recordCommands(vk::CommandBuffer graphicsCommandBuffer) const {
     const auto *d = device.get().getDispatcher();
 
-    graphicsCommandBuffer.beginRenderingKHR(attachmentGroup.getRenderingInfo(
-        vku::AttachmentGroup::ColorAttachmentInfo { vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore }), *d);
-    graphicsCommandBuffer.setViewport(0, vku::toViewport(attachmentGroup.extent), *d);
-    graphicsCommandBuffer.setScissor(0, vk::Rect2D { {}, attachmentGroup.extent }, *d);
+    const vk::Rect2D renderArea { {}, vku::toExtent2D(resultImage.get().extent) };
+    graphicsCommandBuffer.beginRenderingKHR({
+        {},
+        renderArea,
+        1,
+        {},
+        vku::lvalue(vk::RenderingAttachmentInfo {
+            *imageView, vk::ImageLayout::eColorAttachmentOptimal,
+            {}, {}, {},
+            vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
+        }),
+    }, *d);
+    graphicsCommandBuffer.setViewport(0, vku::toViewport(renderArea), *d);
+    graphicsCommandBuffer.setScissor(0, renderArea, *d);
     graphicsCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline, *d);
     graphicsCommandBuffer.pushConstants<PushConstant>(*pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, PushConstant {
         .framebufferWidthRcp = 1.f / resultImage.get().extent.width,

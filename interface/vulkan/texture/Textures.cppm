@@ -14,7 +14,6 @@ export import vkgltf;
 export import vk_gltf_viewer.gltf.AssetExtended;
 export import vk_gltf_viewer.gltf.AssetProcessError;
 import vk_gltf_viewer.helpers.fastgltf;
-import vk_gltf_viewer.helpers.vulkan;
 import vk_gltf_viewer.vulkan.descriptor_set_layout.Asset;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.texture.Fallback;
@@ -229,7 +228,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
         gpu.device.transitionImageLayoutEXT(
             imagesToGenerateMipmap
                 | std::views::transform([](vk::Image image) noexcept {
-                    return vk::HostImageLayoutTransitionInfo { image, {}, vk::ImageLayout::eShaderReadOnlyOptimal, vku::fullSubresourceRange() };
+                    return vk::HostImageLayoutTransitionInfo { image, {}, vk::ImageLayout::eShaderReadOnlyOptimal, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor) };
                 })
                 | std::ranges::to<std::vector>());
     }
@@ -267,7 +266,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
                         vk::PipelineStageFlagBits2::eAllCommands, {},
                         vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                         src, dst,
-                        image, vku::fullSubresourceRange(),
+                        image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
                     });
                 }
             }
@@ -284,7 +283,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
                             vk::PipelineStageFlagBits2::eAllCommands, {}, // dependency chain (A)
                             vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
                             src, dst,
-                            image, vku::fullSubresourceRange(),
+                            image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
                         });
                     }
                     else {
@@ -307,7 +306,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
                         vk::PipelineStageFlagBits2::eAllCommands, {},
                         vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        image, vku::fullSubresourceRange(),
+                        image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
                     });
                 }
                 else {
@@ -364,8 +363,8 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
     gpu.queues.graphicsPresent.submit2KHR(vk::SubmitInfo2 {
         {},
-        vku::unsafeProxy(vk::SemaphoreSubmitInfo { *copyFinishSemaphore, {}, dependencyChain }),
-        vku::unsafeProxy(vk::CommandBufferSubmitInfo { graphicsCommandBuffer }),
+        vku::lvalue(vk::SemaphoreSubmitInfo { *copyFinishSemaphore, {}, dependencyChain }),
+        vku::lvalue(vk::CommandBufferSubmitInfo { graphicsCommandBuffer }),
     }, *fence);
 
     std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL);

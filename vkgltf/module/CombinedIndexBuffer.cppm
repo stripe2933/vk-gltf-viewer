@@ -135,7 +135,7 @@ namespace vkgltf {
      * | u32 indices | ... | u32 indices | u16 indices | ... | u16 indices | u8 indices | ... | u8 indices |
      * +---------------------------------------------------------------------------------------------------+
      */
-    export class CombinedIndexBuffer final : public vku::AllocatedBuffer {
+    export class CombinedIndexBuffer final : public vku::raii::AllocatedBuffer {
         struct DefaultTopologyConvertFn {
             static fastgltf::PrimitiveType operator()(fastgltf::PrimitiveType type) noexcept {
                 return type == fastgltf::PrimitiveType::LineLoop ? fastgltf::PrimitiveType::LineStrip : type;
@@ -457,7 +457,7 @@ namespace vkgltf {
                     std::max<vk::DeviceSize>(intermediateData.bufferSize, config.avoidZeroSizeBuffer ? 4 : 0),
                     config.usageFlags
                         | (config.stagingInfo ? vk::Flags { vk::BufferUsageFlagBits::eTransferSrc } : vk::BufferUsageFlags{}),
-                    config.queueFamilies.size() < 2 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+                    vku::getSharingMode(config.queueFamilies),
                     config.queueFamilies,
                 },
                 config.allocationCreateInfo,

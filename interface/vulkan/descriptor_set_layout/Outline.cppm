@@ -10,7 +10,7 @@ import std;
 export import vku;
 
 namespace vk_gltf_viewer::vulkan::dsl {
-    export struct Outline : vku::DescriptorSetLayout<vk::DescriptorType::eSampledImage> {
+    export struct Outline final : vku::raii::DescriptorSetLayout<vk::DescriptorType::eSampledImage> {
         explicit Outline(const vk::raii::Device &device LIFETIMEBOUND);
     };
 }
@@ -22,5 +22,5 @@ module :private;
 vk_gltf_viewer::vulkan::dsl::Outline::Outline(const vk::raii::Device &device)
     : DescriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
         {},
-        vku::unsafeProxy(getBindings({ 1, vk::ShaderStageFlagBits::eFragment })),
+        vku::lvalue(DescriptorSetLayout::getCreateInfoBinding<0>(1, vk::ShaderStageFlagBits::eFragment)),
     } } { }

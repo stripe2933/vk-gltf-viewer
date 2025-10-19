@@ -55,7 +55,7 @@ namespace vkgltf {
          * You can obtain the region of the bytes data of <tt>i</tt>-th skin's joint indices via
          * <tt>getJointIndicesOffsetAndSize(i) = (byte offset, byte size)</tt>.
          */
-        vku::AllocatedBuffer jointIndices;
+        vku::raii::AllocatedBuffer jointIndices;
 
         /**
          * @brief Vulkan buffer of glTF asset's inverse bind matrices combined into a single buffer, with tight-packed <tt>fmat4x4</tt>s.
@@ -66,7 +66,7 @@ namespace vkgltf {
          * You can obtain the region of the bytes data of <tt>i</tt>-th skin's inverse bind matrices via
          * <tt>getInverseBindMatricesOffsetAndSize(i) = (byte offset, byte size)</tt>.
          */
-        vku::AllocatedBuffer inverseBindMatrices;
+        vku::raii::AllocatedBuffer inverseBindMatrices;
 
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         SkinBuffer(const fastgltf::Asset &asset, vma::Allocator allocator, const Config<BufferDataAdapter> &config = {})
@@ -141,7 +141,7 @@ namespace vkgltf {
                     sizeof(std::uint32_t) * jointCountTotal,
                     config.usageFlags
                         | (config.stagingInfo ? vk::Flags { vk::BufferUsageFlagBits::eTransferSrc } : vk::BufferUsageFlags{}),
-                    config.queueFamilies.size() < 2 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+                    vku::getSharingMode(config.queueFamilies),
                     config.queueFamilies,
                 },
                 config.allocationCreateInfo,
@@ -153,7 +153,7 @@ namespace vkgltf {
                     sizeof(fastgltf::math::fmat4x4) * jointCountTotal,
                     config.usageFlags
                         | (config.stagingInfo ? vk::Flags { vk::BufferUsageFlagBits::eTransferSrc } : vk::BufferUsageFlags{}),
-                    config.queueFamilies.size() < 2 ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+                    vku::getSharingMode(config.queueFamilies),
                     config.queueFamilies,
                 },
                 config.allocationCreateInfo,

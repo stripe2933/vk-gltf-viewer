@@ -77,45 +77,65 @@ vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRenderPipeline<false>::JumpFloodS
     const pl::PrimitiveNoShading &pipelineLayout,
     const PrepassPipelineConfig<false> &config,
     std::uint32_t viewMask
-) : Pipeline { [&] -> Pipeline {
-        return { device, nullptr, vk::StructureChain {
-            vku::getDefaultGraphicsPipelineCreateInfo(
-                createPipelineStages(
-                    device,
-                    vku::Shader {
+) : Pipeline { device, nullptr, vk::StructureChain {
+        vk::GraphicsPipelineCreateInfo {
+            {},
+            vku::lvalue({
+                vk::PipelineShaderStageCreateInfo {
+                    {},
+                    vk::ShaderStageFlagBits::eVertex,
+                    *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                        {},
                         shader::jump_flood_seed_vert,
-                        vk::ShaderStageFlagBits::eVertex,
-                        vku::unsafeAddress(vk::SpecializationInfo {
-                            SpecializationMap<VertexShaderSpecialization>::value,
-                            vku::unsafeProxy(getVertexShaderSpecialization(config)),
-                        }),
-                    },
-                    vku::Shader { shader::jump_flood_seed_frag, vk::ShaderStageFlagBits::eFragment }).get(),
-                *pipelineLayout, 1, true)
-                .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
-                    {},
-                    config.topologyClass.value_or(vk::PrimitiveTopology::eTriangleList),
-                }))
-                .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
-                    {},
-                    true, true, vk::CompareOp::eGreater, // Use reverse Z.
-                }))
-                .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
-                    {},
-                    vku::unsafeProxy({
-                        vk::DynamicState::eViewport,
-                        vk::DynamicState::eScissor,
-                        vk::DynamicState::ePrimitiveTopology,
-                        vk::DynamicState::eCullMode,
+                    } }),
+                    "main",
+                    &vku::lvalue(vk::SpecializationInfo {
+                        SpecializationMap<VertexShaderSpecialization>::value,
+                        vk::ArrayProxyNoTemporaries<const VertexShaderSpecialization> { vku::lvalue(getVertexShaderSpecialization(config)) },
                     }),
-                })),
-            vk::PipelineRenderingCreateInfo {
-                viewMask,
-                vku::unsafeProxy(vk::Format::eR16G16Uint),
-                vk::Format::eD32Sfloat,
-            }
-        }.get() };
-    }() } { }
+                },
+                vk::PipelineShaderStageCreateInfo {
+                    {},
+                    vk::ShaderStageFlagBits::eFragment,
+                    *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                        {},
+                        shader::jump_flood_seed_frag,
+                    } }),
+                    "main",
+                },
+            }),
+            &vku::lvalue(vk::PipelineVertexInputStateCreateInfo{}),
+            &vku::lvalue(vku::defaultPipelineInputAssemblyState(vku::getListPrimitiveTopology(config.topologyClass.value_or(vku::TopologyClass::eTriangle)))),
+            nullptr,
+            &vku::lvalue(vk::PipelineViewportStateCreateInfo {
+                {},
+                1, nullptr,
+                1, nullptr,
+            }),
+            &vku::lvalue(vku::defaultPipelineRasterizationState({}, vk::CullModeFlagBits::eBack)),
+            &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e1 }),
+            &vku::lvalue(vk::PipelineDepthStencilStateCreateInfo {
+                {},
+                true, true, vk::CompareOp::eGreater, // Use reverse Z.
+            }),
+            &vku::lvalue(vku::defaultPipelineColorBlendState(1)),
+            &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
+                {},
+                vku::lvalue({
+                    vk::DynamicState::eViewport,
+                    vk::DynamicState::eScissor,
+                    vk::DynamicState::ePrimitiveTopology,
+                    vk::DynamicState::eCullMode,
+                }),
+            }),
+            *pipelineLayout,
+        },
+        vk::PipelineRenderingCreateInfo {
+            viewMask,
+            vku::lvalue(vk::Format::eR16G16Uint),
+            vk::Format::eD32Sfloat,
+        }
+    }.get() } { }
 
 [[nodiscard]] auto vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRenderPipeline<false>::getVertexShaderSpecialization(
     const PrepassPipelineConfig<false> &config
@@ -149,52 +169,69 @@ vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRenderPipeline<true>::JumpFloodSe
     const pl::PrimitiveNoShading &pipelineLayout,
     const PrepassPipelineConfig<true> &config,
     std::uint32_t viewMask
-) : Pipeline { [&] -> Pipeline {
-        return { device, nullptr, vk::StructureChain {
-            vku::getDefaultGraphicsPipelineCreateInfo(
-                createPipelineStages(
-                    device,
-                    vku::Shader {
-                        std::apply(LIFT(shader_selector::mask_jump_flood_seed_vert), getVertexShaderVariants(config)),
-                        vk::ShaderStageFlagBits::eVertex,
-                        vku::unsafeAddress(vk::SpecializationInfo {
-                            SpecializationMap<VertexShaderSpecialization>::value,
-                            vku::unsafeProxy(getVertexShaderSpecialization(config)),
-                        }),
-                    },
-                    vku::Shader {
-                        std::apply(LIFT(shader_selector::mask_jump_flood_seed_frag), getFragmentShaderVariants(config)),
-                        vk::ShaderStageFlagBits::eFragment,
-                        vku::unsafeAddress(vk::SpecializationInfo {
-                            SpecializationMap<FragmentShaderSpecialization>::value,
-                            vku::unsafeProxy(getFragmentShaderSpecialization(config)),
-                        }),
-                    }).get(),
-                *pipelineLayout, 1, true)
-                .setPInputAssemblyState(vku::unsafeAddress(vk::PipelineInputAssemblyStateCreateInfo {
+) : Pipeline { device, nullptr, vk::StructureChain {
+        vk::GraphicsPipelineCreateInfo {
+            {},
+            vku::lvalue({
+                vk::PipelineShaderStageCreateInfo {
                     {},
-                    config.topologyClass.value_or(vk::PrimitiveTopology::eTriangleList),
-                }))
-                .setPDepthStencilState(vku::unsafeAddress(vk::PipelineDepthStencilStateCreateInfo {
-                    {},
-                    true, true, vk::CompareOp::eGreater, // Use reverse Z.
-                }))
-                .setPDynamicState(vku::unsafeAddress(vk::PipelineDynamicStateCreateInfo {
-                    {},
-                    vku::unsafeProxy({
-                        vk::DynamicState::eViewport,
-                        vk::DynamicState::eScissor,
-                        vk::DynamicState::ePrimitiveTopology,
-                        vk::DynamicState::eCullMode,
+                    vk::ShaderStageFlagBits::eVertex,
+                    *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                        {},
+                        vku::lvalue(std::apply(LIFT(shader_selector::mask_jump_flood_seed_vert), getVertexShaderVariants(config))),
+                    } }),
+                    "main",
+                    &vku::lvalue(vk::SpecializationInfo {
+                        SpecializationMap<VertexShaderSpecialization>::value,
+                        vk::ArrayProxyNoTemporaries<const VertexShaderSpecialization> { vku::lvalue(getVertexShaderSpecialization(config)) },
                     }),
-                })),
-            vk::PipelineRenderingCreateInfo {
-                viewMask,
-                vku::unsafeProxy(vk::Format::eR16G16Uint),
-                vk::Format::eD32Sfloat,
-            }
-        }.get() };
-    }() } { }
+                },
+                vk::PipelineShaderStageCreateInfo {
+                    {},
+                    vk::ShaderStageFlagBits::eFragment,
+                    *vku::lvalue(vk::raii::ShaderModule { device, vk::ShaderModuleCreateInfo {
+                        {},
+                        vku::lvalue(std::apply(LIFT(shader_selector::mask_jump_flood_seed_frag), getFragmentShaderVariants(config))),
+                    } }),
+                    "main",
+                    &vku::lvalue(vk::SpecializationInfo {
+                        SpecializationMap<FragmentShaderSpecialization>::value,
+                        vk::ArrayProxyNoTemporaries<const FragmentShaderSpecialization> { vku::lvalue(getFragmentShaderSpecialization(config)) },
+                    }),
+                },
+            }),
+            &vku::lvalue(vk::PipelineVertexInputStateCreateInfo{}),
+            &vku::lvalue(vku::defaultPipelineInputAssemblyState(vku::getListPrimitiveTopology(config.topologyClass.value_or(vku::TopologyClass::eTriangle)))),
+            nullptr,
+            &vku::lvalue(vk::PipelineViewportStateCreateInfo {
+                {},
+                1, nullptr,
+                1, nullptr,
+            }),
+            &vku::lvalue(vku::defaultPipelineRasterizationState({}, vk::CullModeFlagBits::eBack)),
+            &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e1 }),
+            &vku::lvalue(vk::PipelineDepthStencilStateCreateInfo {
+                {},
+                true, true, vk::CompareOp::eGreater, // Use reverse Z.
+            }),
+            &vku::lvalue(vku::defaultPipelineColorBlendState(1)),
+            &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
+                {},
+                vku::lvalue({
+                    vk::DynamicState::eViewport,
+                    vk::DynamicState::eScissor,
+                    vk::DynamicState::ePrimitiveTopology,
+                    vk::DynamicState::eCullMode,
+                }),
+            }),
+            *pipelineLayout,
+        },
+        vk::PipelineRenderingCreateInfo {
+            viewMask,
+            vku::lvalue(vk::Format::eR16G16Uint),
+            vk::Format::eD32Sfloat,
+        }
+    }.get() } { }
 
 std::array<int, 2> vk_gltf_viewer::vulkan::pipeline::JumpFloodSeedRenderPipeline<true>::getVertexShaderVariants(
     const PrepassPipelineConfig<true> &config
