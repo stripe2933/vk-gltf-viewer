@@ -3,12 +3,14 @@ module;
 #include <cassert>
 #include <version>
 
+#include <boost/container/static_vector.hpp>
 #include <IconsFontAwesome4.h>
 #include <nfd.hpp>
 
 module vk_gltf_viewer.imgui.TaskCollector;
 
 import vk_gltf_viewer.global;
+import vk_gltf_viewer.gltf.algorithm.miniball;
 import vk_gltf_viewer.gltf.util;
 import vk_gltf_viewer.gui.popup;
 import vk_gltf_viewer.gui.utils;
@@ -26,6 +28,7 @@ import vk_gltf_viewer.imgui.UserData;
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
+#define MOVE_CAP(X) X = std::move(X)
 #ifdef _WIN32
 #define PATH_C_STR(...) (__VA_ARGS__).string().c_str()
 #else
@@ -1159,7 +1162,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialVariants(gltf::AssetEx
     ImGui::End();
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExtended &assetExtended) {
+void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &renderer, gltf::AssetExtended &assetExtended) {
     if (ImGui::Begin("Scene Hierarchy")) {
         if (ImGui::BeginCombo("Scene", gui::getDisplayName(assetExtended.asset.scenes, assetExtended.sceneIndex).c_str())) {
             for (std::size_t i : ranges::views::upto(assetExtended.asset.scenes.size())) {
@@ -1288,6 +1291,77 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
                             tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
                         }
                     }, assetExtended.selectedNodes.size() == 1 && isNodeSelected && node.children.empty());
+
+                    // Fit camera to the node miniball
+                    if (assetExtended.sceneNodeVisibilities.getState(nodeIndex) != gltf::StateCachedNodeVisibilityStructure::State::Indeterminate) {
+                        ImGui::Separator();
+
+                        // ImGui::Selectable() closes popup by default, but if there are multiple cameras, popup has to
+                        // be opened inside the ImGui::BeginPopup() - ImGui::EndPopup() call. Therefore,
+                        // ImGuiSelectableFlags_NoAutoClosePopups flag should be used.
+                        const ImGuiSelectableFlags flags = (renderer.cameras.size() > 1) ? ImGuiSelectableFlags_NoAutoClosePopups : 0;
+                        if (ImGui::Selectable("Fit camera to this", false, flags)) {
+                            auto fitCameraToNodeMiniball = [
+                                currentNodeMiniball = gltf::algorithm::getMiniball<false>(assetExtended.asset, std::views::single(nodeIndex), assetExtended.nodeWorldTransforms, assetExtended.externalBuffers),
+                                &cameraOrLightPoints = get<2>(assetExtended.sceneMiniball.get())
+                            ](Camera &camera) {
+                                const auto &[center, radius] = currentNodeMiniball;
+                                const double distance = radius / std::sin(camera.fov / 2.f);
+                                camera.position = glm::make_vec3(center.data()) - distance * glm::dvec3 { normalize(camera.direction) };
+                                camera.targetDistance = distance;
+
+                                camera.tightenNearFar(glm::make_vec3(center.data()), radius, { reinterpret_cast<const glm::vec3*>(cameraOrLightPoints.data()), cameraOrLightPoints.size() });
+                            };
+
+                            if (renderer.cameras.size() > 1) {
+                                // If multiple viewports, show a popup to select which viewport to apply.
+                                gui::popup::open(std::string { PopupNames::selectViewportToApplyNodeFocus }, [&renderer, this, MOVE_CAP(fitCameraToNodeMiniball), oldCameras = boost::container::static_vector<std::optional<Camera>, 4>(renderer.cameras.size())] mutable {
+                                    ImGui::TextUnformatted(PopupNames::selectViewportToApplyNodeFocus);
+
+                                    // Calculate button size whose aspect ratio is same as the sub-viewports.
+                                    ImVec2 buttonSize;
+                                    buttonSize.x = ImGui::CalcItemWidth();
+                                    if (renderer.cameras.size() >= 2) {
+                                        // Make 2 buttons in a row.
+                                        buttonSize.x = buttonSize.x / 2.f - ImGui::GetStyle().ItemInnerSpacing.x;
+                                    }
+                                    buttonSize.y = buttonSize.x * centerNodeRect.GetHeight() / centerNodeRect.GetWidth();
+                                    if (renderer.cameras.size() == 2) {
+                                        buttonSize.y *= 2;
+                                    }
+
+                                    for (auto &&[cameraIndex, camera] : renderer.cameras | ranges::views::enumerate) {
+                                        if (cameraIndex % 2 == 1) {
+                                            ImGui::SameLine();
+                                        }
+
+                                        auto &oldCamera = oldCameras[cameraIndex];
+                                        // Mimic toggle button: button will have ImGuiCol_ButtonActive color when the camera is adjusted to fit the node miniball.
+                                        ImGui::WithStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), [&] {
+                                            if (ImGui::Button(tempStringBuffer.write("Viewport {}", cameraIndex).view().c_str(), buttonSize)) {
+                                                if (oldCamera) {
+                                                    // Revert the camera to the old one (which is saved in oldCameras).
+                                                    camera = *oldCamera;
+                                                    oldCamera.reset();
+                                                }
+                                                else {
+                                                    // Save the current camera to oldCameras and adjust current camera
+                                                    // to fit the node's miniball.
+                                                    oldCamera.emplace(camera);
+                                                    fitCameraToNodeMiniball(camera);
+                                                }
+                                            }
+                                        }, oldCamera.has_value());
+                                    }
+                                });
+                            }
+                            else {
+                                fitCameraToNodeMiniball(renderer.cameras[0]);
+                            }
+                        }
+
+                        gui::popup::process(PopupNames::selectViewportToApplyNodeFocus);
+                    }
 
                     if (isNodeSelected) {
                         ImGui::Separator();
