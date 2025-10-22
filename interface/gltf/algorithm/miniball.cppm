@@ -20,7 +20,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
     export template <bool IncludeCameraOrLightNodePositions>
     [[nodiscard]] auto getMiniball(
         const fastgltf::Asset &asset,
-        std::ranges::input_range auto &&nodeIndices,
+        std::span<const std::size_t> nodeIndices,
         std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
         const AssetExternalBuffers &adapter
     ) {
@@ -34,7 +34,7 @@ namespace vk_gltf_viewer::gltf::algorithm {
     #endif
         std::vector<fastgltf::math::fvec3> cameraOrLightPoints;
 
-        for (std::size_t nodeIndex : FWD(nodeIndices)) {
+        for (std::size_t nodeIndex : nodeIndices) {
             traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
                 const fastgltf::Node &node = asset.nodes[nodeIndex];
                 const fastgltf::math::fmat4x4 &worldTransform = nodeWorldTransforms[nodeIndex];

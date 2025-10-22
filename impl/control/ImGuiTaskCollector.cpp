@@ -1292,16 +1292,57 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                     }, assetExtended.selectedNodes.size() == 1 && isNodeSelected && node.children.empty());
 
                     // Fit camera to the node miniball
-                    if (assetExtended.sceneNodeVisibilities.getState(nodeIndex) != gltf::StateCachedNodeVisibilityStructure::State::Indeterminate) {
+                    const auto isMeshlessRecursive = [&](std::size_t nodeIndex) noexcept {
+                        // Return true if neither the given node nor the descendants have a mesh, false otherwise.
+                        return assetExtended.sceneNodeVisibilities.getState(nodeIndex) == gltf::StateCachedNodeVisibilityStructure::State::Indeterminate;
+                    };
+                    const bool currentNodeHasMeshRecursive = !isMeshlessRecursive(nodeIndex);
+                    const bool selectedNodesHaveMeshRecursive
+                        = (currentNodeHasMeshRecursive && isNodeSelected) // Use short circuit evaluation to avoid calling isMeshlessRecursive() for all selected nodes
+                        || !std::ranges::none_of(assetExtended.selectedNodes, isMeshlessRecursive);
+                    if (currentNodeHasMeshRecursive || selectedNodesHaveMeshRecursive) {
                         ImGui::Separator();
+
+                        std::vector<std::size_t> nodeIndicesToFit;
 
                         // ImGui::Selectable() closes popup by default, but if there are multiple cameras, popup has to
                         // be opened inside the ImGui::BeginPopup() - ImGui::EndPopup() call. Therefore,
                         // ImGuiSelectableFlags_NoAutoClosePopups flag should be used.
                         const ImGuiSelectableFlags flags = (renderer.cameras.size() > 1) ? ImGuiSelectableFlags_NoAutoClosePopups : 0;
-                        if (ImGui::Selectable("Fit camera to this", false, flags)) {
+
+                        if (currentNodeHasMeshRecursive && ImGui::Selectable("Fit camera to this", false, flags)) {
+                            nodeIndicesToFit.push_back(nodeIndex);
+                        }
+
+                        if (selectedNodesHaveMeshRecursive && ImGui::Selectable("Fit camera to the selection", false, flags)) {
+                            // Need to filter the selected nodes, by in order:
+                            // 1. If one of the node is a descendant of another, remove it.
+                            // 2. After that, remove meshless nodes.
+
+                            // Executing 1: sort nodes with descending order of level. Then, for every node, traverse
+                            // to its ancestors until reach the root, and if any of the ancestors is in the list, the
+                            // node can be removed.
+                            nodeIndicesToFit.append_range(assetExtended.selectedNodes);
+                            std::ranges::sort(nodeIndicesToFit, std::greater{}, LIFT(assetExtended.sceneNodeLevels.operator[]));
+                            const auto descendantRemoval = std::ranges::remove_if(nodeIndicesToFit, [&](std::size_t nodeIndex) {
+                                std::optional parentNodeIndex { nodeIndex };
+                                while ((parentNodeIndex = assetExtended.sceneInverseHierarchy.parentNodeIndices[*parentNodeIndex])) {
+                                    if (assetExtended.selectedNodes.contains(*parentNodeIndex)) {
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            });
+                            nodeIndicesToFit.erase(descendantRemoval.begin(), descendantRemoval.end());
+
+                            // Executing 2: remove meshless nodes.
+                            const auto meshlessRemoval = std::ranges::remove_if(nodeIndicesToFit, isMeshlessRecursive);
+                            nodeIndicesToFit.erase(meshlessRemoval.begin(), meshlessRemoval.end());
+                        }
+
+                        if (!nodeIndicesToFit.empty()) {
                             auto fitCameraToNodeMiniball = [
-                                currentNodeMiniball = gltf::algorithm::getMiniball<false>(assetExtended.asset, std::views::single(nodeIndex), assetExtended.nodeWorldTransforms, assetExtended.externalBuffers),
+                                currentNodeMiniball = gltf::algorithm::getMiniball<false>(assetExtended.asset, std::move(nodeIndicesToFit), assetExtended.nodeWorldTransforms, assetExtended.externalBuffers),
                                 &cameraOrLightPoints = get<2>(assetExtended.sceneMiniball.get())
                             ](Camera &camera) {
                                 const auto &[center, radius] = currentNodeMiniball;
