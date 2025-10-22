@@ -263,9 +263,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                             hasOccurrence = true;
 
                             ImVec2 highlightOffset = ImGui::GetCursorScreenPos();
-                            highlightOffset.x += ImGui::CalcTextSize(pathStr.data(), found.data()).x;
+                            highlightOffset.x += ImGui::CalcTextSize(pathStr.data(), found.data()).x;;
                             highlightOffset.y += 1.f; // TODO
-                            const ImVec2 highlightSize = ImGui::CalcTextSize(found.data(), found.data() + found.size());
+                            const ImVec2 highlightSize = ImGui::CalcTextSize(std::string_view { found });
 
                             ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
                             haystack = haystack.substr(found.end() - haystack.begin());
@@ -355,7 +355,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                             ImVec2 highlightOffset = ImGui::GetCursorScreenPos();
                             highlightOffset.x += ImGui::CalcTextSize(pathStr.data(), found.data()).x;
                             highlightOffset.y += 1.f; // TODO
-                            const ImVec2 highlightSize = ImGui::CalcTextSize(found.data(), found.data() + found.size());
+                            const ImVec2 highlightSize = ImGui::CalcTextSize(std::string_view { found });
 
                             ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
                             haystack = haystack.substr(found.end() - haystack.begin());
@@ -1240,9 +1240,31 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                         tempStringBuffer.append(" / ");
                     }
                     appendNodeLabel(nodeIndex);
+
+                    // (Avail width) = ImGui::GetContentRegionAvail().x - (space occupied by collapsing arrow)
+                    // Collapsing arrow space calculation code is adapted from
+                    //   bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* label, const char* label_end)
+                    // implementation.
+                    const float width = ImGui::GetContentRegionAvail().x - ImGui::GetFontSize() - 2 * ImGui::GetStyle().FramePadding.x;
+
+                    // Truncate text if it is too long to fit in the available width. Left text will be truncated and
+                    // replaced with ellipsis.
+                    const char *labelStart;
+                    if (tempStringBuffer.view().size() >= 3 && ImGui::CalcTextSize(tempStringBuffer.view()).x > width) {
+                        std::span truncated = ImGui::EllipsisLeft(tempStringBuffer.mut_view(), width, "...");
+
+                        char* const start = std::max(tempStringBuffer.mut_view().data(), truncated.data() - 3);
+                        std::fill(start, truncated.data(), '.');
+
+                        labelStart = start;
+                    }
+                    else {
+                        labelStart = tempStringBuffer.view().data();
+                    }
+
                     tempStringBuffer.append("##treenode");
 
-                    return ImGui::TreeNodeEx(tempStringBuffer.view().c_str(), flags);
+                    return ImGui::TreeNodeEx(labelStart, flags);
                 }, nodeIndex == assetExtended.hoveringNode);
 
                 // Handle clicking tree node.
