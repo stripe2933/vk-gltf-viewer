@@ -120,11 +120,12 @@ namespace vk_gltf_viewer::gltf {
         std::optional<std::size_t> hoveringNode;
 
 		/**
-		 * @brief Smallest enclosing sphere of all meshes, cameras and lights (a.k.a. miniball) in the scene.
+		 * @brief Scene mesh miniball and camera/light world positions.
          *
-		 * The first of the pair is the center, and the second is the radius of the miniball.
+		 * The first and second tuple elements represent the center and radius of the miniball, respectively.
+		 * The third tuple element is a vector of world space positions of camera or light nodes in the scene.
 		 */
-        Lazy<std::pair<fastgltf::math::fvec3, float>> sceneMiniball;
+        Lazy<std::tuple<fastgltf::math::fvec3, float, std::vector<fastgltf::math::fvec3>>> sceneMiniball;
 
     	explicit AssetExtended(const std::filesystem::path &path);
 
