@@ -1063,10 +1063,7 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
         .MinImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
         .ImageCount = std::max(FRAMES_IN_FLIGHT, 2U),
         .PipelineInfoMain = {
-            .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
-                {},
-                vku::lvalue(vk::Format::eB8G8R8A8Srgb),
-            },
+            .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo { {}, colorAttachmentFormat },
             .SwapChainImageUsage = static_cast<vk::ImageUsageFlags::MaskType>(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc),
         },
         .UseDynamicRendering = true,
