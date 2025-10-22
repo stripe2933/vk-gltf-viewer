@@ -625,13 +625,13 @@ void vk_gltf_viewer::MainApp::run() {
                     frameDeferredTask.updateNodeWorldTransformScene(task.newSceneIndex);
 
                     // Adjust the camera based on the scene enclosing sphere.
-                    const auto &[center, radius] = assetExtended->sceneMiniball.get();
+                    const auto &[center, radius, cameraOrLightPoints] = assetExtended->sceneMiniball.get();
                     for (control::Camera &camera : renderer->cameras) {
                         const float distance = radius / std::sin(camera.fov / 2.f);
                         camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
-                        camera.zMin = distance - radius;
-                        camera.zMax = distance + radius;
                         camera.targetDistance = distance;
+
+                        camera.tightenNearFar(glm::make_vec3(center.data()), radius, vku::reinterpret<const glm::vec3>(cameraOrLightPoints));
                     }
 
                     transformedNodes.clear(); // They are all related to the previous glTF asset.
@@ -903,10 +903,10 @@ void vk_gltf_viewer::MainApp::run() {
 
         // Tighten camera's near/far plane based on the updated scene bounds.
         if (assetExtended) {
-            const auto &[center, radius] = assetExtended->sceneMiniball.get();
+            const auto &[center, radius, cameraOrLightPoints] = assetExtended->sceneMiniball.get();
             for (control::Camera &camera : renderer->cameras) {
                 if (camera.automaticNearFarPlaneAdjustment) {
-                    camera.tightenNearFar(glm::make_vec3(center.data()), radius);
+                    camera.tightenNearFar(glm::make_vec3(center.data()), radius, vku::reinterpret<const glm::vec3>(cameraOrLightPoints));
                 }
             }
         }
@@ -1240,13 +1240,13 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     renderer->bloom.set_active(!assetExtended->bloomMaterials.empty());
 
     // Adjust the camera based on the scene enclosing sphere.
-    const auto &[center, radius] = assetExtended->sceneMiniball.get();
+    const auto &[center, radius, cameraOrLightPoints] = assetExtended->sceneMiniball.get();
     for (control::Camera &camera : renderer->cameras) {
         const float distance = radius / std::sin(camera.fov / 2.f);
         camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
-        camera.zMin = distance - radius;
-        camera.zMax = distance + radius;
         camera.targetDistance = distance;
+
+        camera.tightenNearFar(glm::make_vec3(center.data()), radius, vku::reinterpret<const glm::vec3>(cameraOrLightPoints));
     }
 }
 

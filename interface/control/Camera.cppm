@@ -35,7 +35,7 @@ namespace vk_gltf_viewer::control {
         [[nodiscard]] glm::mat4 getProjectionViewMatrixForwardZ() const noexcept;
         [[nodiscard]] glm::vec3 getRight() const noexcept;
 
-        void tightenNearFar(const glm::vec3 &boundingSphereCenter, float boundingSphereRadius) noexcept;
+        void tightenNearFar(const glm::vec3 &boundingSphereCenter, float boundingSphereRadius, std::span<const glm::vec3> pointsShouldInclude = {}) noexcept;
 
         [[nodiscard]] math::Frustum getFrustum() const;
         [[nodiscard]] math::Frustum getFrustum(float xmin, float xmax, float ymin, float ymax) const;
@@ -70,7 +70,7 @@ glm::vec3 vk_gltf_viewer::control::Camera::getRight() const noexcept {
     return cross(direction, up);
 }
 
-void vk_gltf_viewer::control::Camera::tightenNearFar(const glm::vec3 &boundingSphereCenter, float boundingSphereRadius) noexcept {
+void vk_gltf_viewer::control::Camera::tightenNearFar(const glm::vec3 &boundingSphereCenter, float boundingSphereRadius, std::span<const glm::vec3> pointsShouldInclude) noexcept {
     // Get projection of the displacement vector (from camera position to bounding sphere center) on the direction vector.
     const glm::vec3 displacement = boundingSphereCenter - position;
     const float displacementProjectionLength = dot(displacement, direction);
@@ -84,6 +84,22 @@ void vk_gltf_viewer::control::Camera::tightenNearFar(const glm::vec3 &boundingSp
     else {
         zMin = std::max(1e-2f, displacementNearProjectionLength);
         zMax = displacementFarProjectionLength;
+    }
+
+    if (!pointsShouldInclude.empty()) {
+        const auto [min, max] = std::ranges::minmax(pointsShouldInclude | std::views::transform([this](const glm::vec3 &p) noexcept {
+            return dot(p - position, direction);
+        }));
+
+        if (max > zMax) {
+            zMax = max;
+        }
+        if (min >= 1e-2f && min < zMin) {
+            // Usually pointsShouldIncluded is attached by gizmo and all the gizmo arrows are toward the -z direction.
+            // Therefore, small margin is needed for the arrows.
+            // The below code uses 5% margin.
+            zMin = std::max(0.95f * min, 1e-2f);
+        }
     }
 }
 
