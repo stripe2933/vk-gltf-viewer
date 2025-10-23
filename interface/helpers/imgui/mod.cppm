@@ -45,7 +45,7 @@ namespace ImGui {
 
         ChainedUserData chainedUserData {
             .Str = str,
-            .ChainCallback = chainCallback,
+            .ChainCallback = callback,
             .ChainCallbackUserData = userData,
         };
         return InputTextWithHint(label.c_str(), hint.c_str(), str->data(), str->capacity() + 1, flags, chainCallback, &chainedUserData);
