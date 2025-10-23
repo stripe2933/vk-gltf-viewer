@@ -228,7 +228,7 @@ namespace ImGui {
                 std::swap_ranges(ellipsis.begin(), ellipsis.end(), &text[i - ellipsis.size()]);
                 return result;
             });
-        return text.subspan(std::ranges::distance(ellipsisPrefixRemovedText.begin(), it));
+        return text.subspan(ellipsis.size() + std::ranges::distance(ellipsisPrefixRemovedText.begin(), it));
     }
 
     export void windowWithCenteredText(const char *windowName, std::string_view text) {

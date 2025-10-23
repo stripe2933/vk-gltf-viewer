@@ -1186,6 +1186,18 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
 
         gui::popup::process(PopupNames::renameScene);
 
+        // Searching nodes with name.
+        if (std::pair userData { assetExtended.nodeNameSearchText.size() /* nodeNameSearchTextBeforeSize */, false /* insertedAtBeginOrEnd */ };
+            ImGui::InputTextWithHint("Search", "Search node by name...", &assetExtended.nodeNameSearchText, ImGuiInputTextFlags_CallbackEdit, [](ImGuiInputTextCallbackData *data) {
+                auto &[nodeNameSearchTextBeforeSize, insertedAtBeginOrEnd] = *static_cast<decltype(userData)*>(data->UserData);
+                insertedAtBeginOrEnd = data->BufTextLen > nodeNameSearchTextBeforeSize // Text is inserted
+                    && (data->CursorPos == data->BufTextLen // at the end of the text, or
+                        || nodeNameSearchTextBeforeSize + data->CursorPos == data->BufTextLen); // at the beginning of the text.
+                return 0;
+            }, &userData)) {
+            assetExtended.updateNodeNameSearchTextOccurrencePosByNode(userData.first != 0 && userData.second);
+        }
+
         static bool mergeSingleChildNodes = true;
         ImGui::Checkbox("Merge single child nodes", &mergeSingleChildNodes);
         ImGui::SameLine();
@@ -1197,11 +1209,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                 for (const fastgltf::Node *node = &assetExtended.asset.nodes[nodeIndex];
                     node->children.size() == 1
                         && !node->cameraIndex && !node->lightIndex && !node->meshIndex
-                        && !assetExtended.asset.nodes[node->children[0]].cameraIndex && !assetExtended.asset.nodes[node->children[0]].lightIndex && !assetExtended.asset.nodes[node->children[0]].meshIndex;
+                        && !assetExtended.asset.nodes[node->children[0]].cameraIndex && !assetExtended.asset.nodes[node->children[0]].lightIndex && !assetExtended.asset.nodes[node->children[0]].meshIndex
+                        && (assetExtended.nodeNameSearchText.empty() || assetExtended.nodeNameSearchTextOccurrencePosByNode.contains(node->children[0]));
                     nodeIndex = node->children[0], node = &assetExtended.asset.nodes[nodeIndex]) {
                     ancestorNodeIndices.push_back(nodeIndex);
                 }
             }
+
+            // If node name search text is nonempty, hide the node when there's no occurrence in the node.
+            if (!assetExtended.nodeNameSearchText.empty() && !assetExtended.nodeNameSearchTextOccurrencePosByNode.contains(nodeIndex)) return;
 
             const fastgltf::Node &node = assetExtended.asset.nodes[nodeIndex];
 
@@ -1224,10 +1240,21 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
 
                     ImGui::AlignTextToFramePadding();
 
+                    // Make treenode label with node names (or placeholder text) and calculate the node name search text
+                    // occurrence positions (if the search text is nonempty).
                     tempStringBuffer.clear();
+                    std::vector<std::size_t> searchTextOccurrencePosInLabel;
                     const auto appendNodeLabel = [&](std::size_t nodeIndex) {
-                        const fastgltf::Node &node = assetExtended.asset.nodes[nodeIndex];
+                        if (!assetExtended.nodeNameSearchText.empty()) {
+                            // Check if the node name has an occurrence of the search text
+                            const auto it = assetExtended.nodeNameSearchTextOccurrencePosByNode.find(nodeIndex);
+                            if (it != assetExtended.nodeNameSearchTextOccurrencePosByNode.end() &&
+                                it->second != assetExtended.asset.nodes[nodeIndex].name.size() /* check if really occurs */) {
+                                searchTextOccurrencePosInLabel.push_back(tempStringBuffer.view().size() + it->second);
+                            }
+                        }
 
+                        const fastgltf::Node &node = assetExtended.asset.nodes[nodeIndex];
                         if (std::string_view name = node.name; name.empty()) {
                             tempStringBuffer.append("Unnamed Node {}", nodeIndex);
                         }
@@ -1245,7 +1272,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                     // Collapsing arrow space calculation code is adapted from
                     //   bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* label, const char* label_end)
                     // implementation.
-                    const float width = ImGui::GetContentRegionAvail().x - ImGui::GetFontSize() - 2 * ImGui::GetStyle().FramePadding.x;
+                    const float collapsingArrowWidth = ImGui::GetFontSize() + 2 * ImGui::GetStyle().FramePadding.x;
+                    const float width = ImGui::GetContentRegionAvail().x - collapsingArrowWidth;
 
                     // Truncate text if it is too long to fit in the available width. Left text will be truncated and
                     // replaced with ellipsis.
@@ -1260,6 +1288,34 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                     }
                     else {
                         labelStart = tempStringBuffer.view().data();
+                    }
+
+                    if (!searchTextOccurrencePosInLabel.empty()) {
+                        const ImVec2 highlightOffsetBase = ImGui::GetCursorScreenPos() + ImVec2 { collapsingArrowWidth, ImGui::GetStyle().FramePadding.y + 1 /* TODO */ };
+                        for (std::size_t occurrencePos : searchTextOccurrencePosInLabel) {
+                            const char *occurrenceStart = &tempStringBuffer.view()[occurrencePos];
+                            const char* const occurrenceEnd = occurrenceStart + assetExtended.nodeNameSearchText.size();
+
+                            if (occurrenceEnd <= labelStart) continue; // The occurrence is fully truncated.
+
+                            // If the occurrence is partially truncated, find the truncation point (replaced by the ellipsis).
+                            // The point can be found by first right-to-left mismatch of [labelStart, occurrenceEnd) and
+                            // nodeNameSearchText.
+                            // occurrenceStart will be the right next of the mismatch point.
+                            occurrenceStart = &*--std::ranges::mismatch(
+                                std::ranges::subrange(labelStart, occurrenceEnd) | std::views::reverse,
+                                assetExtended.nodeNameSearchText | std::views::reverse,
+                                {}, LIFT(std::tolower), LIFT(std::tolower)).in1;
+
+                            // Mismatch may happen at the first element of twos, which means the occurrence is replaced by
+                            // the ellipsis. Should be rejected.
+                            if (occurrenceStart >= occurrenceEnd) continue;
+
+                            ImVec2 highlightOffset = highlightOffsetBase;
+                            highlightOffset.x += ImGui::CalcTextSize(labelStart, occurrenceStart).x;
+                            const ImVec2 highlightSize = ImGui::CalcTextSize(occurrenceStart, occurrenceEnd);
+                            ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
+                        }
                     }
 
                     tempStringBuffer.append("##treenode");
