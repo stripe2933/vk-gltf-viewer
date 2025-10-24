@@ -1656,7 +1656,19 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
         if (assetExtended.selectedNodes.size() == 1) {
             const std::size_t selectedNodeIndex = *assetExtended.selectedNodes.begin();
             fastgltf::Node &node = assetExtended.asset.nodes[selectedNodeIndex];
-            ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.nodes, selectedNodeIndex), &node.name);
+            if (ImGui::InputTextWithHint("Name", gui::getDisplayName(assetExtended.asset.nodes, selectedNodeIndex), &node.name)) {
+                if (!assetExtended.nodeNameSearchText.empty()) {
+                    // If node name searching is enabled, occurrences should be updated based on the new name.
+                    if (assetExtended.nodeNameSearchTextOccurrencePosByNode.contains(selectedNodeIndex)) {
+                        // If the current node is in the occurrence map, update result will always be subset of the previous result.
+                        assetExtended.updateNodeNameSearchTextOccurrencePosByNode(true);
+                    }
+                    else if (std::ranges::search(node.name, assetExtended.nodeNameSearchText, {}, LIFT(std::tolower), LIFT(std::tolower))) {
+                        assetExtended.updateNodeNameSearchTextOccurrencePosByNode(false);
+                    }
+                    // else: neither the previous name nor the new name has occurrence, occurrence map will not be changed.
+                }
+            }
 
             ImGui::SeparatorText("Transform");
 
