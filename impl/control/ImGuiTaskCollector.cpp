@@ -1357,204 +1357,223 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
 
                 // Open context menu when right-click the tree node.
                 if (ImGui::BeginPopupContextItem()) {
-                    // If the current node is the only selected node, and it is leaf, it is guaranteed that the selection will be not changed.
-                    ImGui::WithDisabled([&]() {
-                        if (ImGui::Selectable("Select from here")) {
-                            assetExtended.selectedNodes.clear();
-                            traverseNode(assetExtended.asset, ancestorNodeIndices.empty() ? nodeIndex : ancestorNodeIndices[0], [&](std::size_t nodeIndex) {
-                                assetExtended.selectedNodes.emplace(nodeIndex);
-                            });
+                    const auto nodeContextMenu = [&](std::size_t nodeIndex) {
+                        // If the current node is the only selected node, and it is leaf, it is guaranteed that the selection will be not changed.
+                        ImGui::WithDisabled([&]() {
+                            if (ImGui::Selectable("Select from here")) {
+                                assetExtended.selectedNodes.clear();
+                                traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
+                                    assetExtended.selectedNodes.emplace(nodeIndex);
+                                });
 
-                            tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
-                        }
-                    }, assetExtended.selectedNodes.size() == 1 && isNodeSelected && node.children.empty());
+                                tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
+                            }
+                        }, assetExtended.selectedNodes.size() == 1 && isNodeSelected && node.children.empty());
 
-                    // Fit camera to the node miniball
-                    const auto isMeshlessRecursive = [&](std::size_t nodeIndex) noexcept {
-                        // Return true if neither the given node nor the descendants have a mesh, false otherwise.
-                        return assetExtended.sceneNodeVisibilities.getState(nodeIndex) == gltf::StateCachedNodeVisibilityStructure::State::Indeterminate;
-                    };
-                    const bool currentNodeHasMeshRecursive = !isMeshlessRecursive(nodeIndex);
-                    const bool selectedNodesHaveMeshRecursive
-                        = (currentNodeHasMeshRecursive && isNodeSelected) // Use short circuit evaluation to avoid calling isMeshlessRecursive() for all selected nodes
-                        || !std::ranges::none_of(assetExtended.selectedNodes, isMeshlessRecursive);
-                    if (currentNodeHasMeshRecursive || selectedNodesHaveMeshRecursive) {
-                        ImGui::Separator();
+                        // Fit camera to the node miniball
+                        const auto isMeshlessRecursive = [&](std::size_t nodeIndex) noexcept {
+                            // Return true if neither the given node nor the descendants have a mesh, false otherwise.
+                            return assetExtended.sceneNodeVisibilities.getState(nodeIndex) == gltf::StateCachedNodeVisibilityStructure::State::Indeterminate;
+                        };
+                        const bool currentNodeHasMeshRecursive = !isMeshlessRecursive(nodeIndex);
+                        const bool selectedNodesHaveMeshRecursive
+                            = (currentNodeHasMeshRecursive && isNodeSelected) // Use short circuit evaluation to avoid calling isMeshlessRecursive() for all selected nodes
+                            || !std::ranges::none_of(assetExtended.selectedNodes, isMeshlessRecursive);
+                        if (currentNodeHasMeshRecursive || selectedNodesHaveMeshRecursive) {
+                            ImGui::Separator();
 
-                        std::vector<std::size_t> nodeIndicesToFit;
+                            std::vector<std::size_t> nodeIndicesToFit;
 
-                        // ImGui::Selectable() closes popup by default, but if there are multiple cameras, popup has to
-                        // be opened inside the ImGui::BeginPopup() - ImGui::EndPopup() call. Therefore,
-                        // ImGuiSelectableFlags_NoAutoClosePopups flag should be used.
-                        const ImGuiSelectableFlags flags = (renderer.cameras.size() > 1) ? ImGuiSelectableFlags_NoAutoClosePopups : 0;
+                            // ImGui::Selectable() closes popup by default, but if there are multiple cameras, popup has to
+                            // be opened inside the ImGui::BeginPopup() - ImGui::EndPopup() call. Therefore,
+                            // ImGuiSelectableFlags_NoAutoClosePopups flag should be used.
+                            const ImGuiSelectableFlags flags = (renderer.cameras.size() > 1) ? ImGuiSelectableFlags_NoAutoClosePopups : 0;
 
-                        if (currentNodeHasMeshRecursive && ImGui::Selectable("Fit camera to this", false, flags)) {
-                            nodeIndicesToFit.push_back(nodeIndex);
-                        }
+                            if (currentNodeHasMeshRecursive && ImGui::Selectable("Fit camera to this", false, flags)) {
+                                nodeIndicesToFit.push_back(nodeIndex);
+                            }
 
-                        if (selectedNodesHaveMeshRecursive && ImGui::Selectable("Fit camera to the selection", false, flags)) {
-                            // Need to filter the selected nodes, by in order:
-                            // 1. If one of the node is a descendant of another, remove it.
-                            // 2. After that, remove meshless nodes.
+                            if (selectedNodesHaveMeshRecursive && ImGui::Selectable("Fit camera to the selection", false, flags)) {
+                                // Need to filter the selected nodes, by in order:
+                                // 1. If one of the node is a descendant of another, remove it.
+                                // 2. After that, remove meshless nodes.
 
-                            // Executing 1: sort nodes with descending order of level. Then, for every node, traverse
-                            // to its ancestors until reach the root, and if any of the ancestors is in the list, the
-                            // node can be removed.
-                            nodeIndicesToFit.append_range(assetExtended.selectedNodes);
-                            std::ranges::sort(nodeIndicesToFit, std::greater{}, LIFT(assetExtended.sceneNodeLevels.operator[]));
-                            const auto descendantRemoval = std::ranges::remove_if(nodeIndicesToFit, [&](std::size_t nodeIndex) {
-                                std::optional parentNodeIndex { nodeIndex };
-                                while ((parentNodeIndex = assetExtended.sceneInverseHierarchy.parentNodeIndices[*parentNodeIndex])) {
-                                    if (assetExtended.selectedNodes.contains(*parentNodeIndex)) {
-                                        return true;
+                                // Executing 1: sort nodes with descending order of level. Then, for every node, traverse
+                                // to its ancestors until reach the root, and if any of the ancestors is in the list, the
+                                // node can be removed.
+                                nodeIndicesToFit.append_range(assetExtended.selectedNodes);
+                                std::ranges::sort(nodeIndicesToFit, std::greater{}, LIFT(assetExtended.sceneNodeLevels.operator[]));
+                                const auto descendantRemoval = std::ranges::remove_if(nodeIndicesToFit, [&](std::size_t nodeIndex) {
+                                    std::optional parentNodeIndex { nodeIndex };
+                                    while ((parentNodeIndex = assetExtended.sceneInverseHierarchy.parentNodeIndices[*parentNodeIndex])) {
+                                        if (assetExtended.selectedNodes.contains(*parentNodeIndex)) {
+                                            return true;
+                                        }
                                     }
-                                }
-                                return false;
-                            });
-                            nodeIndicesToFit.erase(descendantRemoval.begin(), descendantRemoval.end());
+                                    return false;
+                                });
+                                nodeIndicesToFit.erase(descendantRemoval.begin(), descendantRemoval.end());
 
-                            // Executing 2: remove meshless nodes.
-                            const auto meshlessRemoval = std::ranges::remove_if(nodeIndicesToFit, isMeshlessRecursive);
-                            nodeIndicesToFit.erase(meshlessRemoval.begin(), meshlessRemoval.end());
-                        }
+                                // Executing 2: remove meshless nodes.
+                                const auto meshlessRemoval = std::ranges::remove_if(nodeIndicesToFit, isMeshlessRecursive);
+                                nodeIndicesToFit.erase(meshlessRemoval.begin(), meshlessRemoval.end());
+                            }
 
-                        if (!nodeIndicesToFit.empty()) {
-                            auto fitCameraToNodeMiniball = [
-                                currentNodeMiniball = gltf::algorithm::getMiniball<false>(assetExtended.asset, std::move(nodeIndicesToFit), assetExtended.nodeWorldTransforms, assetExtended.externalBuffers),
-                                &cameraOrLightPoints = get<2>(assetExtended.sceneMiniball.get())
-                            ](Camera &camera) {
-                                const auto &[center, radius] = currentNodeMiniball;
-                                const float distance = radius / std::sin(camera.fov / 2.f);
-                                camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
-                                camera.targetDistance = distance;
+                            if (!nodeIndicesToFit.empty()) {
+                                auto fitCameraToNodeMiniball = [
+                                    currentNodeMiniball = gltf::algorithm::getMiniball<false>(assetExtended.asset, std::move(nodeIndicesToFit), assetExtended.nodeWorldTransforms, assetExtended.externalBuffers),
+                                    &cameraOrLightPoints = get<2>(assetExtended.sceneMiniball.get())
+                                ](Camera &camera) {
+                                    const auto &[center, radius] = currentNodeMiniball;
+                                    const float distance = radius / std::sin(camera.fov / 2.f);
+                                    camera.position = glm::make_vec3(center.data()) - distance * normalize(camera.direction);
+                                    camera.targetDistance = distance;
 
-                                camera.tightenNearFar(glm::make_vec3(center.data()), radius, { reinterpret_cast<const glm::vec3*>(cameraOrLightPoints.data()), cameraOrLightPoints.size() });
-                            };
+                                    camera.tightenNearFar(glm::make_vec3(center.data()), radius, { reinterpret_cast<const glm::vec3*>(cameraOrLightPoints.data()), cameraOrLightPoints.size() });
+                                };
 
-                            if (renderer.cameras.size() > 1) {
-                                // If multiple viewports, show a popup to select which viewport to apply.
-                                gui::popup::open(std::string { PopupNames::selectViewportToApplyNodeFocus }, [&renderer, this, MOVE_CAP(fitCameraToNodeMiniball), oldCameras = boost::container::static_vector<std::optional<Camera>, 4>(renderer.cameras.size())] mutable {
-                                    ImGui::TextUnformatted(PopupNames::selectViewportToApplyNodeFocus);
+                                if (renderer.cameras.size() > 1) {
+                                    // If multiple viewports, show a popup to select which viewport to apply.
+                                    gui::popup::open(std::string { PopupNames::selectViewportToApplyNodeFocus }, [&renderer, this, MOVE_CAP(fitCameraToNodeMiniball), oldCameras = boost::container::static_vector<std::optional<Camera>, 4>(renderer.cameras.size())] mutable {
+                                        ImGui::TextUnformatted(PopupNames::selectViewportToApplyNodeFocus);
 
-                                    // Calculate button size whose aspect ratio is same as the sub-viewports.
-                                    ImVec2 buttonSize;
-                                    buttonSize.x = ImGui::CalcItemWidth();
-                                    if (renderer.cameras.size() >= 2) {
-                                        // Make 2 buttons in a row.
-                                        buttonSize.x = buttonSize.x / 2.f - ImGui::GetStyle().ItemInnerSpacing.x;
-                                    }
-                                    buttonSize.y = buttonSize.x * centerNodeRect.GetHeight() / centerNodeRect.GetWidth();
-                                    if (renderer.cameras.size() == 2) {
-                                        buttonSize.y *= 2;
-                                    }
-
-                                    for (auto &&[cameraIndex, camera] : renderer.cameras | ranges::views::enumerate) {
-                                        if (cameraIndex % 2 == 1) {
-                                            ImGui::SameLine();
+                                        // Calculate button size whose aspect ratio is same as the sub-viewports.
+                                        ImVec2 buttonSize;
+                                        buttonSize.x = ImGui::CalcItemWidth();
+                                        if (renderer.cameras.size() >= 2) {
+                                            // Make 2 buttons in a row.
+                                            buttonSize.x = buttonSize.x / 2.f - ImGui::GetStyle().ItemInnerSpacing.x;
+                                        }
+                                        buttonSize.y = buttonSize.x * centerNodeRect.GetHeight() / centerNodeRect.GetWidth();
+                                        if (renderer.cameras.size() == 2) {
+                                            buttonSize.y *= 2;
                                         }
 
-                                        auto &oldCamera = oldCameras[cameraIndex];
-                                        // Mimic toggle button: button will have ImGuiCol_ButtonActive color when the camera is adjusted to fit the node miniball.
-                                        ImGui::WithStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), [&] {
-                                            if (ImGui::Button(tempStringBuffer.write("Viewport {}", cameraIndex).view().c_str(), buttonSize)) {
-                                                if (oldCamera) {
-                                                    // Revert the camera to the old one (which is saved in oldCameras).
-                                                    camera = *oldCamera;
-                                                    oldCamera.reset();
-                                                }
-                                                else {
-                                                    // Save the current camera to oldCameras and adjust current camera
-                                                    // to fit the node's miniball.
-                                                    oldCamera.emplace(camera);
-                                                    fitCameraToNodeMiniball(camera);
-                                                }
+                                        for (auto &&[cameraIndex, camera] : renderer.cameras | ranges::views::enumerate) {
+                                            if (cameraIndex % 2 == 1) {
+                                                ImGui::SameLine();
                                             }
-                                        }, oldCamera.has_value());
+
+                                            auto &oldCamera = oldCameras[cameraIndex];
+                                            // Mimic toggle button: button will have ImGuiCol_ButtonActive color when the camera is adjusted to fit the node miniball.
+                                            ImGui::WithStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), [&] {
+                                                if (ImGui::Button(tempStringBuffer.write("Viewport {}", cameraIndex).view().c_str(), buttonSize)) {
+                                                    if (oldCamera) {
+                                                        // Revert the camera to the old one (which is saved in oldCameras).
+                                                        camera = *oldCamera;
+                                                        oldCamera.reset();
+                                                    }
+                                                    else {
+                                                        // Save the current camera to oldCameras and adjust current camera
+                                                        // to fit the node's miniball.
+                                                        oldCamera.emplace(camera);
+                                                        fitCameraToNodeMiniball(camera);
+                                                    }
+                                                }
+                                            }, oldCamera.has_value());
+                                        }
+                                    });
+                                }
+                                else {
+                                    fitCameraToNodeMiniball(renderer.cameras[0]);
+                                }
+                            }
+
+                            gui::popup::process(PopupNames::selectViewportToApplyNodeFocus);
+                        }
+
+                        if (isNodeSelected) {
+                            ImGui::Separator();
+
+                            // If node is the only selected node, visibility can be determined in a constant time.
+                            std::optional<bool> determinedVisibility{};
+                            if (assetExtended.selectedNodes.size() == 1) {
+                                determinedVisibility.emplace(assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex));
+                            }
+
+                            // If visibility is hidden or cannot be determined, show the menu.
+                            if (!determinedVisibility.value_or(false) && ImGui::Selectable("Make all selected nodes visible")) {
+                                for (std::size_t nodeIndex : assetExtended.selectedNodes) {
+                                    if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
+
+                                    if (!assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
+                                        assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, true);
+                                        tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                                    }
+                                }
+                            }
+
+                            // If visibility is visible or cannot be determined, show the menu.
+                            if (determinedVisibility.value_or(true) && ImGui::Selectable("Make all selected nodes invisible")) {
+                                for (std::size_t nodeIndex : assetExtended.selectedNodes) {
+                                    if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
+
+                                    if (assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
+                                        assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, false);
+                                        tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                                    }
+                                }
+                            }
+
+                            if (!determinedVisibility && ImGui::Selectable("Toggle all selected node visibility")) {
+                                for (std::size_t nodeIndex : assetExtended.selectedNodes) {
+                                    if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
+
+                                    assetExtended.sceneNodeVisibilities.flipVisibility(nodeIndex);
+                                    tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                                }
+                            }
+                        }
+                        else if (auto state = assetExtended.sceneNodeVisibilities.getState(nodeIndex); state != gltf::StateCachedNodeVisibilityStructure::State::Indeterminate) {
+                            ImGui::Separator();
+
+                            if (state != gltf::StateCachedNodeVisibilityStructure::State::AllVisible && ImGui::Selectable("Make visible from here")) {
+                                traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
+                                    if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
+
+                                    if (!assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
+                                        assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, true);
+                                        tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                                     }
                                 });
                             }
-                            else {
-                                fitCameraToNodeMiniball(renderer.cameras[0]);
+
+                            if (state != gltf::StateCachedNodeVisibilityStructure::State::AllInvisible && ImGui::Selectable("Make invisible from here")) {
+                                traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
+                                    if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
+
+                                    if (assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
+                                        assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, false);
+                                        tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                                    }
+                                });
+                            }
+
+                            if (state == gltf::StateCachedNodeVisibilityStructure::State::Intermediate && ImGui::Selectable("Toggle visibility from here")) {
+                                traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
+                                    if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
+
+                                    assetExtended.sceneNodeVisibilities.flipVisibility(nodeIndex);
+                                    tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                                });
                             }
                         }
+                    };
 
-                        gui::popup::process(PopupNames::selectViewportToApplyNodeFocus);
+                    if (ancestorNodeIndices.empty()) {
+                        nodeContextMenu(nodeIndex);
                     }
-
-                    if (isNodeSelected) {
-                        ImGui::Separator();
-
-                        // If node is the only selected node, visibility can be determined in a constant time.
-                        std::optional<bool> determinedVisibility{};
-                        if (assetExtended.selectedNodes.size() == 1) {
-                            determinedVisibility.emplace(assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex));
-                        }
-
-                        // If visibility is hidden or cannot be determined, show the menu.
-                        if (!determinedVisibility.value_or(false) && ImGui::Selectable("Make all selected nodes visible")) {
-                            for (std::size_t nodeIndex : assetExtended.selectedNodes) {
-                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
-
-                                if (!assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
-                                    assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, true);
-                                    tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
-                                }
+                    else {
+                        // Chain of single child nodes are merged. Add intermediate context menu for the node selection.
+                        for (std::size_t nodeIndex : ancestorNodeIndices) {
+                            if (ImGui::BeginMenu(tempStringBuffer.write(gui::getDisplayName(assetExtended.asset.nodes, nodeIndex)).view().c_str())) {
+                                nodeContextMenu(nodeIndex);
+                                ImGui::EndMenu();
                             }
                         }
-
-                        // If visibility is visible or cannot be determined, show the menu.
-                        if (determinedVisibility.value_or(true) && ImGui::Selectable("Make all selected nodes invisible")) {
-                            for (std::size_t nodeIndex : assetExtended.selectedNodes) {
-                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
-
-                                if (assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
-                                    assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, false);
-                                    tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
-                                }
-                            }
-                        }
-
-                        if (!determinedVisibility && ImGui::Selectable("Toggle all selected node visibility")) {
-                            for (std::size_t nodeIndex : assetExtended.selectedNodes) {
-                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
-
-                                assetExtended.sceneNodeVisibilities.flipVisibility(nodeIndex);
-                                tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
-                            }
-                        }
-                    }
-                    else if (auto state = assetExtended.sceneNodeVisibilities.getState(nodeIndex); state != gltf::StateCachedNodeVisibilityStructure::State::Indeterminate) {
-                        ImGui::Separator();
-
-                        if (state != gltf::StateCachedNodeVisibilityStructure::State::AllVisible && ImGui::Selectable("Make visible from here")) {
-                            traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
-                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
-
-                                if (!assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
-                                    assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, true);
-                                    tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
-                                }
-                            });
-                        }
-
-                        if (state != gltf::StateCachedNodeVisibilityStructure::State::AllInvisible && ImGui::Selectable("Make invisible from here")) {
-                            traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
-                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
-
-                                if (assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
-                                    assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, false);
-                                    tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
-                                }
-                            });
-                        }
-
-                        if (state == gltf::StateCachedNodeVisibilityStructure::State::Intermediate && ImGui::Selectable("Toggle visibility from here")) {
-                            traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
-                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
-
-                                assetExtended.sceneNodeVisibilities.flipVisibility(nodeIndex);
-                                tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
-                            });
+                        if (ImGui::BeginMenu(tempStringBuffer.write(gui::getDisplayName(asset.nodes, nodeIndex)).view().c_str())) {
+                            nodeContextMenu(nodeIndex);
+                            ImGui::EndMenu();
                         }
                     }
 
