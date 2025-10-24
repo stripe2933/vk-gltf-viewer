@@ -1356,6 +1356,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                 // Open context menu when right-click the tree node.
                 if (ImGui::BeginPopupContextItem()) {
                     const auto nodeContextMenu = [&](std::size_t nodeIndex) {
+                        ImGui::WithStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), [&] {
+                            ImGui::Text("#%zu", nodeIndex);
+                        });
+                        ImGui::SameLine();
+                        ImGui::TextUnformatted(assetExtended.asset.nodes[nodeIndex].name);
+
+                        ImGui::Separator();
+
                         // If the current node is the only selected node, and it is leaf, it is guaranteed that the selection will be not changed.
                         ImGui::WithDisabled([&]() {
                             if (ImGui::Selectable("Select from here")) {
@@ -1564,6 +1572,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                     else {
                         // Add intermediate context menu for the node selection.
                         for (std::size_t nodeIndex : mergedNodeIndices) {
+                            ImGui::WithStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), [&] {
+                                ImGui::Text("#%zu", nodeIndex);
+                            });
+                            ImGui::SameLine();
                             if (ImGui::BeginMenu(tempStringBuffer.write(gui::getDisplayName(assetExtended.asset.nodes, nodeIndex)).view().c_str())) {
                                 nodeContextMenu(nodeIndex);
                                 ImGui::EndMenu();
