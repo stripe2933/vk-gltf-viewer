@@ -1204,7 +1204,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
         ImGui::HelperMarker("(?)", "If a node has only single child and both are not representing any mesh, light or camera, they will be combined and slash-separated name will be shown instead.");
 
         const auto addChildNode = [&](this const auto &self, std::size_t nodeIndex) -> void {
-            std::vector<std::size_t> ancestorNodeIndices;
+            std::vector<std::size_t> mergedNodeIndices;
             if (mergeSingleChildNodes) {
                 for (const fastgltf::Node *node = &assetExtended.asset.nodes[nodeIndex];
                     node->children.size() == 1
@@ -1212,9 +1212,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                         && !assetExtended.asset.nodes[node->children[0]].cameraIndex && !assetExtended.asset.nodes[node->children[0]].lightIndex && !assetExtended.asset.nodes[node->children[0]].meshIndex
                         && (assetExtended.nodeNameSearchText.empty() || assetExtended.nodeNameSearchTextOccurrencePosByNode.contains(node->children[0]));
                     nodeIndex = node->children[0], node = &assetExtended.asset.nodes[nodeIndex]) {
-                    ancestorNodeIndices.push_back(nodeIndex);
+                    mergedNodeIndices.push_back(nodeIndex);
                 }
             }
+            mergedNodeIndices.push_back(nodeIndex);
 
             // If node name search text is nonempty, hide the node when there's no occurrence in the node.
             if (!assetExtended.nodeNameSearchText.empty() && !assetExtended.nodeNameSearchTextOccurrencePosByNode.contains(nodeIndex)) return;
@@ -1231,7 +1232,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                 // TreeNode.
                 // --------------------
 
-                bool isNodeSelected = std::ranges::all_of(ancestorNodeIndices, LIFT(assetExtended.selectedNodes.contains)) && assetExtended.selectedNodes.contains(nodeIndex);
+                bool isNodeSelected = std::ranges::all_of(mergedNodeIndices, LIFT(assetExtended.selectedNodes.contains));
                 const bool isTreeNodeOpen = ImGui::WithStyleColor(ImGuiCol_Header, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive), [&]() {
                     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap | ImGuiTreeNodeFlags_DrawLinesToNodes;
                     if (nodeIndex == assetExtended.hoveringNode) flags |= ImGuiTreeNodeFlags_Framed;
@@ -1262,11 +1263,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                             tempStringBuffer.append(name);
                         }
                     };
-                    for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
-                        appendNodeLabel(ancestorNodeIndex);
-                        tempStringBuffer.append(" / ");
+                    for (bool first = true; std::size_t nodeIndex : mergedNodeIndices) {
+                        if (first) {
+                            first = false;
+                        }
+                        else {
+                            tempStringBuffer.append(" / ");
+                        }
+                        appendNodeLabel(nodeIndex);
                     }
-                    appendNodeLabel(nodeIndex);
 
                     // (Avail width) = ImGui::GetContentRegionAvail().x - (space occupied by collapsing arrow)
                     // Collapsing arrow space calculation code is adapted from
@@ -1328,24 +1333,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                     if (ImGui::GetIO().KeyCtrl) {
                         // Toggle the selection.
                         if (isNodeSelected) {
-                            for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
-                                assetExtended.selectedNodes.erase(ancestorNodeIndex);
-                            }
-                            assetExtended.selectedNodes.erase(nodeIndex);
+                            std::ranges::for_each(mergedNodeIndices, LIFT(assetExtended.selectedNodes.erase));
                             isNodeSelected = false;
                         }
                         else {
-                            for (std::size_t ancestorNodeIndex : ancestorNodeIndices) {
-                                assetExtended.selectedNodes.emplace(ancestorNodeIndex);
-                            }
-                            assetExtended.selectedNodes.emplace(nodeIndex);
+                            std::ranges::for_each(mergedNodeIndices, LIFT(assetExtended.selectedNodes.emplace));
                             isNodeSelected = true;
                         }
                         tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
                     }
                     else {
-                        assetExtended.selectedNodes = { std::from_range, ancestorNodeIndices };
-                        assetExtended.selectedNodes.emplace(nodeIndex);
+                        assetExtended.selectedNodes = { std::from_range, mergedNodeIndices };
                         tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
                     }
                 }
@@ -1560,20 +1558,16 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                         }
                     };
 
-                    if (ancestorNodeIndices.empty()) {
+                    if (mergedNodeIndices.size() == 1) {
                         nodeContextMenu(nodeIndex);
                     }
                     else {
-                        // Chain of single child nodes are merged. Add intermediate context menu for the node selection.
-                        for (std::size_t nodeIndex : ancestorNodeIndices) {
+                        // Add intermediate context menu for the node selection.
+                        for (std::size_t nodeIndex : mergedNodeIndices) {
                             if (ImGui::BeginMenu(tempStringBuffer.write(gui::getDisplayName(assetExtended.asset.nodes, nodeIndex)).view().c_str())) {
                                 nodeContextMenu(nodeIndex);
                                 ImGui::EndMenu();
                             }
-                        }
-                        if (ImGui::BeginMenu(tempStringBuffer.write(gui::getDisplayName(asset.nodes, nodeIndex)).view().c_str())) {
-                            nodeContextMenu(nodeIndex);
-                            ImGui::EndMenu();
                         }
                     }
 
