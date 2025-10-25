@@ -85,6 +85,14 @@ namespace vk_gltf_viewer::gltf {
          */
         std::size_t sceneIndex;
 
+    	/// Node name search text in scene hierarchy window.
+    	std::string nodeNameSearchText;
+
+    	/// Occurrence positions of <tt>nodeNameSearchText</tt> in the scene node names.
+    	/// If the occurrence position is equal to the node name length, it means the node has no occurrence but it is
+    	/// an ancestor node of a node that has the occurrence.
+    	std::unordered_map<std::size_t, std::size_t> nodeNameSearchTextOccurrencePosByNode;
+
         /**
          * @brief World transform matrices of nodes in the scene, ordered by node indices in the asset.
          *
@@ -140,12 +148,26 @@ namespace vk_gltf_viewer::gltf {
 		[[nodiscard]] const fastgltf::Scene &getScene() const noexcept { return asset.scenes[sceneIndex]; }
 
     	void setScene(std::size_t sceneIndex);
+
+		/**
+		 * @brief Update <tt>nodeNameSearchTextOccurrencePosByNode</tt> with the current <tt>nodeNameSearchText</tt>.
+		 *
+		 * You should pass <tt>true</tt> to \p newResultWithinCurrent for optimization if the new result is always
+		 * within the current result. For example, the case of the new search text contains the previously used
+		 * non-empty search text. If it is <tt>false</tt>, all nodes in the scene will be checked.
+		 *
+		 * @param newResultWithinCurrent <tt>true</tt> if the new result is always within the current result, <tt>false</tt> otherwise.
+		 */
+    	void updateNodeNameSearchTextOccurrencePosByNode(bool newResultWithinCurrent);
     };
 }
 
 #if !defined(__GNUC__) || defined(__clang__)
 module :private;
 #endif
+
+#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 using namespace std::string_view_literals;
 
@@ -248,6 +270,9 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
 void vk_gltf_viewer::gltf::AssetExtended::setScene(std::size_t _sceneIndex) {
 	sceneIndex = _sceneIndex;
 
+	nodeNameSearchText.clear();
+	nodeNameSearchTextOccurrencePosByNode.clear();
+
 	// nodeWorldTransforms
 	traverseScene(asset, getScene(), [this](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
 		nodeWorldTransforms[nodeIndex] = nodeWorldTransform;
@@ -270,4 +295,45 @@ void vk_gltf_viewer::gltf::AssetExtended::setScene(std::size_t _sceneIndex) {
     selectedNodes.clear();
     hoveringNode.reset();
     sceneMiniball.invalidate();
+}
+
+void vk_gltf_viewer::gltf::AssetExtended::updateNodeNameSearchTextOccurrencePosByNode(
+	bool newResultWithinCurrent
+) {
+	// Collect nodes that will be searched.
+	std::vector<std::size_t> orderedNodes;
+	if (newResultWithinCurrent) {
+		orderedNodes.append_range(nodeNameSearchTextOccurrencePosByNode | std::views::keys);
+	}
+	else {
+		traverseScene(asset, getScene(), [&](std::size_t nodeIndex) {
+			orderedNodes.push_back(nodeIndex);
+		});
+	}
+
+    // Sort nodes by their levels in descending order.
+    std::ranges::sort(orderedNodes, std::ranges::greater{}, LIFT(sceneNodeLevels.operator[]));
+
+    nodeNameSearchTextOccurrencePosByNode.clear();
+    std::vector visited(asset.nodes.size(), false);
+    for (std::size_t nodeIndex : orderedNodes) {
+        std::string_view haystack = asset.nodes[nodeIndex].name;
+        if (auto found = std::ranges::search(haystack, nodeNameSearchText, {}, LIFT(std::tolower), LIFT(std::tolower))) {
+            nodeNameSearchTextOccurrencePosByNode[nodeIndex] = std::ranges::distance(haystack.begin(), found.begin());
+
+            // If an occurrence is found in the node, all of its ancestor must be visible to the scene hierarchy
+            // tree, regardless of they have occurrences or not.
+            std::optional parentNodeIndex = sceneInverseHierarchy.parentNodeIndices[nodeIndex];
+            while (parentNodeIndex && !visited[*parentNodeIndex]) {
+                haystack = asset.nodes[*parentNodeIndex].name;
+                found = std::ranges::search(haystack, nodeNameSearchText, {}, LIFT(std::tolower), LIFT(std::tolower));
+
+                // If found == false, haystack.size() will be assigned.
+                nodeNameSearchTextOccurrencePosByNode[*parentNodeIndex] = std::ranges::distance(haystack.begin(), found.begin());
+
+                visited[*parentNodeIndex] = true;
+                parentNodeIndex = sceneInverseHierarchy.parentNodeIndices[*parentNodeIndex];
+            }
+        }
+    }
 }

@@ -30,11 +30,14 @@ namespace vk_gltf_viewer::gltf {
     export class StateCachedNodeVisibilityStructure {
     public:
         enum class State : std::uint8_t {
-            AllVisible = 0,    /// Every node that has a mesh is visible among the current and its descendants.
-            AllInvisible = 1,  /// Every node that has a mesh is invisible among the current and its descendants.
-            Intermediate = 2,  /// Every node that has a mesh is mixed state (some are visible, some are invisible)
-                               /// among the current and its descendants.
-            Indeterminate = 3, /// None of the current and its descendant nodes has a mesh.
+            /// Every node that has a mesh is visible among the current and its descendants.
+            AllVisible = 0,
+            /// Every node that has a mesh is invisible among the current and its descendants.
+            AllInvisible = 1,
+            /// Every node that has a mesh is mixed state (some are visible, some are invisible) among the current and its descendants.
+            Intermediate = 2,
+            /// None of the current and its descendant nodes has a mesh.
+            Indeterminate = 3,
         };
 
         /**
