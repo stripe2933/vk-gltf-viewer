@@ -139,7 +139,7 @@ The extensions and feature used in this application are quite common in the mode
 ### Build
 
 This project requires support for C++20 modules and the C++23 standard library. The supported compilers are:
-- Clang 18.1.2
+- Clang 19.1.1
 - MSVC 19.42
 
 The following build tools are required:
@@ -278,7 +278,7 @@ The executable will be located in `build` folder.
 Install libc++ and extra build dependencies from apt.
 
 ```sh
-sudo apt install libc++-dev libc++abi-dev xorg-dev libtool libltdl-dev
+sudo apt install clang-19 clang-tools-19 libc++-19-dev libc++abi-19-dev xorg-dev libtool libltdl-dev
 ```
 
 Add the following CMake user preset file in your project directory. I'll assume your Clang compiler executable is at `/usr/bin/`.
@@ -292,8 +292,8 @@ Add the following CMake user preset file in your project directory. I'll assume 
       "name": "linux-clang",
       "inherits": "default",
       "cacheVariables": {
-        "CMAKE_C_COMPILER": "/usr/bin/clang",
-        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "CMAKE_C_COMPILER": "/usr/bin/clang-19",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++-19",
         "CMAKE_CXX_FLAGS": "-stdlib=libc++",
         "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++ -lc++abi",
         "VCPKG_TARGET_TRIPLET": "x64-linux-clang"
@@ -309,8 +309,8 @@ Add the following CMake user preset file in your project directory. I'll assume 
 ```cmake
 include($ENV{VCPKG_ROOT}/scripts/toolchains/linux.cmake)
 
-set(CMAKE_C_COMPILER /usr/bin/clang)
-set(CMAKE_CXX_COMPILER /usr/bin/clang++)
+set(CMAKE_C_COMPILER /usr/bin/clang-19)
+set(CMAKE_CXX_COMPILER /usr/bin/clang++-19)
 ```
 
 `triplets/x64-linux-clang.cmake`

@@ -167,7 +167,7 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
 	: dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) }
     , directory { path.parent_path() }
     , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
-	, isTextureTransformUsed { ranges::contains(asset.extensionsUsed, "KHR_texture_transform"sv) }
+	, isTextureTransformUsed { std::ranges::contains(asset.extensionsUsed, "KHR_texture_transform"sv) }
     , sceneIndex { asset.defaultScene.value_or(0) }
     , sceneInverseHierarchy { asset, sceneIndex }
     , sceneNodeVisibilities { asset, sceneIndex, sceneInverseHierarchy }
@@ -202,7 +202,7 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
     }
 
     // bloomMaterials
-	if (ranges::contains(asset.extensionsUsed, "KHR_materials_emissive_strength"sv)) {
+	if (std::ranges::contains(asset.extensionsUsed, "KHR_materials_emissive_strength"sv)) {
 		for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
 			if (material.emissiveStrength > 1.f) {
 				bloomMaterials.emplace(i);
@@ -220,7 +220,7 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
 	}
 
 	// imGuiSelectedMaterialVariantsIndex
-	if (ranges::contains(asset.extensionsUsed, "KHR_materials_variants"sv)) {
+	if (std::ranges::contains(asset.extensionsUsed, "KHR_materials_variants"sv)) {
 		imGuiSelectedMaterialVariantsIndex = getActiveMaterialVariantIndex(asset, [this](const fastgltf::Primitive &primitive) {
 			return originalMaterialIndexByPrimitive.at(&primitive);
 		});

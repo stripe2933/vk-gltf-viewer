@@ -5,7 +5,6 @@ module;
 
 export module vk_gltf_viewer.helpers.ranges;
 export import :concat;
-export import :contains;
 
 import std;
 import vk_gltf_viewer.helpers.concepts;
@@ -25,19 +24,6 @@ import vk_gltf_viewer.helpers.concepts;
 #endif
 
 namespace ranges {
-    export template <typename Derived>
-#if __cpp_lib_ranges >= 202202L && (!defined(_LIBCPP_VERSION) || _LIBCPP_VERSION >= 190100) // https://github.com/llvm/llvm-project/issues/70557#issuecomment-1851936055
-    using range_adaptor_closure = std::ranges::range_adaptor_closure<Derived>;
-#else
-        requires std::is_object_v<Derived> && std::same_as<Derived, std::remove_cv_t<Derived>>
-    struct range_adaptor_closure {
-        template <std::ranges::range R>
-        [[nodiscard]] friend constexpr auto operator|(R &&r, const Derived &derived) noexcept(std::is_nothrow_invocable_v<const Derived&, R>) {
-            return derived(FWD(r));
-        }
-    };
-#endif
-
     /**
      * Get value from associative container, or return default value if not found.
      * @tparam AssociativeContainer
@@ -97,7 +83,7 @@ namespace ranges {
 
     export template <std::equality_comparable T, std::ranges::input_range R = std::initializer_list<T>>
     [[nodiscard]] constexpr bool one_of(const T &value, const R &candidates) NOEXCEPT_IF(std::declval<T>() == std::declval<T>()) {
-        return contains(candidates, value);
+        return std::ranges::contains(candidates, value);
     }
 
     export void copy_n(std::ranges::input_range auto &&src, auto &...dest) {
@@ -115,7 +101,7 @@ namespace views {
 #if __cpp_lib_ranges_enumerate >= 202302L
     export constexpr decltype(std::views::enumerate) enumerate;
 #else
-    struct enumerate_fn : range_adaptor_closure<enumerate_fn> {
+    struct enumerate_fn : std::ranges::range_adaptor_closure<enumerate_fn> {
         template <std::ranges::viewable_range R>
         [[nodiscard]] static constexpr auto operator()(R &&r) {
             if constexpr (std::ranges::sized_range<R>) {
@@ -138,7 +124,7 @@ namespace views {
     export constexpr decltype(std::views::pairwise) pairwise;
 #else
     template <std::size_t N>
-    struct adjacent_fn : range_adaptor_closure<adjacent_fn<N>> {
+    struct adjacent_fn : std::ranges::range_adaptor_closure<adjacent_fn<N>> {
         [[nodiscard]] static constexpr auto operator()(std::ranges::forward_range auto &&r) {
             return INDEX_SEQ(Is, N, {
                 return std::views::zip(r | std::views::drop(Is)...);

@@ -5,7 +5,6 @@ import std;
 import vk_gltf_viewer.AppState;
 import vk_gltf_viewer.gltf.AssetExtended;
 import vk_gltf_viewer.control.AppWindow;
-import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.imgui.UserData;
 import vk_gltf_viewer.Renderer;
 import vk_gltf_viewer.vulkan.Frame;
