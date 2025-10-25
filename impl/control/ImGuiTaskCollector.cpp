@@ -1188,20 +1188,19 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
         ImGui::SameLine();
         ImGui::HelperMarker("(?)", "If a node has only single child and both are not representing any mesh, light or camera, they will be combined and slash-separated name will be shown instead.");
 
-        // FIXME: due to the Clang 18's explicit object parameter bug, const fastgltf::Asset& is passed (but it is unnecessary). Remove the parameter when fixed.
-        const auto addChildNode = [&](this const auto &self, const fastgltf::Asset &asset, std::size_t nodeIndex) -> void {
+        const auto addChildNode = [&](this const auto &self, std::size_t nodeIndex) -> void {
             std::vector<std::size_t> ancestorNodeIndices;
             if (mergeSingleChildNodes) {
-                for (const fastgltf::Node *node = &asset.nodes[nodeIndex];
+                for (const fastgltf::Node *node = &assetExtended.asset.nodes[nodeIndex];
                     node->children.size() == 1
                         && !node->cameraIndex && !node->lightIndex && !node->meshIndex
-                        && !asset.nodes[node->children[0]].cameraIndex && !asset.nodes[node->children[0]].lightIndex && !asset.nodes[node->children[0]].meshIndex;
-                    nodeIndex = node->children[0], node = &asset.nodes[nodeIndex]) {
+                        && !assetExtended.asset.nodes[node->children[0]].cameraIndex && !assetExtended.asset.nodes[node->children[0]].lightIndex && !assetExtended.asset.nodes[node->children[0]].meshIndex;
+                    nodeIndex = node->children[0], node = &assetExtended.asset.nodes[nodeIndex]) {
                     ancestorNodeIndices.push_back(nodeIndex);
                 }
             }
 
-            const fastgltf::Node &node = asset.nodes[nodeIndex];
+            const fastgltf::Node &node = assetExtended.asset.nodes[nodeIndex];
 
             ImGui::TableNextRow();
 
@@ -1224,7 +1223,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
 
                     tempStringBuffer.clear();
                     const auto appendNodeLabel = [&](std::size_t nodeIndex) {
-                        const fastgltf::Node &node = asset.nodes[nodeIndex];
+                        const fastgltf::Node &node = assetExtended.asset.nodes[nodeIndex];
 
                         if (std::string_view name = node.name; name.empty()) {
                             tempStringBuffer.append("Unnamed Node {}", nodeIndex);
@@ -1281,7 +1280,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
                     ImGui::WithDisabled([&]() {
                         if (ImGui::Selectable("Select from here")) {
                             assetExtended.selectedNodes.clear();
-                            traverseNode(asset, ancestorNodeIndices.empty() ? nodeIndex : ancestorNodeIndices[0], [&](std::size_t nodeIndex) {
+                            traverseNode(assetExtended.asset, ancestorNodeIndices.empty() ? nodeIndex : ancestorNodeIndices[0], [&](std::size_t nodeIndex) {
                                 assetExtended.selectedNodes.emplace(nodeIndex);
                             });
 
@@ -1301,7 +1300,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
                         // If visibility is hidden or cannot be determined, show the menu.
                         if (!determinedVisibility.value_or(false) && ImGui::Selectable("Make all selected nodes visible")) {
                             for (std::size_t nodeIndex : assetExtended.selectedNodes) {
-                                if (!asset.nodes[nodeIndex].meshIndex) continue;
+                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
 
                                 if (!assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
                                     assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, true);
@@ -1313,7 +1312,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
                         // If visibility is visible or cannot be determined, show the menu.
                         if (determinedVisibility.value_or(true) && ImGui::Selectable("Make all selected nodes invisible")) {
                             for (std::size_t nodeIndex : assetExtended.selectedNodes) {
-                                if (!asset.nodes[nodeIndex].meshIndex) continue;
+                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
 
                                 if (assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
                                     assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, false);
@@ -1324,7 +1323,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
 
                         if (!determinedVisibility && ImGui::Selectable("Toggle all selected node visibility")) {
                             for (std::size_t nodeIndex : assetExtended.selectedNodes) {
-                                if (!asset.nodes[nodeIndex].meshIndex) continue;
+                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
 
                                 assetExtended.sceneNodeVisibilities.flipVisibility(nodeIndex);
                                 tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
@@ -1335,8 +1334,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
                         ImGui::Separator();
 
                         if (state != gltf::StateCachedNodeVisibilityStructure::State::AllVisible && ImGui::Selectable("Make visible from here")) {
-                            traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
-                                if (!asset.nodes[nodeIndex].meshIndex) return;
+                            traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
+                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
 
                                 if (!assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
                                     assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, true);
@@ -1346,8 +1345,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
                         }
 
                         if (state != gltf::StateCachedNodeVisibilityStructure::State::AllInvisible && ImGui::Selectable("Make invisible from here")) {
-                            traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
-                                if (!asset.nodes[nodeIndex].meshIndex) return;
+                            traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
+                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
 
                                 if (assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
                                     assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, false);
@@ -1357,8 +1356,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
                         }
 
                         if (state == gltf::StateCachedNodeVisibilityStructure::State::Intermediate && ImGui::Selectable("Toggle visibility from here")) {
-                            traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
-                                if (!asset.nodes[nodeIndex].meshIndex) return;
+                            traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
+                                if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
 
                                 assetExtended.sceneNodeVisibilities.flipVisibility(nodeIndex);
                                 tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
@@ -1413,7 +1412,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
 
                 if (isTreeNodeOpen) {
                     for (std::size_t childNodeIndex : node.children) {
-                        self(asset, childNodeIndex);
+                        self(childNodeIndex);
                     }
                     ImGui::TreePop();
                 }
@@ -1429,7 +1428,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(gltf::AssetExte
             ImGui::TableHeadersRow();
 
             for (std::size_t nodeIndex : assetExtended.getScene().nodeIndices) {
-                addChildNode(assetExtended.asset, nodeIndex);
+                addChildNode(nodeIndex);
             }
 
             ImGui::EndTable();

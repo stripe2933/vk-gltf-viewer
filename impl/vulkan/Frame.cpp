@@ -196,7 +196,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         const bool usePerFragmentEmissiveStencilExport = renderer->bloom.raw().mode == Renderer::Bloom::PerFragment;
         CommandSeparationCriteria result {
             .subpass = 0U,
-            .indexType = value_if(ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor.has_value(), [&]() {
+            .indexType = value_if(std::ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor.has_value(), [&]() {
                 return gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = gltf::getPrimitiveTopology(primitive.type),
@@ -244,7 +244,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
 
     const auto mousePickingCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
-            .indexType = value_if(ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor.has_value(), [&]() {
+            .indexType = value_if(std::ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor.has_value(), [&]() {
                 return gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = gltf::getPrimitiveTopology(primitive.type),
@@ -269,7 +269,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
 
     const auto multiNodeMousePickingCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result{
-            .indexType = value_if(ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor.has_value(), [&]() {
+            .indexType = value_if(std::ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor.has_value(), [&]() {
                 return gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = gltf::getPrimitiveTopology(primitive.type),
@@ -298,7 +298,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         &mp = sharedData.multiviewPipelines.at(math::bit::ones(viewport.transform([](const Viewport &viewport) noexcept { return viewport.viewCount; }).value_or(1U)))
     ](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result {
-            .indexType = value_if(ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor.has_value(), [&]() {
+            .indexType = value_if(std::ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor.has_value(), [&]() {
                 return gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
             }),
             .primitiveTopology = gltf::getPrimitiveTopology(primitive.type),
@@ -356,7 +356,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         }
 
         const std::uint32_t firstInstance = (static_cast<std::uint32_t>(nodeIndex) << 16U) | static_cast<std::uint32_t>(primitiveIndex);
-        if (ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor) {
+        if (std::ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor) {
             const std::uint32_t firstIndex = gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).second;
             return vk::DrawIndexedIndirectCommand { drawCount, instanceCount, firstIndex, 0, firstInstance };
         }
