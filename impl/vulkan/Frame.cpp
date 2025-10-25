@@ -719,6 +719,32 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             recordSkyboxDrawCommands(sceneRenderingCommandBuffer);
         }
 
+        // Render grid.
+        if (renderer->grid) {
+            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.gridRenderPipeline.pipeline);
+            sceneRenderingCommandBuffer.bindDescriptorSets(
+                vk::PipelineBindPoint::eGraphics, *sharedData.gridRenderPipeline.pipelineLayout,
+                0, rendererSet, {});
+            sceneRenderingCommandBuffer.pushConstants<GridRenderPipeline::PushConstant>(
+                *sharedData.gridRenderPipeline.pipelineLayout, GridRenderPipeline::PushConstant::range.stageFlags,
+                0, GridRenderPipeline::PushConstant {
+                    .color = renderer->grid->color,
+                    .showMinorAxes = renderer->grid->showMinorAxes,
+                    .size = renderer->grid->size,
+                });
+
+            const auto scissors = viewport->getSubrects();
+            const auto viewports = scissors
+                | std::views::transform([](const vk::Rect2D &rect) {
+                    return vku::toViewport(rect, true);
+                })
+                | std::ranges::to<boost::container::static_vector<vk::Viewport, 4>>();
+            sceneRenderingCommandBuffer.setViewportWithCountEXT(viewports);
+            sceneRenderingCommandBuffer.setScissorWithCountEXT(scissors);
+
+            sceneRenderingCommandBuffer.draw(6, viewport->viewCount, 0, 0);
+        }
+
         // Render meshes whose AlphaMode=Blend.
         sceneRenderingCommandBuffer.nextSubpass(vk::SubpassContents::eInline);
         bool hasBlendMesh = false;

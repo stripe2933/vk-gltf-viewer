@@ -41,6 +41,7 @@ constexpr std::array optionalExtensions {
 };
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
+    .setDepthClamp(true)
     .setDrawIndirectFirstInstance(true)
     .setMultiViewport(true)
     .setSamplerAnisotropy(true)
@@ -176,7 +177,8 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
                 vk::PhysicalDeviceDynamicRenderingFeatures,
                 vk::PhysicalDeviceSynchronization2Features,
                 vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
-        if (!features2.features.drawIndirectFirstInstance ||
+        if (!features2.features.depthClamp ||
+            !features2.features.drawIndirectFirstInstance ||
             !features2.features.samplerAnisotropy ||
             !features2.features.shaderInt16 ||
             !features2.features.multiDrawIndirect ||

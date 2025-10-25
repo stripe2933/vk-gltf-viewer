@@ -21,6 +21,7 @@ export import vk_gltf_viewer.vulkan.buffer.CubeIndices;
 export import vk_gltf_viewer.vulkan.gltf.AssetExtended;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderPipeline;
+export import vk_gltf_viewer.vulkan.pipeline.GridRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.InverseToneMappingRenderPipeline;
 export import vk_gltf_viewer.vulkan.pipeline.JumpFloodComputePipeline;
 export import vk_gltf_viewer.vulkan.pipeline.JumpFloodSeedRenderPipeline;
@@ -93,6 +94,7 @@ namespace vk_gltf_viewer::vulkan {
         rp::Scene sceneRenderPass;
         rp::BloomApply bloomApplyRenderPass;
 
+        GridRenderPipeline gridRenderPipeline;
         JumpFloodComputePipeline jumpFloodComputePipeline;
         bloom::BloomComputePipeline bloomComputePipeline;
         OutlineRenderPipeline outlineRenderPipeline;
@@ -200,6 +202,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
     , weightedBlendedCompositionPipelineLayout { gpu.device, weightedBlendedCompositionDescriptorSetLayout }
     , sceneRenderPass { gpu }
     , bloomApplyRenderPass { gpu }
+    , gridRenderPipeline { gpu.device, rendererDescriptorSetLayout, sceneRenderPass }
     , jumpFloodComputePipeline { gpu.device }
     , bloomComputePipeline { gpu.device, { .useAMDShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod } }
     , outlineRenderPipeline { gpu.device, outlinePipelineLayout }

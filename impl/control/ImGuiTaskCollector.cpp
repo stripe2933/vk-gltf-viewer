@@ -2209,6 +2209,18 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
                 ImGui::DragFloat("Intensity", &renderer.bloom.raw().intensity, 1e-2f, 0.f, 0.1f);
             }, !bloom);
         }
+
+        if (ImGui::CollapsingHeader("Grid")) {
+            bool grid = renderer.grid.has_value();
+            if (ImGui::Checkbox("Enable grid", &grid)) {
+                renderer.grid.set_active(grid);
+            }
+            ImGui::WithDisabled([&] {
+                ImGui::DragFloat("Size", &renderer.grid.raw().size, 1.f, 0.f, std::numeric_limits<float>::max());
+                ImGui::ColorEdit3("Color", value_ptr(renderer.grid.raw().color));
+                ImGui::Checkbox("Show minor axes", &renderer.grid.raw().showMinorAxes);
+            }, !grid);
+        }
     }
     ImGui::End();
 }
