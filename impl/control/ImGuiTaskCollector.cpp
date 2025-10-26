@@ -1323,7 +1323,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                         }
                     }
 
-                    tempStringBuffer.append("##treenode");
+                    // Label passed to ImGui::TreeNodeEx() can be changed by truncation. To maintain the opened state
+                    // of the tree node, its ID must be stable. For the purpose, use ### to separate the label and ID.
+                    tempStringBuffer.append("###{}", nodeIndex);
 
                     return ImGui::TreeNodeEx(labelStart, flags);
                 }, nodeIndex == assetExtended.hoveringNode);
