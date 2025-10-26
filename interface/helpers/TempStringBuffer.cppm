@@ -119,6 +119,14 @@ public:
         return { cpp_util::basic_cstring_view<CharT>::null_terminated, buffer.data(), size };
     }
 
+    /**
+     * @brief Get mutable span to the internal buffer.
+     * @warning Modifying the content may lead to inconsistent state, especially for '\0' character. Use with caution.
+     */
+    [[nodiscard]] std::span<CharT> mut_view() noexcept {
+        return { buffer.data(), size };
+    }
+
 private:
     std::array<CharT, BufferSize> buffer;
     std::size_t size;
