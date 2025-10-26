@@ -1203,6 +1203,9 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
         ImGui::SameLine();
         ImGui::HelperMarker("(?)", "If a node has only single child and both are not representing any mesh, light or camera, they will be combined and slash-separated name will be shown instead.");
 
+        // Passed as parameter with ImGui::IsRectVisible() call (see below).
+        const ImVec2 treeNodeVisibilityTestSize { 1.f, ImGui::GetFontSize() + 2 * ImGui::GetStyle().FramePadding.y };
+
         const auto addChildNode = [&](this const auto &self, std::size_t nodeIndex) -> void {
             std::vector<std::size_t> mergedNodeIndices;
             if (mergeSingleChildNodes) {
@@ -1243,83 +1246,85 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
 
                     // Make treenode label with node names (or placeholder text) and calculate the node name search text
                     // occurrence positions (if the search text is nonempty).
+                    // For the optimization, this is only done when the tree node is actually visible, tested by
+                    // ImGui::IsRectVisible(treeNodeVisibilityTestSize) from the current cursor position. For invisible
+                    // tree node, empty label (but it still has ID of node index to maintain the tree node state) is used.
                     tempStringBuffer.clear();
-                    std::vector<std::size_t> searchTextOccurrencePosInLabel;
-                    const auto appendNodeLabel = [&](std::size_t nodeIndex) {
-                        if (!assetExtended.nodeNameSearchText.empty()) {
-                            // Check if the node name has an occurrence of the search text
-                            const auto it = assetExtended.nodeNameSearchTextOccurrencePosByNode.find(nodeIndex);
-                            if (it != assetExtended.nodeNameSearchTextOccurrencePosByNode.end() &&
-                                it->second != assetExtended.asset.nodes[nodeIndex].name.size() /* check if really occurs */) {
-                                searchTextOccurrencePosInLabel.push_back(tempStringBuffer.view().size() + it->second);
+                    const char *labelStart = tempStringBuffer.view().data();
+                    if (ImGui::IsRectVisible(treeNodeVisibilityTestSize)) {
+                        std::vector<std::size_t> searchTextOccurrencePosInLabel;
+                        const auto appendNodeLabel = [&](std::size_t nodeIndex) {
+                            if (!assetExtended.nodeNameSearchText.empty()) {
+                                // Check if the node name has an occurrence of the search text
+                                const auto it = assetExtended.nodeNameSearchTextOccurrencePosByNode.find(nodeIndex);
+                                if (it != assetExtended.nodeNameSearchTextOccurrencePosByNode.end() &&
+                                    it->second != assetExtended.asset.nodes[nodeIndex].name.size() /* check if really occurs */) {
+                                    searchTextOccurrencePosInLabel.push_back(tempStringBuffer.view().size() + it->second);
+                                }
                             }
+
+                            const fastgltf::Node &node = assetExtended.asset.nodes[nodeIndex];
+                            if (std::string_view name = node.name; name.empty()) {
+                                tempStringBuffer.append("Unnamed Node {}", nodeIndex);
+                            }
+                            else {
+                                tempStringBuffer.append(name);
+                            }
+                        };
+                        for (bool first = true; std::size_t nodeIndex : mergedNodeIndices) {
+                            if (first) {
+                                first = false;
+                            }
+                            else {
+                                tempStringBuffer.append(" / ");
+                            }
+                            appendNodeLabel(nodeIndex);
                         }
 
-                        const fastgltf::Node &node = assetExtended.asset.nodes[nodeIndex];
-                        if (std::string_view name = node.name; name.empty()) {
-                            tempStringBuffer.append("Unnamed Node {}", nodeIndex);
+                        // (Avail width) = ImGui::GetContentRegionAvail().x - (space occupied by collapsing arrow)
+                        // Collapsing arrow space calculation code is adapted from
+                        //   bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* label, const char* label_end)
+                        // implementation.
+                        const float collapsingArrowWidth = ImGui::GetFontSize() + 2 * ImGui::GetStyle().FramePadding.x;
+                        const float width = ImGui::GetContentRegionAvail().x - collapsingArrowWidth;
+
+                        // Truncate text if it is too long to fit in the available width. Left text will be truncated and
+                        // replaced with ellipsis.
+                        if (tempStringBuffer.view().size() >= 3 && ImGui::CalcTextSize(tempStringBuffer.view()).x > width) {
+                            std::span truncated = ImGui::EllipsisLeft(tempStringBuffer.mut_view(), width, "...");
+
+                            char* const start = std::max(tempStringBuffer.mut_view().data(), truncated.data() - 3);
+                            std::fill(start, truncated.data(), '.');
+
+                            labelStart = start;
                         }
-                        else {
-                            tempStringBuffer.append(name);
-                        }
-                    };
-                    for (bool first = true; std::size_t nodeIndex : mergedNodeIndices) {
-                        if (first) {
-                            first = false;
-                        }
-                        else {
-                            tempStringBuffer.append(" / ");
-                        }
-                        appendNodeLabel(nodeIndex);
-                    }
 
-                    // (Avail width) = ImGui::GetContentRegionAvail().x - (space occupied by collapsing arrow)
-                    // Collapsing arrow space calculation code is adapted from
-                    //   bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* label, const char* label_end)
-                    // implementation.
-                    const float collapsingArrowWidth = ImGui::GetFontSize() + 2 * ImGui::GetStyle().FramePadding.x;
-                    const float width = ImGui::GetContentRegionAvail().x - collapsingArrowWidth;
+                        if (!searchTextOccurrencePosInLabel.empty()) {
+                            const ImVec2 highlightOffsetBase = ImGui::GetCursorScreenPos() + ImVec2 { collapsingArrowWidth, ImGui::GetStyle().FramePadding.y + 1 /* TODO */ };
+                            for (std::size_t occurrencePos : searchTextOccurrencePosInLabel) {
+                                const char *occurrenceStart = &tempStringBuffer.view()[occurrencePos];
+                                const char* const occurrenceEnd = occurrenceStart + assetExtended.nodeNameSearchText.size();
 
-                    // Truncate text if it is too long to fit in the available width. Left text will be truncated and
-                    // replaced with ellipsis.
-                    const char *labelStart;
-                    if (tempStringBuffer.view().size() >= 3 && ImGui::CalcTextSize(tempStringBuffer.view()).x > width) {
-                        std::span truncated = ImGui::EllipsisLeft(tempStringBuffer.mut_view(), width, "...");
+                                if (occurrenceEnd <= labelStart) continue; // The occurrence is fully truncated.
 
-                        char* const start = std::max(tempStringBuffer.mut_view().data(), truncated.data() - 3);
-                        std::fill(start, truncated.data(), '.');
+                                // If the occurrence is partially truncated, find the truncation point (replaced by the ellipsis).
+                                // The point can be found by first right-to-left mismatch of [labelStart, occurrenceEnd) and
+                                // nodeNameSearchText.
+                                // occurrenceStart will be the right next of the mismatch point.
+                                occurrenceStart = &*--std::ranges::mismatch(
+                                    std::ranges::subrange(labelStart, occurrenceEnd) | std::views::reverse,
+                                    assetExtended.nodeNameSearchText | std::views::reverse,
+                                    {}, LIFT(std::tolower), LIFT(std::tolower)).in1;
 
-                        labelStart = start;
-                    }
-                    else {
-                        labelStart = tempStringBuffer.view().data();
-                    }
+                                // Mismatch may happen at the first element of twos, which means the occurrence is replaced by
+                                // the ellipsis. Should be rejected.
+                                if (occurrenceStart >= occurrenceEnd) continue;
 
-                    if (!searchTextOccurrencePosInLabel.empty()) {
-                        const ImVec2 highlightOffsetBase = ImGui::GetCursorScreenPos() + ImVec2 { collapsingArrowWidth, ImGui::GetStyle().FramePadding.y + 1 /* TODO */ };
-                        for (std::size_t occurrencePos : searchTextOccurrencePosInLabel) {
-                            const char *occurrenceStart = &tempStringBuffer.view()[occurrencePos];
-                            const char* const occurrenceEnd = occurrenceStart + assetExtended.nodeNameSearchText.size();
-
-                            if (occurrenceEnd <= labelStart) continue; // The occurrence is fully truncated.
-
-                            // If the occurrence is partially truncated, find the truncation point (replaced by the ellipsis).
-                            // The point can be found by first right-to-left mismatch of [labelStart, occurrenceEnd) and
-                            // nodeNameSearchText.
-                            // occurrenceStart will be the right next of the mismatch point.
-                            occurrenceStart = &*--std::ranges::mismatch(
-                                std::ranges::subrange(labelStart, occurrenceEnd) | std::views::reverse,
-                                assetExtended.nodeNameSearchText | std::views::reverse,
-                                {}, LIFT(std::tolower), LIFT(std::tolower)).in1;
-
-                            // Mismatch may happen at the first element of twos, which means the occurrence is replaced by
-                            // the ellipsis. Should be rejected.
-                            if (occurrenceStart >= occurrenceEnd) continue;
-
-                            ImVec2 highlightOffset = highlightOffsetBase;
-                            highlightOffset.x += ImGui::CalcTextSize(labelStart, occurrenceStart).x;
-                            const ImVec2 highlightSize = ImGui::CalcTextSize(occurrenceStart, occurrenceEnd);
-                            ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
+                                ImVec2 highlightOffset = highlightOffsetBase;
+                                highlightOffset.x += ImGui::CalcTextSize(labelStart, occurrenceStart).x;
+                                const ImVec2 highlightSize = ImGui::CalcTextSize(occurrenceStart, occurrenceEnd);
+                                ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
+                            }
                         }
                     }
 
