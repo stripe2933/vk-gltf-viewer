@@ -42,6 +42,7 @@ constexpr std::array optionalExtensions {
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
     .setDrawIndirectFirstInstance(true)
+    .setMultiViewport(true)
     .setSamplerAnisotropy(true)
     .setShaderInt16(true)
     .setMultiDrawIndirect(true)
@@ -179,6 +180,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !features2.features.samplerAnisotropy ||
             !features2.features.shaderInt16 ||
             !features2.features.multiDrawIndirect ||
+            !features2.features.multiViewport ||
             !features2.features.shaderStorageImageWriteWithoutFormat ||
             !features2.features.independentBlend ||
             !features2.features.fragmentStoresAndAtomics ||
@@ -192,6 +194,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !vulkan12Features.descriptorBindingVariableDescriptorCount ||
             !vulkan12Features.runtimeDescriptorArray ||
             !vulkan12Features.separateDepthStencilLayouts ||
+            !vulkan12Features.shaderOutputViewportIndex ||
             !vulkan12Features.storageBuffer8BitAccess ||
             !vulkan12Features.scalarBlockLayout ||
             !vulkan12Features.timelineSemaphore ||
@@ -323,6 +326,7 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
             .setDescriptorBindingVariableDescriptorCount(true)
             .setRuntimeDescriptorArray(true)
             .setSeparateDepthStencilLayouts(true)
+            .setShaderOutputViewportIndex(true)
             .setStorageBuffer8BitAccess(true)
             .setScalarBlockLayout(true)
             .setTimelineSemaphore(true)

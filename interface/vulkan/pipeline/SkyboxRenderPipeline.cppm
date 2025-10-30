@@ -58,11 +58,7 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderPipeline::SkyboxRenderPipeline(
         &vku::lvalue(vk::PipelineVertexInputStateCreateInfo{}),
         &vku::lvalue(vku::defaultPipelineInputAssemblyState(vk::PrimitiveTopology::eTriangleList)),
         nullptr,
-        &vku::lvalue(vk::PipelineViewportStateCreateInfo {
-            {},
-            1, nullptr,
-            1, nullptr,
-        }),
+        &vku::lvalue(vk::PipelineViewportStateCreateInfo{}),
         &vku::lvalue(vku::defaultPipelineRasterizationState()),
         &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e4 }),
         &vku::lvalue(vk::PipelineDepthStencilStateCreateInfo {
@@ -72,7 +68,7 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderPipeline::SkyboxRenderPipeline(
         &vku::lvalue(vku::defaultPipelineColorBlendState(1)),
         &vku::lvalue(vk::PipelineDynamicStateCreateInfo {
             {},
-            vku::lvalue({ vk::DynamicState::eViewport, vk::DynamicState::eScissor }),
+            vku::lvalue({ vk::DynamicState::eViewportWithCount, vk::DynamicState::eScissorWithCount }),
         }),
         *layout,
         *renderPass, 0,

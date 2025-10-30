@@ -1,4 +1,5 @@
 #version 460
+#extension GL_ARB_shader_viewport_layer_array : require
 
 const vec3[] positions = {
     { -1.0, -1.0, -1.0 },
@@ -17,12 +18,9 @@ layout (set = 0, binding = 0) uniform CameraBuffer {
     layout (offset = 256) mat4 translationlessProjectionViews[4];
 } camera;
 
-layout (push_constant) uniform PushConstant {
-    uint viewIndex;
-} pc;
-
 void main() {
     outPosition = positions[gl_VertexIndex];
-    gl_Position = (camera.translationlessProjectionViews[pc.viewIndex] * vec4(outPosition, 1.0));
+    gl_Position = (camera.translationlessProjectionViews[gl_InstanceIndex] * vec4(outPosition, 1.0));
     gl_Position.z = 0.0; // Use reverse Z.
+    gl_ViewportIndex = gl_InstanceIndex;
 }

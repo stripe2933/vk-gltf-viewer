@@ -1824,16 +1824,17 @@ void vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer c
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxPipelineLayout, 0, { rendererSet, sharedData.skyboxDescriptorSet }, {});
     cb.bindIndexBuffer(sharedData.cubeIndexBuffer, 0, vk::IndexType::eUint16);
 
-    for (const auto &[viewIndex, subrect] : viewport->getSubrects() | ranges::views::enumerate) {
-        cb.pushConstants<pl::Skybox::PushConstant>(*sharedData.skyboxPipelineLayout, pl::Skybox::PushConstant::range.stageFlags, 0, pl::Skybox::PushConstant {
-            .viewIndex = static_cast<std::uint32_t>(viewIndex),
-        });
+    const auto scissors = viewport->getSubrects();
+    const auto viewports = scissors
+        | std::views::transform([](const vk::Rect2D &rect) noexcept {
+            return vku::toViewport(rect, true);
+        })
+        | std::ranges::to<boost::container::static_vector<vk::Viewport, 4>>();
 
-        cb.setViewport(0, vku::toViewport(subrect, true));
-        cb.setScissor(0, subrect);
+    cb.setViewportWithCountEXT(viewports);
+    cb.setScissorWithCountEXT(scissors);
 
-        cb.drawIndexed(36, 1, 0, 0, 0);
-    }
+    cb.drawIndexed(36, viewport->viewCount, 0, 0, 0);
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
