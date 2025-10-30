@@ -1237,7 +1237,15 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // Update AppState.
     appState.pushRecentGltfPath(path);
 
-    renderer->bloom.set_active(!assetExtended->bloomMaterials.empty());
+    // Enable bloom when asset has a material whose emissive strength is greater than 1, disable if not.
+    if (!assetExtended->bloomMaterials.empty()) {
+        // Grid and bloom effect cannot be shown in both simultaneously. Grid needed to be disabled.
+        renderer->grid.set_active(false);
+        renderer->bloom.set_active(true);
+    }
+    else {
+        renderer->bloom.set_active(false);
+    }
 
     // Adjust the camera based on the scene enclosing sphere.
     const auto &[center, radius, cameraOrLightPoints] = assetExtended->sceneMiniball.get();

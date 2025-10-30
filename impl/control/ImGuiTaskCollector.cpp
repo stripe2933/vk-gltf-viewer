@@ -2167,8 +2167,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
 
         if (ImGui::CollapsingHeader("Bloom")) {
             bool bloom = renderer.bloom.has_value();
-            if (ImGui::Checkbox("Enable bloom", &bloom)) {
-                renderer.bloom.set_active(bloom);
+            ImGui::WithDisabled([&] {
+                if (ImGui::Checkbox("Enable bloom", &bloom)) {
+                    renderer.bloom.set_active(bloom);
+                }
+            }, !bloom && renderer.grid);
+
+            if (!bloom && renderer.grid) {
+                ImGui::SameLine();
+                ImGui::HelperMarker("(?)", "Bloom effect cannot be enabled when grid is enabled.");
             }
 
             ImGui::WithDisabled([&]() {
@@ -2212,9 +2219,17 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
 
         if (ImGui::CollapsingHeader("Grid")) {
             bool grid = renderer.grid.has_value();
-            if (ImGui::Checkbox("Enable grid", &grid)) {
-                renderer.grid.set_active(grid);
+            ImGui::WithDisabled([&] {
+                if (ImGui::Checkbox("Enable grid", &grid)) {
+                    renderer.grid.set_active(grid);
+                }
+            }, !grid && renderer.bloom);
+
+            if (!grid && renderer.bloom) {
+                ImGui::SameLine();
+                ImGui::HelperMarker("(?)", "Grid cannot be enabled when bloom effect is enabled.");
             }
+
             ImGui::WithDisabled([&] {
                 ImGui::DragFloat("Size", &renderer.grid.raw().size, 1.f, 0.f, std::numeric_limits<float>::max());
                 ImGui::ColorEdit3("Color", value_ptr(renderer.grid.raw().color));
