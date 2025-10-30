@@ -2288,13 +2288,36 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
     };
 
     Camera &camera = renderer.cameras[viewIndex];
+
+    // Enable snap for ImGuizmo::Manipulate() when holding Shift key.
+    const float *snap = nullptr;
+    if (ImGui::GetIO().KeyShift) {
+        static std::array<float, 3> snapData;
+        switch (renderer.imGuizmoOperation) {
+            case ImGuizmo::OPERATION::TRANSLATE:
+                // Same code used in shaders/grid.vert
+                snapData.fill(std::pow(10.f, -std::floor(-std::log10(camera.position.y)) - 1.f));
+                break;
+            case ImGuizmo::OPERATION::ROTATE:
+                snapData.fill(45.f);
+                break;
+            case ImGuizmo::OPERATION::SCALE:
+                snapData.fill(1.f);
+                break;
+            default:
+                std::unreachable(); // Only TRANSLATE/ROTATE/SCALE can be in Renderer::imGuizmoOperation.
+        }
+
+        snap = snapData.data();
+    }
+
     if (assetExtended.selectedNodes.size() == 1) {
         const std::size_t selectedNodeIndex = *assetExtended.selectedNodes.begin();
         fastgltf::math::fmat4x4 newWorldTransform = assetExtended.nodeWorldTransforms[selectedNodeIndex];
 
         ImGuizmo::Enable(!isNodeUsedByEnabledAnimations(selectedNodeIndex));
 
-        if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::LOCAL, newWorldTransform.data())) {
+        if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::LOCAL, newWorldTransform.data(), nullptr, snap)) {
             const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(assetExtended.nodeWorldTransforms[selectedNodeIndex]) * newWorldTransform;
 
             updateTransform(assetExtended.asset.nodes[selectedNodeIndex], [&](fastgltf::math::fmat4x4 &transformMatrix) {
@@ -2324,7 +2347,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
         ImGuizmo::Enable(std::ranges::none_of(assetExtended.selectedNodes, isNodeUsedByEnabledAnimations));
 
         if (fastgltf::math::fmat4x4 deltaMatrix;
-            Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data())) {
+            Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data(), snap)) {
             for (std::size_t nodeIndex : assetExtended.selectedNodes) {
                 const fastgltf::math::fmat4x4 inverseOldWorldTransform = affineInverse(assetExtended.nodeWorldTransforms[nodeIndex]);
 
