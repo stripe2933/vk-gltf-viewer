@@ -97,6 +97,7 @@ The extensions and feature used in this application are quite common in the mode
 - Device Features
   - `VkPhysicalDeviceFeatures`
     - `drawIndirectFirstInstance`
+    - `multiViewport`
     - `samplerAnistropy`
     - `shaderInt16`
     - `multiDrawIndirect`
@@ -115,6 +116,7 @@ The extensions and feature used in this application are quite common in the mode
     - `descriptorBindingSampledImageUpdateAfterBind`
     - `descriptorBindingVariableDescriptorCount`
     - `runtimeDescriptorArray`
+    - `shaderOutputViewportIndex`
     - `separateDepthStencilLayouts`
     - `storageBuffer8BitAccess`
     - `scalarBlockLayout`
