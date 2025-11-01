@@ -127,7 +127,7 @@ void ibl::BrdfmapRenderPipeline::recordCommands(vk::CommandBuffer graphicsComman
     const auto *d = device.get().getDispatcher();
 
     const vk::Rect2D renderArea { {}, vku::toExtent2D(resultImage.get().extent) };
-    graphicsCommandBuffer.beginRenderingKHR({
+    graphicsCommandBuffer.beginRendering({
         {},
         renderArea,
         1,
@@ -146,5 +146,5 @@ void ibl::BrdfmapRenderPipeline::recordCommands(vk::CommandBuffer graphicsComman
         .framebufferHeightRcp = 1.f / resultImage.get().extent.height,
     }, *d);
     graphicsCommandBuffer.draw(3, 1, 0, 0, *d);
-    graphicsCommandBuffer.endRenderingKHR(*d);
+    graphicsCommandBuffer.endRendering(*d);
 }

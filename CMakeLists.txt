@@ -334,7 +334,7 @@ endif()
 # --------------------
 
 target_link_shaders(vk-gltf-viewer PRIVATE
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     FILES
         shaders/grid.frag
         shaders/grid.vert
@@ -350,7 +350,7 @@ target_link_shaders(vk-gltf-viewer PRIVATE
 )
 
 target_link_shader_variants(vk-gltf-viewer PRIVATE
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     MACRO_DEFS "SEPARATE_IMAGE_SAMPLER=$<PLATFORM_ID:Darwin>"
     FILES
         shaders/node_mouse_picking.frag
@@ -358,7 +358,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
     MACRO_VALUES 0 1
 )
 target_link_shader_variants(vk-gltf-viewer PRIVATE
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     FILES
         shaders/mask_jump_flood_seed.vert
         shaders/mask_node_mouse_picking.vert
@@ -368,7 +368,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
         "1 0" "1 1"
 )
 target_link_shader_variants(vk-gltf-viewer PRIVATE
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     MACRO_DEFS "SEPARATE_IMAGE_SAMPLER=$<PLATFORM_ID:Darwin>"
     FILES
         shaders/mask_node_mouse_picking.frag
@@ -378,7 +378,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
         "1 0 0" "1 0 1" "1 1 0" "1 1 1"
 )
 target_link_shader_variants(vk-gltf-viewer PRIVATE
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     MACRO_DEFS "SEPARATE_IMAGE_SAMPLER=$<PLATFORM_ID:Darwin>"
     FILES
         shaders/mask_jump_flood_seed.frag
@@ -389,7 +389,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
         "1 0" "1 1"
 )
 target_link_shader_variants(vk-gltf-viewer PRIVATE
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     FILES shaders/primitive.vert
     MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_0_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN"
     MACRO_VALUES
@@ -400,7 +400,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
         "4 0 0" "4 0 1" "4 1 0" "4 1 1"
 )
 target_link_shader_variants(vk-gltf-viewer PRIVATE
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     MACRO_DEFS "SEPARATE_IMAGE_SAMPLER=$<PLATFORM_ID:Darwin>"
     FILES shaders/primitive.frag
     MACRO_NAMES "TEXCOORD_COUNT" "HAS_COLOR_0_ATTRIBUTE" "FRAGMENT_SHADER_GENERATED_TBN" "ALPHA_MODE" "EXT_SHADER_STENCIL_EXPORT"
@@ -427,7 +427,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
         "4 1 0 0 1" "4 1 0 1 1" "4 1 0 2 1" "4 1 1 0 1" "4 1 1 1 1" "4 1 1 2 1"
 )
 target_link_shader_variants(vk-gltf-viewer PRIVATE
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     FILES shaders/unlit_primitive.vert
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_0_ATTRIBUTE"
     MACRO_VALUES
@@ -435,7 +435,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
         "1 0" "1 1"
 )
 target_link_shader_variants(vk-gltf-viewer PRIVATE
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     MACRO_DEFS "SEPARATE_IMAGE_SAMPLER=$<PLATFORM_ID:Darwin>"
     FILES shaders/unlit_primitive.frag
     MACRO_NAMES "HAS_BASE_COLOR_TEXTURE" "HAS_COLOR_0_ATTRIBUTE" "ALPHA_MODE"
@@ -444,7 +444,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
         "1 0 0" "1 0 1" "1 0 2" "1 1 0" "1 1 1" "1 1 2"
 )
 target_link_shader_variants(vk-gltf-viewer PRIVATE
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     FILES
         shaders/bloom_apply.frag
         shaders/cubemap_tone_mapping.frag

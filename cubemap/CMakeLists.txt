@@ -16,7 +16,7 @@ target_link_shaders(cubemap PUBLIC
     FILES shader/cubemap.comp
 )
 target_link_shader_variants(cubemap PUBLIC
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     FILES shader/subgroup_mipmap.comp
     MACRO_NAMES "AMD_SHADER_IMAGE_LOAD_STORE_LOD"
     MACRO_VALUES 0 1

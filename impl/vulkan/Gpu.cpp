@@ -19,14 +19,9 @@ struct std::tuple_element<I, vk::StructureChain<Ts...>> : std::tuple_element<I, 
 constexpr std::array requiredExtensions {
 #if __APPLE__
     vk::KHRPortabilitySubsetExtensionName,
-    vk::KHRCopyCommands2ExtensionName,
-    vk::KHRFormatFeatureFlags2ExtensionName,
     vk::EXTHostImageCopyExtensionName,
     vk::EXTMetalObjectsExtensionName,
 #endif
-    vk::KHRDynamicRenderingExtensionName,
-    vk::KHRSynchronization2ExtensionName,
-    vk::EXTExtendedDynamicStateExtensionName,
     vk::KHRPushDescriptorExtensionName,
     vk::KHRSwapchainExtensionName,
 };
@@ -169,14 +164,12 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
         }
 
         // Check physical device feature availability.
-        const auto [features2, vulkan11Features, vulkan12Features, dynamicRenderingFeatures, synchronization2Features, extendedDynamicStateFeatures]
+        const auto [features2, vulkan11Features, vulkan12Features, vulkan13Features]
             = physicalDevice.getFeatures2<
                 vk::PhysicalDeviceFeatures2,
                 vk::PhysicalDeviceVulkan11Features,
                 vk::PhysicalDeviceVulkan12Features,
-                vk::PhysicalDeviceDynamicRenderingFeatures,
-                vk::PhysicalDeviceSynchronization2Features,
-                vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
+                vk::PhysicalDeviceVulkan13Features>();
         if (!features2.features.depthClamp ||
             !features2.features.drawIndirectFirstInstance ||
             !features2.features.samplerAnisotropy ||
@@ -201,9 +194,9 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !vulkan12Features.scalarBlockLayout ||
             !vulkan12Features.timelineSemaphore ||
             !vulkan12Features.shaderInt8 ||
-            !dynamicRenderingFeatures.dynamicRendering ||
-            !synchronization2Features.synchronization2 ||
-            !extendedDynamicStateFeatures.extendedDynamicState) {
+            !vulkan13Features.dynamicRendering ||
+            !vulkan13Features.shaderDemoteToHelperInvocation ||
+            !vulkan13Features.synchronization2) {
             return 0U;
         }
 
@@ -335,9 +328,10 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
             .setShaderInt8(true)
             .setDrawIndirectCount(supportDrawIndirectCount)
             .setShaderBufferInt64Atomics(supportShaderBufferInt64Atomics),
-        vk::PhysicalDeviceDynamicRenderingFeatures { true },
-        vk::PhysicalDeviceSynchronization2Features { true },
-        vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT { true },
+        vk::PhysicalDeviceVulkan13Features{}
+            .setDynamicRendering(true)
+            .setShaderDemoteToHelperInvocation(true)
+            .setSynchronization2(true),
         vk::PhysicalDeviceIndexTypeUint8FeaturesKHR { supportUint8Index },
         vk::PhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT { supportAttachmentFeedbackLoopLayout },
 #if __APPLE__
@@ -369,6 +363,6 @@ vma::Allocator vk_gltf_viewer::vulkan::Gpu::createAllocator(const vk::raii::Inst
             instance.getDispatcher()->vkGetInstanceProcAddr,
             device.getDispatcher()->vkGetDeviceProcAddr,
         }),
-        *instance, vk::makeApiVersion(0, 1, 2, 0),
+        *instance, vk::makeApiVersion(0, 1, 3, 0),
     });
 }

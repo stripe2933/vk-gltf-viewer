@@ -10,7 +10,7 @@ target_link_libraries(bloom PUBLIC vku::module)
 set_target_properties(bloom PROPERTIES CXX_MODULE_STD 1)
 
 target_link_shader_variants(bloom PUBLIC
-    TARGET_ENV vulkan1.2
+    TARGET_ENV vulkan1.3
     FILES
         shader/downsample.comp
         shader/upsample.comp

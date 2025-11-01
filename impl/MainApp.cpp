@@ -1055,7 +1055,7 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
     ImGui_ImplGlfw_InitForVulkan(window, true);
     const vk::Format colorAttachmentFormat = gpu.supportSwapchainMutableFormat ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb;
     ImGui_ImplVulkan_InitInfo initInfo {
-        .ApiVersion = vk::makeApiVersion(0, 1, 2, 0),
+        .ApiVersion = vk::makeApiVersion(0, 1, 3, 0),
         .Instance = instance,
         .PhysicalDevice = *gpu.physicalDevice,
         .Device = *gpu.device,
@@ -1117,7 +1117,7 @@ vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {
             {},
             extensions,
         },
-    #if __APPLE__
+    #if 0
         vk::ExportMetalObjectCreateInfoEXT { vk::ExportMetalObjectTypeFlagBitsEXT::eMetalCommandQueue },
     #endif
     }.get() };
@@ -1541,7 +1541,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     vk::CommandBuffer graphicsCb = transferCb;
     if (graphicsCommandPool != transferCommandPool) {
         transferCb.end();
-        gpu.queues.transfer.submit2KHR(vk::SubmitInfo2 {
+        gpu.queues.transfer.submit2(vk::SubmitInfo2 {
             {},
             {},
             vku::lvalue(vk::CommandBufferSubmitInfo { transferCb }),
@@ -1568,7 +1568,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     vulkan::recordMipmapGenerationCommand(graphicsCb, eqmapImage);
 
-    graphicsCb.pipelineBarrier2KHR({
+    graphicsCb.pipelineBarrier2({
         {}, {}, {},
         vku::lvalue({
             vk::ImageMemoryBarrier2 {
@@ -1614,7 +1614,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     vk::CommandBuffer computeCb = graphicsCb;
     if (computeCommandPool != graphicsCommandPool) {
         graphicsCb.end();
-        gpu.queues.graphicsPresent.submit2KHR(vk::SubmitInfo2 {
+        gpu.queues.graphicsPresent.submit2(vk::SubmitInfo2 {
             {},
             vku::lvalue(vk::SemaphoreSubmitInfo { *get<0>(semaphores), get<0>(signalValues), {} }),
             vku::lvalue(vk::CommandBufferSubmitInfo { graphicsCb }),
@@ -1665,7 +1665,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     // Generate cubemapImage mipmaps.
     subgroupMipmapComputePipeline.recordCommands(computeCb);
 
-    computeCb.pipelineBarrier2KHR({
+    computeCb.pipelineBarrier2({
         {}, {}, {},
         vku::lvalue({
             // cubemapImage : General -> ShaderReadOnlyOptimal.
@@ -1693,7 +1693,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     // Reduce spherical harmonic coefficients.
     sphericalHarmonicCoefficientComputePipeline.recordCommands(computeCb);
 
-    computeCb.pipelineBarrier2KHR({
+    computeCb.pipelineBarrier2({
         {}, {}, {},
         vku::lvalue({
             vk::ImageMemoryBarrier2 {
@@ -1749,7 +1749,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     if (graphicsCommandPool != computeCommandPool) {
         computeCb.end();
-        gpu.queues.compute.submit2KHR(vk::SubmitInfo2 {
+        gpu.queues.compute.submit2(vk::SubmitInfo2 {
             {},
             vku::lvalue(vk::SemaphoreSubmitInfo { *get<0>(semaphores), get<0>(signalValues), {} }),
             vku::lvalue(vk::CommandBufferSubmitInfo { computeCb }),
@@ -1758,7 +1758,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         get<0>(signalValues) = 3;
 
         graphicsCb.end();
-        gpu.queues.graphicsPresent.submit2KHR(vk::SubmitInfo2 {
+        gpu.queues.graphicsPresent.submit2(vk::SubmitInfo2 {
             {},
             vku::lvalue(vk::SemaphoreSubmitInfo { *get<0>(semaphores), get<0>(signalValues), {} }),
             vku::lvalue(vk::CommandBufferSubmitInfo { graphicsCb }),
@@ -1770,7 +1770,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         graphicsCb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
         // Acquire queue family onwership of cubemapImage and prefilteredmapImage from compute to graphics.
-        graphicsCb.pipelineBarrier2KHR({
+        graphicsCb.pipelineBarrier2({
             {}, {}, {},
             vku::lvalue({
                 vk::ImageMemoryBarrier2 {
@@ -1817,7 +1817,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     graphicsCb.endRenderPass();
 
     graphicsCb.end();
-    gpu.queues.graphicsPresent.submit2KHR(vk::SubmitInfo2 {
+    gpu.queues.graphicsPresent.submit2(vk::SubmitInfo2 {
         {},
         vku::lvalue(vk::SemaphoreSubmitInfo { *get<0>(semaphores), get<0>(signalValues), {} }),
         vku::lvalue(vk::CommandBufferSubmitInfo { graphicsCb }),

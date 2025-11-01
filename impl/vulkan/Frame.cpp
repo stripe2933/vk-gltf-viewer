@@ -724,8 +724,8 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                     return vku::toViewport(rect, true);
                 })
                 | std::ranges::to<boost::container::static_vector<vk::Viewport, 4>>();
-            sceneRenderingCommandBuffer.setViewportWithCountEXT(viewports);
-            sceneRenderingCommandBuffer.setScissorWithCountEXT(scissors);
+            sceneRenderingCommandBuffer.setViewportWithCount(viewports);
+            sceneRenderingCommandBuffer.setScissorWithCount(scissors);
 
             // Draw skybox.
             if (!renderer->solidBackground) {
@@ -888,7 +888,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             });
 
         // Draw ImGui.
-        compositionCommandBuffer.beginRenderingKHR({
+        compositionCommandBuffer.beginRendering({
             {},
             { {}, swapchain.extent },
             1,
@@ -900,7 +900,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             }),
         });
         ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), compositionCommandBuffer);
-        compositionCommandBuffer.endRenderingKHR();
+        compositionCommandBuffer.endRendering();
 
         // Change swapchain image layout from ColorAttachmentOptimal to PresentSrcKHR.
         compositionCommandBuffer.pipelineBarrier(
@@ -986,7 +986,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame(Swapchain 
     // Draw ImGui.
     // Note: unlike viewport.has_value() == true, here the loadOp must be CLEAR as the viewport image is not copied
     // to the passthru rect region and the content is undefined.
-    compositionCommandBuffer.beginRenderingKHR({
+    compositionCommandBuffer.beginRendering({
         {},
         { {}, swapchain.extent },
         1,
@@ -998,7 +998,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame(Swapchain 
         }),
     });
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), compositionCommandBuffer);
-    compositionCommandBuffer.endRenderingKHR();
+    compositionCommandBuffer.endRendering();
 
     // Change swapchain image layout from ColorAttachmentOptimal to PresentSrcKHR.
     compositionCommandBuffer.pipelineBarrier(
@@ -1521,11 +1521,11 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 }
 
                 if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
-                    cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+                    cb.setPrimitiveTopology(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
                 }
 
                 if (resourceBindingState.cullMode != criteria.cullMode) {
-                    cb.setCullModeEXT(resourceBindingState.cullMode.emplace(criteria.cullMode));
+                    cb.setCullMode(resourceBindingState.cullMode.emplace(criteria.cullMode));
                 }
 
                 if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
@@ -1541,7 +1541,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
 
         // Seeding jump flood initial image for hovering node.
         if (hoveringNode) {
-            cb.beginRenderingKHR({
+            cb.beginRendering({
                 {},
                 { {}, viewport->subextent },
                 static_cast<std::uint32_t>(renderer->cameras.size()),
@@ -1558,12 +1558,12 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 })
             });
             drawPrimitives(hoveringNode->jumpFloodSeedIndirectDrawCommandBuffers);
-            cb.endRenderingKHR();
+            cb.endRendering();
         }
 
         // Seeding jump flood initial image for selected node.
         if (selectedNodes) {
-            cb.beginRenderingKHR({
+            cb.beginRendering({
                 {},
                 { {}, viewport->subextent },
                 static_cast<std::uint32_t>(renderer->cameras.size()),
@@ -1580,7 +1580,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 })
             });
             drawPrimitives(selectedNodes->jumpFloodSeedIndirectDrawCommandBuffers);
-            cb.endRenderingKHR();
+            cb.endRendering();
         }
     }
 
@@ -1618,7 +1618,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         }
 
         if (renderingNodes->startMousePickingRenderPass) {
-            cb.beginRenderingKHR(vk::RenderingInfo {
+            cb.beginRendering(vk::RenderingInfo {
                 {},
                 rect,
                 1,
@@ -1658,11 +1658,11 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 }
 
                 if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
-                    cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+                    cb.setPrimitiveTopology(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
                 }
 
                 if (singlePixel && resourceBindingState.cullMode != criteria.cullMode) {
-                    cb.setCullModeEXT(resourceBindingState.cullMode.emplace(criteria.cullMode));
+                    cb.setCullMode(resourceBindingState.cullMode.emplace(criteria.cullMode));
                 }
 
                 if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
@@ -1675,7 +1675,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
                 indirectDrawCommandBuffer.recordDrawCommand(cb, sharedData.gpu.supportDrawIndirectCount);
             }
 
-            cb.endRenderingKHR();
+            cb.endRendering();
 
             // The collected node indices in mousePickingResultBuffer must be visible to the host.
             cb.pipelineBarrier(
@@ -1693,7 +1693,7 @@ bool vk_gltf_viewer::vulkan::Frame::recordJumpFloodComputeCommands(
     vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> descriptorSet,
     std::uint32_t initialSampleOffset
 ) const {
-    cb.pipelineBarrier2KHR({
+    cb.pipelineBarrier2({
         {}, {}, {},
         vku::lvalue({
             vk::ImageMemoryBarrier2 {
@@ -1745,7 +1745,7 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         }
 
         if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
-            cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+            cb.setPrimitiveTopology(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
         }
 
         if (criteria.stencilReference) {
@@ -1760,7 +1760,7 @@ void vk_gltf_viewer::vulkan::Frame::recordSceneOpaqueMeshDrawCommands(vk::Comman
         }
 
         if (resourceBindingState.cullMode != criteria.cullMode) {
-            cb.setCullModeEXT(resourceBindingState.cullMode.emplace(criteria.cullMode));
+            cb.setCullMode(resourceBindingState.cullMode.emplace(criteria.cullMode));
         }
 
         if (criteria.indexType && resourceBindingState.indexType != *criteria.indexType) {
@@ -1807,7 +1807,7 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
         }
 
         if (resourceBindingState.primitiveTopology != criteria.primitiveTopology) {
-            cb.setPrimitiveTopologyEXT(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
+            cb.setPrimitiveTopology(resourceBindingState.primitiveTopology.emplace(criteria.primitiveTopology));
         }
 
         if (criteria.stencilReference) {
@@ -1888,7 +1888,7 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
     cb.setViewport(0, vku::toViewport(rect));
     cb.setScissor(0, rect);
 
-    cb.beginRenderingKHR(vk::RenderingInfo {
+    cb.beginRendering(vk::RenderingInfo {
         {},
         { { 0, 0 }, viewport->extent },
         1,
@@ -1933,5 +1933,5 @@ void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(
         cb.draw(3, 1, 0, 0);
     }
 
-    cb.endRenderingKHR();
+    cb.endRendering();
 }

@@ -324,7 +324,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
                 }
             }
         }
-        graphicsCommandBuffer.pipelineBarrier2KHR({ {}, {}, {}, imageMemoryBarriers });
+        graphicsCommandBuffer.pipelineBarrier2({ {}, {}, {}, imageMemoryBarriers });
 
         if (!imagesToGenerateMipmap.empty()) {
             // Collect image memory barriers that are inserted after the mipmap generation command.
@@ -361,7 +361,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     }
 
     vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-    gpu.queues.graphicsPresent.submit2KHR(vk::SubmitInfo2 {
+    gpu.queues.graphicsPresent.submit2(vk::SubmitInfo2 {
         {},
         vku::lvalue(vk::SemaphoreSubmitInfo { *copyFinishSemaphore, {}, dependencyChain }),
         vku::lvalue(vk::CommandBufferSubmitInfo { graphicsCommandBuffer }),

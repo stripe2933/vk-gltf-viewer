@@ -82,11 +82,8 @@ The extensions and feature used in this application are quite common in the mode
 <details>
 <summary>Show requirements list</summary>
 
-- Vulkan 1.2 or later
+- Vulkan 1.3 or later
 - Device Extensions
-  - `VK_KHR_dynamic_rendering`
-  - `VK_KHR_synchronization2`
-  - `VK_EXT_extended_dynamic_state` (dynamic state cull mode)
   - `VK_KHR_push_descriptor`
   - `VK_KHR_swapchain`
   - (optional) `VK_KHR_swapchain_mutable_format` (proper ImGui gamma correction, UI color will lose the color if the extension not presented)
@@ -126,9 +123,10 @@ The extensions and feature used in this application are quite common in the mode
     - `shaderInt8`
     - (optional) `drawIndirectCount` (If not presented, GPU frustum culling will be unavailable and fallback to the CPU frustum culling.)
     - (optional) `shaderBufferInt64Atomics` (better mouse picking precision)
-  - `VkPhysicalDeviceDynamicRenderingFeatures`
-  - `VkPhysicalDeviceSynchronization2Features`
-  - `VkPhysicalDeviceExtendedDynamicStateFeaturesEXT`
+  - `VkPhysicalDeviceVulkan13Features`
+    - `dynamicRendering`
+    - `shaderDemoteToHelperInvocation`
+    - `synchronization2`
   - (optional) `VkPhysicalDeviceIndexTypeUint8FeaturesEXT` (if not presented, unsigned byte primitive indices will re-generated with `uint16_t`s)
   - (optional) `VkPhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT`
 - Device Limits
