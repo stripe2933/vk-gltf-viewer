@@ -624,7 +624,7 @@ void vk_gltf_viewer::MainApp::run() {
                     frame.gltfAsset->updateNodeWorldTransformScene(task.newSceneIndex);
                     frameDeferredTask.updateNodeWorldTransformScene(task.newSceneIndex);
 
-                    // Adjust the camera based on the scene enclosing sphere.
+                    // Adjust the camera and grid size based on the scene enclosing sphere.
                     const auto &[center, radius, cameraOrLightPoints] = assetExtended->sceneMiniball.get();
                     for (control::Camera &camera : renderer->cameras) {
                         const float distance = radius / std::sin(camera.fov / 2.f);
@@ -633,6 +633,9 @@ void vk_gltf_viewer::MainApp::run() {
 
                         camera.tightenNearFar(glm::make_vec3(center.data()), radius, vku::reinterpret<const glm::vec3>(cameraOrLightPoints));
                     }
+                    renderer->grid.raw().size = 10.f * std::max(
+                        std::abs(center.x() + std::copysign(radius, center.x())),
+                        std::abs(center.z() + std::copysign(radius, center.z())));
 
                     transformedNodes.clear(); // They are all related to the previous glTF asset.
                     regenerateDrawCommands.fill(true);
@@ -1237,9 +1240,17 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     // Update AppState.
     appState.pushRecentGltfPath(path);
 
-    renderer->bloom.set_active(!assetExtended->bloomMaterials.empty());
+    // Enable bloom when asset has a material whose emissive strength is greater than 1, disable if not.
+    if (!assetExtended->bloomMaterials.empty()) {
+        // Grid and bloom effect cannot be shown in both simultaneously. Grid needed to be disabled.
+        renderer->grid.set_active(false);
+        renderer->bloom.set_active(true);
+    }
+    else {
+        renderer->bloom.set_active(false);
+    }
 
-    // Adjust the camera based on the scene enclosing sphere.
+    // Adjust the camera and grid size based on the scene enclosing sphere.
     const auto &[center, radius, cameraOrLightPoints] = assetExtended->sceneMiniball.get();
     for (control::Camera &camera : renderer->cameras) {
         const float distance = radius / std::sin(camera.fov / 2.f);
@@ -1248,6 +1259,9 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
 
         camera.tightenNearFar(glm::make_vec3(center.data()), radius, vku::reinterpret<const glm::vec3>(cameraOrLightPoints));
     }
+    renderer->grid.raw().size = 10.f * std::max(
+        std::abs(center.x() + std::copysign(radius, center.x())),
+        std::abs(center.z() + std::copysign(radius, center.z())));
 }
 
 void vk_gltf_viewer::MainApp::closeGltf() {

@@ -230,6 +230,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/BloomApplyRenderPipeline.cppm
         interface/vulkan/pipeline/CubemapToneMappingRenderPipeline.cppm
+        interface/vulkan/pipeline/GridRenderPipeline.cppm
         interface/vulkan/pipeline/InverseToneMappingRenderPipeline.cppm
         interface/vulkan/pipeline/JumpFloodComputePipeline.cppm
         interface/vulkan/pipeline/JumpFloodSeedRenderPipeline.cppm
@@ -335,6 +336,8 @@ endif()
 target_link_shaders(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
+        shaders/grid.frag
+        shaders/grid.vert
         shaders/jump_flood_seed.frag
         shaders/jump_flood_seed.vert
         shaders/jump_flood.comp

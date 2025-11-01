@@ -289,7 +289,6 @@ namespace vk_gltf_viewer::vulkan {
         [[nodiscard]] bool recordJumpFloodComputeCommands(vk::CommandBuffer cb, const vku::Image &image, vku::DescriptorSet<JumpFloodComputePipeline::DescriptorSetLayout> descriptorSet, std::uint32_t initialSampleOffset) const;
         void recordSceneOpaqueMeshDrawCommands(vk::CommandBuffer cb) const;
         bool recordSceneBlendMeshDrawCommands(vk::CommandBuffer cb) const;
-        void recordSkyboxDrawCommands(vk::CommandBuffer cb) const;
         void recordNodeOutlineCompositionCommands(vk::CommandBuffer cb, std::optional<bool> hoveringNodeJumpFloodForward, std::optional<bool> selectedNodeJumpFloodForward) const;
     };
 }

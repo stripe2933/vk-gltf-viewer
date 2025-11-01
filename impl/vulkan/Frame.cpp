@@ -715,8 +715,41 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
         if (renderingNodes) {
             recordSceneOpaqueMeshDrawCommands(sceneRenderingCommandBuffer);
         }
-        if (!renderer->solidBackground) {
-            recordSkyboxDrawCommands(sceneRenderingCommandBuffer);
+
+        if (!renderer->solidBackground || renderer->grid) {
+            // Both SkyboxRenderPipeline and GridRenderPipeline uses dynamic viewport/scissor with count states.
+            const auto scissors = viewport->getSubrects();
+            const auto viewports = scissors
+                | std::views::transform([](const vk::Rect2D &rect) {
+                    return vku::toViewport(rect, true);
+                })
+                | std::ranges::to<boost::container::static_vector<vk::Viewport, 4>>();
+            sceneRenderingCommandBuffer.setViewportWithCountEXT(viewports);
+            sceneRenderingCommandBuffer.setScissorWithCountEXT(scissors);
+
+            // Draw skybox.
+            if (!renderer->solidBackground) {
+                sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxRenderPipeline);
+                sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxPipelineLayout, 0, { rendererSet, sharedData.skyboxDescriptorSet }, {});
+                sceneRenderingCommandBuffer.bindIndexBuffer(sharedData.cubeIndexBuffer, 0, vk::IndexType::eUint16);
+                sceneRenderingCommandBuffer.drawIndexed(36, viewport->viewCount, 0, 0, 0);
+            }
+
+            // Draw grid.
+            if (renderer->grid) {
+                sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.gridRenderPipeline.pipeline);
+                sceneRenderingCommandBuffer.bindDescriptorSets(
+                    vk::PipelineBindPoint::eGraphics, *sharedData.gridRenderPipeline.pipelineLayout,
+                    0, rendererSet, {});
+                sceneRenderingCommandBuffer.pushConstants<GridRenderPipeline::PushConstant>(
+                    *sharedData.gridRenderPipeline.pipelineLayout, GridRenderPipeline::PushConstant::range.stageFlags,
+                    0, GridRenderPipeline::PushConstant {
+                        .color = renderer->grid->color,
+                        .showMinorAxes = renderer->grid->showMinorAxes,
+                        .size = renderer->grid->size,
+                    });
+                sceneRenderingCommandBuffer.draw(6, viewport->viewCount, 0, 0);
+            }
         }
 
         // Render meshes whose AlphaMode=Blend.
@@ -1817,24 +1850,6 @@ bool vk_gltf_viewer::vulkan::Frame::recordSceneBlendMeshDrawCommands(vk::Command
     }
 
     return hasBlendMesh;
-}
-
-void vk_gltf_viewer::vulkan::Frame::recordSkyboxDrawCommands(vk::CommandBuffer cb) const {
-    cb.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxRenderPipeline);
-    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxPipelineLayout, 0, { rendererSet, sharedData.skyboxDescriptorSet }, {});
-    cb.bindIndexBuffer(sharedData.cubeIndexBuffer, 0, vk::IndexType::eUint16);
-
-    const auto scissors = viewport->getSubrects();
-    const auto viewports = scissors
-        | std::views::transform([](const vk::Rect2D &rect) noexcept {
-            return vku::toViewport(rect, true);
-        })
-        | std::ranges::to<boost::container::static_vector<vk::Viewport, 4>>();
-
-    cb.setViewportWithCountEXT(viewports);
-    cb.setScissorWithCountEXT(scissors);
-
-    cb.drawIndexed(36, viewport->viewCount, 0, 0, 0);
 }
 
 void vk_gltf_viewer::vulkan::Frame::recordNodeOutlineCompositionCommands(

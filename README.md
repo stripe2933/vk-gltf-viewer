@@ -35,6 +35,7 @@ Blazingly fast[^1] Vulkan glTF viewer.
 - Arbitrary sized outline rendering using [Jump Flooding Algorithm](https://en.wikipedia.org/wiki/Jump_flooding_algorithm).
 - Adjust node visibility in scene hierarchy tree.
 - GUI for used asset resources (buffers, images, samplers, etc.) list with docking support.
+- Grid rendering with dynamic scale adjustment.
 
 ## Performance
 
@@ -96,6 +97,7 @@ The extensions and feature used in this application are quite common in the mode
   - (optional) `VK_EXT_extended_dynamic_state3` (if supported and `VkPhysicalDeviceExtendedDynamicState3PropertiesEXT::dynamicPrimitiveTopologyUnrestricted` is `true`, can reduce the pipeline switch for different primitive topologies)
 - Device Features
   - `VkPhysicalDeviceFeatures`
+    - `depthClamp`
     - `drawIndirectFirstInstance`
     - `multiViewport`
     - `samplerAnistropy`

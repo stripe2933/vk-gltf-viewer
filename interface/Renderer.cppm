@@ -55,6 +55,17 @@ namespace vk_gltf_viewer {
             float intensity;
         };
 
+        struct Grid {
+            /// Grid line color
+            glm::vec3 color;
+
+            /// Grid size
+            float size;
+
+            /// Whether to show minor axis lines
+            bool showMinorAxes;
+        };
+
         enum class FrustumCullingMode : std::uint8_t {
             /// Frustum culling is disabled.
             Off,
@@ -102,6 +113,8 @@ namespace vk_gltf_viewer {
          * If <tt>capabilities.perFragmentBloom</tt> is <tt>false</tt>, <tt>Bloom::PerFragment</tt> is not allowed.
          */
         full_optional<Bloom> bloom { unset, Bloom::PerMaterial, 0.04f };
+
+        full_optional<Grid> grid { unset, glm::vec3 { 0.25f }, 100.f, true };
 
         /**
          * @brief Frustum culling mode.
