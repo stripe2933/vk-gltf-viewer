@@ -98,7 +98,6 @@ The extensions and feature used in this application are quite common in the mode
     - `drawIndirectFirstInstance`
     - `multiViewport`
     - `samplerAnistropy`
-    - `shaderInt16`
     - `multiDrawIndirect`
     - `shaderStorageImageWriteWithoutFormat`
     - `independentBlend` (Weighted Blended OIT)
@@ -120,7 +119,6 @@ The extensions and feature used in this application are quite common in the mode
     - `storageBuffer8BitAccess`
     - `scalarBlockLayout`
     - `timelineSemaphore`
-    - `shaderInt8`
     - (optional) `drawIndirectCount` (If not presented, GPU frustum culling will be unavailable and fallback to the CPU frustum culling.)
     - (optional) `shaderBufferInt64Atomics` (better mouse picking precision)
   - `VkPhysicalDeviceVulkan13Features`

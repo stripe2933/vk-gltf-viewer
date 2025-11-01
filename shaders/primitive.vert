@@ -4,8 +4,6 @@
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_buffer_reference_uvec2 : require
 #extension GL_EXT_buffer_reference2 : require
-#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
-#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 
 #define VERTEX_SHADER
 #include "indexing.glsl"
@@ -91,7 +89,7 @@ void main(){
     vec3 inNormal = getNormal(NORMAL_COMPONENT_TYPE, NORMAL_MORPH_TARGET_COUNT);
     variadic_out.tbn[2] = normalize(mat3(transform) * inNormal); // N
 
-    if (MATERIAL.normalTextureIndex != 0US){
+    if (uint(MATERIAL.normalTextureIndex) != 0U){
         vec4 inTangent = getTangent(TANGENT_COMPONENT_TYPE, TANGENT_MORPH_TARGET_COUNT);
         variadic_out.tbn[0] = normalize(mat3(transform) * inTangent.xyz); // T
         variadic_out.tbn[1] = cross(variadic_out.tbn[2], variadic_out.tbn[0]) * -inTangent.w; // B

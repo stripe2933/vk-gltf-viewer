@@ -3,8 +3,6 @@
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_shader_8bit_storage : require
-#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
-#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_scalar_block_layout : require
 #if EXT_SHADER_STENCIL_EXPORT == 1
 #extension GL_ARB_shader_stencil_export : require
@@ -119,9 +117,9 @@ void writeOutput(vec4 color) {
 #elif ALPHA_MODE == 1
 #if TEXCOORD_COUNT >= 1
 #if SEPARATE_IMAGE_SAMPLER == 1
-    color.a *= 1.0 + geometricMean(textureQueryLod(sampler2D(images[uint(MATERIAL.baseColorTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.baseColorTextureIndex) >> 12U]), getTexcoord(MATERIAL.baseColorTexcoordIndex))) * 0.25;
+    color.a *= 1.0 + geometricMean(textureQueryLod(sampler2D(images[uint(MATERIAL.baseColorTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.baseColorTextureIndex) >> 12U]), getTexcoord(uint(MATERIAL.baseColorTexcoordIndex)))) * 0.25;
 #else
-    color.a *= 1.0 + geometricMean(textureQueryLod(textures[uint(MATERIAL.baseColorTextureIndex)], getTexcoord(MATERIAL.baseColorTexcoordIndex))) * 0.25;
+    color.a *= 1.0 + geometricMean(textureQueryLod(textures[uint(MATERIAL.baseColorTextureIndex)], getTexcoord(uint(MATERIAL.baseColorTexcoordIndex)))) * 0.25;
 #endif
     // Apply sharpness to the alpha.
     // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
@@ -143,7 +141,7 @@ void writeOutput(vec4 color) {
 void main(){
     vec4 baseColor = MATERIAL.baseColorFactor;
 #if TEXCOORD_COUNT >= 1
-    vec2 baseColorTexcoord = getTexcoord(MATERIAL.baseColorTexcoordIndex);
+    vec2 baseColorTexcoord = getTexcoord(uint(MATERIAL.baseColorTexcoordIndex));
     if (USE_TEXTURE_TRANSFORM) {
         baseColorTexcoord = mat2(MATERIAL.baseColorTextureTransform) * baseColorTexcoord + MATERIAL.baseColorTextureTransform[2];
     }
@@ -160,7 +158,7 @@ void main(){
     float metallic = MATERIAL.metallicFactor;
     float roughness = MATERIAL.roughnessFactor;
 #if TEXCOORD_COUNT >= 1
-    vec2 metallicRoughnessTexcoord = getTexcoord(MATERIAL.metallicRoughnessTexcoordIndex);
+    vec2 metallicRoughnessTexcoord = getTexcoord(uint(MATERIAL.metallicRoughnessTexcoordIndex));
     if (USE_TEXTURE_TRANSFORM) {
         metallicRoughnessTexcoord = mat2(MATERIAL.metallicRoughnessTextureTransform) * metallicRoughnessTexcoord + MATERIAL.metallicRoughnessTextureTransform[2];
     }
@@ -180,8 +178,8 @@ void main(){
     N = normalize(cross(tangent, bitangent));
 
 #if TEXCOORD_COUNT >= 1
-    if (MATERIAL.normalTextureIndex != 0US){
-        vec2 normalTexcoord = getTexcoord(MATERIAL.normalTexcoordIndex);
+    if (uint(MATERIAL.normalTextureIndex) != 0U){
+        vec2 normalTexcoord = getTexcoord(uint(MATERIAL.normalTexcoordIndex));
         if (USE_TEXTURE_TRANSFORM) {
             normalTexcoord = mat2(MATERIAL.normalTextureTransform) * normalTexcoord + MATERIAL.normalTextureTransform[2];
         }
@@ -195,8 +193,8 @@ void main(){
     }
 #endif
 #elif TEXCOORD_COUNT >= 1
-    if (MATERIAL.normalTextureIndex != 0US){
-        vec2 normalTexcoord = getTexcoord(MATERIAL.normalTexcoordIndex);
+    if (uint(MATERIAL.normalTextureIndex) != 0U){
+        vec2 normalTexcoord = getTexcoord(uint(MATERIAL.normalTexcoordIndex));
         if (USE_TEXTURE_TRANSFORM) {
             normalTexcoord = mat2(MATERIAL.normalTextureTransform) * normalTexcoord + MATERIAL.normalTextureTransform[2];
         }
@@ -217,7 +215,7 @@ void main(){
 
     float occlusion = MATERIAL.occlusionStrength;
 #if TEXCOORD_COUNT >= 1
-    vec2 occlusionTexcoord = getTexcoord(MATERIAL.occlusionTexcoordIndex);
+    vec2 occlusionTexcoord = getTexcoord(uint(MATERIAL.occlusionTexcoordIndex));
     if (USE_TEXTURE_TRANSFORM) {
         occlusionTexcoord = mat2(MATERIAL.occlusionTextureTransform) * occlusionTexcoord + MATERIAL.occlusionTextureTransform[2];
     }
@@ -230,7 +228,7 @@ void main(){
 
     vec3 emissive = MATERIAL.emissive;
 #if TEXCOORD_COUNT >= 1
-    vec2 emissiveTexcoord = getTexcoord(MATERIAL.emissiveTexcoordIndex);
+    vec2 emissiveTexcoord = getTexcoord(uint(MATERIAL.emissiveTexcoordIndex));
     if (USE_TEXTURE_TRANSFORM) {
         emissiveTexcoord = mat2(MATERIAL.emissiveTextureTransform) * emissiveTexcoord + MATERIAL.emissiveTextureTransform[2];
     }

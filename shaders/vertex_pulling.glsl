@@ -26,40 +26,38 @@ vec3 getPosition(uint componentType, bool normalized, uint morphTargetWeightCoun
 
     uvec2 fetchAddress = add64(PRIMITIVE.positionAccessor.bufferAddress, PRIMITIVE.positionAccessor.stride * uint(gl_VertexIndex));
     switch (componentType) {
-    case 5120U: // BYTE
-        if (normalized) {
-            position = unpackSnorm4x8(UIntRef(fetchAddress).data).xyz;
-        }
-        else {
-            position = vec3(I8Vec3Ref(fetchAddress).data);
-        }
-        break;
-    case 5121U: // UNSIGNED BYTE
-        if (normalized) {
-            position = unpackUnorm4x8(UIntRef(fetchAddress).data).xyz;
-        }
-        else {
-            position = vec3(U8Vec3Ref(fetchAddress).data);
+    case 5120U: { // BYTE
+        position = unpackSnorm4x8(UIntRef(fetchAddress).data).xyz;
+        if (!normalized) {
+            // map [-1, 1] to [-128, 127]
+            position = 127.5 * position - 0.5;
         }
         break;
-    case 5122U: // SHORT
-        if (normalized) {
-            uvec2 fetched = UVec2Ref(fetchAddress).data;
-            position = vec3(unpackSnorm2x16(fetched.x), unpackSnorm2x16(fetched.y).x);
-        }
-        else {
-            position = vec3(I16Vec3Ref(fetchAddress).data);
+    }
+    case 5121U: { // UNSIGNED BYTE
+        position = unpackUnorm4x8(UIntRef(fetchAddress).data).xyz;
+        if (!normalized) {
+            position *= 255.0;
         }
         break;
-    case 5123U: // UNSIGNED SHORT
-        if (normalized) {
-            uvec2 fetched = UVec2Ref(fetchAddress).data;
-            position = vec3(unpackUnorm2x16(fetched.x), unpackUnorm2x16(fetched.y).x);
-        }
-        else {
-            position = vec3(U16Vec3Ref(fetchAddress).data);
+    }
+    case 5122U: { // SHORT
+        uvec2 fetched = UVec2Ref(fetchAddress).data;
+        position = vec3(unpackSnorm2x16(fetched.x), unpackSnorm2x16(fetched.y).x);
+        if (!normalized) {
+            // map [-1, 1] to [-32768, 32767]
+            position = 32767.5 * position - 0.5;
         }
         break;
+    }
+    case 5123U: { // UNSIGNED SHORT
+        uvec2 fetched = UVec2Ref(fetchAddress).data;
+        position = vec3(unpackUnorm2x16(fetched.x), unpackUnorm2x16(fetched.y).x);
+        if (!normalized) {
+            position *= 65535.0;
+        }
+        break;
+    }
     case 5126U: // FLOAT
         position = Vec3Ref(fetchAddress).data;
         break;
@@ -71,12 +69,21 @@ vec3 getPosition(uint componentType, bool normalized, uint morphTargetWeightCoun
 
         float weight = NODE.morphTargetWeights.data[i];
         switch (accessor.componentType) {
-        case 0U: // BYTE
-            position += weight * vec3(I8Vec3Ref(fetchAddress).data);
+        case 0U: { // BYTE
+            vec3 add = weight * unpackSnorm4x8(UIntRef(fetchAddress).data).xyz;
+            // map [-1, 1] to [-128, 127]
+            add = 127.5 * add - 0.5;
+            position += add;
             break;
-        case 2U: // SHORT
-            position += weight * vec3(I16Vec3Ref(fetchAddress).data);
+        }
+        case 2U: { // SHORT
+            uvec2 fetched = UVec2Ref(fetchAddress).data;
+            vec3 add = weight * vec3(unpackSnorm2x16(fetched.x), unpackSnorm2x16(fetched.y).x);
+            // map [-1, 1] to [-32768, 32767]
+            add = 32767.5 * add - 0.5;
+            position += add;
             break;
+        }
         case 6U: // FLOAT
             position += weight * Vec3Ref(fetchAddress).data;
             break;
@@ -177,34 +184,36 @@ vec2 getTexcoord(uint texcoordIndex, uint componentType, bool normalized){
     uvec2 fetchAddress = getFetchAddress(PRIMITIVE.texcoordAccessors[texcoordIndex], gl_VertexIndex);
 
     switch (componentType) {
-    case 5120U: // BYTE
-        if (normalized) {
-            return unpackSnorm4x8(UIntRef(fetchAddress).data).xy;
+    case 5120U: { // BYTE
+        vec2 result = unpackSnorm4x8(UIntRef(fetchAddress).data).xy;
+        if (!normalized) {
+            // map [-1, 1] to [-128, 127]
+            result = 127.5 * result - 0.5;
         }
-        else {
-            return vec2(I8Vec2Ref(fetchAddress).data);
+        return result;
+    }
+    case 5121U: { // UNSIGNED BYTE
+        vec2 result = unpackUnorm4x8(UIntRef(fetchAddress).data).xy;
+        if (!normalized) {
+            result *= 255.0;
         }
-    case 5121U: // UNSIGNED BYTE
-        if (normalized) {
-            return unpackUnorm4x8(UIntRef(fetchAddress).data).xy;
+        return result;
+    }
+    case 5122U: { // SHORT
+        vec2 result = unpackSnorm2x16(UIntRef(fetchAddress).data);
+        if (!normalized) {
+            // map [-1, 1] to [-32768, 32767]
+            result = 32767.5 * result - 0.5;
         }
-        else {
-            return vec2(U8Vec2Ref(fetchAddress).data);
+        return result;
+    }
+    case 5123U: { // UNSIGNED SHORT
+        vec2 result = unpackUnorm2x16(UIntRef(fetchAddress).data);
+        if (!normalized) {
+            result *= 65535.0;
         }
-    case 5122U: // SHORT
-        if (normalized) {
-            return unpackSnorm2x16(UIntRef(fetchAddress).data);
-        }
-        else {
-            return vec2(I16Vec2Ref(fetchAddress).data);
-        }
-    case 5123U: // UNSIGNED SHORT
-        if (normalized) {
-            return unpackUnorm2x16(UIntRef(fetchAddress).data);
-        }
-        else {
-            return vec2(U16Vec2Ref(fetchAddress).data);
-        }
+        return result;
+    }
     case 5126U: // FLOAT
         return Vec2Ref(fetchAddress).data;
     }
@@ -263,10 +272,14 @@ uvec4 getJoints(uint jointIndex){
     uvec2 fetchAddress = getFetchAddress(jointsAccessor, gl_VertexIndex);
 
     switch (jointsAccessor.componentType) {
-    case 1U: // UNSIGNED BYTE
-        return uvec4(U8Vec4Ref(fetchAddress).data);
-    case 3U: // UNSIGNED SHORT
-        return uvec4(U16Vec4Ref(fetchAddress).data);
+    case 1U: { // UNSIGNED BYTE
+        uint fetched = UIntRef(fetchAddress).data;
+        return uvec4(bitfieldExtract(fetched, 0, 8), bitfieldExtract(fetched, 8, 8), bitfieldExtract(fetched, 16, 8), bitfieldExtract(fetched, 24, 8));
+    }
+    case 3U: { // UNSIGNED SHORT
+        uvec2 fetched = UVec2Ref(fetchAddress).data;
+        return uvec4(bitfieldExtract(fetched.x, 0, 16), bitfieldExtract(fetched.x, 16, 16), bitfieldExtract(fetched.y, 0, 16), bitfieldExtract(fetched.y, 16, 16));
+    }
     }
     return uvec4(0); // unreachable.
 }

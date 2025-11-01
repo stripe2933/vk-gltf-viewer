@@ -40,7 +40,6 @@ constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatur
     .setDrawIndirectFirstInstance(true)
     .setMultiViewport(true)
     .setSamplerAnisotropy(true)
-    .setShaderInt16(true)
     .setMultiDrawIndirect(true)
     .setShaderStorageImageWriteWithoutFormat(true)
     .setIndependentBlend(true)
@@ -173,7 +172,6 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
         if (!features2.features.depthClamp ||
             !features2.features.drawIndirectFirstInstance ||
             !features2.features.samplerAnisotropy ||
-            !features2.features.shaderInt16 ||
             !features2.features.multiDrawIndirect ||
             !features2.features.multiViewport ||
             !features2.features.shaderStorageImageWriteWithoutFormat ||
@@ -193,7 +191,6 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !vulkan12Features.storageBuffer8BitAccess ||
             !vulkan12Features.scalarBlockLayout ||
             !vulkan12Features.timelineSemaphore ||
-            !vulkan12Features.shaderInt8 ||
             !vulkan13Features.dynamicRendering ||
             !vulkan13Features.shaderDemoteToHelperInvocation ||
             !vulkan13Features.synchronization2) {
@@ -325,7 +322,6 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
             .setStorageBuffer8BitAccess(true)
             .setScalarBlockLayout(true)
             .setTimelineSemaphore(true)
-            .setShaderInt8(true)
             .setDrawIndirectCount(supportDrawIndirectCount)
             .setShaderBufferInt64Atomics(supportShaderBufferInt64Atomics),
         vk::PhysicalDeviceVulkan13Features{}
