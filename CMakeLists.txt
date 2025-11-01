@@ -98,11 +98,12 @@ target_compile_definitions(vku_module
     PUBLIC
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
     PRIVATE
+        VK_ENABLE_BETA_EXTENSIONS # VK_KHR_portability_subset
         VMA_STATIC_VULKAN_FUNCTIONS=0 VMA_DYNAMIC_VULKAN_FUNCTIONS=1 VMA_ENABLE_VULKAN_HPP_MODULE
         VULKAN_HPP_NO_SMART_HANDLE
         VULKAN_HPP_NO_TO_STRING
         $<$<PLATFORM_ID:Windows>:VK_USE_PLATFORM_WIN32_KHR>
-        $<$<PLATFORM_ID:Darwin>:VK_USE_PLATFORM_METAL_EXT VK_ENABLE_BETA_EXTENSIONS> # For VK_KHR_portability_subset availability.
+        $<$<PLATFORM_ID:Darwin>:VK_USE_PLATFORM_METAL_EXT>
 )
 target_link_libraries(vku_module PUBLIC vku::vku)
 add_library(vku::module ALIAS vku_module)

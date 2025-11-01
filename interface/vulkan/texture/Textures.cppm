@@ -14,17 +14,16 @@ export import vkgltf;
 export import vk_gltf_viewer.gltf.AssetExtended;
 export import vk_gltf_viewer.gltf.AssetProcessError;
 import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.vulkan.descriptor_set_layout.Asset;
 export import vk_gltf_viewer.vulkan.Gpu;
+import vk_gltf_viewer.vulkan.mipmap;
 export import vk_gltf_viewer.vulkan.texture.Fallback;
+import vk_gltf_viewer.vulkan.vendor;
 
 #if __APPLE__
 import MetalCpp;
 import ObjCBridge;
-
-import vk_gltf_viewer.helpers.ranges;
-#else
-import vk_gltf_viewer.vulkan.mipmap;
 #endif
 
 namespace vk_gltf_viewer::vulkan::texture {
@@ -46,6 +45,11 @@ namespace vk_gltf_viewer::vulkan::texture {
 #if !defined(__GNUC__) || defined(__clang__)
 module :private;
 #endif
+
+template <typename T>
+[[nodiscard]] constexpr T flagsOr(bool p, T flags) noexcept {
+    return p ? flags : T{};
+}
 
 vk_gltf_viewer::vulkan::texture::Textures::Textures(
     const gltf::AssetExtended &assetExtended,
@@ -89,7 +93,6 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
         }
     }
 
-#if !__APPLE__
     vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
     vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, transferCommandPool, gpu.queues.transfer };
 
@@ -101,7 +104,6 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     if (gpu.queueFamilies.transfer != gpu.queueFamilies.graphicsPresent) {
         stagingInfo.queueFamilyOwnershipTransfer.emplace(gpu.queueFamilies.transfer, gpu.queueFamilies.graphicsPresent);
     }
-#endif
 
     images.insert_range(threadPool.submit_sequence(0, usedImageIndices.size(), [&](std::size_t i) {
         const std::size_t imageIndex = usedImageIndices[i];
@@ -115,7 +117,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
             .adapter = assetExtended.externalBuffers,
             .allowMutateSrgbFormat = allowMutateSrgbFormat,
         #if __APPLE__
-            .imageCopyDstLayout = vk::ImageLayout::eShaderReadOnlyOptimal, // Prevent double layout transition
+            .imageCopyDstLayout = flagsOr(gpu.vendorId == vendor::MOLTEN_VK, vk::ImageLayout::eShaderReadOnlyOptimal), // Prevent double layout transition
         #endif
             .uncompressedImageFormatFn = [&](int channels) -> vk::Format {
                 if (isSrgbImage) {
@@ -141,15 +143,14 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
                 }
             },
             .uncompressedImageMipmapPolicy = vkgltf::Image::MipmapPolicy::AllocateOnly,
-        #if __APPLE__
-            .metalObjectTypeFlagBits = vk::ExportMetalObjectTypeFlagBitsEXT::eMetalTexture,
-        #else
-            .uncompressedImageUsageFlags = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled,
-            .uncompressedImageDstLayout = vk::ImageLayout::eTransferSrcOptimal,
+            .uncompressedImageUsageFlags = vk::ImageUsageFlagBits::eSampled | flagsOr(gpu.vendorId != vendor::MOLTEN_VK, vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc),
+            .uncompressedImageDstLayout = gpu.vendorId == vendor::MOLTEN_VK ? vk::ImageLayout::eShaderReadOnlyOptimal : vk::ImageLayout::eTransferSrcOptimal,
         #ifdef SUPPORT_KHR_TEXTURE_BASISU
-            .compressedImageUsageFlags = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+            .compressedImageUsageFlags = vk::ImageUsageFlagBits::eSampled | flagsOr(gpu.vendorId != vendor::MOLTEN_VK, vk::ImageUsageFlagBits::eTransferDst),
         #endif
-            .stagingInfo = &stagingInfo,
+            .stagingInfo = flagsOr(gpu.vendorId != vendor::MOLTEN_VK, &stagingInfo),
+        #if __APPLE__
+            .metalObjectTypeFlagBits = flagsOr(gpu.vendorId == vendor::MOLTEN_VK, vk::ExportMetalObjectTypeFlagBitsEXT::eMetalTexture),
         #endif
         };
         return std::pair<std::size_t, vkgltf::Image> {
@@ -159,10 +160,10 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
         };
     }).get() | std::views::as_rvalue);
 
-#if !__APPLE__
     vk::raii::Semaphore copyFinishSemaphore { gpu.device, vk::SemaphoreCreateInfo{} };
-    stagingBufferStorage.execute(*copyFinishSemaphore);
-#endif
+    if (gpu.vendorId != vendor::MOLTEN_VK) {
+        stagingBufferStorage.execute(*copyFinishSemaphore);
+    }
 
     // Do some nice things during the GPU execution.
     {
@@ -185,191 +186,195 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     }
 
 #if __APPLE__
-    std::vector<vk::ExportMetalTextureInfoEXT> exportTextureInfos;
-    exportTextureInfos.reserve(images.size());
-    std::unordered_set<vk::Image> imagesToGenerateMipmap;
+    if (gpu.vendorId == vendor::MOLTEN_VK) {
+        std::vector<vk::ExportMetalTextureInfoEXT> exportTextureInfos;
+        exportTextureInfos.reserve(images.size());
+        std::unordered_set<vk::Image> imagesToGenerateMipmap;
 
-    for (const auto &[image, _] : images | std::views::values) {
-        exportTextureInfos.push_back({ image, {}, {}, vk::ImageAspectFlagBits::ePlane0 });
-        if (!isCompressed(image.format) && image.mipLevels > 1) {
-            imagesToGenerateMipmap.emplace(image);
+        for (const auto &[image, _] : images | std::views::values) {
+            exportTextureInfos.push_back({ image, {}, {}, vk::ImageAspectFlagBits::ePlane0 });
+            if (!isCompressed(image.format) && image.mipLevels > 1) {
+                imagesToGenerateMipmap.emplace(image);
+            }
         }
-    }
-    for (const auto &[a, b] : exportTextureInfos | ranges::views::pairwise) {
-        a.pNext = &b;
-    }
-
-    // Export MTLCommandQueue (from graphics queue) and MTLTextures (from generated images).
-    vk::StructureChain exportInfos {
-        vk::ExportMetalObjectsInfoEXT{},
-        vk::ExportMetalCommandQueueInfoEXT { gpu.queues.graphicsPresent }
-            .setPNext(&exportTextureInfos.front()),
-    };
-    gpu.device.exportMetalObjectsEXT(exportInfos.get());
-
-    MTL::CommandQueue* const commandQueue = (MTL::CommandQueue*)ObjCBridge_bridge(exportInfos.get<vk::ExportMetalCommandQueueInfoEXT>().mtlCommandQueue);
-    MTL::CommandBuffer* const commandBuffer = commandQueue->commandBufferWithUnretainedReferences();
-
-    MTL::BlitCommandEncoder* const blitCommandEncoder = commandBuffer->blitCommandEncoder();
-    for (const vk::ExportMetalTextureInfoEXT &exportTextureInfo : exportTextureInfos) {
-        MTL::Texture* const texture = (MTL::Texture*)ObjCBridge_bridge(exportTextureInfo.mtlTexture);
-        if (imagesToGenerateMipmap.contains(exportTextureInfo.image)) {
-            blitCommandEncoder->generateMipmaps(texture);
+        for (const auto &[a, b] : exportTextureInfos | ranges::views::pairwise) {
+            a.pNext = &b;
         }
-        blitCommandEncoder->optimizeContentsForGPUAccess(texture);
-    }
-    blitCommandEncoder->endEncoding();
 
-    commandBuffer->commit();
-    commandBuffer->waitUntilCompleted();
+        // Export MTLCommandQueue (from graphics queue) and MTLTextures (from generated images).
+        vk::StructureChain exportInfos {
+            vk::ExportMetalObjectsInfoEXT{},
+            vk::ExportMetalCommandQueueInfoEXT { gpu.queues.graphicsPresent }
+                .setPNext(&exportTextureInfos.front()),
+        };
+        gpu.device.exportMetalObjectsEXT(exportInfos.get());
 
-    if (!imagesToGenerateMipmap.empty()) {
-        // Prevent Validation Layer complains.
-        gpu.device.transitionImageLayoutEXT(
-            imagesToGenerateMipmap
-                | std::views::transform([](vk::Image image) noexcept {
-                    return vk::HostImageLayoutTransitionInfo { image, {}, vk::ImageLayout::eShaderReadOnlyOptimal, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor) };
-                })
-                | std::ranges::to<std::vector>());
-    }
-#else
-    // Graphics capable queue is needed for vkCmdBlitImage().
-    std::optional<vk::raii::CommandPool> graphicsCommandPool; // Only will have value if GPU has dedicated transfer queue.
-    vk::CommandBuffer graphicsCommandBuffer;
-    if (gpu.queueFamilies.graphicsPresent == gpu.queueFamilies.transfer) {
-        graphicsCommandBuffer = (*gpu.device).allocateCommandBuffers({ *transferCommandPool, vk::CommandBufferLevel::ePrimary, 1 })[0];
+        MTL::CommandQueue* const commandQueue = (MTL::CommandQueue*)ObjCBridge_bridge(exportInfos.get<vk::ExportMetalCommandQueueInfoEXT>().mtlCommandQueue);
+        MTL::CommandBuffer* const commandBuffer = commandQueue->commandBufferWithUnretainedReferences();
+
+        MTL::BlitCommandEncoder* const blitCommandEncoder = commandBuffer->blitCommandEncoder();
+        for (const vk::ExportMetalTextureInfoEXT &exportTextureInfo : exportTextureInfos) {
+            MTL::Texture* const texture = (MTL::Texture*)ObjCBridge_bridge(exportTextureInfo.mtlTexture);
+            if (imagesToGenerateMipmap.contains(exportTextureInfo.image)) {
+                blitCommandEncoder->generateMipmaps(texture);
+            }
+            blitCommandEncoder->optimizeContentsForGPUAccess(texture);
+        }
+        blitCommandEncoder->endEncoding();
+
+        commandBuffer->commit();
+        commandBuffer->waitUntilCompleted();
+
+        if (!imagesToGenerateMipmap.empty()) {
+            // Prevent Validation Layer complains.
+            gpu.device.transitionImageLayoutEXT(
+                imagesToGenerateMipmap
+                    | std::views::transform([](vk::Image image) noexcept {
+                        return vk::HostImageLayoutTransitionInfo { image, {}, vk::ImageLayout::eShaderReadOnlyOptimal, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor) };
+                    })
+                    | std::ranges::to<std::vector>());
+        }
     }
     else
+#endif
     {
-        const auto &inner = graphicsCommandPool.emplace(gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent });
-        graphicsCommandBuffer = (*gpu.device).allocateCommandBuffers({ *inner, vk::CommandBufferLevel::ePrimary, 1 })[0];
-    }
+        // Graphics capable queue is needed for vkCmdBlitImage().
+        std::optional<vk::raii::CommandPool> graphicsCommandPool; // Only will have value if GPU has dedicated transfer queue.
+        vk::CommandBuffer graphicsCommandBuffer;
+        if (gpu.queueFamilies.graphicsPresent == gpu.queueFamilies.transfer) {
+            graphicsCommandBuffer = (*gpu.device).allocateCommandBuffers({ *transferCommandPool, vk::CommandBufferLevel::ePrimary, 1 })[0];
+        }
+        else
+        {
+            const auto &inner = graphicsCommandPool.emplace(gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent });
+            graphicsCommandBuffer = (*gpu.device).allocateCommandBuffers({ *inner, vk::CommandBufferLevel::ePrimary, 1 })[0];
+        }
 
-    constexpr vk::PipelineStageFlags2 dependencyChain = vk::PipelineStageFlagBits2::eCopy;
+        constexpr vk::PipelineStageFlags2 dependencyChain = vk::PipelineStageFlagBits2::eCopy;
 
-    // Command buffer recording
-    {
-        graphicsCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+        // Command buffer recording
+        {
+            graphicsCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-        // Change image layouts and acquire resource queue family ownerships (optionally).
-        std::vector<vk::ImageMemoryBarrier2> imageMemoryBarriers;
-        std::vector<const vku::Image*> imagesToGenerateMipmap;
-        for (const auto &[image, _] : images | std::views::values) {
-        #ifdef SUPPORT_KHR_TEXTURE_BASISU
-            if (isCompressed(image.format)) {
-                if (stagingInfo.queueFamilyOwnershipTransfer) {
-                    // Change the image layout of the copied region from TransferDstOptimal to ShaderReadOnlyOptimal, and do
-                    // queue family ownership acquirement if GPU has dedicated transfer queue.
-                    const auto &[src, dst] = *stagingInfo.queueFamilyOwnershipTransfer;
-                    imageMemoryBarriers.push_back({
-                        {}, {},
-                        vk::PipelineStageFlagBits2::eAllCommands, {},
-                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                        src, dst,
-                        image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
-                    });
-                }
-            }
-            else
-        #endif
-            {
-                if (stagingInfo.queueFamilyOwnershipTransfer) {
-                    const auto& [src, dst] = *stagingInfo.queueFamilyOwnershipTransfer;
-                    if (image.mipLevels == 1) {
-                        // Change the image layout from TransferDstOptimal to TransferSrcOptimal, and acquire queue family
-                        // ownership if needed.
+            // Change image layouts and acquire resource queue family ownerships (optionally).
+            std::vector<vk::ImageMemoryBarrier2> imageMemoryBarriers;
+            std::vector<const vku::Image*> imagesToGenerateMipmap;
+            for (const auto &[image, _] : images | std::views::values) {
+            #ifdef SUPPORT_KHR_TEXTURE_BASISU
+                if (isCompressed(image.format)) {
+                    if (stagingInfo.queueFamilyOwnershipTransfer) {
+                        // Change the image layout of the copied region from TransferDstOptimal to ShaderReadOnlyOptimal, and do
+                        // queue family ownership acquirement if GPU has dedicated transfer queue.
+                        const auto &[src, dst] = *stagingInfo.queueFamilyOwnershipTransfer;
                         imageMemoryBarriers.push_back({
-                            dependencyChain, {},
-                            vk::PipelineStageFlagBits2::eAllCommands, {}, // dependency chain (A)
-                            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                            {}, {},
+                            vk::PipelineStageFlagBits2::eAllCommands, {},
+                            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                             src, dst,
                             image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
                         });
                     }
-                    else {
-                        // Change the image layout of the first mip region from TransferDstOptimal to TransferSrcOptimal,
-                        // and acquire queue family ownership if needed.
+                }
+                else
+            #endif
+                {
+                    if (stagingInfo.queueFamilyOwnershipTransfer) {
+                        const auto& [src, dst] = *stagingInfo.queueFamilyOwnershipTransfer;
+                        if (image.mipLevels == 1) {
+                            // Change the image layout from TransferDstOptimal to TransferSrcOptimal, and acquire queue family
+                            // ownership if needed.
+                            imageMemoryBarriers.push_back({
+                                dependencyChain, {},
+                                vk::PipelineStageFlagBits2::eAllCommands, {}, // dependency chain (A)
+                                vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                                src, dst,
+                                image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
+                            });
+                        }
+                        else {
+                            // Change the image layout of the first mip region from TransferDstOptimal to TransferSrcOptimal,
+                            // and acquire queue family ownership if needed.
+                            imageMemoryBarriers.push_back({
+                                dependencyChain, {},
+                                vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
+                                vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                                src, dst,
+                                image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                            });
+                        }
+                    }
+
+                    if (image.mipLevels == 1) {
+                        // Change the image layout from TransferSrcOptimal to ShaderReadOnlyOptimal.
                         imageMemoryBarriers.push_back({
-                            dependencyChain, {},
-                            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead,
-                            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-                            src, dst,
-                            image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 },
+                            vk::PipelineStageFlagBits2::eAllCommands, {}, // dependency chain (A)
+                            vk::PipelineStageFlagBits2::eAllCommands, {},
+                            vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                            image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
                         });
                     }
-                }
+                    else {
+                        // Change the image layout of the mipmap region to TransferDstOptimal.
+                        imageMemoryBarriers.push_back({
+                            {}, {},
+                            vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
+                            {}, vk::ImageLayout::eTransferDstOptimal,
+                            vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                            image, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingArrayLayers, 0, 1 },
+                        });
 
-                if (image.mipLevels == 1) {
-                    // Change the image layout from TransferSrcOptimal to ShaderReadOnlyOptimal.
-                    imageMemoryBarriers.push_back({
-                        vk::PipelineStageFlagBits2::eAllCommands, {}, // dependency chain (A)
-                        vk::PipelineStageFlagBits2::eAllCommands, {},
+                        // Image is needed to generate mipmap.
+                        imagesToGenerateMipmap.push_back(&image);
+                    }
+                }
+            }
+            graphicsCommandBuffer.pipelineBarrier2({ {}, {}, {}, imageMemoryBarriers });
+
+            if (!imagesToGenerateMipmap.empty()) {
+                // Collect image memory barriers that are inserted after the mipmap generation command.
+                // Note: recordBatchedMipmapGenerationCommand() takes ownership of std::vector<const vku::Image*>, therefore
+                // the vector should be moved. But the vector is also need for collecting barriers, therefore this code is
+                // intentionally in here (instead of after recordBatchedMipmapGenerationCommand()).
+                std::vector<vk::ImageMemoryBarrier> imageMemoryBarriersToBottom;
+                imageMemoryBarriersToBottom.reserve(2 * imagesToGenerateMipmap.size());
+                for (const vku::Image *image : imagesToGenerateMipmap) {
+                    imageMemoryBarriersToBottom.push_back({
+                        vk::AccessFlagBits::eTransferRead, {},
                         vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        image, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
+                        *image, { vk::ImageAspectFlagBits::eColor, 0, image->mipLevels - 1, 0, 1 },
                     });
-                }
-                else {
-                    // Change the image layout of the mipmap region to TransferDstOptimal.
-                    imageMemoryBarriers.push_back({
-                        {}, {},
-                        vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite,
-                        {}, vk::ImageLayout::eTransferDstOptimal,
+                    imageMemoryBarriersToBottom.push_back({
+                        vk::AccessFlagBits::eTransferWrite, {},
+                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                         vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                        image, { vk::ImageAspectFlagBits::eColor, 1, vk::RemainingArrayLayers, 0, 1 },
+                        *image, { vk::ImageAspectFlagBits::eColor, image->mipLevels - 1, 1, 0, 1 },
                     });
-
-                    // Image is needed to generate mipmap.
-                    imagesToGenerateMipmap.push_back(&image);
                 }
-            }
-        }
-        graphicsCommandBuffer.pipelineBarrier2({ {}, {}, {}, imageMemoryBarriers });
 
-        if (!imagesToGenerateMipmap.empty()) {
-            // Collect image memory barriers that are inserted after the mipmap generation command.
-            // Note: recordBatchedMipmapGenerationCommand() takes ownership of std::vector<const vku::Image*>, therefore
-            // the vector should be moved. But the vector is also need for collecting barriers, therefore this code is
-            // intentionally in here (instead of after recordBatchedMipmapGenerationCommand()).
-            std::vector<vk::ImageMemoryBarrier> imageMemoryBarriersToBottom;
-            imageMemoryBarriersToBottom.reserve(2 * imagesToGenerateMipmap.size());
-            for (const vku::Image *image : imagesToGenerateMipmap) {
-                imageMemoryBarriersToBottom.push_back({
-                    vk::AccessFlagBits::eTransferRead, {},
-                    vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    *image, { vk::ImageAspectFlagBits::eColor, 0, image->mipLevels - 1, 0, 1 },
-                });
-                imageMemoryBarriersToBottom.push_back({
-                    vk::AccessFlagBits::eTransferWrite, {},
-                    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    *image, { vk::ImageAspectFlagBits::eColor, image->mipLevels - 1, 1, 0, 1 },
-                });
+                // Generate mipmaps.
+                recordBatchedMipmapGenerationCommand(graphicsCommandBuffer, std::move(imagesToGenerateMipmap));
+
+                // Change the image layout to ShaderReadOnlyOptimal.
+                graphicsCommandBuffer.pipelineBarrier(
+                    vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
+                    {}, {}, {}, imageMemoryBarriersToBottom);
             }
 
-            // Generate mipmaps.
-            recordBatchedMipmapGenerationCommand(graphicsCommandBuffer, std::move(imagesToGenerateMipmap));
-
-            // Change the image layout to ShaderReadOnlyOptimal.
-            graphicsCommandBuffer.pipelineBarrier(
-                vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-                {}, {}, {}, imageMemoryBarriersToBottom);
+            graphicsCommandBuffer.end();
         }
 
-        graphicsCommandBuffer.end();
+        vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
+        gpu.queues.graphicsPresent.submit2(vk::SubmitInfo2 {
+            {},
+            vku::lvalue(vk::SemaphoreSubmitInfo { *copyFinishSemaphore, {}, dependencyChain }),
+            vku::lvalue(vk::CommandBufferSubmitInfo { graphicsCommandBuffer }),
+        }, *fence);
+
+        std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL);
+
+        // Destroy staging buffers.
+        stagingBufferStorage.reset(false /* stagingBufferStorage will not be used anymore */);
     }
-
-    vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-    gpu.queues.graphicsPresent.submit2(vk::SubmitInfo2 {
-        {},
-        vku::lvalue(vk::SemaphoreSubmitInfo { *copyFinishSemaphore, {}, dependencyChain }),
-        vku::lvalue(vk::CommandBufferSubmitInfo { graphicsCommandBuffer }),
-    }, *fence);
-
-    std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL);
-
-    // Destroy staging buffers.
-    stagingBufferStorage.reset(false /* stagingBufferStorage will not be used anymore */);
-#endif
 }

@@ -1,5 +1,4 @@
 #version 460
-#extension GL_ARB_shader_viewport_layer_array : require
 
 const vec2 uvs[] = {
     { -0.5, -0.5 },
@@ -25,7 +24,6 @@ layout (push_constant) uniform PushConstant {
 void main() {
     outUV = pc.size * uvs[gl_VertexIndex];
     gl_Position = camera.projectionViews[gl_InstanceIndex] * vec4(outUV, 0.0, 1.0).xzyw;
-    gl_ViewportIndex = gl_InstanceIndex;
 
     float logLod = log(camera.positions[gl_InstanceIndex].y) / log(10);
     outLogLodFract = fract(-logLod);

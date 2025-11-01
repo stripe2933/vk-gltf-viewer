@@ -10,6 +10,7 @@ export import vku;
 export import vk_gltf_viewer.vulkan.render_pass.BloomApply;
 export import vk_gltf_viewer.vulkan.render_pass.Scene;
 export import vk_gltf_viewer.vulkan.Gpu;
+import vk_gltf_viewer.vulkan.vendor;
 
 namespace vk_gltf_viewer::vulkan::ag {
     export struct Scene {
@@ -44,6 +45,11 @@ namespace vk_gltf_viewer::vulkan::ag {
 #if !defined(__GNUC__) || defined(__clang__)
 module :private;
 #endif
+
+template <typename T>
+[[nodiscard]] constexpr T flagsOr(bool p, T flags) noexcept {
+    return p ? flags : T{};
+}
 
 vk_gltf_viewer::vulkan::ag::Scene::Scene(
     const Gpu &gpu, 
@@ -106,12 +112,10 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
         vma::AllocationCreateInfo {
             {},
             vma::MemoryUsage::eAutoPreferDevice,
-        // As MoltenVK does not support sceneFramebuffer fetch, it breaks the render pass by multiple MTLRenderCommandEncoders
-        // for each subpass. Therefore, MTLStoreAction=Store must be used and therefore cannot be memoryless.
-        #if !__APPLE__
             {},
-            vk::MemoryPropertyFlagBits::eLazilyAllocated,
-        #endif
+            // As MoltenVK does not support sceneFramebuffer fetch, it breaks the render pass by multiple MTLRenderCommandEncoders
+            // for each subpass. Therefore, MTLStoreAction=Store must be used and therefore cannot be memoryless.
+            flagsOr(gpu.vendorId != vendor::MOLTEN_VK, vk::MemoryPropertyFlagBits::eLazilyAllocated),
         },
     },
     depthStencilImageView { gpu.device, depthStencilImage.getViewCreateInfo(vk::ImageViewType::e2D) },
@@ -134,12 +138,10 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
         vma::AllocationCreateInfo {
             {},
             vma::MemoryUsage::eAutoPreferDevice,
-        // As MoltenVK does not support sceneFramebuffer fetch, it breaks the render pass by multiple MTLRenderCommandEncoders
-        // for each subpass. Therefore, MTLStoreAction=Store must be used and therefore cannot be memoryless.
-        #if !__APPLE__
             {},
-            vk::MemoryPropertyFlagBits::eLazilyAllocated,
-        #endif
+            // As MoltenVK does not support sceneFramebuffer fetch, it breaks the render pass by multiple MTLRenderCommandEncoders
+            // for each subpass. Therefore, MTLStoreAction=Store must be used and therefore cannot be memoryless.
+            flagsOr(gpu.vendorId != vendor::MOLTEN_VK, vk::MemoryPropertyFlagBits::eLazilyAllocated),
         },
     },
     stencilResolveImageView { gpu.device, stencilResolveImage.getViewCreateInfo(vk::ImageViewType::e2D) },
@@ -178,12 +180,10 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
         vma::AllocationCreateInfo {
             {},
             vma::MemoryUsage::eAutoPreferDevice,
-        // As MoltenVK does not support sceneFramebuffer fetch, it breaks the render pass by multiple MTLRenderCommandEncoders
-        // for each subpass. Therefore, MTLStoreAction=Store must be used and therefore cannot be memoryless.
-        #if !__APPLE__
             {},
-            vk::MemoryPropertyFlagBits::eLazilyAllocated,
-        #endif
+            // As MoltenVK does not support sceneFramebuffer fetch, it breaks the render pass by multiple MTLRenderCommandEncoders
+            // for each subpass. Therefore, MTLStoreAction=Store must be used and therefore cannot be memoryless.
+            flagsOr(gpu.vendorId != vendor::MOLTEN_VK, vk::MemoryPropertyFlagBits::eLazilyAllocated),
         },
     },
     accumulationImageView { gpu.device, accumulationImage.getViewCreateInfo(vk::ImageViewType::e2D) },
@@ -222,12 +222,10 @@ vk_gltf_viewer::vulkan::ag::Scene::Scene(
         vma::AllocationCreateInfo {
             {},
             vma::MemoryUsage::eAutoPreferDevice,
-        // As MoltenVK does not support sceneFramebuffer fetch, it breaks the render pass by multiple MTLRenderCommandEncoders
-        // for each subpass. Therefore, MTLStoreAction=Store must be used and therefore cannot be memoryless.
-        #if !__APPLE__
             {},
-            vk::MemoryPropertyFlagBits::eLazilyAllocated,
-        #endif
+            // As MoltenVK does not support sceneFramebuffer fetch, it breaks the render pass by multiple MTLRenderCommandEncoders
+            // for each subpass. Therefore, MTLStoreAction=Store must be used and therefore cannot be memoryless.
+            flagsOr(gpu.vendorId != vendor::MOLTEN_VK, vk::MemoryPropertyFlagBits::eLazilyAllocated),
         },
     },
     revealageImageView { gpu.device, revealageImage.getViewCreateInfo(vk::ImageViewType::e2D) },

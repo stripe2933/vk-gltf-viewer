@@ -1092,11 +1092,12 @@ vk_gltf_viewer::MainApp::SkyboxResources::~SkyboxResources() {
 }
 
 vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {
-    std::vector<const char*> extensions{
-#if __APPLE__
-        vk::KHRPortabilityEnumerationExtensionName,
-#endif
-    };
+    std::vector<const char*> extensions;
+
+    // This application supports VK_KHR_portability_subset.
+    if (std::ranges::contains(vk::getInstanceExtensions(), vk::KHRPortabilityEnumerationExtensionName)) {
+        extensions.push_back(vk::KHRPortabilityEnumerationExtensionName);
+    }
 
     std::uint32_t glfwExtensionCount;
     const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
@@ -1104,15 +1105,11 @@ vk::raii::Instance vk_gltf_viewer::MainApp::createInstance() const {
 
     vk::raii::Instance instance { context, vk::StructureChain {
         vk::InstanceCreateInfo {
-        #if __APPLE__
             vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR,
-        #else
-            {},
-        #endif
             &vku::lvalue(vk::ApplicationInfo {
                 "Vulkan glTF Viewer", 0,
                 nullptr, 0,
-                vk::makeApiVersion(0, 1, 2, 0),
+                vk::makeApiVersion(0, 1, 3, 0),
             }),
             {},
             extensions,

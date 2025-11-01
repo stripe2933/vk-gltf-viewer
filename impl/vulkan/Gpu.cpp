@@ -18,33 +18,19 @@ struct std::tuple_element<I, vk::StructureChain<Ts...>> : std::tuple_element<I, 
 #endif
 
 constexpr std::array requiredExtensions {
-#if __APPLE__
-    vk::KHRPortabilitySubsetExtensionName,
-    vk::EXTHostImageCopyExtensionName,
-    vk::EXTMetalObjectsExtensionName,
-#endif
     vk::KHRPushDescriptorExtensionName,
     vk::KHRSwapchainExtensionName,
-};
-
-constexpr std::array optionalExtensions {
-    vk::KHRSwapchainMutableFormatExtensionName,
-    vk::KHRIndexTypeUint8ExtensionName,
-    vk::AMDShaderImageLoadStoreLodExtensionName,
-    vk::EXTAttachmentFeedbackLoopLayoutExtensionName,
-    vk::EXTShaderStencilExportExtensionName,
-    vk::EXTExtendedDynamicState3ExtensionName,
 };
 
 constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
     .setDepthClamp(true)
     .setDrawIndirectFirstInstance(true)
-    .setMultiViewport(true)
+    // .setMultiViewport(true)
     .setSamplerAnisotropy(true)
     .setMultiDrawIndirect(true)
-    .setShaderStorageImageWriteWithoutFormat(true)
+    /* .setShaderStorageImageWriteWithoutFormat(true)
     .setIndependentBlend(true)
-    .setFragmentStoresAndAtomics(true);
+    .setFragmentStoresAndAtomics(true) */;
 
 vk_gltf_viewer::vulkan::QueueFamilies::QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface) {
     const std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
@@ -144,6 +130,10 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             return 0U;
         }
 
+        const auto [props2, subgroupProps] = physicalDevice.getProperties2<
+            vk::PhysicalDeviceProperties2,
+            vk::PhysicalDeviceSubgroupProperties>();
+
         // Check device extension availability.
         const std::vector availableExtensions = physicalDevice.enumerateDeviceExtensionProperties();
         std::vector availableExtensionNames
@@ -158,6 +148,21 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             = requiredExtensions
             | std::views::transform([](const char *str) { return std::string_view { str }; })
             | std::ranges::to<std::vector>();
+
+        // VUID-VkDeviceCreateInfo-pProperties-04451
+        // If VK_KHR_portability_subset is supported, it must be enabled.
+        if (std::ranges::binary_search(availableExtensionNames, vk::KHRPortabilitySubsetExtensionName)) {
+            requiredExtensionNames.push_back(vk::KHRPortabilitySubsetExtensionName);
+        }
+
+    #if __APPLE__
+        // MoltenVK specific required extensions.
+        if (props2.properties.vendorID == vendor::MOLTEN_VK) {
+            requiredExtensionNames.push_back(vk::EXTHostImageCopyExtensionName);
+            requiredExtensionNames.push_back(vk::EXTMetalObjectsExtensionName);
+        }
+    #endif
+
         std::ranges::sort(requiredExtensionNames);
 
         if (!std::ranges::includes(availableExtensionNames, requiredExtensionNames)) {
@@ -175,10 +180,10 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !features2.features.drawIndirectFirstInstance ||
             !features2.features.samplerAnisotropy ||
             !features2.features.multiDrawIndirect ||
-            !features2.features.multiViewport ||
-            !features2.features.shaderStorageImageWriteWithoutFormat ||
-            !features2.features.independentBlend ||
-            !features2.features.fragmentStoresAndAtomics ||
+            // !features2.features.multiViewport ||
+            // !features2.features.shaderStorageImageWriteWithoutFormat ||
+            // !features2.features.independentBlend ||
+            // !features2.features.fragmentStoresAndAtomics ||
             !vulkan11Features.shaderDrawParameters ||
             !vulkan11Features.storageBuffer16BitAccess ||
             !vulkan11Features.uniformAndStorageBuffer16BitAccess ||
@@ -189,7 +194,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
             !vulkan12Features.descriptorBindingVariableDescriptorCount ||
             !vulkan12Features.runtimeDescriptorArray ||
             !vulkan12Features.separateDepthStencilLayouts ||
-            !vulkan12Features.shaderOutputViewportIndex ||
+            // !vulkan12Features.shaderOutputViewportIndex ||
             !vulkan12Features.storageBuffer8BitAccess ||
             !vulkan12Features.scalarBlockLayout ||
             !vulkan12Features.timelineSemaphore ||
@@ -200,21 +205,17 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
         }
 
         // Check physical device properties.
-        const vk::StructureChain physicalDeviceProperties = physicalDevice.getProperties2<
-            vk::PhysicalDeviceProperties2,
-            vk::PhysicalDeviceSubgroupProperties>();
-        const vk::PhysicalDeviceProperties &properties = physicalDeviceProperties.get<vk::PhysicalDeviceProperties2>().properties;
-        if (physicalDeviceProperties.get<vk::PhysicalDeviceSubgroupProperties>().subgroupSize < 16U) {
+        if (subgroupProps.subgroupSize < 16U) {
             return 0U;
         }
 
         // Rate the physical device.
         std::uint32_t score = 0;
-        if (properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
+        if (props2.properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
             score += 1000;
         }
 
-        score += properties.limits.maxImageDimension2D;
+        score += props2.properties.limits.maxImageDimension2D;
 
         return score;
     };
@@ -238,9 +239,32 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
         | std::ranges::to<std::unordered_set>();
 
     std::vector extensions { std::from_range, requiredExtensions };
-    for (const char *optionalExtensionName : optionalExtensions) {
-        if (availableExtensionNames.contains(optionalExtensionName)) {
-            extensions.push_back(optionalExtensionName);
+
+    // VUID-VkDeviceCreateInfo-pProperties-04451
+    // If VK_KHR_portability_subset is supported, it must be enabled.
+    const bool supportPortability = availableExtensionNames.contains(vk::KHRPortabilitySubsetExtensionName);
+    if (supportPortability) {
+        extensions.push_back(vk::KHRPortabilitySubsetExtensionName);
+    }
+
+    const vk::PhysicalDeviceProperties props = physicalDevice.getProperties();
+#if __APPLE__
+    // MoltenVK specific required extensions.
+    if (props.vendorID == vendor::MOLTEN_VK) {
+        extensions.push_back(vk::EXTHostImageCopyExtensionName);
+        extensions.push_back(vk::EXTMetalObjectsExtensionName);
+    }
+#endif
+
+    // Optional extensions.
+    for (const char *extension : { vk::KHRSwapchainMutableFormatExtensionName,
+                                   vk::KHRIndexTypeUint8ExtensionName,
+                                   vk::AMDShaderImageLoadStoreLodExtensionName,
+                                   vk::EXTAttachmentFeedbackLoopLayoutExtensionName,
+                                   vk::EXTShaderStencilExportExtensionName,
+                                   vk::EXTExtendedDynamicState3ExtensionName }) {
+        if (availableExtensionNames.contains(extension)) {
+            extensions.push_back(extension);
         }
     }
 
@@ -332,11 +356,9 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
             .setSynchronization2(true),
         vk::PhysicalDeviceIndexTypeUint8FeaturesKHR { supportUint8Index },
         vk::PhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT { supportAttachmentFeedbackLoopLayout },
-#if __APPLE__
         vk::PhysicalDevicePortabilitySubsetFeaturesKHR{}
             .setImageViewFormatSwizzle(true),
         vk::PhysicalDeviceHostImageCopyFeatures { true },
-#endif
     };
 
     // Unlink unsupported features.
@@ -345,6 +367,12 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     }
     if (!supportAttachmentFeedbackLoopLayout) {
         createInfo.template unlink<vk::PhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT>();
+    }
+    if (!supportPortability) {
+        createInfo.template unlink<vk::PhysicalDevicePortabilitySubsetFeaturesKHR>();
+    }
+    if (props.vendorID != vendor::MOLTEN_VK) {
+        createInfo.template unlink<vk::PhysicalDeviceHostImageCopyFeatures>();
     }
 
     vk::raii::Device device { physicalDevice, createInfo.get() };
