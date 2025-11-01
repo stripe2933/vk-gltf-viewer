@@ -263,6 +263,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/texture/Fallback.cppm
         interface/vulkan/texture/ImGuiColorSpaceAndUsageCorrectedTextures.cppm
         interface/vulkan/texture/Textures.cppm
+        interface/vulkan/vendor.cppm
 )
 target_link_libraries(vk-gltf-viewer PRIVATE
     bloom

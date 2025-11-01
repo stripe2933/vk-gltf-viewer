@@ -52,6 +52,8 @@ namespace vk_gltf_viewer::vulkan {
         Queues queues { *device, queueFamilies };
         vma::Allocator allocator;
 
+        std::uint32_t vendorId;
+
         bool isUmaDevice;
         bool supportSwapchainMutableFormat;
         bool supportShaderBufferInt64Atomics;

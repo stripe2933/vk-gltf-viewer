@@ -5,6 +5,7 @@ module;
 module vk_gltf_viewer.vulkan.Gpu;
 
 import vk_gltf_viewer.helpers.ranges;
+import vk_gltf_viewer.vulkan.vendor;
 
 #ifdef _MSC_VER
 // FIXME: MSVC is not recognizing vk::StructureChain as a tuple-like type. Remove it when fixed.
@@ -116,11 +117,12 @@ vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::Surface
     isUmaDevice = memoryProperties.memoryHeapCount == 1;
 
     // Some vendor-specific workarounds.
-    switch (props2.properties.vendorID) {
-        case 0x8086: // Intel
+    vendorId = props2.properties.vendorID;
+    switch (vendorId) {
+        case vendor::INTEL:
             workaround.attachmentLessRenderPass = true;
             break;
-        case 0x106B: // MoltenVK
+        case vendor::MOLTEN_VK:
             workaround.attachmentLessRenderPass = true;
             workaround.depthStencilResolveDifferentFormat = true;
             break;
