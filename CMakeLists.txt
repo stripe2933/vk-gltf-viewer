@@ -228,7 +228,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/imgui/PlatformResource.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/BloomApplyRenderPipeline.cppm
-        interface/vulkan/pipeline/CubemapToneMappingRenderPipeline.cppm
+        interface/vulkan/pipeline/TonemappingRenderPipeline.cppm
         interface/vulkan/pipeline/GridRenderPipeline.cppm
         interface/vulkan/pipeline/InverseToneMappingRenderPipeline.cppm
         interface/vulkan/pipeline/JumpFloodComputePipeline.cppm
@@ -250,7 +250,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/pipeline_layout/Skybox.cppm
         interface/vulkan/pipeline_layout/WeightedBlendedComposition.cppm
         interface/vulkan/render_pass/BloomApply.cppm
-        interface/vulkan/render_pass/CubemapToneMapping.cppm
+        interface/vulkan/render_pass/Tonemapping.cppm
         interface/vulkan/render_pass/Scene.cppm
         interface/vulkan/sampler/BrdfLut.cppm
         interface/vulkan/sampler/Cubemap.cppm
@@ -443,7 +443,7 @@ target_link_shader_variants(vk-gltf-viewer PRIVATE
     TARGET_ENV vulkan1.2
     FILES
         shaders/bloom_apply.frag
-        shaders/cubemap_tone_mapping.frag
+        shaders/tonemapping.frag
         shaders/inverse_tone_mapping.frag
         shaders/weighted_blended_composition.frag
     MACRO_NAMES "AMD_SHADER_TRINARY_MINMAX"

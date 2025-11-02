@@ -59,7 +59,7 @@ import vk_gltf_viewer.imgui.TaskCollector;
 import vk_gltf_viewer.vulkan.FrameDeferredTask;
 import vk_gltf_viewer.vulkan.imgui.PlatformResource;
 import vk_gltf_viewer.vulkan.mipmap;
-import vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderPipeline;
+import vk_gltf_viewer.vulkan.pipeline.TonemappingRenderPipeline;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 #define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
@@ -1397,7 +1397,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             cubemap::CubemapComputePipeline::requiredCubemapImageUsageFlags
                 | cubemap::SubgroupMipmapComputePipeline::requiredImageUsageFlags
                 | ibl::PrefilteredmapComputePipeline::requiredCubemapImageUsageFlags
-                | vk::ImageUsageFlagBits::eSampled,
+                | vk::ImageUsageFlagBits::eInputAttachment,
         },
         vma::AllocationCreateInfo {
             {},
@@ -1457,11 +1457,8 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         },
     } };
 
-    // Generate Tone-mapped cubemap.
-    const vulkan::rp::CubemapToneMapping cubemapToneMappingRenderPass { gpu.device };
-    const vulkan::CubemapToneMappingRenderPipeline cubemapToneMappingRenderPipeline { gpu, cubemapToneMappingRenderPass };
-
-    vku::raii::AllocatedImage toneMappedCubemapImage {
+    // Generate tonemapped cubemap.
+    vku::raii::AllocatedImage tonemappedCubemapImage {
         gpu.allocator,
         vk::ImageCreateInfo {
             vk::ImageCreateFlagBits::eCubeCompatible,
@@ -1478,17 +1475,29 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             vma::MemoryUsage::eAutoPreferDevice,
         },
     };
+
+    const vulkan::rp::Tonemapping cubemapTonemappingRenderPass { gpu.device, {
+        .inputFormat = cubemapImage.format,
+        .outputFormat = tonemappedCubemapImage.format,
+        .inputImagePreserved = false,
+        .multiviewMask = 0b111111U,
+    } };
+    const vulkan::TonemappingRenderPipeline cubemapTonemappingRenderPipeline { gpu, cubemapTonemappingRenderPass };
+
     const vk::raii::ImageView cubemapImageArrayView {
         gpu.device,
         cubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }),
     };
-    const vk::raii::ImageView toneMappedCubemapImageArrayView { gpu.device, toneMappedCubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray) };
+    const vk::raii::ImageView tonemappedCubemapImageArrayView { gpu.device, tonemappedCubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray) };
 
-    const vk::raii::Framebuffer cubemapToneMappingFramebuffer { gpu.device, vk::FramebufferCreateInfo {
+    const vk::raii::Framebuffer cubemapTonemappingFramebuffer { gpu.device, vk::FramebufferCreateInfo {
         {},
-        cubemapToneMappingRenderPass,
-        *toneMappedCubemapImageArrayView,
-        toneMappedCubemapImage.extent.width, toneMappedCubemapImage.extent.height, 1,
+        *cubemapTonemappingRenderPass,
+        vku::lvalue({
+            *cubemapImageArrayView,
+            *tonemappedCubemapImageArrayView,
+        }),
+        tonemappedCubemapImage.extent.width, tonemappedCubemapImage.extent.height, 1,
     } };
 
     std::unordered_map<std::uint32_t, vk::raii::CommandPool> commandPools;
@@ -1791,21 +1800,21 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         });
     }
 
-    // ----- Create tone mapped cubemap image (=toneMappedCubemapImage) from high-precision image (=cubemapImage) -----
+    // ----- Create tonemapped cubemap image (=tonemappedCubemapImage) from high-precision image (=cubemapImage) -----
 
-    const vk::Rect2D renderArea { { 0, 0 }, vku::toExtent2D(toneMappedCubemapImage.extent) };
+    const vk::Rect2D renderArea { { 0, 0 }, vku::toExtent2D(tonemappedCubemapImage.extent) };
     graphicsCb.beginRenderPass({
-        *cubemapToneMappingRenderPass,
-        *cubemapToneMappingFramebuffer,
+        *cubemapTonemappingRenderPass,
+        *cubemapTonemappingFramebuffer,
         renderArea,
-        vku::lvalue<vk::ClearValue>(vk::ClearColorValue{}),
+        vku::lvalue<vk::ClearValue>({ vk::ClearColorValue{}, vk::ClearColorValue{} }),
     }, vk::SubpassContents::eInline);
 
-    graphicsCb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapToneMappingRenderPipeline.pipeline);
+    graphicsCb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapTonemappingRenderPipeline.pipeline);
     graphicsCb.pushDescriptorSetKHR(
         vk::PipelineBindPoint::eGraphics,
-        *cubemapToneMappingRenderPipeline.pipelineLayout,
-        0, vulkan::CubemapToneMappingRenderPipeline::DescriptorSetLayout::getWriteDescriptorSet<0>({}, 0, vku::lvalue(vk::DescriptorImageInfo {
+        *cubemapTonemappingRenderPipeline.pipelineLayout,
+        0, vulkan::TonemappingRenderPipeline::DescriptorSetLayout::getWriteDescriptorSet<0>({}, 0, vku::lvalue(vk::DescriptorImageInfo {
             {},
             *cubemapImageArrayView,
             vk::ImageLayout::eShaderReadOnlyOptimal,
@@ -1862,12 +1871,12 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
         *reducedEqmapSampler,
         *reducedEqmapImageView,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    vk::raii::ImageView toneMappedCubemapImageView { gpu.device, toneMappedCubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
+    vk::raii::ImageView tonemappedCubemapImageView { gpu.device, tonemappedCubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
     skyboxResources.emplace(
         std::move(reducedEqmapImage),
         std::move(reducedEqmapImageView),
-        std::move(toneMappedCubemapImage),
-        std::move(toneMappedCubemapImageView),
+        std::move(tonemappedCubemapImage),
+        std::move(tonemappedCubemapImageView),
         imGuiEqmapImageDescriptorSet);
 
     vk::raii::ImageView prefilteredmapImageView { gpu.device, prefilteredmapImage.getViewCreateInfo(vk::ImageViewType::eCube) };

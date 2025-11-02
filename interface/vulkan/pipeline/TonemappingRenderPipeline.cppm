@@ -2,27 +2,27 @@ module;
 
 #include <lifetimebound.hpp>
 
-export module vk_gltf_viewer.vulkan.pipeline.CubemapToneMappingRenderPipeline;
+export module vk_gltf_viewer.vulkan.pipeline.TonemappingRenderPipeline;
 
 import std;
 
-import vk_gltf_viewer.shader.cubemap_tone_mapping_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;
+import vk_gltf_viewer.shader.tonemapping_frag;
 export import vk_gltf_viewer.vulkan.Gpu;
-export import vk_gltf_viewer.vulkan.render_pass.CubemapToneMapping;
+export import vk_gltf_viewer.vulkan.render_pass.Tonemapping;
 
 namespace vk_gltf_viewer::vulkan::inline pipeline {
-    export class CubemapToneMappingRenderPipeline {
+    export class TonemappingRenderPipeline {
     public:
-        using DescriptorSetLayout = vku::raii::DescriptorSetLayout<vk::DescriptorType::eSampledImage>;
+        using DescriptorSetLayout = vku::raii::DescriptorSetLayout<vk::DescriptorType::eInputAttachment>;
 
         DescriptorSetLayout descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
 
-        CubemapToneMappingRenderPipeline(
+        TonemappingRenderPipeline(
             const Gpu &gpu LIFETIMEBOUND,
-            const rp::CubemapToneMapping &renderPass LIFETIMEBOUND
+            const rp::Tonemapping &renderPass LIFETIMEBOUND
         );
     };
 }
@@ -31,9 +31,9 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::pipeline::CubemapToneMappingRenderPipeline::CubemapToneMappingRenderPipeline(
+vk_gltf_viewer::vulkan::pipeline::TonemappingRenderPipeline::TonemappingRenderPipeline(
     const Gpu &gpu,
-    const rp::CubemapToneMapping &renderPass
+    const rp::Tonemapping &renderPass
 ) : descriptorSetLayout { gpu.device, vk::DescriptorSetLayoutCreateInfo {
         vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptorKHR,
         vku::lvalue(DescriptorSetLayout::getCreateInfoBinding<0>(1, vk::ShaderStageFlagBits::eFragment)),
@@ -60,8 +60,8 @@ vk_gltf_viewer::vulkan::pipeline::CubemapToneMappingRenderPipeline::CubemapToneM
                 *vku::lvalue(vk::raii::ShaderModule { gpu.device, vk::ShaderModuleCreateInfo {
                     {},
                     vku::lvalue(gpu.supportShaderTrinaryMinMax
-                        ? std::span<const std::uint32_t> { shader::cubemap_tone_mapping_frag<1> }
-                        : std::span<const std::uint32_t> { shader::cubemap_tone_mapping_frag<0> }),
+                        ? std::span<const std::uint32_t> { shader::tonemapping_frag<1> }
+                        : std::span<const std::uint32_t> { shader::tonemapping_frag<0> }),
                 } }),
                 "main",
             },
