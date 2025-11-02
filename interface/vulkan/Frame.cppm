@@ -210,19 +210,16 @@ namespace vk_gltf_viewer::vulkan {
                 const vk::Extent2D &extent,
                 std::uint32_t viewCount,
                 const rp::Scene &sceneRenderPass LIFETIMEBOUND,
-                const rp::BloomApply &bloomApplyRenderPass LIFETIMEBOUND,
-                vk::CommandBuffer graphicsCommandBuffer
+                const rp::BloomApply &bloomApplyRenderPass LIFETIMEBOUND
             );
 
             [[nodiscard]] boost::container::static_vector<vk::Rect2D, 4> getSubrects() const noexcept;
 
-            void setViewCount(std::uint32_t count, vk::CommandBuffer graphicsCommandBuffer);
+            void setViewCount(std::uint32_t count);
 
         private:
             [[nodiscard]] vku::raii::AllocatedImage createBloomImage() const;
             [[nodiscard]] std::vector<vk::raii::ImageView> createBloomMipImageViews() const;
-
-            void recordImageLayoutTransitionCommands(vk::CommandBuffer graphicsCommandBuffer) const;
         };
 
         struct RenderingNodes {
