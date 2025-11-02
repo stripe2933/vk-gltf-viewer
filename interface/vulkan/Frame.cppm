@@ -21,7 +21,6 @@ import vk_gltf_viewer.vulkan.ag.Scene;
 import vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
 export import vk_gltf_viewer.Renderer;
 export import vk_gltf_viewer.vulkan.SharedData;
-export import vk_gltf_viewer.vulkan.Swapchain;
 
 /**
  * @brief A type that represents the state for a single multi-draw-indirect call.
@@ -150,8 +149,8 @@ namespace vk_gltf_viewer::vulkan {
         [[nodiscard]] ExecutionResult getExecutionResult();
         void update(const ExecutionTask &task);
 
-        void recordCommandsAndSubmit(Swapchain &swapchain) const;
-        void recordCommandsAndSubmitFirstFrame(Swapchain &swapchain) const;
+        void recordCommandsAndSubmit() const;
+        void recordCommandsAndSubmitFirstFrame() const;
 
         void setViewportExtent(const vk::Extent2D &extent);
         void updateViewCount();

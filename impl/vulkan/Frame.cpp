@@ -586,13 +586,13 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
     }
 }
 
-void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain) const {
+void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit() const {
     // Acquire the next swapchain image.
     std::uint32_t swapchainImageIndex;
     try {
         vk::Result result [[maybe_unused]];
         std::tie(result, swapchainImageIndex) = (*sharedData.gpu.device).acquireNextImageKHR(
-            *swapchain.swapchain, ~0ULL, *swapchainImageAcquireSema);
+            *sharedData.swapchain.swapchain, ~0ULL, *swapchainImageAcquireSema);
 
     #if __APPLE__
         // MoltenVK does not allow presenting suboptimal swapchain image.
@@ -882,14 +882,14 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                     {}, vk::AccessFlagBits::eTransferWrite,
                     {}, vk::ImageLayout::eTransferDstOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
+                    sharedData.swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
                 },
             }));
 
         // Copy from composited image to swapchain image.
         compositionCommandBuffer.copyImage(
             viewport->sceneAttachmentGroup.colorImage, vk::ImageLayout::eTransferSrcOptimal,
-            swapchain.images[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal,
+            sharedData.swapchain.images[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal,
             vk::ImageCopy {
                 { vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
                 { 0, 0, 0 },
@@ -905,13 +905,13 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                 vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
                 vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eColorAttachmentOptimal,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
+                sharedData.swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
             });
 
         // Draw ImGui.
         compositionCommandBuffer.beginRenderingKHR({
             {},
-            { {}, swapchain.extent },
+            { {}, sharedData.swapchain.extent },
             1,
             {},
             vku::lvalue(vk::RenderingAttachmentInfo {
@@ -931,7 +931,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                 vk::AccessFlagBits::eColorAttachmentWrite, {},
                 vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
+                sharedData.swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
             });
 
         compositionCommandBuffer.end();
@@ -953,28 +953,28 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                 vk::PipelineStageFlagBits::eFragmentShader,
             }),
             compositionCommandBuffer,
-            *swapchain.imageReadySemaphores[swapchainImageIndex],
+            *sharedData.swapchain.imageReadySemaphores[swapchainImageIndex],
         },
     }, *inFlightFence);
 
     // Present the rendered swapchain image to swapchain.
     try {
         std::ignore = sharedData.gpu.queues.graphicsPresent.presentKHR({
-            *swapchain.imageReadySemaphores[swapchainImageIndex],
-            *swapchain.swapchain,
+            *sharedData.swapchain.imageReadySemaphores[swapchainImageIndex],
+            *sharedData.swapchain.swapchain,
             swapchainImageIndex,
         });
     }
     catch (const vk::OutOfDateKHRError&) { }
 }
 
-void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame(Swapchain &swapchain) const {
+void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame() const {
     // Acquire the next swapchain image.
     std::uint32_t swapchainImageIndex;
     try {
         vk::Result result [[maybe_unused]];
         std::tie(result, swapchainImageIndex) = (*sharedData.gpu.device).acquireNextImageKHR(
-            *swapchain.swapchain, ~0ULL, *swapchainImageAcquireSema);
+            *sharedData.swapchain.swapchain, ~0ULL, *swapchainImageAcquireSema);
 
 #if __APPLE__
         // MoltenVK does not allow presenting suboptimal swapchain image.
@@ -1001,7 +1001,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame(Swapchain 
             {}, vk::AccessFlagBits::eColorAttachmentWrite,
             {}, vk::ImageLayout::eColorAttachmentOptimal,
             vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-            swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
+            sharedData.swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
         });
 
     // Draw ImGui.
@@ -1009,7 +1009,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame(Swapchain 
     // to the passthru rect region and the content is undefined.
     compositionCommandBuffer.beginRenderingKHR({
         {},
-        { {}, swapchain.extent },
+        { {}, sharedData.swapchain.extent },
         1,
         {},
         vku::lvalue(vk::RenderingAttachmentInfo {
@@ -1029,7 +1029,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame(Swapchain 
             vk::AccessFlagBits::eColorAttachmentWrite, {},
             vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
             vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-            swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
+            sharedData.swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
         });
 
     compositionCommandBuffer.end();
@@ -1039,14 +1039,14 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame(Swapchain 
         *swapchainImageAcquireSema,
         vku::lvalue<vk::PipelineStageFlags>(vk::PipelineStageFlagBits::eColorAttachmentOutput),
         compositionCommandBuffer,
-        *swapchain.imageReadySemaphores[swapchainImageIndex],
+        *sharedData.swapchain.imageReadySemaphores[swapchainImageIndex],
     }, *inFlightFence);
 
     // Present the rendered swapchain image to swapchain.
     try {
         std::ignore = sharedData.gpu.queues.graphicsPresent.presentKHR({
-            *swapchain.imageReadySemaphores[swapchainImageIndex],
-            *swapchain.swapchain,
+            *sharedData.swapchain.imageReadySemaphores[swapchainImageIndex],
+            *sharedData.swapchain.swapchain,
             swapchainImageIndex,
         });
     }

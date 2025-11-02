@@ -35,6 +35,7 @@ export import vk_gltf_viewer.vulkan.pipeline_layout.MousePicking;
 export import vk_gltf_viewer.vulkan.pipeline_layout.Primitive;
 export import vk_gltf_viewer.vulkan.pipeline_layout.PrimitiveNoShading;
 export import vk_gltf_viewer.vulkan.render_pass.Scene;
+export import vk_gltf_viewer.vulkan.Swapchain;
 
 namespace vk_gltf_viewer::vulkan {
     export struct SharedData {
@@ -115,6 +116,7 @@ namespace vk_gltf_viewer::vulkan {
         // Attachment groups.
         // --------------------
 
+        Swapchain swapchain;
         ag::ImGui imGuiAttachmentGroup;
 
         // Descriptor pools.
@@ -131,14 +133,14 @@ namespace vk_gltf_viewer::vulkan {
         texture::Fallback fallbackTexture;
         std::shared_ptr<const gltf::AssetExtended> assetExtended;
 
-        SharedData(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages);
+        SharedData(const Gpu &gpu LIFETIMEBOUND, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent);
 
         // --------------------
         // The below public methods will modify the GPU resources, therefore they MUST be called before the command buffer
         // submission.
         // --------------------
 
-        void handleSwapchainResize(const vk::Extent2D &newSwapchainExtent, std::span<const vk::Image> newSwapchainImages);
+        void handleSwapchainResize(const vk::Extent2D &newExtent);
 
         void setViewCount(std::uint32_t viewCount);
 
@@ -176,7 +178,7 @@ auto vk_gltf_viewer::vulkan::SharedData::MultiviewPipelines::getMaskJumpFloodSee
     return maskJumpFloodSeedRenderPipelines.try_emplace(config, device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
 }
 
-vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages)
+vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent)
     : gpu { gpu }
     , cubemapSampler { gpu.device }
     , brdfLutSampler { gpu.device }
@@ -207,7 +209,8 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
     , weightedBlendedCompositionRenderPipeline { gpu, weightedBlendedCompositionPipelineLayout, sceneRenderPass }
     , inverseToneMappingRenderPipeline { gpu, inverseToneMappingPipelineLayout, sceneRenderPass }
     , bloomApplyRenderPipeline { gpu, bloomApplyPipelineLayout, bloomApplyRenderPass }
-    , imGuiAttachmentGroup { gpu, swapchainImages }
+    , swapchain { gpu, surface, swapchainExtent }
+    , imGuiAttachmentGroup { gpu, swapchain.images }
     , descriptorPool { [&] {
         const auto [maxSets, poolSizes] = vku::DescriptorPoolSizeBuilder{}
             .add(imageBasedLightingDescriptorSetLayout)
@@ -230,8 +233,9 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, con
 // submission.
 // --------------------
 
-void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages) {
-    imGuiAttachmentGroup = { gpu, swapchainImages };
+void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &extent) {
+    swapchain.setExtent(extent);
+    imGuiAttachmentGroup = { gpu, swapchain.images };
 }
 
 void vk_gltf_viewer::vulkan::SharedData::setViewCount(std::uint32_t viewCount) {

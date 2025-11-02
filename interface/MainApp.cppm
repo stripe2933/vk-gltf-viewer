@@ -8,7 +8,6 @@ import vk_gltf_viewer.control.AppWindow;
 import vk_gltf_viewer.imgui.UserData;
 import vk_gltf_viewer.Renderer;
 import vk_gltf_viewer.vulkan.Frame;
-import vk_gltf_viewer.vulkan.Swapchain;
 
 namespace vk_gltf_viewer {
     export class MainApp {
@@ -56,8 +55,6 @@ namespace vk_gltf_viewer {
         vulkan::Gpu gpu;
         std::shared_ptr<Renderer> renderer;
 
-        vulkan::Swapchain swapchain;
-
         ImGuiContext imGuiContext { window, *instance, gpu };
 
         std::shared_ptr<gltf::AssetExtended> assetExtended;
@@ -88,12 +85,5 @@ namespace vk_gltf_viewer {
         void loadGltf(const std::filesystem::path &path);
         void closeGltf();
         void loadEqmap(const std::filesystem::path &eqmapPath);
-
-        [[nodiscard]] vk::Extent2D getSwapchainExtent() const {
-            const glm::ivec2 framebufferSize = window.getFramebufferSize();
-            return { static_cast<std::uint32_t>(framebufferSize.x), static_cast<std::uint32_t>(framebufferSize.y) };
-        }
-
-        void handleSwapchainResize();
     };
 }

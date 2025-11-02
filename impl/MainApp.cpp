@@ -76,6 +76,10 @@ template <typename T, glm::qualifier Q>
     return { static_cast<float>(v.x), static_cast<float>(v.y) };
 }
 
+[[nodiscard]] constexpr vk::Extent2D toExtent2D(const glm::ivec2 &v) noexcept {
+    return { static_cast<std::uint32_t>(v.x), static_cast<std::uint32_t>(v.y) };
+}
+
 [[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform *transform) noexcept {
     if (transform) {
         const float c = std::cos(transform->rotation), s = std::sin(transform->rotation);
@@ -99,8 +103,7 @@ vk_gltf_viewer::MainApp::MainApp()
     , renderer { std::make_shared<Renderer>(Renderer::Capabilities {
         .perFragmentBloom = gpu.supportShaderStencilExport,
     }) }
-    , swapchain { gpu, window.getSurface(), getSwapchainExtent() }
-    , sharedData { gpu, swapchain.extent, swapchain.images }
+    , sharedData { gpu, window.getSurface(), toExtent2D(window.getFramebufferSize()) }
     , frames { ARRAY_OF(2, vulkan::Frame { renderer, sharedData }) } {
     const ibl::BrdfmapRenderPipeline brdfmapRenderPipeline { gpu.device, brdfmapImage, {} };
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
@@ -515,7 +518,16 @@ void vk_gltf_viewer::MainApp::run() {
                     }
                 },
                 [this](concepts::one_of<control::task::WindowSize, control::task::WindowContentScale> auto const &task) {
-                    handleSwapchainResize();
+                    gpu.device.waitIdle();
+
+                    // Make process idle state if window is minimized.
+                    glm::ivec2 framebufferSize;
+                    while (!glfwWindowShouldClose(window) && (framebufferSize = window.getFramebufferSize()) == glm::ivec2{}) {
+                        std::this_thread::yield();
+                    }
+
+                    // Call handleSwapchainResize() for all swapchain dependent resources.
+                    sharedData.handleSwapchainResize(toExtent2D(framebufferSize));
                 },
                 [&](const control::task::ChangePassthruRect &task) {
                     passthruRect = task.newRect;
@@ -1003,10 +1015,10 @@ void vk_gltf_viewer::MainApp::run() {
         });
 
         if (frameIndex == 0) {
-            frame.recordCommandsAndSubmitFirstFrame(swapchain);
+            frame.recordCommandsAndSubmitFirstFrame();
         }
         else {
-            frame.recordCommandsAndSubmit(swapchain);
+            frame.recordCommandsAndSubmit();
         }
     }
     gpu.device.waitIdle();
@@ -1900,20 +1912,4 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     // Update AppState.
     appState.pushRecentSkyboxPath(eqmapPath);
-}
-
-void vk_gltf_viewer::MainApp::handleSwapchainResize() {
-    gpu.device.waitIdle();
-
-    // Make process idle state if window is minimized.
-    vk::Extent2D swapchainExtent;
-    while (!glfwWindowShouldClose(window) && (swapchainExtent = getSwapchainExtent()) == vk::Extent2D{}) {
-        std::this_thread::yield();
-    }
-
-    // Update swapchain.
-    swapchain.setExtent(swapchainExtent);
-
-    // Update frame shared data and frames.
-    sharedData.handleSwapchainResize(swapchainExtent, swapchain.images);
 }
