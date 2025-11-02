@@ -95,6 +95,5 @@ namespace vk_gltf_viewer {
         }
 
         void handleSwapchainResize();
-        void recordSwapchainImageLayoutTransitionCommands(vk::CommandBuffer cb) const;
     };
 }

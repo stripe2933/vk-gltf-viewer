@@ -867,10 +867,10 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                     viewport->sceneAttachmentGroup.colorImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
                 },
-                // Change swapchain image layout from PresentSrcKHR to TransferDstOptimal.
+                // Change the swapchain image layout to TransferDstOptimal.
                 vk::ImageMemoryBarrier {
                     {}, vk::AccessFlagBits::eTransferWrite,
-                    vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eTransferDstOptimal,
+                    {}, vk::ImageLayout::eTransferDstOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                     swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
                 },
@@ -983,13 +983,13 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame(Swapchain 
 
     compositionCommandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-    // Change swapchain image layout from PresentSrcKHR to ColorAttachmentOptimal.
+    // Change swapchain image layout to ColorAttachmentOptimal.
     compositionCommandBuffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
         {}, {}, {},
         vk::ImageMemoryBarrier {
             {}, vk::AccessFlagBits::eColorAttachmentWrite,
-            vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal,
+            {}, vk::ImageLayout::eColorAttachmentOptimal,
             vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
             swapchain.images[swapchainImageIndex], vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
         });

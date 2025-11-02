@@ -154,8 +154,6 @@ vk_gltf_viewer::MainApp::MainApp()
                 vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                 brdfmapImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
             });
-
-        recordSwapchainImageLayoutTransitionCommands(cb);
     }, *fence);
 
     gpu.device.updateDescriptorSets({
@@ -1916,30 +1914,6 @@ void vk_gltf_viewer::MainApp::handleSwapchainResize() {
     // Update swapchain.
     swapchain.setExtent(swapchainExtent);
 
-    // Change swapchain image layout.
-    const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
-    const vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };
-    vku::executeSingleCommand(*gpu.device, *graphicsCommandPool, gpu.queues.graphicsPresent, [&](vk::CommandBuffer cb) {
-        recordSwapchainImageLayoutTransitionCommands(cb);
-    }, *fence);
-    std::ignore = gpu.device.waitForFences(*fence, true, ~0ULL); // TODO: failure handling
-
     // Update frame shared data and frames.
     sharedData.handleSwapchainResize(swapchainExtent, swapchain.images);
-}
-
-void vk_gltf_viewer::MainApp::recordSwapchainImageLayoutTransitionCommands(vk::CommandBuffer cb) const {
-    cb.pipelineBarrier(
-        vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
-        {}, {}, {},
-        swapchain.images
-            | std::views::transform([](vk::Image swapchainImage) {
-                return vk::ImageMemoryBarrier {
-                    {}, {},
-                    {}, vk::ImageLayout::ePresentSrcKHR,
-                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    swapchainImage, vku::fullSubresourceRange(vk::ImageAspectFlagBits::eColor),
-                };
-            })
-            | std::ranges::to<std::vector>());
 }
