@@ -207,7 +207,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/attachment_group/JumpFloodSeed.cppm
         interface/vulkan/attachment_group/Scene.cppm
         interface/vulkan/attachment_group/ImGui.cppm
-        interface/vulkan/buffer/CubeIndices.cppm
         interface/vulkan/buffer/IndirectDrawCommands.cppm
         interface/vulkan/buffer/Materials.cppm
         interface/vulkan/buffer/PrimitiveAttributes.cppm

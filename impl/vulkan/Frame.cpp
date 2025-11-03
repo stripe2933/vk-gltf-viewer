@@ -743,8 +743,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit(Swapchain &swapchain
             if (!renderer->solidBackground) {
                 sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxRenderPipeline);
                 sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxPipelineLayout, 0, { rendererSet, sharedData.skyboxDescriptorSet }, {});
-                sceneRenderingCommandBuffer.bindIndexBuffer(sharedData.cubeIndexBuffer, 0, vk::IndexType::eUint16);
-                sceneRenderingCommandBuffer.drawIndexed(36, viewport->viewCount, 0, 0, 0);
+                sceneRenderingCommandBuffer.draw(36, viewport->viewCount, 0, 0);
             }
 
             // Draw grid.

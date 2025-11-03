@@ -17,7 +17,6 @@ import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.math.bit;
 export import vk_gltf_viewer.vulkan.ag.ImGui;
-export import vk_gltf_viewer.vulkan.buffer.CubeIndices;
 export import vk_gltf_viewer.vulkan.gltf.AssetExtended;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderPipeline;
@@ -66,7 +65,6 @@ namespace vk_gltf_viewer::vulkan {
         const Gpu &gpu;
 
         // Buffer, image and image views and samplers.
-        buffer::CubeIndices cubeIndexBuffer;
         sampler::Cubemap cubemapSampler;
         sampler::BrdfLut brdfLutSampler;
 
@@ -180,7 +178,6 @@ auto vk_gltf_viewer::vulkan::SharedData::MultiviewPipelines::getMaskJumpFloodSee
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu LIFETIMEBOUND, const vk::Extent2D &swapchainExtent, std::span<const vk::Image> swapchainImages)
     : gpu { gpu }
-    , cubeIndexBuffer { gpu.allocator }
     , cubemapSampler { gpu.device }
     , brdfLutSampler { gpu.device }
     , assetDescriptorSetLayout { gpu }
