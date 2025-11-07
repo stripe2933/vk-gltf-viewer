@@ -1,3 +1,7 @@
+module;
+
+#include <lifetimebound.hpp>
+
 export module vk_gltf_viewer.helpers.optional;
 
 import std;
@@ -55,7 +59,7 @@ export template <std::invocable F>
  * @return Address of the value contained in \p opt, or <tt>nullptr</tt> if \p opt is empty.
  */
 export template <typename T>
-[[nodiscard]] T *value_address(std::optional<T> &opt) noexcept {
+[[nodiscard]] T *value_address(std::optional<T> &opt LIFETIMEBOUND) noexcept {
     if (opt) {
         return std::addressof(*opt);
     }
@@ -66,7 +70,7 @@ export template <typename T>
  * @copydoc value_address(std::optional<T>&)
  */
 export template <typename T>
-[[nodiscard]] const T *value_address(const std::optional<T> &opt) noexcept {
+[[nodiscard]] const T *value_address(const std::optional<T> &opt LIFETIMEBOUND) noexcept {
     if (opt) {
         return std::addressof(*opt);
     }
