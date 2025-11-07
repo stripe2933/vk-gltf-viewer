@@ -1465,7 +1465,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
             vk::ImageType::e2D,
             vk::Format::eB8G8R8A8Srgb,
             cubemapImage.extent,
-            1, cubemapImage.arrayLayers,
+            cubemapImage.mipLevels, cubemapImage.arrayLayers,
             vk::SampleCountFlagBits::e1,
             vk::ImageTiling::eOptimal,
             vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
@@ -1484,21 +1484,33 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     } };
     const vulkan::TonemappingRenderPipeline cubemapTonemappingRenderPipeline { gpu, cubemapTonemappingRenderPass };
 
-    const vk::raii::ImageView cubemapImageArrayView {
-        gpu.device,
-        cubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }),
-    };
-    const vk::raii::ImageView tonemappedCubemapImageArrayView { gpu.device, tonemappedCubemapImage.getViewCreateInfo(vk::ImageViewType::e2DArray) };
+    const std::vector perMipLevelCubemapImageViews
+        = cubemapImage.getPerMipLevelViewCreateInfos(vk::ImageViewType::e2DArray)
+        | std::views::transform([&](const vk::ImageViewCreateInfo &createInfo) {
+            return vk::raii::ImageView { gpu.device, createInfo };
+        })
+        | std::ranges::to<std::vector>();
+    const std::vector perMipLevelTonemappedCubemapImageViews
+        = tonemappedCubemapImage.getPerMipLevelViewCreateInfos(vk::ImageViewType::e2DArray)
+        | std::views::transform([&](const vk::ImageViewCreateInfo &createInfo) {
+            return vk::raii::ImageView { gpu.device, createInfo };
+        })
+        | std::ranges::to<std::vector>();
 
-    const vk::raii::Framebuffer cubemapTonemappingFramebuffer { gpu.device, vk::FramebufferCreateInfo {
-        {},
-        *cubemapTonemappingRenderPass,
-        vku::lvalue({
-            *cubemapImageArrayView,
-            *tonemappedCubemapImageArrayView,
-        }),
-        tonemappedCubemapImage.extent.width, tonemappedCubemapImage.extent.height, 1,
-    } };
+    std::vector<vk::raii::Framebuffer> tonemappingFramebuffers;
+    tonemappingFramebuffers.reserve(cubemapImage.mipLevels);
+    for (vk::Extent2D extent = vku::toExtent2D(cubemapImage.extent);
+         const auto &[v1, v2] : std::views::zip(perMipLevelCubemapImageViews, perMipLevelTonemappedCubemapImageViews)) {
+        tonemappingFramebuffers.emplace_back(gpu.device, vk::FramebufferCreateInfo {
+            {},
+            *cubemapTonemappingRenderPass,
+            vku::lvalue({ *v1, *v2 }),
+            extent.width, extent.height, 1,
+        });
+
+        extent.width = std::max(1U, extent.width >> 1);
+        extent.height = std::max(1U, extent.height >> 1);
+    }
 
     std::unordered_map<std::uint32_t, vk::raii::CommandPool> commandPools;
     vk::CommandPool computeCommandPool = *commandPools.try_emplace(gpu.queueFamilies.compute, gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.compute }).first->second;
@@ -1802,28 +1814,33 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     // ----- Create tonemapped cubemap image (=tonemappedCubemapImage) from high-precision image (=cubemapImage) -----
 
-    const vk::Rect2D renderArea { { 0, 0 }, vku::toExtent2D(tonemappedCubemapImage.extent) };
-    graphicsCb.beginRenderPass({
-        *cubemapTonemappingRenderPass,
-        *cubemapTonemappingFramebuffer,
-        renderArea,
-        vku::lvalue<vk::ClearValue>({ vk::ClearColorValue{}, vk::ClearColorValue{} }),
-    }, vk::SubpassContents::eInline);
+    for (vk::Rect2D renderArea { { 0, 0 }, vku::toExtent2D(tonemappedCubemapImage.extent) };
+         auto [framebuffer, inputImageView] : std::views::zip(tonemappingFramebuffers, perMipLevelCubemapImageViews)) {
+        graphicsCb.beginRenderPass({
+            *cubemapTonemappingRenderPass,
+            *framebuffer,
+            renderArea,
+            vku::lvalue<vk::ClearValue>({ vk::ClearColorValue{}, vk::ClearColorValue{} }),
+        }, vk::SubpassContents::eInline);
 
-    graphicsCb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapTonemappingRenderPipeline.pipeline);
-    graphicsCb.pushDescriptorSetKHR(
-        vk::PipelineBindPoint::eGraphics,
-        *cubemapTonemappingRenderPipeline.pipelineLayout,
-        0, vulkan::TonemappingRenderPipeline::DescriptorSetLayout::getWriteDescriptorSet<0>({}, 0, vku::lvalue(vk::DescriptorImageInfo {
-            {},
-            *cubemapImageArrayView,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-        })));
-    graphicsCb.setViewport(0, vku::toViewport(renderArea));
-    graphicsCb.setScissor(0, renderArea);
-    graphicsCb.draw(3, 1, 0, 0);
+        graphicsCb.bindPipeline(vk::PipelineBindPoint::eGraphics, *cubemapTonemappingRenderPipeline.pipeline);
+        graphicsCb.pushDescriptorSetKHR(
+            vk::PipelineBindPoint::eGraphics,
+            *cubemapTonemappingRenderPipeline.pipelineLayout,
+            0, vulkan::TonemappingRenderPipeline::DescriptorSetLayout::getWriteDescriptorSet<0>({}, 0, vku::lvalue(vk::DescriptorImageInfo {
+                {},
+                *inputImageView,
+                vk::ImageLayout::eShaderReadOnlyOptimal,
+            })));
+        graphicsCb.setViewport(0, vku::toViewport(renderArea));
+        graphicsCb.setScissor(0, renderArea);
+        graphicsCb.draw(3, 1, 0, 0);
 
-    graphicsCb.endRenderPass();
+        graphicsCb.endRenderPass();
+
+        renderArea.extent.width = std::max(renderArea.extent.width >> 1, 1U);
+        renderArea.extent.height = std::max(renderArea.extent.height >> 1, 1U);
+    }
 
     graphicsCb.end();
     gpu.queues.graphicsPresent.submit2KHR(vk::SubmitInfo2 {
