@@ -20,7 +20,6 @@ export import vk_gltf_viewer.vulkan.texture.Fallback;
 
 #if __APPLE__
 import MetalCpp;
-import ObjCBridge;
 
 import vk_gltf_viewer.helpers.ranges;
 #else
@@ -207,12 +206,12 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     };
     gpu.device.exportMetalObjectsEXT(exportInfos.get());
 
-    MTL::CommandQueue* const commandQueue = (MTL::CommandQueue*)ObjCBridge_bridge(exportInfos.get<vk::ExportMetalCommandQueueInfoEXT>().mtlCommandQueue);
+    MTL::CommandQueue* const commandQueue = (MTL::CommandQueue*)exportInfos.get<vk::ExportMetalCommandQueueInfoEXT>().mtlCommandQueue;
     MTL::CommandBuffer* const commandBuffer = commandQueue->commandBufferWithUnretainedReferences();
 
     MTL::BlitCommandEncoder* const blitCommandEncoder = commandBuffer->blitCommandEncoder();
     for (const vk::ExportMetalTextureInfoEXT &exportTextureInfo : exportTextureInfos) {
-        MTL::Texture* const texture = (MTL::Texture*)ObjCBridge_bridge(exportTextureInfo.mtlTexture);
+        MTL::Texture* const texture = (MTL::Texture*)exportTextureInfo.mtlTexture;
         if (imagesToGenerateMipmap.contains(exportTextureInfo.image)) {
             blitCommandEncoder->generateMipmaps(texture);
         }

@@ -123,7 +123,6 @@ add_subdirectory(vkgltf)
 
 if (APPLE)
     add_subdirectory(metal-cpp)
-    add_subdirectory(ObjCBridge)
 endif()
 
 # --------------------
@@ -306,10 +305,7 @@ else()
 endif()
 
 if (APPLE)
-    target_link_libraries(vk-gltf-viewer PRIVATE
-        metal-cpp::metal-cpp
-        ObjCBridge::ObjCBridge
-    )
+    target_link_libraries(vk-gltf-viewer PRIVATE metal-cpp::metal-cpp)
 
     if (${CMAKE_BUILD_TYPE} STREQUAL "Release")
         set_target_properties(vk-gltf-viewer PROPERTIES
