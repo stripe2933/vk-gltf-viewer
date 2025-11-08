@@ -78,7 +78,7 @@ void vk_gltf_viewer::vulkan::FrameDeferredTask::executeAndReset(Frame &frame) {
             // ----- Hierarchical Update -----
 
             // Sort hierarchicalNodeIndices by their node level in the scene.
-            std::ranges::sort(task.hierarchicalNodeIndices, {}, LIFT(frame.gltfAsset->assetExtended->sceneNodeLevels.operator[]));
+            std::ranges::sort(task.hierarchicalNodeIndices, {}, LIFT(frame.gltfAsset->assetExtended->sceneHierarchy.getNodeLevel));
 
             // Remove duplicates.
             const auto [begin, end] = std::ranges::unique(task.hierarchicalNodeIndices);

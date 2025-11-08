@@ -1386,7 +1386,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                         // Fit camera to the node miniball
                         const auto isMeshlessRecursive = [&](std::size_t nodeIndex) noexcept {
                             // Return true if neither the given node nor the descendants have a mesh, false otherwise.
-                            return assetExtended.sceneNodeVisibilities.getState(nodeIndex) == gltf::StateCachedNodeVisibilityStructure::State::Indeterminate;
+                            return assetExtended.sceneHierarchy.getVisibilityState(nodeIndex) == gltf::SceneHierarchy::VisibilityState::Indeterminate;
                         };
                         const bool currentNodeHasMeshRecursive = !isMeshlessRecursive(nodeIndex);
                         const bool selectedNodesHaveMeshRecursive
@@ -1415,10 +1415,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                                 // to its ancestors until reach the root, and if any of the ancestors is in the list, the
                                 // node can be removed.
                                 nodeIndicesToFit.append_range(assetExtended.selectedNodes);
-                                std::ranges::sort(nodeIndicesToFit, std::greater{}, LIFT(assetExtended.sceneNodeLevels.operator[]));
+                                std::ranges::sort(nodeIndicesToFit, std::greater{}, LIFT(assetExtended.sceneHierarchy.getNodeLevel));
                                 const auto descendantRemoval = std::ranges::remove_if(nodeIndicesToFit, [&](std::size_t nodeIndex) {
                                     std::optional parentNodeIndex { nodeIndex };
-                                    while ((parentNodeIndex = assetExtended.sceneInverseHierarchy.parentNodeIndices[*parentNodeIndex])) {
+                                    while ((parentNodeIndex = assetExtended.sceneHierarchy.getParentNodeIndex(*parentNodeIndex))) {
                                         if (assetExtended.selectedNodes.contains(*parentNodeIndex)) {
                                             return true;
                                         }
@@ -1501,7 +1501,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                             // If node is the only selected node, visibility can be determined in a constant time.
                             std::optional<bool> determinedVisibility{};
                             if (assetExtended.selectedNodes.size() == 1) {
-                                determinedVisibility.emplace(assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex));
+                                determinedVisibility.emplace(assetExtended.sceneHierarchy.getVisibility(nodeIndex));
                             }
 
                             // If visibility is hidden or cannot be determined, show the menu.
@@ -1509,8 +1509,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                                 for (std::size_t nodeIndex : assetExtended.selectedNodes) {
                                     if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
 
-                                    if (!assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
-                                        assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, true);
+                                    if (!assetExtended.sceneHierarchy.getVisibility(nodeIndex)) {
+                                        assetExtended.sceneHierarchy.setVisibility(nodeIndex, true);
                                         tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                                     }
                                 }
@@ -1521,8 +1521,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                                 for (std::size_t nodeIndex : assetExtended.selectedNodes) {
                                     if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
 
-                                    if (assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
-                                        assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, false);
+                                    if (assetExtended.sceneHierarchy.getVisibility(nodeIndex)) {
+                                        assetExtended.sceneHierarchy.setVisibility(nodeIndex, false);
                                         tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                                     }
                                 }
@@ -1532,41 +1532,41 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                                 for (std::size_t nodeIndex : assetExtended.selectedNodes) {
                                     if (!assetExtended.asset.nodes[nodeIndex].meshIndex) continue;
 
-                                    assetExtended.sceneNodeVisibilities.flipVisibility(nodeIndex);
+                                    assetExtended.sceneHierarchy.flipVisibility(nodeIndex);
                                     tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                                 }
                             }
                         }
-                        else if (auto state = assetExtended.sceneNodeVisibilities.getState(nodeIndex); state != gltf::StateCachedNodeVisibilityStructure::State::Indeterminate) {
+                        else if (auto state = assetExtended.sceneHierarchy.getVisibilityState(nodeIndex); state != gltf::SceneHierarchy::VisibilityState::Indeterminate) {
                             ImGui::Separator();
 
-                            if (state != gltf::StateCachedNodeVisibilityStructure::State::AllVisible && ImGui::Selectable("Make visible from here")) {
+                            if (state != gltf::SceneHierarchy::VisibilityState::AllVisible && ImGui::Selectable("Make visible from here")) {
                                 traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
                                     if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
 
-                                    if (!assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
-                                        assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, true);
+                                    if (!assetExtended.sceneHierarchy.getVisibility(nodeIndex)) {
+                                        assetExtended.sceneHierarchy.setVisibility(nodeIndex, true);
                                         tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                                     }
                                 });
                             }
 
-                            if (state != gltf::StateCachedNodeVisibilityStructure::State::AllInvisible && ImGui::Selectable("Make invisible from here")) {
+                            if (state != gltf::SceneHierarchy::VisibilityState::AllInvisible && ImGui::Selectable("Make invisible from here")) {
                                 traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
                                     if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
 
-                                    if (assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex)) {
-                                        assetExtended.sceneNodeVisibilities.setVisibility(nodeIndex, false);
+                                    if (assetExtended.sceneHierarchy.getVisibility(nodeIndex)) {
+                                        assetExtended.sceneHierarchy.setVisibility(nodeIndex, false);
                                         tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                                     }
                                 });
                             }
 
-                            if (state == gltf::StateCachedNodeVisibilityStructure::State::Intermediate && ImGui::Selectable("Toggle visibility from here")) {
+                            if (state == gltf::SceneHierarchy::VisibilityState::Intermediate && ImGui::Selectable("Toggle visibility from here")) {
                                 traverseNode(assetExtended.asset, nodeIndex, [&](std::size_t nodeIndex) {
                                     if (!assetExtended.asset.nodes[nodeIndex].meshIndex) return;
 
-                                    assetExtended.sceneNodeVisibilities.flipVisibility(nodeIndex);
+                                    assetExtended.sceneHierarchy.flipVisibility(nodeIndex);
                                     tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                                 });
                             }
@@ -1606,8 +1606,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                 if (node.meshIndex) {
                     ImGui::TableSetColumnIndex(1);
 
-                    if (bool visible = assetExtended.sceneNodeVisibilities.getVisibility(nodeIndex); ImGui::Checkbox("##visibility", &visible)) {
-                        assetExtended.sceneNodeVisibilities.flipVisibility(nodeIndex);
+                    if (bool visible = assetExtended.sceneHierarchy.getVisibility(nodeIndex); ImGui::Checkbox("##visibility", &visible)) {
+                        assetExtended.sceneHierarchy.flipVisibility(nodeIndex);
                         tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
                     }
                 }

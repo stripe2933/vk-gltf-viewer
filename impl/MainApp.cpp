@@ -873,7 +873,7 @@ void vk_gltf_viewer::MainApp::run() {
             transformedNodes.erase(begin, end);
 
             // Sort transformedNodes by their node level in the scene.
-            std::ranges::sort(transformedNodes, {}, LIFT(assetExtended->sceneNodeLevels.operator[]));
+            std::ranges::sort(transformedNodes, {}, LIFT(assetExtended->sceneHierarchy.getNodeLevel));
 
             std::vector visited(assetExtended->asset.nodes.size(), false);
             for (std::size_t nodeIndex : transformedNodes) {
@@ -882,7 +882,7 @@ void vk_gltf_viewer::MainApp::run() {
 
                 // TODO.CXX26: std::optional<const fastgltf::math::fmat4x4&> can ditch the unnecessary copying.
                 fastgltf::math::fmat4x4 baseMatrix { 1.f };
-                if (const auto &parentNodeIndex = assetExtended->sceneInverseHierarchy.parentNodeIndices[nodeIndex]) {
+                if (const auto &parentNodeIndex = assetExtended->sceneHierarchy.getParentNodeIndex(nodeIndex)) {
                     baseMatrix = assetExtended->nodeWorldTransforms[*parentNodeIndex];
                 }
                 const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(assetExtended->asset.nodes[nodeIndex], baseMatrix);

@@ -441,8 +441,8 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
 
         if (!renderingNodes || task.gltf->regenerateDrawCommands) {
             std::vector<std::size_t> visibleNodeIndices;
-            for (const auto &[nodeIndex, visible] : gltfAsset->assetExtended->sceneNodeVisibilities.getVisibilities() | ranges::views::enumerate) {
-                if (visible) {
+            for (std::size_t nodeIndex : ranges::views::upto(gltfAsset->assetExtended->asset.nodes.size())) {
+                if (gltfAsset->assetExtended->sceneHierarchy.getVisibility(nodeIndex)) {
                     visibleNodeIndices.push_back(nodeIndex);
                 }
             }

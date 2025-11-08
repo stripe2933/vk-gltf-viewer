@@ -6,9 +6,8 @@ export import fastgltf;
 export import vk_gltf_viewer.gltf.Animation;
 import vk_gltf_viewer.gltf.algorithm.miniball;
 export import vk_gltf_viewer.gltf.AssetExternalBuffers;
+export import vk_gltf_viewer.gltf.SceneHierarchy;
 export import vk_gltf_viewer.gltf.TextureUsage;
-export import vk_gltf_viewer.gltf.SceneInverseHierarchy;
-export import vk_gltf_viewer.gltf.StateCachedNodeVisibilityStructure;
 import vk_gltf_viewer.gltf.util;
 export import vk_gltf_viewer.imgui.ColorSpaceAndUsageCorrectedTextures;
 import vk_gltf_viewer.helpers.fastgltf;
@@ -100,22 +99,7 @@ namespace vk_gltf_viewer::gltf {
          */
         std::vector<fastgltf::math::fmat4x4> nodeWorldTransforms;
 
-        /**
-         * @brief Scene inverse hierarchy.
-         */
-        SceneInverseHierarchy sceneInverseHierarchy;
-
-        /**
-         * @brief Level (distance to the root) of each node in the scene, ordered by node indices in the asset.
-         *
-         * Only element at the index of node that is belonged to the currently enabled scene will have the meaningful value.
-         */
-        std::vector<std::size_t> sceneNodeLevels;
-
-        /**
-         * @brief State cached node visibility structure.
-         */
-        StateCachedNodeVisibilityStructure sceneNodeVisibilities;
+        SceneHierarchy sceneHierarchy;
 
         /**
          * @brief Indices of the nodes that are currently selected in the scene.
@@ -191,8 +175,7 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
     , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
 	, isTextureTransformUsed { std::ranges::contains(asset.extensionsUsed, "KHR_texture_transform"sv) }
     , sceneIndex { asset.defaultScene.value_or(0) }
-    , sceneInverseHierarchy { asset, sceneIndex }
-    , sceneNodeVisibilities { asset, sceneIndex, sceneInverseHierarchy }
+    , sceneHierarchy { asset, sceneIndex }
     , sceneMiniball { [this]() {
         return algorithm::getMiniball(asset, sceneIndex, nodeWorldTransforms, externalBuffers);
     } } {
@@ -253,18 +236,6 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
 	traverseScene(asset, getScene(), [this](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
 		nodeWorldTransforms[nodeIndex] = nodeWorldTransform;
 	});
-
-	// sceneNodeLevels
-	sceneNodeLevels.resize(asset.nodes.size());
-    for (std::size_t nodeIndex : getScene().nodeIndices) {
-        [this](this const auto &self, std::size_t nodeIndex, std::size_t level) -> void {
-            sceneNodeLevels[nodeIndex] = level;
-
-            for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
-                self(childNodeIndex, level + 1);
-            }
-        }(nodeIndex, 0);
-    }
 }
 
 void vk_gltf_viewer::gltf::AssetExtended::setScene(std::size_t _sceneIndex) {
@@ -278,20 +249,8 @@ void vk_gltf_viewer::gltf::AssetExtended::setScene(std::size_t _sceneIndex) {
 		nodeWorldTransforms[nodeIndex] = nodeWorldTransform;
 	});
 
-	sceneInverseHierarchy = { asset, sceneIndex };
+	sceneHierarchy = { asset, sceneIndex };
 
-	// sceneNodeLevels
-	for (std::size_t nodeIndex : getScene().nodeIndices) {
-		[this](this const auto &self, std::size_t nodeIndex, std::size_t level) -> void {
-			sceneNodeLevels[nodeIndex] = level;
-
-			for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
-				self(childNodeIndex, level + 1);
-			}
-		}(nodeIndex, 0);
-	}
-
-    sceneNodeVisibilities = { asset, sceneIndex, sceneInverseHierarchy };
     selectedNodes.clear();
     hoveringNode.reset();
     sceneMiniball.invalidate();
@@ -312,7 +271,7 @@ void vk_gltf_viewer::gltf::AssetExtended::updateNodeNameSearchTextOccurrencePosB
 	}
 
     // Sort nodes by their levels in descending order.
-    std::ranges::sort(orderedNodes, std::ranges::greater{}, LIFT(sceneNodeLevels.operator[]));
+    std::ranges::sort(orderedNodes, std::ranges::greater{}, LIFT(sceneHierarchy.getNodeLevel));
 
     nodeNameSearchTextOccurrencePosByNode.clear();
     std::vector visited(asset.nodes.size(), false);
@@ -323,7 +282,7 @@ void vk_gltf_viewer::gltf::AssetExtended::updateNodeNameSearchTextOccurrencePosB
 
             // If an occurrence is found in the node, all of its ancestor must be visible to the scene hierarchy
             // tree, regardless of they have occurrences or not.
-            std::optional parentNodeIndex = sceneInverseHierarchy.parentNodeIndices[nodeIndex];
+            std::optional parentNodeIndex = sceneHierarchy.getParentNodeIndex(nodeIndex);
             while (parentNodeIndex && !visited[*parentNodeIndex]) {
                 haystack = asset.nodes[*parentNodeIndex].name;
                 found = std::ranges::search(haystack, nodeNameSearchText, {}, LIFT(std::tolower), LIFT(std::tolower));
@@ -332,7 +291,7 @@ void vk_gltf_viewer::gltf::AssetExtended::updateNodeNameSearchTextOccurrencePosB
                 nodeNameSearchTextOccurrencePosByNode[*parentNodeIndex] = std::ranges::distance(haystack.begin(), found.begin());
 
                 visited[*parentNodeIndex] = true;
-                parentNodeIndex = sceneInverseHierarchy.parentNodeIndices[*parentNodeIndex];
+                parentNodeIndex = sceneHierarchy.getParentNodeIndex(*parentNodeIndex);
             }
         }
     }
