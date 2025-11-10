@@ -1420,7 +1420,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
 
                             if (!nodeIndicesToFit.empty()) {
                                 auto fitCameraToNodeMiniball = [
-                                    currentNodeMiniball = gltf::algorithm::getMiniball<false>(assetExtended.asset, std::move(nodeIndicesToFit), assetExtended.nodeWorldTransforms, assetExtended.externalBuffers),
+                                    currentNodeMiniball = gltf::algorithm::getMiniball<false>(assetExtended.asset, std::move(nodeIndicesToFit), assetExtended.sceneHierarchy.getWorldTransforms(), assetExtended.externalBuffers),
                                     &cameraOrLightPoints = get<2>(assetExtended.sceneMiniball.get())
                                 ](Camera &camera) {
                                     const auto &[center, radius] = currentNodeMiniball;
@@ -2299,12 +2299,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
 
     if (assetExtended.selectedNodes.size() == 1) {
         const std::size_t selectedNodeIndex = *assetExtended.selectedNodes.begin();
-        fastgltf::math::fmat4x4 newWorldTransform = assetExtended.nodeWorldTransforms[selectedNodeIndex];
+        fastgltf::math::fmat4x4 newWorldTransform = assetExtended.sceneHierarchy.getWorldTransform(selectedNodeIndex);
 
         ImGuizmo::Enable(!isNodeUsedByEnabledAnimations(selectedNodeIndex));
 
         if (Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::LOCAL, newWorldTransform.data(), nullptr, snap)) {
-            const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(assetExtended.nodeWorldTransforms[selectedNodeIndex]) * newWorldTransform;
+            const fastgltf::math::fmat4x4 deltaMatrix = affineInverse(assetExtended.sceneHierarchy.getWorldTransform(selectedNodeIndex)) * newWorldTransform;
 
             updateTransform(assetExtended.asset.nodes[selectedNodeIndex], [&](fastgltf::math::fmat4x4 &transformMatrix) {
                 transformMatrix = transformMatrix * deltaMatrix;
@@ -2319,7 +2319,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
             // Create a virtual pivot at the center among the selected nodes.
             fastgltf::math::fvec3 pivot{};
             for (std::size_t nodeIndex : assetExtended.selectedNodes) {
-                pivot += fastgltf::math::fvec3 { assetExtended.nodeWorldTransforms[nodeIndex].col(3) };
+                pivot += fastgltf::math::fvec3 { assetExtended.sceneHierarchy.getWorldTransform(nodeIndex).col(3) };
             }
             pivot *= 1.f / assetExtended.selectedNodes.size();
 
@@ -2335,12 +2335,14 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
         if (fastgltf::math::fmat4x4 deltaMatrix;
             Manipulate(value_ptr(camera.getViewMatrix()), value_ptr(camera.getProjectionMatrixForwardZ()), renderer.imGuizmoOperation, ImGuizmo::MODE::WORLD, retainedPivotTransformMatrix->data(), deltaMatrix.data(), snap)) {
             for (std::size_t nodeIndex : assetExtended.selectedNodes) {
-                const fastgltf::math::fmat4x4 inverseOldWorldTransform = affineInverse(assetExtended.nodeWorldTransforms[nodeIndex]);
+                const fastgltf::math::fmat4x4 &oldWorldTransform = assetExtended.sceneHierarchy.getWorldTransform(nodeIndex);
+                const fastgltf::math::fmat4x4 inverseOldWorldTransform = affineInverse(oldWorldTransform);
 
                 // Update node's world transform by pre-multiplying the delta matrix.
-                assetExtended.nodeWorldTransforms[nodeIndex] = deltaMatrix * assetExtended.nodeWorldTransforms[nodeIndex];
+                assetExtended.sceneHierarchy.setWorldTransformNonPropagated(nodeIndex, deltaMatrix * oldWorldTransform);
 
                 // Update node's local transform to match the world transform.
+                const fastgltf::math::fmat4x4 &newWorldTransform = assetExtended.sceneHierarchy.getWorldTransform(nodeIndex);
                 updateTransform(assetExtended.asset.nodes[nodeIndex], [&](fastgltf::math::fmat4x4 &localTransform) {
                     // newWorldTransform = oldParentWorldTransform * newLocalTransform
                     //                   = oldParentWorldTransform * (oldLocalTransform * localTransformDelta)
@@ -2348,12 +2350,12 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
                     // Therefore,
                     //     localTransformDelta = oldWorldTransform^-1 * newWorldTransform, and
                     //     newLocalTransform = oldLocalTransform * oldWorldTransform^-1 * newWorldTransform
-                    localTransform = localTransform * inverseOldWorldTransform * assetExtended.nodeWorldTransforms[nodeIndex];
+                    localTransform = localTransform * inverseOldWorldTransform * newWorldTransform;
                 });
 
                 // The updated node's immediate descendants local transforms also have to be updated to match their
                 // original world transforms.
-                const fastgltf::math::fmat4x4 inverseNewWorldTransform = affineInverse(assetExtended.nodeWorldTransforms[nodeIndex]);
+                const fastgltf::math::fmat4x4 inverseNewWorldTransform = affineInverse(newWorldTransform);
                 for (std::size_t childNodeIndex : assetExtended.asset.nodes[nodeIndex].children) {
                     // If the currently processing child is also in the selection, its world transform is changed,
                     // therefore must be processed in the next execution of outer for-loop.
@@ -2364,7 +2366,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::imguizmo(Renderer &renderer, s
                     updateTransform(assetExtended.asset.nodes[childNodeIndex], [&](fastgltf::math::fmat4x4 &localTransform) {
                         // newWorldTransform = parentWorldTransform * newLocalTransform = oldWorldTransform.
                         // Therefore, newLocalTransform = parentWorldTransform^-1 * oldWorldTransform
-                        localTransform = inverseNewWorldTransform * assetExtended.nodeWorldTransforms[childNodeIndex];
+                        localTransform = inverseNewWorldTransform * assetExtended.sceneHierarchy.getWorldTransform(childNodeIndex);
                     });
                 }
 

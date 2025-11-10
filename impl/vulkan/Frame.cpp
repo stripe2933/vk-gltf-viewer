@@ -33,7 +33,7 @@ vk_gltf_viewer::vulkan::Frame::GltfAsset::GltfAsset(const SharedData &sharedData
     : assetExtended { sharedData.assetExtended }
     , nodeBuffer {
         assetExtended->asset,
-        assetExtended->nodeWorldTransforms,
+        assetExtended->sceneHierarchy.getWorldTransforms(),
         sharedData.gpu.device,
         sharedData.gpu.allocator,
         vkgltf::NodeBuffer::Config {
@@ -55,15 +55,15 @@ vk_gltf_viewer::vulkan::Frame::GltfAsset::GltfAsset(const SharedData &sharedData
     } { }
 
 void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeWorldTransform(std::size_t nodeIndex) {
-    nodeBuffer.update(nodeIndex, assetExtended->nodeWorldTransforms[nodeIndex], assetExtended->externalBuffers);
+    nodeBuffer.update(nodeIndex, assetExtended->sceneHierarchy.getWorldTransform(nodeIndex), assetExtended->externalBuffers);
 }
 
 void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeWorldTransformHierarchical(std::size_t nodeIndex) {
-    nodeBuffer.updateHierarchical(nodeIndex, assetExtended->nodeWorldTransforms, assetExtended->externalBuffers);
+    nodeBuffer.updateHierarchical(nodeIndex, assetExtended->sceneHierarchy.getWorldTransforms(), assetExtended->externalBuffers);
 }
 
 void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeWorldTransformScene(std::size_t sceneIndex) {
-    nodeBuffer.update(assetExtended->asset.scenes[sceneIndex], assetExtended->nodeWorldTransforms, assetExtended->externalBuffers);
+    nodeBuffer.update(assetExtended->asset.scenes[sceneIndex], assetExtended->sceneHierarchy.getWorldTransforms(), assetExtended->externalBuffers);
 }
 
 void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeTargetWeights(std::size_t nodeIndex, std::size_t startIndex, std::size_t count) {
@@ -382,7 +382,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
             };
 
             if (node.instancingAttributes.empty()) {
-                return pred(sharedData.assetExtended->nodeWorldTransforms[nodeIndex]);
+                return pred(sharedData.assetExtended->sceneHierarchy.getWorldTransform(nodeIndex));
             }
             else {
                 // If node is instanced, the node primitive is regarded to be within the frustum if any of its instance

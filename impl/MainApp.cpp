@@ -874,17 +874,8 @@ void vk_gltf_viewer::MainApp::run() {
 
             assetExtended->sceneHierarchy.pruneDescendantNodesInPlace(transformedNodes);
             for (std::size_t nodeIndex : transformedNodes) {
-                // TODO.CXX26: use std::optional<const fastgltf::math::fmat4x4&> instead.
-                fastgltf::math::fmat4x4 baseMatrix { 1.f };
-                if (const auto &parentNodeIndex = assetExtended->sceneHierarchy.getParentNodeIndex(nodeIndex)) {
-                    baseMatrix = assetExtended->nodeWorldTransforms[*parentNodeIndex];
-                }
-                const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(assetExtended->asset.nodes[nodeIndex], baseMatrix);
-
-                // Update current and descendants world transforms.
-                traverseNode(assetExtended->asset, nodeIndex, [&](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) noexcept {
-                    assetExtended->nodeWorldTransforms[nodeIndex] = worldTransform;
-                }, nodeWorldTransform);
+                // Update CPU side world transform data.
+                assetExtended->sceneHierarchy.updateWorldTransform(nodeIndex);
 
                 // Update GPU side world transform data.
                 // It merges the current node world transform update request with the previous requests.

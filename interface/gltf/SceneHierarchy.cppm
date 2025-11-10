@@ -32,12 +32,14 @@ namespace vk_gltf_viewer::gltf {
             const fastgltf::Asset &asset LIFETIMEBOUND,
             std::size_t sceneIndex
         ) : asset { asset },
+            sceneIndex { sceneIndex },
             parentNodeIndices(asset.nodes.size(), ~0UZ),
             nodeLevels(asset.nodes.size()),
             visibilities(asset.nodes.size(), true),
-            states(asset.nodes.size()) {
+            states(asset.nodes.size()),
+            worldTransforms(asset.nodes.size()) {
             for (std::size_t nodeIndex : asset.scenes[sceneIndex].nodeIndices) {
-                [&](this const auto &self, std::size_t nodeIndex, std::size_t level) -> void {
+                [&](this const auto &self, std::size_t nodeIndex, std::size_t level, const fastgltf::math::fmat4x4 &worldTransform) -> void {
                     // parentNodeIndices
                     for (std::size_t childIndex : asset.nodes[nodeIndex].children) {
                         parentNodeIndices[childIndex] = nodeIndex;
@@ -46,12 +48,15 @@ namespace vk_gltf_viewer::gltf {
                     // nodeLevels
                     nodeLevels[nodeIndex] = level;
 
+                    // worldTransforms
+                    worldTransforms[nodeIndex] = worldTransform;
+
                     for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
-                        self(childNodeIndex, level + 1);
+                        self(childNodeIndex, level + 1, worldTransform * getTransformMatrix(asset.nodes[childNodeIndex]));
                     }
 
                     updateVisibilityState(nodeIndex);
-                }(nodeIndex, 0);
+                }(nodeIndex, 0, getTransformMatrix(asset.nodes[nodeIndex]));
             }
         }
 
@@ -164,6 +169,60 @@ namespace vk_gltf_viewer::gltf {
         }
 
         /**
+         * @brief Get the cached world transform matrix of the node at \p nodeIndex in O(1) time.
+         * @param nodeIndex Index of the node to get the world transform of.
+         * @return World transform matrix of the node.
+         * @pre The node at \p nodeIndex must be in the scene.
+         * @note To make the cached world transform be consistent with the scene nodes' local transforms, you must call
+         * <tt>updateWorldTransform()</tt> method whenever the local transform of a node is changed.
+         */
+        [[nodiscard]] const fastgltf::math::fmat4x4 &getWorldTransform(std::size_t nodeIndex) const noexcept {
+            return worldTransforms[nodeIndex];
+        }
+
+        /**
+         * @brief Get the backed world transform matrices cache.
+         * @return Contiguous span of world transform matrices ordered by node indices.
+         * @note To make the cached world transforms be consistent with the scene nodes' local transforms, you must call
+         * <tt>updateWorldTransform()</tt> method whenever the local transform of a node is changed.
+         */
+        [[nodiscard]] std::span<const fastgltf::math::fmat4x4> getWorldTransforms() const noexcept {
+            return worldTransforms;
+        }
+
+        /**
+         * @brief Update the cached world transform matrices of the node at \p nodeIndex and its descendants.
+         * @param nodeIndex Index of the node to be updated.
+         * @pre The node at \p nodeIndex must be in the scene.
+         * @note You must call this method whenever the local transform of a node is changed, to make the cached world
+         * transforms be consistent with the scene nodes' local transforms.
+         */
+        void updateWorldTransform(std::size_t nodeIndex) noexcept {
+            fastgltf::math::fmat4x4 worldTransform = getTransformMatrix(asset.get().nodes[nodeIndex]);
+            if (const auto &parentNodeIndex = getParentNodeIndex(nodeIndex)) {
+                worldTransform = worldTransforms[*parentNodeIndex] * worldTransform;
+            }
+
+            traverseNode(asset, nodeIndex, [this](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) noexcept {
+                worldTransforms[nodeIndex] = worldTransform;
+            }, worldTransform);
+        }
+
+        /**
+         * @brief Set the cached world transform matrix of the node at \p nodeIndex to \p transform without propagating
+         * to its descendants.
+         *
+         * It does not consider the local transform of the node or its parent node. You have responsibility to keep the
+         * consistency between the cached world transform and the scene node's local transform.
+         *
+         * @param nodeIndex Index of the node to be updated.
+         * @param transform New world transform matrix.
+         */
+        void setWorldTransformNonPropagated(std::size_t nodeIndex, const fastgltf::math::fmat4x4 &transform) noexcept {
+            worldTransforms[nodeIndex] = transform;
+        }
+
+        /**
          * @brief Given a list of node indices, leave only the nodes that are not descendants of other nodes in the list,
          * and make them ordered by their levels in ascending order.
          *
@@ -202,6 +261,7 @@ namespace vk_gltf_viewer::gltf {
 
     private:
         std::reference_wrapper<const fastgltf::Asset> asset;
+        std::size_t sceneIndex;
 
         /// ~0UZ means the node is a root node or outside the scene.
         std::vector<std::size_t> parentNodeIndices;
@@ -213,5 +273,8 @@ namespace vk_gltf_viewer::gltf {
         std::vector<bool> visibilities;
 
         std::vector<VisibilityState> states;
+
+        /// Cached node world transform matrices.
+        std::vector<fastgltf::math::fmat4x4> worldTransforms;
     };
 }

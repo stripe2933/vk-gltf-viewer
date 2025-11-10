@@ -92,13 +92,6 @@ namespace vk_gltf_viewer::gltf {
     	/// an ancestor node of a node that has the occurrence.
     	std::unordered_map<std::size_t, std::size_t> nodeNameSearchTextOccurrencePosByNode;
 
-        /**
-         * @brief World transform matrices of nodes in the scene, ordered by node indices in the asset.
-         *
-         * Only element at the index of node that is belonged to the currently enabled scene will have the meaningful value.
-         */
-        std::vector<fastgltf::math::fmat4x4> nodeWorldTransforms;
-
         SceneHierarchy sceneHierarchy;
 
         /**
@@ -176,8 +169,8 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
 	, isTextureTransformUsed { std::ranges::contains(asset.extensionsUsed, "KHR_texture_transform"sv) }
     , sceneIndex { asset.defaultScene.value_or(0) }
     , sceneHierarchy { asset, sceneIndex }
-    , sceneMiniball { [this]() {
-        return algorithm::getMiniball(asset, sceneIndex, nodeWorldTransforms, externalBuffers);
+    , sceneMiniball { [this] {
+        return algorithm::getMiniball(asset, sceneIndex, sceneHierarchy.getWorldTransforms(), externalBuffers);
     } } {
 	// originalMaterialIndexByPrimitive
 	for (fastgltf::Mesh &mesh: asset.meshes) {
@@ -230,12 +223,6 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
 			return originalMaterialIndexByPrimitive.at(&primitive);
 		});
 	}
-
-	// nodeWorldTransforms
-	nodeWorldTransforms.resize(asset.nodes.size());
-	traverseScene(asset, getScene(), [this](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
-		nodeWorldTransforms[nodeIndex] = nodeWorldTransform;
-	});
 }
 
 void vk_gltf_viewer::gltf::AssetExtended::setScene(std::size_t _sceneIndex) {
@@ -243,11 +230,6 @@ void vk_gltf_viewer::gltf::AssetExtended::setScene(std::size_t _sceneIndex) {
 
 	nodeNameSearchText.clear();
 	nodeNameSearchTextOccurrencePosByNode.clear();
-
-	// nodeWorldTransforms
-	traverseScene(asset, getScene(), [this](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
-		nodeWorldTransforms[nodeIndex] = nodeWorldTransform;
-	});
 
 	sceneHierarchy = { asset, sceneIndex };
 
