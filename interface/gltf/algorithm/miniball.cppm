@@ -17,12 +17,15 @@ import vk_gltf_viewer.helpers.fastgltf;
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
 namespace vk_gltf_viewer::gltf::algorithm {
-    export template <bool IncludeCameraOrLightNodePositions>
+    export template <
+        bool IncludeCameraOrLightNodePositions,
+        std::predicate<std::size_t> EarlyExitHintFn = decltype([](std::size_t) noexcept { return false; })>
     [[nodiscard]] auto getMiniball(
         const fastgltf::Asset &asset,
         std::span<const std::size_t> nodeIndices,
         std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-        const AssetExternalBuffers &adapter
+        const AssetExternalBuffers &adapter,
+        EarlyExitHintFn &&earlyExitHintFn = {}
     ) {
     #ifdef EXACT_BOUNDING_VOLUME_USING_CGAL
         // See https://doc.cgal.org/latest/Bounding_volumes/index.html for the original code.
@@ -36,6 +39,8 @@ namespace vk_gltf_viewer::gltf::algorithm {
 
         for (std::size_t nodeIndex : nodeIndices) {
             traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
+                if (earlyExitHintFn(nodeIndex)) return false;
+
                 const fastgltf::Node &node = asset.nodes[nodeIndex];
                 const fastgltf::math::fmat4x4 &worldTransform = nodeWorldTransforms[nodeIndex];
 
@@ -74,6 +79,8 @@ namespace vk_gltf_viewer::gltf::algorithm {
                         cameraOrLightPoints.emplace_back(worldTransform.col(3));
                     }
                 }
+
+                return true;
             });
         }
 
@@ -96,34 +103,4 @@ namespace vk_gltf_viewer::gltf::algorithm {
             return std::pair { center, radius };
         }
     }
-
-    /**
-     * @brief The smallest enclosing sphere of the scene meshes' bounding boxes, i.e. miniball.
-     *
-     * @param asset fastgltf Asset.
-     * @param sceneIndex Index of scene to be calculated.
-     * @param nodeWorldTransforms Node world transform matrices ordered by node indices in the asset.
-     * @param adapter Buffer data adapter.
-     * @return The tuple of (miniball center, miniball radius, world space positions of camera or light nodes)
-     */
-    export
-    [[nodiscard]] std::tuple<fastgltf::math::fvec3, float, std::vector<fastgltf::math::fvec3>> getMiniball(
-        const fastgltf::Asset &asset,
-        std::size_t sceneIndex,
-        std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-        const AssetExternalBuffers &adapter
-    );
-}
-
-#if !defined(__GNUC__) || defined(__clang__)
-module :private;
-#endif
-
-std::tuple<fastgltf::math::fvec3, float, std::vector<fastgltf::math::fvec3>> vk_gltf_viewer::gltf::algorithm::getMiniball(
-    const fastgltf::Asset &asset,
-    std::size_t sceneIndex,
-    std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-    const AssetExternalBuffers &adapter
-) {
-    return getMiniball<true>(asset, asset.scenes[sceneIndex].nodeIndices, nodeWorldTransforms, adapter);
 }

@@ -170,7 +170,12 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
     , sceneIndex { asset.defaultScene.value_or(0) }
     , sceneHierarchy { asset, sceneIndex }
     , sceneMiniball { [this] {
-        return algorithm::getMiniball(asset, sceneIndex, sceneHierarchy.getWorldTransforms(), externalBuffers);
+        return algorithm::getMiniball<true>(
+        	asset,
+        	asset.scenes[sceneIndex].nodeIndices,
+        	sceneHierarchy.getWorldTransforms(),
+        	externalBuffers,
+        	LIFT(sceneHierarchy.isObjectlessRecursive));
     } } {
 	// originalMaterialIndexByPrimitive
 	for (fastgltf::Mesh &mesh: asset.meshes) {

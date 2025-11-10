@@ -35,13 +35,16 @@ namespace vk_gltf_viewer::gltf {
             sceneIndex { sceneIndex },
             parentNodeIndices(asset.nodes.size(), ~0UZ),
             nodeLevels(asset.nodes.size()),
+            objectlessRecursive(asset.nodes.size(), false),
             visibilities(asset.nodes.size(), true),
             states(asset.nodes.size()),
             worldTransforms(asset.nodes.size()) {
             for (std::size_t nodeIndex : asset.scenes[sceneIndex].nodeIndices) {
                 [&](this const auto &self, std::size_t nodeIndex, std::size_t level, const fastgltf::math::fmat4x4 &worldTransform) -> void {
+                    const fastgltf::Node &node = asset.nodes[nodeIndex];
+
                     // parentNodeIndices
-                    for (std::size_t childIndex : asset.nodes[nodeIndex].children) {
+                    for (std::size_t childIndex : node.children) {
                         parentNodeIndices[childIndex] = nodeIndex;
                     }
 
@@ -51,9 +54,19 @@ namespace vk_gltf_viewer::gltf {
                     // worldTransforms
                     worldTransforms[nodeIndex] = worldTransform;
 
-                    for (std::size_t childNodeIndex : asset.nodes[nodeIndex].children) {
-                        self(childNodeIndex, level + 1, worldTransform * getTransformMatrix(asset.nodes[childNodeIndex]));
+                    constexpr auto isNodeObjectlessRecursive = [](const fastgltf::Node &node) noexcept {
+                        return !node.meshIndex && !node.cameraIndex && !node.lightIndex;
+                    };
+
+                    bool isObjectlessRecursive = isNodeObjectlessRecursive(node);
+                    for (std::size_t childNodeIndex : node.children) {
+                        const fastgltf::Node &childNode = asset.nodes[childNodeIndex];
+                        self(childNodeIndex, level + 1, worldTransform * getTransformMatrix(childNode));
+                        isObjectlessRecursive &= objectlessRecursive[childNodeIndex];
                     }
+
+                    // objectlessRecursive
+                    objectlessRecursive[nodeIndex] = isObjectlessRecursive;
 
                     updateVisibilityState(nodeIndex);
                 }(nodeIndex, 0, getTransformMatrix(asset.nodes[nodeIndex]));
@@ -82,6 +95,16 @@ namespace vk_gltf_viewer::gltf {
          */
         [[nodiscard]] std::size_t getNodeLevel(std::size_t nodeIndex) const noexcept {
             return nodeLevels[nodeIndex];
+        }
+
+        /**
+         * @brief Check if the node at \p nodeIndex and its descendants are all objectless (i.e., have no mesh, camera,
+         * or light) in O(1) time.
+         * @param nodeIndex Index of the node to check.
+         * @return <tt>true</tt> if the node and its descendants are all objectless, <tt>false</tt> otherwise.
+         */
+        [[nodiscard]] bool isObjectlessRecursive(std::size_t nodeIndex) const noexcept {
+            return objectlessRecursive[nodeIndex];
         }
 
         /**
@@ -268,6 +291,9 @@ namespace vk_gltf_viewer::gltf {
 
         /// Level (depth) of each node in the scene hierarchy.
         std::vector<std::size_t> nodeLevels;
+
+        /// Cached booleans whether each node and its descendants are all objectless (i.e., have no mesh, camera, or light).
+        std::vector<bool> objectlessRecursive;
 
         /// Visibility of each node that has a mesh.
         std::vector<bool> visibilities;
