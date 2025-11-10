@@ -872,27 +872,18 @@ void vk_gltf_viewer::MainApp::run() {
             const auto [begin, end] = std::ranges::unique(transformedNodes);
             transformedNodes.erase(begin, end);
 
-            // Sort transformedNodes by their node level in the scene.
-            std::ranges::sort(transformedNodes, {}, LIFT(assetExtended->sceneHierarchy.getNodeLevel));
-
-            std::vector visited(assetExtended->asset.nodes.size(), false);
+            assetExtended->sceneHierarchy.pruneDescendantNodesInPlace(transformedNodes);
             for (std::size_t nodeIndex : transformedNodes) {
-                // If node is marked as visited, its world transform is already updated by its ancestor node. Skipping it.
-                if (visited[nodeIndex]) continue;
-
-                // TODO.CXX26: std::optional<const fastgltf::math::fmat4x4&> can ditch the unnecessary copying.
+                // TODO.CXX26: use std::optional<const fastgltf::math::fmat4x4&> instead.
                 fastgltf::math::fmat4x4 baseMatrix { 1.f };
                 if (const auto &parentNodeIndex = assetExtended->sceneHierarchy.getParentNodeIndex(nodeIndex)) {
                     baseMatrix = assetExtended->nodeWorldTransforms[*parentNodeIndex];
                 }
                 const fastgltf::math::fmat4x4 nodeWorldTransform = fastgltf::getTransformMatrix(assetExtended->asset.nodes[nodeIndex], baseMatrix);
 
-                // Update current and descendants world transforms and mark them as visited.
+                // Update current and descendants world transforms.
                 traverseNode(assetExtended->asset, nodeIndex, [&](std::size_t nodeIndex, const fastgltf::math::fmat4x4 &worldTransform) noexcept {
                     assetExtended->nodeWorldTransforms[nodeIndex] = worldTransform;
-
-                    assert(!visited[nodeIndex] && "This must be visited");
-                    visited[nodeIndex] = true;
                 }, nodeWorldTransform);
 
                 // Update GPU side world transform data.

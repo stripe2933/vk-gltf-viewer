@@ -9,6 +9,11 @@ export module vk_gltf_viewer.gltf.SceneHierarchy;
 import std;
 export import fastgltf;
 
+import vk_gltf_viewer.helpers.fastgltf;
+
+#define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
+#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+
 namespace vk_gltf_viewer::gltf {
     export class SceneHierarchy {
     public:
@@ -156,6 +161,43 @@ namespace vk_gltf_viewer::gltf {
                     result = VisibilityState::Intermediate;
                 }
             }
+        }
+
+        /**
+         * @brief Given a list of node indices, leave only the nodes that are not descendants of other nodes in the list,
+         * and make them ordered by their levels in ascending order.
+         *
+         *      0      e.g. v = [2, 3, 4, 7];
+         *     / \          pruneDescendantNodesInPlace(v);
+         *    1   2         v == [2, 3, 4] (7 is removed as it is a descendant of 4)
+         *   / \   \
+         *  3   4   5       v = [0, 1, 5];
+         *     / \          pruneDescendantNodesInPlace(v);
+         *    6  7          v == [0] (both 1 and 5 are removed as they are descendants of 0)
+         *
+         * @param nodeIndices List of node indices to be processed in-place.
+         * @pre All nodes in \p nodeIndices must be in the scene.
+         * @pre \p nodeIndices must not have duplicate node indices.
+         */
+        void pruneDescendantNodesInPlace(std::vector<std::size_t> &nodeIndices) const noexcept {
+            // Sort by node levels.
+            std::ranges::sort(nodeIndices, {}, LIFT(getNodeLevel));
+
+            // Remove nodes that are descendants of other nodes in nodeIndices. Remained nodes are re-assigned to
+            // nodeIndices using `it` iterator.
+            std::vector visited(asset.get().nodes.size(), false);
+            auto it = nodeIndices.begin();
+            for (std::size_t nodeIndex : nodeIndices) {
+                if (visited[nodeIndex]) continue;
+
+                *it++ = nodeIndex;
+                traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) noexcept {
+                    visited[nodeIndex] = true;
+                });
+            }
+
+            // [nodeIndices.begin(), it) represents the pruned node indices.
+            nodeIndices.resize(std::distance(nodeIndices.begin(), it));
         }
 
     private:

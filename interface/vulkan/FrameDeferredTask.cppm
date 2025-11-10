@@ -77,30 +77,19 @@ void vk_gltf_viewer::vulkan::FrameDeferredTask::executeAndReset(Frame &frame) {
         [&](UpdateNodeWorldTransform &task) {
             // ----- Hierarchical Update -----
 
-            // Sort hierarchicalNodeIndices by their node level in the scene.
-            std::ranges::sort(task.hierarchicalNodeIndices, {}, LIFT(frame.gltfAsset->assetExtended->sceneHierarchy.getNodeLevel));
-
             // Remove duplicates.
+            std::ranges::sort(task.hierarchicalNodeIndices);
             const auto [begin, end] = std::ranges::unique(task.hierarchicalNodeIndices);
             task.hierarchicalNodeIndices.erase(begin, end);
 
-            // Obtain nodes that are the top of the subtree of hierarchical nodes.
-            std::vector visited(frame.gltfAsset->assetExtended->asset.nodes.size(), false);
+            // Erase duplicated element from nodeIndices to prevent updating the same node multiple times.
             for (std::size_t nodeIndex : task.hierarchicalNodeIndices) {
-                // If node is marked as visited, its world transform is already updated by its ancestor node. Skipping it.
-                if (visited[nodeIndex]) continue;
+                task.nodeIndices.erase(nodeIndex);
+            }
 
+            frame.gltfAsset->assetExtended->sceneHierarchy.pruneDescendantNodesInPlace(task.hierarchicalNodeIndices);
+            for (std::size_t nodeIndex : task.hierarchicalNodeIndices) {
                 frame.gltfAsset->updateNodeWorldTransformHierarchical(nodeIndex);
-
-                traverseNode(frame.gltfAsset->assetExtended->asset, nodeIndex, [&](std::size_t nodeIndex) noexcept {
-                    assert(!visited[nodeIndex] && "This must be not visited");
-                    visited[nodeIndex] = true;
-
-                    // Erase duplicated element from nodeIndices to prevent updating the same node multiple times.
-                    if (auto it = task.nodeIndices.find(nodeIndex); it != task.nodeIndices.end()) {
-                        task.nodeIndices.erase(it);
-                    }
-                });
             }
 
             // ----- Individual Update -----

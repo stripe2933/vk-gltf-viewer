@@ -1407,29 +1407,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                             }
 
                             if (selectedNodesHaveMeshRecursive && ImGui::Selectable("Fit camera to the selection", false, flags)) {
-                                // Need to filter the selected nodes, by in order:
-                                // 1. If one of the node is a descendant of another, remove it.
-                                // 2. After that, remove meshless nodes.
-
-                                // Executing 1: sort nodes with descending order of level. Then, for every node, traverse
-                                // to its ancestors until reach the root, and if any of the ancestors is in the list, the
-                                // node can be removed.
                                 nodeIndicesToFit.append_range(assetExtended.selectedNodes);
-                                std::ranges::sort(nodeIndicesToFit, std::greater{}, LIFT(assetExtended.sceneHierarchy.getNodeLevel));
-                                const auto descendantRemoval = std::ranges::remove_if(nodeIndicesToFit, [&](std::size_t nodeIndex) {
-                                    std::optional parentNodeIndex { nodeIndex };
-                                    while ((parentNodeIndex = assetExtended.sceneHierarchy.getParentNodeIndex(*parentNodeIndex))) {
-                                        if (assetExtended.selectedNodes.contains(*parentNodeIndex)) {
-                                            return true;
-                                        }
-                                    }
-                                    return false;
-                                });
-                                nodeIndicesToFit.erase(descendantRemoval.begin(), descendantRemoval.end());
 
-                                // Executing 2: remove meshless nodes.
-                                const auto meshlessRemoval = std::ranges::remove_if(nodeIndicesToFit, isMeshlessRecursive);
-                                nodeIndicesToFit.erase(meshlessRemoval.begin(), meshlessRemoval.end());
+                                // Need to filter the selected nodes.
+                                // 1. Leave only the nodes which are not descendants of other nodes in the list.
+                                assetExtended.sceneHierarchy.pruneDescendantNodesInPlace(nodeIndicesToFit);
+
+                                // 2. Remove meshless nodes.
+                                const auto [begin, end] = std::ranges::remove_if(nodeIndicesToFit, isMeshlessRecursive);
+                                nodeIndicesToFit.erase(begin, end);
                             }
 
                             if (!nodeIndicesToFit.empty()) {
