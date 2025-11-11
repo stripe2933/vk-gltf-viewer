@@ -19,7 +19,7 @@ import std;
  * @return <tt>std::optional</tt> with \p value, if \p condition is <tt>true</tt>; otherwise, <tt>std::nullopt</tt>.
  */
 export template <typename T>
-[[nodiscard]] std::optional<std::remove_cvref_t<T>> value_if(bool condition, T &&value) {
+[[nodiscard]] std::optional<std::decay_t<T>> value_if(bool condition, T &&value) {
     if (condition) {
         return FWD(value);
     }
@@ -41,7 +41,7 @@ export template <typename T>
  * @return <tt>std::optional</tt> with the execution result of \p f, if \p condition is <tt>true</tt>; otherwise, <tt>std::nullopt</tt>.
  */
 export template <std::invocable F>
-[[nodiscard]] std::optional<std::invoke_result_t<F>> value_if(bool condition, F &&f) {
+[[nodiscard]] std::optional<std::remove_cv_t<std::invoke_result_t<F>>> value_if(bool condition, F &&f) {
     if (condition) {
         return std::invoke(FWD(f));
     }
@@ -85,7 +85,7 @@ export template <typename T>
  * @return An std::optional that contains the result of invoking \p f with the contained values of \p opts... as arguments if all \p opts... contain values; otherwise, an empty <tt>std::optional</tt>.
  */
 export template <typename... Ts, std::invocable<const Ts&...> F>
-[[nodiscard]] std::optional<std::invoke_result_t<F, const Ts&...>> transform(F &&f, const std::optional<Ts> &...opts) {
+[[nodiscard]] std::optional<std::remove_cv_t<std::invoke_result_t<F, const Ts&...>>> transform(F &&f, const std::optional<Ts> &...opts) {
     if ((opts && ...)) {
         return std::invoke(FWD(f), *opts...);
     }
