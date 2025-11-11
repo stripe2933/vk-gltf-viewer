@@ -1,5 +1,6 @@
 module;
 
+#include <cassert>
 #include <cstddef>
 
 #include <lifetimebound.hpp>
@@ -21,47 +22,29 @@ namespace vkgltf {
      *
      * The following diagram explains the data layout of the buffer.
      *
-     *   0 +------------------+------------------------------------+ <----+
-     *     |                  |        worldTransform: mat4        |      | Reference to the self's world transform
-     *  64 |                  |------------------------------------+      | if node is not instanced.
-     *     |                  | &(instance world transform buffer) | -----+
-     *  72 |                  |------------------------------------+
-     *     |       Node       |    &(morph target weight buffer)   | ---+
-     *  80 |                  |------------------------------------+    | Reference to the contiguous morph target weights,
-     *     |                  |     &(skin joint index buffer)     | -+ | if exists.
-     *  88 |                  |------------------------------------+  | |
-     *     |                  |    &(inverse bind matrix buffer)   |  +-+----------------> +----------------------+
-     *  96 |------------------|------------------------------------+    |                  | External skin buffer |
-     *     |                  |        worldTransform: mat4        |    |                  +----------------------+
-     *     |                  |------------------------------------+    |
-     *     |                  | &(instance world transform buffer) | ---+----+
-     *     |                  |------------------------------------+    |    | Reference to the contiguous instanced world
-     *     |       Node       |    &(morph target weight buffer)   | -+ |    | transform matrices, if node is instanced.
-     *     |                  |------------------------------------+  | |    |
-     *     |                  |     &(skin joint index buffer)     |  | |    | Therefore, regardless of whether the node
-     *     |                  |------------------------------------+  | |    | is instanced or not, this field always
-     *     |                  |    &(inverse bind matrix buffer)   |  | |    | contains valid device address.
-     *     |------------------|------------------------------------+  | |    |
-     *     |       ...        |                                       | |    |
-     *     |------------------|                                       | |    |
-     *     |       Node       |                                       | |    |
-     *     |------------------| <-------------------------------------+-+----+ Instance transform matrices starts from here.
-     *     |       mat4       |                                       | |
-     *     |------------------|                                       | |
-     *     |       mat4       |                                       | |
-     *     |------------------|                                       | |
-     *     |        ...       |                                       | |
-     *     |------------------|                                       | |
-     *     |       mat4       |                                       | |
-     *     |------------------| <-------------------------------------+-+ Morph target weights starts from here.
-     *     |       float      |                                       |
-     *     |------------------|                                       |
-     *     |       float      |                                       |
-     *     |------------------|                                       |
-     *     |        ...       |                                       |
-     *     |------------------|                                       |
-     *     |       float      |                                       |
-     *     |------------------| <-------------------------------------+
+     *   0 +------------------+-------------------------------+
+     *     |                  |     worldTransform: mat4      |
+     *  64 |                  |-------------------------------+
+     *     |                  | &(instance transform buffer)  | ---+ (NULL if not instanced)
+     *  72 |                  |-------------------------------+    |
+     *     |       Node       | &(morph target weight buffer) | ---+----+ (NULL if no morph targets)
+     *  80 |                  |-------------------------------+    |    |
+     *     |                  |  &(skin joint index buffer)   | ---+----+-----+
+     *  88 |                  |-------------------------------+    |    |     |--> (external if provided, NULL otherwise)
+     *     |                  | &(inverse bind matrix buffer) | ---+----+-----+
+     *  96 |------------------|-------------------------------+    |    |
+     *     |       ...        |                                    |    |
+     *     |------------------|                                    |    |
+     *     |       Node       |                                    |    |
+     *     |------------------| <----------------------------------+----+ Instance transform data starts from here with 16-byte alignment.
+     *     |       mat4       |                                    |
+     *     |------------------|                                    |
+     *     |       mat4       |                                    |
+     *     |------------------|                                    |
+     *     |        ...       |                                    |
+     *     |------------------|                                    |
+     *     |       mat4       |                                    |
+     *     |------------------| <----------------------------------+ Morph target weight data starts from here with 4-byte alignment.
      *     |       float      |
      *     |------------------|
      *     |       float      |
@@ -69,8 +52,6 @@ namespace vkgltf {
      *     |        ...       |
      *     |------------------|
      *     |       float      |
-     *     |------------------|
-     *     |        ...       |
      *     |------------------|
      */
     export class NodeBuffer : public vku::raii::AllocatedBuffer {
@@ -102,16 +83,9 @@ namespace vkgltf {
 
             /**
              * @brief VMA allocation creation flags for the buffer allocation.
-             *
-             * @note <tt>flags</tt> MUST contain either <tt>vma::AllocationCreateFlagBits::eHostAccessSequentialWrite</tt> or
-             * <tt>vma::AllocationCreateFlagBits::eHostAccessRandom</tt> to allow the host to write to the buffer.
-             * @warning If <tt>vma::AllocationCreateFlagBits::eHostAccessSequentialWrite</tt> is used, usage of buffer
-             * reading methods (<tt>getWorldTransform</tt>, <tt>getInstanceWorldTransforms</tt>, <tt>getMorphTargetWeights</tt>)
-             * are highly discouraged, as reading operation will be extremely slow. Use the methods for sequential
-             * writing purpose only.
              */
             vma::AllocationCreateInfo allocationCreateInfo = vma::AllocationCreateInfo {
-                vma::AllocationCreateFlagBits::eHostAccessRandom | vma::AllocationCreateFlagBits::eMapped,
+                vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
                 vma::MemoryUsage::eAutoPreferDevice,
             };
         };
@@ -127,86 +101,32 @@ namespace vkgltf {
             const Config<BufferDataAdapter> &config = {}
         ) : NodeBuffer { asset, nodeWorldTransforms, device, allocator, config, IData { asset } } { }
 
-        [[nodiscard]] fastgltf::math::fmat4x4 &getWorldTransform(std::size_t nodeIndex) noexcept;
-        [[nodiscard]] const fastgltf::math::fmat4x4 &getWorldTransform(std::size_t nodeIndex) const noexcept;
-        [[nodiscard]] std::pair<vk::DeviceSize, vk::DeviceSize> getWorldTransformOffsetAndSize(std::size_t nodeIndex) const noexcept;
+        /// Get byte offset of world transform matrix data of the node at \p nodeIndex.
+        [[nodiscard]] static vk::DeviceSize getWorldTransformDataOffset(std::size_t nodeIndex) noexcept;
 
-        [[nodiscard]] std::span<fastgltf::math::fmat4x4> getInstanceWorldTransforms(std::size_t nodeIndex) noexcept;
-        [[nodiscard]] std::span<const fastgltf::math::fmat4x4> getInstanceWorldTransforms(std::size_t nodeIndex) const noexcept;
-        [[nodiscard]] std::pair<vk::DeviceSize, vk::DeviceSize> getInstanceWorldTransformsOffsetAndSize(std::size_t nodeIndex) const noexcept;
+        /// Get byte offset of instance transform matrix data of the node at \p nodeIndex.
+        [[nodiscard]] vk::DeviceSize getInstanceTransformDataOffset(std::size_t nodeIndex) const noexcept;
 
-        [[nodiscard]] std::span<float> getMorphTargetWeights(std::size_t nodeIndex) noexcept;
-        [[nodiscard]] std::span<const float> getMorphTargetWeights(std::size_t nodeIndex) const noexcept;
-        [[nodiscard]] std::pair<vk::DeviceSize, vk::DeviceSize> getTargetWeightsOffsetAndSize(std::size_t nodeIndex) const noexcept;
+        /// Get byte offset of morph target weight data of the node at \p nodeIndex.
+        [[nodiscard]] vk::DeviceSize getTargetWeightsDataOffset(std::size_t nodeIndex) const noexcept;
 
         /**
-         * @brief Update the node world transforms (and optionally its instance world transforms) at \p nodeIndex.
-         * @param nodeIndex Node index to be started.
+         * @brief Update the world transform matrix of the node at \p nodeIndex.
+         * @param nodeIndex Index of the node to be updated.
          * @param nodeWorldTransform World transform matrix of the node.
-         * @param adapter Buffer data adapter.
+         * @note Prefer to use <tt>updateBulk()</tt> if you want to update multiple nodes at once. If the buffer is not
+         * host coherent, it will call <tt>vkFlushMappedMemoryRanges</tt> for every update, which may degrade the performance.
          */
-        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
-        void update(
-            std::size_t nodeIndex,
-            const fastgltf::math::fmat4x4 &nodeWorldTransform,
-            const BufferDataAdapter &adapter = {}
-        ) {
-            nodes[nodeIndex].worldTransform = nodeWorldTransform;
-
-            const bool hasInstancingAttributes = !asset.get().nodes[nodeIndex].instancingAttributes.empty();
-            if (hasInstancingAttributes) {
-                std::ranges::transform(
-                    vkgltf::getInstanceTransforms(asset, nodeIndex, adapter),
-                    instanceWorldTransformsByNode[nodeIndex].begin(),
-                    [&](const fastgltf::math::fmat4x4 &instanceTransform) noexcept {
-                        return nodeWorldTransform * instanceTransform;
-                    });
-            }
-
-            if (!isHostCoherent) {
-                const auto [offset, size] = getWorldTransformOffsetAndSize(nodeIndex);
-                allocator.flushAllocation(allocation, offset, size);
-
-                if (hasInstancingAttributes) {
-                    const auto [offset, size] = getInstanceWorldTransformsOffsetAndSize(nodeIndex);
-                    allocator.flushAllocation(allocation, offset, size);
-                }
-            }
-        }
+        void update(std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform);
 
         /**
-         * @brief Update the node world transforms (and optionally its instance world transforms) from given \p nodeIndex, to its descendants.
-         * @param nodeIndex Node index to be started.
+         * @brief Update the world transform matrices of all nodes given by \p sortedNodeIndices.
+         * @param sortedNodeIndices Indices of the nodes to be updated. Must be nonempty and sorted in ascending order.
          * @param nodeWorldTransforms Node world transform matrices ordered by node indices in the asset.
-         * @param adapter Buffer data adapter.
+         * @note This method is optimized for updating multiple nodes at once. It batches the memory flush operation
+         * by identifying the contiguous memory regions to be updated.
          */
-        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
-        void updateHierarchical(
-            std::size_t nodeIndex,
-            std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-            const BufferDataAdapter &adapter = {}
-        ) {
-            traverseNode(asset, nodeIndex, [&](std::size_t nodeIndex) {
-                update(nodeIndex, nodeWorldTransforms[nodeIndex], adapter);
-            });
-        }
-
-        /**
-         * @brief Update the node world transforms (and optionally its instance world transforms) for all nodes in a scene.
-         * @param scene Scene to be updated.
-         * @param nodeWorldTransforms Node world transform matrices that is indexed by node index.
-         * @param adapter Buffer data adapter.
-         */
-        template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
-        void update(
-            const fastgltf::Scene &scene,
-            std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
-            const BufferDataAdapter &adapter = {}
-        ) {
-            for (std::size_t nodeIndex : scene.nodeIndices) {
-                updateHierarchical(nodeIndex, nodeWorldTransforms, adapter);
-            }
-        }
+        void updateBulk(std::span<const std::size_t> sortedNodeIndices, std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms);
 
     private:
         struct IData {
@@ -219,11 +139,9 @@ namespace vkgltf {
             explicit IData(const fastgltf::Asset &asset);
         };
 
-        std::reference_wrapper<const fastgltf::Asset> asset;
         std::span<shader_type::Node> nodes;
-        std::vector<std::span<fastgltf::math::fmat4x4>> instanceWorldTransformsByNode;
-        std::vector<std::span<float>> morphTargetWeightsByNode;
-        bool isHostCoherent;
+        std::vector<vk::DeviceSize> instanceTransformDataOffsets;
+        std::vector<vk::DeviceSize> morphTargetWeightDataOffsets;
 
         template <typename BufferDataAdapter>
         NodeBuffer(
@@ -244,9 +162,7 @@ namespace vkgltf {
                 },
                 config.allocationCreateInfo,
             },
-            descriptorInfo { buffer, 0, sizeof(shader_type::Node) * asset.nodes.size() },
-            asset { asset },
-            isHostCoherent { vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostCoherent) } {
+            descriptorInfo { buffer, 0, sizeof(shader_type::Node) * asset.nodes.size() } {
             vk::DeviceAddress skinJointIndexBufferAddress;
             vk::DeviceAddress inverseBindMatrixBufferAddress;
             if (config.skinBuffer) {
@@ -264,60 +180,47 @@ namespace vkgltf {
                 reinterpret_cast<fastgltf::math::fmat4x4*>(mapped + intermediateData.instanceTransformDataByteOffset),
                 intermediateData.instanceTransformMatrixCount,
             }.begin();
-            instanceWorldTransformsByNode.reserve(asset.nodes.size());
+            instanceTransformDataOffsets.reserve(asset.nodes.size());
 
             vk::DeviceAddress morphTargetWeightBufferAddress = selfDeviceAddress + intermediateData.morphTargetWeightDataByteOffset;
             auto morphTargetWeightIt = std::span {
                 reinterpret_cast<float*>(mapped + intermediateData.morphTargetWeightDataByteOffset),
                 intermediateData.morphTargetWeightCount,
             }.begin();
-            morphTargetWeightsByNode.reserve(asset.nodes.size());
+            morphTargetWeightDataOffsets.reserve(asset.nodes.size());
 
-            for (std::size_t nodeIndex = 0; const fastgltf::Node &node : asset.nodes) {
+            for (std::size_t nodeIndex = 0; nodeIndex < asset.nodes.size(); ++nodeIndex) {
+                const fastgltf::Node &node = asset.nodes[nodeIndex];
                 shader_type::Node &shaderNode = (nodes[nodeIndex] = shader_type::Node {
                     .worldTransform = nodeWorldTransforms[nodeIndex],
                 });
 
                 // Instance transform matrices.
-                if (node.instancingAttributes.empty()) {
-                    // Use address of self's worldTransform if no instancing attributes are presented.
-                    shaderNode.pInstancedWorldTransformBuffer
-                        = selfDeviceAddress + sizeof(shader_type::Node) * nodeIndex + offsetof(shader_type::Node, worldTransform);
-                    instanceWorldTransformsByNode.emplace_back(std::to_address(instanceTransformIt), 0);
-                }
-                else {
+                instanceTransformDataOffsets.push_back(instanceTransformBufferAddress - selfDeviceAddress);
+                if (!node.instancingAttributes.empty()) {
                     // Use address of instanced node world transform buffer if instancing attributes are presented.
-                    shaderNode.pInstancedWorldTransformBuffer = instanceTransformBufferAddress;
+                    shaderNode.pInstanceTransformBuffer = instanceTransformBufferAddress;
                     std::vector<fastgltf::math::fmat4x4> instanceTransforms = vkgltf::getInstanceTransforms(asset, nodeIndex, config.adapter);
-                    instanceWorldTransformsByNode.emplace_back(std::to_address(instanceTransformIt), instanceTransforms.size());
-                    instanceTransformIt = std::ranges::transform(
-                        instanceTransforms,
-                        instanceTransformIt,
-                        [&](const fastgltf::math::fmat4x4 &instanceTransform) noexcept {
-                            return nodeWorldTransforms[nodeIndex] * instanceTransform;
-                        }).out;
+                    instanceTransformIt = std::ranges::copy(instanceTransforms, instanceTransformIt).out;
                     instanceTransformBufferAddress += sizeof(fastgltf::math::fmat4x4) * instanceTransforms.size();
                 }
 
                 // Morph target weights.
-                shaderNode.pMorphTargetWeightBuffer = morphTargetWeightBufferAddress;
-                const std::span targetWeights = getTargetWeights(asset, node);
-                morphTargetWeightsByNode.emplace_back(std::to_address(morphTargetWeightIt), targetWeights.size());
-                morphTargetWeightIt = std::ranges::copy(targetWeights, morphTargetWeightIt).out;
-                morphTargetWeightBufferAddress += sizeof(float) * targetWeights.size();
+                morphTargetWeightDataOffsets.push_back(morphTargetWeightBufferAddress - selfDeviceAddress);
+                if (std::span targetWeights = getTargetWeights(asset, node); !targetWeights.empty()) {
+                    shaderNode.pMorphTargetWeightBuffer = morphTargetWeightBufferAddress;
+                    morphTargetWeightIt = std::ranges::copy(targetWeights, morphTargetWeightIt).out;
+                    morphTargetWeightBufferAddress += sizeof(float) * targetWeights.size();
+                }
 
                 // Skinning data.
                 if (config.skinBuffer && node.skinIndex) {
                     shaderNode.pSkinJointIndexBuffer = skinJointIndexBufferAddress + config.skinBuffer->getJointIndicesOffsetAndSize(*node.skinIndex).first;
                     shaderNode.pInverseBindMatrixBuffer = inverseBindMatrixBufferAddress + config.skinBuffer->getInverseBindMatricesOffsetAndSize(*node.skinIndex).first;
                 }
-
-                ++nodeIndex;
             }
 
-            if (!isHostCoherent) {
-                allocator.flushAllocation(allocation, 0, vk::WholeSize);
-            }
+            allocator.flushAllocation(allocation, 0, vk::WholeSize);
         }
     };
 
@@ -343,55 +246,58 @@ namespace vkgltf {
 module :private;
 #endif
 
-fastgltf::math::fmat4x4 & vkgltf::NodeBuffer::getWorldTransform(std::size_t nodeIndex) noexcept {
-    return nodes[nodeIndex].worldTransform;
+#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+
+vk::DeviceSize vkgltf::NodeBuffer::getWorldTransformDataOffset(std::size_t nodeIndex) noexcept {
+    return sizeof(shader_type::Node) * nodeIndex + offsetof(shader_type::Node, worldTransform);
 }
 
-const fastgltf::math::fmat4x4 & vkgltf::NodeBuffer::getWorldTransform(std::size_t nodeIndex) const noexcept {
-    return nodes[nodeIndex].worldTransform;
+vk::DeviceSize vkgltf::NodeBuffer::getInstanceTransformDataOffset(std::size_t nodeIndex) const noexcept {
+    return instanceTransformDataOffsets[nodeIndex];
 }
 
-std::pair<vk::DeviceSize, vk::DeviceSize> vkgltf::NodeBuffer::getWorldTransformOffsetAndSize(
-    std::size_t nodeIndex
-) const noexcept {
-    return {
-        sizeof(shader_type::Node) * nodeIndex + offsetof(shader_type::Node, worldTransform),
-        sizeof(shader_type::Node::worldTransform),
-    };
+vk::DeviceSize vkgltf::NodeBuffer::getTargetWeightsDataOffset(std::size_t nodeIndex) const noexcept {
+    return morphTargetWeightDataOffsets[nodeIndex];
 }
 
-std::span<fastgltf::math::fmat4x4> vkgltf::NodeBuffer::getInstanceWorldTransforms(std::size_t nodeIndex) noexcept {
-    return instanceWorldTransformsByNode[nodeIndex];
+void vkgltf::NodeBuffer::update(std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
+    allocator.copyMemoryToAllocation(&nodeWorldTransform, allocation, getWorldTransformDataOffset(nodeIndex), sizeof(nodeWorldTransform));
 }
 
-std::span<const fastgltf::math::fmat4x4> vkgltf::NodeBuffer::getInstanceWorldTransforms(std::size_t nodeIndex) const noexcept {
-    return instanceWorldTransformsByNode[nodeIndex];
-}
+void vkgltf::NodeBuffer::updateBulk(std::span<const std::size_t> sortedNodeIndices, std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms) {
+    assert(!sortedNodeIndices.empty() && "sortedNodeIndices must not be empty.");
+    assert(std::ranges::is_sorted(sortedNodeIndices) && "sortedNodeIndices must be sorted in ascending order.");
 
-std::pair<vk::DeviceSize, vk::DeviceSize> vkgltf::NodeBuffer::getInstanceWorldTransformsOffsetAndSize(
-    std::size_t nodeIndex
-) const noexcept {
-    return {
-        reinterpret_cast<const std::byte*>(instanceWorldTransformsByNode[nodeIndex].data()) - reinterpret_cast<const std::byte*>(nodes.data()),
-        instanceWorldTransformsByNode[nodeIndex].size_bytes(),
-    };
-}
+    void* const mapped = allocator.getAllocationInfo(allocation).pMappedData;
+    for (std::size_t nodeIndex : sortedNodeIndices) {
+        void* const dst = vku::offsetPtr(mapped, getWorldTransformDataOffset(nodeIndex));
+        std::memcpy(dst, &nodeWorldTransforms[nodeIndex], sizeof(fastgltf::math::fmat4x4));
+    }
 
-std::span<float> vkgltf::NodeBuffer::getMorphTargetWeights(std::size_t nodeIndex) noexcept {
-    return morphTargetWeightsByNode[nodeIndex];
-}
+    if (!vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostCoherent)) {
+        // Find the contiguous memory regions to be flushed.
+        std::vector<vk::DeviceSize> flushOffsets, flushSizes;
+        auto it = sortedNodeIndices.begin();
+        while (true) {
+            flushOffsets.push_back(getWorldTransformDataOffset(*it));
 
-std::span<const float> vkgltf::NodeBuffer::getMorphTargetWeights(std::size_t nodeIndex) const noexcept {
-    return morphTargetWeightsByNode[nodeIndex];
-}
+            it = std::adjacent_find(it, sortedNodeIndices.end(), [](std::size_t a, std::size_t b) noexcept {
+                return b - a != 1;
+            });
 
-std::pair<vk::DeviceSize, vk::DeviceSize> vkgltf::NodeBuffer::getTargetWeightsOffsetAndSize(
-    std::size_t nodeIndex
-) const noexcept {
-    return {
-        reinterpret_cast<const std::byte*>(morphTargetWeightsByNode[nodeIndex].data()) - reinterpret_cast<const std::byte*>(nodes.data()),
-        morphTargetWeightsByNode[nodeIndex].size_bytes(),
-    };
+            if (it == sortedNodeIndices.end()) {
+                flushSizes.push_back(vk::WholeSize);
+                break;
+            }
+            else {
+                flushSizes.push_back(getWorldTransformDataOffset(*it) + sizeof(shader_type::Node::worldTransform) - flushOffsets.back());
+                ++it;
+            }
+        }
+
+        const std::vector allocations(flushOffsets.size(), allocation);
+        allocator.flushAllocations(allocations, flushOffsets, flushSizes);
+    }
 }
 
 vkgltf::NodeBuffer::IData::IData(const fastgltf::Asset &asset)
