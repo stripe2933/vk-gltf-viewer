@@ -323,7 +323,7 @@ namespace fastgltf {
      * @param f Function that would be invoked with node index.
      */
     export template <std::invocable<std::size_t> F>
-    void traverseNode(const Asset &asset, std::size_t nodeIndex, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t>) {
+    void traverseNode(const Asset &asset, std::size_t nodeIndex, F &&f) noexcept(std::is_nothrow_invocable_v<F, std::size_t>) {
         [&](this const auto &self, std::size_t nodeIndex) -> void {
             // If F is predicate, traversal continuation is determined by the return value of f.
             if constexpr (std::predicate<F, std::size_t>) {
@@ -349,7 +349,7 @@ namespace fastgltf {
      * @param initialNodeWorldTransform World transform matrix of the start node.
      */
     export template <std::invocable<std::size_t, const math::fmat4x4&> F>
-    void traverseNode(const Asset &asset, std::size_t nodeIndex, const F &f, const math::fmat4x4 &initialNodeWorldTransform) noexcept(std::is_nothrow_invocable_v<F, std::size_t, const math::fmat4x4&>) {
+    void traverseNode(const Asset &asset, std::size_t nodeIndex, F &&f, const math::fmat4x4 &initialNodeWorldTransform) noexcept(std::is_nothrow_invocable_v<F, std::size_t, const math::fmat4x4&>) {
         [&](this const auto &self, std::size_t nodeIndex, const math::fmat4x4 &worldTransform) -> void {
             // If F is predicate, traversal continuation is determined by the return value of f.
             if constexpr (std::predicate<F, std::size_t, const math::fmat4x4&>) {
@@ -375,7 +375,7 @@ namespace fastgltf {
      * @param f Function that would be invoked with node index.
      */
     export template <std::invocable<std::size_t> F>
-    void traverseScene(const Asset &asset, const Scene &scene, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t>) {
+    void traverseScene(const Asset &asset, const Scene &scene, F &&f) noexcept(std::is_nothrow_invocable_v<F, std::size_t>) {
         for (std::size_t nodeIndex : scene.nodeIndices) {
             traverseNode(asset, nodeIndex, f);
         }
@@ -389,7 +389,7 @@ namespace fastgltf {
      * @param f Function that would be invoked with node index and <tt>fastgltf::math::fmat4x4</tt>.
      */
     export template <std::invocable<std::size_t, const math::fmat4x4&> F>
-    void traverseScene(const Asset &asset, const Scene &scene, const F &f) noexcept(std::is_nothrow_invocable_v<F, std::size_t, const math::fmat4x4&>) {
+    void traverseScene(const Asset &asset, const Scene &scene, F &&f) noexcept(std::is_nothrow_invocable_v<F, std::size_t, const math::fmat4x4&>) {
         for (std::size_t nodeIndex : scene.nodeIndices) {
             traverseNode(asset, nodeIndex, f, getTransformMatrix(asset.nodes[nodeIndex]));
         }

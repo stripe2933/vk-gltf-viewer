@@ -43,7 +43,7 @@ export template <typename T>
 export template <std::invocable F>
 [[nodiscard]] std::optional<std::invoke_result_t<F>> value_if(bool condition, F &&f) {
     if (condition) {
-        return std::invoke(f);
+        return std::invoke(FWD(f));
     }
     return std::nullopt;
 }
@@ -87,7 +87,7 @@ export template <typename T>
 export template <typename... Ts, std::invocable<const Ts&...> F>
 [[nodiscard]] std::optional<std::invoke_result_t<F, const Ts&...>> transform(F &&f, const std::optional<Ts> &...opts) {
     if ((opts && ...)) {
-        return FWD(f)(*opts...);
+        return std::invoke(FWD(f), *opts...);
     }
     return std::nullopt;
 }
