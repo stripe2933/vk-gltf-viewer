@@ -19,7 +19,7 @@ import vk_gltf_viewer.math.bit;
 
 #define INDEX_SEQ(Is, N, ...) [&]<auto ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define LIFT(...) [](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
+#define LIFT(...) [&](auto &&...xs) { return __VA_ARGS__(FWD(xs)...); }
 
 constexpr auto NO_INDEX = std::numeric_limits<std::uint16_t>::max();
 constexpr auto emulatedPrimitiveTopologies = {
@@ -55,21 +55,28 @@ vk_gltf_viewer::vulkan::Frame::GltfAsset::GltfAsset(const SharedData &sharedData
     } { }
 
 void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeWorldTransform(std::size_t nodeIndex) {
-    nodeBuffer.update(nodeIndex, assetExtended->sceneHierarchy.getWorldTransform(nodeIndex), assetExtended->externalBuffers);
+    nodeBuffer.update(nodeIndex, assetExtended->sceneHierarchy.getWorldTransform(nodeIndex));
 }
 
 void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeWorldTransformHierarchical(std::size_t nodeIndex) {
-    nodeBuffer.updateHierarchical(nodeIndex, assetExtended->sceneHierarchy.getWorldTransforms(), assetExtended->externalBuffers);
+    std::vector<std::size_t> nodeIndices;
+    traverseNode(assetExtended->asset, nodeIndex, LIFT(nodeIndices.push_back));
+    std::ranges::sort(nodeIndices);
+    nodeBuffer.updateBulk(nodeIndices, assetExtended->sceneHierarchy.getWorldTransforms());
 }
 
 void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeWorldTransformScene(std::size_t sceneIndex) {
-    nodeBuffer.update(assetExtended->asset.scenes[sceneIndex], assetExtended->sceneHierarchy.getWorldTransforms(), assetExtended->externalBuffers);
+    std::vector<std::size_t> nodeIndices;
+    traverseScene(assetExtended->asset, assetExtended->asset.scenes[sceneIndex], [&](std::size_t nodeIndex) noexcept {
+        return nodeIndices.push_back(nodeIndex);
+    });
+    std::ranges::sort(nodeIndices);
+    nodeBuffer.updateBulk(nodeIndices, assetExtended->sceneHierarchy.getWorldTransforms());
 }
 
 void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeTargetWeights(std::size_t nodeIndex, std::size_t startIndex, std::size_t count) {
-    std::ranges::copy(
-        getTargetWeights(assetExtended->asset.nodes[nodeIndex], assetExtended->asset).subspan(startIndex, count),
-        nodeBuffer.getMorphTargetWeights(nodeIndex).subspan(startIndex, count).begin());
+    auto weights = getTargetWeights(assetExtended->asset.nodes[nodeIndex], assetExtended->asset).subspan(startIndex, count);
+    nodeBuffer.allocator.copyMemoryToAllocation(weights.data(), nodeBuffer.allocation, nodeBuffer.getTargetWeightsDataOffset(nodeIndex) + sizeof(float) * startIndex, weights.size_bytes());
 }
 
 vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, const SharedData &sharedData)
@@ -381,13 +388,18 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
                 return frustum.isOverlapApprox(glm::make_vec3(center.data()), radius);
             };
 
+            const fastgltf::math::fmat4x4 &worldTransform = sharedData.assetExtended->sceneHierarchy.getWorldTransform(nodeIndex);
             if (node.instancingAttributes.empty()) {
-                return pred(sharedData.assetExtended->sceneHierarchy.getWorldTransform(nodeIndex));
+                return pred(worldTransform);
             }
             else {
                 // If node is instanced, the node primitive is regarded to be within the frustum if any of its instance
                 // is within the frustum.
-                return std::ranges::any_of(gltfAsset->nodeBuffer.getInstanceWorldTransforms(nodeIndex), pred);
+                std::vector instancedWorldTransforms = getInstanceTransforms(sharedData.assetExtended->asset, nodeIndex, sharedData.assetExtended->externalBuffers);
+                for (fastgltf::math::fmat4x4 &m : instancedWorldTransforms) {
+                    m = worldTransform * m;
+                }
+                return std::ranges::any_of(instancedWorldTransforms, pred);
             }
         };
 

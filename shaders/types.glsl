@@ -41,7 +41,7 @@ layout (buffer_reference, buffer_reference_align = 4) readonly buffer SkinJointI
 
 struct Node {
     mat4 worldTransform;
-    Matrices instancedWorldTransforms;
+    Matrices instanceTransforms;
     MorphTargetWeights morphTargetWeights;
     SkinJointIndices skinJointIndices;
     Matrices inverseBindMatrices;
