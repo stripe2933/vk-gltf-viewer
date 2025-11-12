@@ -712,16 +712,28 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit() const {
             *sharedData.sceneRenderPass,
             *viewport->sceneAttachmentGroup.sceneFramebuffer,
             renderArea,
-            vku::lvalue<vk::ClearValue>({
-                backgroundColor,
-                vk::ClearColorValue{},
-                vk::ClearDepthStencilValue { 0.f, 0 },
-                vk::ClearDepthStencilValue{},
-                vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
-                vk::ClearColorValue{},
-                vk::ClearColorValue { 1.f, 0.f, 0.f, 0.f },
-                vk::ClearColorValue{},
-            }),
+            vku::lvalue([&] -> boost::container::static_vector<vk::ClearValue, 8> {
+                if (sharedData.sceneRenderPass.sampleCount == vk::SampleCountFlagBits::e1) {
+                    return {
+                        backgroundColor,
+                        vk::ClearDepthStencilValue { 0.f, 0 },
+                        vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
+                        vk::ClearColorValue { 1.f, 0.f, 0.f, 0.f },
+                    };
+                }
+                else {
+                    return {
+                        backgroundColor,
+                        vk::ClearColorValue{},
+                        vk::ClearDepthStencilValue { 0.f, 0 },
+                        vk::ClearDepthStencilValue{},
+                        vk::ClearColorValue { 0.f, 0.f, 0.f, 0.f },
+                        vk::ClearColorValue{},
+                        vk::ClearColorValue { 1.f, 0.f, 0.f, 0.f },
+                        vk::ClearColorValue{},
+                    };
+                }
+            }()),
         }, vk::SubpassContents::eInline);
 
         if (renderingNodes) {
