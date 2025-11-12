@@ -47,7 +47,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         [[nodiscard]] static std::array<int, 2> getVertexShaderVariants(const Config &config) noexcept;
         [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const Config &config) noexcept;
         [[nodiscard]] static std::array<int, 3> getFragmentShaderVariants(const Config &config) noexcept;
-        [[nodiscard]] static FragmentShaderSpecialization getFragmentShaderSpecialization(const Config &config) noexcept;
+        [[nodiscard]] static FragmentShaderSpecialization getFragmentShaderSpecialization(const Config &config, vk::SampleCountFlagBits sampleCount) noexcept;
     };
 }
 
@@ -71,6 +71,7 @@ struct vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRenderPipeline::VertexSha
 
 struct vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRenderPipeline::FragmentShaderSpecialization {
     vk::Bool32 useTextureTransform;
+    vk::Bool32 useLodBasedAlphaCutoff;
 };
 
 vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRenderPipeline::UnlitPrimitiveRenderPipeline(
@@ -85,7 +86,7 @@ vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRenderPipeline::UnlitPrimitiveRe
             vk::ArrayProxyNoTemporaries<const VertexShaderSpecialization> { vertexShaderSpecialization },
         };
 
-        const auto fragmentShaderSpecialization = getFragmentShaderSpecialization(config);
+        const auto fragmentShaderSpecialization = getFragmentShaderSpecialization(config, sceneRenderPass.sampleCount);
         const vk::SpecializationInfo fragmentShaderSpecializationInfo {
             SpecializationMap<FragmentShaderSpecialization>::value,
             vk::ArrayProxyNoTemporaries<const FragmentShaderSpecialization> { fragmentShaderSpecialization },
@@ -239,6 +240,9 @@ std::array<int, 3> vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRenderPipelin
     };
 }
 
-vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRenderPipeline::FragmentShaderSpecialization vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRenderPipeline::getFragmentShaderSpecialization(const Config &config) noexcept {
-    return { config.useTextureTransform };
+auto vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRenderPipeline::getFragmentShaderSpecialization(
+    const Config &config,
+    vk::SampleCountFlagBits sampleCount
+) noexcept -> FragmentShaderSpecialization {
+    return { config.useTextureTransform, sampleCount != vk::SampleCountFlagBits::e1 };
 }
