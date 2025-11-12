@@ -199,7 +199,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, vk::SurfaceKHR su
     , primitiveNoShadingPipelineLayout { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout) }
     , skyboxPipelineLayout { gpu.device, { rendererDescriptorSetLayout, skyboxDescriptorSetLayout } }
     , weightedBlendedCompositionPipelineLayout { gpu.device, weightedBlendedCompositionDescriptorSetLayout }
-    , sceneRenderPass { gpu, vk::SampleCountFlagBits::e4 }
+    , sceneRenderPass { gpu, vk::SampleCountFlagBits::e1 }
     , bloomApplyRenderPass { gpu }
     , gridRenderPipeline { gpu.device, rendererDescriptorSetLayout, sceneRenderPass }
     , jumpFloodComputePipeline { gpu.device }
