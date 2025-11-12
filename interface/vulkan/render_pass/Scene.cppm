@@ -1,5 +1,7 @@
 module;
 
+#include <cassert>
+
 #include <lifetimebound.hpp>
 
 export module vk_gltf_viewer.vulkan.render_pass.Scene;
@@ -10,7 +12,9 @@ export import vk_gltf_viewer.vulkan.Gpu;
 
 namespace vk_gltf_viewer::vulkan::rp {
     export struct Scene final : vk::raii::RenderPass {
-        explicit Scene(const Gpu &gpu LIFETIMEBOUND);
+        vk::SampleCountFlagBits sampleCount;
+        
+        Scene(const Gpu &gpu LIFETIMEBOUND, vk::SampleCountFlagBits sampleCount);
     };
 }
 
@@ -18,14 +22,14 @@ namespace vk_gltf_viewer::vulkan::rp {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
+vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu, vk::SampleCountFlagBits sampleCount)
     : RenderPass { gpu.device, vk::RenderPassCreateInfo2 {
         {},
         vku::lvalue({
             // (0) Opaque MSAA color attachment.
             vk::AttachmentDescription2 {
                 {},
-                vk::Format::eB8G8R8A8Srgb, vk::SampleCountFlagBits::e4,
+                vk::Format::eB8G8R8A8Srgb, sampleCount,
                 vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                 {}, {},
                 {}, vk::ImageLayout::eColorAttachmentOptimal,
@@ -41,7 +45,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
             // (2) Depth/stencil image.
             vk::AttachmentDescription2 {
                 {},
-                vk::Format::eD32SfloatS8Uint, vk::SampleCountFlagBits::e4,
+                vk::Format::eD32SfloatS8Uint, sampleCount,
                 vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                 vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                 {}, vk::ImageLayout::eDepthStencilAttachmentOptimal,
@@ -63,7 +67,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
             // (4) Accumulation color image.
             vk::AttachmentDescription2 {
                 {},
-                vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e4,
+                vk::Format::eR16G16B16A16Sfloat, sampleCount,
                 vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                 {}, {},
                 {}, vk::ImageLayout::eColorAttachmentOptimal,
@@ -79,7 +83,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
             // (6) Revealage color image.
             vk::AttachmentDescription2 {
                 {},
-                vk::Format::eR16Unorm, vk::SampleCountFlagBits::e4,
+                vk::Format::eR16Unorm, sampleCount,
                 vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                 {}, {},
                 {}, vk::ImageLayout::eColorAttachmentOptimal,
@@ -206,4 +210,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu)
                 vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eInputAttachmentRead,
             },
         }),
-    } } { }
+    } }
+    , sampleCount { sampleCount } {
+    assert(sampleCount != vk::SampleCountFlagBits::e1 && "Non-MSAA not implemented");
+}

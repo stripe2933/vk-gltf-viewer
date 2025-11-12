@@ -151,7 +151,7 @@ vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipeline::PrimitiveRenderPipeli
         vk::StencilOpState { {}, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
     };
 
-    vk::PipelineMultisampleStateCreateInfo multisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e4 };
+    vk::PipelineMultisampleStateCreateInfo multisampleStateCreateInfo { {}, sceneRenderPass.sampleCount };
 
     constexpr auto opaqueColorBlendStateCreateInfo = vku::defaultPipelineColorBlendState(1);
 

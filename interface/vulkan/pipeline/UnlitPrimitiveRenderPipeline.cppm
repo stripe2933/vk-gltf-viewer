@@ -126,7 +126,7 @@ vk_gltf_viewer::vulkan::pipeline::UnlitPrimitiveRenderPipeline::UnlitPrimitiveRe
         };
         auto rasterizationStateCreateInfo = vku::defaultPipelineRasterizationState({}, vk::CullModeFlagBits::eBack);
         vk::PipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo { {}, true, true, vk::CompareOp::eGreater }; // Use reverse Z.
-        vk::PipelineMultisampleStateCreateInfo multisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e4 };
+        vk::PipelineMultisampleStateCreateInfo multisampleStateCreateInfo { {}, sceneRenderPass.sampleCount };
 
         constexpr auto opaqueColorBlendStateCreateInfo = vku::defaultPipelineColorBlendState(1);
 
