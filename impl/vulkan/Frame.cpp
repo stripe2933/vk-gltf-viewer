@@ -704,11 +704,11 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit() const {
             backgroundColor.setFloat32({ renderer->solidBackground->x, renderer->solidBackground->y, renderer->solidBackground->z, 1.f });
         }
         sceneRenderingCommandBuffer.beginRenderPass({
-            *sharedData.sceneRenderPass,
+            *sharedData.getSceneRenderPass(),
             *viewport->sceneAttachmentGroup.sceneFramebuffer,
             renderArea,
             vku::lvalue([&] -> boost::container::static_vector<vk::ClearValue, 8> {
-                if (sharedData.sceneRenderPass.sampleCount == vk::SampleCountFlagBits::e1) {
+                if (sharedData.getSceneRenderPass().sampleCount == vk::SampleCountFlagBits::e1) {
                     return {
                         backgroundColor,
                         vk::ClearDepthStencilValue { 0.f, 0 },
@@ -748,19 +748,19 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit() const {
 
             // Draw skybox.
             if (!renderer->solidBackground) {
-                sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxRenderPipeline);
+                sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.getSkyboxRenderPipeline());
                 sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.skyboxPipelineLayout, 0, { rendererSet, sharedData.skyboxDescriptorSet }, {});
                 sceneRenderingCommandBuffer.draw(36, viewport->viewCount, 0, 0);
             }
 
             // Draw grid.
             if (renderer->grid) {
-                sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.gridRenderPipeline.pipeline);
+                sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.getGridRenderPipeline().pipeline);
                 sceneRenderingCommandBuffer.bindDescriptorSets(
-                    vk::PipelineBindPoint::eGraphics, *sharedData.gridRenderPipeline.pipelineLayout,
+                    vk::PipelineBindPoint::eGraphics, *sharedData.getGridRenderPipeline().pipelineLayout,
                     0, rendererSet, {});
                 sceneRenderingCommandBuffer.pushConstants<GridRenderPipeline::PushConstant>(
-                    *sharedData.gridRenderPipeline.pipelineLayout, GridRenderPipeline::PushConstant::range.stageFlags,
+                    *sharedData.getGridRenderPipeline().pipelineLayout, GridRenderPipeline::PushConstant::range.stageFlags,
                     0, GridRenderPipeline::PushConstant {
                         .color = renderer->grid->color,
                         .showMinorAxes = renderer->grid->showMinorAxes,
@@ -786,7 +786,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit() const {
             // Weighted blended composition.
             sceneRenderingCommandBuffer.bindPipeline(
                 vk::PipelineBindPoint::eGraphics,
-                *sharedData.weightedBlendedCompositionRenderPipeline);
+                *sharedData.getWeightedBlendedCompositionRenderPipeline());
             sceneRenderingCommandBuffer.bindDescriptorSets(
                 vk::PipelineBindPoint::eGraphics,
                 *sharedData.weightedBlendedCompositionPipelineLayout,
@@ -798,7 +798,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit() const {
 
         // Inverse tone-map the result image to bloomImage[mipLevel=0] when bloom is enabled.
         if (renderer->bloom) {
-            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingRenderPipeline);
+            sceneRenderingCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *sharedData.getInverseToneMappingRenderPipeline());
             sceneRenderingCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *sharedData.inverseToneMappingPipelineLayout, 0, inverseToneMappingSet, {});
             sceneRenderingCommandBuffer.draw(3, 1, 0, 0);
         }
@@ -1062,7 +1062,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame() const {
 
 void vk_gltf_viewer::vulkan::Frame::setViewportExtent(const vk::Extent2D &extent) {
     const std::uint32_t viewCount = static_cast<std::uint32_t>(renderer->cameras.size());
-    viewport.emplace(sharedData.gpu, extent, viewCount, sharedData.sceneRenderPass, sharedData.bloomApplyRenderPass);
+    viewport.emplace(sharedData.gpu, extent, viewCount, sharedData.getSceneRenderPass(), sharedData.bloomApplyRenderPass);
 
     sharedData.gpu.device.updateDescriptorSets({
         weightedBlendedCompositionSet.getWrite<0>(0, vku::lvalue({
@@ -1115,6 +1115,27 @@ void vk_gltf_viewer::vulkan::Frame::setViewportExtent(const vk::Extent2D &extent
             {},
             *viewport->bloomMipImageViews[0],
             vk::ImageLayout::eShaderReadOnlyOptimal,
+        })),
+    }, {});
+}
+
+void vk_gltf_viewer::vulkan::Frame::updateSampleCount() {
+    viewport->setSceneRenderPass(sharedData.getSceneRenderPass());
+
+    sharedData.gpu.device.updateDescriptorSets({
+        weightedBlendedCompositionSet.getWrite<0>(0, vku::lvalue({
+            vk::DescriptorImageInfo { {}, *viewport->sceneAttachmentGroup.accumulationImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+            vk::DescriptorImageInfo { {}, *viewport->sceneAttachmentGroup.revealageImageView, vk::ImageLayout::eShaderReadOnlyOptimal },
+        })),
+        inverseToneMappingSet.getWrite<0>(0, vku::lvalue(vk::DescriptorImageInfo {
+            {},
+            *viewport->sceneAttachmentGroup.colorImageView,
+            vk::ImageLayout::eShaderReadOnlyOptimal,
+        })),
+        bloomApplySet.getWrite<0>(0, vku::lvalue(vk::DescriptorImageInfo {
+            {},
+            *viewport->sceneAttachmentGroup.colorImageView,
+            vk::ImageLayout::eGeneral,
         })),
     }, {});
 }
@@ -1311,6 +1332,7 @@ vk_gltf_viewer::vulkan::Frame::Viewport::Viewport(
     const rp::Scene &sceneRenderPass,
     const rp::BloomApply &bloomApplyRenderPass
 ) : gpu { gpu },
+    bloomApplyRenderPass { bloomApplyRenderPass },
     extent { extent },
     sceneAttachmentGroup { gpu, extent, sceneRenderPass, bloomApplyRenderPass },
     subextent { [&, result = extent] mutable {
@@ -1357,6 +1379,10 @@ boost::container::static_vector<vk::Rect2D, 4> vk_gltf_viewer::vulkan::Frame::Vi
         default:
             std::unreachable();
     }
+}
+
+void vk_gltf_viewer::vulkan::Frame::Viewport::setSceneRenderPass(const rp::Scene &sceneRenderPass) {
+    sceneAttachmentGroup = { gpu, extent, sceneRenderPass, bloomApplyRenderPass };
 }
 
 void vk_gltf_viewer::vulkan::Frame::Viewport::setViewCount(std::uint32_t count) {

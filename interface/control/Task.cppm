@@ -18,6 +18,7 @@ namespace vk_gltf_viewer::control {
         struct WindowContentScale { glm::vec2 scale; };
 
         struct ChangePassthruRect { ImRect newRect; };
+        struct ChangeSampleCount { std::uint8_t sampleCount; };
         struct ChangeViewCount { std::size_t viewCount; };
         struct LoadGltf { std::filesystem::path path; };
         struct CloseGltf { };
@@ -76,6 +77,7 @@ namespace vk_gltf_viewer::control {
         task::WindowSize,
         task::WindowContentScale,
         task::ChangePassthruRect,
+        task::ChangeSampleCount,
         task::ChangeViewCount,
         task::LoadGltf,
         task::CloseGltf,

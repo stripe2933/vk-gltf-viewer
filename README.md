@@ -28,7 +28,7 @@ Blazingly fast[^1] Vulkan glTF viewer.
   - [`KHR_texture_transform`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_texture_transform)
   - [`EXT_mesh_gpu_instancing`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Vendor/EXT_mesh_gpu_instancing) for instancing multiple meshes with the same geometry
   - [`EXT_meshopt_compression`](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Vendor/EXT_meshopt_compression)
-- Use 4x MSAA by default.
+- Configurable MSAA sample count.
 - Support HDR and EXR skybox.
 - File loading using platform-native file dialog.
 - Pixel perfect node selection and transformation using [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo).
