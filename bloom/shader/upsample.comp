@@ -1,9 +1,12 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
 #if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
 #extension GL_AMD_shader_image_load_store_lod : enable
 #else
 #extension GL_EXT_nonuniform_qualifier : require
 #endif
+
+#include "morton.glsl"
 
 layout (set = 0, binding = 0) uniform sampler2DArray inputSampler;
 layout (set = 0, binding = 1) uniform writeonly image2DArray outputImages[];
@@ -22,11 +25,13 @@ void main(){
 #else
     ivec2 outputImageSize = imageSize(outputImages[pc.dstMipLevel]).xy;
 #endif
-    if (gl_GlobalInvocationID.x >= outputImageSize.x || gl_GlobalInvocationID.y >= outputImageSize.y) {
+
+    uvec2 sampleCoord = uvec2((gl_WorkGroupID.xy << 4) | unmorton16(gl_LocalInvocationIndex));
+    if (sampleCoord.x >= outputImageSize.x || sampleCoord.y >= outputImageSize.y) {
         return;
     }
 
-    vec3 texcoord = vec3((gl_GlobalInvocationID.xy + 0.5) / vec2(outputImageSize), gl_GlobalInvocationID.z);
+    vec3 texcoord = vec3((sampleCoord + 0.5) / vec2(outputImageSize), gl_GlobalInvocationID.z);
 
     // Take 9 samples around current texel:
     // a - b - c
@@ -49,10 +54,10 @@ void main(){
     //  1   | 1 2 1 |
     // -- * | 2 4 2 |
     // 16   | 1 2 1 |
-    vec4 upsample = texelFetch(inputSampler, ivec3(gl_GlobalInvocationID), pc.dstMipLevel) + (e * 4.0 + (b + d + f + h) * 2.0 + (a + c + g + i)) / 16.0;
+    vec4 upsample = texelFetch(inputSampler, ivec3(sampleCoord, gl_GlobalInvocationID.z), pc.dstMipLevel) + (e * 4.0 + (b + d + f + h) * 2.0 + (a + c + g + i)) / 16.0;
 #if AMD_SHADER_IMAGE_LOAD_STORE_LOD == 1
-    imageStoreLodAMD(outputImages[0], ivec3(gl_GlobalInvocationID), pc.dstMipLevel, upsample);
+    imageStoreLodAMD(outputImages[0], ivec3(sampleCoord, gl_GlobalInvocationID.z), pc.dstMipLevel, upsample);
 #else
-    imageStore(outputImages[pc.dstMipLevel], ivec3(gl_GlobalInvocationID), upsample);
+    imageStore(outputImages[pc.dstMipLevel], ivec3(sampleCoord, gl_GlobalInvocationID.z), upsample);
 #endif
 }
