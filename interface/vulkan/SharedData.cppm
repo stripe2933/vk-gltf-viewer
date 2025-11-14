@@ -38,31 +38,8 @@ export import vk_gltf_viewer.vulkan.render_pass.Scene;
 export import vk_gltf_viewer.vulkan.Swapchain;
 
 namespace vk_gltf_viewer::vulkan {
-    export struct SharedData {
-        class MultiviewPipelines {
-            std::reference_wrapper<const vk::raii::Device> device;
-            std::reference_wrapper<const pl::PrimitiveNoShading> primitiveNoShadingPipelineLayout;
-
-            std::uint32_t viewMask;
-
-        public:
-            // TODO: remove mutable
-            mutable std::map<PrepassPipelineConfig<false>, JumpFloodSeedRenderPipeline<false>> jumpFloodSeedRenderPipelines;
-            mutable std::map<PrepassPipelineConfig<true>, JumpFloodSeedRenderPipeline<true>> maskJumpFloodSeedRenderPipelines;
-
-            MultiviewPipelines(
-                const Gpu &gpu LIFETIMEBOUND,
-                const pl::PrimitiveNoShading &primitiveNoShadingPipelineLayout LIFETIMEBOUND,
-                std::uint32_t viewMask
-            );
-
-            [[nodiscard]] std::uint32_t getViewMask() const noexcept { return viewMask; }
-
-            // TODO: mark as non-const
-            [[nodiscard]] const JumpFloodSeedRenderPipeline<false> &getJumpFloodSeedRenderPipeline(const PrepassPipelineConfig<false> &config) const;
-            [[nodiscard]] const JumpFloodSeedRenderPipeline<true> &getMaskJumpFloodSeedRenderPipeline(const PrepassPipelineConfig<true> &config) const;
-        };
-
+    export class SharedData {
+    public:
         const Gpu &gpu;
 
         // Buffer, image and image views and samplers.
@@ -102,6 +79,14 @@ namespace vk_gltf_viewer::vulkan {
         InverseToneMappingRenderPipeline inverseToneMappingRenderPipeline;
         BloomApplyRenderPipeline bloomApplyRenderPipeline;
 
+    private:
+        struct MultiviewPipelines {
+            std::map<PrepassPipelineConfig<false>, JumpFloodSeedRenderPipeline<false>> jumpFloodSeedRenderPipelines;
+            std::map<PrepassPipelineConfig<true>, JumpFloodSeedRenderPipeline<true>> maskJumpFloodSeedRenderPipelines;
+        };
+
+        std::uint32_t viewMask;
+
         // TODO: remove mutable
         mutable std::map<PrepassPipelineConfig<false>, NodeMousePickingRenderPipeline<false>> nodeMousePickingRenderPipelines;
         mutable std::map<PrepassPipelineConfig<false>, MultiNodeMousePickingRenderPipeline<false>> multiNodeMousePickingRenderPipelines;
@@ -110,8 +95,10 @@ namespace vk_gltf_viewer::vulkan {
         mutable std::map<PrimitiveRenderPipeline::Config, PrimitiveRenderPipeline> primitiveRenderPipelines;
         mutable std::map<UnlitPrimitiveRenderPipeline::Config, UnlitPrimitiveRenderPipeline> unlitPrimitiveRenderPipelines;
 
-        std::unordered_map<std::uint32_t, MultiviewPipelines> multiviewPipelines;
+        std::unordered_map<std::uint32_t /* view mask */, MultiviewPipelines> multiviewPipelines;
+        std::reference_wrapper<MultiviewPipelines> currentMultiviewPipelines;
 
+    public:
         // --------------------
         // Attachment groups.
         // --------------------
@@ -149,6 +136,8 @@ namespace vk_gltf_viewer::vulkan {
         [[nodiscard]] const MultiNodeMousePickingRenderPipeline<false> &getMultiNodeMousePickingRenderPipeline(const PrepassPipelineConfig<false> &config) const;
         [[nodiscard]] const NodeMousePickingRenderPipeline<true> &getMaskNodeMousePickingRenderPipeline(const PrepassPipelineConfig<true> &config) const;
         [[nodiscard]] const MultiNodeMousePickingRenderPipeline<true> &getMaskMultiNodeMousePickingRenderPipeline(const PrepassPipelineConfig<true> &config) const;
+        [[nodiscard]] const JumpFloodSeedRenderPipeline<false> &getJumpFloodSeedRenderPipeline(const PrepassPipelineConfig<false> &config) const;
+        [[nodiscard]] const JumpFloodSeedRenderPipeline<true> &getMaskJumpFloodSeedRenderPipeline(const PrepassPipelineConfig<true> &config) const;
         [[nodiscard]] const PrimitiveRenderPipeline &getPrimitiveRenderPipeline(const PrimitiveRenderPipeline::Config &config) const;
         [[nodiscard]] const UnlitPrimitiveRenderPipeline &getUnlitPrimitiveRenderPipeline(const UnlitPrimitiveRenderPipeline::Config &config) const;
     };
@@ -157,26 +146,6 @@ namespace vk_gltf_viewer::vulkan {
 #if !defined(__GNUC__) || defined(__clang__)
 module :private;
 #endif
-
-vk_gltf_viewer::vulkan::SharedData::MultiviewPipelines::MultiviewPipelines(
-    const Gpu &gpu,
-    const pl::PrimitiveNoShading &primitiveNoShadingPipelineLayout,
-    std::uint32_t viewMask
-) : device { gpu.device },
-    primitiveNoShadingPipelineLayout { primitiveNoShadingPipelineLayout },
-    viewMask { viewMask } { }
-
-auto vk_gltf_viewer::vulkan::SharedData::MultiviewPipelines::getJumpFloodSeedRenderPipeline(
-    const PrepassPipelineConfig<false> &config
-) const -> const JumpFloodSeedRenderPipeline<false>& {
-    return jumpFloodSeedRenderPipelines.try_emplace(config, device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
-}
-
-auto vk_gltf_viewer::vulkan::SharedData::MultiviewPipelines::getMaskJumpFloodSeedRenderPipeline(
-    const PrepassPipelineConfig<true> &config
-) const -> const JumpFloodSeedRenderPipeline<true>& {
-    return maskJumpFloodSeedRenderPipelines.try_emplace(config, device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
-}
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent)
     : gpu { gpu }
@@ -209,6 +178,8 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, vk::SurfaceKHR su
     , weightedBlendedCompositionRenderPipeline { gpu, weightedBlendedCompositionPipelineLayout, sceneRenderPass }
     , inverseToneMappingRenderPipeline { gpu, inverseToneMappingPipelineLayout, sceneRenderPass }
     , bloomApplyRenderPipeline { gpu, bloomApplyPipelineLayout, bloomApplyRenderPass }
+    , viewMask { 0b1U }
+    , currentMultiviewPipelines { multiviewPipelines[viewMask] } // will create an entry for viewMask = 0b1
     , swapchain { gpu, surface, swapchainExtent }
     , imGuiAttachmentGroup { gpu, swapchain.images }
     , descriptorPool { [&] {
@@ -219,9 +190,6 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, vk::SurfaceKHR su
         return vk::raii::DescriptorPool { gpu.device, vk::DescriptorPoolCreateInfo { {}, maxSets, poolSizes } };
     }() }
     , fallbackTexture { gpu }{
-    // Initialize view count dependent resources for viewMask=0b1 at the launch time.
-    multiviewPipelines.try_emplace(0b1U, gpu, primitiveNoShadingPipelineLayout, 0b1U);
-
     vku::DescriptorSetAllocationBuilder{}
         .add(imageBasedLightingDescriptorSetLayout, imageBasedLightingDescriptorSet)
         .add(skyboxDescriptorSetLayout, skyboxDescriptorSet)
@@ -239,8 +207,8 @@ void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2
 }
 
 void vk_gltf_viewer::vulkan::SharedData::setViewCount(std::uint32_t viewCount) {
-    const std::uint32_t viewMask = math::bit::ones(viewCount);
-    multiviewPipelines.try_emplace(viewMask, gpu, primitiveNoShadingPipelineLayout, viewMask);
+    viewMask = math::bit::ones(viewCount);
+    currentMultiviewPipelines = multiviewPipelines[viewMask];
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::getNodeMousePickingRenderPipeline(
@@ -265,6 +233,18 @@ auto vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRenderPipel
     const PrepassPipelineConfig<true> &config
 ) const -> const MultiNodeMousePickingRenderPipeline<true>& {
     return maskMultiNodeMousePickingRenderPipelines.try_emplace(config, gpu, mousePickingPipelineLayout, config).first->second;
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::getJumpFloodSeedRenderPipeline(
+    const PrepassPipelineConfig<false> &config
+) const -> const JumpFloodSeedRenderPipeline<false>& {
+    return currentMultiviewPipelines.get().jumpFloodSeedRenderPipelines.try_emplace(config, gpu.device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderPipeline(
+    const PrepassPipelineConfig<true> &config
+) const -> const JumpFloodSeedRenderPipeline<true>& {
+    return currentMultiviewPipelines.get().maskJumpFloodSeedRenderPipelines.try_emplace(config, gpu.device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderPipeline(

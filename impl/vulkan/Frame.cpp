@@ -298,12 +298,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         return result;
     };
 
-    const auto jumpFloodSeedCriteriaGetter = [
-        &,
-        // asset could be in the loaded state at the first frame (whose viewport will not be initialized), and for the
-        // case view count must be 1.
-        &mp = sharedData.multiviewPipelines.at(math::bit::ones(viewport.transform([](const Viewport &viewport) noexcept { return viewport.viewCount; }).value_or(1U)))
-    ](const fastgltf::Primitive &primitive) {
+    const auto jumpFloodSeedCriteriaGetter = [&](const fastgltf::Primitive &primitive) {
         CommandSeparationCriteriaNoShading result {
             .indexType = value_if(std::ranges::contains(emulatedPrimitiveTopologies, primitive.type) || primitive.indicesAccessor.has_value(), [&]() {
                 return gltfAsset->assetExtended->combinedIndexBuffer.getIndexTypeAndFirstIndex(primitive).first;
@@ -315,15 +310,15 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
         if (primitive.materialIndex) {
             const fastgltf::Material &material = gltfAsset->assetExtended->asset.materials[*primitive.materialIndex];
             if (material.alphaMode == fastgltf::AlphaMode::Mask) {
-                result.pipeline = *mp.getMaskJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<true>(primitive));
+                result.pipeline = *sharedData.getMaskJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<true>(primitive));
             }
             else {
-                result.pipeline = *mp.getJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<false>(primitive));
+                result.pipeline = *sharedData.getJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<false>(primitive));
             }
             result.cullMode = material.doubleSided ? vk::CullModeFlagBits::eNone : vk::CullModeFlagBits::eBack;
         }
         else {
-            result.pipeline = *mp.getJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<false>(primitive));
+            result.pipeline = *sharedData.getJumpFloodSeedRenderPipeline(gltfAsset->assetExtended->getPrepassPipelineConfig<false>(primitive));
         }
         return result;
     };
