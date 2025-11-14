@@ -1,4 +1,7 @@
 #version 460
+#extension GL_GOOGLE_include_directive : require
+
+#include "morton.glsl"
 
 const uint UINT_MAX = 4294967295U;
 const ivec2 normalizedOffsets[9] = {
@@ -21,12 +24,14 @@ uint length2(uvec2 v) {
 }
 
 void main(){
+    ivec3 centerSampleCoord = ivec3(
+        (gl_WorkGroupID.xy << 4) | unmorton16(gl_LocalInvocationIndex),
+        (pc.forward ? 0 : gl_NumWorkGroups.z) | gl_GlobalInvocationID.z);
+
     uvec2 imageExtent = imageSize(pingPongImage).xy;
-    if (gl_GlobalInvocationID.x >= imageExtent.x || gl_GlobalInvocationID.y >= imageExtent.y) {
+    if (centerSampleCoord.x >= imageExtent.x || centerSampleCoord.y >= imageExtent.y) {
         return;
     }
-
-    ivec3 centerSampleCoord = ivec3(gl_GlobalInvocationID.xy, (pc.forward ? 0 : gl_NumWorkGroups.z) | gl_GlobalInvocationID.z);
 
     uvec2 closestSeedCoord;
     uint closestSeedDistanceSq = UINT_MAX;
@@ -36,7 +41,7 @@ void main(){
 
         uvec2 seedCoord = imageLoad(pingPongImage, sampleCoord).xy;
         if (seedCoord != uvec2(0U)) {
-            uint seedDistanceSq = length2(seedCoord - gl_GlobalInvocationID.xy);
+            uint seedDistanceSq = length2(seedCoord - centerSampleCoord.xy);
             if (seedDistanceSq < closestSeedDistanceSq) {
                 closestSeedDistanceSq = seedDistanceSq;
                 closestSeedCoord = seedCoord;
