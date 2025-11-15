@@ -1,4 +1,7 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+
+#include "morton.glsl"
 
 const vec2 INV_ATAN = vec2(0.1591, 0.3183);
 
@@ -29,10 +32,12 @@ vec2 sampleSphericalMap(vec3 v){
 }
 
 void main(){
+    uvec3 sampleCoord = uvec3((gl_WorkGroupID.xy << 4) | unmorton16(gl_LocalInvocationIndex), gl_GlobalInvocationID.z);
+
     // Load color from equirectangular map image.
-    vec2 uv = sampleSphericalMap(getWorldDirection(gl_GlobalInvocationID, imageSize(cubemapImage).x));
+    vec2 uv = sampleSphericalMap(getWorldDirection(sampleCoord, imageSize(cubemapImage).x));
     vec4 color = textureLod(eqmapSampler, uv, 0.0);
 
     // Store color into cubemapImage.
-    imageStore(cubemapImage, ivec3(gl_GlobalInvocationID), color);
+    imageStore(cubemapImage, ivec3(sampleCoord), color);
 }
