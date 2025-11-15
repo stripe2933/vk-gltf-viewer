@@ -53,7 +53,7 @@ namespace vk_gltf_viewer::vulkan::inline pipeline {
         [[nodiscard]] static std::array<int, 3> getVertexShaderVariants(const Config &config) noexcept;
         [[nodiscard]] static VertexShaderSpecialization getVertexShaderSpecialization(const Config &config) noexcept;
         [[nodiscard]] static std::array<int, 5> getFragmentShaderVariants(const Config &config) noexcept;
-        [[nodiscard]] static FragmentShaderSpecialization getFragmentShaderSpecialization(const Config &config) noexcept;
+        [[nodiscard]] static FragmentShaderSpecialization getFragmentShaderSpecialization(const Config &config, vk::SampleCountFlagBits sampleCount) noexcept;
     };
 }
 
@@ -87,6 +87,7 @@ struct vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipeline::VertexShaderSp
 
 struct vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipeline::FragmentShaderSpecialization {
     vk::Bool32 useTextureTransform;
+    vk::Bool32 useLodBasedAlphaCutoff;
 };
 
 vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipeline::PrimitiveRenderPipeline(
@@ -101,7 +102,7 @@ vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipeline::PrimitiveRenderPipeli
         vk::ArrayProxyNoTemporaries<const VertexShaderSpecialization> { vertexShaderSpecialization },
     };
 
-    const auto fragmentShaderSpecialization = getFragmentShaderSpecialization(config);
+    const auto fragmentShaderSpecialization = getFragmentShaderSpecialization(config, sceneRenderPass.sampleCount);
     const vk::SpecializationInfo fragmentShaderSpecializationInfo {
         SpecializationMap<FragmentShaderSpecialization>::value,
         vk::ArrayProxyNoTemporaries<const FragmentShaderSpecialization> { fragmentShaderSpecialization },
@@ -151,7 +152,7 @@ vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipeline::PrimitiveRenderPipeli
         vk::StencilOpState { {}, vk::StencilOp::eReplace, vk::StencilOp::eKeep, vk::CompareOp::eAlways, {}, ~0U, {} /* dynamic state */ },
     };
 
-    vk::PipelineMultisampleStateCreateInfo multisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e4 };
+    vk::PipelineMultisampleStateCreateInfo multisampleStateCreateInfo { {}, sceneRenderPass.sampleCount };
 
     constexpr auto opaqueColorBlendStateCreateInfo = vku::defaultPipelineColorBlendState(1);
 
@@ -277,6 +278,9 @@ std::array<int, 5> vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipeline::ge
     };
 }
 
-vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipeline::FragmentShaderSpecialization vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipeline::getFragmentShaderSpecialization(const Config &config) noexcept {
-    return { config.useTextureTransform };
+auto vk_gltf_viewer::vulkan::pipeline::PrimitiveRenderPipeline::getFragmentShaderSpecialization(
+    const Config &config,
+    vk::SampleCountFlagBits sampleCount
+) noexcept -> FragmentShaderSpecialization {
+    return { config.useTextureTransform, sampleCount != vk::SampleCountFlagBits::e1 };
 }

@@ -86,7 +86,7 @@ vk_gltf_viewer::vulkan::GridRenderPipeline::GridRenderPipeline(
             1.f,
         }),
         &vku::lvalue(vk::PipelineMultisampleStateCreateInfo {
-            {}, vk::SampleCountFlagBits::e4,
+            {}, renderPass.sampleCount,
             false, {}, {},
             true,
         }),

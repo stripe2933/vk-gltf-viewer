@@ -16,6 +16,9 @@ namespace vk_gltf_viewer {
     export class Renderer {
     public:
         struct Capabilities {
+            /// Available MSAA sample counts.
+            std::vector<std::uint8_t> msaaSampleCounts;
+
             /**
              * @brief Indicates whether the renderer supports per-fragment bloom effect.
              *
@@ -86,6 +89,9 @@ namespace vk_gltf_viewer {
                 5.f,
             }
         };
+
+        /// MSAA sample count. Must be one of <tt>capabilities.msaaSampleCounts</tt>. 1 means no MSAA.
+        std::uint8_t msaaSampleCount = 1;
 
         /**
          * @brief Background color, or <tt>std::nullopt</tt> if the renderer should use skybox.

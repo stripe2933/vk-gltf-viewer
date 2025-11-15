@@ -60,7 +60,7 @@ vk_gltf_viewer::vulkan::pipeline::SkyboxRenderPipeline::SkyboxRenderPipeline(
         nullptr,
         &vku::lvalue(vk::PipelineViewportStateCreateInfo{}),
         &vku::lvalue(vku::defaultPipelineRasterizationState()),
-        &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, vk::SampleCountFlagBits::e4 }),
+        &vku::lvalue(vk::PipelineMultisampleStateCreateInfo { {}, renderPass.sampleCount }),
         &vku::lvalue(vk::PipelineDepthStencilStateCreateInfo {
             {},
             true, false, vk::CompareOp::eEqual,

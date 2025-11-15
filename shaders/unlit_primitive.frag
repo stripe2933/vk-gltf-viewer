@@ -11,6 +11,7 @@
 #define HAS_VARIADIC_IN HAS_BASE_COLOR_TEXTURE || HAS_COLOR_0_ATTRIBUTE
 
 layout (constant_id = 0) const bool USE_TEXTURE_TRANSFORM = false;
+layout (constant_id = 1) const bool USE_LOD_BASED_ALPHA_CUTOFF = false;
 
 layout (location = 0) flat in uint inMaterialIndex;
 #if HAS_VARIADIC_IN
@@ -53,17 +54,21 @@ void writeOutput(vec4 color) {
     outColor = vec4(color.rgb, 1.0);
 #elif ALPHA_MODE == 1
 #if HAS_BASE_COLOR_TEXTURE
+    if (USE_LOD_BASED_ALPHA_CUTOFF) {
 #if SEPARATE_IMAGE_SAMPLER == 1
-    color.a *= 1.0 + geometricMean(textureQueryLod(sampler2D(images[uint(MATERIAL.baseColorTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.baseColorTextureIndex) >> 12U]), variadic_in.baseColorTexcoord)) * 0.25;
+        color.a *= 1.0 + geometricMean(textureQueryLod(sampler2D(images[uint(MATERIAL.baseColorTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.baseColorTextureIndex) >> 12U]), variadic_in.baseColorTexcoord)) * 0.25;
 #else
-    color.a *= 1.0 + geometricMean(textureQueryLod(textures[uint(MATERIAL.baseColorTextureIndex)], variadic_in.baseColorTexcoord)) * 0.25;
+        color.a *= 1.0 + geometricMean(textureQueryLod(textures[uint(MATERIAL.baseColorTextureIndex)], variadic_in.baseColorTexcoord)) * 0.25;
 #endif
-    // Apply sharpness to the alpha.
-    // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
-    color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
-#else
-    color.a = color.a >= MATERIAL.alphaCutoff ? 1 : 0;
+        // Apply sharpness to the alpha.
+        // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
+        color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
+    }
+    else
 #endif
+    {
+        color.a = color.a >= MATERIAL.alphaCutoff ? 1 : 0;
+    }
     outColor = color;
 #elif ALPHA_MODE == 2
     // Weighted Blended.

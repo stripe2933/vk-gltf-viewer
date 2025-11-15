@@ -18,6 +18,7 @@
 #define HAS_VARIADIC_IN !FRAGMENT_SHADER_GENERATED_TBN || TEXCOORD_COUNT >= 1 || HAS_COLOR_0_ATTRIBUTE
 
 layout (constant_id = 0) const bool USE_TEXTURE_TRANSFORM = false;
+layout (constant_id = 1) const bool USE_LOD_BASED_ALPHA_CUTOFF = false;
 
 layout (location = 0) in vec3 inPosition;
 layout (location = 1) flat in uint inMaterialIndex;
@@ -118,17 +119,21 @@ void writeOutput(vec4 color) {
     outColor = vec4(color.rgb, 1.0);
 #elif ALPHA_MODE == 1
 #if TEXCOORD_COUNT >= 1
+    if (USE_LOD_BASED_ALPHA_CUTOFF) {
 #if SEPARATE_IMAGE_SAMPLER == 1
-    color.a *= 1.0 + geometricMean(textureQueryLod(sampler2D(images[uint(MATERIAL.baseColorTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.baseColorTextureIndex) >> 12U]), getTexcoord(MATERIAL.baseColorTexcoordIndex))) * 0.25;
+        color.a *= 1.0 + geometricMean(textureQueryLod(sampler2D(images[uint(MATERIAL.baseColorTextureIndex) & 0xFFFU], samplers[uint(MATERIAL.baseColorTextureIndex) >> 12U]), getTexcoord(MATERIAL.baseColorTexcoordIndex))) * 0.25;
 #else
-    color.a *= 1.0 + geometricMean(textureQueryLod(textures[uint(MATERIAL.baseColorTextureIndex)], getTexcoord(MATERIAL.baseColorTexcoordIndex))) * 0.25;
+        color.a *= 1.0 + geometricMean(textureQueryLod(textures[uint(MATERIAL.baseColorTextureIndex)], getTexcoord(MATERIAL.baseColorTexcoordIndex))) * 0.25;
 #endif
-    // Apply sharpness to the alpha.
-    // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
-    color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
-#else
-    color.a = color.a >= MATERIAL.alphaCutoff ? 1 : 0;
+        // Apply sharpness to the alpha.
+        // See: https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f.
+        color.a = (color.a - MATERIAL.alphaCutoff) / max(fwidth(color.a), 1e-4) + 0.5;
+    }
+    else
 #endif
+    {
+        color.a = color.a >= MATERIAL.alphaCutoff ? 1 : 0;
+    }
     outColor = color;
 #elif ALPHA_MODE == 2
     // Weighted Blended.

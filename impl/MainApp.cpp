@@ -101,6 +101,24 @@ vk_gltf_viewer::MainApp::MainApp()
     , lastMouseEnteredViewIndex { 0 }
     , gpu { instance, window.getSurface() }
     , renderer { std::make_shared<Renderer>(Renderer::Capabilities {
+        .msaaSampleCounts = [&] {
+            decltype(Renderer::Capabilities::msaaSampleCounts) result { 1 /* vk::SampleCountFlagBits::e1 is always supported */ };
+
+            const vk::PhysicalDeviceLimits limits = gpu.physicalDevice.getProperties().limits;
+            const vk::SampleCountFlags availableSampleCounts = limits.framebufferColorSampleCounts & limits.framebufferDepthSampleCounts;
+            for (vk::SampleCountFlagBits candidate : { vk::SampleCountFlagBits::e2,
+                                                       vk::SampleCountFlagBits::e4,
+                                                       vk::SampleCountFlagBits::e8,
+                                                       vk::SampleCountFlagBits::e16,
+                                                       vk::SampleCountFlagBits::e32,
+                                                       vk::SampleCountFlagBits::e64 }) {
+                if (vku::contains(availableSampleCounts, candidate)) {
+                    result.push_back(static_cast<std::uint8_t>(candidate));
+                }
+            }
+
+            return result;
+        }(),
         .perFragmentBloom = gpu.supportShaderStencilExport,
     }) }
     , sharedData { gpu, window.getSurface(), toExtent2D(window.getFramebufferSize()) }
@@ -553,6 +571,17 @@ void vk_gltf_viewer::MainApp::run() {
                     for (control::Camera &camera : renderer->cameras) {
                         camera.aspectRatio = aspectRatio;
                     }
+                },
+                [&](const control::task::ChangeSampleCount &task) {
+                    gpu.device.waitIdle();
+
+                    sharedData.setSampleCount(static_cast<vk::SampleCountFlagBits>(task.sampleCount));
+
+                    currentFrameTask.updateSampleCount();
+                    frameDeferredTask.updateSampleCount();
+
+                    // TODO: only re-generate scene render pass commands only
+                    regenerateDrawCommands.fill(true);
                 },
                 [&](const control::task::ChangeViewCount &task) {
                     gpu.device.waitIdle();

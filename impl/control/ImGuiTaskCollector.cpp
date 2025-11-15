@@ -2115,6 +2115,20 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::rendererSetting(Renderer &rend
             }
         }
 
+        if (ImGui::CollapsingHeader("Multisample Anti-Aliasing (MSAA)")) {
+            if (ImGui::BeginCombo("Sample count", tempStringBuffer.write(renderer.msaaSampleCount).view().c_str())) {
+                for (std::uint8_t sampleCount : renderer.capabilities.msaaSampleCounts) {
+                    if (ImGui::Selectable(tempStringBuffer.write(sampleCount).view().c_str(), renderer.msaaSampleCount == sampleCount) &&
+                        renderer.msaaSampleCount != sampleCount) {
+                        renderer.msaaSampleCount = sampleCount;
+                        tasks.emplace(std::in_place_type<task::ChangeSampleCount>, sampleCount);
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        }
+
         if (ImGui::CollapsingHeader("Background")) {
             const bool useSolidBackground = renderer.solidBackground.has_value();
             ImGui::WithDisabled([&]() {

@@ -153,6 +153,7 @@ namespace vk_gltf_viewer::vulkan {
         void recordCommandsAndSubmitFirstFrame() const;
 
         void setViewportExtent(const vk::Extent2D &extent);
+        void updateSampleCount();
         void updateViewCount();
 
         void updateAsset();
@@ -160,6 +161,7 @@ namespace vk_gltf_viewer::vulkan {
     private:
         class Viewport {
             std::reference_wrapper<const Gpu> gpu;
+            std::reference_wrapper<const rp::BloomApply> bloomApplyRenderPass;
 
         public:
             class JumpFloodResources {
@@ -214,6 +216,7 @@ namespace vk_gltf_viewer::vulkan {
 
             [[nodiscard]] boost::container::static_vector<vk::Rect2D, 4> getSubrects() const noexcept;
 
+            void setSceneRenderPass(const rp::Scene &sceneRenderPass);
             void setViewCount(std::uint32_t count);
 
         private:

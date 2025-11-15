@@ -38,31 +38,8 @@ export import vk_gltf_viewer.vulkan.render_pass.Scene;
 export import vk_gltf_viewer.vulkan.Swapchain;
 
 namespace vk_gltf_viewer::vulkan {
-    export struct SharedData {
-        class MultiviewPipelines {
-            std::reference_wrapper<const vk::raii::Device> device;
-            std::reference_wrapper<const pl::PrimitiveNoShading> primitiveNoShadingPipelineLayout;
-
-            std::uint32_t viewMask;
-
-        public:
-            // TODO: remove mutable
-            mutable std::map<PrepassPipelineConfig<false>, JumpFloodSeedRenderPipeline<false>> jumpFloodSeedRenderPipelines;
-            mutable std::map<PrepassPipelineConfig<true>, JumpFloodSeedRenderPipeline<true>> maskJumpFloodSeedRenderPipelines;
-
-            MultiviewPipelines(
-                const Gpu &gpu LIFETIMEBOUND,
-                const pl::PrimitiveNoShading &primitiveNoShadingPipelineLayout LIFETIMEBOUND,
-                std::uint32_t viewMask
-            );
-
-            [[nodiscard]] std::uint32_t getViewMask() const noexcept { return viewMask; }
-
-            // TODO: mark as non-const
-            [[nodiscard]] const JumpFloodSeedRenderPipeline<false> &getJumpFloodSeedRenderPipeline(const PrepassPipelineConfig<false> &config) const;
-            [[nodiscard]] const JumpFloodSeedRenderPipeline<true> &getMaskJumpFloodSeedRenderPipeline(const PrepassPipelineConfig<true> &config) const;
-        };
-
+    export class SharedData {
+    public:
         const Gpu &gpu;
 
         // Buffer, image and image views and samplers.
@@ -90,28 +67,46 @@ namespace vk_gltf_viewer::vulkan {
         pl::Skybox skyboxPipelineLayout;
         pl::WeightedBlendedComposition weightedBlendedCompositionPipelineLayout;
 
-        rp::Scene sceneRenderPass;
         rp::BloomApply bloomApplyRenderPass;
 
-        GridRenderPipeline gridRenderPipeline;
         JumpFloodComputePipeline jumpFloodComputePipeline;
         bloom::BloomComputePipeline bloomComputePipeline;
         OutlineRenderPipeline outlineRenderPipeline;
-        SkyboxRenderPipeline skyboxRenderPipeline;
-        WeightedBlendedCompositionRenderPipeline weightedBlendedCompositionRenderPipeline;
-        InverseToneMappingRenderPipeline inverseToneMappingRenderPipeline;
         BloomApplyRenderPipeline bloomApplyRenderPipeline;
+
+    private:
+        struct MultisamplePipelines {
+            rp::Scene sceneRenderPass;
+
+            GridRenderPipeline gridRenderPipeline;
+            SkyboxRenderPipeline skyboxRenderPipeline;
+            WeightedBlendedCompositionRenderPipeline weightedBlendedCompositionRenderPipeline;
+            InverseToneMappingRenderPipeline inverseToneMappingRenderPipeline;
+
+            std::map<PrimitiveRenderPipeline::Config, PrimitiveRenderPipeline> primitiveRenderPipelines;
+            std::map<UnlitPrimitiveRenderPipeline::Config, UnlitPrimitiveRenderPipeline> unlitPrimitiveRenderPipelines;
+        };
+
+        struct MultiviewPipelines {
+            std::map<PrepassPipelineConfig<false>, JumpFloodSeedRenderPipeline<false>> jumpFloodSeedRenderPipelines;
+            std::map<PrepassPipelineConfig<true>, JumpFloodSeedRenderPipeline<true>> maskJumpFloodSeedRenderPipelines;
+        };
+
+        std::uint32_t viewMask;
 
         // TODO: remove mutable
         mutable std::map<PrepassPipelineConfig<false>, NodeMousePickingRenderPipeline<false>> nodeMousePickingRenderPipelines;
         mutable std::map<PrepassPipelineConfig<false>, MultiNodeMousePickingRenderPipeline<false>> multiNodeMousePickingRenderPipelines;
         mutable std::map<PrepassPipelineConfig<true>, NodeMousePickingRenderPipeline<true>> maskNodeMousePickingRenderPipelines;
         mutable std::map<PrepassPipelineConfig<true>, MultiNodeMousePickingRenderPipeline<true>> maskMultiNodeMousePickingRenderPipelines;
-        mutable std::map<PrimitiveRenderPipeline::Config, PrimitiveRenderPipeline> primitiveRenderPipelines;
-        mutable std::map<UnlitPrimitiveRenderPipeline::Config, UnlitPrimitiveRenderPipeline> unlitPrimitiveRenderPipelines;
 
-        std::unordered_map<std::uint32_t, MultiviewPipelines> multiviewPipelines;
+        std::unordered_map<vk::SampleCountFlagBits, MultisamplePipelines> multisamplePipelines;
+        std::reference_wrapper<MultisamplePipelines> currentMultisamplePipelines;
 
+        std::unordered_map<std::uint32_t /* view mask */, MultiviewPipelines> multiviewPipelines;
+        std::reference_wrapper<MultiviewPipelines> currentMultiviewPipelines;
+
+    public:
         // --------------------
         // Attachment groups.
         // --------------------
@@ -142,41 +137,47 @@ namespace vk_gltf_viewer::vulkan {
 
         void handleSwapchainResize(const vk::Extent2D &newExtent);
 
+        void setSampleCount(vk::SampleCountFlagBits sampleCount);
         void setViewCount(std::uint32_t viewCount);
+
+        [[nodiscard]] const rp::Scene &getSceneRenderPass() const {
+            return currentMultisamplePipelines.get().sceneRenderPass;
+        }
+
+        [[nodiscard]] const GridRenderPipeline &getGridRenderPipeline() const {
+            return currentMultisamplePipelines.get().gridRenderPipeline;
+        }
+
+        [[nodiscard]] const SkyboxRenderPipeline &getSkyboxRenderPipeline() const {
+            return currentMultisamplePipelines.get().skyboxRenderPipeline;
+        }
+
+        [[nodiscard]] const WeightedBlendedCompositionRenderPipeline &getWeightedBlendedCompositionRenderPipeline() const {
+            return currentMultisamplePipelines.get().weightedBlendedCompositionRenderPipeline;
+        }
+
+        [[nodiscard]] const InverseToneMappingRenderPipeline &getInverseToneMappingRenderPipeline() const {
+            return currentMultisamplePipelines.get().inverseToneMappingRenderPipeline;
+        }
 
         // TODO: mark as non-const
         [[nodiscard]] const NodeMousePickingRenderPipeline<false> &getNodeMousePickingRenderPipeline(const PrepassPipelineConfig<false> &config) const;
         [[nodiscard]] const MultiNodeMousePickingRenderPipeline<false> &getMultiNodeMousePickingRenderPipeline(const PrepassPipelineConfig<false> &config) const;
         [[nodiscard]] const NodeMousePickingRenderPipeline<true> &getMaskNodeMousePickingRenderPipeline(const PrepassPipelineConfig<true> &config) const;
         [[nodiscard]] const MultiNodeMousePickingRenderPipeline<true> &getMaskMultiNodeMousePickingRenderPipeline(const PrepassPipelineConfig<true> &config) const;
+        [[nodiscard]] const JumpFloodSeedRenderPipeline<false> &getJumpFloodSeedRenderPipeline(const PrepassPipelineConfig<false> &config) const;
+        [[nodiscard]] const JumpFloodSeedRenderPipeline<true> &getMaskJumpFloodSeedRenderPipeline(const PrepassPipelineConfig<true> &config) const;
         [[nodiscard]] const PrimitiveRenderPipeline &getPrimitiveRenderPipeline(const PrimitiveRenderPipeline::Config &config) const;
         [[nodiscard]] const UnlitPrimitiveRenderPipeline &getUnlitPrimitiveRenderPipeline(const UnlitPrimitiveRenderPipeline::Config &config) const;
+
+    private:
+        [[nodiscard]] MultisamplePipelines createMultisamplePipelines(vk::SampleCountFlagBits sampleCount) const;
     };
 }
 
 #if !defined(__GNUC__) || defined(__clang__)
 module :private;
 #endif
-
-vk_gltf_viewer::vulkan::SharedData::MultiviewPipelines::MultiviewPipelines(
-    const Gpu &gpu,
-    const pl::PrimitiveNoShading &primitiveNoShadingPipelineLayout,
-    std::uint32_t viewMask
-) : device { gpu.device },
-    primitiveNoShadingPipelineLayout { primitiveNoShadingPipelineLayout },
-    viewMask { viewMask } { }
-
-auto vk_gltf_viewer::vulkan::SharedData::MultiviewPipelines::getJumpFloodSeedRenderPipeline(
-    const PrepassPipelineConfig<false> &config
-) const -> const JumpFloodSeedRenderPipeline<false>& {
-    return jumpFloodSeedRenderPipelines.try_emplace(config, device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
-}
-
-auto vk_gltf_viewer::vulkan::SharedData::MultiviewPipelines::getMaskJumpFloodSeedRenderPipeline(
-    const PrepassPipelineConfig<true> &config
-) const -> const JumpFloodSeedRenderPipeline<true>& {
-    return maskJumpFloodSeedRenderPipelines.try_emplace(config, device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
-}
 
 vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent)
     : gpu { gpu }
@@ -199,16 +200,19 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, vk::SurfaceKHR su
     , primitiveNoShadingPipelineLayout { gpu.device, std::tie(rendererDescriptorSetLayout, assetDescriptorSetLayout) }
     , skyboxPipelineLayout { gpu.device, { rendererDescriptorSetLayout, skyboxDescriptorSetLayout } }
     , weightedBlendedCompositionPipelineLayout { gpu.device, weightedBlendedCompositionDescriptorSetLayout }
-    , sceneRenderPass { gpu }
     , bloomApplyRenderPass { gpu }
-    , gridRenderPipeline { gpu.device, rendererDescriptorSetLayout, sceneRenderPass }
     , jumpFloodComputePipeline { gpu.device }
     , bloomComputePipeline { gpu.device, { .useAMDShaderImageLoadStoreLod = gpu.supportShaderImageLoadStoreLod } }
     , outlineRenderPipeline { gpu.device, outlinePipelineLayout }
-    , skyboxRenderPipeline { gpu.device, skyboxPipelineLayout, sceneRenderPass }
-    , weightedBlendedCompositionRenderPipeline { gpu, weightedBlendedCompositionPipelineLayout, sceneRenderPass }
-    , inverseToneMappingRenderPipeline { gpu, inverseToneMappingPipelineLayout, sceneRenderPass }
     , bloomApplyRenderPipeline { gpu, bloomApplyPipelineLayout, bloomApplyRenderPass }
+    , viewMask { 0b1U }
+    , multisamplePipelines { [&] {
+        decltype(multisamplePipelines) result;
+        result.try_emplace(vk::SampleCountFlagBits::e1, createMultisamplePipelines(vk::SampleCountFlagBits::e1));
+        return result;
+    }() }
+    , currentMultisamplePipelines { multisamplePipelines.at(vk::SampleCountFlagBits::e1) }
+    , currentMultiviewPipelines { multiviewPipelines[viewMask] } // will create an entry for viewMask = 0b1
     , swapchain { gpu, surface, swapchainExtent }
     , imGuiAttachmentGroup { gpu, swapchain.images }
     , descriptorPool { [&] {
@@ -219,9 +223,6 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, vk::SurfaceKHR su
         return vk::raii::DescriptorPool { gpu.device, vk::DescriptorPoolCreateInfo { {}, maxSets, poolSizes } };
     }() }
     , fallbackTexture { gpu }{
-    // Initialize view count dependent resources for viewMask=0b1 at the launch time.
-    multiviewPipelines.try_emplace(0b1U, gpu, primitiveNoShadingPipelineLayout, 0b1U);
-
     vku::DescriptorSetAllocationBuilder{}
         .add(imageBasedLightingDescriptorSetLayout, imageBasedLightingDescriptorSet)
         .add(skyboxDescriptorSetLayout, skyboxDescriptorSet)
@@ -238,9 +239,13 @@ void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2
     imGuiAttachmentGroup = { gpu, swapchain.images };
 }
 
+void vk_gltf_viewer::vulkan::SharedData::setSampleCount(vk::SampleCountFlagBits sampleCount) {
+    currentMultisamplePipelines = multisamplePipelines.try_emplace(sampleCount, createMultisamplePipelines(sampleCount)).first->second;
+}
+
 void vk_gltf_viewer::vulkan::SharedData::setViewCount(std::uint32_t viewCount) {
-    const std::uint32_t viewMask = math::bit::ones(viewCount);
-    multiviewPipelines.try_emplace(viewMask, gpu, primitiveNoShadingPipelineLayout, viewMask);
+    viewMask = math::bit::ones(viewCount);
+    currentMultiviewPipelines = multiviewPipelines[viewMask];
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::getNodeMousePickingRenderPipeline(
@@ -267,14 +272,42 @@ auto vk_gltf_viewer::vulkan::SharedData::getMaskMultiNodeMousePickingRenderPipel
     return maskMultiNodeMousePickingRenderPipelines.try_emplace(config, gpu, mousePickingPipelineLayout, config).first->second;
 }
 
+auto vk_gltf_viewer::vulkan::SharedData::getJumpFloodSeedRenderPipeline(
+    const PrepassPipelineConfig<false> &config
+) const -> const JumpFloodSeedRenderPipeline<false>& {
+    return currentMultiviewPipelines.get().jumpFloodSeedRenderPipelines.try_emplace(config, gpu.device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::getMaskJumpFloodSeedRenderPipeline(
+    const PrepassPipelineConfig<true> &config
+) const -> const JumpFloodSeedRenderPipeline<true>& {
+    return currentMultiviewPipelines.get().maskJumpFloodSeedRenderPipelines.try_emplace(config, gpu.device, primitiveNoShadingPipelineLayout, config, viewMask).first->second;
+}
+
 auto vk_gltf_viewer::vulkan::SharedData::getPrimitiveRenderPipeline(
     const PrimitiveRenderPipeline::Config &config
 ) const -> const PrimitiveRenderPipeline& {
-    return primitiveRenderPipelines.try_emplace(config, gpu.device, primitivePipelineLayout, sceneRenderPass, config).first->second;
+    return currentMultisamplePipelines.get().primitiveRenderPipelines.try_emplace(config, gpu.device, primitivePipelineLayout, currentMultisamplePipelines.get().sceneRenderPass, config).first->second;
 }
 
 auto vk_gltf_viewer::vulkan::SharedData::getUnlitPrimitiveRenderPipeline(
     const UnlitPrimitiveRenderPipeline::Config &config
 ) const -> const UnlitPrimitiveRenderPipeline& {
-    return unlitPrimitiveRenderPipelines.try_emplace(config, gpu.device, primitivePipelineLayout, sceneRenderPass, config).first->second;
+    return currentMultisamplePipelines.get().unlitPrimitiveRenderPipelines.try_emplace(config, gpu.device, primitivePipelineLayout, currentMultisamplePipelines.get().sceneRenderPass, config).first->second;
+}
+
+auto vk_gltf_viewer::vulkan::SharedData::createMultisamplePipelines(vk::SampleCountFlagBits sampleCount) const -> MultisamplePipelines {
+    rp::Scene sceneRenderPass { gpu, sampleCount };
+    GridRenderPipeline gridRenderPipeline { gpu.device, rendererDescriptorSetLayout, sceneRenderPass };
+    SkyboxRenderPipeline skyboxRenderPipeline { gpu.device, skyboxPipelineLayout, sceneRenderPass };
+    WeightedBlendedCompositionRenderPipeline weightedBlendedCompositionRenderPipeline { gpu, weightedBlendedCompositionPipelineLayout, sceneRenderPass };
+    InverseToneMappingRenderPipeline inverseToneMappingRenderPipeline { gpu, inverseToneMappingPipelineLayout, sceneRenderPass };
+
+    return {
+        .sceneRenderPass = std::move(sceneRenderPass),
+        .gridRenderPipeline = std::move(gridRenderPipeline),
+        .skyboxRenderPipeline = std::move(skyboxRenderPipeline),
+        .weightedBlendedCompositionRenderPipeline = std::move(weightedBlendedCompositionRenderPipeline),
+        .inverseToneMappingRenderPipeline = std::move(inverseToneMappingRenderPipeline),
+    };
 }
