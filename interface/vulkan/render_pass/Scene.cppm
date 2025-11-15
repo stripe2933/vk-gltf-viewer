@@ -75,7 +75,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu, vk::SampleCountFlagBits
                         vk::Format::eD32SfloatS8Uint, vk::SampleCountFlagBits::e1,
                         vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                         vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
-                        {}, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                        {}, vk::ImageLayout::eDepthStencilReadOnlyOptimal,
                     },
                     // (2) Accumulation color image.
                     vk::AttachmentDescription2 {
@@ -116,7 +116,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu, vk::SampleCountFlagBits
                             vk::AttachmentReference2 { 3, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor },
                         }),
                         {},
-                        &vku::lvalue(vk::AttachmentReference2 { 1, vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil }),
+                        &vku::lvalue(vk::AttachmentReference2 { 1, vk::ImageLayout::eDepthReadOnlyStencilAttachmentOptimal, vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil }),
                     },
                     // Composition pass.
                     vk::SubpassDescription2 {
@@ -137,7 +137,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu, vk::SampleCountFlagBits
                         vku::lvalue(vk::AttachmentReference2 { 0, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageAspectFlagBits::eColor }),
                         {},
                         {},
-                        &vku::lvalue(vk::AttachmentReference2 { 1, vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageAspectFlagBits::eStencil }),
+                        &vku::lvalue(vk::AttachmentReference2 { 1, vk::ImageLayout::eDepthStencilReadOnlyOptimal, vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil }), // remain the depthlayout from 2nd pass
                     },
                 }),
                 subpassDependencies,
@@ -169,7 +169,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu, vk::SampleCountFlagBits
                         vk::Format::eD32SfloatS8Uint, sampleCount,
                         vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
                         vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
-                        {}, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                        {}, vk::ImageLayout::eDepthReadOnlyStencilAttachmentOptimal,
                     },
                     // (3) Stencil resolve image.
                     vk::AttachmentDescription2 {
@@ -182,8 +182,8 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu, vk::SampleCountFlagBits
                         vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
                         {},
                         gpu.supportS8UintDepthStencilAttachment && !gpu.workaround.depthStencilResolveDifferentFormat
-                            ? vk::ImageLayout::eStencilAttachmentOptimal
-                            : vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                            ? vk::ImageLayout::eStencilReadOnlyOptimal
+                            : vk::ImageLayout::eDepthStencilReadOnlyOptimal,
                     },
                     // (4) Accumulation color image.
                     vk::AttachmentDescription2 {
@@ -257,7 +257,7 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu, vk::SampleCountFlagBits
                                 vk::AttachmentReference2 { 5, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor },
                                 vk::AttachmentReference2 { 7, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageAspectFlagBits::eColor },
                             }),
-                            &vku::lvalue(vk::AttachmentReference2 { 2, vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil }),
+                            &vku::lvalue(vk::AttachmentReference2 { 2, vk::ImageLayout::eDepthReadOnlyStencilAttachmentOptimal, vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil }),
                         },
                         vk::SubpassDescriptionDepthStencilResolve {
                             vk::ResolveModeFlagBits::eNone,
@@ -295,8 +295,8 @@ vk_gltf_viewer::vulkan::rp::Scene::Scene(const Gpu &gpu, vk::SampleCountFlagBits
                         &vku::lvalue(vk::AttachmentReference2 {
                             3,
                             gpu.supportS8UintDepthStencilAttachment && !gpu.workaround.depthStencilResolveDifferentFormat
-                                ? vk::ImageLayout::eStencilAttachmentOptimal
-                                : vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                                ? vk::ImageLayout::eStencilReadOnlyOptimal
+                                : vk::ImageLayout::eDepthStencilReadOnlyOptimal,
                             vk::ImageAspectFlagBits::eStencil,
                         }),
                     },
