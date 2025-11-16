@@ -505,6 +505,43 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
         ImGui::InputTextWithHint("glTF Version", "<empty>", &assetExtended.asset.assetInfo->gltfVersion);
         ImGui::InputTextWithHint("Generator", "<empty>", &assetExtended.asset.assetInfo->generator);
         ImGui::InputTextWithHint("Copyright", "<empty>", &assetExtended.asset.assetInfo->copyright);
+
+        ImGui::SeparatorText("Extension Usage");
+
+        ImGui::Table<false>(
+            "asset-extensions-table",
+            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY,
+            assetExtended.asset.extensionsUsed,
+            ImGui::ColumnInfo { "Name", [](cpp_util::cstring_view name) {
+                constexpr auto getVendorPath = [](std::string_view name) noexcept -> std::string_view {
+                    if (name.starts_with("KHR_")) {
+                        if (name == "KHR_materials_pbrSpecularGlossiness" ||
+                            name == "KHR_techniques_webgl" ||
+                            name == "KHR_xmp") {
+                            return "Archived";
+                        }
+
+                        return "Khronos";
+                    }
+
+                    return "Vendor";
+                };
+
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextLinkOpenURL(name.c_str(), tempStringBuffer.write("https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/{}/{}", getVendorPath(name), name).view().c_str());
+            }, ImGuiTableColumnFlags_WidthStretch },
+            ImGui::ColumnInfo { "Required", [&](std::size_t i, std::string_view name) {
+                const auto it = std::ranges::find(assetExtended.asset.extensionsRequired, name);
+                bool required = it != assetExtended.asset.extensionsRequired.end();
+                if (ImGui::Checkbox(tempStringBuffer.write("##{}", i).view().c_str(), &required)) {
+                    if (required) {
+                        assetExtended.asset.extensionsRequired.emplace_back(name);
+                    }
+                    else {
+                        assetExtended.asset.extensionsRequired.erase(it);
+                    }
+                }
+            }, ImGuiTableColumnFlags_WidthFixed });
     }
     ImGui::End();
 
