@@ -771,18 +771,33 @@ void vk_gltf_viewer::MainApp::run() {
                                 sharedDataUpdateCommandBuffer);
                             break;
                         case Property::EmissiveStrength: {
+                            using namespace std::string_view_literals;
+
                             const auto it = assetExtended->bloomMaterials.find(task.materialIndex);
                             const bool useBloom = assetExtended->asset.materials[task.materialIndex].emissiveStrength > 1.f;
 
-                            // Material emissive strength is changed to 1.
+                            // Material emissive strength is changed from 1.
                             if (it != assetExtended->bloomMaterials.end() && !useBloom) {
                                 assetExtended->bloomMaterials.erase(it);
                                 regenerateDrawCommands.fill(true);
+
+                                if (assetExtended->bloomMaterials.empty()) {
+                                    // If there's no bloom material left, remove the extension from extensionsUsed if exists.
+                                    auto it = std::ranges::find(assetExtended->asset.extensionsUsed, "KHR_materials_emissive_strength"sv);
+                                    if (it != assetExtended->asset.extensionsUsed.end()) {
+                                        assetExtended->asset.extensionsUsed.erase(it);
+                                    }
+                                }
                             }
-                            // Material emissive strength is changed from 1.
+                            // Material emissive strength is changed to 1.
                             else if (it == assetExtended->bloomMaterials.end() && useBloom) {
                                 assetExtended->bloomMaterials.emplace_hint(it, task.materialIndex);
                                 regenerateDrawCommands.fill(true);
+
+                                // Add the extension to extensionsUsed if not exists.
+                                if (!std::ranges::contains(assetExtended->asset.extensionsUsed, "KHR_materials_emissive_strength"sv)) {
+                                    assetExtended->asset.extensionsUsed.push_back("KHR_materials_emissive_strength");
+                                }
                             }
                             [[fallthrough]]; // materialBuffer also needs to be updated.
                         }
