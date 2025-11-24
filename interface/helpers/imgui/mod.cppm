@@ -62,7 +62,7 @@ namespace ImGui {
     }
 
     export void TextUnformatted(std::string_view str) {
-        Text(str.data(), str.data() + str.size());
+        TextUnformatted(str.data(), str.data() + str.size());
     }
 
     export void HelperMarker(cpp_util::cstring_view label, std::string_view description) {
