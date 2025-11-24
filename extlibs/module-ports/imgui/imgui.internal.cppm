@@ -366,6 +366,10 @@ export {
     using ::ImGuiTypingSelectFlags_AllowBackspace;
     using ::ImGuiTypingSelectFlags_AllowSingleCharMode;
 
+    using ::ImGuiWindowBgClickFlags_;
+    using ::ImGuiWindowBgClickFlags_None;
+    using ::ImGuiWindowBgClickFlags_Move;
+
     using ::ImGuiWindowDockStyleCol;
     using ::ImGuiWindowDockStyleCol_Text;
     using ::ImGuiWindowDockStyleCol_TabHovered;
@@ -375,6 +379,7 @@ export {
     using ::ImGuiWindowDockStyleCol_TabDimmed;
     using ::ImGuiWindowDockStyleCol_TabDimmedSelected;
     using ::ImGuiWindowDockStyleCol_TabDimmedSelectedOverline;
+    using ::ImGuiWindowDockStyleCol_UnsavedMarker;
     using ::ImGuiWindowDockStyleCol_COUNT;
 
     using ::ImGuiWindowRefreshFlags_;
@@ -405,6 +410,7 @@ export {
     using ::ImGuiDeactivatedItemData;
     using ::ImGuiDebugAllocEntry;
     using ::ImGuiDebugAllocInfo;
+    using ::ImGuiDebugItemPathQuery;
     using ::ImGuiDockContext;
     using ::ImGuiDockNode;
     using ::ImGuiErrorRecoveryState;
@@ -501,6 +507,7 @@ export {
     using ::ImGuiTextFlags;
     using ::ImGuiTooltipFlags;
     using ::ImGuiTypingSelectFlags;
+    using ::ImGuiWindowBgClickFlags;
     using ::ImGuiWindowRefreshFlags;
     using ::ImPoolIdx;
     using ::ImStbTexteditState;
@@ -551,6 +558,7 @@ export {
     using ::ImFontAtlasBuildInit;
     using ::ImFontAtlasBuildLegacyPreloadAllGlyphRanges;
     using ::ImFontAtlasBuildMain;
+    using ::ImFontAtlasBuildNotifySetFont;
     using ::ImFontAtlasBuildRenderBitmapFromString;
     using ::ImFontAtlasBuildSetupFontLoader;
     using ::ImFontAtlasBuildSetupFontSpecialGlyphs;
@@ -645,6 +653,7 @@ export {
     using ::ImTextCountUtf8BytesFromChar;
     using ::ImTextCountUtf8BytesFromStr;
     using ::ImTextFindPreviousUtf8Codepoint;
+    using ::ImTextFindValidUtf8CodepointEnd;
     using ::ImTextStrFromUtf8;
     using ::ImTextStrToUtf8;
     using ::ImTextureDataGetFormatBytesPerPixel;
@@ -899,6 +908,7 @@ namespace ImGui {
     using ImGui::IsWindowAbove;
     using ImGui::IsWindowChildOf;
     using ImGui::IsWindowContentHoverable;
+    using ImGui::IsWindowInBeginStack;
     using ImGui::IsWindowNavFocusable;
     using ImGui::IsWindowWithinBeginStackOf;
     using ImGui::ItemAdd;
