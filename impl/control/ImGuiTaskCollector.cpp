@@ -3,6 +3,7 @@ module;
 #include <cassert>
 #include <version>
 
+#include <boost/container/small_vector.hpp>
 #include <boost/container/static_vector.hpp>
 #include <IconsFontAwesome4.h>
 #include <nfd.hpp>
@@ -1211,7 +1212,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
         const ImVec2 treeNodeVisibilityTestSize { 1.f, ImGui::GetFontSize() + 2 * ImGui::GetStyle().FramePadding.y };
 
         const auto addChildNode = [&](this const auto &self, std::size_t nodeIndex) -> void {
-            std::vector<std::size_t> mergedNodeIndices;
+            boost::container::small_vector<std::size_t, 4> mergedNodeIndices;
             if (mergeSingleChildNodes) {
                 for (const fastgltf::Node *node = &assetExtended.asset.nodes[nodeIndex];
                     node->children.size() == 1
