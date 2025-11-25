@@ -1203,6 +1203,10 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
         ImGui::SameLine();
         ImGui::HelperMarker("(?)", "If a node has only single child and both are not representing any mesh, light or camera, they will be combined and slash-separated name will be shown instead.");
 
+        // Node rendered by ImGui::TreeNode, including merged node indices when merging single child node is enabled.
+        // Will last until the next frame's ImGui::BeginTable() call and cleared at the beginning of that.
+        static std::vector<std::size_t> renderedNodes;
+
         // Passed as parameter with ImGui::IsRectVisible() call (see below).
         const ImVec2 treeNodeVisibilityTestSize { 1.f, ImGui::GetFontSize() + 2 * ImGui::GetStyle().FramePadding.y };
 
@@ -1235,125 +1239,110 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                 // TreeNode.
                 // --------------------
 
-                bool isNodeSelected = std::ranges::all_of(mergedNodeIndices, LIFT(assetExtended.selectedNodes.contains));
-                const bool isTreeNodeOpen = ImGui::WithStyleColor(ImGuiCol_Header, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive), [&]() {
-                    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_AllowOverlap | ImGuiTreeNodeFlags_DrawLinesToNodes;
-                    if (nodeIndex == assetExtended.hoveringNode) flags |= ImGuiTreeNodeFlags_Framed;
-                    if (isNodeSelected) flags |= ImGuiTreeNodeFlags_Selected;
-                    if (node.children.empty()) flags |= ImGuiTreeNodeFlags_Bullet | ImGuiTreeNodeFlags_Leaf;
-
-                    ImGui::AlignTextToFramePadding();
-
-                    // Make treenode label with node names (or placeholder text) and calculate the node name search text
-                    // occurrence positions (if the search text is nonempty).
-                    // For the optimization, this is only done when the tree node is actually visible, tested by
-                    // ImGui::IsRectVisible(treeNodeVisibilityTestSize) from the current cursor position. For invisible
-                    // tree node, empty label (but it still has ID of node index to maintain the tree node state) is used.
-                    tempStringBuffer.clear();
-                    const char *labelStart = tempStringBuffer.view().data();
-                    if (ImGui::IsRectVisible(treeNodeVisibilityTestSize)) {
-                        std::vector<std::size_t> searchTextOccurrencePosInLabel;
-                        const auto appendNodeLabel = [&](std::size_t nodeIndex) {
-                            if (!assetExtended.nodeNameSearchText.empty()) {
-                                // Check if the node name has an occurrence of the search text
-                                const auto it = assetExtended.nodeNameSearchTextOccurrencePosByNode.find(nodeIndex);
-                                if (it != assetExtended.nodeNameSearchTextOccurrencePosByNode.end() &&
-                                    it->second != assetExtended.asset.nodes[nodeIndex].name.size() /* check if really occurs */) {
-                                    searchTextOccurrencePosInLabel.push_back(tempStringBuffer.view().size() + it->second);
-                                }
-                            }
-
-                            const fastgltf::Node &node = assetExtended.asset.nodes[nodeIndex];
-                            if (std::string_view name = node.name; name.empty()) {
-                                tempStringBuffer.append("Unnamed Node {}", nodeIndex);
-                            }
-                            else {
-                                tempStringBuffer.append(name);
-                            }
-                        };
-                        for (bool first = true; std::size_t nodeIndex : mergedNodeIndices) {
-                            if (first) {
-                                first = false;
-                            }
-                            else {
-                                tempStringBuffer.append(" / ");
-                            }
-                            appendNodeLabel(nodeIndex);
-                        }
-
-                        // (Avail width) = ImGui::GetContentRegionAvail().x - (space occupied by collapsing arrow)
-                        // Collapsing arrow space calculation code is adapted from
-                        //   bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* label, const char* label_end)
-                        // implementation.
-                        const float collapsingArrowWidth = ImGui::GetFontSize() + 2 * ImGui::GetStyle().FramePadding.x;
-                        const float width = ImGui::GetContentRegionAvail().x - collapsingArrowWidth;
-
-                        // Truncate text if it is too long to fit in the available width. Left text will be truncated and
-                        // replaced with ellipsis.
-                        if (tempStringBuffer.view().size() >= 3 && ImGui::CalcTextSize(tempStringBuffer.view()).x > width) {
-                            std::span truncated = ImGui::EllipsisLeft(tempStringBuffer.mut_view(), width, "...");
-
-                            char* const start = std::max(tempStringBuffer.mut_view().data(), truncated.data() - 3);
-                            std::fill(start, truncated.data(), '.');
-
-                            labelStart = start;
-                        }
-
-                        if (!searchTextOccurrencePosInLabel.empty()) {
-                            const ImVec2 highlightOffsetBase = ImGui::GetCursorScreenPos() + ImVec2 { collapsingArrowWidth, ImGui::GetStyle().FramePadding.y + 1 /* TODO */ };
-                            for (std::size_t occurrencePos : searchTextOccurrencePosInLabel) {
-                                const char *occurrenceStart = &tempStringBuffer.view()[occurrencePos];
-                                const char* const occurrenceEnd = occurrenceStart + assetExtended.nodeNameSearchText.size();
-
-                                if (occurrenceEnd <= labelStart) continue; // The occurrence is fully truncated.
-
-                                // If the occurrence is partially truncated, find the truncation point (replaced by the ellipsis).
-                                // The point can be found by first right-to-left mismatch of [labelStart, occurrenceEnd) and
-                                // nodeNameSearchText.
-                                // occurrenceStart will be the right next of the mismatch point.
-                                occurrenceStart = &*--std::ranges::mismatch(
-                                    std::ranges::subrange(labelStart, occurrenceEnd) | std::views::reverse,
-                                    assetExtended.nodeNameSearchText | std::views::reverse,
-                                    {}, LIFT(std::tolower), LIFT(std::tolower)).in1;
-
-                                // Mismatch may happen at the first element of twos, which means the occurrence is replaced by
-                                // the ellipsis. Should be rejected.
-                                if (occurrenceStart >= occurrenceEnd) continue;
-
-                                ImVec2 highlightOffset = highlightOffsetBase;
-                                highlightOffset.x += ImGui::CalcTextSize(labelStart, occurrenceStart).x;
-                                const ImVec2 highlightSize = ImGui::CalcTextSize(occurrenceStart, occurrenceEnd);
-                                ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
+                // Make treenode label with node names (or placeholder text) and calculate the node name search text
+                // occurrence positions (if the search text is nonempty).
+                // For the optimization, this is only done when the tree node is actually visible, tested by
+                // ImGui::IsRectVisible(treeNodeVisibilityTestSize) from the current cursor position. For invisible
+                // tree node, empty label (but it still has ID of node index to maintain the tree node state) is used.
+                tempStringBuffer.clear();
+                const char *labelStart = tempStringBuffer.view().data();
+                if (ImGui::IsRectVisible(treeNodeVisibilityTestSize)) {
+                    std::vector<std::size_t> searchTextOccurrencePosInLabel;
+                    const auto appendNodeLabel = [&](std::size_t nodeIndex) {
+                        if (!assetExtended.nodeNameSearchText.empty()) {
+                            // Check if the node name has an occurrence of the search text
+                            const auto it = assetExtended.nodeNameSearchTextOccurrencePosByNode.find(nodeIndex);
+                            if (it != assetExtended.nodeNameSearchTextOccurrencePosByNode.end() &&
+                                it->second != assetExtended.asset.nodes[nodeIndex].name.size() /* check if really occurs */) {
+                                searchTextOccurrencePosInLabel.push_back(tempStringBuffer.view().size() + it->second);
                             }
                         }
-                    }
 
-                    // Label passed to ImGui::TreeNodeEx() can be changed by truncation. To maintain the opened state
-                    // of the tree node, its ID must be stable. For the purpose, use ### to separate the label and ID.
-                    tempStringBuffer.append("###{}", nodeIndex);
-
-                    return ImGui::TreeNodeEx(labelStart, flags);
-                }, nodeIndex == assetExtended.hoveringNode);
-
-                // Handle clicking tree node.
-                if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
-                    if (ImGui::GetIO().KeyCtrl) {
-                        // Toggle the selection.
-                        if (isNodeSelected) {
-                            std::ranges::for_each(mergedNodeIndices, LIFT(assetExtended.selectedNodes.erase));
-                            isNodeSelected = false;
+                        const fastgltf::Node &node = assetExtended.asset.nodes[nodeIndex];
+                        if (std::string_view name = node.name; name.empty()) {
+                            tempStringBuffer.append("Unnamed Node {}", nodeIndex);
                         }
                         else {
-                            std::ranges::for_each(mergedNodeIndices, LIFT(assetExtended.selectedNodes.emplace));
-                            isNodeSelected = true;
+                            tempStringBuffer.append(name);
                         }
-                        tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
+                    };
+                    for (bool first = true; std::size_t nodeIndex : mergedNodeIndices) {
+                        if (first) {
+                            first = false;
+                        }
+                        else {
+                            tempStringBuffer.append(" / ");
+                        }
+                        appendNodeLabel(nodeIndex);
                     }
-                    else {
-                        assetExtended.selectedNodes = { std::from_range, mergedNodeIndices };
-                        tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
+
+                    // (Avail width) = ImGui::GetContentRegionAvail().x - (space occupied by collapsing arrow)
+                    // Collapsing arrow space calculation code is adapted from
+                    //   bool ImGui::TreeNodeBehavior(ImGuiID id, ImGuiTreeNodeFlags flags, const char* label, const char* label_end)
+                    // implementation.
+                    const float collapsingArrowWidth = ImGui::GetFontSize() + 2 * ImGui::GetStyle().FramePadding.x;
+                    const float width = ImGui::GetContentRegionAvail().x - collapsingArrowWidth;
+
+                    // Truncate text if it is too long to fit in the available width. Left text will be truncated and
+                    // replaced with ellipsis.
+                    if (tempStringBuffer.view().size() >= 3 && ImGui::CalcTextSize(tempStringBuffer.view()).x > width) {
+                        std::span truncated = ImGui::EllipsisLeft(tempStringBuffer.mut_view(), width, "...");
+
+                        char* const start = std::max(tempStringBuffer.mut_view().data(), truncated.data() - 3);
+                        std::fill(start, truncated.data(), '.');
+
+                        labelStart = start;
+                    }
+
+                    if (!searchTextOccurrencePosInLabel.empty()) {
+                        const ImVec2 highlightOffsetBase = ImGui::GetCursorScreenPos() + ImVec2 { collapsingArrowWidth, ImGui::GetStyle().FramePadding.y + 1 /* TODO */ };
+                        for (std::size_t occurrencePos : searchTextOccurrencePosInLabel) {
+                            const char *occurrenceStart = &tempStringBuffer.view()[occurrencePos];
+                            const char* const occurrenceEnd = occurrenceStart + assetExtended.nodeNameSearchText.size();
+
+                            if (occurrenceEnd <= labelStart) continue; // The occurrence is fully truncated.
+
+                            // If the occurrence is partially truncated, find the truncation point (replaced by the ellipsis).
+                            // The point can be found by first right-to-left mismatch of [labelStart, occurrenceEnd) and
+                            // nodeNameSearchText.
+                            // occurrenceStart will be the right next of the mismatch point.
+                            occurrenceStart = &*--std::ranges::mismatch(
+                                std::ranges::subrange(labelStart, occurrenceEnd) | std::views::reverse,
+                                assetExtended.nodeNameSearchText | std::views::reverse,
+                                {}, LIFT(std::tolower), LIFT(std::tolower)).in1;
+
+                            // Mismatch may happen at the first element of twos, which means the occurrence is replaced by
+                            // the ellipsis. Should be rejected.
+                            if (occurrenceStart >= occurrenceEnd) continue;
+
+                            ImVec2 highlightOffset = highlightOffsetBase;
+                            highlightOffset.x += ImGui::CalcTextSize(labelStart, occurrenceStart).x;
+                            const ImVec2 highlightSize = ImGui::CalcTextSize(occurrenceStart, occurrenceEnd);
+                            ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
+                        }
                     }
                 }
+
+                // Label passed to ImGui::TreeNodeEx() can be changed by truncation. To maintain the opened state
+                // of the tree node, its ID must be stable. For the purpose, use ### to separate the label and ID.
+                tempStringBuffer.append("###{}", nodeIndex);
+
+                ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_AllowOverlap | ImGuiTreeNodeFlags_DrawLinesToNodes;
+
+                bool isNodeSelected = std::ranges::all_of(mergedNodeIndices, LIFT(assetExtended.selectedNodes.contains));
+                if (isNodeSelected) flags |= ImGuiTreeNodeFlags_Selected;
+
+                if (node.children.empty()) flags |= ImGuiTreeNodeFlags_Bullet | ImGuiTreeNodeFlags_Leaf;
+
+                // When merging single child node is enabled, a single ImGui::TreeNode() represents all nodes in
+                // mergedNodeIndices. ImGuiSelectionRequest::Range{First,Last}Item needed to be set as
+                //   (mergedNodeIndices.front(), mergedNodeIndices.back())
+                // and selection range will be (RangeFirstItem.first, RangeLastItem.second).
+                // As ImGuiSelectionUserData is 8-byte data type, the pair can be stored with integer bit-casting.
+                ImGui::SetNextItemSelectionUserData(std::bit_cast<ImGuiSelectionUserData>((mergedNodeIndices.front() << 32) | mergedNodeIndices.back()));
+                const bool isTreeNodeOpen = ImGui::TreeNodeEx(labelStart, flags);
+
+                renderedNodes.append_range(mergedNodeIndices);
 
                 // Handle hovering tree node.
                 if (ImGui::IsItemHovered() && nodeIndex != assetExtended.hoveringNode) {
@@ -1585,39 +1574,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                     global::shouldNodeInSceneHierarchyScrolledToBeVisible = false;
                 }
 
-                // --------------------
-                // Node mesh.
-                // --------------------
-
                 if (node.meshIndex) {
                     ImGui::TableSetColumnIndex(1);
 
-                    if (bool visible = assetExtended.sceneHierarchy.getVisibility(nodeIndex); ImGui::Checkbox("##visibility", &visible)) {
-                        assetExtended.sceneHierarchy.flipVisibility(nodeIndex);
-                        tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
-                    }
-                }
-
-                // --------------------
-                // Node light.
-                // --------------------
-
-                if (node.lightIndex) {
-                    ImGui::TableSetColumnIndex(2);
-                    ImGui::WithDisabled([&]() {
-                        bool checked = false;
-                        ImGui::Checkbox(ICON_FA_LIGHTBULB_O, &checked); // TODO
-                    });
-                }
-
-                // --------------------
-                // Node camera.
-                // --------------------
-
-                if (node.cameraIndex) {
-                    ImGui::TableSetColumnIndex(3);
-                    ImGui::WithDisabled([&]() {
-                        ImGui::Button(ICON_FA_CAMERA); // TODO
+                    const bool visible = assetExtended.sceneHierarchy.getVisibility(nodeIndex);
+                    ImGui::WithStyleColor(ImGuiCol_Button, 0x0, [&] {
+                        if (ImGui::Button(visible ? ICON_FA_EYE : ICON_FA_EYE_SLASH)) {
+                            assetExtended.sceneHierarchy.flipVisibility(nodeIndex);
+                            tasks.emplace(std::in_place_type<task::NodeVisibilityChanged>, nodeIndex);
+                        }
                     });
                 }
 
@@ -1630,17 +1595,59 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
             });
         };
 
-        if (ImGui::BeginTable("scene-hierarchy-table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
-            ImGui::TableSetupScrollFreeze(0, 1);
+        if (ImGui::BeginTable("scene-hierarchy-table", 2, ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
             ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn(ICON_FA_CUBE, ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn(ICON_FA_LIGHTBULB_O, ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn(ICON_FA_CAMERA, ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableHeadersRow();
+            ImGui::TableSetupColumn("Visibility", ImGuiTableColumnFlags_WidthFixed);
 
+            const auto applySelectionRequests = [&](const ImGuiMultiSelectIO &io) {
+                bool anySelectionChanged = false;
+                for (const ImGuiSelectionRequest &req : io.Requests) {
+                    if (req.Type == ImGuiSelectionRequestType_SetAll) {
+                        if (req.Selected) {
+                            for (std::size_t nodeIndex : renderedNodes) {
+                                anySelectionChanged |= assetExtended.selectedNodes.emplace(nodeIndex).second;
+                            }
+                        }
+                        else {
+                            for (std::size_t nodeIndex : renderedNodes) {
+                                anySelectionChanged |= assetExtended.selectedNodes.erase(nodeIndex);
+                            }
+                        }
+                    }
+                    else if (req.Type == ImGuiSelectionRequestType_SetRange) {
+                        // Extract start and last node indices from ImGuiSelectionUserData. See the above
+                        //   ImGui::SetNextItemSelectionUserData()
+                        // call for details.
+                        const std::size_t startNodeIndex = std::bit_cast<std::size_t>(req.RangeFirstItem) >> 32;
+                        const std::size_t lastNodeIndex = std::bit_cast<std::size_t>(req.RangeLastItem) & 0xFFFFFFFF;
+
+                        auto it = std::ranges::find(renderedNodes, startNodeIndex);
+                        if (req.Selected) {
+                            do {
+                                assert(it != renderedNodes.end()); // lastNodeIndex not in renderedNodes?
+                                anySelectionChanged |= assetExtended.selectedNodes.emplace(*it).second;
+                            } while (*it++ != lastNodeIndex);
+                        }
+                        else {
+                            do {
+                                assert(it != renderedNodes.end()); // lastNodeIndex not in renderedNodes?
+                                anySelectionChanged |= assetExtended.selectedNodes.erase(*it);
+                            } while (*it++ != lastNodeIndex);
+                        }
+                    }
+                }
+
+                if (anySelectionChanged) {
+                    tasks.emplace(std::in_place_type<task::NodeSelectionChanged>);
+                }
+            };
+
+            applySelectionRequests(*ImGui::BeginMultiSelect(ImGuiMultiSelectFlags_ClearOnEscape | ImGuiMultiSelectFlags_BoxSelect2d));
+            renderedNodes.clear();
             for (std::size_t nodeIndex : assetExtended.getScene().nodeIndices) {
                 addChildNode(nodeIndex);
             }
+            applySelectionRequests(*ImGui::EndMultiSelect());
 
             ImGui::EndTable();
         }
