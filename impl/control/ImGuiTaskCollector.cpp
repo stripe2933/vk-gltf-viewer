@@ -1231,7 +1231,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
 
             ImGui::TableNextRow();
 
-            ImGui::TableSetColumnIndex(0);
+            ImGui::TableNextColumn();
             ImGui::AlignTextToFramePadding();
 
             ImGui::WithID(nodeIndex, [&]() {
@@ -1575,7 +1575,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                 }
 
                 if (node.meshIndex) {
-                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TableNextColumn();
 
                     const bool visible = assetExtended.sceneHierarchy.getVisibility(nodeIndex);
                     ImGui::WithStyleColor(ImGuiCol_Button, 0x0, [&] {
