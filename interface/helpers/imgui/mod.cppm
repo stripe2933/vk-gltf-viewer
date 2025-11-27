@@ -240,24 +240,12 @@ namespace ImGui {
     }
 
     export template <std::invocable F>
-    void WithLabel(std::string_view label, F &&imGuiFunc)
-        requires std::is_void_v<std::invoke_result_t<F>>
-    {
+    void WithLabel(std::string_view label, F &&imGuiFunc) {
         const float x = GetCursorPosX();
         std::invoke(FWD(imGuiFunc));
         SameLine();
         SetCursorPosX(x + CalcItemWidth() + GetStyle().ItemInnerSpacing.x);
         TextUnformatted(label);
-    }
-
-    export template <std::invocable F>
-    std::invoke_result_t<F> WithLabel(std::string_view label, F &&imGuiFunc) {
-        const float x = GetCursorPosX();
-        auto value = std::invoke(FWD(imGuiFunc));
-        SameLine();
-        SetCursorPosX(x + CalcItemWidth() + GetStyle().ItemInnerSpacing.x);
-        TextUnformatted(label);
-        return value;
     }
 
     export template <std::invocable F>
@@ -296,19 +284,16 @@ namespace ImGui {
     }
 
     export template <std::invocable F>
-    void WithStyleColor(int index, const ImVec4 &color, F &&f, bool flag = true)
-        requires std::is_void_v<std::invoke_result_t<F>>
-    {
+    void WithStyleColor(int index, const ImVec4 &color, F &&f, bool flag = true) {
         if (flag) PushStyleColor(index, color);
         std::invoke(FWD(f));
         if (flag) PopStyleColor();
     }
 
     export template <std::invocable F>
-    [[nodiscard]] std::invoke_result_t<F> WithStyleColor(int index, const ImVec4 &color, F &&f, bool flag = true) {
+    void WithStyleColor(int index, ImU32 color, F &&f, bool flag = true) {
         if (flag) PushStyleColor(index, color);
-        auto result = std::invoke(FWD(f));
+        std::invoke(FWD(f));
         if (flag) PopStyleColor();
-        return result;
     }
 }
