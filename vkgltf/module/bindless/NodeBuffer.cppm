@@ -200,14 +200,14 @@ namespace vkgltf {
                 if (!node.instancingAttributes.empty()) {
                     // Use address of instanced node world transform buffer if instancing attributes are presented.
                     shaderNode.pInstanceTransformBuffer = instanceTransformBufferAddress;
-                    std::vector<fastgltf::math::fmat4x4> instanceTransforms = vkgltf::getInstanceTransforms(asset, nodeIndex, config.adapter);
+                    std::vector<fastgltf::math::fmat4x4> instanceTransforms = utils::getInstanceTransforms(asset, nodeIndex, config.adapter);
                     instanceTransformIt = std::ranges::copy(instanceTransforms, instanceTransformIt).out;
                     instanceTransformBufferAddress += sizeof(fastgltf::math::fmat4x4) * instanceTransforms.size();
                 }
 
                 // Morph target weights.
                 morphTargetWeightDataOffsets.push_back(morphTargetWeightBufferAddress - selfDeviceAddress);
-                if (std::span targetWeights = getTargetWeights(asset, node); !targetWeights.empty()) {
+                if (std::span targetWeights = utils::getTargetWeights(asset, node); !targetWeights.empty()) {
                     shaderNode.pMorphTargetWeightBuffer = morphTargetWeightBufferAddress;
                     morphTargetWeightIt = std::ranges::copy(targetWeights, morphTargetWeightIt).out;
                     morphTargetWeightBufferAddress += sizeof(float) * targetWeights.size();
@@ -314,7 +314,7 @@ vkgltf::NodeBuffer::IData::IData(const fastgltf::Asset &asset)
 
     morphTargetWeightCount = 0;
     for (const fastgltf::Node &node : asset.nodes) {
-        morphTargetWeightCount += getTargetWeightCount(asset, node);
+        morphTargetWeightCount += utils::getTargetWeightCount(asset, node);
     }
 
     morphTargetWeightDataByteOffset = bufferSize;
