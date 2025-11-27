@@ -427,6 +427,109 @@ namespace fastgltf {
     export
     [[nodiscard]] std::array<math::fvec3, 8> getBoundingBoxCornerPoints(const Primitive &primitive, const Node &node, const Asset &asset);
 
+    /**
+     * @brief Find all <tt>fastgltf::TextureInfo</tt> (or its derivatives like <tt>fastgltf::NormalTextureInfo</tt>) in \p material and invoke \p f with them.
+     * @tparam F Function type that can be invoked with <tt>const fastgltf::TextureInfo&</tt> or its derivatives like <tt>const fastgltf::NormalTextureInfo&</tt>.
+     * @param material Material to enumerate texture infos.
+     * @param f Function to be invoked with each texture info.
+     * @param extensions Extensions for which texture infos are enumerated. If a certain extension is not included, its related texture infos will be ignored.
+     */
+    export template <typename F>
+    void enumerateTextureInfos(
+        const Material &material,
+        F &&f,
+        Extensions extensions = Extensions::KHR_materials_anisotropy
+                              | Extensions::KHR_materials_clearcoat
+                              | Extensions::KHR_materials_diffuse_transmission
+                              | Extensions::KHR_materials_iridescence
+                              | Extensions::KHR_materials_sheen
+                              | Extensions::KHR_materials_specular
+                              | Extensions::KHR_materials_transmission
+                              | Extensions::KHR_materials_volume
+                              | Extensions::MSFT_packing_normalRoughnessMetallic
+                              | Extensions::MSFT_packing_occlusionRoughnessMetallic
+    ) {
+        const auto invokeWhenHasValue = [&](const auto &textureInfo) noexcept(noexcept(std::invoke(f, *textureInfo))) {
+            if (textureInfo) {
+                std::invoke(f, *textureInfo);
+            }
+        };
+
+        // Core material textures
+        invokeWhenHasValue(material.pbrData.baseColorTexture);
+        invokeWhenHasValue(material.pbrData.metallicRoughnessTexture);
+        invokeWhenHasValue(material.normalTexture);
+        invokeWhenHasValue(material.occlusionTexture);
+        invokeWhenHasValue(material.emissiveTexture);
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_anisotropy)) {
+            if (const auto &anisotropy = material.anisotropy) {
+                invokeWhenHasValue(anisotropy->anisotropyTexture);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_clearcoat)) {
+            if (const auto &clearcoat = material.clearcoat) {
+                invokeWhenHasValue(clearcoat->clearcoatTexture);
+                invokeWhenHasValue(clearcoat->clearcoatRoughnessTexture);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_diffuse_transmission)) {
+            if (const auto &diffuseTransmission = material.diffuseTransmission) {
+                invokeWhenHasValue(diffuseTransmission->diffuseTransmissionTexture);
+                invokeWhenHasValue(diffuseTransmission->diffuseTransmissionColorTexture);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_iridescence)) {
+            if (const auto &iridescence = material.iridescence) {
+                invokeWhenHasValue(iridescence->iridescenceTexture);
+                invokeWhenHasValue(iridescence->iridescenceThicknessTexture);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_sheen)) {
+            if (const auto &sheen = material.sheen) {
+                invokeWhenHasValue(sheen->sheenColorTexture);
+                invokeWhenHasValue(sheen->sheenRoughnessTexture);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_specular)) {
+            if (const auto &specular = material.specular) {
+                invokeWhenHasValue(specular->specularTexture);
+                invokeWhenHasValue(specular->specularColorTexture);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_transmission)) {
+            if (const auto &transmission = material.transmission) {
+                invokeWhenHasValue(transmission->transmissionTexture);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_volume)) {
+            if (const auto &volume = material.volume) {
+                invokeWhenHasValue(volume->thicknessTexture);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::MSFT_packing_normalRoughnessMetallic)) {
+            if (const auto &packed = material.packedNormalMetallicRoughnessTexture) {
+                std::invoke(f, *packed);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::MSFT_packing_occlusionRoughnessMetallic)) {
+            if (const auto &packed = material.packedOcclusionRoughnessMetallicTextures) {
+                invokeWhenHasValue(packed->occlusionRoughnessMetallicTexture);
+                invokeWhenHasValue(packed->roughnessMetallicOcclusionTexture);
+                invokeWhenHasValue(packed->normalTexture);
+            }
+        }
+    }
+
 namespace math {
     /**
      * @brief Get component-wise minimum of two vectors.

@@ -34,8 +34,6 @@ namespace vk_gltf_viewer::gltf {
          */
         fastgltf::Asset asset;
 
-    	bool isTextureTransformUsed;
-
     	/**
 		 * @brief Association of primitive -> original material index.
 		 */
@@ -45,6 +43,9 @@ namespace vk_gltf_viewer::gltf {
          * @brief Map of (material index, texture usage flags) for each texture.
          */
         std::vector<std::unordered_map<std::size_t, Flags<TextureUsage>>> textureUsages;
+
+        /// All <tt>fastgltf::TextureInfo</tt> (or its derivatives like <tt>fastgltf::NormalTextureInfo</tt>) that have been transformed by KHR_texture_transform extension.
+        std::unordered_set<const fastgltf::TextureInfo*> transformedTextureInfos;
 
         /**
          * @brief Indices of glTF asset materials whose emissive strength is greater than 1.0.
@@ -166,7 +167,6 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
 	: dataBuffer { get_checked(fastgltf::GltfDataBuffer::FromPath(path)) }
     , directory { path.parent_path() }
     , asset { get_checked(parser.loadGltf(dataBuffer, directory)) }
-	, isTextureTransformUsed { std::ranges::contains(asset.extensionsUsed, "KHR_texture_transform"sv) }
     , sceneIndex { asset.defaultScene.value_or(0) }
     , sceneHierarchy { asset, sceneIndex }
     , sceneMiniball { [this] {
@@ -203,6 +203,17 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
             textureUsages[textureInfo->textureIndex][i] |= TextureUsage::Emissive;
         }
     }
+
+	// transformedTextureInfos
+	if (std::ranges::contains(asset.extensionsUsed, "KHR_texture_transform"sv)) {
+		for (const fastgltf::Material &material : asset.materials) {
+			enumerateTextureInfos(material, [&](const fastgltf::TextureInfo &textureInfo) noexcept {
+				if (textureInfo.transform) {
+					transformedTextureInfos.emplace(&textureInfo);
+				}
+			});
+		}
+	}
 
     // bloomMaterials
 	if (std::ranges::contains(asset.extensionsUsed, "KHR_materials_emissive_strength"sv)) {

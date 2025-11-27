@@ -71,6 +71,8 @@ import vk_gltf_viewer.vulkan.pipeline.TonemappingRenderPipeline;
 #define PATH_C_STR(...) (__VA_ARGS__).c_str()
 #endif
 
+using namespace std::string_view_literals;
+
 template <typename T, glm::qualifier Q>
 [[nodiscard]] constexpr ImVec2 toImVec2(const glm::vec<2, T, Q> &v) noexcept {
     return { static_cast<float>(v.x), static_cast<float>(v.y) };
@@ -861,16 +863,23 @@ void vk_gltf_viewer::MainApp::run() {
                                 changedMaterial.pbrData.roughnessFactor,
                                 sharedDataUpdateCommandBuffer);
                             break;
-                        case Property::TextureTransformEnabled:
-                            if (!assetExtended->isTextureTransformUsed) {
-                                assetExtended->asset.extensionsUsed.push_back("KHR_texture_transform");
-                                assetExtended->isTextureTransformUsed = true;
+                        case Property::TextureTransformEnabled: {
+                            constexpr auto extensionName = "KHR_texture_transform"sv;
+                            auto &extensionsUsed = assetExtended->asset.extensionsUsed;
 
-                                // Asset is loaded without KHR_texture_transform extension, and all pipelines were created
-                                // with texture transform disabled. Pipelines need to be recreated.
+                            if (assetExtended->transformedTextureInfos.empty()) {
+                                extensionsUsed.erase(std::ranges::find(extensionsUsed, extensionName));
+                            }
+                            else if (!std::ranges::contains(extensionsUsed, extensionName)) {
+                                extensionsUsed.emplace_back(extensionName);
+                                vkAssetExtended->useTextureTransformInPipeline = true;
+
+                                // Asset was loaded without KHR_texture_transform extension, and all pipelines were
+                                // created with texture transform disabled. Pipelines need to be recreated.
                                 regenerateDrawCommands.fill(true);
                             }
                             break;
+                        }
                     }
                 },
                 [&](const control::task::PrimitiveMaterialChanged &task) {

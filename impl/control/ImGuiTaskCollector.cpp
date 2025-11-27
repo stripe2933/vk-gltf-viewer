@@ -956,14 +956,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                 if (ImGui::Checkbox("KHR_texture_transform", &useTextureTransform)) {
                     if (useTextureTransform) {
                         textureInfo.transform = std::make_unique<fastgltf::TextureTransform>();
-
-                        // Need to notify texture transform is enabled.
-                        // If it was not enabled before, pipelines will be recreated with texture transform enabled.
-                        notifyPropertyChanged(task::MaterialPropertyChanged::Property::TextureTransformEnabled);
+                        const bool emplaced [[maybe_unused]] = assetExtended.transformedTextureInfos.emplace(&textureInfo).second;
+                        assert(emplaced);
                     }
                     else {
                         textureInfo.transform.reset();
+                        const bool erased [[maybe_unused]] = assetExtended.transformedTextureInfos.erase(&textureInfo) == 1;
+                        assert(erased);
                     }
+                    notifyPropertyChanged(task::MaterialPropertyChanged::Property::TextureTransformEnabled);
 
                     notifyPropertyChanged(changeProp);
                     isChangePropNotified = true;
