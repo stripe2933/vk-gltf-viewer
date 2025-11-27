@@ -7,7 +7,6 @@ export import vk_gltf_viewer.gltf.Animation;
 import vk_gltf_viewer.gltf.algorithm.miniball;
 export import vk_gltf_viewer.gltf.AssetExternalBuffers;
 export import vk_gltf_viewer.gltf.SceneHierarchy;
-export import vk_gltf_viewer.gltf.TextureUsage;
 import vk_gltf_viewer.gltf.util;
 export import vk_gltf_viewer.imgui.ColorSpaceAndUsageCorrectedTextures;
 import vk_gltf_viewer.helpers.fastgltf;
@@ -42,7 +41,7 @@ namespace vk_gltf_viewer::gltf {
         /**
          * @brief Map of (material index, texture usage flags) for each texture.
          */
-        std::vector<std::unordered_map<std::size_t, Flags<TextureUsage>>> textureUsages;
+        std::vector<std::unordered_map<std::size_t, Flags<fastgltf::TextureUsage>>> textureUsages;
 
         /// All <tt>fastgltf::TextureInfo</tt> (or its derivatives like <tt>fastgltf::NormalTextureInfo</tt>) that have been transformed by KHR_texture_transform extension.
         std::unordered_set<const fastgltf::TextureInfo*> transformedTextureInfos;
@@ -187,21 +186,9 @@ vk_gltf_viewer::gltf::AssetExtended::AssetExtended(const std::filesystem::path &
     // textureUsages
     textureUsages.resize(asset.textures.size());
     for (const auto &[i, material] : asset.materials | ranges::views::enumerate) {
-        if (const auto &textureInfo = material.pbrData.baseColorTexture) {
-            textureUsages[textureInfo->textureIndex][i] |= TextureUsage::BaseColor;
-        }
-        if (const auto &textureInfo = material.pbrData.metallicRoughnessTexture) {
-            textureUsages[textureInfo->textureIndex][i] |= TextureUsage::MetallicRoughness;
-        }
-        if (const auto &textureInfo = material.normalTexture) {
-            textureUsages[textureInfo->textureIndex][i] |= TextureUsage::Normal;
-        }
-        if (const auto &textureInfo = material.occlusionTexture) {
-            textureUsages[textureInfo->textureIndex][i] |= TextureUsage::Occlusion;
-        }
-        if (const auto &textureInfo = material.emissiveTexture) {
-            textureUsages[textureInfo->textureIndex][i] |= TextureUsage::Emissive;
-        }
+    	enumerateTextureInfos(material, [&](const fastgltf::TextureInfo &textureInfo, Flags<fastgltf::TextureUsage> usage) noexcept {
+            textureUsages[textureInfo.textureIndex][i] |= usage;
+    	});
     }
 
 	// transformedTextureInfos
