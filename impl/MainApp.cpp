@@ -779,15 +779,22 @@ void vk_gltf_viewer::MainApp::run() {
                             const bool useBloom = assetExtended->asset.materials[task.materialIndex].emissiveStrength > 1.f;
 
                             // Material emissive strength is changed from 1.
+                            constexpr auto extensionName = "KHR_materials_emissive_strength"sv;
                             if (it != assetExtended->bloomMaterials.end() && !useBloom) {
                                 assetExtended->bloomMaterials.erase(it);
                                 regenerateDrawCommands.fill(true);
 
                                 if (assetExtended->bloomMaterials.empty()) {
                                     // If there's no bloom material left, remove the extension from extensionsUsed if exists.
-                                    auto it = std::ranges::find(assetExtended->asset.extensionsUsed, "KHR_materials_emissive_strength"sv);
+                                    auto it = std::ranges::find(assetExtended->asset.extensionsUsed, extensionName);
                                     if (it != assetExtended->asset.extensionsUsed.end()) {
                                         assetExtended->asset.extensionsUsed.erase(it);
+
+                                        // Also remove from extensionsRequired if exists.
+                                        const auto it = std::ranges::find(assetExtended->asset.extensionsRequired, extensionName);
+                                        if (it != assetExtended->asset.extensionsRequired.end()) {
+                                            assetExtended->asset.extensionsRequired.erase(it);
+                                        }
                                     }
                                 }
                             }
@@ -797,8 +804,8 @@ void vk_gltf_viewer::MainApp::run() {
                                 regenerateDrawCommands.fill(true);
 
                                 // Add the extension to extensionsUsed if not exists.
-                                if (!std::ranges::contains(assetExtended->asset.extensionsUsed, "KHR_materials_emissive_strength"sv)) {
-                                    assetExtended->asset.extensionsUsed.push_back("KHR_materials_emissive_strength");
+                                if (!std::ranges::contains(assetExtended->asset.extensionsUsed, extensionName)) {
+                                    assetExtended->asset.extensionsUsed.emplace_back(extensionName);
                                 }
                             }
                             [[fallthrough]]; // materialBuffer also needs to be updated.
@@ -869,6 +876,12 @@ void vk_gltf_viewer::MainApp::run() {
 
                             if (assetExtended->transformedTextureInfos.empty()) {
                                 extensionsUsed.erase(std::ranges::find(extensionsUsed, extensionName));
+
+                                // Also remove from extensionsRequired if exists.
+                                const auto it = std::ranges::find(assetExtended->asset.extensionsRequired, extensionName);
+                                if (it != assetExtended->asset.extensionsRequired.end()) {
+                                    assetExtended->asset.extensionsRequired.erase(it);
+                                }
                             }
                             else if (!std::ranges::contains(extensionsUsed, extensionName)) {
                                 extensionsUsed.emplace_back(extensionName);
