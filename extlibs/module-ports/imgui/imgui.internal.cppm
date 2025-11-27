@@ -10,383 +10,48 @@ export {
     // ----- Enums -----
 
     using ::ImDrawTextFlags_;
-    using ::ImDrawTextFlags_None;
-    using ::ImDrawTextFlags_CpuFineClip;
-    using ::ImDrawTextFlags_WrapKeepBlanks;
-    using ::ImDrawTextFlags_StopOnNewLine;
-
     using ::ImGuiActivateFlags_;
-    using ::ImGuiActivateFlags_None;
-    using ::ImGuiActivateFlags_PreferInput;
-    using ::ImGuiActivateFlags_PreferTweak;
-    using ::ImGuiActivateFlags_TryToPreserveState;
-    using ::ImGuiActivateFlags_FromTabbing;
-    using ::ImGuiActivateFlags_FromShortcut;
-    using ::ImGuiActivateFlags_FromFocusApi;
-
     using ::ImGuiAxis;
-    using ::ImGuiAxis_None;
-    using ::ImGuiAxis_X;
-    using ::ImGuiAxis_Y;
-
     using ::ImGuiButtonFlagsPrivate_;
-    using ::ImGuiButtonFlags_PressedOnClick;
-    using ::ImGuiButtonFlags_PressedOnClickRelease;
-    using ::ImGuiButtonFlags_PressedOnClickReleaseAnywhere;
-    using ::ImGuiButtonFlags_PressedOnRelease;
-    using ::ImGuiButtonFlags_PressedOnDoubleClick;
-    using ::ImGuiButtonFlags_PressedOnDragDropHold;
-    using ::ImGuiButtonFlags_FlattenChildren;
-    using ::ImGuiButtonFlags_AllowOverlap;
-    using ::ImGuiButtonFlags_AlignTextBaseLine;
-    using ::ImGuiButtonFlags_NoKeyModsAllowed;
-    using ::ImGuiButtonFlags_NoHoldingActiveId;
-    using ::ImGuiButtonFlags_NoNavFocus;
-    using ::ImGuiButtonFlags_NoHoveredOnFocus;
-    using ::ImGuiButtonFlags_NoSetKeyOwner;
-    using ::ImGuiButtonFlags_NoTestKeyOwner;
-    using ::ImGuiButtonFlags_NoFocus;
-    using ::ImGuiButtonFlags_PressedOnMask_;
-    using ::ImGuiButtonFlags_PressedOnDefault_;
-
     using ::ImGuiComboFlagsPrivate_;
-    using ::ImGuiComboFlags_CustomPreview;
-
     using ::ImGuiContextHookType;
-    using ::ImGuiContextHookType_NewFramePre;
-    using ::ImGuiContextHookType_NewFramePost;
-    using ::ImGuiContextHookType_EndFramePre;
-    using ::ImGuiContextHookType_EndFramePost;
-    using ::ImGuiContextHookType_RenderPre;
-    using ::ImGuiContextHookType_RenderPost;
-    using ::ImGuiContextHookType_Shutdown;
-    using ::ImGuiContextHookType_PendingRemoval_;
-
     using ::ImGuiDataAuthority_;
-    using ::ImGuiDataAuthority_Auto;
-    using ::ImGuiDataAuthority_DockNode;
-    using ::ImGuiDataAuthority_Window;
-
     using ::ImGuiDataTypePrivate_;
-    using ::ImGuiDataType_Pointer;
-    using ::ImGuiDataType_ID;
-
     using ::ImGuiDebugLogFlags_;
-    using ::ImGuiDebugLogFlags_None;
-    using ::ImGuiDebugLogFlags_EventError;
-    using ::ImGuiDebugLogFlags_EventActiveId;
-    using ::ImGuiDebugLogFlags_EventFocus;
-    using ::ImGuiDebugLogFlags_EventPopup;
-    using ::ImGuiDebugLogFlags_EventNav;
-    using ::ImGuiDebugLogFlags_EventClipper;
-    using ::ImGuiDebugLogFlags_EventSelection;
-    using ::ImGuiDebugLogFlags_EventIO;
-    using ::ImGuiDebugLogFlags_EventFont;
-    using ::ImGuiDebugLogFlags_EventInputRouting;
-    using ::ImGuiDebugLogFlags_EventDocking;
-    using ::ImGuiDebugLogFlags_EventViewport;
-    using ::ImGuiDebugLogFlags_EventMask_;
-    using ::ImGuiDebugLogFlags_OutputToTTY;
-    using ::ImGuiDebugLogFlags_OutputToTestEngine;
-
     using ::ImGuiDockNodeFlagsPrivate_;
-    using ::ImGuiDockNodeFlags_DockSpace;
-    using ::ImGuiDockNodeFlags_CentralNode;
-    using ::ImGuiDockNodeFlags_NoTabBar;
-    using ::ImGuiDockNodeFlags_HiddenTabBar;
-    using ::ImGuiDockNodeFlags_NoWindowMenuButton;
-    using ::ImGuiDockNodeFlags_NoCloseButton;
-    using ::ImGuiDockNodeFlags_NoResizeX;
-    using ::ImGuiDockNodeFlags_NoResizeY;
-    using ::ImGuiDockNodeFlags_DockedWindowsInFocusRoute;
-    using ::ImGuiDockNodeFlags_NoDockingSplitOther;
-    using ::ImGuiDockNodeFlags_NoDockingOverMe;
-    using ::ImGuiDockNodeFlags_NoDockingOverOther;
-    using ::ImGuiDockNodeFlags_NoDockingOverEmpty;
-    using ::ImGuiDockNodeFlags_NoDocking;
-    using ::ImGuiDockNodeFlags_SharedFlagsInheritMask_;
-    using ::ImGuiDockNodeFlags_NoResizeFlagsMask_;
-    using ::ImGuiDockNodeFlags_LocalFlagsTransferMask_;
-    using ::ImGuiDockNodeFlags_SavedFlagsMask_;
-
     using ::ImGuiDockNodeState;
-    using ::ImGuiDockNodeState_Unknown;
-    using ::ImGuiDockNodeState_HostWindowHiddenBecauseSingleWindow;
-    using ::ImGuiDockNodeState_HostWindowHiddenBecauseWindowsAreResizing;
-    using ::ImGuiDockNodeState_HostWindowVisible;
-
     using ::ImGuiFocusRequestFlags_;
-    using ::ImGuiFocusRequestFlags_None;
-    using ::ImGuiFocusRequestFlags_RestoreFocusedChild;
-    using ::ImGuiFocusRequestFlags_UnlessBelowModal;
-
     using ::ImGuiHoveredFlagsPrivate_;
-    using ::ImGuiHoveredFlags_DelayMask_;
-    using ::ImGuiHoveredFlags_AllowedMaskForIsWindowHovered;
-    using ::ImGuiHoveredFlags_AllowedMaskForIsItemHovered;
-
     using ::ImGuiInputEventType;
-    using ::ImGuiInputEventType_None;
-    using ::ImGuiInputEventType_MousePos;
-    using ::ImGuiInputEventType_MouseWheel;
-    using ::ImGuiInputEventType_MouseButton;
-    using ::ImGuiInputEventType_MouseViewport;
-    using ::ImGuiInputEventType_Key;
-    using ::ImGuiInputEventType_Text;
-    using ::ImGuiInputEventType_Focus;
-    using ::ImGuiInputEventType_COUNT;
-
     using ::ImGuiInputFlagsPrivate_;
-    using ::ImGuiInputFlags_RepeatRateDefault;
-    using ::ImGuiInputFlags_RepeatRateNavMove;
-    using ::ImGuiInputFlags_RepeatRateNavTweak;
-    using ::ImGuiInputFlags_RepeatUntilRelease;
-    using ::ImGuiInputFlags_RepeatUntilKeyModsChange;
-    using ::ImGuiInputFlags_RepeatUntilKeyModsChangeFromNone;
-    using ::ImGuiInputFlags_RepeatUntilOtherKeyPress;
-    using ::ImGuiInputFlags_LockThisFrame;
-    using ::ImGuiInputFlags_LockUntilRelease;
-    using ::ImGuiInputFlags_CondHovered;
-    using ::ImGuiInputFlags_CondActive;
-    using ::ImGuiInputFlags_CondDefault_;
-    using ::ImGuiInputFlags_RepeatRateMask_;
-    using ::ImGuiInputFlags_RepeatUntilMask_;
-    using ::ImGuiInputFlags_RepeatMask_;
-    using ::ImGuiInputFlags_CondMask_;
-    using ::ImGuiInputFlags_RouteTypeMask_;
-    using ::ImGuiInputFlags_RouteOptionsMask_;
-    using ::ImGuiInputFlags_SupportedByIsKeyPressed;
-    using ::ImGuiInputFlags_SupportedByIsMouseClicked;
-    using ::ImGuiInputFlags_SupportedByShortcut;
-    using ::ImGuiInputFlags_SupportedBySetNextItemShortcut;
-    using ::ImGuiInputFlags_SupportedBySetKeyOwner;
-    using ::ImGuiInputFlags_SupportedBySetItemKeyOwner;
-
     using ::ImGuiInputSource;
-    using ::ImGuiInputSource_None;
-    using ::ImGuiInputSource_Mouse;
-    using ::ImGuiInputSource_Keyboard;
-    using ::ImGuiInputSource_Gamepad;
-    using ::ImGuiInputSource_COUNT;
-
     using ::ImGuiInputTextFlagsPrivate_;
-    using ::ImGuiInputTextFlags_Multiline;
-    using ::ImGuiInputTextFlags_MergedItem;
-    using ::ImGuiInputTextFlags_LocalizeDecimalPoint;
-
     using ::ImGuiItemFlagsPrivate_;
-    using ::ImGuiItemFlags_Disabled;
-    using ::ImGuiItemFlags_ReadOnly;
-    using ::ImGuiItemFlags_MixedValue;
-    using ::ImGuiItemFlags_NoWindowHoverableCheck;
-    using ::ImGuiItemFlags_AllowOverlap;
-    using ::ImGuiItemFlags_NoNavDisableMouseHover;
-    using ::ImGuiItemFlags_NoMarkEdited;
-    using ::ImGuiItemFlags_NoFocus;
-    using ::ImGuiItemFlags_Inputable;
-    using ::ImGuiItemFlags_HasSelectionUserData;
-    using ::ImGuiItemFlags_IsMultiSelect;
-    using ::ImGuiItemFlags_Default_;
-
     using ::ImGuiItemStatusFlags_;
-    using ::ImGuiItemStatusFlags_None;
-    using ::ImGuiItemStatusFlags_HoveredRect;
-    using ::ImGuiItemStatusFlags_HasDisplayRect;
-    using ::ImGuiItemStatusFlags_Edited;
-    using ::ImGuiItemStatusFlags_ToggledSelection;
-    using ::ImGuiItemStatusFlags_ToggledOpen;
-    using ::ImGuiItemStatusFlags_HasDeactivated;
-    using ::ImGuiItemStatusFlags_Deactivated;
-    using ::ImGuiItemStatusFlags_HoveredWindow;
-    using ::ImGuiItemStatusFlags_Visible;
-    using ::ImGuiItemStatusFlags_HasClipRect;
-    using ::ImGuiItemStatusFlags_HasShortcut;
-
     using ::ImGuiLayoutType_;
-    using ::ImGuiLayoutType_Horizontal;
-    using ::ImGuiLayoutType_Vertical;
-
     using ::ImGuiLocKey;
-    using ::ImGuiLocKey_VersionStr;
-    using ::ImGuiLocKey_TableSizeOne;
-    using ::ImGuiLocKey_TableSizeAllFit;
-    using ::ImGuiLocKey_TableSizeAllDefault;
-    using ::ImGuiLocKey_TableResetOrder;
-    using ::ImGuiLocKey_WindowingMainMenuBar;
-    using ::ImGuiLocKey_WindowingPopup;
-    using ::ImGuiLocKey_WindowingUntitled;
-    using ::ImGuiLocKey_OpenLink_s;
-    using ::ImGuiLocKey_CopyLink;
-    using ::ImGuiLocKey_DockingHideTabBar;
-    using ::ImGuiLocKey_DockingHoldShiftToDock;
-    using ::ImGuiLocKey_DockingDragToUndockOrMoveNode;
-    using ::ImGuiLocKey_COUNT;
-
     using ::ImGuiLogFlags_;
-    using ::ImGuiLogFlags_None;
-    using ::ImGuiLogFlags_OutputTTY;
-    using ::ImGuiLogFlags_OutputFile;
-    using ::ImGuiLogFlags_OutputBuffer;
-    using ::ImGuiLogFlags_OutputClipboard;
-    using ::ImGuiLogFlags_OutputMask_;
-
     using ::ImGuiNavLayer;
-    using ::ImGuiNavLayer_Main;
-    using ::ImGuiNavLayer_Menu;
-    using ::ImGuiNavLayer_COUNT;
-
     using ::ImGuiNavMoveFlags_;
-    using ::ImGuiNavMoveFlags_None;
-    using ::ImGuiNavMoveFlags_LoopX;
-    using ::ImGuiNavMoveFlags_LoopY;
-    using ::ImGuiNavMoveFlags_WrapX;
-    using ::ImGuiNavMoveFlags_WrapY;
-    using ::ImGuiNavMoveFlags_WrapMask_;
-    using ::ImGuiNavMoveFlags_AllowCurrentNavId;
-    using ::ImGuiNavMoveFlags_AlsoScoreVisibleSet;
-    using ::ImGuiNavMoveFlags_ScrollToEdgeY;
-    using ::ImGuiNavMoveFlags_Forwarded;
-    using ::ImGuiNavMoveFlags_DebugNoResult;
-    using ::ImGuiNavMoveFlags_FocusApi;
-    using ::ImGuiNavMoveFlags_IsTabbing;
-    using ::ImGuiNavMoveFlags_IsPageMove;
-    using ::ImGuiNavMoveFlags_Activate;
-    using ::ImGuiNavMoveFlags_NoSelect;
-    using ::ImGuiNavMoveFlags_NoSetNavCursorVisible;
-    using ::ImGuiNavMoveFlags_NoClearActiveId;
-
     using ::ImGuiNavRenderCursorFlags_;
-    using ::ImGuiNavRenderCursorFlags_None;
-    using ::ImGuiNavRenderCursorFlags_Compact;
-    using ::ImGuiNavRenderCursorFlags_AlwaysDraw;
-    using ::ImGuiNavRenderCursorFlags_NoRounding;
-
     using ::ImGuiNextItemDataFlags_;
-    using ::ImGuiNextItemDataFlags_None;
-    using ::ImGuiNextItemDataFlags_HasWidth;
-    using ::ImGuiNextItemDataFlags_HasOpen;
-    using ::ImGuiNextItemDataFlags_HasShortcut;
-    using ::ImGuiNextItemDataFlags_HasRefVal;
-    using ::ImGuiNextItemDataFlags_HasStorageID;
-
     using ::ImGuiNextWindowDataFlags_;
-    using ::ImGuiNextWindowDataFlags_None;
-    using ::ImGuiNextWindowDataFlags_HasPos;
-    using ::ImGuiNextWindowDataFlags_HasSize;
-    using ::ImGuiNextWindowDataFlags_HasContentSize;
-    using ::ImGuiNextWindowDataFlags_HasCollapsed;
-    using ::ImGuiNextWindowDataFlags_HasSizeConstraint;
-    using ::ImGuiNextWindowDataFlags_HasFocus;
-    using ::ImGuiNextWindowDataFlags_HasBgAlpha;
-    using ::ImGuiNextWindowDataFlags_HasScroll;
-    using ::ImGuiNextWindowDataFlags_HasWindowFlags;
-    using ::ImGuiNextWindowDataFlags_HasChildFlags;
-    using ::ImGuiNextWindowDataFlags_HasRefreshPolicy;
-    using ::ImGuiNextWindowDataFlags_HasViewport;
-    using ::ImGuiNextWindowDataFlags_HasDock;
-    using ::ImGuiNextWindowDataFlags_HasWindowClass;
-
     using ::ImGuiOldColumnFlags_;
-    using ::ImGuiOldColumnFlags_None;
-    using ::ImGuiOldColumnFlags_NoBorder;
-    using ::ImGuiOldColumnFlags_NoResize;
-    using ::ImGuiOldColumnFlags_NoPreserveWidths;
-    using ::ImGuiOldColumnFlags_NoForceWithinWindow;
-    using ::ImGuiOldColumnFlags_GrowParentContentsSize;
-
     using ::ImGuiPlotType;
-    using ::ImGuiPlotType_Lines;
-    using ::ImGuiPlotType_Histogram;
-
     using ::ImGuiPopupPositionPolicy;
-    using ::ImGuiPopupPositionPolicy_Default;
-    using ::ImGuiPopupPositionPolicy_ComboBox;
-    using ::ImGuiPopupPositionPolicy_Tooltip;
-
     using ::ImGuiScrollFlags_;
-    using ::ImGuiScrollFlags_None;
-    using ::ImGuiScrollFlags_KeepVisibleEdgeX;
-    using ::ImGuiScrollFlags_KeepVisibleEdgeY;
-    using ::ImGuiScrollFlags_KeepVisibleCenterX;
-    using ::ImGuiScrollFlags_KeepVisibleCenterY;
-    using ::ImGuiScrollFlags_AlwaysCenterX;
-    using ::ImGuiScrollFlags_AlwaysCenterY;
-    using ::ImGuiScrollFlags_NoScrollParent;
-    using ::ImGuiScrollFlags_MaskX_;
-    using ::ImGuiScrollFlags_MaskY_;
-
     using ::ImGuiSelectableFlagsPrivate_;
-    using ::ImGuiSelectableFlags_NoHoldingActiveID;
-    using ::ImGuiSelectableFlags_SelectOnClick;
-    using ::ImGuiSelectableFlags_SelectOnRelease;
-    using ::ImGuiSelectableFlags_SpanAvailWidth;
-    using ::ImGuiSelectableFlags_SetNavIdOnHover;
-    using ::ImGuiSelectableFlags_NoPadWithHalfSpacing;
-    using ::ImGuiSelectableFlags_NoSetKeyOwner;
-
     using ::ImGuiSeparatorFlags_;
-    using ::ImGuiSeparatorFlags_None;
-    using ::ImGuiSeparatorFlags_Horizontal;
-    using ::ImGuiSeparatorFlags_Vertical;
-    using ::ImGuiSeparatorFlags_SpanAllColumns;
-
     using ::ImGuiSliderFlagsPrivate_;
-    using ::ImGuiSliderFlags_Vertical;
-    using ::ImGuiSliderFlags_ReadOnly;
-
     using ::ImGuiTabBarFlagsPrivate_;
-    using ::ImGuiTabBarFlags_DockNode;
-    using ::ImGuiTabBarFlags_IsFocused;
-    using ::ImGuiTabBarFlags_SaveSettings;
-
     using ::ImGuiTabItemFlagsPrivate_;
-    using ::ImGuiTabItemFlags_SectionMask_;
-    using ::ImGuiTabItemFlags_NoCloseButton;
-    using ::ImGuiTabItemFlags_Button;
-    using ::ImGuiTabItemFlags_Invisible;
-    using ::ImGuiTabItemFlags_Unsorted;
-
     using ::ImGuiTextFlags_;
-    using ::ImGuiTextFlags_None;
-    using ::ImGuiTextFlags_NoWidthForLargeClippedText;
-
     using ::ImGuiTooltipFlags_;
-    using ::ImGuiTooltipFlags_None;
-    using ::ImGuiTooltipFlags_OverridePrevious;
-
     using ::ImGuiTreeNodeFlagsPrivate_;
-    using ::ImGuiTreeNodeFlags_NoNavFocus;
-    using ::ImGuiTreeNodeFlags_ClipLabelForTrailingButton;
-    using ::ImGuiTreeNodeFlags_UpsideDownArrow;
-    using ::ImGuiTreeNodeFlags_OpenOnMask_;
-    using ::ImGuiTreeNodeFlags_DrawLinesMask_;
-
     using ::ImGuiTypingSelectFlags_;
-    using ::ImGuiTypingSelectFlags_None;
-    using ::ImGuiTypingSelectFlags_AllowBackspace;
-    using ::ImGuiTypingSelectFlags_AllowSingleCharMode;
-
     using ::ImGuiWindowBgClickFlags_;
-    using ::ImGuiWindowBgClickFlags_None;
-    using ::ImGuiWindowBgClickFlags_Move;
-
     using ::ImGuiWindowDockStyleCol;
-    using ::ImGuiWindowDockStyleCol_Text;
-    using ::ImGuiWindowDockStyleCol_TabHovered;
-    using ::ImGuiWindowDockStyleCol_TabFocused;
-    using ::ImGuiWindowDockStyleCol_TabSelected;
-    using ::ImGuiWindowDockStyleCol_TabSelectedOverline;
-    using ::ImGuiWindowDockStyleCol_TabDimmed;
-    using ::ImGuiWindowDockStyleCol_TabDimmedSelected;
-    using ::ImGuiWindowDockStyleCol_TabDimmedSelectedOverline;
-    using ::ImGuiWindowDockStyleCol_UnsavedMarker;
-    using ::ImGuiWindowDockStyleCol_COUNT;
-
     using ::ImGuiWindowRefreshFlags_;
-    using ::ImGuiWindowRefreshFlags_None;
-    using ::ImGuiWindowRefreshFlags_TryToAvoidRefresh;
-    using ::ImGuiWindowRefreshFlags_RefreshOnHover;
-    using ::ImGuiWindowRefreshFlags_RefreshOnFocus;
 
     // ----- Structs -----
 
