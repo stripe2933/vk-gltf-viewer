@@ -1607,7 +1607,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                         }
                         else {
                             for (std::size_t nodeIndex : renderedNodes) {
-                                anySelectionChanged |= assetExtended.selectedNodes.erase(nodeIndex);
+                                anySelectionChanged |= assetExtended.selectedNodes.erase(nodeIndex) == 1;
                             }
                         }
                     }
@@ -1628,7 +1628,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::sceneHierarchy(Renderer &rende
                         else {
                             do {
                                 assert(it != renderedNodes.end()); // lastNodeIndex not in renderedNodes?
-                                anySelectionChanged |= assetExtended.selectedNodes.erase(*it);
+                                anySelectionChanged |= assetExtended.selectedNodes.erase(*it) == 1;
                             } while (*it++ != lastNodeIndex);
                         }
                     }
