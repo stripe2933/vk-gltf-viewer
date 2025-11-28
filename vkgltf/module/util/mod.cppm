@@ -3,7 +3,7 @@ export module vkgltf.util;
 import std;
 export import fastgltf;
 
-namespace vkgltf {
+namespace vkgltf::utils {
     /**
      * @brief Get the index of the texture coordinate attribute for the given texture info, considering
      * <tt>KHR_texture_transform</tt> extension.
@@ -105,14 +105,14 @@ namespace vkgltf {
 module :private;
 #endif
 
-std::size_t vkgltf::getTexcoordIndex(const fastgltf::TextureInfo &textureInfo) noexcept {
+std::size_t vkgltf::utils::getTexcoordIndex(const fastgltf::TextureInfo &textureInfo) noexcept {
     if (const auto &transform = textureInfo.transform) {
         return transform->texCoordIndex.value_or(textureInfo.texCoordIndex);
     }
     return textureInfo.texCoordIndex;
 }
 
-std::size_t vkgltf::getTargetWeightCount(const fastgltf::Asset &asset, const fastgltf::Node &node) noexcept {
+std::size_t vkgltf::utils::getTargetWeightCount(const fastgltf::Asset &asset, const fastgltf::Node &node) noexcept {
     std::size_t result = node.weights.size();
     if (node.meshIndex) {
         result = asset.meshes[*node.meshIndex].weights.size();
@@ -120,7 +120,7 @@ std::size_t vkgltf::getTargetWeightCount(const fastgltf::Asset &asset, const fas
     return result;
 }
 
-std::span<const float> vkgltf::getTargetWeights(const fastgltf::Asset &asset, const fastgltf::Node &node) noexcept {
+std::span<const float> vkgltf::utils::getTargetWeights(const fastgltf::Asset &asset, const fastgltf::Node &node) noexcept {
     std::span result = node.weights;
     if (node.meshIndex) {
         result = asset.meshes[*node.meshIndex].weights;

@@ -10,6 +10,7 @@ import std;
 export import cstring_view;
 export import fastgltf;
 
+export import vk_gltf_viewer.helpers.Flags;
 import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.helpers.type_map;
 
@@ -24,6 +25,27 @@ import vk_gltf_viewer.helpers.type_map;
     }
 
 namespace fastgltf {
+    export enum class TextureUsage : std::uint32_t {
+        BaseColor                = 1 << 0,
+        MetallicRoughness        = 1 << 1,
+        Normal                   = 1 << 2,
+        Occlusion                = 1 << 3,
+        Emissive                 = 1 << 4,
+        Anisotropy               = 1 << 5,
+        Clearcoat                = 1 << 6,
+        ClearcoatRoughness       = 1 << 7,
+        DiffuseTransmission      = 1 << 8,
+        DiffuseTransmissionColor = 1 << 9,
+        Iridescence              = 1 << 10,
+        IridescenceThickness     = 1 << 11,
+        Sheen                    = 1 << 12,
+        SheenRoughness           = 1 << 13,
+        Specular                 = 1 << 14,
+        SpecularColor            = 1 << 15,
+        Transmission             = 1 << 16,
+        VolumeThickness          = 1 << 17,
+    };
+
     export template <typename T>
     [[nodiscard]] std::optional<T> to_optional(OptionalWithFlagValue<T> v) noexcept {
         if (v) {
@@ -61,6 +83,9 @@ namespace fastgltf {
 
     export
     [[nodiscard]] cpp_util::cstring_view to_string(AnimationInterpolation interpolation) noexcept;
+
+    export
+    [[nodiscard]] cpp_util::cstring_view to_string(TextureUsage usage) noexcept;
 
     /**
      * @brief Convert TRS to 4x4 matrix.
@@ -427,6 +452,114 @@ namespace fastgltf {
     export
     [[nodiscard]] std::array<math::fvec3, 8> getBoundingBoxCornerPoints(const Primitive &primitive, const Node &node, const Asset &asset);
 
+    /**
+     * @brief Find all <tt>fastgltf::TextureInfo</tt> (or its derivatives like <tt>fastgltf::NormalTextureInfo</tt>) in \p material and invoke \p f with them.
+     * @tparam F Function type that can be invoked with <tt>const fastgltf::TextureInfo&</tt> or its derivatives like <tt>const fastgltf::NormalTextureInfo&</tt>, and optional <tt>fastgltf::TextureUsage</tt>.
+     * @param material Material to enumerate texture infos.
+     * @param f Function to be invoked with each texture info.
+     * @param extensions Extensions for which texture infos are enumerated. If a certain extension is not included, its related texture infos will be ignored.
+     */
+    export template <typename F>
+    void enumerateTextureInfos(
+        const Material &material,
+        F &&f,
+        Extensions extensions = Extensions::KHR_materials_anisotropy
+                              | Extensions::KHR_materials_clearcoat
+                              | Extensions::KHR_materials_diffuse_transmission
+                              | Extensions::KHR_materials_iridescence
+                              | Extensions::KHR_materials_sheen
+                              | Extensions::KHR_materials_specular
+                              | Extensions::KHR_materials_transmission
+                              | Extensions::KHR_materials_volume
+                              | Extensions::MSFT_packing_normalRoughnessMetallic
+                              | Extensions::MSFT_packing_occlusionRoughnessMetallic
+    ) {
+        const auto invokeWhenHasValue = [&](const auto &textureInfo, Flags<TextureUsage> usage) {
+            if (textureInfo) {
+                if constexpr (std::invocable<F, decltype(*textureInfo), Flags<TextureUsage>>) {
+                    std::invoke(f, *textureInfo, usage);
+                }
+                else {
+                    std::invoke(f, *textureInfo);
+                }
+            }
+        };
+
+        // Core material textures
+        invokeWhenHasValue(material.pbrData.baseColorTexture, TextureUsage::BaseColor);
+        invokeWhenHasValue(material.pbrData.metallicRoughnessTexture, TextureUsage::MetallicRoughness);
+        invokeWhenHasValue(material.normalTexture, TextureUsage::Normal);
+        invokeWhenHasValue(material.occlusionTexture, TextureUsage::Occlusion);
+        invokeWhenHasValue(material.emissiveTexture, TextureUsage::Emissive);
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_anisotropy)) {
+            if (const auto &anisotropy = material.anisotropy) {
+                invokeWhenHasValue(anisotropy->anisotropyTexture, TextureUsage::Anisotropy);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_clearcoat)) {
+            if (const auto &clearcoat = material.clearcoat) {
+                invokeWhenHasValue(clearcoat->clearcoatTexture, TextureUsage::Clearcoat);
+                invokeWhenHasValue(clearcoat->clearcoatRoughnessTexture, TextureUsage::ClearcoatRoughness);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_diffuse_transmission)) {
+            if (const auto &diffuseTransmission = material.diffuseTransmission) {
+                invokeWhenHasValue(diffuseTransmission->diffuseTransmissionTexture, TextureUsage::DiffuseTransmission);
+                invokeWhenHasValue(diffuseTransmission->diffuseTransmissionColorTexture, TextureUsage::DiffuseTransmissionColor);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_iridescence)) {
+            if (const auto &iridescence = material.iridescence) {
+                invokeWhenHasValue(iridescence->iridescenceTexture, TextureUsage::Iridescence);
+                invokeWhenHasValue(iridescence->iridescenceThicknessTexture, TextureUsage::IridescenceThickness);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_sheen)) {
+            if (const auto &sheen = material.sheen) {
+                invokeWhenHasValue(sheen->sheenColorTexture, TextureUsage::Sheen);
+                invokeWhenHasValue(sheen->sheenRoughnessTexture, TextureUsage::SheenRoughness);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_specular)) {
+            if (const auto &specular = material.specular) {
+                invokeWhenHasValue(specular->specularTexture, TextureUsage::Specular);
+                invokeWhenHasValue(specular->specularColorTexture, TextureUsage::SpecularColor);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_transmission)) {
+            if (const auto &transmission = material.transmission) {
+                invokeWhenHasValue(transmission->transmissionTexture, TextureUsage::Transmission);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::KHR_materials_volume)) {
+            if (const auto &volume = material.volume) {
+                invokeWhenHasValue(volume->thicknessTexture, TextureUsage::VolumeThickness);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::MSFT_packing_normalRoughnessMetallic)) {
+            if (const auto &packed = material.packedNormalMetallicRoughnessTexture) {
+                invokeWhenHasValue(packed, Flags { TextureUsage::Normal } | TextureUsage::MetallicRoughness);
+            }
+        }
+
+        if (static_cast<bool>(extensions & Extensions::MSFT_packing_occlusionRoughnessMetallic)) {
+            if (const auto &packed = material.packedOcclusionRoughnessMetallicTextures) {
+                invokeWhenHasValue(packed->occlusionRoughnessMetallicTexture, Flags { TextureUsage::Occlusion } | TextureUsage::MetallicRoughness);
+                invokeWhenHasValue(packed->roughnessMetallicOcclusionTexture, Flags { TextureUsage::MetallicRoughness } | TextureUsage::Occlusion);
+                invokeWhenHasValue(packed->normalTexture, TextureUsage::Normal);
+            }
+        }
+    }
+
 namespace math {
     /**
      * @brief Get component-wise minimum of two vectors.
@@ -491,6 +624,30 @@ namespace math {
 }
 }
 
+export template <>
+struct FlagTraits<fastgltf::TextureUsage> {
+    static constexpr bool isBitmask = true;
+    static constexpr Flags<fastgltf::TextureUsage> allFlags
+        = fastgltf::TextureUsage::BaseColor
+        | fastgltf::TextureUsage::MetallicRoughness
+        | fastgltf::TextureUsage::Normal
+        | fastgltf::TextureUsage::Occlusion
+        | fastgltf::TextureUsage::Emissive
+        | fastgltf::TextureUsage::Anisotropy
+        | fastgltf::TextureUsage::Clearcoat
+        | fastgltf::TextureUsage::ClearcoatRoughness
+        | fastgltf::TextureUsage::DiffuseTransmission
+        | fastgltf::TextureUsage::DiffuseTransmissionColor
+        | fastgltf::TextureUsage::Iridescence
+        | fastgltf::TextureUsage::IridescenceThickness
+        | fastgltf::TextureUsage::Sheen
+        | fastgltf::TextureUsage::SheenRoughness
+        | fastgltf::TextureUsage::Specular
+        | fastgltf::TextureUsage::SpecularColor
+        | fastgltf::TextureUsage::Transmission
+        | fastgltf::TextureUsage::VolumeThickness;
+};
+
 DEFINE_FORMATTER(fastgltf::PrimitiveType);
 DEFINE_FORMATTER(fastgltf::AccessorType);
 DEFINE_FORMATTER(fastgltf::ComponentType);
@@ -501,6 +658,7 @@ DEFINE_FORMATTER(fastgltf::Filter);
 DEFINE_FORMATTER(fastgltf::Wrap);
 DEFINE_FORMATTER(fastgltf::AnimationPath);
 DEFINE_FORMATTER(fastgltf::AnimationInterpolation);
+DEFINE_FORMATTER(fastgltf::TextureUsage);
 
 #if !defined(__GNUC__) || defined(__clang__)
 module :private;
@@ -615,6 +773,30 @@ cpp_util::cstring_view fastgltf::to_string(AnimationInterpolation interpolation)
         case AnimationInterpolation::Linear: return "LINEAR";
         case AnimationInterpolation::Step: return "STEP";
         case AnimationInterpolation::CubicSpline: return "CUBICSPLINE";
+    }
+    std::unreachable();
+}
+
+cpp_util::cstring_view fastgltf::to_string(TextureUsage usage) noexcept {
+    switch (usage) {
+        case TextureUsage::BaseColor: return "BaseColor";
+        case TextureUsage::MetallicRoughness: return "MetallicRoughness";
+        case TextureUsage::Normal: return "Normal";
+        case TextureUsage::Occlusion: return "Occlusion";
+        case TextureUsage::Emissive: return "Emissive";
+        case TextureUsage::Anisotropy: return "Anisotropy";
+        case TextureUsage::Clearcoat: return "Clearcoat";
+        case TextureUsage::ClearcoatRoughness: return "ClearcoatRoughness";
+        case TextureUsage::DiffuseTransmission: return "DiffuseTransmission";
+        case TextureUsage::DiffuseTransmissionColor: return "DiffuseTransmissionColor";
+        case TextureUsage::Iridescence: return "Iridescence";
+        case TextureUsage::IridescenceThickness: return "IridescenceThickness";
+        case TextureUsage::Sheen: return "Sheen";
+        case TextureUsage::SheenRoughness: return "SheenRoughness";
+        case TextureUsage::Specular: return "Specular";
+        case TextureUsage::SpecularColor: return "SpecularColor";
+        case TextureUsage::Transmission: return "Transmission";
+        case TextureUsage::VolumeThickness: return "VolumeThickness";
     }
     std::unreachable();
 }

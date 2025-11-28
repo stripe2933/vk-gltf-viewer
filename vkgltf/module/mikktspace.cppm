@@ -33,7 +33,7 @@ namespace vkgltf {
             : asset { asset }
             , positionAccessor { asset.accessors[primitive.findAttribute("POSITION")->accessorIndex] }
             , normalAccessor { asset.accessors[primitive.findAttribute("NORMAL")->accessorIndex] }
-            , texcoordAccessor { asset.accessors[primitive.findAttribute(std::format("TEXCOORD_{}", getTexcoordIndex(asset.materials[*primitive.materialIndex].normalTexture.value())))->accessorIndex] }
+            , texcoordAccessor { asset.accessors[primitive.findAttribute(std::format("TEXCOORD_{}", utils::getTexcoordIndex(asset.materials[*primitive.materialIndex].normalTexture.value())))->accessorIndex] }
             , indicesAccessor { asset.accessors[primitive.indicesAccessor.value()] }
             , type { primitive.type }
             , adapter { adapter } {

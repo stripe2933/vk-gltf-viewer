@@ -783,7 +783,7 @@ bool vkgltf::PrimitiveAttributeBuffers::needMikkTSpaceTangents() const noexcept 
 
     // Check if any POSITION, NORMAL or TEXCOORD_<i> (where <i> is the texture coordinate index of the normal texture)
     // attributes are referenced in morph targets.
-    const std::size_t normalTextureTexcoordIndex = getTexcoordIndex(*material.normalTexture);
+    const std::size_t normalTextureTexcoordIndex = utils::getTexcoordIndex(*material.normalTexture);
     for (const auto &morphTargets : primitive.get().targets) {
         for (const auto &[attributeName, _] : morphTargets) {
             if (attributeName == "POSITION"sv || attributeName == "NORMAL"sv) {

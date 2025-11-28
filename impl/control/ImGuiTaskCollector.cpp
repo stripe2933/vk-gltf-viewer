@@ -505,6 +505,43 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
         ImGui::InputTextWithHint("glTF Version", "<empty>", &assetExtended.asset.assetInfo->gltfVersion);
         ImGui::InputTextWithHint("Generator", "<empty>", &assetExtended.asset.assetInfo->generator);
         ImGui::InputTextWithHint("Copyright", "<empty>", &assetExtended.asset.assetInfo->copyright);
+
+        ImGui::SeparatorText("Extension Usage");
+
+        ImGui::Table<false>(
+            "asset-extensions-table",
+            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY,
+            assetExtended.asset.extensionsUsed,
+            ImGui::ColumnInfo { "Name", [](cpp_util::cstring_view name) {
+                constexpr auto getVendorPath = [](std::string_view name) noexcept -> std::string_view {
+                    if (name.starts_with("KHR_")) {
+                        if (name == "KHR_materials_pbrSpecularGlossiness" ||
+                            name == "KHR_techniques_webgl" ||
+                            name == "KHR_xmp") {
+                            return "Archived";
+                        }
+
+                        return "Khronos";
+                    }
+
+                    return "Vendor";
+                };
+
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextLinkOpenURL(name.c_str(), tempStringBuffer.write("https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/{}/{}", getVendorPath(name), name).view().c_str());
+            }, ImGuiTableColumnFlags_WidthStretch },
+            ImGui::ColumnInfo { "Required", [&](std::size_t i, std::string_view name) {
+                const auto it = std::ranges::find(assetExtended.asset.extensionsRequired, name);
+                bool required = it != assetExtended.asset.extensionsRequired.end();
+                if (ImGui::Checkbox(tempStringBuffer.write("##{}", i).view().c_str(), &required)) {
+                    if (required) {
+                        assetExtended.asset.extensionsRequired.emplace_back(name);
+                    }
+                    else {
+                        assetExtended.asset.extensionsRequired.erase(it);
+                    }
+                }
+            }, ImGuiTableColumnFlags_WidthFixed });
     }
     ImGui::End();
 
@@ -801,7 +838,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
                                     }
                                 });
                             }), ImGuiTableColumnFlags_WidthFixed },
-                            ImGui::ColumnInfo { "Type", decomposer([](auto, Flags<gltf::TextureUsage> type) {
+                            ImGui::ColumnInfo { "Type", decomposer([](auto, Flags<fastgltf::TextureUsage> type) {
                                 ImGui::TextUnformatted(tempStringBuffer.write("{::s}", type).view());
                             }), ImGuiTableColumnFlags_WidthStretch });
                     });
@@ -891,23 +928,23 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                 ImGui::SameLine();
                 ImGui::HelperMarker("(overridden)", "This value is overridden by KHR_texture_transform extension.");
             };
-            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, gltf::TextureUsage usage) -> void {
+            const auto textureTransformControl = [&](fastgltf::TextureInfo &textureInfo, fastgltf::TextureUsage usage) -> void {
                 task::MaterialPropertyChanged::Property changeProp;
                 switch (usage) {
                     using enum task::MaterialPropertyChanged::Property;
-                    case gltf::TextureUsage::BaseColor:
+                    case fastgltf::TextureUsage::BaseColor:
                         changeProp = BaseColorTextureTransform;
                         break;
-                    case gltf::TextureUsage::MetallicRoughness:
+                    case fastgltf::TextureUsage::MetallicRoughness:
                         changeProp = MetallicRoughnessTextureTransform;
                         break;
-                    case gltf::TextureUsage::Normal:
+                    case fastgltf::TextureUsage::Normal:
                         changeProp = NormalTextureTransform;
                         break;
-                    case gltf::TextureUsage::Occlusion:
+                    case fastgltf::TextureUsage::Occlusion:
                         changeProp = OcclusionTextureTransform;
                         break;
-                    case gltf::TextureUsage::Emissive:
+                    case fastgltf::TextureUsage::Emissive:
                         changeProp = EmissiveTextureTransform;
                         break;
                     default:
@@ -919,14 +956,15 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                 if (ImGui::Checkbox("KHR_texture_transform", &useTextureTransform)) {
                     if (useTextureTransform) {
                         textureInfo.transform = std::make_unique<fastgltf::TextureTransform>();
-
-                        // Need to notify texture transform is enabled.
-                        // If it was not enabled before, pipelines will be recreated with texture transform enabled.
-                        notifyPropertyChanged(task::MaterialPropertyChanged::Property::TextureTransformEnabled);
+                        const bool emplaced [[maybe_unused]] = assetExtended.transformedTextureInfos.emplace(&textureInfo).second;
+                        assert(emplaced);
                     }
                     else {
                         textureInfo.transform.reset();
+                        const bool erased [[maybe_unused]] = assetExtended.transformedTextureInfos.erase(&textureInfo) == 1;
+                        assert(erased);
                     }
+                    notifyPropertyChanged(task::MaterialPropertyChanged::Property::TextureTransformEnabled);
 
                     notifyPropertyChanged(changeProp);
                     isChangePropNotified = true;
@@ -975,7 +1013,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*baseColorTextureInfo, gltf::TextureUsage::BaseColor);
+                                textureTransformControl(*baseColorTextureInfo, fastgltf::TextureUsage::BaseColor);
                             }
                         }, baseColorTextureInfo.has_value());
                     });
@@ -1011,7 +1049,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                                         texcoordOverriddenMarker();
                                     }
 
-                                    textureTransformControl(*metallicRoughnessTextureInfo, gltf::TextureUsage::MetallicRoughness);
+                                    textureTransformControl(*metallicRoughnessTextureInfo, fastgltf::TextureUsage::MetallicRoughness);
                                 }
                             });
                         });
@@ -1041,7 +1079,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*textureInfo, gltf::TextureUsage::Normal);
+                                textureTransformControl(*textureInfo, fastgltf::TextureUsage::Normal);
                             });
                         });
                     }, material.unlit);
@@ -1070,7 +1108,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                                     texcoordOverriddenMarker();
                                 }
 
-                                textureTransformControl(*textureInfo, gltf::TextureUsage::Occlusion);
+                                textureTransformControl(*textureInfo, fastgltf::TextureUsage::Occlusion);
                             });
                         });
                     }, material.unlit);
@@ -1106,7 +1144,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::materialEditor(gltf::AssetExte
                                         texcoordOverriddenMarker();
                                     }
 
-                                    textureTransformControl(*textureInfo, gltf::TextureUsage::Emissive);
+                                    textureTransformControl(*textureInfo, fastgltf::TextureUsage::Emissive);
                                 }
                             }, textureInfo.has_value());
                         });

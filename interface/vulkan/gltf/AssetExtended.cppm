@@ -29,6 +29,13 @@ namespace vk_gltf_viewer::vulkan::gltf {
         std::reference_wrapper<const Gpu> gpu;
 
     public:
+        /// Will be true if any texture in the asset uses KHR_texture_transform extension.
+        ///
+        /// If the extension is enabled during the runtime, it will be set to <tt>true</tt>.
+        /// If the extension is disabled during the runtime, IT WILL NOT BE SET TO <tt>false</tt>, as transforming the
+        /// texture coordinates in the fragment shader is cheaper than recreating all pipelines.
+    	bool useTextureTransformInPipeline;
+
         buffer::Materials materialBuffer;
         vkgltf::CombinedIndexBuffer combinedIndexBuffer;
         std::unordered_map<const fastgltf::Primitive*, vkgltf::PrimitiveAttributeBuffers> primitiveAttributeBuffers;
@@ -70,7 +77,7 @@ namespace vk_gltf_viewer::vulkan::gltf {
             }
 
             if constexpr (Mask) {
-                result.useTextureTransform = isTextureTransformUsed;
+                result.useTextureTransform = useTextureTransformInPipeline;
 
                 if (!accessors.colors.empty()) {
                     const fastgltf::Accessor &accessor = asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
@@ -100,6 +107,8 @@ namespace vk_gltf_viewer::vulkan::gltf {
 #if !defined(__GNUC__) || defined(__clang__)
 module :private;
 #endif
+
+using namespace std::string_view_literals;
 
 vk::PrimitiveTopology vk_gltf_viewer::vulkan::gltf::getPrimitiveTopology(fastgltf::PrimitiveType type) noexcept {
     switch (type) {
@@ -165,6 +174,7 @@ vk_gltf_viewer::vulkan::gltf::AssetExtended::AssetExtended(
     BS::thread_pool<> threadPool
 ) : vk_gltf_viewer::gltf::AssetExtended { path },
     gpu { gpu },
+	useTextureTransformInPipeline { std::ranges::contains(asset.extensionsUsed, "KHR_texture_transform"sv) },
     materialBuffer { asset, gpu.allocator, stagingBufferStorage },
     combinedIndexBuffer { asset, gpu.allocator, vkgltf::CombinedIndexBuffer::Config {
         .adapter = externalBuffers,
@@ -246,7 +256,7 @@ vk_gltf_viewer::vulkan::PrimitiveRenderPipeline::Config vk_gltf_viewer::vulkan::
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
         .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
-        .useTextureTransform = isTextureTransformUsed,
+        .useTextureTransform = useTextureTransformInPipeline,
         .usePerFragmentEmissiveStencilExport = usePerFragmentEmissiveStencilExport,
     };
 
@@ -293,7 +303,7 @@ vk_gltf_viewer::vulkan::UnlitPrimitiveRenderPipeline::Config vk_gltf_viewer::vul
         .positionNormalized = accessors.position.attributeInfo.normalized,
         .positionMorphTargetCount = static_cast<std::uint32_t>(accessors.position.morphTargets.size()),
         .skinAttributeCount = static_cast<std::uint32_t>(accessors.joints.size()),
-        .useTextureTransform = isTextureTransformUsed,
+        .useTextureTransform = useTextureTransformInPipeline,
     };
 
     if (!gpu.get().supportDynamicPrimitiveTopologyUnrestricted) {

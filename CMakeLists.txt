@@ -167,7 +167,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/gltf/AssetExternalBuffers.cppm
         interface/gltf/AssetProcessError.cppm
         interface/gltf/SceneHierarchy.cppm
-        interface/gltf/TextureUsage.cppm
         interface/gltf/util.cppm
         interface/gui/popup/mod.cppm
         interface/gui/utils.cppm
