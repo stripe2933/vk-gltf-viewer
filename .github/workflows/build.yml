@@ -31,7 +31,7 @@ jobs:
       - name: Install Vulkan SDK
         uses: stripe2933/setup-vulkan-sdk@30a1c4f5464781f4559063b11e19b080a53b4411
         with:
-          vulkan-query-version: latest
+          vulkan-query-version: 1.4.328.1
           vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
           vulkan-use-cache: true
 
