@@ -5,6 +5,7 @@
     "bshoshany-thread-pool",
     "cstring-view",
     "fastgltf",
+    "fmt",
     "glfw3",
     "glm",
     {

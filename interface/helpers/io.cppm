@@ -5,6 +5,7 @@ module;
 export module vk_gltf_viewer.helpers.io;
 
 import std;
+import fmt;
 
 export
 [[nodiscard]] std::vector<std::byte> loadFileAsBinary(const std::filesystem::path &path, std::size_t offset = 0);
@@ -16,7 +17,7 @@ module :private;
 std::vector<std::byte> loadFileAsBinary(const std::filesystem::path &path, std::size_t offset) {
     std::ifstream file { path, std::ios::binary };
     if (!file) {
-        throw std::runtime_error { std::format("Failed to open file: {} (error code={})", std::strerror(errno), errno) };
+        throw std::runtime_error { fmt::format("Failed to open file: {} (error code={})", std::strerror(errno), errno) };
     }
 
     file.seekg(0, std::ios::end);

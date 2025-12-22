@@ -5,6 +5,7 @@ module;
 export module vk_gltf_viewer.helpers.Flags;
 
 import std;
+export import fmt;
 
 export template <typename BitType>
 class Flags;
@@ -75,13 +76,13 @@ private:
 };
 
 export template <typename BitType, typename CharT>
-struct std::formatter<Flags<BitType>, CharT> : range_formatter<BitType, CharT> {
+struct fmt::formatter<Flags<BitType>, CharT> : range_formatter<BitType, CharT> {
     constexpr formatter() {
         range_formatter<BitType, CharT>::set_separator(" | ");
         range_formatter<BitType, CharT>::set_brackets("", "");
     }
 
-    [[nodiscard]] constexpr auto format(const Flags<BitType> &flags, auto &ctx) const {
+    [[nodiscard]] constexpr auto format(const Flags<BitType> &flags, format_context &ctx) const {
         const typename Flags<BitType>::MaskType flagMask { flags };
 
         constexpr typename Flags<BitType>::MaskType allFlagMask { FlagTraits<BitType>::allFlags };

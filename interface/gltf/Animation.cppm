@@ -22,7 +22,7 @@ namespace vk_gltf_viewer::gltf {
     };
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(NodeAnimationUsage usage) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(NodeAnimationUsage usage) noexcept;
 
     export class Animation {
         std::reference_wrapper<fastgltf::Asset> asset;
@@ -48,13 +48,6 @@ namespace vk_gltf_viewer::gltf {
         void update(float time, std::vector<std::size_t> &transformedNodes, std::vector<std::size_t> &morphedNodes, const AssetExternalBuffers &adapter) const;
     };
 }
-
-export template <>
-struct std::formatter<vk_gltf_viewer::gltf::NodeAnimationUsage> : formatter<std::string_view> {
-    auto format(vk_gltf_viewer::gltf::NodeAnimationUsage usage, auto &ctx) const {
-        return formatter<std::string_view>::format(to_string(usage), ctx);
-    }
-};
 
 export template <>
 struct FlagTraits<vk_gltf_viewer::gltf::NodeAnimationUsage> {
@@ -204,7 +197,7 @@ template <typename T>
 	std::unreachable();
 }
 
-cpp_util::cstring_view vk_gltf_viewer::gltf::to_string(NodeAnimationUsage usage) noexcept {
+cpp_util::cstring_view vk_gltf_viewer::gltf::format_as(NodeAnimationUsage usage) noexcept {
     switch (usage) {
         case NodeAnimationUsage::Translation: return "Translation";
         case NodeAnimationUsage::Rotation: return "Rotation";

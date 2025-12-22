@@ -9,14 +9,14 @@ namespace vk_gltf_viewer::gltf {
         TooManyTextureError,        /// The number of textures exceeds the system GPU limit.
     };
 
-    export cpp_util::cstring_view to_string(AssetProcessError error) noexcept;
+    export cpp_util::cstring_view format_as(AssetProcessError error) noexcept;
 }
 
 #if !defined(__GNUC__) || defined(__clang__)
 module :private;
 #endif
 
-cpp_util::cstring_view vk_gltf_viewer::gltf::to_string(AssetProcessError error) noexcept {
+cpp_util::cstring_view vk_gltf_viewer::gltf::format_as(AssetProcessError error) noexcept {
     switch (error) {
         case AssetProcessError::UnsupportedSourceDataType:
             return "The source data type is not supported.";

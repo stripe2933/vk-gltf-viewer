@@ -1,12 +1,13 @@
 export module vk_gltf_viewer.helpers.TempStringBuffer;
 
 import std;
+export import fmt;
 export import cstring_view;
 
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
 
 /**
- * Temporary buffer that could be written by <tt>std::format</tt> without heap allocation.
+ * Temporary buffer that could be written by <tt>fmt::format</tt> without heap allocation.
  * @tparam CharT Character type.
  * @tparam BufferSize Maximum buffer size. Formatted output exceeding this size will be truncated.
  * @warning Thread unsafe. Also written value should be directly consumed. (It's result is temporary!)
@@ -26,8 +27,8 @@ public:
      * @return Reference to itself.
      */
     template <typename... Args>
-    TempStringBuffer &write(std::format_string<Args...> fmt, Args &&...args) {
-        auto it = std::format_to_n(buffer.data(), BufferSize - 1 /* last must be '\0' */, fmt, FWD(args)...).out;
+    TempStringBuffer &write(fmt::format_string<Args...> fmt, Args &&...args) {
+        auto it = fmt::format_to_n(buffer.data(), BufferSize - 1 /* last must be '\0' */, fmt, FWD(args)...).out;
         *it = '\0';
         size = it - buffer.data();
         return *this;
@@ -46,9 +47,9 @@ public:
      * @return Reference to itself.
      */
     template <typename... Args>
-    TempStringBuffer &append(std::format_string<Args...> fmt, Args &&...args) {
+    TempStringBuffer &append(fmt::format_string<Args...> fmt, Args &&...args) {
         if (size + 1 < BufferSize) {
-            auto it = std::format_to_n(buffer.data() + size, BufferSize - size - 1 /* last must be '\0' */, fmt, FWD(args)...).out;
+            auto it = fmt::format_to_n(buffer.data() + size, BufferSize - size - 1 /* last must be '\0' */, fmt, FWD(args)...).out;
             *it = '\0';
             size = it - buffer.data();
         }
