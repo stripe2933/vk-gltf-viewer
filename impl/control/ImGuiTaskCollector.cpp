@@ -10,6 +10,8 @@ module;
 
 module vk_gltf_viewer.imgui.TaskCollector;
 
+import fmt;
+
 import vk_gltf_viewer.global;
 import vk_gltf_viewer.gltf.algorithm.miniball;
 import vk_gltf_viewer.gltf.util;
@@ -52,7 +54,7 @@ int boundFpPrecision = 2;
         // Do nothing.
     }
     else {
-        throw std::runtime_error { std::format("File dialog error: {}", NFD::GetError() ) };
+        throw std::runtime_error { fmt::format("File dialog error: {}", NFD::GetError() ) };
     }
 }
 
@@ -562,7 +564,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             ImGui::ColumnInfo { "MIME", [](const fastgltf::Buffer &buffer) {
                 visit([](const auto &source) {
                     if constexpr (requires { { source.mimeType } -> std::convertible_to<fastgltf::MimeType>; }) {
-                        ImGui::TextUnformatted(to_string(source.mimeType));
+                        ImGui::TextUnformatted(format_as(source.mimeType));
                     }
                     else {
                         ImGui::TextDisabled("-");
@@ -625,7 +627,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
             }, ImGuiTableColumnFlags_WidthFixed },
             ImGui::ColumnInfo { "Target", [](const fastgltf::BufferView &bufferView) {
                 if (const auto &bufferViewTarget = bufferView.target) {
-                    ImGui::TextUnformatted(to_string(*bufferViewTarget));
+                    ImGui::TextUnformatted(format_as(*bufferViewTarget));
                 }
                 else {
                     ImGui::TextDisabled("-");
@@ -649,7 +651,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
                 visit([]<typename T>(const T &source) {
                     if constexpr (requires { { source.mimeType } -> std::convertible_to<fastgltf::MimeType>; }) {
                         if (source.mimeType != fastgltf::MimeType::None) {
-                            ImGui::TextUnformatted(to_string(source.mimeType));
+                            ImGui::TextUnformatted(format_as(source.mimeType));
                             return;
                         }
                     }
@@ -675,7 +677,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
                             }
 
                             if (inferredMimeType != fastgltf::MimeType::None) {
-                                ImGui::TextUnformatted(to_string(inferredMimeType));
+                                ImGui::TextUnformatted(format_as(inferredMimeType));
                                 ImGui::SameLine();
                                 ImGui::HelperMarker("(inferred)", "MIME type is not presented in the glTF asset and is inferred from the file extension.");
                                 return;
@@ -746,11 +748,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::assetInspector(gltf::AssetExte
                 });
             }, ImGuiTableColumnFlags_WidthStretch },
             ImGui::ColumnInfo { "Filter (Mag/Min)", [](const fastgltf::Sampler &sampler) {
-                ImGui::TextUnformatted(
-                    tempStringBuffer.write(
-                        "{} / {}",
-                        sampler.magFilter.transform(LIFT(to_string)).value_or("-"),
-                        sampler.minFilter.transform(LIFT(to_string)).value_or("-")));
+                ImGui::TextUnformatted(tempStringBuffer.write("{} / {}", to_optional(sampler.magFilter), to_optional(sampler.minFilter)));
             }, ImGuiTableColumnFlags_WidthFixed },
             ImGui::ColumnInfo { "Wrap (S/T)", [](const fastgltf::Sampler &sampler) {
                 ImGui::TextUnformatted(tempStringBuffer.write("{} / {}", sampler.wrapS, sampler.wrapT));
@@ -1815,7 +1813,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::nodeInspector(gltf::AssetExten
 
                     for (auto &&[primitiveIndex, primitive]: mesh.primitives | ranges::views::enumerate) {
                         if (ImGui::CollapsingHeader(tempStringBuffer.write("Primitive {}", primitiveIndex).view().c_str())) {
-                            ImGui::LabelText("Type", "%s", to_string(primitive.type).c_str());
+                            ImGui::LabelText("Type", "%s", format_as(primitive.type).c_str());
 
                             bool primitiveMaterialChanged = false;
 

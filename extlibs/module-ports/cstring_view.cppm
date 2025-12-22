@@ -43,6 +43,12 @@ export namespace cpp_util {
     using cpp_util::u32cstring_view;
     using cpp_util::wcstring_view;
 
+    // Make formattable by fmt
+    template <typename CharT, typename Traits = std::char_traits<CharT>>
+    [[nodiscard]] constexpr std::basic_string_view<CharT, Traits> format_as(basic_cstring_view<CharT, Traits> csv) noexcept {
+        return csv;
+    }
+
 inline namespace literals {
 inline namespace string_view_literals {
     using string_view_literals::operator""_csv;
