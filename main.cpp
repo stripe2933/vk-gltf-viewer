@@ -5,7 +5,7 @@
 #endif
 
 import vk_gltf_viewer;
-import vulkan_hpp;
+import vulkan;
 
 #ifdef _WIN32
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {

@@ -8,7 +8,7 @@ export module vk_gltf_viewer.vulkan.pipeline.SkyboxRenderPipeline;
 import std;
 #endif
 import vku;
-export import vulkan_hpp;
+export import vulkan;
 
 import vk_gltf_viewer.shader.skybox_frag;
 import vk_gltf_viewer.shader.skybox_vert;

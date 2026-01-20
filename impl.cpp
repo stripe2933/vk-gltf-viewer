@@ -23,6 +23,6 @@ _LIBCPP_END_NAMESPACE_STD
 #include <stb_image.h>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-import vulkan_hpp;
+import vulkan;
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE

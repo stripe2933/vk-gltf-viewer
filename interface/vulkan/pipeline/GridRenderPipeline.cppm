@@ -7,7 +7,7 @@ export module vk_gltf_viewer.vulkan.pipeline.GridRenderPipeline;
 import std;
 export import glm;
 import vku;
-export import vulkan_hpp;
+export import vulkan;
 
 import vk_gltf_viewer.shader.grid_vert;
 import vk_gltf_viewer.shader.grid_frag;

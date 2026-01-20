@@ -6,16 +6,6 @@ module vk_gltf_viewer.vulkan.Gpu;
 
 import vk_gltf_viewer.helpers.ranges;
 
-#ifdef _MSC_VER
-// FIXME: MSVC is not recognizing vk::StructureChain as a tuple-like type. Remove it when fixed.
-
-template <typename... Ts>
-struct std::tuple_size<vk::StructureChain<Ts...>> : std::integral_constant<std::size_t, sizeof...(Ts)> {};
-
-template <std::size_t I, typename... Ts>
-struct std::tuple_element<I, vk::StructureChain<Ts...>> : std::tuple_element<I, std::tuple<Ts...>> {};
-#endif
-
 constexpr std::array requiredExtensions {
 #if __APPLE__
     vk::KHRPortabilitySubsetExtensionName,

@@ -6,7 +6,7 @@ export module vk_gltf_viewer.vulkan.pipeline.OutlineRenderPipeline;
 
 import std;
 import vku;
-export import vulkan_hpp;
+export import vulkan;
 
 import vk_gltf_viewer.shader.outline_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;

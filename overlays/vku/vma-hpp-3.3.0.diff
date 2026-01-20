@@ -1,0 +1,22 @@
+diff --git a/include/vku.hpp b/include/vku.hpp
+index 0e87d13..cccd8ac 100644
+--- a/include/vku.hpp
++++ b/include/vku.hpp
+@@ -1068,7 +1068,7 @@ vku::raii::AllocatedBuffer::AllocatedBuffer(
+     VULKAN_HPP_NAMESPACE::Optional<VMA_HPP_NAMESPACE::AllocationInfo> allocationInfo
+ ) : Buffer { nullptr, createInfo.size },
+     allocator { allocator } {
+-    std::tie(buffer, allocation) = allocator.createBuffer(createInfo, allocationCreateInfo, allocationInfo);
++    std::tie(allocation, buffer) = allocator.createBuffer(createInfo, allocationCreateInfo, allocationInfo);
+ }
+ 
+ vku::raii::AllocatedBuffer::AllocatedBuffer(AllocatedBuffer &&src) noexcept
+@@ -1100,7 +1100,7 @@ vku::raii::AllocatedImage::AllocatedImage(
+     VULKAN_HPP_NAMESPACE::Optional<VMA_HPP_NAMESPACE::AllocationInfo> allocationInfo
+ ) : Image { nullptr, createInfo.extent, createInfo.format, createInfo.mipLevels, createInfo.arrayLayers },
+     allocator { allocator } {
+-    std::tie(image, allocation) = allocator.createImage(createInfo, allocationCreateInfo, allocationInfo);
++    std::tie(allocation, image) = allocator.createImage(createInfo, allocationCreateInfo, allocationInfo);
+ }
+ 
+ vku::raii::AllocatedImage::AllocatedImage(AllocatedImage &&src) noexcept

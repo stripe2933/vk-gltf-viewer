@@ -96,8 +96,9 @@ target_sources(vku_module PUBLIC
         ${VulkanMemoryAllocator_Hpp_INCLUDE_DIR}/vulkan-memory-allocator-hpp
         extlibs/module-ports
     FILES
+        ${Vulkan_INCLUDE_DIRS}/vulkan/vulkan.cppm
+        ${Vulkan_INCLUDE_DIRS}/vulkan/vulkan_video.cppm
         ${VulkanMemoryAllocator_Hpp_INCLUDE_DIR}/vulkan-memory-allocator-hpp/vk_mem_alloc.cppm
-        extlibs/module-ports/vulkan.cppm
         extlibs/module-ports/vku.cppm
 )
 target_compile_definitions(vku_module

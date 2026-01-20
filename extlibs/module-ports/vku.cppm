@@ -8,8 +8,8 @@ module;
 export module vku;
 
 import std;
-export import vulkan_hpp;
-export import vk_mem_alloc_hpp;
+export import vulkan;
+export import vk_mem_alloc;
 
 #if !defined(VMA_HPP_NAMESPACE)
 #define VMA_HPP_NAMESPACE vma
