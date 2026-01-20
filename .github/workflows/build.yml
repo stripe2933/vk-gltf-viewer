@@ -46,12 +46,6 @@ jobs:
         if: ${{ runner.os == 'Windows' && matrix.compiler == 'msvc' }}
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Workaround C++ standard library module bug (macOS)
-        if: ${{ runner.os == 'macOS' }}
-        run: |
-          ln -s /opt/homebrew/etc/clang ~/.config/clang
-          sed -i '' 's|-print-file-name=${_clang_modules_json_impl}.modules.json|-print-file-name=../../c++/${_clang_modules_json_impl}.modules.json|g' /opt/homebrew/opt/cmake/share/cmake/Modules/Compiler/Clang-CXX-CXXImportStd.cmake # https://github.com/llvm/llvm-project/issues/109895
-
       - name: Add NuGet sources (Windows)
         if: ${{ runner.os == 'Windows' }}
         shell: pwsh
