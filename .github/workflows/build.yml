@@ -10,7 +10,7 @@ on:
 
 env:
   FEED_URL: "https://nuget.pkg.github.com/stripe2933/index.json"
-  VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/stripe2933/index.json,readwrite"
+  VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/stripe2933/index.json,read"
 
 jobs:
   build:
