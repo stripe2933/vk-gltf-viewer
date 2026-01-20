@@ -8,7 +8,7 @@ export module vk_gltf_viewer.vulkan.render_pass.Scene;
 import std;
 #endif
 import vku;
-export import vulkan_hpp;
+export import vulkan;
 
 export import vk_gltf_viewer.vulkan.Gpu;
 

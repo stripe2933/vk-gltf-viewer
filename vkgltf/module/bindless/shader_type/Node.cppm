@@ -6,7 +6,7 @@ export module vkgltf.bindless.shader_type.Node;
 
 import std;
 export import fastgltf;
-export import vulkan_hpp;
+export import vulkan;
 
 namespace vkgltf::shader_type {
     export struct Node {

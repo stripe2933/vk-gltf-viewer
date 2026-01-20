@@ -2,7 +2,7 @@ export module vk_gltf_viewer.vulkan.specialization_constants.SpecializationMap;
 
 import std;
 import reflect;
-export import vulkan_hpp;
+export import vulkan;
 
 #define INDEX_SEQ(Is, N, ...) []<std::size_t... Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 

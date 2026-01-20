@@ -50,7 +50,7 @@ namespace vk_gltf_viewer::vulkan {
         QueueFamilies queueFamilies;
         vk::raii::Device device = createDevice();
         Queues queues { *device, queueFamilies };
-        vma::Allocator allocator;
+        vma::raii::Allocator allocator;
 
         bool isUmaDevice;
         bool supportSwapchainMutableFormat;
@@ -72,11 +72,9 @@ namespace vk_gltf_viewer::vulkan {
         Workaround workaround;
 
         Gpu(const vk::raii::Instance &instance LIFETIMEBOUND, vk::SurfaceKHR surface);
-        ~Gpu();
 
     private:
         [[nodiscard]] vk::raii::PhysicalDevice selectPhysicalDevice(const vk::raii::Instance &instance, vk::SurfaceKHR surface) const;
         [[nodiscard]] vk::raii::Device createDevice();
-        [[nodiscard]] vma::Allocator createAllocator(const vk::raii::Instance &instance) const;
     };
 }

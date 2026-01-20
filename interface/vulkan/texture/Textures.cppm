@@ -90,7 +90,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
 
 #if !__APPLE__
     vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-    vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, transferCommandPool, gpu.queues.transfer };
+    vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, gpu.allocator, transferCommandPool, gpu.queues.transfer };
 
     std::mutex mutex;
     vkgltf::StagingInfo stagingInfo {

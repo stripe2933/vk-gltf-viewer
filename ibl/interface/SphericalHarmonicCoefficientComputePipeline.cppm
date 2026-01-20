@@ -30,7 +30,7 @@ namespace ibl {
 
         SphericalHarmonicCoefficientComputePipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
-            vma::Allocator allocator LIFETIMEBOUND,
+            const vma::raii::Allocator &allocator LIFETIMEBOUND,
             const vku::Image &cubemapImage LIFETIMEBOUND,
             const vku::Buffer &resultBuffer LIFETIMEBOUND,
             const Config &config
@@ -47,7 +47,7 @@ namespace ibl {
 
         Config config;
         std::reference_wrapper<const vk::raii::Device> device;
-        vma::Allocator allocator;
+        std::reference_wrapper<const vma::raii::Allocator> allocator;
         std::reference_wrapper<const vku::Image> cubemapImage;
         std::reference_wrapper<const vku::Buffer> resultBuffer;
         vk::raii::Sampler cubemapLinearSampler;
@@ -78,7 +78,7 @@ struct ibl::SphericalHarmonicCoefficientComputePipeline::BufferToBufferPipelineP
 
 ibl::SphericalHarmonicCoefficientComputePipeline::SphericalHarmonicCoefficientComputePipeline(
     const vk::raii::Device &device,
-    vma::Allocator allocator,
+    const vma::raii::Allocator &allocator,
     const vku::Image &cubemapImage,
     const vku::Buffer &resultBuffer,
     const Config &config
@@ -183,8 +183,8 @@ void ibl::SphericalHarmonicCoefficientComputePipeline::recordCommands(vk::Comman
     computeCommandBuffer.pushDescriptorSetKHR(
         vk::PipelineBindPoint::eCompute, *imageToBufferPipelineLayout,
         0, {
-            decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteDescriptorSet<0>({}, 0, vku::lvalue(vk::DescriptorImageInfo { {}, cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
-            decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteDescriptorSet<1>({}, 0, vku::lvalue(reductionBuffer.getDescriptorInfo(0, sizeof(float[27]) * square(dispatchCountXY)))),
+            decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteDescriptorSet<0>({}, 0, vku::lvalue(vk::DescriptorImageInfo { {}, *cubemapImageView, vk::ImageLayout::eShaderReadOnlyOptimal })),
+            decltype(imageToBufferPipelineDescriptorSetLayout)::getWriteDescriptorSet<1>({}, 0, vku::lvalue(vk::DescriptorBufferInfo { *reductionBuffer, 0, sizeof(float[27]) * square(dispatchCountXY) })),
         }, *d);
     computeCommandBuffer.dispatch(dispatchCountXY, dispatchCountXY, 1, *d);
 
@@ -193,7 +193,7 @@ void ibl::SphericalHarmonicCoefficientComputePipeline::recordCommands(vk::Comman
     computeCommandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *bufferToBufferPipeline, *d);
     computeCommandBuffer.pushDescriptorSetKHR(
         vk::PipelineBindPoint::eCompute, *bufferToBufferPipelineLayout,
-        0, decltype(bufferToBufferPipelineDescriptorSetLayout)::getWriteDescriptorSet<0>({}, 0, vku::lvalue(reductionBuffer.getDescriptorInfo())), *d);
+        0, decltype(bufferToBufferPipelineDescriptorSetLayout)::getWriteDescriptorSet<0>({}, 0, vku::lvalue(vk::DescriptorBufferInfo { *reductionBuffer, 0, vk::WholeSize })), *d);
 
     // Buffer -> Buffer reduction.
     BufferToBufferPipelinePushConstant pushConstant {
