@@ -27,19 +27,19 @@ namespace cubemap {
 
         CubemapComputePipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
-            const vku::Image &eqmapImage LIFETIMEBOUND,
+            const vku::raii::AllocatedImage &eqmapImage LIFETIMEBOUND,
             vk::Sampler eqmapSampler LIFETIMEBOUND,
-            const vku::Image &cubemapImage LIFETIMEBOUND
+            const vku::raii::AllocatedImage &cubemapImage LIFETIMEBOUND
         );
 
-        void setEqmapImage(const vku::Image &eqmapImage LIFETIME_CAPTURE_BY(this));
-        void setCubemapImage(const vku::Image &cubemapImage LIFETIME_CAPTURE_BY(this));
+        void setEqmapImage(const vku::raii::AllocatedImage &eqmapImage LIFETIME_CAPTURE_BY(this));
+        void setCubemapImage(const vku::raii::AllocatedImage &cubemapImage LIFETIME_CAPTURE_BY(this));
 
         void recordCommands(vk::CommandBuffer computeCommandBuffer) const;
 
     private:
         std::reference_wrapper<const vk::raii::Device> device;
-        std::reference_wrapper<const vku::Image> cubemapImage;
+        std::reference_wrapper<const vku::raii::AllocatedImage> cubemapImage;
 
         vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
@@ -55,9 +55,9 @@ module :private;
 
 cubemap::CubemapComputePipeline::CubemapComputePipeline(
     const vk::raii::Device &device,
-    const vku::Image &eqmapImage,
+    const vku::raii::AllocatedImage &eqmapImage,
     vk::Sampler eqmapSampler,
-    const vku::Image &cubemapImage
+    const vku::raii::AllocatedImage &cubemapImage
 ) : device { device },
     cubemapImage { cubemapImage },
     descriptorSetLayout { device, vk::DescriptorSetLayoutCreateInfo {
@@ -87,11 +87,11 @@ cubemap::CubemapComputePipeline::CubemapComputePipeline(
     eqmapImageView { device, eqmapImage.getViewCreateInfo(vk::ImageViewType::e2D, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) },
     cubemapImageView { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }) } { }
 
-void cubemap::CubemapComputePipeline::setEqmapImage(const vku::Image &eqmapImage) {
+void cubemap::CubemapComputePipeline::setEqmapImage(const vku::raii::AllocatedImage &eqmapImage) {
     eqmapImageView = { device, eqmapImage.getViewCreateInfo(vk::ImageViewType::e2D, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }) };
 }
 
-void cubemap::CubemapComputePipeline::setCubemapImage(const vku::Image &cubemapImage) {
+void cubemap::CubemapComputePipeline::setCubemapImage(const vku::raii::AllocatedImage &cubemapImage) {
     this->cubemapImage = cubemapImage;
     cubemapImageView = { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 6 }) };
 }

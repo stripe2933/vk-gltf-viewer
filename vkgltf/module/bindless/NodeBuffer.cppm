@@ -97,7 +97,7 @@ namespace vkgltf {
             const fastgltf::Asset &asset LIFETIMEBOUND,
             std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
             const vk::raii::Device &device LIFETIMEBOUND,
-            vma::Allocator allocator,
+            const vma::raii::Allocator &allocator,
             const Config<BufferDataAdapter> &config = {}
         ) : NodeBuffer { asset, nodeWorldTransforms, device, allocator, config, IData { asset } } { }
 
@@ -148,7 +148,7 @@ namespace vkgltf {
             const fastgltf::Asset &asset,
             std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms,
             const vk::raii::Device &device LIFETIMEBOUND,
-            vma::Allocator allocator,
+            const vma::raii::Allocator &allocator,
             const Config<BufferDataAdapter> &config,
             const IData &intermediateData
         ) : AllocatedBuffer {
@@ -162,7 +162,7 @@ namespace vkgltf {
                 },
                 config.allocationCreateInfo,
             },
-            descriptorInfo { buffer, 0, sizeof(shader_type::Node) * asset.nodes.size() } {
+            descriptorInfo { **this, 0, sizeof(shader_type::Node) * asset.nodes.size() } {
             vk::DeviceAddress skinJointIndexBufferAddress;
             vk::DeviceAddress inverseBindMatrixBufferAddress;
             if (config.skinBuffer) {
@@ -170,7 +170,7 @@ namespace vkgltf {
                 inverseBindMatrixBufferAddress = device.getBufferAddress({ static_cast<vk::Buffer>(config.skinBuffer->inverseBindMatrices) });
             }
 
-            std::byte* const mapped = static_cast<std::byte*>(allocator.getAllocationInfo(allocation).pMappedData);
+            std::byte* const mapped = static_cast<std::byte*>(getAllocation().getInfo().pMappedData);
             nodes = std::span { reinterpret_cast<shader_type::Node*>(mapped), asset.nodes.size() };
 
             const vk::DeviceAddress selfDeviceAddress = device.getBufferAddress({ static_cast<vk::Buffer>(*this) });
@@ -220,7 +220,7 @@ namespace vkgltf {
                 }
             }
 
-            allocator.flushAllocation(allocation, 0, vk::WholeSize);
+            getAllocation().flush(0, vk::WholeSize);
         }
     };
 
@@ -261,20 +261,20 @@ vk::DeviceSize vkgltf::NodeBuffer::getTargetWeightsDataOffset(std::size_t nodeIn
 }
 
 void vkgltf::NodeBuffer::update(std::size_t nodeIndex, const fastgltf::math::fmat4x4 &nodeWorldTransform) {
-    allocator.copyMemoryToAllocation(&nodeWorldTransform, allocation, getWorldTransformDataOffset(nodeIndex), sizeof(nodeWorldTransform));
+    getAllocation().copyFromMemory(&nodeWorldTransform, getWorldTransformDataOffset(nodeIndex), sizeof(nodeWorldTransform));
 }
 
 void vkgltf::NodeBuffer::updateBulk(std::span<const std::size_t> sortedNodeIndices, std::span<const fastgltf::math::fmat4x4> nodeWorldTransforms) {
     assert(!sortedNodeIndices.empty() && "sortedNodeIndices must not be empty.");
     assert(std::ranges::is_sorted(sortedNodeIndices) && "sortedNodeIndices must be sorted in ascending order.");
 
-    void* const mapped = allocator.getAllocationInfo(allocation).pMappedData;
+    void* const mapped = getAllocation().getInfo().pMappedData;
     for (std::size_t nodeIndex : sortedNodeIndices) {
         void* const dst = vku::offsetPtr(mapped, getWorldTransformDataOffset(nodeIndex));
         std::memcpy(dst, &nodeWorldTransforms[nodeIndex], sizeof(fastgltf::math::fmat4x4));
     }
 
-    if (!vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostCoherent)) {
+    if (!vku::contains(getAllocation().getMemoryProperties(), vk::MemoryPropertyFlagBits::eHostCoherent)) {
         // Find the contiguous memory regions to be flushed.
         std::vector<vk::DeviceSize> flushOffsets, flushSizes;
         auto it = sortedNodeIndices.begin();
@@ -295,8 +295,8 @@ void vkgltf::NodeBuffer::updateBulk(std::span<const std::size_t> sortedNodeIndic
             }
         }
 
-        const std::vector allocations(flushOffsets.size(), allocation);
-        allocator.flushAllocations(allocations, flushOffsets, flushSizes);
+        const std::vector allocations(flushOffsets.size(), *getAllocation());
+        getAllocation().getAllocator().flushAllocations(allocations, flushOffsets, flushSizes);
     }
 }
 

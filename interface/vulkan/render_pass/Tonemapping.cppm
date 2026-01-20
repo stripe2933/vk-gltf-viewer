@@ -5,7 +5,7 @@ module;
 export module vk_gltf_viewer.vulkan.render_pass.Tonemapping;
 
 import std;
-export import vulkan_hpp;
+export import vulkan;
 
 import vk_gltf_viewer.helpers.optional;
 

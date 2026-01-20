@@ -8,7 +8,7 @@ export module vk_gltf_viewer.vulkan.pipeline_layout.Outline;
 import std;
 #endif
 export import glm;
-export import vulkan_hpp;
+export import vulkan;
 import vku;
 
 export import vk_gltf_viewer.vulkan.descriptor_set_layout.Outline;

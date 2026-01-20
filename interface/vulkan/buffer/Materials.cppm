@@ -19,7 +19,7 @@ namespace vk_gltf_viewer::vulkan::buffer {
     public:
         vk::DescriptorBufferInfo descriptorInfo;
 
-        Materials(const fastgltf::Asset &asset, vma::Allocator allocator, vkgltf::StagingBufferStorage &stagingBufferStorage);
+        Materials(const fastgltf::Asset &asset, const vma::raii::Allocator &allocator, vkgltf::StagingBufferStorage &stagingBufferStorage);
 
         /**
          * @brief Replace self with a new buffer with doubled size.
@@ -79,8 +79,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
             constexpr vk::DeviceSize byteSize = sizeof(data);
             static_assert(byteSize % 4 == 0 && "Data size bytes must be multiple of 4.");
 
-            if (vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostVisible)) {
-                allocator.copyMemoryToAllocation(&data, allocation, byteOffset, byteSize);
+            if (vku::contains(getAllocation().getMemoryProperties(), vk::MemoryPropertyFlagBits::eHostVisible)) {
+                getAllocation().copyFromMemory(&data, byteOffset, byteSize);
                 return false;
             }
             else {
@@ -90,6 +90,8 @@ namespace vk_gltf_viewer::vulkan::buffer {
         }
 
     private:
+        std::reference_wrapper<const vma::raii::Allocator> allocator;
+
         /**
          * @brief Count of the currently stored materials, including the fallback material.
          */
@@ -197,7 +199,7 @@ module :private;
 
 vk_gltf_viewer::vulkan::buffer::Materials::Materials(
     const fastgltf::Asset &asset,
-    vma::Allocator allocator,
+    const vma::raii::Allocator &allocator,
     vkgltf::StagingBufferStorage &stagingBufferStorage
 ) : AllocatedBuffer {
         allocator,
@@ -213,17 +215,15 @@ vk_gltf_viewer::vulkan::buffer::Materials::Materials(
         },
     },
     descriptorInfo { *this, 0, vk::WholeSize },
+    allocator { allocator },
     count { 1 + asset.materials.size() } {
-    auto it = std::span { static_cast<shader_type::Material*>(allocator.getAllocationInfo(allocation).pMappedData), 1 + asset.materials.size() }.begin();
+    auto it = std::span { static_cast<shader_type::Material*>(getAllocation().getInfo().pMappedData), 1 + asset.materials.size() }.begin();
     *it++ = {}; // Initialize fallback material.
     std::ranges::transform(asset.materials, it, [&](const fastgltf::Material &material) {
         return getShaderMaterial(asset, material);
     });
 
-    if (!vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostCoherent)) {
-        // Created buffer is non-coherent. Flush the mapped memory range.
-        allocator.flushAllocation(allocation, 0, size);
-    }
+    getAllocation().flush(0, vk::WholeSize);
 
     if (stagingBufferStorage.stage(*this, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc /* might be copy source when enlarging the buffer */)) {
         descriptorInfo.buffer = *this;
@@ -249,10 +249,10 @@ std::optional<vku::raii::AllocatedBuffer> vk_gltf_viewer::vulkan::buffer::Materi
 
     descriptorInfo.buffer = newBuffer;
 
-    if (vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostCached) &&
-        vku::contains(allocator.getAllocationMemoryProperties(newBuffer.allocation), vk::MemoryPropertyFlagBits::eHostVisible)) {
+    if (vku::contains(getAllocation().getMemoryProperties(), vk::MemoryPropertyFlagBits::eHostCached) &&
+        vku::contains(newBuffer.getAllocation().getMemoryProperties(), vk::MemoryPropertyFlagBits::eHostVisible)) {
         // Old buffer data can be copied to the new buffer in host.
-        allocator.copyMemoryToAllocation(allocator.getAllocationInfo(allocation).pMappedData, newBuffer.allocation, 0, size);
+        newBuffer.getAllocation().copyFromMemory(getAllocation().getInfo().pMappedData, 0, size);
 
         static_cast<AllocatedBuffer&>(*this) = std::move(newBuffer);
         return std::nullopt;
@@ -272,8 +272,8 @@ bool vk_gltf_viewer::vulkan::buffer::Materials::add(const fastgltf::Asset &asset
     assert(canAddMaterial() && "Buffer size is not enough to push back a new material.");
 
     const shader_type::Material shaderMaterial = getShaderMaterial(asset, material);
-    if (vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostVisible)) {
-        allocator.copyMemoryToAllocation(&shaderMaterial, allocation, sizeof(shader_type::Material) * count++, sizeof(shader_type::Material));
+    if (vku::contains(getAllocation().getMemoryProperties(), vk::MemoryPropertyFlagBits::eHostVisible)) {
+        getAllocation().copyFromMemory(&shaderMaterial, sizeof(shader_type::Material) * count++, sizeof(shader_type::Material));
         return false;
     }
     else {

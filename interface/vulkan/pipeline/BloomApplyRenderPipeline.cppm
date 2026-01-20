@@ -6,7 +6,7 @@ export module vk_gltf_viewer.vulkan.pipeline.BloomApplyRenderPipeline;
 
 import std;
 import vku;
-export import vulkan_hpp;
+export import vulkan;
 
 import vk_gltf_viewer.shader.bloom_apply_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;

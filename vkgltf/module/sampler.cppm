@@ -2,7 +2,7 @@ export module vkgltf.sampler;
 
 import std;
 export import fastgltf;
-export import vulkan_hpp;
+export import vulkan;
 
 namespace vkgltf {
     /**
