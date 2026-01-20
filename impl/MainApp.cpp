@@ -1266,14 +1266,14 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         vkAssetExtended = std::make_shared<vulkan::gltf::AssetExtended>(path, gpu, sharedData.fallbackTexture, stagingBufferStorage);
     }
     catch (gltf::AssetProcessError error) {
-        fmt::println(std::cerr, "The glTF file cannot be processed because of an error: {}", error);
+        std::cerr << "The glTF file cannot be processed because of an error: " << format_as(error) << '\n';
         closeGltf();
         return;
     }
     catch (fastgltf::Error error) {
         // If error is due to missing or unknown required extension, show a message and return.
         if (ranges::one_of(error, { fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension })) {
-            fmt::println(std::cerr, "The glTF file requires an extension that is not supported by this application.");
+            std::cerr << "The glTF file requires an extension that is not supported by this application.\n";
             closeGltf();
             return;
         }
