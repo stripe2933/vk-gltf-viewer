@@ -17,3 +17,12 @@ vcpkg_cmake_install()
 
 vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE.md")
 file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+
+vcpkg_from_github(
+    OUT_SOURCE_PATH VULKAN_HPP_SOURCE_PATH
+    REPO sharadhr/Vulkan-Hpp
+    REF a73bfd630e1d7fa63a24096b5b24d683b9fa4dd8
+    SHA512 68bc7b1e388ecd159a4901242d2c8ddbf8017941cdbfeb69779a644ffc638b6ce69859078b6f8840a3b6acfcfad63e39160eb4ace8c77c85f5fbafe65218d9f6
+    HEAD_REF vulkan-cppm-abi-breaking-style
+)
+file(COPY "${VULKAN_HPP_SOURCE_PATH}/vulkan" DESTINATION "${CURRENT_PACKAGES_DIR}/include")
