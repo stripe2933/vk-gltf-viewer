@@ -16,13 +16,6 @@ import vk_gltf_viewer.helpers.type_map;
 
 #define INDEX_SEQ(Is, N, ...) [&]<std::size_t ...Is>(std::index_sequence<Is...>) __VA_ARGS__ (std::make_index_sequence<N>{})
 #define FWD(...) static_cast<decltype(__VA_ARGS__)&&>(__VA_ARGS__)
-#define DEFINE_FORMATTER(Type) \
-    export template <> \
-    struct std::formatter<Type> : formatter<string_view> { \
-        auto format(Type v, auto &ctx) const { \
-            return formatter<string_view>::format(to_string(v), ctx); \
-        } \
-    }
 
 namespace fastgltf {
     export enum class TextureUsage : std::uint32_t {
@@ -55,37 +48,37 @@ namespace fastgltf {
     }
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(PrimitiveType value) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(PrimitiveType value) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(AccessorType value) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(AccessorType value) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(ComponentType value) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(ComponentType value) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(BufferTarget target) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(BufferTarget target) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(MimeType mime) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(MimeType mime) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(AlphaMode alphaMode) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(AlphaMode alphaMode) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(Filter filter) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(Filter filter) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(Wrap wrap) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(Wrap wrap) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(AnimationPath path) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(AnimationPath path) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(AnimationInterpolation interpolation) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(AnimationInterpolation interpolation) noexcept;
 
     export
-    [[nodiscard]] cpp_util::cstring_view to_string(TextureUsage usage) noexcept;
+    [[nodiscard]] cpp_util::cstring_view format_as(TextureUsage usage) noexcept;
 
     /**
      * @brief Convert TRS to 4x4 matrix.
@@ -648,23 +641,11 @@ struct FlagTraits<fastgltf::TextureUsage> {
         | fastgltf::TextureUsage::VolumeThickness;
 };
 
-DEFINE_FORMATTER(fastgltf::PrimitiveType);
-DEFINE_FORMATTER(fastgltf::AccessorType);
-DEFINE_FORMATTER(fastgltf::ComponentType);
-DEFINE_FORMATTER(fastgltf::BufferTarget);
-DEFINE_FORMATTER(fastgltf::MimeType);
-DEFINE_FORMATTER(fastgltf::AlphaMode);
-DEFINE_FORMATTER(fastgltf::Filter);
-DEFINE_FORMATTER(fastgltf::Wrap);
-DEFINE_FORMATTER(fastgltf::AnimationPath);
-DEFINE_FORMATTER(fastgltf::AnimationInterpolation);
-DEFINE_FORMATTER(fastgltf::TextureUsage);
-
 #if !defined(__GNUC__) || defined(__clang__)
 module :private;
 #endif
 
-cpp_util::cstring_view fastgltf::to_string(PrimitiveType value) noexcept {
+cpp_util::cstring_view fastgltf::format_as(PrimitiveType value) noexcept {
     switch (value) {
         case PrimitiveType::Points: return "Points";
         case PrimitiveType::Lines: return "Lines";
@@ -677,7 +658,7 @@ cpp_util::cstring_view fastgltf::to_string(PrimitiveType value) noexcept {
     std::unreachable();
 }
 
-cpp_util::cstring_view fastgltf::to_string(AccessorType value) noexcept {
+cpp_util::cstring_view fastgltf::format_as(AccessorType value) noexcept {
     switch (value) {
         case AccessorType::Invalid: return "Invalid";
         case AccessorType::Scalar: return "Scalar";
@@ -691,7 +672,7 @@ cpp_util::cstring_view fastgltf::to_string(AccessorType value) noexcept {
     std::unreachable();
 }
 
-cpp_util::cstring_view fastgltf::to_string(ComponentType value) noexcept {
+cpp_util::cstring_view fastgltf::format_as(ComponentType value) noexcept {
     switch (value) {
         case ComponentType::Byte: return "Byte";
         case ComponentType::UnsignedByte: return "UnsignedByte";
@@ -706,7 +687,7 @@ cpp_util::cstring_view fastgltf::to_string(ComponentType value) noexcept {
     std::unreachable();
 }
 
-cpp_util::cstring_view fastgltf::to_string(BufferTarget target) noexcept {
+cpp_util::cstring_view fastgltf::format_as(BufferTarget target) noexcept {
     switch (target) {
         case BufferTarget::ArrayBuffer: return "ArrayBuffer";
         case BufferTarget::ElementArrayBuffer: return "ElementArrayBuffer";
@@ -714,7 +695,7 @@ cpp_util::cstring_view fastgltf::to_string(BufferTarget target) noexcept {
     }
 }
 
-cpp_util::cstring_view fastgltf::to_string(MimeType mime) noexcept {
+cpp_util::cstring_view fastgltf::format_as(MimeType mime) noexcept {
     switch (mime) {
         case MimeType::None: return "-";
         case MimeType::JPEG: return "image/jpeg";
@@ -728,7 +709,7 @@ cpp_util::cstring_view fastgltf::to_string(MimeType mime) noexcept {
     std::unreachable();
 }
 
-cpp_util::cstring_view fastgltf::to_string(AlphaMode alphaMode) noexcept {
+cpp_util::cstring_view fastgltf::format_as(AlphaMode alphaMode) noexcept {
     switch (alphaMode) {
         case AlphaMode::Opaque: return "Opaque";
         case AlphaMode::Mask: return "Mask";
@@ -737,7 +718,7 @@ cpp_util::cstring_view fastgltf::to_string(AlphaMode alphaMode) noexcept {
     std::unreachable();
 }
 
-cpp_util::cstring_view fastgltf::to_string(Filter filter) noexcept {
+cpp_util::cstring_view fastgltf::format_as(Filter filter) noexcept {
     switch (filter) {
         case Filter::Linear: return "Linear";
         case Filter::Nearest: return "Nearest";
@@ -749,7 +730,7 @@ cpp_util::cstring_view fastgltf::to_string(Filter filter) noexcept {
     std::unreachable();
 }
 
-cpp_util::cstring_view fastgltf::to_string(Wrap wrap) noexcept {
+cpp_util::cstring_view fastgltf::format_as(Wrap wrap) noexcept {
     switch (wrap) {
         case Wrap::Repeat: return "Repeat";
         case Wrap::ClampToEdge: return "ClampToEdge";
@@ -758,7 +739,7 @@ cpp_util::cstring_view fastgltf::to_string(Wrap wrap) noexcept {
     std::unreachable();
 }
 
-cpp_util::cstring_view fastgltf::to_string(AnimationPath path) noexcept {
+cpp_util::cstring_view fastgltf::format_as(AnimationPath path) noexcept {
     switch (path) {
         case AnimationPath::Translation: return "translation";
         case AnimationPath::Rotation: return "rotation";
@@ -768,7 +749,7 @@ cpp_util::cstring_view fastgltf::to_string(AnimationPath path) noexcept {
     std::unreachable();
 }
 
-cpp_util::cstring_view fastgltf::to_string(AnimationInterpolation interpolation) noexcept {
+cpp_util::cstring_view fastgltf::format_as(AnimationInterpolation interpolation) noexcept {
     switch (interpolation) {
         case AnimationInterpolation::Linear: return "LINEAR";
         case AnimationInterpolation::Step: return "STEP";
@@ -777,7 +758,7 @@ cpp_util::cstring_view fastgltf::to_string(AnimationInterpolation interpolation)
     std::unreachable();
 }
 
-cpp_util::cstring_view fastgltf::to_string(TextureUsage usage) noexcept {
+cpp_util::cstring_view fastgltf::format_as(TextureUsage usage) noexcept {
     switch (usage) {
         case TextureUsage::BaseColor: return "BaseColor";
         case TextureUsage::MetallicRoughness: return "MetallicRoughness";

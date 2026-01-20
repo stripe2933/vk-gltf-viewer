@@ -42,6 +42,7 @@ module;
 module vk_gltf_viewer.MainApp;
 
 import cubemap;
+import fmt;
 import ibl;
 import imgui.glfw;
 import imgui.vulkan;
@@ -1265,14 +1266,14 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
         vkAssetExtended = std::make_shared<vulkan::gltf::AssetExtended>(path, gpu, sharedData.fallbackTexture, stagingBufferStorage);
     }
     catch (gltf::AssetProcessError error) {
-        std::println(std::cerr, "The glTF file cannot be processed because of an error: {}", to_string(error));
+        std::cerr << "The glTF file cannot be processed because of an error: " << format_as(error) << '\n';
         closeGltf();
         return;
     }
     catch (fastgltf::Error error) {
         // If error is due to missing or unknown required extension, show a message and return.
         if (ranges::one_of(error, { fastgltf::Error::MissingExtensions, fastgltf::Error::UnknownRequiredExtension })) {
-            std::println(std::cerr, "The glTF file requires an extension that is not supported by this application.");
+            std::cerr << "The glTF file requires an extension that is not supported by this application.\n";
             closeGltf();
             return;
         }
@@ -1375,7 +1376,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 eqmapImageFormat = vk::Format::eR8G8B8A8Srgb;
             }
             if (!data) {
-                throw std::runtime_error { std::format("Failed to load image: {}", stbi_failure_reason()) };
+                throw std::runtime_error { fmt::format("Failed to load image: {}", stbi_failure_reason()) };
             }
 
             eqmapImageExtent.width = static_cast<std::uint32_t>(width);

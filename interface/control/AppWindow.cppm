@@ -8,6 +8,7 @@ module;
 export module vk_gltf_viewer.control.AppWindow;
 
 import std;
+import fmt;
 export import glm;
 export import vulkan_hpp;
 
@@ -140,5 +141,5 @@ vk::raii::SurfaceKHR vk_gltf_viewer::control::AppWindow::createSurface(const vk:
 
     const char *error;
     const int code = glfwGetError(&error);
-    throw std::runtime_error { std::format("Failed to create window surface: {} (error code {})", error, code) };
+    throw std::runtime_error { fmt::format("Failed to create window surface: {} (error code {})", error, code) };
 }

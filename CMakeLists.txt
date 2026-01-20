@@ -26,6 +26,7 @@ find_package(boost_container CONFIG REQUIRED)
 find_package(boost_container_hash CONFIG REQUIRED)
 find_path(BSHOSHANY_THREAD_POOL_INCLUDE_DIRS "BS_thread_pool.hpp")
 find_package(cstring_view CONFIG REQUIRED)
+find_package(fmt CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(imguizmo CONFIG REQUIRED)
@@ -56,6 +57,12 @@ add_library(cstring_view_module)
 target_sources(cstring_view_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/module-ports/cstring_view.cppm)
 target_link_libraries(cstring_view_module PRIVATE cpp_util::cstring_view)
 add_library(cpp_util::cstring_view::module ALIAS cstring_view_module)
+
+add_library(fmt_module)
+target_sources(fmt_module PUBLIC FILE_SET CXX_MODULES FILES extlibs/module-ports/fmt.cc)
+target_link_libraries(fmt_module PRIVATE fmt::fmt)
+set_source_files_properties(extlibs/module-ports/fmt.cc PROPERTIES COMPILE_DEFINITIONS "FMT_IMPORT_STD;FMT_ATTACH_TO_GLOBAL_MODULE")
+add_library(fmt::module ALIAS fmt_module)
 
 get_target_property(glm_INCLUDE_DIR glm::glm-header-only INTERFACE_INCLUDE_DIRECTORIES)
 
@@ -267,6 +274,7 @@ target_link_libraries(vk-gltf-viewer PRIVATE
     BS_thread_pool::module
     cpp_util::cstring_view::module
     cubemap
+    fmt::module
     glm::module
     ibl
     imgui::imgui

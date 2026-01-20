@@ -162,6 +162,7 @@ This project depends on:
 - [boost-container-hash](https://www.boost.org/doc/libs/1_87_0/libs/container_hash/doc/html/hash.html)
 - [cstring_view](https://github.com/stripe2933/cstring_view)
 - [fastgltf](https://github.com/spnda/fastgltf)
+- [fmt](https://github.com/fmtlib/fmt)
 - [GLFW](https://github.com/glfw/glfw)
 - [glm](https://github.com/g-truc/glm)
 - [ImGui](https://github.com/ocornut/imgui)
