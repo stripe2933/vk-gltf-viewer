@@ -8,7 +8,7 @@ export module vk_gltf_viewer.vulkan.pipeline.InverseToneMappingRenderPipeline;
 
 import std;
 import vku;
-export import vulkan_hpp;
+export import vulkan;
 
 import vk_gltf_viewer.shader.inverse_tone_mapping_frag;
 import vk_gltf_viewer.shader.screen_quad_vert;

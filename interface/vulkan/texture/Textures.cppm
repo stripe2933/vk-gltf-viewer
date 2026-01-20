@@ -90,7 +90,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
 
 #if !__APPLE__
     vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-    vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, transferCommandPool, gpu.queues.transfer };
+    vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, gpu.allocator, transferCommandPool, gpu.queues.transfer };
 
     std::mutex mutex;
     vkgltf::StagingInfo stagingInfo {
@@ -252,7 +252,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
 
         // Change image layouts and acquire resource queue family ownerships (optionally).
         std::vector<vk::ImageMemoryBarrier2> imageMemoryBarriers;
-        std::vector<const vku::Image*> imagesToGenerateMipmap;
+        std::vector<vku::Image> imagesToGenerateMipmap;
         for (const auto &[image, _] : images | std::views::values) {
         #ifdef SUPPORT_KHR_TEXTURE_BASISU
             if (isCompressed(image.format)) {
@@ -319,7 +319,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
                     });
 
                     // Image is needed to generate mipmap.
-                    imagesToGenerateMipmap.push_back(&image);
+                    imagesToGenerateMipmap.push_back(image);
                 }
             }
         }
@@ -327,23 +327,23 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
 
         if (!imagesToGenerateMipmap.empty()) {
             // Collect image memory barriers that are inserted after the mipmap generation command.
-            // Note: recordBatchedMipmapGenerationCommand() takes ownership of std::vector<const vku::Image*>, therefore
+            // Note: recordBatchedMipmapGenerationCommand() takes ownership of std::vector<vku::Image>, therefore
             // the vector should be moved. But the vector is also need for collecting barriers, therefore this code is
             // intentionally in here (instead of after recordBatchedMipmapGenerationCommand()).
             std::vector<vk::ImageMemoryBarrier> imageMemoryBarriersToBottom;
             imageMemoryBarriersToBottom.reserve(2 * imagesToGenerateMipmap.size());
-            for (const vku::Image *image : imagesToGenerateMipmap) {
+            for (const vku::Image &image : imagesToGenerateMipmap) {
                 imageMemoryBarriersToBottom.push_back({
                     vk::AccessFlagBits::eTransferRead, {},
                     vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    *image, { vk::ImageAspectFlagBits::eColor, 0, image->mipLevels - 1, 0, 1 },
+                    image, { vk::ImageAspectFlagBits::eColor, 0, image.mipLevels - 1, 0, 1 },
                 });
                 imageMemoryBarriersToBottom.push_back({
                     vk::AccessFlagBits::eTransferWrite, {},
                     vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
-                    *image, { vk::ImageAspectFlagBits::eColor, image->mipLevels - 1, 1, 0, 1 },
+                    image, { vk::ImageAspectFlagBits::eColor, image.mipLevels - 1, 1, 0, 1 },
                 });
             }
 

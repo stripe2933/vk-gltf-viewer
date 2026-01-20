@@ -5,7 +5,7 @@ module;
 export module vkgltf.bindless.shader_type.Primitive;
 
 import std;
-export import vulkan_hpp;
+export import vulkan;
 
 export import vkgltf.bindless.shader_type.Accessor;
 

@@ -5,7 +5,7 @@ module;
 export module vkgltf.bindless.shader_type.Accessor;
 
 import std;
-export import vulkan_hpp;
+export import vulkan;
 
 namespace vkgltf::shader_type {
     export struct Accessor {

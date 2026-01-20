@@ -183,7 +183,7 @@ namespace vkgltf {
             template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
             AttributeInfoCache(
                 const fastgltf::Asset &asset,
-                vma::Allocator allocator,
+                const vma::raii::Allocator &allocator,
                 const Config<BufferDataAdapter> &config = {}
             ) {
                 std::unordered_map<std::size_t, vk::BufferUsageFlags> bufferViewUsages;
@@ -281,7 +281,7 @@ namespace vkgltf {
                                 config.queueFamilies,
                             },
                             config.allocationCreateInfo)).first->second;
-                    allocator.copyMemoryToAllocation(bufferViewData.data(), buffer->allocation, 0, buffer->size);
+                    buffer->getAllocation().copyFromMemory(bufferViewData.data(), 0, buffer->size);
                 }
 
                 for (std::size_t accessorIndex : accessors) {
@@ -420,7 +420,7 @@ namespace vkgltf {
         PrimitiveAttributeBuffers(
             const fastgltf::Asset &asset,
             const fastgltf::Primitive &primitive,
-            vma::Allocator allocator,
+            const vma::raii::Allocator &allocator,
             const Config<BufferDataAdapter> &config = {}
         ) : asset { asset },
             primitive { primitive } {
@@ -469,19 +469,14 @@ namespace vkgltf {
                 };
 
                 // Map memory, copy data from the accessor, unmap memory.
-                void* const mapped = allocator.mapMemory(result.buffer->allocation);
+                void* const mapped = result.buffer->getAllocation().map();
                 visit([&]<typename T>(auto N, std::type_identity<T>) {
                     using ElementType = std::conditional_t<N == 1, T, fastgltf::math::vec<T, N>>;
                     constexpr std::size_t Stride = (sizeof(ElementType) / 4 + (sizeof(ElementType) % 4 != 0)) * 4;
                     copyFromAccessor<ElementType, Stride>(asset, accessor, mapped, config.adapter);
                 }, getComponentCountVariant(accessor.type), getComponentTypeVariant(componentType));
-                allocator.unmapMemory(result.buffer->allocation);
-
-                const vk::MemoryPropertyFlags memoryProps = allocator.getAllocationMemoryProperties(result.buffer->allocation);
-                if (!vku::contains(memoryProps, vk::MemoryPropertyFlagBits::eHostCoherent)) {
-                    // Created buffer is non-coherent, flush the mapped memory range.
-                    allocator.flushAllocation(result.buffer->allocation, 0, vk::WholeSize);
-                }
+                result.buffer->getAllocation().unmap();
+                result.buffer->getAllocation().flush(0, vk::WholeSize);
 
                 return result;
             };
@@ -600,7 +595,7 @@ namespace vkgltf {
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         void emplaceMikkTSpaceTangents(
             fastgltf::ComponentType componentType,
-            vma::Allocator allocator,
+            const vma::raii::Allocator &allocator,
             vk::BufferUsageFlags usageFlags = vk::BufferUsageFlagBits::eVertexBuffer,
             vk::ArrayProxy<const std::uint32_t> queueFamilies = {},
             const vma::AllocationCreateInfo &allocationCreateInfo = vma::AllocationCreateInfo {
@@ -643,7 +638,7 @@ namespace vkgltf {
                 .componentType = componentType,
                 .normalized = componentType != fastgltf::ComponentType::Float,
             };
-            allocator.copyMemoryToAllocation(generatedBytes.data(), tangent->attributeInfo.buffer->allocation, 0, tangent->attributeInfo.size);
+            tangent->attributeInfo.buffer->getAllocation().copyFromMemory(generatedBytes.data(), 0, tangent->attributeInfo.size);
         }
     #endif
 

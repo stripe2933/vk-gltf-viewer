@@ -6,16 +6,6 @@ module vk_gltf_viewer.vulkan.Gpu;
 
 import vk_gltf_viewer.helpers.ranges;
 
-#ifdef _MSC_VER
-// FIXME: MSVC is not recognizing vk::StructureChain as a tuple-like type. Remove it when fixed.
-
-template <typename... Ts>
-struct std::tuple_size<vk::StructureChain<Ts...>> : std::integral_constant<std::size_t, sizeof...(Ts)> {};
-
-template <std::size_t I, typename... Ts>
-struct std::tuple_element<I, vk::StructureChain<Ts...>> : std::tuple_element<I, std::tuple<Ts...>> {};
-#endif
-
 constexpr std::array requiredExtensions {
 #if __APPLE__
     vk::KHRPortabilitySubsetExtensionName,
@@ -107,7 +97,12 @@ vk_gltf_viewer::vulkan::Queues::Queues(vk::Device device, const QueueFamilies& q
 vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::SurfaceKHR surface)
     : physicalDevice { selectPhysicalDevice(instance, surface) }
     , queueFamilies { physicalDevice, surface }
-    , allocator { createAllocator(instance) } {
+    , allocator { instance, device, vma::AllocatorCreateInfo {
+        vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
+        *physicalDevice, {},
+        {}, {}, {}, {}, {},
+        {}, vk::makeApiVersion(0, 1, 2, 0),
+    } } {
     // Retrieve physical device properties.
     const auto [props2, subgroupProps, descriptorIndexingProps] = physicalDevice.getProperties2<
         vk::PhysicalDeviceProperties2,
@@ -131,10 +126,6 @@ vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::Surface
             workaround.depthStencilResolveDifferentFormat = true;
             break;
     }
-}
-
-vk_gltf_viewer::vulkan::Gpu::~Gpu() {
-    allocator.destroy();
 }
 
 vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance &instance, vk::SurfaceKHR surface) const {
@@ -358,17 +349,4 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     vk::raii::Device device { physicalDevice, createInfo.get() };
     VULKAN_HPP_DEFAULT_DISPATCHER.init(*device);
     return device;
-}
-
-vma::Allocator vk_gltf_viewer::vulkan::Gpu::createAllocator(const vk::raii::Instance &instance) const {
-    return vma::createAllocator(vma::AllocatorCreateInfo {
-        vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
-        *physicalDevice, *device,
-        {}, {}, {}, {},
-        &vku::lvalue(vma::VulkanFunctions{
-            instance.getDispatcher()->vkGetInstanceProcAddr,
-            device.getDispatcher()->vkGetDeviceProcAddr,
-        }),
-        *instance, vk::makeApiVersion(0, 1, 2, 0),
-    });
 }

@@ -12,6 +12,7 @@ namespace vkgltf {
     public:
         StagingBufferStorage(
             const vk::raii::Device &device LIFETIMEBOUND,
+            const vma::raii::Allocator &allocator LIFETIMEBOUND,
             vk::CommandPool transferCommandPool LIFETIMEBOUND,
             vk::Queue transferQueue
         );
@@ -147,6 +148,7 @@ namespace vkgltf {
 
     private:
         std::reference_wrapper<const vk::raii::Device> device;
+        std::reference_wrapper<const vma::raii::Allocator> allocator;
         vk::Queue queue;
 
         vk::CommandBuffer cb;
@@ -197,9 +199,11 @@ module :private;
 
 vkgltf::StagingBufferStorage::StagingBufferStorage(
     const vk::raii::Device &device,
+    const vma::raii::Allocator &allocator,
     vk::CommandPool transferCommandPool,
     vk::Queue transferQueue
 ) : device { device },
+    allocator { allocator },
     queue { transferQueue },
     cb { (*device).allocateCommandBuffers({ transferCommandPool, vk::CommandBufferLevel::ePrimary, 1 }, *device.getDispatcher())[0] },
     commandRecorded { false } {
@@ -215,12 +219,12 @@ vkgltf::StagingBufferStorage::~StagingBufferStorage() {
 }
 
 bool vkgltf::StagingBufferStorage::stage(vku::raii::AllocatedBuffer &buffer, vk::BufferUsageFlags usage, vk::ArrayProxy<const std::uint32_t> queueFamilies) {
-    if (vku::contains(buffer.allocator.getAllocationMemoryProperties(buffer.allocation), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
+    if (vku::contains(buffer.getAllocation().getMemoryProperties(), vk::MemoryPropertyFlagBits::eDeviceLocal)) {
         return false;
     }
 
     vku::raii::AllocatedBuffer deviceLocalBuffer {
-        buffer.allocator,
+        allocator,
         vk::BufferCreateInfo {
             {},
             buffer.size,
