@@ -28,17 +28,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Vulkan SDK
-        uses: stripe2933/setup-vulkan-sdk@30a1c4f5464781f4559063b11e19b080a53b4411
-        with:
-          vulkan-query-version: 1.4.328.1
-          vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
-          vulkan-use-cache: true
-
-      - name: Fix missing vulkan.cppm error (macOS)
-        if: ${{ runner.os == 'macOS' }}
-        run: curl -o ${{ env.VULKAN_SDK }}/include/vulkan/vulkan.cppm https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/vulkan-sdk-${{ env.VULKAN_SDK_VERSION }}/include/vulkan/vulkan.cppm
-
       - name: Install MinGW Clang (Windows + MinGW Clang)
         if: ${{ runner.os == 'Windows' && matrix.compiler == 'mingw-clang' }}
         run: C:\msys64\usr\bin\bash -lc 'pacman --noconfirm -S mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-libc++ mingw-w64-clang-x86_64-libwinpthread-git'
@@ -49,7 +38,9 @@ jobs:
 
       - name: Install build dependencies (Linux)
         if: ${{ runner.os == 'Linux' }}
-        run: sudo apt-get install clang-19 clang-tools-19 libc++-19-dev libc++abi-19-dev mono-devel xorg-dev autoconf autoconf-archive automake libtool libltdl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install clang-19 clang-tools-19 libc++-19-dev libc++abi-19-dev mono-devel xorg-dev autoconf autoconf-archive automake libtool libltdl-dev
 
       - name: Enable Developer Command Prompt (Windows + MSVC)
         if: ${{ runner.os == 'Windows' && matrix.compiler == 'msvc' }}

@@ -93,12 +93,11 @@ add_library(vku_module)
 target_sources(vku_module PUBLIC
     FILE_SET CXX_MODULES
     BASE_DIRS
-        ${Vulkan_INCLUDE_DIRS}/vulkan
         ${VulkanMemoryAllocator_Hpp_INCLUDE_DIR}/vulkan-memory-allocator-hpp
         extlibs/module-ports
     FILES
-        ${Vulkan_INCLUDE_DIRS}/vulkan/vulkan.cppm
         ${VulkanMemoryAllocator_Hpp_INCLUDE_DIR}/vulkan-memory-allocator-hpp/vk_mem_alloc.cppm
+        extlibs/module-ports/vulkan.cppm
         extlibs/module-ports/vku.cppm
 )
 target_compile_definitions(vku_module
@@ -322,11 +321,9 @@ if (APPLE)
         find_package(Vulkan COMPONENTS MoltenVK REQUIRED)
         set(APP_BUNDLE_CONTENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/vk-gltf-viewer.app/Contents")
         add_custom_command(TARGET vk-gltf-viewer POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_BUNDLE_CONTENTS_DIR}/lib" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
-                && ${CMAKE_COMMAND} -E copy ${Vulkan_LIBRARY} ${Vulkan_MoltenVK_LIBRARY} "${APP_BUNDLE_CONTENTS_DIR}/lib" # Copy libvulkan.dylib, libMoltenVK.dylib
-                && ${CMAKE_COMMAND} -E rename "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.dylib" "${APP_BUNDLE_CONTENTS_DIR}/lib/libvulkan.1.dylib"
-                && ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/asset/resources" "${APP_BUNDLE_CONTENTS_DIR}/Resources"
-                && install_name_tool -add_rpath "@executable_path/../lib/" "${APP_BUNDLE_CONTENTS_DIR}/MacOS/vk-gltf-viewer")
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_BUNDLE_CONTENTS_DIR}/Resources"
+                && ${CMAKE_COMMAND} -E copy ${Vulkan_MoltenVK_LIBRARY} "${APP_BUNDLE_CONTENTS_DIR}/Frameworks" # Copy libMoltenVK.dylib
+                && ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/asset/resources" "${APP_BUNDLE_CONTENTS_DIR}/Resources")
     endif()
 endif()
 
