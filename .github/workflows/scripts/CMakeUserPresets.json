@@ -36,7 +36,7 @@
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
         "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++",
-        "VCPKG_TARGET_TRIPLET": "arm64-macos-clang-release"
+        "VCPKG_TARGET_TRIPLET": "arm64-osx-release"
       }
     },
     {

@@ -363,31 +363,11 @@ Add the following CMake user preset file in your project directory. I'll assume 
       "inherits": "default",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
-        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++",
-        "VCPKG_TARGET_TRIPLET": "arm64-macos-clang"
+        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++"
       }
     }
   ]
 }
-```
-
-`VCPKG_TARGET_TRIPLET` configuration parameter is mandatory for make vcpkg uses Clang compiler instead of the system default compiler. Add following vcpkg toolchain and triplet files.
-
-`homebrew-clang-toolchain.cmake`
-```cmake
-include($ENV{VCPKG_ROOT}/scripts/toolchains/osx.cmake)
-
-set(CMAKE_C_COMPILER /opt/homebrew/opt/llvm/bin/clang)
-set(CMAKE_CXX_COMPILER /opt/homebrew/opt/llvm/bin/clang++)
-```
-
-`triplets/arm64-macos-clang.cmake`
-```cmake
-set(VCPKG_TARGET_ARCHITECTURE arm64)
-set(VCPKG_CRT_LINKAGE dynamic)
-set(VCPKG_LIBRARY_LINKAGE static)
-set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
-set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../homebrew-clang-toolchain.cmake)
 ```
 
 Configure and build the project with `macos-clang` configuration preset.
