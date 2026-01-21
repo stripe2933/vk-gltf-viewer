@@ -74,9 +74,6 @@ I initially developed this application for leveraging Vulkan's performance and u
 
 ### Vulkan Requirements
 
-> [!WARNING]
-> Currently [the latest Vulkan SDK (1.4.335) is broken when using Vulkan-Hpp named module](https://github.com/KhronosGroup/Vulkan-Hpp/pull/2377#issuecomment-3635666589). Please use Vulkan SDK 1.4.328 until the issue is solved.
-
 The extensions and feature used in this application are quite common in the modern desktop GPU drivers, so I hope you don't have any problem with this.
 
 > [!TIP]
