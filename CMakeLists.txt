@@ -93,6 +93,7 @@ add_library(vku_module)
 target_sources(vku_module PUBLIC
     FILE_SET CXX_MODULES
     BASE_DIRS
+        ${Vulkan_INCLUDE_DIRS}/vulkan
         ${VulkanMemoryAllocator_Hpp_INCLUDE_DIR}/vulkan-memory-allocator-hpp
         extlibs/module-ports
     FILES
