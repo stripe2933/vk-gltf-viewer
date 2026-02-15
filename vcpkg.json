@@ -9,6 +9,13 @@
     "glfw3",
     "glm",
     {
+      "name": "glslang",
+      "features": [
+        "opt",
+        "tools"
+      ]
+    },
+    {
       "name": "imgui",
       "features": [
         "docking-experimental",
