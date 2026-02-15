@@ -182,8 +182,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/formatter/ByteSize.cppm
         interface/helpers/full_optional.cppm
         interface/helpers/functional.cppm
-        interface/helpers/imgui/mod.cppm
-        interface/helpers/imgui/table.cppm
         interface/helpers/io.cppm
         interface/helpers/Lazy.cppm
         interface/helpers/optional.cppm
@@ -192,8 +190,13 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/ranges/concat.cppm
         interface/helpers/TempStringBuffer.cppm
         interface/helpers/type_map.cppm
+        interface/imgui/mod.cppm
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
         interface/imgui/UserData.cppm
+        interface/imgui/GuiTextures.cppm
+        interface/imgui/scoped.cppm
+        interface/imgui/util.cppm
+        interface/imgui/widget.cppm
         interface/MainApp.cppm
         interface/math/bit.cppm
         interface/math/Frustum.cppm
@@ -228,7 +231,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/FrameDeferredTask.cppm
         interface/vulkan/gltf/AssetExtended.cppm
         interface/vulkan/Gpu.cppm
-        interface/vulkan/imgui/PlatformResource.cppm
+        interface/vulkan/imgui/GuiTextures.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/BloomApplyRenderPipeline.cppm
         interface/vulkan/pipeline/TonemappingRenderPipeline.cppm
