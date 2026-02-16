@@ -56,6 +56,16 @@ namespace vk_gltf_viewer::imgui {
         }
     };
 
+    export struct ItemFlagScoped {
+        explicit ItemFlagScoped(ImGuiItemFlags option, bool enabled) {
+            ImGui::PushItemFlag(option, enabled);
+        }
+
+        ~ItemFlagScoped() {
+            ImGui::PopItemFlag();
+        }
+    };
+
     export struct StyleColorScoped {
         StyleColorScoped(int index, const ImVec4 &color) {
             ImGui::PushStyleColor(index, color);
@@ -109,6 +119,11 @@ namespace vk_gltf_viewer::imgui {
 
     export void WithItemWidth(float width, std::invocable auto &&f) {
         ItemWidthScoped _ { width };
+        std::invoke(FWD(f));
+    }
+
+    export void WithItemFlag(ImGuiItemFlags option, bool enabled, std::invocable auto &&f) {
+        ItemFlagScoped _ { option, enabled };
         std::invoke(FWD(f));
     }
 

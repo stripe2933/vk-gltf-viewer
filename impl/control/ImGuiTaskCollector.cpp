@@ -224,11 +224,7 @@ vk_gltf_viewer::control::ImGuiTaskCollector::~ImGuiTaskCollector() {
     ImGui::Render();
 }
 
-void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
-    std::list<std::filesystem::path> &recentGltfs,
-    std::list<std::filesystem::path> &recentSkyboxes,
-    nfdwindowhandle_t windowHandle
-) {
+void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(nfdwindowhandle_t windowHandle) {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Open glTF File", "Ctrl+O")) {
@@ -242,7 +238,8 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                 }
             }
             if (ImGui::BeginMenu("Recent glTF Files")) {
-                if (recentGltfs.empty()) {
+                auto &recentAssets = static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->recentAssetPaths;
+                if (recentAssets.empty()) {
                     ImGui::MenuItem("<empty>", nullptr, false, false);
                 }
                 else {
@@ -251,54 +248,52 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
 
                     ImGui::Separator();
 
-                    for (auto it = recentGltfs.begin(); it != recentGltfs.end(); ++it) {
-                        const std::filesystem::path &path = *it;
-                    #ifdef _WIN32
-                        const std::u8string pathOwnedStr = path.u8string();
-                        const cpp_util::cstring_view pathStr { cpp_util::cstring_view::null_terminated, reinterpret_cast<const char*>(pathOwnedStr.c_str()), pathOwnedStr.size() };
-                    #else
-                        const cpp_util::cstring_view pathStr { path.c_str() };
-                    #endif
+                    // If the path user clicked is not exists, a popup will be opened to ask if the user wants to remove
+                    // it from the recent files list. In this case, we should prevent the menu popup from being closed
+                    // by clicking menu items, therefore disable the auto close behavior of menu popup. If the path
+                    // exists, the menu popup will be closed by manually calling ImGui::CloseCurrentPopup().
+                    imgui::WithItemFlag(ImGuiItemFlags_AutoClosePopups, false, [&] {
+                        for (auto it = recentAssets.begin(); it != recentAssets.end(); ++it) {
+                            const cpp_util::cstring_view pathStr { cpp_util::cstring_view::null_terminated, reinterpret_cast<const char*>(it->c_str()), it->size() };
 
-                        bool hasOccurrence = false;
-                        cpp_util::cstring_view haystack = pathStr;
-                        while (auto found = std::ranges::search(haystack, needle, {}, LIFT(std::tolower), LIFT(std::tolower))) {
-                            hasOccurrence = true;
+                            bool hasOccurrence = false;
+                            cpp_util::cstring_view haystack = pathStr;
+                            while (auto found = std::ranges::search(haystack, needle, {}, LIFT(std::tolower), LIFT(std::tolower))) {
+                                hasOccurrence = true;
 
-                            ImVec2 highlightOffset = ImGui::GetCursorScreenPos();
-                            highlightOffset.x += ImGui::CalcTextSize(pathStr.data(), found.data()).x;;
-                            highlightOffset.y += 1.f; // TODO
-                            const ImVec2 highlightSize = imgui::CalcTextSize(std::string_view { found });
+                                ImVec2 highlightOffset = ImGui::GetCursorScreenPos();
+                                highlightOffset.x += ImGui::CalcTextSize(pathStr.data(), found.data()).x;;
+                                highlightOffset.y += 1.f; // TODO
+                                const ImVec2 highlightSize = imgui::CalcTextSize(std::string_view { found });
 
-                            ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
-                            haystack = haystack.substr(found.end() - haystack.begin());
-                        }
-
-                        const bool isFileExists = exists(path);
-                        ImGui::PushItemFlag(ImGuiItemFlags_AutoClosePopups, isFileExists);
-                        if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
-                            if (isFileExists) {
-                                tasks.emplace(std::in_place_type<task::LoadGltf>, path);
-                                needle.clear();
+                                ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
+                                haystack = haystack.substr(found.end() - haystack.begin());
                             }
-                            else {
-                                gui::popup::open(static_cast<std::string>(PopupNames::fileNotExists), [&recentGltfs, it] {
-                                    imgui::widget::TextUnformatted("The file you selected does not exist anymore. Do you want to remove it from the recent files list?");
-                                    ImGui::Separator();
-                                    if (ImGui::Button("Remove")) {
-                                        recentGltfs.erase(it);
-                                        ImGui::CloseCurrentPopup();
-                                    }
-                                    ImGui::SetItemDefaultFocus();
-                                    ImGui::SameLine();
-                                    if (ImGui::Button("Cancel")) {
-                                        ImGui::CloseCurrentPopup();
-                                    }
-                                });
+
+                            if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
+                                if (std::filesystem::path path { *it }; exists(path)) {
+                                    tasks.emplace(std::in_place_type<task::LoadGltf>, std::move(path));
+                                    needle.clear();
+                                    ImGui::CloseCurrentPopup();
+                                }
+                                else {
+                                    gui::popup::open(static_cast<std::string>(PopupNames::fileNotExists), [&recentAssets, it] {
+                                        imgui::widget::TextUnformatted("The file you selected does not exist anymore. Do you want to remove it from the recent files list?");
+                                        ImGui::Separator();
+                                        if (ImGui::Button("Remove")) {
+                                            recentAssets.erase(it);
+                                            ImGui::CloseCurrentPopup();
+                                        }
+                                        ImGui::SetItemDefaultFocus();
+                                        ImGui::SameLine();
+                                        if (ImGui::Button("Cancel")) {
+                                            ImGui::CloseCurrentPopup();
+                                        }
+                                    });
+                                }
                             }
                         }
-                        ImGui::PopItemFlag();
-                    }
+                    });
 
                     gui::popup::process(PopupNames::fileNotExists);
                 }
@@ -332,6 +327,7 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
                 }
             }
             if (ImGui::BeginMenu("Recent Skyboxes")) {
+                auto &recentSkyboxes = static_cast<imgui::UserData*>(ImGui::GetIO().UserData)->recentSkyboxPaths;
                 if (recentSkyboxes.empty()) {
                     ImGui::MenuItem("<empty>", nullptr, false, false);
                 }
@@ -341,54 +337,52 @@ void vk_gltf_viewer::control::ImGuiTaskCollector::menuBar(
 
                     ImGui::Separator();
 
-                    for (auto it = recentSkyboxes.begin(); it != recentSkyboxes.end(); ++it) {
-                        const std::filesystem::path &path = *it;
-                    #ifdef _WIN32
-                        const std::u8string pathOwnedStr = path.u8string();
-                        const cpp_util::cstring_view pathStr { cpp_util::cstring_view::null_terminated, reinterpret_cast<const char*>(pathOwnedStr.c_str()), pathOwnedStr.size() };
-                    #else
-                        const cpp_util::cstring_view pathStr { path.c_str() };
-                    #endif
+                    // If the path user clicked is not exists, a popup will be opened to ask if the user wants to remove
+                    // it from the recent files list. In this case, we should prevent the menu popup from being closed
+                    // by clicking menu items, therefore disable the auto close behavior of menu popup. If the path
+                    // exists, the menu popup will be closed by manually calling ImGui::CloseCurrentPopup().
+                    imgui::WithItemFlag(ImGuiItemFlags_AutoClosePopups, false, [&] {
+                        for (auto it = recentSkyboxes.begin(); it != recentSkyboxes.end(); ++it) {
+                            const cpp_util::cstring_view pathStr { cpp_util::cstring_view::null_terminated, reinterpret_cast<const char*>(it->c_str()), it->size() };
 
-                        bool hasOccurrence = false;
-                        cpp_util::cstring_view haystack = pathStr;
-                        while (auto found = std::ranges::search(haystack, needle, {}, LIFT(std::tolower), LIFT(std::tolower))) {
-                            hasOccurrence = true;
+                            bool hasOccurrence = false;
+                            cpp_util::cstring_view haystack = pathStr;
+                            while (auto found = std::ranges::search(haystack, needle, {}, LIFT(std::tolower), LIFT(std::tolower))) {
+                                hasOccurrence = true;
 
-                            ImVec2 highlightOffset = ImGui::GetCursorScreenPos();
-                            highlightOffset.x += ImGui::CalcTextSize(pathStr.data(), found.data()).x;
-                            highlightOffset.y += 1.f; // TODO
-                            const ImVec2 highlightSize = imgui::CalcTextSize(std::string_view { found });
+                                ImVec2 highlightOffset = ImGui::GetCursorScreenPos();
+                                highlightOffset.x += ImGui::CalcTextSize(pathStr.data(), found.data()).x;
+                                highlightOffset.y += 1.f; // TODO
+                                const ImVec2 highlightSize = imgui::CalcTextSize(std::string_view { found });
 
-                            ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
-                            haystack = haystack.substr(found.end() - haystack.begin());
-                        }
-
-                        const bool isFileExists = exists(path);
-                        ImGui::PushItemFlag(ImGuiItemFlags_AutoClosePopups, isFileExists);
-                        if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
-                            if (isFileExists) {
-                                tasks.emplace(std::in_place_type<task::LoadEqmap>, path);
-                                needle.clear();
+                                ImGui::GetWindowDrawList()->AddRectFilled(highlightOffset, highlightOffset + highlightSize, 0xFF00AABB);
+                                haystack = haystack.substr(found.end() - haystack.begin());
                             }
-                            else {
-                                gui::popup::open(static_cast<std::string>(PopupNames::fileNotExists), [&recentSkyboxes, it] {
-                                    imgui::widget::TextUnformatted("The file you selected does not exist anymore. Do you want to remove it from the recent files list?");
-                                    ImGui::Separator();
-                                    if (ImGui::Button("Remove")) {
-                                        recentSkyboxes.erase(it);
-                                        ImGui::CloseCurrentPopup();
-                                    }
-                                    ImGui::SetItemDefaultFocus();
-                                    ImGui::SameLine();
-                                    if (ImGui::Button("Cancel")) {
-                                        ImGui::CloseCurrentPopup();
-                                    }
-                                });
+
+                            if ((needle.empty() || hasOccurrence) && ImGui::MenuItem(pathStr.c_str())) {
+                                if (std::filesystem::path path { *it }; exists(path)) {
+                                    tasks.emplace(std::in_place_type<task::LoadEqmap>, std::move(path));
+                                    needle.clear();
+                                    ImGui::CloseCurrentPopup();
+                                }
+                                else {
+                                    gui::popup::open(static_cast<std::string>(PopupNames::fileNotExists), [&recentSkyboxes, it] {
+                                        imgui::widget::TextUnformatted("The file you selected does not exist anymore. Do you want to remove it from the recent files list?");
+                                        ImGui::Separator();
+                                        if (ImGui::Button("Remove")) {
+                                            recentSkyboxes.erase(it);
+                                            ImGui::CloseCurrentPopup();
+                                        }
+                                        ImGui::SetItemDefaultFocus();
+                                        ImGui::SameLine();
+                                        if (ImGui::Button("Cancel")) {
+                                            ImGui::CloseCurrentPopup();
+                                        }
+                                    });
+                                }
                             }
                         }
-                        ImGui::PopItemFlag();
-                    }
+                    });
 
                     gui::popup::process(PopupNames::fileNotExists);
                 }

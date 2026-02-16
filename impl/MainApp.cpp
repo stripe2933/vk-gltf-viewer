@@ -290,7 +290,7 @@ void vk_gltf_viewer::MainApp::run() {
             nfdwindowhandle_t windowHandle = {};
             NFD_GetNativeWindowFromGLFWWindow(window, &windowHandle);
 
-            imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths(), windowHandle);
+            imguiTaskCollector.menuBar(windowHandle);
             if (assetExtended) {
                 imguiTaskCollector.assetInspector(*assetExtended);
                 imguiTaskCollector.materialEditor(*assetExtended);
@@ -1133,7 +1133,8 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
     ImGui_ImplVulkan_Init(&initInfo);
 
     io.UserData = &userData;
-    userData.registerSettingHandler();
+    userDataSettingsHandler = userData.createSettingsHandler();
+    ImGui::AddSettingsHandler(&userDataSettingsHandler);
 
     guiTextures = std::make_unique<vulkan::imgui::GuiTextures>(gpu);
 }
@@ -1299,7 +1300,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     window.setTitle(PATH_C_STR(path.filename()));
 
     // Update AppState.
-    appState.pushRecentGltfPath(path);
+    imGuiContext.userData.pushRecentAssetPath(path.u8string());
 
     // Enable bloom when asset has a material whose emissive strength is greater than 1, disable if not.
     if (!assetExtended->bloomMaterials.empty()) {
@@ -1980,5 +1981,5 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     }, {});
 
     // Update AppState.
-    appState.pushRecentSkyboxPath(eqmapPath);
+    imGuiContext.userData.pushRecentSkyboxPath(eqmapPath.u8string());
 }
