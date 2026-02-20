@@ -6,7 +6,8 @@
       "inherits": "default",
       "hidden": true,
       "cacheVariables": {
-        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON"
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CI": "ON"
       },
       "environment": {
         "VCPKG_ROOT": "$env{VCPKG_INSTALLATION_ROOT}"

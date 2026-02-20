@@ -311,19 +311,22 @@ endif()
 if (APPLE)
     target_link_libraries(vk-gltf-viewer PRIVATE metal-cpp::metal-cpp)
 
-    if (${CMAKE_BUILD_TYPE} STREQUAL "Release")
-        set_target_properties(vk-gltf-viewer PROPERTIES
-            MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in
-            MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-            MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION}"
-        )
+    set_target_properties(vk-gltf-viewer PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION}"
+    )
 
+    if (CI)
         find_package(Vulkan COMPONENTS MoltenVK REQUIRED)
-        set(APP_BUNDLE_CONTENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/vk-gltf-viewer.app/Contents")
+
+        set(MOLTENVK_ICD "asset/resources/vulkan")
+        target_sources(vk-gltf-viewer PRIVATE ${MOLTENVK_ICD})
+        set_target_properties(vk-gltf-viewer PROPERTIES RESOURCE ${MOLTENVK_ICD})
+
+        # Embed libMoltenVK.dylib in the bundle
         add_custom_command(TARGET vk-gltf-viewer POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_BUNDLE_CONTENTS_DIR}/Resources"
-                && ${CMAKE_COMMAND} -E copy ${Vulkan_MoltenVK_LIBRARY} "${APP_BUNDLE_CONTENTS_DIR}/Frameworks" # Copy libMoltenVK.dylib
-                && ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/asset/resources" "${APP_BUNDLE_CONTENTS_DIR}/Resources")
+            COMMAND ${CMAKE_COMMAND} -E copy ${Vulkan_MoltenVK_LIBRARY} "${CMAKE_CURRENT_BINARY_DIR}/vk-gltf-viewer.app/Contents/Frameworks")
     endif()
 endif()
 
