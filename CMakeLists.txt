@@ -128,6 +128,7 @@ set(VKGLTF_USE_BINDLESS ON)
 add_subdirectory(vkgltf)
 
 if (APPLE)
+    add_subdirectory(apple)
     add_subdirectory(metal-cpp)
 endif()
 
@@ -182,8 +183,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/formatter/ByteSize.cppm
         interface/helpers/full_optional.cppm
         interface/helpers/functional.cppm
-        interface/helpers/imgui/mod.cppm
-        interface/helpers/imgui/table.cppm
         interface/helpers/io.cppm
         interface/helpers/Lazy.cppm
         interface/helpers/optional.cppm
@@ -192,8 +191,13 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/helpers/ranges/concat.cppm
         interface/helpers/TempStringBuffer.cppm
         interface/helpers/type_map.cppm
+        interface/imgui/mod.cppm
         interface/imgui/ColorSpaceAndUsageCorrectedTextures.cppm
         interface/imgui/UserData.cppm
+        interface/imgui/GuiTextures.cppm
+        interface/imgui/scoped.cppm
+        interface/imgui/util.cppm
+        interface/imgui/widget.cppm
         interface/MainApp.cppm
         interface/math/bit.cppm
         interface/math/Frustum.cppm
@@ -228,7 +232,7 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/vulkan/FrameDeferredTask.cppm
         interface/vulkan/gltf/AssetExtended.cppm
         interface/vulkan/Gpu.cppm
-        interface/vulkan/imgui/PlatformResource.cppm
+        interface/vulkan/imgui/GuiTextures.cppm
         interface/vulkan/mipmap.cppm
         interface/vulkan/pipeline/BloomApplyRenderPipeline.cppm
         interface/vulkan/pipeline/TonemappingRenderPipeline.cppm
@@ -309,7 +313,10 @@ else()
 endif()
 
 if (APPLE)
-    target_link_libraries(vk-gltf-viewer PRIVATE metal-cpp::metal-cpp)
+    target_link_libraries(vk-gltf-viewer PRIVATE
+        apple
+        metal-cpp::metal-cpp
+    )
 
     set_target_properties(vk-gltf-viewer PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in

@@ -1,5 +1,6 @@
 module;
 
+#include <lifetimebound.hpp>
 #include <nfd.hpp>
 
 export module vk_gltf_viewer.imgui.TaskCollector;
@@ -10,6 +11,7 @@ import imgui.internal;
 export import vk_gltf_viewer.AppState;
 export import vk_gltf_viewer.control.Task;
 export import vk_gltf_viewer.gltf.AssetExtended;
+export import vk_gltf_viewer.imgui;
 export import vk_gltf_viewer.Renderer;
 
 namespace vk_gltf_viewer::control {
@@ -43,10 +45,10 @@ namespace vk_gltf_viewer::control {
             PopupNames::selectViewportToApplyNodeFocus,
         };
 
-        ImGuiTaskCollector(std::queue<Task> &tasks, const ImRect &oldPassthruRect);
+        ImGuiTaskCollector(std::queue<Task> &tasks, const ImRect &oldPassthruRect, const imgui::GuiTextures &guiTextures LIFETIMEBOUND);
         ~ImGuiTaskCollector();
 
-        void menuBar(std::list<std::filesystem::path> &recentGltfs, std::list<std::filesystem::path> &recentSkyboxes, nfdwindowhandle_t windowHandle);
+        void menuBar(nfdwindowhandle_t windowHandle);
         void animations(gltf::AssetExtended &assetExtended);
         void assetInspector(gltf::AssetExtended &assetExtended);
         void materialEditor(gltf::AssetExtended &assetExtended);
@@ -61,6 +63,7 @@ namespace vk_gltf_viewer::control {
     private:
         std::queue<Task> &tasks;
         ImRect centerNodeRect;
+        const imgui::GuiTextures &guiTextures;
 
         bool assetInspectorCalled = false;
         bool materialEditorCalled = false;

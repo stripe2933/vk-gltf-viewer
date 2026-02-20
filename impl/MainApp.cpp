@@ -39,6 +39,10 @@ module;
 #error "Type your own font file in here!"
 #endif
 
+#if __APPLE__
+#include <apple/filesystem.hpp>
+#endif
+
 module vk_gltf_viewer.MainApp;
 
 import cubemap;
@@ -58,7 +62,7 @@ import vk_gltf_viewer.helpers.optional;
 import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.imgui.TaskCollector;
 import vk_gltf_viewer.vulkan.FrameDeferredTask;
-import vk_gltf_viewer.vulkan.imgui.PlatformResource;
+import vk_gltf_viewer.vulkan.imgui.GuiTextures;
 import vk_gltf_viewer.vulkan.mipmap;
 import vk_gltf_viewer.vulkan.pipeline.TonemappingRenderPipeline;
 
@@ -284,13 +288,13 @@ void vk_gltf_viewer::MainApp::run() {
             ImGui_ImplVulkan_NewFrame();
 
             // Collect task from ImGui (button click, menu selection, ...).
-            control::ImGuiTaskCollector imguiTaskCollector { tasks, passthruRect };
+            control::ImGuiTaskCollector imguiTaskCollector { tasks, passthruRect, *imGuiContext.guiTextures };
 
             // Get native window handle.
             nfdwindowhandle_t windowHandle = {};
             NFD_GetNativeWindowFromGLFWWindow(window, &windowHandle);
 
-            imguiTaskCollector.menuBar(appState.getRecentGltfPaths(), appState.getRecentSkyboxPaths(), windowHandle);
+            imguiTaskCollector.menuBar(windowHandle);
             if (assetExtended) {
                 imguiTaskCollector.assetInspector(*assetExtended);
                 imguiTaskCollector.materialEditor(*assetExtended);
@@ -1098,6 +1102,11 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
     ImGuiIO &io = ImGui::GetIO();    
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
+#if __APPLE__
+    static std::string iniFilename = (getApplicationSupportFolderPath() / "imgui.ini").string();
+    io.IniFilename = iniFilename.c_str();
+#endif
+
     ImFontConfig fontConfig;
     if (std::filesystem::exists(DEFAULT_FONT_PATH)) {
         io.Fonts->AddFontFromFileTTF(DEFAULT_FONT_PATH, 0.f, &fontConfig);
@@ -1132,14 +1141,17 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
     };
     ImGui_ImplVulkan_Init(&initInfo);
 
-    userData.platformResource = std::make_unique<vulkan::imgui::PlatformResource>(gpu);
     io.UserData = &userData;
-    userData.registerSettingHandler();
+    userDataSettingsHandler = userData.createSettingsHandler();
+    ImGui::AddSettingsHandler(&userDataSettingsHandler);
+
+    guiTextures = std::make_unique<vulkan::imgui::GuiTextures>(gpu);
 }
 
 vk_gltf_viewer::MainApp::ImGuiContext::~ImGuiContext() {
-    // Since userData.platformResource is instantiated under ImGui_ImplVulkan context, it must be destroyed before shutdown ImGui_ImplVulkan.
-    userData.platformResource.reset();
+    // guiTextures must be destroyed before shutdown ImGui_ImplVulkan as it calls ImGui_ImplVulkan_RemoveTexture in
+    // its destructor.
+    guiTextures.reset();
 
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -1297,7 +1309,7 @@ void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     window.setTitle(PATH_C_STR(path.filename()));
 
     // Update AppState.
-    appState.pushRecentGltfPath(path);
+    imGuiContext.userData.pushRecentAssetPath(path.u8string());
 
     // Enable bloom when asset has a material whose emissive strength is greater than 1, disable if not.
     if (!assetExtended->bloomMaterials.empty()) {
@@ -1978,5 +1990,5 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
     }, {});
 
     // Update AppState.
-    appState.pushRecentSkyboxPath(eqmapPath);
+    imGuiContext.userData.pushRecentSkyboxPath(eqmapPath.u8string());
 }

@@ -5,7 +5,7 @@ import std;
 import vk_gltf_viewer.AppState;
 import vk_gltf_viewer.gltf.AssetExtended;
 import vk_gltf_viewer.control.AppWindow;
-import vk_gltf_viewer.imgui.UserData;
+import vk_gltf_viewer.imgui;
 import vk_gltf_viewer.Renderer;
 import vk_gltf_viewer.vulkan.Frame;
 
@@ -21,6 +21,8 @@ namespace vk_gltf_viewer {
 
         struct ImGuiContext {
             imgui::UserData userData;
+            ImGuiSettingsHandler userDataSettingsHandler;
+            std::unique_ptr<imgui::GuiTextures> guiTextures;
 
             ImGuiContext(const control::AppWindow &window, vk::Instance instance, const vulkan::Gpu &gpu);
             ~ImGuiContext();
