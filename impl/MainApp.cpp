@@ -39,6 +39,10 @@ module;
 #error "Type your own font file in here!"
 #endif
 
+#if __APPLE__
+#include <apple/filesystem.hpp>
+#endif
+
 module vk_gltf_viewer.MainApp;
 
 import cubemap;
@@ -1097,6 +1101,11 @@ vk_gltf_viewer::MainApp::ImGuiContext::ImGuiContext(const control::AppWindow &wi
 
     ImGuiIO &io = ImGui::GetIO();    
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+#if __APPLE__
+    static std::string iniFilename = (getApplicationSupportFolderPath() / "imgui.ini").string();
+    io.IniFilename = iniFilename.c_str();
+#endif
 
     ImFontConfig fontConfig;
     if (std::filesystem::exists(DEFAULT_FONT_PATH)) {

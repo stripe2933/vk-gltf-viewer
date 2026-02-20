@@ -128,6 +128,7 @@ set(VKGLTF_USE_BINDLESS ON)
 add_subdirectory(vkgltf)
 
 if (APPLE)
+    add_subdirectory(apple)
     add_subdirectory(metal-cpp)
 endif()
 
@@ -312,7 +313,10 @@ else()
 endif()
 
 if (APPLE)
-    target_link_libraries(vk-gltf-viewer PRIVATE metal-cpp::metal-cpp)
+    target_link_libraries(vk-gltf-viewer PRIVATE
+        apple
+        metal-cpp::metal-cpp
+    )
 
     set_target_properties(vk-gltf-viewer PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in
