@@ -62,11 +62,6 @@ export {
     using ::ImGuiContextHookType_Shutdown;
     using ::ImGuiContextHookType_PendingRemoval_;
 
-    using ::ImGuiDataAuthority_;
-    using ::ImGuiDataAuthority_Auto;
-    using ::ImGuiDataAuthority_DockNode;
-    using ::ImGuiDataAuthority_Window;
-
     using ::ImGuiDataTypePrivate_;
     using ::ImGuiDataType_Pointer;
     using ::ImGuiDataType_ID;
@@ -87,33 +82,8 @@ export {
     using ::ImGuiDebugLogFlags_EventViewport;
     using ::ImGuiDebugLogFlags_EventMask_;
     using ::ImGuiDebugLogFlags_OutputToTTY;
+    using ::ImGuiDebugLogFlags_OutputToDebugger;
     using ::ImGuiDebugLogFlags_OutputToTestEngine;
-
-    using ::ImGuiDockNodeFlagsPrivate_;
-    using ::ImGuiDockNodeFlags_DockSpace;
-    using ::ImGuiDockNodeFlags_CentralNode;
-    using ::ImGuiDockNodeFlags_NoTabBar;
-    using ::ImGuiDockNodeFlags_HiddenTabBar;
-    using ::ImGuiDockNodeFlags_NoWindowMenuButton;
-    using ::ImGuiDockNodeFlags_NoCloseButton;
-    using ::ImGuiDockNodeFlags_NoResizeX;
-    using ::ImGuiDockNodeFlags_NoResizeY;
-    using ::ImGuiDockNodeFlags_DockedWindowsInFocusRoute;
-    using ::ImGuiDockNodeFlags_NoDockingSplitOther;
-    using ::ImGuiDockNodeFlags_NoDockingOverMe;
-    using ::ImGuiDockNodeFlags_NoDockingOverOther;
-    using ::ImGuiDockNodeFlags_NoDockingOverEmpty;
-    using ::ImGuiDockNodeFlags_NoDocking;
-    using ::ImGuiDockNodeFlags_SharedFlagsInheritMask_;
-    using ::ImGuiDockNodeFlags_NoResizeFlagsMask_;
-    using ::ImGuiDockNodeFlags_LocalFlagsTransferMask_;
-    using ::ImGuiDockNodeFlags_SavedFlagsMask_;
-
-    using ::ImGuiDockNodeState;
-    using ::ImGuiDockNodeState_Unknown;
-    using ::ImGuiDockNodeState_HostWindowHiddenBecauseSingleWindow;
-    using ::ImGuiDockNodeState_HostWindowHiddenBecauseWindowsAreResizing;
-    using ::ImGuiDockNodeState_HostWindowVisible;
 
     using ::ImGuiFocusRequestFlags_;
     using ::ImGuiFocusRequestFlags_None;
@@ -130,11 +100,13 @@ export {
     using ::ImGuiInputEventType_MousePos;
     using ::ImGuiInputEventType_MouseWheel;
     using ::ImGuiInputEventType_MouseButton;
-    using ::ImGuiInputEventType_MouseViewport;
     using ::ImGuiInputEventType_Key;
     using ::ImGuiInputEventType_Text;
     using ::ImGuiInputEventType_Focus;
     using ::ImGuiInputEventType_COUNT;
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiInputEventType_MouseViewport;
+#endif
 
     using ::ImGuiInputFlagsPrivate_;
     using ::ImGuiInputFlags_RepeatRateDefault;
@@ -175,7 +147,6 @@ export {
     using ::ImGuiInputTextFlags_LocalizeDecimalPoint;
 
     using ::ImGuiItemFlagsPrivate_;
-    using ::ImGuiItemFlags_Disabled;
     using ::ImGuiItemFlags_ReadOnly;
     using ::ImGuiItemFlags_MixedValue;
     using ::ImGuiItemFlags_NoWindowHoverableCheck;
@@ -217,10 +188,12 @@ export {
     using ::ImGuiLocKey_WindowingUntitled;
     using ::ImGuiLocKey_OpenLink_s;
     using ::ImGuiLocKey_CopyLink;
+    using ::ImGuiLocKey_COUNT;
+#ifdef IMGUI_HAS_DOCK
     using ::ImGuiLocKey_DockingHideTabBar;
     using ::ImGuiLocKey_DockingHoldShiftToDock;
     using ::ImGuiLocKey_DockingDragToUndockOrMoveNode;
-    using ::ImGuiLocKey_COUNT;
+#endif
 
     using ::ImGuiLogFlags_;
     using ::ImGuiLogFlags_None;
@@ -268,6 +241,7 @@ export {
     using ::ImGuiNextItemDataFlags_HasShortcut;
     using ::ImGuiNextItemDataFlags_HasRefVal;
     using ::ImGuiNextItemDataFlags_HasStorageID;
+    using ::ImGuiNextItemDataFlags_HasColorMarker;
 
     using ::ImGuiNextWindowDataFlags_;
     using ::ImGuiNextWindowDataFlags_None;
@@ -282,9 +256,11 @@ export {
     using ::ImGuiNextWindowDataFlags_HasWindowFlags;
     using ::ImGuiNextWindowDataFlags_HasChildFlags;
     using ::ImGuiNextWindowDataFlags_HasRefreshPolicy;
+#ifdef IMGUI_HAS_DOCK
     using ::ImGuiNextWindowDataFlags_HasViewport;
     using ::ImGuiNextWindowDataFlags_HasDock;
     using ::ImGuiNextWindowDataFlags_HasWindowClass;
+#endif
 
     using ::ImGuiOldColumnFlags_;
     using ::ImGuiOldColumnFlags_None;
@@ -344,7 +320,9 @@ export {
     using ::ImGuiTabItemFlags_NoCloseButton;
     using ::ImGuiTabItemFlags_Button;
     using ::ImGuiTabItemFlags_Invisible;
+#ifdef IMGUI_HAS_DOCK
     using ::ImGuiTabItemFlags_Unsorted;
+#endif
 
     using ::ImGuiTextFlags_;
     using ::ImGuiTextFlags_None;
@@ -370,6 +348,49 @@ export {
     using ::ImGuiWindowBgClickFlags_None;
     using ::ImGuiWindowBgClickFlags_Move;
 
+    using ::ImGuiWindowRefreshFlags_;
+    using ::ImGuiWindowRefreshFlags_None;
+    using ::ImGuiWindowRefreshFlags_TryToAvoidRefresh;
+    using ::ImGuiWindowRefreshFlags_RefreshOnHover;
+    using ::ImGuiWindowRefreshFlags_RefreshOnFocus;
+
+    using ::ImWcharClass;
+    using ::ImWcharClass_Blank;
+    using ::ImWcharClass_Punct;
+    using ::ImWcharClass_Other;
+
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiDataAuthority_;
+    using ::ImGuiDataAuthority_Auto;
+    using ::ImGuiDataAuthority_DockNode;
+    using ::ImGuiDataAuthority_Window;
+
+    using ::ImGuiDockNodeFlagsPrivate_;
+    using ::ImGuiDockNodeFlags_DockSpace;
+    using ::ImGuiDockNodeFlags_CentralNode;
+    using ::ImGuiDockNodeFlags_NoTabBar;
+    using ::ImGuiDockNodeFlags_HiddenTabBar;
+    using ::ImGuiDockNodeFlags_NoWindowMenuButton;
+    using ::ImGuiDockNodeFlags_NoCloseButton;
+    using ::ImGuiDockNodeFlags_NoResizeX;
+    using ::ImGuiDockNodeFlags_NoResizeY;
+    using ::ImGuiDockNodeFlags_DockedWindowsInFocusRoute;
+    using ::ImGuiDockNodeFlags_NoDockingSplitOther;
+    using ::ImGuiDockNodeFlags_NoDockingOverMe;
+    using ::ImGuiDockNodeFlags_NoDockingOverOther;
+    using ::ImGuiDockNodeFlags_NoDockingOverEmpty;
+    using ::ImGuiDockNodeFlags_NoDocking;
+    using ::ImGuiDockNodeFlags_SharedFlagsInheritMask_;
+    using ::ImGuiDockNodeFlags_NoResizeFlagsMask_;
+    using ::ImGuiDockNodeFlags_LocalFlagsTransferMask_;
+    using ::ImGuiDockNodeFlags_SavedFlagsMask_;
+
+    using ::ImGuiDockNodeState;
+    using ::ImGuiDockNodeState_Unknown;
+    using ::ImGuiDockNodeState_HostWindowHiddenBecauseSingleWindow;
+    using ::ImGuiDockNodeState_HostWindowHiddenBecauseWindowsAreResizing;
+    using ::ImGuiDockNodeState_HostWindowVisible;
+
     using ::ImGuiWindowDockStyleCol;
     using ::ImGuiWindowDockStyleCol_Text;
     using ::ImGuiWindowDockStyleCol_TabHovered;
@@ -381,12 +402,7 @@ export {
     using ::ImGuiWindowDockStyleCol_TabDimmedSelectedOverline;
     using ::ImGuiWindowDockStyleCol_UnsavedMarker;
     using ::ImGuiWindowDockStyleCol_COUNT;
-
-    using ::ImGuiWindowRefreshFlags_;
-    using ::ImGuiWindowRefreshFlags_None;
-    using ::ImGuiWindowRefreshFlags_TryToAvoidRefresh;
-    using ::ImGuiWindowRefreshFlags_RefreshOnHover;
-    using ::ImGuiWindowRefreshFlags_RefreshOnFocus;
+#endif
 
     // ----- Structs -----
 
@@ -411,8 +427,6 @@ export {
     using ::ImGuiDebugAllocEntry;
     using ::ImGuiDebugAllocInfo;
     using ::ImGuiDebugItemPathQuery;
-    using ::ImGuiDockContext;
-    using ::ImGuiDockNode;
     using ::ImGuiErrorRecoveryState;
     using ::ImGuiFocusScopeData;
     using ::ImGuiGroupData;
@@ -422,7 +436,6 @@ export {
     using ::ImGuiInputEventKey;
     using ::ImGuiInputEventMouseButton;
     using ::ImGuiInputEventMousePos;
-    using ::ImGuiInputEventMouseViewport;
     using ::ImGuiInputEventMouseWheel;
     using ::ImGuiInputEventText;
     using ::ImGuiInputTextDeactivatedState;
@@ -466,7 +479,6 @@ export {
     using ::ImGuiTypingSelectState;
     using ::ImGuiViewportP;
     using ::ImGuiWindow;
-    using ::ImGuiWindowDockStyle;
     using ::ImGuiWindowSettings;
     using ::ImGuiWindowStackData;
     using ::ImGuiWindowTempData;
@@ -479,6 +491,12 @@ export {
     using ::ImVec2i;
     using ::ImVec2ih;
     using ::stbrp_context_opaque;
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiDockContext;
+    using ::ImGuiDockNode;
+    using ::ImGuiInputEventMouseViewport;
+    using ::ImGuiWindowDockStyle;
+#endif
 
     // ----- Type aliases -----
 
@@ -487,7 +505,6 @@ export {
     using ::ImFileHandle;
     using ::ImGuiActivateFlags;
     using ::ImGuiContextHookCallback;
-    using ::ImGuiDataAuthority;
     using ::ImGuiDebugLogFlags;
     using ::ImGuiErrorCallback;
     using ::ImGuiFocusRequestFlags;
@@ -512,6 +529,9 @@ export {
     using ::ImPoolIdx;
     using ::ImStbTexteditState;
     using ::stbrp_node_im;
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiDataAuthority;
+#endif
 
     // ----- Functions -----
 
@@ -568,6 +588,7 @@ export {
     using ::ImFontAtlasFontDestroySourceData;
     using ::ImFontAtlasFontDiscardBakes;
     using ::ImFontAtlasFontInitOutput;
+    using ::ImFontAtlasFontRebuildOutput;
     using ::ImFontAtlasFontSourceAddToFont;
     using ::ImFontAtlasFontSourceInit;
     using ::ImFontAtlasGetFontLoaderForStbTruetype;
@@ -648,12 +669,16 @@ export {
     using ::ImTextCalcWordWrapNextLineStart;
     using ::ImTextCharFromUtf8;
     using ::ImTextCharToUtf8;
+    using ::ImTextClassifierClear;
+    using ::ImTextClassifierSetCharClass;
+    using ::ImTextClassifierSetCharClassFromStr;
     using ::ImTextCountCharsFromUtf8;
     using ::ImTextCountLines;
     using ::ImTextCountUtf8BytesFromChar;
     using ::ImTextCountUtf8BytesFromStr;
     using ::ImTextFindPreviousUtf8Codepoint;
     using ::ImTextFindValidUtf8CodepointEnd;
+    using ::ImTextInitClassifiers;
     using ::ImTextStrFromUtf8;
     using ::ImTextStrToUtf8;
     using ::ImTextureDataGetFormatBytesPerPixel;
@@ -681,9 +706,6 @@ namespace ImGui {
     using ImGui::BeginComboPopup;
     using ImGui::BeginComboPreview;
     using ImGui::BeginDisabledOverrideReenable;
-    using ImGui::BeginDockableDragDropSource;
-    using ImGui::BeginDockableDragDropTarget;
-    using ImGui::BeginDocked;
     using ImGui::BeginDragDropTargetCustom;
     using ImGui::BeginDragDropTargetViewport;
     using ImGui::BeginErrorTooltip;
@@ -742,7 +764,6 @@ namespace ImGui {
     using ImGui::DebugLocateItemOnHover;
     using ImGui::DebugLocateItemResolveWithLastItem;
     using ImGui::DebugNodeColumns;
-    using ImGui::DebugNodeDockNode;
     using ImGui::DebugNodeDrawCmdShowMeshAndBoundingBox;
     using ImGui::DebugNodeDrawList;
     using ImGui::DebugNodeFont;
@@ -750,7 +771,6 @@ namespace ImGui {
     using ImGui::DebugNodeFontGlyphesForSrcMask;
     using ImGui::DebugNodeInputTextState;
     using ImGui::DebugNodeMultiSelectState;
-    using ImGui::DebugNodePlatformMonitor;
     using ImGui::DebugNodeStorage;
     using ImGui::DebugNodeTabBar;
     using ImGui::DebugNodeTable;
@@ -765,43 +785,7 @@ namespace ImGui {
     using ImGui::DebugRenderKeyboardPreview;
     using ImGui::DebugRenderViewportThumbnail;
     using ImGui::DebugTextUnformattedWithLocateItem;
-    using ImGui::DestroyPlatformWindow;
-    using ImGui::DockBuilderAddNode;
-    using ImGui::DockBuilderCopyDockSpace;
-    using ImGui::DockBuilderCopyNode;
-    using ImGui::DockBuilderCopyWindowSettings;
-    using ImGui::DockBuilderDockWindow;
-    using ImGui::DockBuilderFinish;
-    using ImGui::DockBuilderGetCentralNode;
-    using ImGui::DockBuilderGetNode;
-    using ImGui::DockBuilderRemoveNode;
-    using ImGui::DockBuilderRemoveNodeChildNodes;
-    using ImGui::DockBuilderRemoveNodeDockedWindows;
-    using ImGui::DockBuilderSetNodePos;
-    using ImGui::DockBuilderSetNodeSize;
-    using ImGui::DockBuilderSplitNode;
-    using ImGui::DockContextCalcDropPosForDocking;
-    using ImGui::DockContextClearNodes;
-    using ImGui::DockContextEndFrame;
-    using ImGui::DockContextFindNodeByID;
-    using ImGui::DockContextGenNodeID;
-    using ImGui::DockContextInitialize;
-    using ImGui::DockContextNewFrameUpdateDocking;
-    using ImGui::DockContextNewFrameUpdateUndocking;
-    using ImGui::DockContextProcessUndockNode;
-    using ImGui::DockContextProcessUndockWindow;
-    using ImGui::DockContextQueueDock;
-    using ImGui::DockContextQueueUndockNode;
-    using ImGui::DockContextQueueUndockWindow;
-    using ImGui::DockContextRebuildNodes;
-    using ImGui::DockContextShutdown;
-    using ImGui::DockNodeBeginAmendTabBar;
-    using ImGui::DockNodeEndAmendTabBar;
-    using ImGui::DockNodeGetDepth;
-    using ImGui::DockNodeGetRootNode;
-    using ImGui::DockNodeGetWindowMenuButtonId;
-    using ImGui::DockNodeIsInHierarchyOf;
-    using ImGui::DockNodeWindowMenuHandler_Default;
+    using ImGui::DebugTextureIDToU64;
     using ImGui::DragBehavior;
     using ImGui::EndBoxSelect;
     using ImGui::EndColumns;
@@ -818,7 +802,6 @@ namespace ImGui {
     using ImGui::FindBestWindowPosForPopupEx;
     using ImGui::FindBlockingModal;
     using ImGui::FindBottomMostVisibleWindowWithinBeginStack;
-    using ImGui::FindHoveredViewportFromPlatformWindowStack;
     using ImGui::FindHoveredWindowEx;
     using ImGui::FindOrCreateColumns;
     using ImGui::FindRenderedTextEnd;
@@ -853,27 +836,25 @@ namespace ImGui {
     using ImGui::GetIDWithSeed;
     using ImGui::GetIO;
     using ImGui::GetInputTextState;
-    using ImGui::GetItemFlags;
     using ImGui::GetItemStatusFlags;
     using ImGui::GetKeyChordName;
     using ImGui::GetKeyData;
     using ImGui::GetKeyMagnitude2d;
     using ImGui::GetKeyOwner;
     using ImGui::GetKeyOwnerData;
+    using ImGui::GetMouseButtonFromPopupFlags;
     using ImGui::GetMultiSelectState;
     using ImGui::GetNavTweakPressedAmount;
     using ImGui::GetPlatformIO;
     using ImGui::GetPopupAllowedExtentRect;
     using ImGui::GetRoundedFontSize;
+    using ImGui::GetScale;
     using ImGui::GetShortcutRoutingData;
     using ImGui::GetStyleVarInfo;
     using ImGui::GetTopMostAndVisiblePopupModal;
     using ImGui::GetTopMostPopupModal;
     using ImGui::GetTypematicRepeatRate;
     using ImGui::GetTypingSelectRequest;
-    using ImGui::GetViewportPlatformMonitor;
-    using ImGui::GetWindowAlwaysWantOwnTabBar;
-    using ImGui::GetWindowDockNode;
     using ImGui::GetWindowResizeBorderID;
     using ImGui::GetWindowResizeCornerID;
     using ImGui::GetWindowScrollbarID;
@@ -958,10 +939,10 @@ namespace ImGui {
     using ImGui::RemoveContextHook;
     using ImGui::RemoveSettingsHandler;
     using ImGui::RenderArrow;
-    using ImGui::RenderArrowDockMenu;
     using ImGui::RenderArrowPointingAt;
     using ImGui::RenderBullet;
     using ImGui::RenderCheckMark;
+    using ImGui::RenderColorComponentMarker;
     using ImGui::RenderColorRectWithAlphaCheckerboard;
     using ImGui::RenderDragDropTargetRectEx;
     using ImGui::RenderDragDropTargetRectForItem;
@@ -969,7 +950,7 @@ namespace ImGui {
     using ImGui::RenderFrameBorder;
     using ImGui::RenderMouseCursor;
     using ImGui::RenderNavCursor;
-    using ImGui::RenderRectFilledRangeH;
+    using ImGui::RenderRectFilledInRangeH;
     using ImGui::RenderRectFilledWithHole;
     using ImGui::RenderText;
     using ImGui::RenderTextClipped;
@@ -987,8 +968,8 @@ namespace ImGui {
     using ImGui::SeparatorTextEx;
     using ImGui::SetActiveID;
     using ImGui::SetActiveIdUsingAllKeyboardKeys;
+    using ImGui::SetContextName;
     using ImGui::SetCurrentFont;
-    using ImGui::SetCurrentViewport;
     using ImGui::SetFocusID;
     using ImGui::SetFontRasterizerDensity;
     using ImGui::SetHoveredID;
@@ -1000,6 +981,7 @@ namespace ImGui {
     using ImGui::SetNavFocusScope;
     using ImGui::SetNavID;
     using ImGui::SetNavWindow;
+    using ImGui::SetNextItemColorMarker;
     using ImGui::SetNextItemRefVal;
     using ImGui::SetNextWindowRefreshPolicy;
     using ImGui::SetScrollFromPosX;
@@ -1009,7 +991,6 @@ namespace ImGui {
     using ImGui::SetShortcutRouting;
     using ImGui::SetWindowClipRectBeforeSetChannel;
     using ImGui::SetWindowCollapsed;
-    using ImGui::SetWindowDock;
     using ImGui::SetWindowHiddenAndSkipItemsForCurrentFrame;
     using ImGui::SetWindowHitTestHole;
     using ImGui::SetWindowParentWindowForFocusRoute;
@@ -1026,12 +1007,9 @@ namespace ImGui {
     using ImGui::SliderBehavior;
     using ImGui::SplitterBehavior;
     using ImGui::StartMouseMovingWindow;
-    using ImGui::StartMouseMovingWindowOrNode;
     using ImGui::StopMouseMovingWindow;
-    using ImGui::TabBarAddTab;
     using ImGui::TabBarCloseTab;
     using ImGui::TabBarFindByID;
-    using ImGui::TabBarFindMostRecentlySelectedTabForActiveWindow;
     using ImGui::TabBarFindTabByID;
     using ImGui::TabBarFindTabByOrder;
     using ImGui::TabBarGetCurrentTab;
@@ -1061,6 +1039,7 @@ namespace ImGui {
     using ImGui::TableEndRow;
     using ImGui::TableFindByID;
     using ImGui::TableFixColumnSortDirection;
+    using ImGui::TableFixDisplayOrder;
     using ImGui::TableGcCompactSettings;
     using ImGui::TableGcCompactTransientBuffers;
     using ImGui::TableGetBoundSettings;
@@ -1084,6 +1063,7 @@ namespace ImGui {
     using ImGui::TableRemove;
     using ImGui::TableResetSettings;
     using ImGui::TableSaveSettings;
+    using ImGui::TableSetColumnDisplayOrder;
     using ImGui::TableSetColumnSortDirection;
     using ImGui::TableSetColumnWidth;
     using ImGui::TableSetColumnWidthAutoAll;
@@ -1106,7 +1086,6 @@ namespace ImGui {
     using ImGui::TextAligned;
     using ImGui::TextAlignedV;
     using ImGui::TextEx;
-    using ImGui::TranslateWindowsInViewport;
     using ImGui::TreeNodeBehavior;
     using ImGui::TreeNodeDrawLineToChildNode;
     using ImGui::TreeNodeDrawLineToTreePop;
@@ -1130,5 +1109,63 @@ namespace ImGui {
     using ImGui::WindowPosRelToAbs;
     using ImGui::WindowRectAbsToRel;
     using ImGui::WindowRectRelToAbs;
+#ifdef IMGUI_HAS_DOCK
+    using ImGui::BeginDockableDragDropSource;
+    using ImGui::BeginDockableDragDropTarget;
+    using ImGui::BeginDocked;
+    using ImGui::DebugNodeDockNode;
+    using ImGui::DebugNodePlatformMonitor;
+    using ImGui::DestroyPlatformWindow;
+    using ImGui::DockBuilderAddNode;
+    using ImGui::DockBuilderCopyDockSpace;
+    using ImGui::DockBuilderCopyNode;
+    using ImGui::DockBuilderCopyWindowSettings;
+    using ImGui::DockBuilderDockWindow;
+    using ImGui::DockBuilderFinish;
+    using ImGui::DockBuilderGetCentralNode;
+    using ImGui::DockBuilderGetNode;
+    using ImGui::DockBuilderRemoveNode;
+    using ImGui::DockBuilderRemoveNodeChildNodes;
+    using ImGui::DockBuilderRemoveNodeDockedWindows;
+    using ImGui::DockBuilderSetNodePos;
+    using ImGui::DockBuilderSetNodeSize;
+    using ImGui::DockBuilderSplitNode;
+    using ImGui::DockContextCalcDropPosForDocking;
+    using ImGui::DockContextClearNodes;
+    using ImGui::DockContextEndFrame;
+    using ImGui::DockContextFindNodeByID;
+    using ImGui::DockContextGenNodeID;
+    using ImGui::DockContextInitialize;
+    using ImGui::DockContextNewFrameUpdateDocking;
+    using ImGui::DockContextNewFrameUpdateUndocking;
+    using ImGui::DockContextProcessUndockNode;
+    using ImGui::DockContextProcessUndockWindow;
+    using ImGui::DockContextQueueDock;
+    using ImGui::DockContextQueueUndockNode;
+    using ImGui::DockContextQueueUndockWindow;
+    using ImGui::DockContextRebuildNodes;
+    using ImGui::DockContextShutdown;
+    using ImGui::DockNodeBeginAmendTabBar;
+    using ImGui::DockNodeEndAmendTabBar;
+    using ImGui::DockNodeGetDepth;
+    using ImGui::DockNodeGetRootNode;
+    using ImGui::DockNodeGetWindowMenuButtonId;
+    using ImGui::DockNodeIsInHierarchyOf;
+    using ImGui::DockNodeWindowMenuHandler_Default;
+    using ImGui::FindHoveredViewportFromPlatformWindowStack;
+    using ImGui::GetViewportPlatformMonitor;
+    using ImGui::GetWindowAlwaysWantOwnTabBar;
+    using ImGui::GetWindowDockNode;
+    using ImGui::RenderArrowDockMenu;
+    using ImGui::SetCurrentViewport;
+    using ImGui::SetWindowDock;
+    using ImGui::StartMouseMovingWindowOrNode;
+    using ImGui::TabBarAddTab;
+    using ImGui::TabBarFindMostRecentlySelectedTabForActiveWindow;
+    using ImGui::TranslateWindowsInViewport;
+#else
+    using ImGui::GetBackgroundDrawList;
+    using ImGui::GetWindowViewport;
+#endif
 }
 }

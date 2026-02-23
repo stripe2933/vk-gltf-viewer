@@ -63,10 +63,12 @@ export {
     using ::ImGuiBackendFlags_HasSetMousePos;
     using ::ImGuiBackendFlags_RendererHasVtxOffset;
     using ::ImGuiBackendFlags_RendererHasTextures;
+#ifdef IMGUI_HAS_DOCK
     using ::ImGuiBackendFlags_RendererHasViewports;
     using ::ImGuiBackendFlags_PlatformHasViewports;
     using ::ImGuiBackendFlags_HasMouseHoveredViewport;
     using ::ImGuiBackendFlags_HasParentViewport;
+#endif
 
     using ::ImGuiButtonFlags_;
     using ::ImGuiButtonFlags_None;
@@ -130,8 +132,6 @@ export {
     using ::ImGuiCol_TabDimmed;
     using ::ImGuiCol_TabDimmedSelected;
     using ::ImGuiCol_TabDimmedSelectedOverline;
-    using ::ImGuiCol_DockingPreview;
-    using ::ImGuiCol_DockingEmptyBg;
     using ::ImGuiCol_PlotLines;
     using ::ImGuiCol_PlotLinesHovered;
     using ::ImGuiCol_PlotHistogram;
@@ -152,6 +152,10 @@ export {
     using ::ImGuiCol_NavWindowingDimBg;
     using ::ImGuiCol_ModalWindowDimBg;
     using ::ImGuiCol_COUNT;
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiCol_DockingPreview;
+    using ::ImGuiCol_DockingEmptyBg;
+#endif
 
     using ::ImGuiColorEditFlags_;
     using ::ImGuiColorEditFlags_None;
@@ -165,6 +169,7 @@ export {
     using ::ImGuiColorEditFlags_NoSidePreview;
     using ::ImGuiColorEditFlags_NoDragDrop;
     using ::ImGuiColorEditFlags_NoBorder;
+    using ::ImGuiColorEditFlags_NoColorMarkers;
     using ::ImGuiColorEditFlags_AlphaOpaque;
     using ::ImGuiColorEditFlags_AlphaNoBg;
     using ::ImGuiColorEditFlags_AlphaPreviewHalf;
@@ -212,10 +217,12 @@ export {
     using ::ImGuiConfigFlags_NoMouse;
     using ::ImGuiConfigFlags_NoMouseCursorChange;
     using ::ImGuiConfigFlags_NoKeyboard;
-    using ::ImGuiConfigFlags_DockingEnable;
-    using ::ImGuiConfigFlags_ViewportsEnable;
     using ::ImGuiConfigFlags_IsSRGB;
     using ::ImGuiConfigFlags_IsTouchScreen;
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiConfigFlags_DockingEnable;
+    using ::ImGuiConfigFlags_ViewportsEnable;
+#endif
 
     using ::ImGuiDataType_;
     using ::ImGuiDataType_S8;
@@ -240,16 +247,6 @@ export {
     using ::ImGuiDir_Down;
     using ::ImGuiDir_COUNT;
 
-    using ::ImGuiDockNodeFlags_;
-    using ::ImGuiDockNodeFlags_None;
-    using ::ImGuiDockNodeFlags_KeepAliveOnly;
-    using ::ImGuiDockNodeFlags_NoDockingOverCentralNode;
-    using ::ImGuiDockNodeFlags_PassthruCentralNode;
-    using ::ImGuiDockNodeFlags_NoDockingSplit;
-    using ::ImGuiDockNodeFlags_NoResize;
-    using ::ImGuiDockNodeFlags_AutoHideTabBar;
-    using ::ImGuiDockNodeFlags_NoUndocking;
-
     using ::ImGuiDragDropFlags_;
     using ::ImGuiDragDropFlags_None;
     using ::ImGuiDragDropFlags_SourceNoPreviewTooltip;
@@ -272,8 +269,10 @@ export {
     using ::ImGuiFocusedFlags_RootWindow;
     using ::ImGuiFocusedFlags_AnyWindow;
     using ::ImGuiFocusedFlags_NoPopupHierarchy;
-    using ::ImGuiFocusedFlags_DockHierarchy;
     using ::ImGuiFocusedFlags_RootAndChildWindows;
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiFocusedFlags_DockHierarchy;
+#endif
 
     using ::ImGuiHoveredFlags_;
     using ::ImGuiHoveredFlags_None;
@@ -281,7 +280,6 @@ export {
     using ::ImGuiHoveredFlags_RootWindow;
     using ::ImGuiHoveredFlags_AnyWindow;
     using ::ImGuiHoveredFlags_NoPopupHierarchy;
-    using ::ImGuiHoveredFlags_DockHierarchy;
     using ::ImGuiHoveredFlags_AllowWhenBlockedByPopup;
     using ::ImGuiHoveredFlags_AllowWhenBlockedByActiveItem;
     using ::ImGuiHoveredFlags_AllowWhenOverlappedByItem;
@@ -297,6 +295,9 @@ export {
     using ::ImGuiHoveredFlags_DelayShort;
     using ::ImGuiHoveredFlags_DelayNormal;
     using ::ImGuiHoveredFlags_NoSharedDelay;
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiHoveredFlags_DockHierarchy;
+#endif
 
     using ::ImGuiInputFlags_;
     using ::ImGuiInputFlags_None;
@@ -347,6 +348,7 @@ export {
     using ::ImGuiItemFlags_ButtonRepeat;
     using ::ImGuiItemFlags_AutoClosePopups;
     using ::ImGuiItemFlags_AllowDuplicateId;
+    using ::ImGuiItemFlags_Disabled;
 
     using ::ImGuiKey;
     using ::ImGuiKey_None;
@@ -571,14 +573,15 @@ export {
     using ::ImGuiPopupFlags_MouseButtonLeft;
     using ::ImGuiPopupFlags_MouseButtonRight;
     using ::ImGuiPopupFlags_MouseButtonMiddle;
-    using ::ImGuiPopupFlags_MouseButtonMask_;
-    using ::ImGuiPopupFlags_MouseButtonDefault_;
     using ::ImGuiPopupFlags_NoReopen;
     using ::ImGuiPopupFlags_NoOpenOverExistingPopup;
     using ::ImGuiPopupFlags_NoOpenOverItems;
     using ::ImGuiPopupFlags_AnyPopupId;
     using ::ImGuiPopupFlags_AnyPopupLevel;
     using ::ImGuiPopupFlags_AnyPopup;
+    using ::ImGuiPopupFlags_MouseButtonShift_;
+    using ::ImGuiPopupFlags_MouseButtonMask_;
+    using ::ImGuiPopupFlags_InvalidMask_;
 
     using ::ImGuiSelectableFlags_;
     using ::ImGuiSelectableFlags_None;
@@ -604,6 +607,7 @@ export {
     using ::ImGuiSliderFlags_ClampOnInput;
     using ::ImGuiSliderFlags_ClampZeroRange;
     using ::ImGuiSliderFlags_NoSpeedTweaks;
+    using ::ImGuiSliderFlags_ColorMarkers;
     using ::ImGuiSliderFlags_AlwaysClamp;
     using ::ImGuiSliderFlags_InvalidMask_;
 
@@ -636,6 +640,7 @@ export {
     using ::ImGuiStyleVar_ScrollbarPadding;
     using ::ImGuiStyleVar_GrabMinSize;
     using ::ImGuiStyleVar_GrabRounding;
+    using ::ImGuiStyleVar_ImageRounding;
     using ::ImGuiStyleVar_ImageBorderSize;
     using ::ImGuiStyleVar_TabRounding;
     using ::ImGuiStyleVar_TabBorderSize;
@@ -652,8 +657,10 @@ export {
     using ::ImGuiStyleVar_SeparatorTextBorderSize;
     using ::ImGuiStyleVar_SeparatorTextAlign;
     using ::ImGuiStyleVar_SeparatorTextPadding;
-    using ::ImGuiStyleVar_DockingSeparatorSize;
     using ::ImGuiStyleVar_COUNT;
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiStyleVar_DockingSeparatorSize;
+#endif
 
     using ::ImGuiTabBarFlags_;
     using ::ImGuiTabBarFlags_None;
@@ -790,6 +797,7 @@ export {
     using ::ImGuiViewportFlags_IsPlatformWindow;
     using ::ImGuiViewportFlags_IsPlatformMonitor;
     using ::ImGuiViewportFlags_OwnedByApp;
+#ifdef IMGUI_HAS_DOCK
     using ::ImGuiViewportFlags_NoDecoration;
     using ::ImGuiViewportFlags_NoTaskBarIcon;
     using ::ImGuiViewportFlags_NoFocusOnAppearing;
@@ -801,6 +809,7 @@ export {
     using ::ImGuiViewportFlags_CanHostOtherWindows;
     using ::ImGuiViewportFlags_IsMinimized;
     using ::ImGuiViewportFlags_IsFocused;
+#endif
 
     using ::ImGuiWindowFlags_;
     using ::ImGuiWindowFlags_None;
@@ -823,16 +832,18 @@ export {
     using ::ImGuiWindowFlags_NoNavInputs;
     using ::ImGuiWindowFlags_NoNavFocus;
     using ::ImGuiWindowFlags_UnsavedDocument;
-    using ::ImGuiWindowFlags_NoDocking;
     using ::ImGuiWindowFlags_NoNav;
     using ::ImGuiWindowFlags_NoDecoration;
     using ::ImGuiWindowFlags_NoInputs;
-    using ::ImGuiWindowFlags_DockNodeHost;
     using ::ImGuiWindowFlags_ChildWindow;
     using ::ImGuiWindowFlags_Tooltip;
     using ::ImGuiWindowFlags_Popup;
     using ::ImGuiWindowFlags_Modal;
     using ::ImGuiWindowFlags_ChildMenu;
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiWindowFlags_NoDocking;
+    using ::ImGuiWindowFlags_DockNodeHost;
+#endif
 
     using ::ImTextureFormat;
     using ::ImTextureFormat_RGBA32;
@@ -844,6 +855,18 @@ export {
     using ::ImTextureStatus_WantCreate;
     using ::ImTextureStatus_WantUpdates;
     using ::ImTextureStatus_WantDestroy;
+
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiDockNodeFlags_;
+    using ::ImGuiDockNodeFlags_None;
+    using ::ImGuiDockNodeFlags_KeepAliveOnly;
+    using ::ImGuiDockNodeFlags_NoDockingOverCentralNode;
+    using ::ImGuiDockNodeFlags_PassthruCentralNode;
+    using ::ImGuiDockNodeFlags_NoDockingSplit;
+    using ::ImGuiDockNodeFlags_NoResize;
+    using ::ImGuiDockNodeFlags_AutoHideTabBar;
+    using ::ImGuiDockNodeFlags_NoUndocking;
+#endif
 
     // ----- Structs -----
 
@@ -871,7 +894,6 @@ export {
     using ::ImGuiPayload;
     using ::ImGuiPlatformIO;
     using ::ImGuiPlatformImeData;
-    using ::ImGuiPlatformMonitor;
     using ::ImGuiSelectionBasicStorage;
     using ::ImGuiSelectionExternalStorage;
     using ::ImGuiSelectionRequest;
@@ -884,13 +906,16 @@ export {
     using ::ImGuiTextBuffer;
     using ::ImGuiTextFilter;
     using ::ImGuiViewport;
-    using ::ImGuiWindowClass;
     using ::ImTextureData;
     using ::ImTextureRect;
     using ::ImTextureRef;
     using ::ImVec2;
     using ::ImVec4;
     using ::ImVector;
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiPlatformMonitor;
+    using ::ImGuiWindowClass;
+#endif
 
     // ----- Type aliases -----
 
@@ -911,7 +936,6 @@ export {
     using ::ImGuiCond;
     using ::ImGuiConfigFlags;
     using ::ImGuiDataType;
-    using ::ImGuiDockNodeFlags;
     using ::ImGuiDragDropFlags;
     using ::ImGuiFocusedFlags;
     using ::ImGuiHoveredFlags;
@@ -954,6 +978,9 @@ export {
     using ::ImWchar;
     using ::ImWchar16;
     using ::ImWchar32;
+#ifdef IMGUI_HAS_DOCK
+    using ::ImGuiDockNodeFlags;
+#endif
 
     // ----- Functions -----
 
@@ -1012,9 +1039,6 @@ namespace ImGui {
     using ImGui::DebugStartItemPicker;
     using ImGui::DebugTextEncoding;
     using ImGui::DestroyContext;
-    using ImGui::DestroyPlatformWindows;
-    using ImGui::DockSpace;
-    using ImGui::DockSpaceOverViewport;
     using ImGui::DragFloat;
     using ImGui::DragFloat2;
     using ImGui::DragFloat3;
@@ -1046,8 +1070,6 @@ namespace ImGui {
     using ImGui::EndTabItem;
     using ImGui::EndTable;
     using ImGui::EndTooltip;
-    using ImGui::FindViewportByID;
-    using ImGui::FindViewportByPlatformHandle;
     using ImGui::GetAllocatorFunctions;
     using ImGui::GetBackgroundDrawList;
     using ImGui::GetClipboardText;
@@ -1076,6 +1098,7 @@ namespace ImGui {
     using ImGui::GetFrameHeightWithSpacing;
     using ImGui::GetID;
     using ImGui::GetIO;
+    using ImGui::GetItemFlags;
     using ImGui::GetItemID;
     using ImGui::GetItemRectMax;
     using ImGui::GetItemRectMin;
@@ -1102,13 +1125,10 @@ namespace ImGui {
     using ImGui::GetTime;
     using ImGui::GetTreeNodeToLabelSpacing;
     using ImGui::GetVersion;
-    using ImGui::GetWindowDockID;
-    using ImGui::GetWindowDpiScale;
     using ImGui::GetWindowDrawList;
     using ImGui::GetWindowHeight;
     using ImGui::GetWindowPos;
     using ImGui::GetWindowSize;
-    using ImGui::GetWindowViewport;
     using ImGui::GetWindowWidth;
     using ImGui::Image;
     using ImGui::ImageButton;
@@ -1160,7 +1180,6 @@ namespace ImGui {
     using ImGui::IsRectVisible;
     using ImGui::IsWindowAppearing;
     using ImGui::IsWindowCollapsed;
-    using ImGui::IsWindowDocked;
     using ImGui::IsWindowFocused;
     using ImGui::IsWindowHovered;
     using ImGui::LabelText;
@@ -1206,7 +1225,6 @@ namespace ImGui {
     using ImGui::PushTextWrapPos;
     using ImGui::RadioButton;
     using ImGui::Render;
-    using ImGui::RenderPlatformWindowsDefault;
     using ImGui::ResetMouseDragDelta;
     using ImGui::SameLine;
     using ImGui::SaveIniSettingsToDisk;
@@ -1241,16 +1259,13 @@ namespace ImGui {
     using ImGui::SetNextItemStorageID;
     using ImGui::SetNextItemWidth;
     using ImGui::SetNextWindowBgAlpha;
-    using ImGui::SetNextWindowClass;
     using ImGui::SetNextWindowCollapsed;
     using ImGui::SetNextWindowContentSize;
-    using ImGui::SetNextWindowDockID;
     using ImGui::SetNextWindowFocus;
     using ImGui::SetNextWindowPos;
     using ImGui::SetNextWindowScroll;
     using ImGui::SetNextWindowSize;
     using ImGui::SetNextWindowSizeConstraints;
-    using ImGui::SetNextWindowViewport;
     using ImGui::SetScrollFromPosX;
     using ImGui::SetScrollFromPosY;
     using ImGui::SetScrollHereX;
@@ -1327,11 +1342,26 @@ namespace ImGui {
     using ImGui::TreePop;
     using ImGui::TreePush;
     using ImGui::Unindent;
-    using ImGui::UpdatePlatformWindows;
     using ImGui::VSliderFloat;
     using ImGui::VSliderInt;
     using ImGui::VSliderScalar;
     using ImGui::Value;
+#ifdef IMGUI_HAS_DOCK
+    using ImGui::DestroyPlatformWindows;
+    using ImGui::DockSpace;
+    using ImGui::DockSpaceOverViewport;
+    using ImGui::FindViewportByID;
+    using ImGui::FindViewportByPlatformHandle;
+    using ImGui::GetWindowDockID;
+    using ImGui::GetWindowDpiScale;
+    using ImGui::GetWindowViewport;
+    using ImGui::IsWindowDocked;
+    using ImGui::RenderPlatformWindowsDefault;
+    using ImGui::SetNextWindowClass;
+    using ImGui::SetNextWindowDockID;
+    using ImGui::SetNextWindowViewport;
+    using ImGui::UpdatePlatformWindows;
+#endif
 
     /**
      * @brief Use this for the replacement of <tt>IMGUI_CHECKVERSION()</tt>.
