@@ -208,6 +208,10 @@ void main(){
     N = normalize(variadic_in.tbn[2]);
 #endif
 
+    // Primitive might be back-faced (gl_FrontFacing == false) when its material is double-sided.
+    // In that case, the normal has to be flipped.
+    N = gl_FrontFacing ? N : -N;
+
     float occlusion = MATERIAL.occlusionStrength;
 #if TEXCOORD_COUNT >= 1
     vec2 occlusionTexcoord = getTexcoord(MATERIAL.occlusionTexcoordIndex);
@@ -240,11 +244,6 @@ void main(){
 
     vec3 V = normalize(camera.viewPositions[pc.viewIndex] - inPosition);
     float NdotV = dot(N, V);
-    // If normal is not facing the camera, normal have to be flipped.
-    if (NdotV < 0.0) {
-        N = -N;
-        NdotV = -NdotV;
-    }
     vec3 R = reflect(-V, N);
 
     float dielectric_f0 = (MATERIAL.ior - 1.0) / (MATERIAL.ior + 1.0);
