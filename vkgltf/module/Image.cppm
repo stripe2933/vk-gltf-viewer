@@ -578,12 +578,24 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, const vma::raii::Alloca
         .extent = { texture->baseWidth, texture->baseHeight },
         .format = static_cast<vk::Format>(texture->vkFormat),
         .mipLevels = texture->numLevels,
-        .data = [&] {
+        .data = [&] -> std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
             if (allocator) {
-                std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> resultVariant {
-                    std::in_place_index<0>,
-                    std::piecewise_construct,
-                    std::forward_as_tuple(
+                std::vector<vk::BufferImageCopy> copyRegions;
+                copyRegions.reserve(texture->numLevels);
+                for (std::uint32_t level = 0; level < texture->numLevels; ++level) {
+                    ktx_size_t offset;
+                    if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
+                        throw std::runtime_error { ktxErrorString(result) };
+                    }
+
+                    copyRegions.push_back(vk::BufferImageCopy {
+                        offset, 0, 0,
+                        vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
+                        vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
+                    });
+                }
+                std::pair result {
+                    vku::raii::AllocatedBuffer {
                         *allocator,
                         vk::BufferCreateInfo {
                             {},
@@ -593,50 +605,37 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, const vma::raii::Alloca
                         vma::AllocationCreateInfo {
                             vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
                             vma::MemoryUsage::eAutoPreferHost,
-                        }),
-                    std::forward_as_tuple(
-                        std::from_range,
-                        std::views::iota(std::uint32_t{}, texture->numLevels)
-                            | std::views::transform([&](std::uint32_t level) {
-                                ktx_size_t offset;
-                                if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
-                                    throw std::runtime_error { ktxErrorString(result) };
-                                }
-
-                                return vk::BufferImageCopy {
-                                    offset, 0, 0,
-                                    vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
-                                    vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
-                                };
-                            })),
+                        },
+                    },
+                    std::move(copyRegions),
                 };
 
                 // Copy texture data to the staging buffer.
-                get_if<0>(&resultVariant)->first.getAllocation().copyFromMemory(ktxTexture_GetData(ktxTexture(texture)), 0, get_if<0>(&resultVariant)->first.size);
+                result.first.getAllocation().copyFromMemory(ktxTexture_GetData(ktxTexture(texture)), 0, result.first.size);
 
                 // As data is copied, the texture can be destroyed.
                 ktxTexture_Destroy(ktxTexture(texture));
 
-                return resultVariant;
+                return std::move(result);
             }
             else {
-                return std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
-                    std::in_place_index<1>,
-                    std::from_range,
-                    std::views::iota(std::uint32_t{}, texture->numLevels)
-                        | std::views::transform([&, data = ktxTexture_GetData(ktxTexture(texture))](std::uint32_t level) {
-                            ktx_size_t offset;
-                            if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
-                                throw std::runtime_error { ktxErrorString(result) };
-                            }
+                std::vector<vk::MemoryToImageCopy> copies;
+                copies.reserve(texture->numLevels);
+                const ktx_uint8_t* const data = ktxTexture_GetData(ktxTexture(texture));
+                for (std::uint32_t level = 0; level < texture->numLevels; ++level) {
+                    ktx_size_t offset;
+                    if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
+                        throw std::runtime_error { ktxErrorString(result) };
+                    }
 
-                            return vk::MemoryToImageCopy {
-                                data + offset, 0, 0,
-                                vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
-                                vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
-                            };
-                        }),
-                };
+                    copies.push_back({
+                        data + offset, 0, 0,
+                        vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
+                        vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
+                    });
+
+                }
+                return std::move(copies);
             }
         }(),
         .hostBackedData = allocator ? nullptr : texture,

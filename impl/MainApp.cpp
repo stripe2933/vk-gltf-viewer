@@ -5,6 +5,7 @@ module;
 #include <filesystem>
 #endif
 
+#include <boost/container/static_vector.hpp>
 #include <GLFW/glfw3.h>
 #include <IconsFontAwesome4.h>
 #ifdef _WIN32
