@@ -6,7 +6,7 @@ export module vk_gltf_viewer.vulkan.pipeline.WeightedBlendedCompositionRenderPip
 
 import std;
 import vku;
-export import vulkan_hpp;
+export import vulkan;
 
 import vk_gltf_viewer.shader.screen_quad_vert;
 import vk_gltf_viewer.shader.weighted_blended_composition_frag;

@@ -38,8 +38,8 @@ namespace ibl {
 
         PrefilteredmapComputePipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
-            const vku::Image &cubemapImage LIFETIMEBOUND,
-            const vku::Image &prefilteredmapImage LIFETIMEBOUND,
+            const vku::Image &cubemapImage,
+            const vku::raii::AllocatedImage &prefilteredmapImage LIFETIMEBOUND,
             const Config &config = {
                 .useShaderImageLoadStoreLod = false,
                 .specializationConstants = {
@@ -48,8 +48,8 @@ namespace ibl {
             }
         );
 
-        void setCubemapImage(const vku::Image &cubemapImage LIFETIME_CAPTURE_BY(this));
-        void setPrefilteredmapImage(const vku::Image &prefilteredmapImage LIFETIME_CAPTURE_BY(this));
+        void setCubemapImage(const vku::Image &cubemapImage);
+        void setPrefilteredmapImage(const vku::raii::AllocatedImage &prefilteredmapImage LIFETIME_CAPTURE_BY(this));
 
         void recordCommands(vk::CommandBuffer computeCommandBuffer) const;
 
@@ -58,7 +58,7 @@ namespace ibl {
 
         Config config;
         std::reference_wrapper<const vk::raii::Device> device;
-        std::reference_wrapper<const vku::Image> prefilteredmapImage;
+        std::reference_wrapper<const vku::raii::AllocatedImage> prefilteredmapImage;
         vk::raii::Sampler cubemapSampler;
         vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> descriptorSetLayout;
         vk::raii::PipelineLayout pipelineLayout;
@@ -83,9 +83,9 @@ struct ibl::PrefilteredmapComputePipeline::PushConstant {
 };
 
 ibl::PrefilteredmapComputePipeline::PrefilteredmapComputePipeline(
-    const vk::raii::Device &device LIFETIMEBOUND,
-    const vku::Image &cubemapImage LIFETIMEBOUND,
-    const vku::Image &prefilteredmapImage LIFETIMEBOUND,
+    const vk::raii::Device &device,
+    const vku::Image &cubemapImage,
+    const vku::raii::AllocatedImage &prefilteredmapImage,
     const Config &config
 ) : config { config },
     device { device },
@@ -97,11 +97,11 @@ ibl::PrefilteredmapComputePipeline::PrefilteredmapComputePipeline(
     cubemapImageView { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) },
     prefilteredmapMipImageViews { createPrefilteredmapMipImageViews() } { }
 
-void ibl::PrefilteredmapComputePipeline::setCubemapImage(const vku::Image &cubemapImage LIFETIME_CAPTURE_BY(this)) {
+void ibl::PrefilteredmapComputePipeline::setCubemapImage(const vku::Image &cubemapImage) {
     cubemapImageView = { device, cubemapImage.getViewCreateInfo(vk::ImageViewType::eCube) };
 }
 
-void ibl::PrefilteredmapComputePipeline::setPrefilteredmapImage(const vku::Image &prefilteredmapImage LIFETIME_CAPTURE_BY(this)) {
+void ibl::PrefilteredmapComputePipeline::setPrefilteredmapImage(const vku::raii::AllocatedImage &prefilteredmapImage) {
     const bool descriptorSetLayoutChanged = !config.useShaderImageLoadStoreLod && (this->prefilteredmapImage.get().mipLevels != prefilteredmapImage.mipLevels);
     this->prefilteredmapImage = prefilteredmapImage;
     if (descriptorSetLayoutChanged) {

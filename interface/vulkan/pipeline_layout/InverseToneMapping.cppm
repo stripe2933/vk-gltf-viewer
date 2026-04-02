@@ -7,7 +7,7 @@ export module vk_gltf_viewer.vulkan.pipeline_layout.InverseToneMapping;
 #ifdef _MSC_VER
 import std;
 #endif
-export import vulkan_hpp;
+export import vulkan;
 import vku;
 
 export import vk_gltf_viewer.vulkan.descriptor_set_layout.InverseToneMapping;

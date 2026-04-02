@@ -7,7 +7,7 @@ export module vk_gltf_viewer.vulkan.sampler.Cubemap;
 #ifdef _MSC_VER
 import std;
 #endif
-export import vulkan_hpp;
+export import vulkan;
 
 namespace vk_gltf_viewer::vulkan::sampler {
     export struct Cubemap : vk::raii::Sampler {

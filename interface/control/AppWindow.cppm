@@ -10,7 +10,7 @@ export module vk_gltf_viewer.control.AppWindow;
 import std;
 import fmt;
 export import glm;
-export import vulkan_hpp;
+export import vulkan;
 
 export import vk_gltf_viewer.control.Task;
 

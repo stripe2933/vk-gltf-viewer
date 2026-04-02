@@ -1,6 +1,8 @@
 ﻿cmake_minimum_required (VERSION 3.30)
 
-if (CMAKE_VERSION VERSION_GREATER_EQUAL "4.0.3")
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "4.3.0")
+    set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "451f2fe2-a8a2-47c3-bc32-94786d8fc91b")
+elseif (CMAKE_VERSION VERSION_GREATER_EQUAL "4.0.3")
     set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "d0edc3af-4c50-42ea-a356-e2862fe7a444")
 elseif (CMAKE_VERSION VERSION_GREATER_EQUAL "4.0.1")
     set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "a9e1cf81-9932-4810-974b-6eccaf14e457")
@@ -93,11 +95,13 @@ add_library(vku_module)
 target_sources(vku_module PUBLIC
     FILE_SET CXX_MODULES
     BASE_DIRS
+        ${Vulkan_INCLUDE_DIRS}/vulkan
         ${VulkanMemoryAllocator_Hpp_INCLUDE_DIR}/vulkan-memory-allocator-hpp
         extlibs/module-ports
     FILES
+        ${Vulkan_INCLUDE_DIRS}/vulkan/vulkan.cppm
+        ${Vulkan_INCLUDE_DIRS}/vulkan/vulkan_video.cppm
         ${VulkanMemoryAllocator_Hpp_INCLUDE_DIR}/vulkan-memory-allocator-hpp/vk_mem_alloc.cppm
-        extlibs/module-ports/vulkan.cppm
         extlibs/module-ports/vku.cppm
 )
 target_compile_definitions(vku_module

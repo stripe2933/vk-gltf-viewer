@@ -32,13 +32,13 @@ struct StagingData {
     std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> data;
     void *hostBackedData;
 
-    [[nodiscard]] static StagingData fromJpgPng(const char *path, const std::function<vk::Format(int)> &formatFn, vma::Allocator *allocator);
-    [[nodiscard]] static StagingData fromJpgPng(std::span<const std::byte> memory, const std::function<vk::Format(int)> &formatFn, vma::Allocator *allocator);
-    [[nodiscard]] static StagingData fromJpgPng(const vk::Extent2D &extent, stbi_uc* &&data, vk::Format format, vma::Allocator *allocator);
+    [[nodiscard]] static StagingData fromJpgPng(const char *path, const std::function<vk::Format(int)> &formatFn, const vma::raii::Allocator *allocator);
+    [[nodiscard]] static StagingData fromJpgPng(std::span<const std::byte> memory, const std::function<vk::Format(int)> &formatFn, const vma::raii::Allocator *allocator);
+    [[nodiscard]] static StagingData fromJpgPng(const vk::Extent2D &extent, stbi_uc* &&data, vk::Format format, const vma::raii::Allocator *allocator);
 #ifdef USE_KTX
-    [[nodiscard]] static StagingData fromKtx(const char *path, vma::Allocator *allocator);
-    [[nodiscard]] static StagingData fromKtx(std::span<const std::byte> memory, vma::Allocator *allocator);
-    [[nodiscard]] static StagingData fromKtx(ktxTexture2* &&texture, vma::Allocator *allocator);
+    [[nodiscard]] static StagingData fromKtx(const char *path, const vma::raii::Allocator *allocator);
+    [[nodiscard]] static StagingData fromKtx(std::span<const std::byte> memory, const vma::raii::Allocator *allocator);
+    [[nodiscard]] static StagingData fromKtx(ktxTexture2* &&texture, const vma::raii::Allocator *allocator);
 #endif
 
     void destroyHostBackedData() noexcept;
@@ -197,7 +197,7 @@ namespace vkgltf {
             const fastgltf::Image &image,
             const std::filesystem::path &directory,
             const vk::raii::Device &device,
-            vma::Allocator allocator,
+            const vma::raii::Allocator &allocator,
             const Config<BufferDataAdapter> &config = {}
         ) : image { createImage(asset, image, directory, device, allocator, config) },
             view { device, this->image.getViewCreateInfo(vk::ImageViewType::e2D).setComponents(getComponentMapping(componentCount(this->image.format))) } { }
@@ -209,10 +209,10 @@ namespace vkgltf {
             const fastgltf::Image &image,
             const std::filesystem::path &directory,
             const vk::raii::Device &device,
-            vma::Allocator allocator,
+            const vma::raii::Allocator &allocator,
             const Config<BufferDataAdapter> &config
         ) {
-            vma::Allocator* const nullableAllocator = config.stagingInfo ? &allocator : nullptr;
+            const vma::raii::Allocator* const nullableAllocator = config.stagingInfo ? &allocator : nullptr;
             StagingData stagingData = visit(fastgltf::visitor {
                 [&]<one_of<fastgltf::sources::Array, fastgltf::sources::ByteView, fastgltf::sources::BufferView> T>(const T &embedded) {
                     std::span<const std::byte> memory;
@@ -444,7 +444,7 @@ module :private;
 StagingData StagingData::fromJpgPng(
     const char *path,
     const std::function<vk::Format(int)> &formatFn,
-    vma::Allocator *allocator
+    const vma::raii::Allocator *allocator
 ) {
     int width, height, channels;
     if (!stbi_info(path, &width, &height, &channels)) {
@@ -465,7 +465,7 @@ StagingData StagingData::fromJpgPng(
 StagingData StagingData::fromJpgPng(
     std::span<const std::byte> memory,
     const std::function<vk::Format(int)> &formatFn,
-    vma::Allocator *allocator
+    const vma::raii::Allocator *allocator
 ) {
     int width, height, channels;
     if (!stbi_info_from_memory(reinterpret_cast<stbi_uc const *>(memory.data()), memory.size_bytes(), &width, &height, &channels)) {
@@ -485,7 +485,7 @@ StagingData StagingData::fromJpgPng(
     return fromJpgPng({ static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) }, std::move(data), format, allocator);
 }
 
-StagingData StagingData::fromJpgPng(const vk::Extent2D &extent, stbi_uc *&&data, vk::Format format, vma::Allocator *allocator) {
+StagingData StagingData::fromJpgPng(const vk::Extent2D &extent, stbi_uc *&&data, vk::Format format, const vma::raii::Allocator *allocator) {
     StagingData result {
         .extent = extent,
         .format = format,
@@ -515,7 +515,7 @@ StagingData StagingData::fromJpgPng(const vk::Extent2D &extent, stbi_uc *&&data,
                     }),
                 };
 
-                allocator->copyMemoryToAllocation(data, get_if<0>(&result)->first.allocation, 0, get_if<0>(&result)->first.size);
+                get_if<0>(&result)->first.getAllocation().copyFromMemory(data, 0, get_if<0>(&result)->first.size);
                 stbi_image_free(data);
 
                 return result;
@@ -540,7 +540,7 @@ StagingData StagingData::fromJpgPng(const vk::Extent2D &extent, stbi_uc *&&data,
 }
 
 #ifdef USE_KTX
-StagingData StagingData::fromKtx(const char *path, vma::Allocator *allocator) {
+StagingData StagingData::fromKtx(const char *path, const vma::raii::Allocator *allocator) {
     ktxTexture2 *texture;
     KTX_error_code result = ktxTexture2_CreateFromNamedFile(path, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);
     if (result != KTX_SUCCESS) {
@@ -550,7 +550,7 @@ StagingData StagingData::fromKtx(const char *path, vma::Allocator *allocator) {
     return fromKtx(std::move(texture), allocator);
 }
 
-StagingData StagingData::fromKtx(std::span<const std::byte> memory, vma::Allocator *allocator) {
+StagingData StagingData::fromKtx(std::span<const std::byte> memory, const vma::raii::Allocator *allocator) {
     ktxTexture2 *texture;
     KTX_error_code result = ktxTexture2_CreateFromMemory(
         reinterpret_cast<const ktx_uint8_t*>(memory.data()), memory.size_bytes(),
@@ -562,7 +562,7 @@ StagingData StagingData::fromKtx(std::span<const std::byte> memory, vma::Allocat
     return fromKtx(std::move(texture), allocator);
 }
 
-StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocator) {
+StagingData StagingData::fromKtx(ktxTexture2 *&&texture, const vma::raii::Allocator *allocator) {
     // Transcode the texture to BC7 format if needed.
     if (ktxTexture2_NeedsTranscoding(texture)) {
         // TODO: As glTF specification says, transfer function should be KHR_DF_TRANSFER_SRGB, but
@@ -578,12 +578,24 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocat
         .extent = { texture->baseWidth, texture->baseHeight },
         .format = static_cast<vk::Format>(texture->vkFormat),
         .mipLevels = texture->numLevels,
-        .data = [&] {
+        .data = [&] -> std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
             if (allocator) {
-                std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> resultVariant {
-                    std::in_place_index<0>,
-                    std::piecewise_construct,
-                    std::forward_as_tuple(
+                std::vector<vk::BufferImageCopy> copyRegions;
+                copyRegions.reserve(texture->numLevels);
+                for (std::uint32_t level = 0; level < texture->numLevels; ++level) {
+                    ktx_size_t offset;
+                    if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
+                        throw std::runtime_error { ktxErrorString(result) };
+                    }
+
+                    copyRegions.push_back(vk::BufferImageCopy {
+                        offset, 0, 0,
+                        vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
+                        vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
+                    });
+                }
+                std::pair result {
+                    vku::raii::AllocatedBuffer {
                         *allocator,
                         vk::BufferCreateInfo {
                             {},
@@ -593,52 +605,37 @@ StagingData StagingData::fromKtx(ktxTexture2 *&&texture, vma::Allocator *allocat
                         vma::AllocationCreateInfo {
                             vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
                             vma::MemoryUsage::eAutoPreferHost,
-                        }),
-                    std::forward_as_tuple(
-                        std::from_range,
-                        std::views::iota(std::uint32_t{}, texture->numLevels)
-                            | std::views::transform([&](std::uint32_t level) {
-                                ktx_size_t offset;
-                                if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
-                                    throw std::runtime_error { ktxErrorString(result) };
-                                }
-
-                                return vk::BufferImageCopy {
-                                    offset, 0, 0,
-                                    vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
-                                    vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
-                                };
-                            })),
+                        },
+                    },
+                    std::move(copyRegions),
                 };
 
                 // Copy texture data to the staging buffer.
-                allocator->copyMemoryToAllocation(
-                    ktxTexture_GetData(ktxTexture(texture)), get_if<0>(&resultVariant)->first.allocation,
-                    0, get_if<0>(&resultVariant)->first.size);
+                result.first.getAllocation().copyFromMemory(ktxTexture_GetData(ktxTexture(texture)), 0, result.first.size);
 
                 // As data is copied, the texture can be destroyed.
                 ktxTexture_Destroy(ktxTexture(texture));
 
-                return resultVariant;
+                return std::move(result);
             }
             else {
-                return std::variant<std::pair<vku::raii::AllocatedBuffer, std::vector<vk::BufferImageCopy>>, std::vector<vk::MemoryToImageCopy>> {
-                    std::in_place_index<1>,
-                    std::from_range,
-                    std::views::iota(std::uint32_t{}, texture->numLevels)
-                        | std::views::transform([&, data = ktxTexture_GetData(ktxTexture(texture))](std::uint32_t level) {
-                            ktx_size_t offset;
-                            if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
-                                throw std::runtime_error { ktxErrorString(result) };
-                            }
+                std::vector<vk::MemoryToImageCopy> copies;
+                copies.reserve(texture->numLevels);
+                const ktx_uint8_t* const data = ktxTexture_GetData(ktxTexture(texture));
+                for (std::uint32_t level = 0; level < texture->numLevels; ++level) {
+                    ktx_size_t offset;
+                    if (KTX_error_code result = ktxTexture_GetImageOffset(ktxTexture(texture), level, 0, 0, &offset); result != KTX_SUCCESS) {
+                        throw std::runtime_error { ktxErrorString(result) };
+                    }
 
-                            return vk::MemoryToImageCopy {
-                                data + offset, 0, 0,
-                                vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
-                                vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
-                            };
-                        }),
-                };
+                    copies.push_back({
+                        data + offset, 0, 0,
+                        vk::ImageSubresourceLayers { vk::ImageAspectFlagBits::eColor, level, 0, 1 },
+                        vk::Offset3D{}, vk::Extent3D { vku::mipExtent(vk::Extent2D { texture->baseWidth, texture->baseHeight }, level), 1 },
+                    });
+
+                }
+                return std::move(copies);
             }
         }(),
         .hostBackedData = allocator ? nullptr : texture,

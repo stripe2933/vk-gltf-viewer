@@ -26,7 +26,7 @@ jobs:
           - { os: 'ubuntu-latest', compiler: 'clang' }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install MinGW Clang (Windows + MinGW Clang)
         if: ${{ runner.os == 'Windows' && matrix.compiler == 'mingw-clang' }}
@@ -34,7 +34,7 @@ jobs:
 
       - name: Install build dependencies (macOS)
         if: ${{ runner.os == 'macOS' }}
-        run: brew install llvm mono autoconf automake libtool nasm molten-vk
+        run: brew install llvm mono autoconf autoconf-archive automake libtool nasm molten-vk
 
       - name: Install build dependencies (Linux)
         if: ${{ runner.os == 'Linux' }}
@@ -76,7 +76,7 @@ jobs:
         run: cmake --build build --config release
 
       - name: Upload Binary as Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ runner.os }}_${{ runner.arch }}_${{ matrix.compiler }}
           path: |

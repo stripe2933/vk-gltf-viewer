@@ -149,7 +149,7 @@ namespace vkgltf {
             const fastgltf::Asset &asset,
             const std::unordered_map<const fastgltf::Primitive*, PrimitiveAttributeBuffers> &primitiveAttributes,
             const vk::raii::Device &device,
-            vma::Allocator allocator,
+            const vma::raii::Allocator &allocator,
             const Config &config = {
                 .materialIndexFn = Config::DefaultMaterialIndexFn{},
                 .usageFlags = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
@@ -192,7 +192,7 @@ namespace vkgltf {
         PrimitiveBuffer(
             const std::unordered_map<const fastgltf::Primitive*, PrimitiveAttributeBuffers> &primitiveAttributes,
             const vk::raii::Device &device,
-            vma::Allocator allocator,
+            const vma::raii::Allocator &allocator,
             const Config &config,
             IData &&intermediateData
         );
@@ -207,7 +207,7 @@ vkgltf::PrimitiveBuffer::PrimitiveBuffer(
     const fastgltf::Asset &asset,
     const std::unordered_map<const fastgltf::Primitive*, PrimitiveAttributeBuffers> &primitiveAttributes,
     const vk::raii::Device &device,
-    vma::Allocator allocator,
+    const vma::raii::Allocator &allocator,
     const Config &config
 ) : PrimitiveBuffer { primitiveAttributes, device, allocator, config, IData { asset, primitiveAttributes } } { }
 
@@ -260,7 +260,7 @@ vkgltf::PrimitiveBuffer::IData::IData(
 vkgltf::PrimitiveBuffer::PrimitiveBuffer(
     const std::unordered_map<const fastgltf::Primitive*, PrimitiveAttributeBuffers> &primitiveAttributes,
     const vk::raii::Device &device,
-    vma::Allocator allocator,
+    const vma::raii::Allocator &allocator,
     const Config &config,
     IData &&intermediateData
 ) : AllocatedBuffer {
@@ -277,8 +277,7 @@ vkgltf::PrimitiveBuffer::PrimitiveBuffer(
     },
     descriptorInfo { *this, 0, sizeof(shader_type::Primitive) * intermediateData.orderedPrimitives.size() },
     orderedPrimitives { std::move(intermediateData.orderedPrimitives) } {
-    vma::Allocation mappedAllocation = allocation;
-    std::byte* mapped = static_cast<std::byte*>(allocator.getAllocationInfo(mappedAllocation).pMappedData);
+    std::byte* mapped = static_cast<std::byte*>(getAllocation().getInfo().pMappedData);
     mappedData = { reinterpret_cast<shader_type::Primitive*>(mapped), orderedPrimitives.size() };
 
     if (config.stagingInfo && config.stagingInfo->stage(*this, config.usageFlags, config.queueFamilies)) {
@@ -345,10 +344,7 @@ vkgltf::PrimitiveBuffer::PrimitiveBuffer(
             return result;
         });
 
-    if (!vku::contains(allocator.getAllocationMemoryProperties(mappedAllocation), vk::MemoryPropertyFlagBits::eHostCoherent)) {
-        // Created buffer is non-coherent. Flush the mapped memory range.
-        allocator.flushAllocation(mappedAllocation, 0, size);
-    }
+    getAllocation().flush(0, vk::WholeSize);
 
     for (std::size_t i = 0; const fastgltf::Primitive *primitive : orderedPrimitives) {
         primitiveIndices[primitive] = i++;

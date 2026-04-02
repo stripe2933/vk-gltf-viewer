@@ -34,11 +34,11 @@ namespace cubemap {
 
         SubgroupMipmapComputePipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
-            const vku::Image &image LIFETIMEBOUND,
+            const vku::raii::AllocatedImage &image LIFETIMEBOUND,
             const Config &config
         );
 
-        void setImage(const vku::Image &image LIFETIME_CAPTURE_BY(this));
+        void setImage(const vku::raii::AllocatedImage &image LIFETIME_CAPTURE_BY(this));
 
         void recordCommands(vk::CommandBuffer computeCommandBuffer) const;
 
@@ -48,7 +48,7 @@ namespace cubemap {
         Config config;
 
         std::reference_wrapper<const vk::raii::Device> device;
-        std::reference_wrapper<const vku::Image> image;
+        std::reference_wrapper<const vku::raii::AllocatedImage> image;
 
         vk::raii::Sampler linearSampler;
         vku::raii::DescriptorSetLayout<vk::DescriptorType::eCombinedImageSampler, vk::DescriptorType::eStorageImage> descriptorSetLayout;
@@ -75,7 +75,7 @@ struct cubemap::SubgroupMipmapComputePipeline::PushConstant {
 
 cubemap::SubgroupMipmapComputePipeline::SubgroupMipmapComputePipeline(
     const vk::raii::Device &device,
-    const vku::Image &image,
+    const vku::raii::AllocatedImage &image,
     const Config &config
 ) : config { config },
     device { device },
@@ -87,7 +87,7 @@ cubemap::SubgroupMipmapComputePipeline::SubgroupMipmapComputePipeline(
     imageView { device, image.getViewCreateInfo(vk::ImageViewType::e2DArray) },
     mipImageViews { createMipImageViews() } { }
 
-void cubemap::SubgroupMipmapComputePipeline::setImage(const vku::Image &image) {
+void cubemap::SubgroupMipmapComputePipeline::setImage(const vku::raii::AllocatedImage &image) {
     const bool descriptorSetLayoutChanged = !config.useShaderImageLoadStoreLod && (this->image.get().mipLevels != image.mipLevels);
     this->image = image;
     if (descriptorSetLayoutChanged) {

@@ -6,16 +6,6 @@ module vk_gltf_viewer.vulkan.Gpu;
 
 import vk_gltf_viewer.helpers.ranges;
 
-#ifdef _MSC_VER
-// FIXME: MSVC is not recognizing vk::StructureChain as a tuple-like type. Remove it when fixed.
-
-template <typename... Ts>
-struct std::tuple_size<vk::StructureChain<Ts...>> : std::integral_constant<std::size_t, sizeof...(Ts)> {};
-
-template <std::size_t I, typename... Ts>
-struct std::tuple_element<I, vk::StructureChain<Ts...>> : std::tuple_element<I, std::tuple<Ts...>> {};
-#endif
-
 constexpr std::array requiredExtensions {
 #if __APPLE__
     vk::KHRPortabilitySubsetExtensionName,
@@ -107,12 +97,20 @@ vk_gltf_viewer::vulkan::Queues::Queues(vk::Device device, const QueueFamilies& q
 vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::SurfaceKHR surface)
     : physicalDevice { selectPhysicalDevice(instance, surface) }
     , queueFamilies { physicalDevice, surface }
-    , allocator { createAllocator(instance) } {
+    , allocator { instance, device, vma::AllocatorCreateInfo {
+        vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
+        *physicalDevice, {},
+        {}, {}, {}, {}, {},
+        {}, vk::makeApiVersion(0, 1, 2, 0),
+    } } {
     // Retrieve physical device properties.
-    const auto [props2, subgroupProps, descriptorIndexingProps] = physicalDevice.getProperties2<
+    const auto /*[props2, subgroupProps, descriptorIndexingProps]*/props = physicalDevice.getProperties2<
         vk::PhysicalDeviceProperties2,
         vk::PhysicalDeviceSubgroupProperties,
         vk::PhysicalDeviceDescriptorIndexingProperties>();
+    const vk::PhysicalDeviceProperties2 &props2 = props.get<vk::PhysicalDeviceProperties2>();
+    const vk::PhysicalDeviceSubgroupProperties &subgroupProps = props.get<vk::PhysicalDeviceSubgroupProperties>();
+    const vk::PhysicalDeviceDescriptorIndexingProperties &descriptorIndexingProps = props.get<vk::PhysicalDeviceDescriptorIndexingProperties>();
     subgroupSize = subgroupProps.subgroupSize;
     maxPerStageDescriptorUpdateAfterBindSamplers = descriptorIndexingProps.maxPerStageDescriptorUpdateAfterBindSamplers;
     maxPerStageDescriptorUpdateAfterBindSampledImages = descriptorIndexingProps.maxPerStageDescriptorUpdateAfterBindSampledImages;
@@ -131,10 +129,6 @@ vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::Surface
             workaround.depthStencilResolveDifferentFormat = true;
             break;
     }
-}
-
-vk_gltf_viewer::vulkan::Gpu::~Gpu() {
-    allocator.destroy();
 }
 
 vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance &instance, vk::SurfaceKHR surface) const {
@@ -169,7 +163,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
         }
 
         // Check physical device feature availability.
-        const auto [features2, vulkan11Features, vulkan12Features, dynamicRenderingFeatures, synchronization2Features, extendedDynamicStateFeatures]
+        const auto /*[features2, vulkan11Features, vulkan12Features, dynamicRenderingFeatures, synchronization2Features, extendedDynamicStateFeatures]*/features
             = physicalDevice.getFeatures2<
                 vk::PhysicalDeviceFeatures2,
                 vk::PhysicalDeviceVulkan11Features,
@@ -177,6 +171,12 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
                 vk::PhysicalDeviceDynamicRenderingFeatures,
                 vk::PhysicalDeviceSynchronization2Features,
                 vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
+        const vk::PhysicalDeviceFeatures2 &features2 = features.get<vk::PhysicalDeviceFeatures2>();
+        const vk::PhysicalDeviceVulkan11Features &vulkan11Features = features.get<vk::PhysicalDeviceVulkan11Features>();
+        const vk::PhysicalDeviceVulkan12Features &vulkan12Features = features.get<vk::PhysicalDeviceVulkan12Features>();
+        const vk::PhysicalDeviceDynamicRenderingFeatures &dynamicRenderingFeatures = features.get<vk::PhysicalDeviceDynamicRenderingFeatures>();
+        const vk::PhysicalDeviceSynchronization2Features &synchronization2Features = features.get<vk::PhysicalDeviceSynchronization2Features>();
+        const vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT &extendedDynamicStateFeatures = features.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
         if (!features2.features.depthClamp ||
             !features2.features.drawIndirectFirstInstance ||
             !features2.features.samplerAnisotropy ||
@@ -259,10 +259,12 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     supportShaderStencilExport = availableExtensionNames.contains(vk::EXTShaderStencilExportExtensionName);
 
     // Set optional features if available.
-    const auto [_, vulkan12Features, indexTypeUint8Features] = physicalDevice.getFeatures2<
+    const auto /*[_, vulkan12Features, indexTypeUint8Features]*/features2 = physicalDevice.getFeatures2<
         vk::PhysicalDeviceFeatures2,
         vk::PhysicalDeviceVulkan12Features,
         vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
+    const vk::PhysicalDeviceVulkan12Features &vulkan12Features = features2.get<vk::PhysicalDeviceVulkan12Features>();
+    const vk::PhysicalDeviceIndexTypeUint8FeaturesKHR &indexTypeUint8Features = features2.get<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
 
     supportShaderBufferInt64Atomics = vulkan12Features.shaderBufferInt64Atomics;
     supportDrawIndirectCount = vulkan12Features.drawIndirectCount;
@@ -276,9 +278,9 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
 #endif
 
     if (availableExtensionNames.contains(vk::EXTExtendedDynamicStateExtensionName)) {
-        const auto [_, extendedDynamicState3Props] = physicalDevice.getProperties2<
+        const auto /*[_, extendedDynamicState3Props]*/extendedDynamicState3Props = physicalDevice.getProperties2<
             vk::PhysicalDeviceProperties2,
-            vk::PhysicalDeviceExtendedDynamicState3PropertiesEXT>();
+            vk::PhysicalDeviceExtendedDynamicState3PropertiesEXT>().get<vk::PhysicalDeviceExtendedDynamicState3PropertiesEXT>();
         supportDynamicPrimitiveTopologyUnrestricted = extendedDynamicState3Props.dynamicPrimitiveTopologyUnrestricted;
     }
 
@@ -358,17 +360,4 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     vk::raii::Device device { physicalDevice, createInfo.get() };
     VULKAN_HPP_DEFAULT_DISPATCHER.init(*device);
     return device;
-}
-
-vma::Allocator vk_gltf_viewer::vulkan::Gpu::createAllocator(const vk::raii::Instance &instance) const {
-    return vma::createAllocator(vma::AllocatorCreateInfo {
-        vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
-        *physicalDevice, *device,
-        {}, {}, {}, {},
-        &vku::lvalue(vma::VulkanFunctions{
-            instance.getDispatcher()->vkGetInstanceProcAddr,
-            device.getDispatcher()->vkGetDeviceProcAddr,
-        }),
-        *instance, vk::makeApiVersion(0, 1, 2, 0),
-    });
 }

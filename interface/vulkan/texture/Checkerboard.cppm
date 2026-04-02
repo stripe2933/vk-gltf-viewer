@@ -70,7 +70,7 @@ vk_gltf_viewer::vulkan::texture::Checkerboard::Checkerboard(const Gpu &gpu)
             vma::MemoryUsage::eAutoPreferHost,
         },
     };
-    gpu.allocator.copyMemoryToAllocation(data, stagingBuffer.allocation, 0, sizeof(data));
+    stagingBuffer.getAllocation().copyFromMemory(data, 0, sizeof(data));
 
     vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
     vk::raii::Fence fence { gpu.device, vk::FenceCreateInfo{} };

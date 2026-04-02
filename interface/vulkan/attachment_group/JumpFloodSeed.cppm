@@ -15,7 +15,7 @@ namespace vk_gltf_viewer::vulkan::ag {
         vku::raii::AllocatedImage depthImage;
         vk::raii::ImageView depthImageView;
 
-        JumpFloodSeed(const Gpu &gpu LIFETIMEBOUND, const vku::Image &seedImage LIFETIMEBOUND, std::uint32_t viewCount);
+        JumpFloodSeed(const Gpu &gpu LIFETIMEBOUND, const vku::Image &seedImage, std::uint32_t viewCount);
     };
 }
 

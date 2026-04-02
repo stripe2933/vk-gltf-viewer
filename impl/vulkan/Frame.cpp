@@ -76,7 +76,7 @@ void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeWorldTransformScene(std
 
 void vk_gltf_viewer::vulkan::Frame::GltfAsset::updateNodeTargetWeights(std::size_t nodeIndex, std::size_t startIndex, std::size_t count) {
     auto weights = getTargetWeights(assetExtended->asset.nodes[nodeIndex], assetExtended->asset).subspan(startIndex, count);
-    nodeBuffer.allocator.copyMemoryToAllocation(weights.data(), nodeBuffer.allocation, nodeBuffer.getTargetWeightsDataOffset(nodeIndex) + sizeof(float) * startIndex, weights.size_bytes());
+    nodeBuffer.getAllocation().copyFromMemory(weights.data(), nodeBuffer.getTargetWeightsDataOffset(nodeIndex) + sizeof(float) * startIndex, weights.size_bytes());
 }
 
 vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, const SharedData &sharedData)
@@ -116,7 +116,7 @@ vk_gltf_viewer::vulkan::Frame::Frame(std::shared_ptr<const Renderer> _renderer, 
 
     // Update descriptor sets.
     sharedData.gpu.device.updateDescriptorSets(
-        rendererSet.getWrite<0>(0, vku::lvalue(cameraBuffer.getDescriptorInfo())),
+        rendererSet.getWrite<0>(0, vku::lvalue(vk::DescriptorBufferInfo { *cameraBuffer, 0, vk::WholeSize })),
         {});
 
     // Allocate per-frame command buffers.
@@ -144,13 +144,13 @@ vk_gltf_viewer::vulkan::Frame::ExecutionResult vk_gltf_viewer::vulkan::Frame::ge
                 std::uint16_t nodeIndex;
                 if (sharedData.gpu.supportShaderBufferInt64Atomics) {
                     std::uint64_t bufferData;
-                    std::memcpy(&bufferData, sharedData.gpu.allocator.getAllocationInfo(gltfAsset->mousePickingResultBuffer.allocation).pMappedData, sizeof(bufferData));
+                    gltfAsset->mousePickingResultBuffer.getAllocation().copyToMemory(0, &bufferData, sizeof(bufferData));
 
                     nodeIndex = bufferData & 0xFFFF;
                 }
                 else {
                     std::uint32_t bufferData;
-                    std::memcpy(&bufferData, sharedData.gpu.allocator.getAllocationInfo(gltfAsset->mousePickingResultBuffer.allocation).pMappedData, sizeof(bufferData));
+                    gltfAsset->mousePickingResultBuffer.getAllocation().copyToMemory(0, &bufferData, sizeof(bufferData));
 
                     nodeIndex = bufferData & 0xFFFF;
                 }
@@ -161,7 +161,7 @@ vk_gltf_viewer::vulkan::Frame::ExecutionResult vk_gltf_viewer::vulkan::Frame::ge
             }
             else {
                 const std::span packedBits {
-                    static_cast<const std::uint32_t*>(sharedData.gpu.allocator.getAllocationInfo(gltfAsset->mousePickingResultBuffer.allocation).pMappedData),
+                    static_cast<const std::uint32_t*>(gltfAsset->mousePickingResultBuffer.getAllocation().getInfo().pMappedData),
                     vku::divCeil(gltfAsset->assetExtended->asset.nodes.size(), 32UZ),
                 };
                 std::vector<std::size_t> &indices = result.mousePickingResult.emplace<std::vector<std::size_t>>();
@@ -186,7 +186,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
     passthruOffset = task.passthruOffset;
 
     // Update camera buffer.
-    std::byte* const cameraBufferMapped = static_cast<std::byte*>(sharedData.gpu.allocator.getAllocationInfo(cameraBuffer.allocation).pMappedData);
+    std::byte* const cameraBufferMapped = static_cast<std::byte*>(cameraBuffer.getAllocation().getInfo().pMappedData);
     std::ranges::transform(renderer->cameras, reinterpret_cast<glm::mat4*>(cameraBufferMapped), &control::Camera::getProjectionViewMatrix);
     std::ranges::transform(renderer->cameras, reinterpret_cast<glm::mat4*>(cameraBufferMapped + 4 * sizeof(glm::mat4)), [](const control::Camera &camera) {
         return camera.getProjectionMatrix() * glm::mat4 { glm::mat3 { camera.getViewMatrix() } };
@@ -194,10 +194,7 @@ void vk_gltf_viewer::vulkan::Frame::update(const ExecutionTask &task) {
     std::ranges::transform(renderer->cameras, reinterpret_cast<glm::vec4*>(cameraBufferMapped + 8 * sizeof(glm::mat4)), [](const control::Camera &camera) {
         return glm::vec4 { camera.position, 0.f };
     });
-
-    if (!vku::contains(sharedData.gpu.allocator.getAllocationMemoryProperties(cameraBuffer.allocation), vk::MemoryPropertyFlagBits::eHostCoherent)) {
-        sharedData.gpu.allocator.flushAllocation(cameraBuffer.allocation, 0, vk::WholeSize);
-    }
+    cameraBuffer.getAllocation().flush(0, vk::WholeSize);
 
     const auto criteriaGetter = [&](const fastgltf::Primitive &primitive) {
         const bool usePerFragmentEmissiveStencilExport = renderer->bloom.raw().mode == Renderer::Bloom::PerFragment;
@@ -1215,10 +1212,10 @@ void vk_gltf_viewer::vulkan::Frame::updateAsset() {
 
     // Update the descriptors that are unrelated to the asset textures.
     sharedData.gpu.device.updateDescriptorSets({
-        mousePickingSet.getWrite<0>(0, vku::lvalue(inner.mousePickingResultBuffer.getDescriptorInfo())),
-        assetDescriptorSet.getWrite<0>(0, vku::lvalue(inner.assetExtended->primitiveBuffer.getDescriptorInfo())),
-        assetDescriptorSet.getWrite<1>(0, vku::lvalue(inner.nodeBuffer.getDescriptorInfo())),
-        assetDescriptorSet.getWrite<2>(0, vku::lvalue(inner.assetExtended->materialBuffer.getDescriptorInfo())),
+        mousePickingSet.getWrite<0>(0, vku::lvalue(vk::DescriptorBufferInfo { *inner.mousePickingResultBuffer, 0, vk::WholeSize })),
+        assetDescriptorSet.getWrite<0>(0, vku::lvalue(vk::DescriptorBufferInfo { *inner.assetExtended->primitiveBuffer, 0, vk::WholeSize })),
+        assetDescriptorSet.getWrite<1>(0, vku::lvalue(vk::DescriptorBufferInfo { *inner.nodeBuffer, 0, vk::WholeSize })),
+        assetDescriptorSet.getWrite<2>(0, vku::lvalue(vk::DescriptorBufferInfo { *inner.assetExtended->materialBuffer, 0, vk::WholeSize })),
     }, {});
 
 #if __APPLE__
@@ -1610,11 +1607,11 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
         if (singlePixel) {
             if (sharedData.gpu.supportShaderBufferInt64Atomics) {
                 constexpr std::uint64_t initialValue = NO_INDEX;
-                sharedData.gpu.allocator.copyMemoryToAllocation(&initialValue, gltfAsset->mousePickingResultBuffer.allocation, 0, sizeof(initialValue));
+                gltfAsset->mousePickingResultBuffer.getAllocation().copyFromMemory(&initialValue, 0, sizeof(initialValue));
             }
             else {
                 constexpr std::uint32_t initialValue = NO_INDEX;
-                sharedData.gpu.allocator.copyMemoryToAllocation(&initialValue, gltfAsset->mousePickingResultBuffer.allocation, 0, sizeof(initialValue));
+                gltfAsset->mousePickingResultBuffer.getAllocation().copyFromMemory(&initialValue, 0, sizeof(initialValue));
             }
         }
         else {
@@ -1623,7 +1620,7 @@ void vk_gltf_viewer::vulkan::Frame::recordScenePrepassCommands(vk::CommandBuffer
             // Filling buffer with a value needs MTLBlitCommandEncoder in Metal, and it breaks the render pass.
             // It is better to use host memset for this purpose.
             std::memset(
-                sharedData.gpu.allocator.getAllocationInfo(gltfAsset->mousePickingResultBuffer.allocation).pMappedData,
+                gltfAsset->mousePickingResultBuffer.getAllocation().getInfo().pMappedData,
                 0, gltfAsset->mousePickingResultBuffer.size);
         #else
             cb.fillBuffer(gltfAsset->mousePickingResultBuffer, 0, gltfAsset->mousePickingResultBuffer.size, 0U);

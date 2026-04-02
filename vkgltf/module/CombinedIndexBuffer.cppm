@@ -222,7 +222,7 @@ namespace vkgltf {
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         CombinedIndexBuffer(
             const fastgltf::Asset &asset LIFETIMEBOUND,
-            vma::Allocator allocator,
+            const vma::raii::Allocator &allocator,
             const Config<BufferDataAdapter> &config = {}
         ) : CombinedIndexBuffer { allocator, config, IData { asset, config } } { }
 
@@ -257,7 +257,7 @@ namespace vkgltf {
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         [[nodiscard]] static std::optional<CombinedIndexBuffer> from(
             const fastgltf::Asset &asset LIFETIMEBOUND,
-            vma::Allocator allocator,
+            const vma::raii::Allocator &allocator,
             const Config<BufferDataAdapter> &config = {}
         ) {
             IData intermediateData { asset, config };
@@ -449,7 +449,7 @@ namespace vkgltf {
         };
 
         template <typename BufferDataAdapter>
-        CombinedIndexBuffer(vma::Allocator allocator, const Config<BufferDataAdapter> &config, IData &&intermediateData)
+        CombinedIndexBuffer(const vma::raii::Allocator &allocator, const Config<BufferDataAdapter> &config, IData &&intermediateData)
             : AllocatedBuffer {
                 allocator,
                 vk::BufferCreateInfo {
@@ -466,7 +466,7 @@ namespace vkgltf {
             unsignedShortIndexOffset { intermediateData.unsignedShortIndexOffset },
             unsignedByteIndexOffset { intermediateData.unsignedByteIndexOffset },
             actualDataSize { intermediateData.bufferSize } {
-            std::byte *dst = static_cast<std::byte*>(allocator.getAllocationInfo(allocation).pMappedData);
+            std::byte *dst = static_cast<std::byte*>(getAllocation().getInfo().pMappedData);
             for (std::span indexBytes : intermediateData.unsignedIntIndexBytes | std::views::values) {
                 dst = std::ranges::copy(indexBytes, dst).out;
             }
@@ -477,9 +477,7 @@ namespace vkgltf {
                 dst = std::ranges::copy(indexBytes, dst).out;
             }
 
-            if (!vku::contains(allocator.getAllocationMemoryProperties(allocation), vk::MemoryPropertyFlagBits::eHostCoherent)) {
-                allocator.flushAllocation(allocation, 0, size);
-            }
+            getAllocation().flush(0, size);
 
             if (config.stagingInfo && actualDataSize > 0 /* no need for staging if no data */) {
                 config.stagingInfo->stage(*this, config.usageFlags, config.queueFamilies);

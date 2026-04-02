@@ -1,10 +1,9 @@
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
-    REF "v${VERSION}"
-    SHA512 deb5902ef8db0e329fbd5f3f4385eb0e26bdd9f14f3a2334823fb3fe18f36bc5d235d620d6e5f6fe3551ec3ea7038638899db8778c09f6d5c278f5ff95c3344b
+    REF e722e57c891a8fbe3cc73ca56c19dd76be242759
+    SHA512 de9fc6fedfeb45a41a7e17cc2a5119998c66798de56b95ce856da0d52cc80f26c717183840b5af6400b78471ac639445ca42192dda9c8f1e021953f134227d6c
     HEAD_REF master
-    PATCHES no-static.patch
 )
 
 set(opts "")

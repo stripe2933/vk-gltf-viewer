@@ -69,7 +69,7 @@ namespace vkgltf {
         vku::raii::AllocatedBuffer inverseBindMatrices;
 
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
-        SkinBuffer(const fastgltf::Asset &asset, vma::Allocator allocator, const Config<BufferDataAdapter> &config = {})
+        SkinBuffer(const fastgltf::Asset &asset, const vma::raii::Allocator &allocator, const Config<BufferDataAdapter> &config = {})
             : SkinBuffer { asset, allocator, config, getJointCountTotal(asset) } { }
 
         /**
@@ -116,7 +116,7 @@ namespace vkgltf {
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
         [[nodiscard]] static std::optional<SkinBuffer> from(
             const fastgltf::Asset &asset,
-            vma::Allocator allocator,
+            const vma::raii::Allocator &allocator,
             const Config<BufferDataAdapter> &config = {}
         ) {
             const std::size_t jointCountTotal = getJointCountTotal(asset);
@@ -133,7 +133,7 @@ namespace vkgltf {
         std::vector<std::size_t> jointCountScanWithCount;
 
         template <typename BufferDataAdapter = fastgltf::DefaultBufferDataAdapter>
-        SkinBuffer(const fastgltf::Asset &asset, vma::Allocator allocator, const Config<BufferDataAdapter> &config, std::size_t jointCountTotal)
+        SkinBuffer(const fastgltf::Asset &asset, const vma::raii::Allocator &allocator, const Config<BufferDataAdapter> &config, std::size_t jointCountTotal)
             : jointIndices {
                 allocator,
                 vk::BufferCreateInfo {
@@ -159,11 +159,11 @@ namespace vkgltf {
                 config.allocationCreateInfo,
             } {
             std::span jointIndicesData {
-                static_cast<std::uint32_t*>(allocator.getAllocationInfo(jointIndices.allocation).pMappedData),
+                static_cast<std::uint32_t*>(jointIndices.getAllocation().getInfo().pMappedData),
                 jointCountTotal,
             };
             std::span inverseBindMatricesData {
-                static_cast<fastgltf::math::fmat4x4*>(allocator.getAllocationInfo(inverseBindMatrices.allocation).pMappedData),
+                static_cast<fastgltf::math::fmat4x4*>(inverseBindMatrices.getAllocation().getInfo().pMappedData),
                 jointCountTotal,
             };
 
@@ -218,12 +218,8 @@ namespace vkgltf {
             assert(inverseBindMatrixBufferIt == inverseBindMatricesData.end() && "inverseBindMatrices buffer size estimation failed");
 
             // Flush mapped memory ranges if the memory is not host coherent.
-            if (!vku::contains(allocator.getAllocationMemoryProperties(jointIndices.allocation), vk::MemoryPropertyFlagBits::eHostCoherent)) {
-                allocator.flushAllocation(jointIndices.allocation, 0, vk::WholeSize);
-            }
-            if (!vku::contains(allocator.getAllocationMemoryProperties(inverseBindMatrices.allocation), vk::MemoryPropertyFlagBits::eHostCoherent)) {
-                allocator.flushAllocation(inverseBindMatrices.allocation, 0, vk::WholeSize);
-            }
+            jointIndices.getAllocation().flush(0, vk::WholeSize);
+            inverseBindMatrices.getAllocation().flush(0, vk::WholeSize);
 
             jointCountScanWithCount.push_back(0);
             std::exclusive_scan(jointCountScanWithCount.begin(), jointCountScanWithCount.end(), jointCountScanWithCount.begin(), std::size_t{});

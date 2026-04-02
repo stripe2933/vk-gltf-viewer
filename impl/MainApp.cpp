@@ -5,6 +5,7 @@ module;
 #include <filesystem>
 #endif
 
+#include <boost/container/static_vector.hpp>
 #include <GLFW/glfw3.h>
 #include <IconsFontAwesome4.h>
 #ifdef _WIN32
@@ -185,7 +186,7 @@ vk_gltf_viewer::MainApp::MainApp()
     }, *fence);
 
     gpu.device.updateDescriptorSets({
-        sharedData.imageBasedLightingDescriptorSet.getWrite<0>(0, vku::lvalue(imageBasedLightingResources.cubemapSphericalHarmonicsBuffer.getDescriptorInfo())),
+        sharedData.imageBasedLightingDescriptorSet.getWrite<0>(0, vku::lvalue(vk::DescriptorBufferInfo { imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
         sharedData.imageBasedLightingDescriptorSet.getWrite<1>(0, vku::lvalue(vk::DescriptorImageInfo {
             {},
             *imageBasedLightingResources.prefilteredmapImageView,
@@ -905,7 +906,7 @@ void vk_gltf_viewer::MainApp::run() {
                     const std::size_t primitiveIndex = primitiveBuffer.getPrimitiveIndex(*task.primitive);
                     std::int32_t &dstData = primitiveBuffer.mappedData[primitiveIndex].materialIndex;
 
-                    if (vku::contains(gpu.allocator.getAllocationMemoryProperties(primitiveBuffer.allocation), vk::MemoryPropertyFlagBits::eHostVisible)) {
+                    if (vku::contains(primitiveBuffer.getAllocation().getMemoryProperties(), vk::MemoryPropertyFlagBits::eHostVisible)) {
                         gpu.device.waitIdle();
 
                         if (task.primitive->materialIndex) {
@@ -1210,7 +1211,7 @@ vk_gltf_viewer::MainApp::ImageBasedLightingResources vk_gltf_viewer::MainApp::cr
         },
     };
     constexpr glm::vec3 data[9] = { glm::vec3 { 1.f } };
-    gpu.allocator.copyMemoryToAllocation(data, sphericalHarmonicsBuffer.allocation, 0, sizeof(data));
+    sphericalHarmonicsBuffer.getAllocation().copyFromMemory(data, 0, sizeof(data));
 
     vku::raii::AllocatedImage prefilteredmapImage {
         gpu.allocator,
@@ -1273,7 +1274,7 @@ vku::raii::AllocatedImage vk_gltf_viewer::MainApp::createBrdfmapImage() const {
 void vk_gltf_viewer::MainApp::loadGltf(const std::filesystem::path &path) {
     std::shared_ptr<vulkan::gltf::AssetExtended> vkAssetExtended;
     vk::raii::CommandPool transferCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.transfer } };
-    vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, transferCommandPool, gpu.queues.transfer };
+    vkgltf::StagingBufferStorage stagingBufferStorage { gpu.device, gpu.allocator, transferCommandPool, gpu.queues.transfer };
     try {
         vkAssetExtended = std::make_shared<vulkan::gltf::AssetExtended>(path, gpu, sharedData.fallbackTexture, stagingBufferStorage);
     }
@@ -1407,7 +1408,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
                 vma::MemoryUsage::eAutoPreferHost,
             },
         };
-        gpu.allocator.copyMemoryToAllocation(data.get(), result.allocation, 0, result.size);
+        result.getAllocation().copyFromMemory(data.get(), 0, result.size);
 
         return result;
         // After this scope, data will be automatically freed.
@@ -1924,10 +1925,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     std::ignore = gpu.device.waitSemaphores({ {}, vku::lvalue({ *get<0>(semaphores), *get<1>(semaphores) }), signalValues }, ~0ULL);
 
-    const std::span<glm::vec3, 9> sphericalHarmonicCoefficients {
-        static_cast<glm::vec3*>(gpu.allocator.getAllocationInfo(sphericalHarmonicsBuffer.allocation).pMappedData),
-        9,
-    };
+    const std::span<glm::vec3, 9> sphericalHarmonicCoefficients { static_cast<glm::vec3*>(sphericalHarmonicsBuffer.getAllocation().getInfo().pMappedData), 9 };
     for (float multiplier = 4.f * std::numbers::pi_v<float> / (cubemapSize * cubemapSize * 6.f);
         glm::vec3 &v : sphericalHarmonicCoefficients) {
         v *= multiplier;
@@ -1976,7 +1974,7 @@ void vk_gltf_viewer::MainApp::loadEqmap(const std::filesystem::path &eqmapPath) 
 
     // Update the related descriptor sets.
     gpu.device.updateDescriptorSets({
-        sharedData.imageBasedLightingDescriptorSet.getWrite<0>(0, vku::lvalue(imageBasedLightingResources.cubemapSphericalHarmonicsBuffer.getDescriptorInfo())),
+        sharedData.imageBasedLightingDescriptorSet.getWrite<0>(0, vku::lvalue(vk::DescriptorBufferInfo { imageBasedLightingResources.cubemapSphericalHarmonicsBuffer, 0, vk::WholeSize })),
         sharedData.imageBasedLightingDescriptorSet.getWrite<1>(0, vku::lvalue(vk::DescriptorImageInfo {
             {},
             *imageBasedLightingResources.prefilteredmapImageView,

@@ -27,7 +27,7 @@ namespace ibl {
 
         BrdfmapRenderPipeline(
             const vk::raii::Device &device LIFETIMEBOUND,
-            const vku::Image &resultImage LIFETIMEBOUND,
+            const vku::raii::AllocatedImage &resultImage LIFETIMEBOUND,
             const Config &config = {
                 .specializationConstants = {
                     .numSamples = 1024,
@@ -41,7 +41,7 @@ namespace ibl {
         struct PushConstant;
 
         std::reference_wrapper<const vk::raii::Device> device;
-        std::reference_wrapper<const vku::Image> resultImage;
+        std::reference_wrapper<const vku::raii::AllocatedImage> resultImage;
         vk::raii::PipelineLayout pipelineLayout;
         vk::raii::Pipeline pipeline;
         vk::raii::ImageView imageView;
@@ -59,7 +59,7 @@ struct ibl::BrdfmapRenderPipeline::PushConstant {
 
 ibl::BrdfmapRenderPipeline::BrdfmapRenderPipeline(
     const vk::raii::Device &device,
-    const vku::Image &resultImage,
+    const vku::raii::AllocatedImage &resultImage,
     const Config &config
 ) : device { device },
     resultImage { resultImage },
