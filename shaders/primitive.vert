@@ -71,6 +71,13 @@ layout (push_constant) uniform PushConstant {
 #include "vertex_pulling.glsl"
 #include "transform.glsl"
 
+mat3 adjugate(mat4 transform) {
+    return mat3(
+        cross(transform[1].xyz, transform[2].xyz),
+        cross(transform[2].xyz, transform[0].xyz),
+        cross(transform[0].xyz, transform[1].xyz));
+}
+
 void main(){
     mat4 transform = getTransform(SKIN_ATTRIBUTE_COUNT);
 
@@ -80,12 +87,14 @@ void main(){
     outMaterialIndex = MATERIAL_INDEX;
 
 #if !FRAGMENT_SHADER_GENERATED_TBN
+    mat3 adjugate = adjugate(transform);
+
     vec3 inNormal = getNormal(NORMAL_COMPONENT_TYPE, NORMAL_MORPH_TARGET_COUNT);
-    variadic_out.tbn[2] = normalize(mat3(transform) * inNormal); // N
+    variadic_out.tbn[2] = normalize(adjugate * inNormal); // N
 
     if (MATERIAL.normalTextureIndex != 0US){
         vec4 inTangent = getTangent(TANGENT_COMPONENT_TYPE, TANGENT_MORPH_TARGET_COUNT);
-        variadic_out.tbn[0] = normalize(mat3(transform) * inTangent.xyz); // T
+        variadic_out.tbn[0] = normalize(adjugate * inTangent.xyz); // T
         variadic_out.tbn[1] = cross(variadic_out.tbn[2], variadic_out.tbn[0]) * -inTangent.w; // B
     }
 #endif
