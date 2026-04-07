@@ -40,16 +40,8 @@ layout (location = 2) out VS_VARIADIC_OUT {
     mat3 tbn;
 #endif
 
-#if TEXCOORD_COUNT == 1
-    vec2 texcoord;
-#elif TEXCOORD_COUNT == 2
-    mat2 texcoords;
-#elif TEXCOORD_COUNT == 3
-    mat3x2 texcoords;
-#elif TEXCOORD_COUNT == 4
-    mat4x2 texcoords;
-#elif TEXCOORD_COUNT >= 5
-#error "Maximum texcoord count exceeded."
+#if TEXCOORD_COUNT >= 1
+    vec2 texcoords[TEXCOORD_COUNT];
 #endif
 
 #if HAS_COLOR_0_ATTRIBUTE
@@ -98,16 +90,16 @@ void main(){
     }
 #endif
 
-#if TEXCOORD_COUNT == 1
-    variadic_out.texcoord = getTexcoord(0, TEXCOORD_0_COMPONENT_TYPE, TEXCOORD_0_NORMALIZED);
-#elif TEXCOORD_COUNT >= 2
+#if TEXCOORD_COUNT >= 1
     variadic_out.texcoords[0] = getTexcoord(0, TEXCOORD_0_COMPONENT_TYPE, TEXCOORD_0_NORMALIZED);
+#if TEXCOORD_COUNT >= 2
     variadic_out.texcoords[1] = getTexcoord(1, TEXCOORD_1_COMPONENT_TYPE, TEXCOORD_1_NORMALIZED);
 #if TEXCOORD_COUNT >= 3
     variadic_out.texcoords[2] = getTexcoord(2, TEXCOORD_2_COMPONENT_TYPE, TEXCOORD_2_NORMALIZED);
-#endif
 #if TEXCOORD_COUNT == 4
     variadic_out.texcoords[3] = getTexcoord(3, TEXCOORD_3_COMPONENT_TYPE, TEXCOORD_3_NORMALIZED);
+#endif
+#endif
 #endif
 #endif
 

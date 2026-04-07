@@ -28,16 +28,8 @@ layout (location = 2) in FS_VARIADIC_IN {
     mat3 tbn;
 #endif
 
-#if TEXCOORD_COUNT == 1
-    vec2 texcoord;
-#elif TEXCOORD_COUNT == 2
-    mat2 texcoords;
-#elif TEXCOORD_COUNT == 3
-    mat3x2 texcoords;
-#elif TEXCOORD_COUNT == 4
-    mat4x2 texcoords;
-#elif TEXCOORD_COUNT >= 5
-#error "Maximum texcoord count exceeded."
+#if TEXCOORD_COUNT >= 1
+vec2 texcoords[TEXCOORD_COUNT];
 #endif
 
 #if HAS_COLOR_0_ATTRIBUTE
@@ -83,11 +75,7 @@ layout (early_fragment_tests) in;
 // Functions.
 // --------------------
 
-#if TEXCOORD_COUNT == 1
-vec2 getTexcoord(uint texcoordIndex) {
-    return variadic_in.texcoord;
-}
-#elif TEXCOORD_COUNT >= 2
+#if TEXCOORD_COUNT >= 1
 vec2 getTexcoord(uint texcoordIndex) {
     return variadic_in.texcoords[texcoordIndex];
 }
