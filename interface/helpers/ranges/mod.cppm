@@ -91,6 +91,16 @@ namespace ranges {
         ((void)(dest = *it++), ...);
     }
 
+    /**
+     * Remove duplicated elements in \p v.
+     * @param v Sorted vector.
+     */
+    export template <typename T, typename Allocator>
+    void unique_erase(std::vector<T, Allocator> &v) {
+        const auto [begin, end] = std::ranges::unique(v);
+        v.erase(begin, end);
+    }
+
 namespace views {
     export template <std::integral T>
     [[nodiscard]] constexpr auto upto(T n) noexcept {
@@ -121,7 +131,10 @@ namespace views {
 #if __cpp_lib_ranges_zip >= 202110L
     export template <std::size_t N>
     constexpr decltype(std::views::adjacent<N>) adjacent;
+
     export constexpr decltype(std::views::pairwise) pairwise;
+
+    export constexpr decltype(std::views::zip_transform) zip_transform;
 #else
     template <std::size_t N>
     struct adjacent_fn : std::ranges::range_adaptor_closure<adjacent_fn<N>> {
@@ -131,14 +144,12 @@ namespace views {
             });
         }
     };
+
     export template <std::size_t N>
     constexpr adjacent_fn<N> adjacent;
-    export constexpr adjacent_fn<2> pairwise;
-#endif
 
-#if __cpp_lib_ranges_zip >= 202110L
-    export constexpr decltype(std::views::zip_transform) zip_transform;
-#else
+    export constexpr adjacent_fn<2> pairwise;
+
     export
     [[nodiscard]] constexpr auto zip_transform(auto &&f, std::ranges::input_range auto &&...rs) {
         return std::views::zip(FWD(rs)...) | std::views::transform([&](auto &&t) {
@@ -161,15 +172,16 @@ namespace views {
      * @endcode
      */
     export constexpr struct value_transform_fn {
-        [[nodiscard]] auto operator()(auto &&f) const {
+        template <typename F>
+        [[nodiscard]] static auto operator()(F &&f) {
             return std::views::transform([f = FWD(f)](auto &&pair) {
                 auto &&[key, value] = FWD(pair);
                 return std::pair { FWD(key), f(FWD(value)) };
             });
         }
 
-        [[nodiscard]] auto operator()(std::ranges::viewable_range auto &&r, auto &&f) const {
-            return FWD(r) | this->operator()(FWD(f));
+        [[nodiscard]] static auto operator()(std::ranges::viewable_range auto &&r, auto &&f) {
+            return FWD(r) | value_transform_fn::operator()(FWD(f));
         }
     } value_transform;
 

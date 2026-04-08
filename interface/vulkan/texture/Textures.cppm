@@ -14,6 +14,7 @@ export import vkgltf;
 export import vk_gltf_viewer.gltf.AssetExtended;
 export import vk_gltf_viewer.gltf.AssetProcessError;
 import vk_gltf_viewer.helpers.fastgltf;
+import vk_gltf_viewer.helpers.ranges;
 import vk_gltf_viewer.vulkan.descriptor_set_layout.Asset;
 export import vk_gltf_viewer.vulkan.Gpu;
 export import vk_gltf_viewer.vulkan.texture.Fallback;
@@ -68,8 +69,7 @@ vk_gltf_viewer::vulkan::texture::Textures::Textures(
     // Get images that are used by asset textures.
     std::vector usedImageIndices { std::from_range, assetExtended.asset.textures | std::views::transform(fastgltf::getPreferredImageIndex) };
     std::ranges::sort(usedImageIndices);
-    const auto [begin, end] = std::ranges::unique(usedImageIndices);
-    usedImageIndices.erase(begin, end);
+    ranges::unique_erase(usedImageIndices);
 
     if (usedImageIndices.empty()) {
         // Nothing to do.

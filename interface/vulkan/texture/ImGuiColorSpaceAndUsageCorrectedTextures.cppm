@@ -204,8 +204,7 @@ vk_gltf_viewer::vulkan::texture::ImGuiColorSpaceAndUsageCorrectedTextures::~ImGu
 
     // Remove duplicates.
     std::ranges::sort(uniqueDescriptorSets);
-    const auto [begin, end] = std::ranges::unique(uniqueDescriptorSets);
-    uniqueDescriptorSets.erase(begin, end);
+    ranges::unique_erase(uniqueDescriptorSets);
 
     std::ranges::for_each(uniqueDescriptorSets, ImGui_ImplVulkan_RemoveTexture);
 }

@@ -85,8 +85,7 @@ vk_gltf_viewer::vulkan::QueueFamilies::QueueFamilies(vk::PhysicalDevice physical
     // Calculate unique queue family indices.
     uniqueIndices = { compute, graphicsPresent, transfer };
     std::ranges::sort(uniqueIndices);
-    const auto ret = std::ranges::unique(uniqueIndices);
-    uniqueIndices.erase(ret.begin(), ret.end());
+    ranges::unique_erase(uniqueIndices);
 }
 
 vk_gltf_viewer::vulkan::Queues::Queues(vk::Device device, const QueueFamilies& queueFamilies) noexcept

@@ -951,8 +951,7 @@ void vk_gltf_viewer::MainApp::run() {
         if (!transformedNodes.empty()) {
             // Remove duplicates in transformedNodes.
             std::ranges::sort(transformedNodes);
-            const auto [begin, end] = std::ranges::unique(transformedNodes);
-            transformedNodes.erase(begin, end);
+            ranges::unique_erase(transformedNodes);
 
             assetExtended->sceneHierarchy.pruneDescendantNodesInPlace(transformedNodes);
             for (std::size_t nodeIndex : transformedNodes) {

@@ -1254,8 +1254,7 @@ void vk_gltf_viewer::vulkan::Frame::updateAsset() {
             usedImageIndices.push_back(getPreferredImageIndex(texture));
         }
         std::ranges::sort(usedImageIndices);
-        const auto [begin, end] = std::ranges::unique(usedImageIndices);
-        usedImageIndices.erase(begin, end);
+        ranges::unique_erase(usedImageIndices);
 
         for (const auto &chunk : usedImageIndices | std::views::chunk_by([](auto a, auto b) { return b - a == 1; })) {
             std::span infos = chunkedImageInfos.emplace_back(

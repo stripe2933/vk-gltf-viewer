@@ -8,6 +8,7 @@ import std;
 
 import vk_gltf_viewer.helpers.fastgltf;
 import vk_gltf_viewer.helpers.functional;
+import vk_gltf_viewer.helpers.ranges;
 export import vk_gltf_viewer.vulkan.Frame;
 
 namespace vk_gltf_viewer::vulkan {
@@ -89,8 +90,7 @@ void vk_gltf_viewer::vulkan::FrameDeferredTask::executeAndReset(Frame &frame) {
 
             // Remove duplicates.
             std::ranges::sort(task.hierarchicalNodeIndices);
-            const auto [begin, end] = std::ranges::unique(task.hierarchicalNodeIndices);
-            task.hierarchicalNodeIndices.erase(begin, end);
+            ranges::unique_erase(task.hierarchicalNodeIndices);
 
             // Erase duplicated element from nodeIndices to prevent updating the same node multiple times.
             for (std::size_t nodeIndex : task.hierarchicalNodeIndices) {
