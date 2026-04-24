@@ -16,14 +16,12 @@ namespace vk_gltf_viewer::gltf {
      *
      * @param asset Asset to determine.
      * @param originalMaterialIndexGetter Functor that returns the material index for given primitive.
-     * @return Index of the active material variant, or std::nullopt if there's no matching material variant.
+     * @return Index of the active material variant, or <tt>std::nullopt</tt> if there's no matching material variant.
      */
     export
-    [[nodiscard]] std::optional<std::size_t> getActiveMaterialVariantIndex(
+    [[nodiscard]] fastgltf::Optional<std::size_t> getActiveMaterialVariantIndex(
         const fastgltf::Asset &asset,
-        concepts::signature_of<std::optional<std::size_t>(const fastgltf::Primitive&)> auto &&originalMaterialIndexGetter = [](const fastgltf::Primitive &primitive) noexcept {
-            return to_optional(primitive.materialIndex);
-        }
+        concepts::signature_of<fastgltf::Optional<std::size_t>(const fastgltf::Primitive&)> auto &&originalMaterialIndexGetter = &fastgltf::Primitive::materialIndex
     ) {
         // Primitives that are affected by KHR_materials_variants.
         auto variantPrimitives

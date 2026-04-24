@@ -36,7 +36,7 @@ namespace vk_gltf_viewer::gltf {
     	/**
 		 * @brief Association of primitive -> original material index.
 		 */
-        std::unordered_map<const fastgltf::Primitive*, std::optional<std::size_t>> originalMaterialIndexByPrimitive;
+        std::unordered_map<const fastgltf::Primitive*, fastgltf::Optional<std::size_t>> originalMaterialIndexByPrimitive;
 
         /**
          * @brief Map of (material index, texture usage flags) for each texture.
