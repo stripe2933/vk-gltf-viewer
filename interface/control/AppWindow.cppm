@@ -17,6 +17,8 @@ export import vk_gltf_viewer.control.Task;
 namespace vk_gltf_viewer::control {
     export class AppWindow {
     public:
+        using task_queue_t = std::queue<Task>;
+
         explicit AppWindow(const vk::raii::Instance &instance LIFETIMEBOUND);
         ~AppWindow();
 
@@ -30,13 +32,11 @@ namespace vk_gltf_viewer::control {
 
         void setTitle(const char *title) const;
 
-        void pollEvents(std::queue<Task> &tasks);
+        void pollEvents(task_queue_t &tasks) const;
 
     private:
         GLFWwindow *window;
         vk::raii::SurfaceKHR surface;
-
-        std::queue<Task> *pTasks;
 
         [[nodiscard]] vk::raii::SurfaceKHR createSurface(const vk::raii::Instance &instance) const;
     };
@@ -49,43 +49,31 @@ module :private;
 vk_gltf_viewer::control::AppWindow::AppWindow(const vk::raii::Instance &instance)
     : window { glfwCreateWindow(1280, 720, "Vulkan glTF Viewer", nullptr, nullptr) }
     , surface { createSurface(instance) } {
-    glfwSetWindowUserPointer(window, this);
-
-    glfwSetKeyCallback(window, [](GLFWwindow *window, int key, int scancode, int action, int mods) {
-        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
-            ->pTasks->emplace(std::in_place_type<task::WindowKey>, key, scancode, action, mods);
-    });
-    glfwSetCursorPosCallback(window, [](GLFWwindow *window, double x, double y) {
-        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
-            ->pTasks->emplace(std::in_place_type<task::WindowCursorPos>, glm::dvec2 { x, y });
-    });
-    glfwSetMouseButtonCallback(window, [](GLFWwindow *window, int button, int action, int mods) {
-        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
-            ->pTasks->emplace(std::in_place_type<task::WindowMouseButton>, button, action, mods);
-    });
     glfwSetScrollCallback(window, [](GLFWwindow *window, double xoffset, double yoffset) {
-        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
-            ->pTasks->emplace(std::in_place_type<task::WindowScroll>, glm::dvec2 { xoffset, yoffset });
+        static_cast<task_queue_t*>(glfwGetWindowUserPointer(window))
+            ->emplace(std::in_place_type<task::WindowScroll>, glm::dvec2 { xoffset, yoffset });
     });
     glfwSetTrackpadZoomCallback(window, [](GLFWwindow *window, double scale) {
-        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
-            ->pTasks->emplace(std::in_place_type<task::WindowTrackpadZoom>, scale);
+        static_cast<task_queue_t*>(glfwGetWindowUserPointer(window))
+            ->emplace(std::in_place_type<task::WindowTrackpadZoom>, scale);
     });
     glfwSetTrackpadRotateCallback(window, [](GLFWwindow *window, double angle) {
-        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
-            ->pTasks->emplace(std::in_place_type<task::WindowTrackpadRotate>, angle);
+        static_cast<task_queue_t*>(glfwGetWindowUserPointer(window))
+            ->emplace(std::in_place_type<task::WindowTrackpadRotate>, angle);
     });
     glfwSetDropCallback(window, [](GLFWwindow *window, int count, const char **paths) {
-        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
-            ->pTasks->emplace(std::in_place_type<task::WindowDrop>, std::vector<std::filesystem::path> { std::from_range, std::span { paths, static_cast<std::size_t>(count) } });
+        std::vector<std::filesystem::path> fsPaths;
+        fsPaths.reserve(count);
+        for (int i = 0; i < count; ++i) {
+            fsPaths.emplace_back(reinterpret_cast<const char8_t*>(paths[i]));
+        }
+
+        static_cast<task_queue_t*>(glfwGetWindowUserPointer(window))
+            ->emplace(std::in_place_type<task::WindowDrop>, std::move(fsPaths));
     });
-    glfwSetWindowSizeCallback(window, [](GLFWwindow *window, int width, int height) {
-        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
-            ->pTasks->emplace(std::in_place_type<task::WindowSize>, glm::ivec2 { width, height });
-    });
-    glfwSetWindowContentScaleCallback(window, [](GLFWwindow *window, float xscale, float yscale) {
-        static_cast<AppWindow*>(glfwGetWindowUserPointer(window))
-            ->pTasks->emplace(std::in_place_type<task::WindowContentScale>, glm::vec2 { xscale, yscale });
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow *window, int width, int height) {
+        static_cast<task_queue_t*>(glfwGetWindowUserPointer(window))
+            ->emplace(std::in_place_type<task::WindowFramebufferSize>, glm::ivec2 { width, height });
     });
 }
 
@@ -129,8 +117,8 @@ void vk_gltf_viewer::control::AppWindow::setTitle(const char *title) const {
     glfwSetWindowTitle(window, title);
 }
 
-void vk_gltf_viewer::control::AppWindow::pollEvents(std::queue<Task> &tasks) {
-    pTasks = &tasks;
+void vk_gltf_viewer::control::AppWindow::pollEvents(task_queue_t &tasks) const {
+    glfwSetWindowUserPointer(window, &tasks);
     glfwPollEvents();
 }
 

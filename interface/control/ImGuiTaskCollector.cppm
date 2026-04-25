@@ -1,7 +1,7 @@
 module;
 
 #include <lifetimebound.hpp>
-#include <nfd.hpp>
+#include <nfd.h>
 
 export module vk_gltf_viewer.imgui.TaskCollector;
 
@@ -48,7 +48,7 @@ namespace vk_gltf_viewer::control {
         ImGuiTaskCollector(std::queue<Task> &tasks, const ImRect &oldPassthruRect, const imgui::GuiTextures &guiTextures LIFETIMEBOUND);
         ~ImGuiTaskCollector();
 
-        void menuBar(nfdwindowhandle_t windowHandle);
+        void menuBar(const nfdwindowhandle_t &windowHandle);
         void animations(gltf::AssetExtended &assetExtended);
         void assetInspector(gltf::AssetExtended &assetExtended);
         void materialEditor(gltf::AssetExtended &assetExtended);
@@ -57,8 +57,7 @@ namespace vk_gltf_viewer::control {
         void nodeInspector(gltf::AssetExtended &assetExtended);
         void imageBasedLighting(const AppState::ImageBasedLighting &info, ImTextureRef eqmapTextureImGuiDescriptorSet);
         void rendererSetting(Renderer &renderer);
-        void imguizmo(Renderer &renderer, std::size_t viewIndex);
-        void imguizmo(Renderer &renderer, std::size_t viewIndex, gltf::AssetExtended &assetExtended);
+        void viewport(Renderer &renderer, gltf::AssetExtended *assetExtended);
 
     private:
         std::queue<Task> &tasks;

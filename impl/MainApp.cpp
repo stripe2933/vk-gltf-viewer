@@ -53,7 +53,6 @@ import imgui.glfw;
 import imgui.vulkan;
 
 import vk_gltf_viewer.asset;
-import vk_gltf_viewer.global;
 import vk_gltf_viewer.gltf.algorithm.miniball;
 import vk_gltf_viewer.gui.popup;
 import vk_gltf_viewer.helpers.concepts;
@@ -79,34 +78,34 @@ import vk_gltf_viewer.vulkan.pipeline.TonemappingRenderPipeline;
 
 using namespace std::string_view_literals;
 
-template <typename T, glm::qualifier Q>
-[[nodiscard]] constexpr ImVec2 toImVec2(const glm::vec<2, T, Q> &v) noexcept {
-    return { static_cast<float>(v.x), static_cast<float>(v.y) };
-}
-
-[[nodiscard]] constexpr vk::Extent2D toExtent2D(const glm::ivec2 &v) noexcept {
-    return { static_cast<std::uint32_t>(v.x), static_cast<std::uint32_t>(v.y) };
-}
-
-[[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform *transform) noexcept {
-    if (transform) {
-        const float c = std::cos(transform->rotation), s = std::sin(transform->rotation);
-        return { // Note: column major. A row in code actually means a column in the matrix.
-            transform->uvScale[0] * c, transform->uvScale[0] * -s,
-            transform->uvScale[1] * s, transform->uvScale[1] * c,
-            transform->uvOffset[0], transform->uvOffset[1],
-        };
+namespace {
+    template <typename T, glm::qualifier Q>
+    [[nodiscard]] constexpr ImVec2 toImVec2(const glm::vec<2, T, Q> &v) noexcept {
+        return { static_cast<float>(v.x), static_cast<float>(v.y) };
     }
-    else {
-        return { 1.f, 0.f, 0.f, 1.f, 0.f, 0.f };
+
+    [[nodiscard]] constexpr vk::Extent2D toExtent2D(const glm::ivec2 &v) noexcept {
+        return { static_cast<std::uint32_t>(v.x), static_cast<std::uint32_t>(v.y) };
+    }
+
+    [[nodiscard]] glm::mat3x2 getTextureTransform(const fastgltf::TextureTransform *transform) noexcept {
+        if (transform) {
+            const float c = std::cos(transform->rotation), s = std::sin(transform->rotation);
+            return { // Note: column major. A row in code actually means a column in the matrix.
+                transform->uvScale[0] * c, transform->uvScale[0] * -s,
+                transform->uvScale[1] * s, transform->uvScale[1] * c,
+                transform->uvOffset[0], transform->uvOffset[1],
+            };
+        }
+        else {
+            return { 1.f, 0.f, 0.f, 1.f, 0.f, 0.f };
+        }
     }
 }
 
 vk_gltf_viewer::MainApp::MainApp()
     : instance { createInstance() }
     , window { instance }
-    , drawSelectionRectangle { false }
-    , lastMouseEnteredViewIndex { 0 }
     , gpu { instance, window.getSurface() }
     , renderer { std::make_shared<Renderer>(Renderer::Capabilities {
         .msaaSampleCounts = [&] {
@@ -313,34 +312,7 @@ void vk_gltf_viewer::MainApp::run() {
                 imguiTaskCollector.imageBasedLighting(*iblInfo, vku::toUint64(skyboxResources->imGuiEqmapTextureDescriptorSet));
             }
             imguiTaskCollector.rendererSetting(*renderer);
-            if (assetExtended) {
-                imguiTaskCollector.imguizmo(*renderer, lastMouseEnteredViewIndex, *assetExtended);
-            }
-            else {
-                imguiTaskCollector.imguizmo(*renderer, lastMouseEnteredViewIndex);
-            }
-
-            if (drawSelectionRectangle) {
-                const ImVec2 startPos = toImVec2(*lastMouseDownPosition);
-
-                ImRect region { startPos, toImVec2(window.getCursorPos()) };
-                if (region.Min.x > region.Max.x) {
-                    std::swap(region.Min.x, region.Max.x);
-                }
-                if (region.Min.y > region.Max.y) {
-                    std::swap(region.Min.y, region.Max.y);
-                }
-
-                for (const ImRect &clipRect : renderer->getViewportRects(passthruRect)) {
-                    if (clipRect.Contains(startPos)) {
-                        region.ClipWith(clipRect);
-                        break;
-                    }
-                }
-
-                ImGui::GetBackgroundDrawList()->AddRectFilled(region.Min, region.Max, ImGui::GetColorU32({ 1.f, 1.f, 1.f, 0.2f }));
-                ImGui::GetBackgroundDrawList()->AddRect(region.Min, region.Max, ImGui::GetColorU32({ 1.f, 1.f, 1.f, 1.f }));
-            }
+            imguiTaskCollector.viewport(*renderer, assetExtended.get());
         }
 
         vulkan::Frame &frame = frames[frameIndex % FRAMES_IN_FLIGHT];
@@ -383,83 +355,11 @@ void vk_gltf_viewer::MainApp::run() {
         // retained until the collected tasks are processed. After the processing finished, it will be executed.
         vulkan::FrameDeferredTask currentFrameTask = std::exchange(frameDeferredTask, vulkan::FrameDeferredTask{});
 
+        std::optional<std::pair<std::uint32_t, vk::Rect2D>> mousePickingInput;
+
         // Process the collected tasks.
         for (; !tasks.empty(); tasks.pop()) {
             visit(multilambda {
-                [this](const control::task::WindowKey &task) {
-                    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureKeyboard) return;
-
-                    if (task.action == GLFW_PRESS && assetExtended && !assetExtended->selectedNodes.empty()) {
-                        switch (task.key) {
-                            case GLFW_KEY_T:
-                                renderer->imGuizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
-                                break;
-                            case GLFW_KEY_R:
-                                renderer->imGuizmoOperation = ImGuizmo::OPERATION::ROTATE;
-                                break;
-                            case GLFW_KEY_S:
-                                renderer->imGuizmoOperation = ImGuizmo::OPERATION::SCALE;
-                                break;
-                        }
-                    }
-                },
-                [this](const control::task::WindowCursorPos &task) {
-                    if (lastMouseDownPosition && distance2(*lastMouseDownPosition, task.position) >= 4.0) {
-                        drawSelectionRectangle = true;
-                    }
-
-                    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) != GLFW_PRESS) {
-                        for (const auto &[viewIndex, rect] : renderer->getViewportRects(passthruRect) | ranges::views::enumerate) {
-                            if (rect.Contains(toImVec2(task.position))) {
-                                lastMouseEnteredViewIndex = viewIndex;
-                                break;
-                            }
-                        }
-                    }
-                },
-                [&](const control::task::WindowMouseButton &task) {
-                    const bool leftMouseButtonPressed = task.button == GLFW_MOUSE_BUTTON_LEFT && task.action == GLFW_RELEASE && lastMouseDownPosition;
-                    bool selectionRectanglePopped = false;
-                    if (leftMouseButtonPressed) {
-                        lastMouseDownPosition = std::nullopt;
-
-                        if (drawSelectionRectangle) {
-                            drawSelectionRectangle = false;
-                            selectionRectanglePopped = true;
-                        }
-                    }
-
-                    if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
-
-                    if (task.button == GLFW_MOUSE_BUTTON_LEFT && task.action == GLFW_PRESS) {
-                        lastMouseDownPosition = window.getCursorPos();
-                    }
-                    else if (leftMouseButtonPressed && assetExtended && !selectionRectanglePopped) {
-                        if (assetExtended->hoveringNode) {
-                            if (ImGui::GetIO().KeyCtrl) {
-                                // Toggle the hovering node's selection.
-                                if (auto it = assetExtended->selectedNodes.find(*assetExtended->hoveringNode); it != assetExtended->selectedNodes.end()) {
-                                    assetExtended->selectedNodes.erase(it);
-                                }
-                                else {
-                                    assetExtended->selectedNodes.emplace_hint(it, *assetExtended->hoveringNode);
-                                }
-                                tasks.emplace(std::in_place_type<control::task::NodeSelectionChanged>);
-                            }
-                            else if (assetExtended->selectedNodes.size() != 1 || (*assetExtended->hoveringNode != *assetExtended->selectedNodes.begin())) {
-                                // Unless there's only 1 selected node and is the same as the hovering node, change selection
-                                // to the hovering node.
-                                assetExtended->selectedNodes = { *assetExtended->hoveringNode };
-                                tasks.emplace(std::in_place_type<control::task::NodeSelectionChanged>);
-                            }
-                            global::shouldNodeInSceneHierarchyScrolledToBeVisible = true;
-                        }
-                        else {
-                            assetExtended->selectedNodes.clear();
-                            tasks.emplace(std::in_place_type<control::task::NodeSelectionChanged>);
-                        }
-                    }
-                },
                 [this](concepts::one_of<control::task::WindowScroll, control::task::WindowTrackpadZoom> auto const &task) {
                     if (const ImGuiIO &io = ImGui::GetIO(); io.WantCaptureMouse) return;
 
@@ -543,17 +443,17 @@ void vk_gltf_viewer::MainApp::run() {
                         tasks.emplace(std::in_place_type<control::task::LoadEqmap>, path);
                     }
                 },
-                [this](concepts::one_of<control::task::WindowSize, control::task::WindowContentScale> auto const &task) {
+                [this](control::task::WindowFramebufferSize task) {
                     gpu.device.waitIdle();
 
                     // Make process idle state if window is minimized.
-                    glm::ivec2 framebufferSize;
-                    while (!glfwWindowShouldClose(window) && (framebufferSize = window.getFramebufferSize()) == glm::ivec2{}) {
+                    while (!glfwWindowShouldClose(window) && task.size == glm::ivec2{}) {
                         std::this_thread::yield();
+                        task.size = window.getFramebufferSize();
                     }
 
                     // Call handleSwapchainResize() for all swapchain dependent resources.
-                    sharedData.handleSwapchainResize(toExtent2D(framebufferSize));
+                    sharedData.handleSwapchainResize(toExtent2D(task.size));
                 },
                 [&](const control::task::ChangePassthruRect &task) {
                     passthruRect = task.newRect;
@@ -614,7 +514,6 @@ void vk_gltf_viewer::MainApp::run() {
                     }
                     else {
                         renderer->cameras.resize(task.viewCount);
-                        lastMouseEnteredViewIndex = task.viewCount - 1;
                     }
 
                     for (control::Camera &camera : renderer->cameras) {
@@ -714,9 +613,6 @@ void vk_gltf_viewer::MainApp::run() {
                     if (uniqueMaterialIndex) {
                         assetExtended->imGuiSelectedMaterialIndex.emplace(*uniqueMaterialIndex);
                     }
-                },
-                [this](const control::task::HoverNodeFromGui &task) {
-                    assetExtended->hoveringNode.emplace(task.nodeIndex);
                 },
                 [&](const control::task::NodeLocalTransformChanged &task) {
                     transformedNodes.push_back(task.nodeIndex);
@@ -945,6 +841,34 @@ void vk_gltf_viewer::MainApp::run() {
                     // Primitive rendering pipelines have to be recreated to use shader stencil export or not.
                     regenerateDrawCommands.fill(true);
                 },
+                [&](const control::task::PickNodeAtPixel &task) {
+                    mousePickingInput.emplace(task.viewIndex, vk::Rect2D {
+                        vk::Offset2D {
+                            static_cast<std::int32_t>(framebufferScale.x * task.pixel.x),
+                            static_cast<std::int32_t>(framebufferScale.y * task.pixel.y),
+                        },
+                        vk::Extent2D { 1, 1 },
+                    });
+                },
+                [&](const control::task::PickNodesInSelectionRect &task) {
+                    const vk::Extent2D extent {
+                        static_cast<std::uint32_t>(framebufferScale.x * task.selectionRect.GetWidth()),
+                        static_cast<std::uint32_t>(framebufferScale.y * task.selectionRect.GetHeight()),
+                    };
+
+                    if (extent == vk::Extent2D { 1, 1 }) {
+                        tasks.emplace(std::in_place_type<control::task::PickNodeAtPixel>, task.viewIndex, task.selectionRect.Min);
+                    }
+                    else {
+                        mousePickingInput.emplace(task.viewIndex, vk::Rect2D {
+                            vk::Offset2D {
+                                static_cast<std::int32_t>(framebufferScale.x * task.selectionRect.Min.x),
+                                static_cast<std::int32_t>(framebufferScale.y * task.selectionRect.Min.y),
+                            },
+                            extent,
+                        });
+                    }
+                },
             }, tasks.front());
         }
 
@@ -1013,74 +937,7 @@ void vk_gltf_viewer::MainApp::run() {
             .gltf = value_if(static_cast<bool>(assetExtended), [&] {
                 return vulkan::Frame::ExecutionTask::Gltf {
                     .regenerateDrawCommands = std::exchange(regenerateDrawCommands[frameIndex % FRAMES_IN_FLIGHT], false),
-                    .mousePickingInput = [&] -> std::optional<std::pair<std::uint32_t, vk::Rect2D>> {
-                        if (frameIndex == 0) {
-                            // Passthrough region is not defined at the first frame (as ImGui is not rendered).
-                            return std::nullopt;
-                        }
-
-                        const ImVec2 cursorPos = toImVec2(window.getCursorPos());
-                        if (drawSelectionRectangle) {
-                            const ImVec2 startPos = toImVec2(*lastMouseDownPosition);
-
-                            ImRect selectionRect { startPos, cursorPos };
-                            if (selectionRect.Min.x > selectionRect.Max.x) {
-                                std::swap(selectionRect.Min.x, selectionRect.Max.x);
-                            }
-                            if (selectionRect.Min.y > selectionRect.Max.y) {
-                                std::swap(selectionRect.Min.y, selectionRect.Max.y);
-                            }
-
-                            for (const auto &[viewIndex, clipRect] : renderer->getViewportRects(passthruRect) | ranges::views::enumerate) {
-                                if (clipRect.Contains(startPos)) {
-                                    selectionRect.ClipWith(clipRect);
-
-                                    vk::Extent2D extent {
-                                        static_cast<std::uint32_t>(framebufferScale.x * selectionRect.GetWidth()),
-                                        static_cast<std::uint32_t>(framebufferScale.y * selectionRect.GetHeight()),
-                                    };
-
-                                    // If its size is zero, mouse picking should not be performed.
-                                    if (extent.width == 0 || extent.height == 0) {
-                                        return std::nullopt;
-                                    }
-
-                                    return std::pair {
-                                        static_cast<std::uint32_t>(viewIndex),
-                                        vk::Rect2D {
-                                            vk::Offset2D {
-                                                static_cast<std::int32_t>(framebufferScale.x * (selectionRect.Min.x - clipRect.Min.x)),
-                                                static_cast<std::int32_t>(framebufferScale.y * (selectionRect.Min.y - clipRect.Min.y)),
-                                            },
-                                            extent,
-                                        },
-                                    };
-                                }
-                            }
-                            std::unreachable(); // drawSelectionRectangle == true but no selection rectangle.
-                        }
-
-                        if (ImGui::GetIO().WantCaptureMouse) {
-                            return std::nullopt;
-                        }
-
-                        for (const auto &[viewIndex, clipRect] : renderer->getViewportRects(passthruRect) | ranges::views::enumerate) {
-                            if (clipRect.Contains(cursorPos)) {
-                                return std::pair {
-                                    static_cast<std::uint32_t>(viewIndex),
-                                    vk::Rect2D {
-                                        vk::Offset2D {
-                                            static_cast<std::int32_t>(framebufferScale.x * (cursorPos.x - clipRect.Min.x)),
-                                            static_cast<std::int32_t>(framebufferScale.y * (cursorPos.y - clipRect.Min.y)),
-                                        },
-                                        vk::Extent2D { 1, 1 },
-                                    },
-                                };
-                            }
-                        }
-
-                        return std::nullopt;
-                    }(),
+                    .mousePickingInput = mousePickingInput,
                 };
             }),
         });

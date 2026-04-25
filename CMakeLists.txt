@@ -171,7 +171,6 @@ target_sources(vk-gltf-viewer PRIVATE
         interface/control/Camera.cppm
         interface/control/ImGuiTaskCollector.cppm
         interface/control/Task.cppm
-        interface/global.cppm
         interface/gltf/algorithm/miniball.cppm
         interface/gltf/Animation.cppm
         interface/gltf/AssetExtended.cppm

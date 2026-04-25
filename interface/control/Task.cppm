@@ -7,15 +7,11 @@ export import imgui.internal;
 
 namespace vk_gltf_viewer::control {
     export namespace task {
-        struct WindowKey { int key; int scancode; int action; int mods; };
-        struct WindowCursorPos { glm::dvec2 position; };
-        struct WindowMouseButton { int button; int action; int mods; };
         struct WindowScroll { glm::dvec2 offset; };
         struct WindowTrackpadZoom { double scale; };
         struct WindowTrackpadRotate { double angle; };
         struct WindowDrop { std::vector<std::filesystem::path> paths; };
-        struct WindowSize { glm::ivec2 size; };
-        struct WindowContentScale { glm::vec2 scale; };
+        struct WindowFramebufferSize { glm::ivec2 size; };
 
         struct ChangePassthruRect { ImRect newRect; };
         struct ChangeSampleCount { std::uint8_t sampleCount; };
@@ -26,7 +22,6 @@ namespace vk_gltf_viewer::control {
         struct ChangeScene { std::size_t newSceneIndex; };
         struct NodeVisibilityChanged { std::size_t nodeIndex; };
         struct NodeSelectionChanged { };
-        struct HoverNodeFromGui { std::size_t nodeIndex; };
         struct NodeLocalTransformChanged { std::size_t nodeIndex; };
 
         /**
@@ -64,18 +59,17 @@ namespace vk_gltf_viewer::control {
         struct PrimitiveMaterialChanged { const fastgltf::Primitive *primitive; };
         struct MorphTargetWeightChanged { std::size_t nodeIndex; std::size_t targetWeightStartIndex; std::size_t targetWeightCount; };
         struct BloomModeChanged{};
+
+        struct PickNodeAtPixel { std::uint32_t viewIndex; ImVec2 pixel; };
+        struct PickNodesInSelectionRect { std::uint32_t viewIndex; ImRect selectionRect; };
     }
 
     export using Task = std::variant<
-        task::WindowKey,
-        task::WindowCursorPos,
-        task::WindowMouseButton,
         task::WindowScroll,
         task::WindowTrackpadZoom,
         task::WindowTrackpadRotate,
         task::WindowDrop,
-        task::WindowSize,
-        task::WindowContentScale,
+        task::WindowFramebufferSize,
         task::ChangePassthruRect,
         task::ChangeSampleCount,
         task::ChangeViewCount,
@@ -85,12 +79,13 @@ namespace vk_gltf_viewer::control {
         task::ChangeScene,
         task::NodeVisibilityChanged,
         task::NodeSelectionChanged,
-        task::HoverNodeFromGui,
         task::NodeLocalTransformChanged,
         task::NodeWorldTransformChanged,
         task::MaterialAdded,
         task::MaterialPropertyChanged,
         task::PrimitiveMaterialChanged,
         task::MorphTargetWeightChanged,
-        task::BloomModeChanged>;
+        task::BloomModeChanged,
+        task::PickNodeAtPixel,
+        task::PickNodesInSelectionRect>;
 }
