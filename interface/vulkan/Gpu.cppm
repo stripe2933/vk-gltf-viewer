@@ -71,7 +71,7 @@ namespace vk_gltf_viewer::vulkan {
 
         Workaround workaround;
 
-        Gpu(const vk::raii::Instance &instance LIFETIMEBOUND, vk::SurfaceKHR surface);
+        Gpu(const vk::raii::Instance &instance LIFETIMEBOUND, const vk::SurfaceKHR &surface);
 
     private:
         [[nodiscard]] vk::raii::PhysicalDevice selectPhysicalDevice(const vk::raii::Instance &instance, vk::SurfaceKHR surface) const;

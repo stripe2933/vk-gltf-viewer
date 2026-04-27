@@ -13,7 +13,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 int main() {
 #endif
     glfwInit();
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
     VULKAN_HPP_DEFAULT_DISPATCHER.init();
 

@@ -128,14 +128,14 @@ namespace vk_gltf_viewer::vulkan {
         texture::Fallback fallbackTexture;
         std::shared_ptr<const gltf::AssetExtended> assetExtended;
 
-        SharedData(const Gpu &gpu LIFETIMEBOUND, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent);
+        SharedData(const Gpu &gpu LIFETIMEBOUND, Swapchain &&swapchain);
 
         // --------------------
         // The below public methods will modify the GPU resources, therefore they MUST be called before the command buffer
         // submission.
         // --------------------
 
-        void handleSwapchainResize(const vk::Extent2D &newExtent);
+        void setSwapchain(Swapchain &&swapchain);
 
         void setSampleCount(vk::SampleCountFlagBits sampleCount);
         void setViewCount(std::uint32_t viewCount);
@@ -179,7 +179,7 @@ namespace vk_gltf_viewer::vulkan {
 module :private;
 #endif
 
-vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, vk::SurfaceKHR surface, const vk::Extent2D &swapchainExtent)
+vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, Swapchain &&swapchain_)
     : gpu { gpu }
     , cubemapSampler { gpu.device }
     , brdfLutSampler { gpu.device }
@@ -213,7 +213,7 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, vk::SurfaceKHR su
     }() }
     , currentMultisamplePipelines { multisamplePipelines.at(vk::SampleCountFlagBits::e1) }
     , currentMultiviewPipelines { multiviewPipelines[viewMask] } // will create an entry for viewMask = 0b1
-    , swapchain { gpu, surface, swapchainExtent }
+    , swapchain { std::move(swapchain_) }
     , imGuiAttachmentGroup { gpu, swapchain.images }
     , descriptorPool { [&] {
         const auto [maxSets, poolSizes] = vku::DescriptorPoolSizeBuilder{}
@@ -234,8 +234,8 @@ vk_gltf_viewer::vulkan::SharedData::SharedData(const Gpu &gpu, vk::SurfaceKHR su
 // submission.
 // --------------------
 
-void vk_gltf_viewer::vulkan::SharedData::handleSwapchainResize(const vk::Extent2D &extent) {
-    swapchain.setExtent(extent);
+void vk_gltf_viewer::vulkan::SharedData::setSwapchain(Swapchain &&swapchain_) {
+    swapchain = std::move(swapchain_);
     imGuiAttachmentGroup = { gpu, swapchain.images };
 }
 

@@ -6,7 +6,10 @@ module;
 #endif
 
 #include <boost/container/static_vector.hpp>
+
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
 #include <IconsFontAwesome4.h>
 #ifdef _WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -105,8 +108,16 @@ namespace {
 
 vk_gltf_viewer::MainApp::MainApp()
     : instance { createInstance() }
-    , window { instance }
-    , gpu { instance, window.getSurface() }
+    , windowSurface { [this] {
+        if (VkSurfaceKHR surface; glfwCreateWindowSurface(*instance, window, nullptr, &surface) == VK_SUCCESS) {
+            return vk::raii::SurfaceKHR { instance, surface };
+        }
+
+        const char *error;
+        const int errorCode = glfwGetError(&error);
+        throw std::runtime_error { fmt::format("Failed to create the Vulkan surface from GLFW window: {} (error code {})", error, errorCode) };
+    }() }
+    , gpu { instance, windowSurface }
     , renderer { std::make_shared<Renderer>(Renderer::Capabilities {
         .msaaSampleCounts = [&] {
             decltype(Renderer::Capabilities::msaaSampleCounts) result { 1 /* vk::SampleCountFlagBits::e1 is always supported */ };
@@ -128,7 +139,7 @@ vk_gltf_viewer::MainApp::MainApp()
         }(),
         .perFragmentBloom = gpu.supportShaderStencilExport,
     }) }
-    , sharedData { gpu, window.getSurface(), toExtent2D(window.getFramebufferSize()) }
+    , sharedData { gpu, vulkan::Swapchain { gpu, windowSurface, toExtent2D(window.getFramebufferSize()) } }
     , frames { ARRAY_OF(2, vulkan::Frame { renderer, sharedData }) } {
     const ibl::BrdfmapRenderPipeline brdfmapRenderPipeline { gpu.device, brdfmapImage, {} };
     const vk::raii::CommandPool graphicsCommandPool { gpu.device, vk::CommandPoolCreateInfo { {}, gpu.queueFamilies.graphicsPresent } };
@@ -453,7 +464,7 @@ void vk_gltf_viewer::MainApp::run() {
                     }
 
                     // Call handleSwapchainResize() for all swapchain dependent resources.
-                    sharedData.handleSwapchainResize(toExtent2D(task.size));
+                    sharedData.setSwapchain(vulkan::Swapchain { gpu, windowSurface, toExtent2D(task.size), sharedData.swapchain });
                 },
                 [&](const control::task::ChangePassthruRect &task) {
                     passthruRect = task.newRect;

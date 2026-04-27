@@ -46,10 +46,11 @@ namespace vk_gltf_viewer {
 
         AppState appState;
 
-        vk::raii::Context context;
-        vk::raii::Instance instance = createInstance();
+        control::AppWindow window;
 
-        control::AppWindow window { instance };
+        vk::raii::Context context;
+        vk::raii::Instance instance;
+        vk::raii::SurfaceKHR windowSurface;
 
         vulkan::Gpu gpu;
         std::shared_ptr<Renderer> renderer;

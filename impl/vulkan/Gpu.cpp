@@ -93,7 +93,7 @@ vk_gltf_viewer::vulkan::Queues::Queues(vk::Device device, const QueueFamilies& q
     , graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) }
     , transfer { device.getQueue(queueFamilies.transfer, 0) } { }
 
-vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::SurfaceKHR surface)
+vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, const vk::SurfaceKHR &surface)
     : physicalDevice { selectPhysicalDevice(instance, surface) }
     , queueFamilies { physicalDevice, surface }
     , allocator { instance, device, vma::AllocatorCreateInfo {

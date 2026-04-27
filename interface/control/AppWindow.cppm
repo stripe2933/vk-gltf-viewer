@@ -1,16 +1,12 @@
 module;
 
-#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-
-#include <lifetimebound.hpp>
 
 export module vk_gltf_viewer.control.AppWindow;
 
 import std;
 import fmt;
 export import glm;
-export import vulkan;
 
 export import vk_gltf_viewer.control.Task;
 
@@ -19,12 +15,11 @@ namespace vk_gltf_viewer::control {
     public:
         using task_queue_t = std::queue<Task>;
 
-        explicit AppWindow(const vk::raii::Instance &instance LIFETIMEBOUND);
+        explicit AppWindow();
         ~AppWindow();
 
         [[nodiscard]] operator GLFWwindow*() const noexcept;
 
-        [[nodiscard]] vk::SurfaceKHR getSurface() const noexcept;
         [[nodiscard]] glm::ivec2 getSize() const;
         [[nodiscard]] glm::ivec2 getFramebufferSize() const;
         [[nodiscard]] glm::dvec2 getCursorPos() const;
@@ -36,9 +31,6 @@ namespace vk_gltf_viewer::control {
 
     private:
         GLFWwindow *window;
-        vk::raii::SurfaceKHR surface;
-
-        [[nodiscard]] vk::raii::SurfaceKHR createSurface(const vk::raii::Instance &instance) const;
     };
 }
 
@@ -46,9 +38,17 @@ namespace vk_gltf_viewer::control {
 module :private;
 #endif
 
-vk_gltf_viewer::control::AppWindow::AppWindow(const vk::raii::Instance &instance)
-    : window { glfwCreateWindow(1280, 720, "Vulkan glTF Viewer", nullptr, nullptr) }
-    , surface { createSurface(instance) } {
+vk_gltf_viewer::control::AppWindow::AppWindow()
+    : window { [] {
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        if (GLFWwindow *result = glfwCreateWindow(1280, 720, "Vulkan glTF Viewer", nullptr, nullptr)) {
+            return result;
+        }
+
+        const char *error;
+        const int errorCode = glfwGetError(&error);
+        throw std::runtime_error { fmt::format("Failed to create the GLFW window: {} (error code={})", error, errorCode) };
+    }() } {
     glfwSetScrollCallback(window, [](GLFWwindow *window, double xoffset, double yoffset) {
         static_cast<task_queue_t*>(glfwGetWindowUserPointer(window))
             ->emplace(std::in_place_type<task::WindowScroll>, glm::dvec2 { xoffset, yoffset });
@@ -85,10 +85,6 @@ vk_gltf_viewer::control::AppWindow::operator GLFWwindow*() const noexcept {
     return window;
 }
 
-vk::SurfaceKHR vk_gltf_viewer::control::AppWindow::getSurface() const noexcept {
-    return *surface;
-}
-
 glm::ivec2 vk_gltf_viewer::control::AppWindow::getSize() const {
     glm::ivec2 size;
     glfwGetWindowSize(window, &size.x, &size.y);
@@ -120,14 +116,4 @@ void vk_gltf_viewer::control::AppWindow::setTitle(const char *title) const {
 void vk_gltf_viewer::control::AppWindow::pollEvents(task_queue_t &tasks) const {
     glfwSetWindowUserPointer(window, &tasks);
     glfwPollEvents();
-}
-
-vk::raii::SurfaceKHR vk_gltf_viewer::control::AppWindow::createSurface(const vk::raii::Instance &instance) const {
-    if (VkSurfaceKHR surface; glfwCreateWindowSurface(*instance, window, nullptr, &surface) == VK_SUCCESS) {
-        return { instance, surface };
-    }
-
-    const char *error;
-    const int code = glfwGetError(&error);
-    throw std::runtime_error { fmt::format("Failed to create window surface: {} (error code {})", error, code) };
 }

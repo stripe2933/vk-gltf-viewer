@@ -583,8 +583,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit() const {
     std::uint32_t swapchainImageIndex;
     try {
         vk::Result result [[maybe_unused]];
-        std::tie(result, swapchainImageIndex) = (*sharedData.gpu.device).acquireNextImageKHR(
-            *sharedData.swapchain.swapchain, ~0ULL, *swapchainImageAcquireSema);
+        std::tie(result, swapchainImageIndex) = sharedData.swapchain.acquireNextImage(~0ULL, *swapchainImageAcquireSema);
 
     #if __APPLE__
         // MoltenVK does not allow presenting suboptimal swapchain image.
@@ -965,7 +964,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmit() const {
     try {
         std::ignore = sharedData.gpu.queues.graphicsPresent.presentKHR({
             *sharedData.swapchain.imageReadySemaphores[swapchainImageIndex],
-            *sharedData.swapchain.swapchain,
+            *sharedData.swapchain,
             swapchainImageIndex,
         });
     }
@@ -977,8 +976,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame() const {
     std::uint32_t swapchainImageIndex;
     try {
         vk::Result result [[maybe_unused]];
-        std::tie(result, swapchainImageIndex) = (*sharedData.gpu.device).acquireNextImageKHR(
-            *sharedData.swapchain.swapchain, ~0ULL, *swapchainImageAcquireSema);
+        std::tie(result, swapchainImageIndex) = sharedData.swapchain.acquireNextImage(~0ULL, *swapchainImageAcquireSema);
 
 #if __APPLE__
         // MoltenVK does not allow presenting suboptimal swapchain image.
@@ -1050,7 +1048,7 @@ void vk_gltf_viewer::vulkan::Frame::recordCommandsAndSubmitFirstFrame() const {
     try {
         std::ignore = sharedData.gpu.queues.graphicsPresent.presentKHR({
             *sharedData.swapchain.imageReadySemaphores[swapchainImageIndex],
-            *sharedData.swapchain.swapchain,
+            *sharedData.swapchain,
             swapchainImageIndex,
         });
     }
