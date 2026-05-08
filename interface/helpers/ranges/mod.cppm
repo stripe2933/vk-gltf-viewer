@@ -24,6 +24,9 @@ import vk_gltf_viewer.helpers.concepts;
 #endif
 
 namespace ranges {
+    export template <typename R, typename T>
+    concept random_access_range_of = std::ranges::random_access_range<R> && std::same_as<std::ranges::range_value_t<R>, T>;
+
     /**
      * Get value from associative container, or return default value if not found.
      * @tparam AssociativeContainer

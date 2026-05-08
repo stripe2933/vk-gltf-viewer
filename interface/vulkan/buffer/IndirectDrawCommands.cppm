@@ -1,7 +1,3 @@
-module;
-
-#include <vulkan/vulkan_hpp_macros.hpp>
-
 export module vk_gltf_viewer.vulkan.buffer.IndirectDrawCommands;
 
 import std;
@@ -181,18 +177,18 @@ void vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::resetDrawCount() noex
 void vk_gltf_viewer::vulkan::buffer::IndirectDrawCommands::recordDrawCommand(vk::CommandBuffer cb, bool drawIndirectCount) const {
     if (indexed) {
         if (drawIndirectCount) {
-            cb.drawIndexedIndirectCount(*this, sizeof(std::uint32_t), *this, 0, maxDrawCount(), sizeof(vk::DrawIndexedIndirectCommand));
+            cb.drawIndexedIndirectCount(*this, sizeof(std::uint32_t), *this, 0, maxDrawCount(), sizeof(vk::DrawIndexedIndirectCommand), *getDispatcher());
         }
         else {
-            cb.drawIndexedIndirect(*this, sizeof(std::uint32_t), drawCount(), sizeof(vk::DrawIndexedIndirectCommand));
+            cb.drawIndexedIndirect(*this, sizeof(std::uint32_t), drawCount(), sizeof(vk::DrawIndexedIndirectCommand), *getDispatcher());
         }
     }
     else {
         if (drawIndirectCount) {
-            cb.drawIndirectCount(*this, sizeof(std::uint32_t), *this, 0, maxDrawCount(), sizeof(vk::DrawIndirectCommand));
+            cb.drawIndirectCount(*this, sizeof(std::uint32_t), *this, 0, maxDrawCount(), sizeof(vk::DrawIndirectCommand), *getDispatcher());
         }
         else {
-            cb.drawIndirect(*this, sizeof(std::uint32_t), drawCount(), sizeof(vk::DrawIndirectCommand));
+            cb.drawIndirect(*this, sizeof(std::uint32_t), drawCount(), sizeof(vk::DrawIndirectCommand), *getDispatcher());
         }
     }
 }

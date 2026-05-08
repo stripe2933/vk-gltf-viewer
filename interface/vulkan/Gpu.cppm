@@ -1,7 +1,5 @@
 module;
 
-#include <vulkan/vulkan_hpp_macros.hpp>
-
 #include <lifetimebound.hpp>
 
 export module vk_gltf_viewer.vulkan.Gpu;
@@ -14,13 +12,13 @@ namespace vk_gltf_viewer::vulkan {
         std::uint32_t compute, graphicsPresent, transfer;
         std::vector<std::uint32_t> uniqueIndices;
 
-        QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface);
+        QueueFamilies(const vk::raii::PhysicalDevice &physicalDevice, vk::SurfaceKHR surface);
     };
 
     export struct Queues {
         vk::Queue compute, graphicsPresent, transfer;
 
-        Queues(vk::Device device, const QueueFamilies& queueFamilies) noexcept;
+        Queues(const vk::raii::Device &device LIFETIMEBOUND, const QueueFamilies& queueFamilies) noexcept;
     };
 
     export class Gpu {
@@ -49,7 +47,7 @@ namespace vk_gltf_viewer::vulkan {
         vk::raii::PhysicalDevice physicalDevice;
         QueueFamilies queueFamilies;
         vk::raii::Device device = createDevice();
-        Queues queues { *device, queueFamilies };
+        Queues queues { device, queueFamilies };
         vma::raii::Allocator allocator;
 
         bool isUmaDevice;

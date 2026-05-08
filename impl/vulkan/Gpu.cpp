@@ -6,42 +6,44 @@ module vk_gltf_viewer.vulkan.Gpu;
 
 import vk_gltf_viewer.helpers.ranges;
 
-constexpr std::array requiredExtensions {
+namespace {
+    constexpr std::array requiredExtensions {
 #if __APPLE__
-    vk::KHRPortabilitySubsetExtensionName,
-    vk::KHRCopyCommands2ExtensionName,
-    vk::KHRFormatFeatureFlags2ExtensionName,
-    vk::EXTHostImageCopyExtensionName,
-    vk::EXTMetalObjectsExtensionName,
+        vk::KHRPortabilitySubsetExtensionName,
+        vk::KHRCopyCommands2ExtensionName,
+        vk::KHRFormatFeatureFlags2ExtensionName,
+        vk::EXTHostImageCopyExtensionName,
+        vk::EXTMetalObjectsExtensionName,
 #endif
-    vk::KHRDynamicRenderingExtensionName,
-    vk::KHRSynchronization2ExtensionName,
-    vk::EXTExtendedDynamicStateExtensionName,
-    vk::KHRPushDescriptorExtensionName,
-    vk::KHRSwapchainExtensionName,
-};
+        vk::KHRDynamicRenderingExtensionName,
+        vk::KHRSynchronization2ExtensionName,
+        vk::EXTExtendedDynamicStateExtensionName,
+        vk::KHRPushDescriptorExtensionName,
+        vk::KHRSwapchainExtensionName,
+    };
 
-constexpr std::array optionalExtensions {
-    vk::KHRSwapchainMutableFormatExtensionName,
-    vk::KHRIndexTypeUint8ExtensionName,
-    vk::AMDShaderImageLoadStoreLodExtensionName,
-    vk::EXTAttachmentFeedbackLoopLayoutExtensionName,
-    vk::EXTShaderStencilExportExtensionName,
-    vk::EXTExtendedDynamicState3ExtensionName,
-};
+    constexpr std::array optionalExtensions {
+        vk::KHRSwapchainMutableFormatExtensionName,
+        vk::KHRIndexTypeUint8ExtensionName,
+        vk::AMDShaderImageLoadStoreLodExtensionName,
+        vk::EXTAttachmentFeedbackLoopLayoutExtensionName,
+        vk::EXTShaderStencilExportExtensionName,
+        vk::EXTExtendedDynamicState3ExtensionName,
+    };
 
-constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
-    .setDepthClamp(true)
-    .setDrawIndirectFirstInstance(true)
-    .setMultiViewport(true)
-    .setSamplerAnisotropy(true)
-    .setShaderInt16(true)
-    .setMultiDrawIndirect(true)
-    .setShaderStorageImageWriteWithoutFormat(true)
-    .setIndependentBlend(true)
-    .setFragmentStoresAndAtomics(true);
+    constexpr vk::PhysicalDeviceFeatures requiredFeatures = vk::PhysicalDeviceFeatures{}
+        .setDepthClamp(true)
+        .setDrawIndirectFirstInstance(true)
+        .setMultiViewport(true)
+        .setSamplerAnisotropy(true)
+        .setShaderInt16(true)
+        .setMultiDrawIndirect(true)
+        .setShaderStorageImageWriteWithoutFormat(true)
+        .setIndependentBlend(true)
+        .setFragmentStoresAndAtomics(true);
+}
 
-vk_gltf_viewer::vulkan::QueueFamilies::QueueFamilies(vk::PhysicalDevice physicalDevice, vk::SurfaceKHR surface) {
+vk_gltf_viewer::vulkan::QueueFamilies::QueueFamilies(const vk::raii::PhysicalDevice &physicalDevice, vk::SurfaceKHR surface) {
     const std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
 
     compute = [&] -> std::uint32_t {
@@ -88,10 +90,10 @@ vk_gltf_viewer::vulkan::QueueFamilies::QueueFamilies(vk::PhysicalDevice physical
     ranges::unique_erase(uniqueIndices);
 }
 
-vk_gltf_viewer::vulkan::Queues::Queues(vk::Device device, const QueueFamilies& queueFamilies) noexcept
-    : compute { device.getQueue(queueFamilies.compute, 0) }
-    , graphicsPresent{ device.getQueue(queueFamilies.graphicsPresent, 0) }
-    , transfer { device.getQueue(queueFamilies.transfer, 0) } { }
+vk_gltf_viewer::vulkan::Queues::Queues(const vk::raii::Device &device, const QueueFamilies& queueFamilies) noexcept
+    : compute { (*device).getQueue(queueFamilies.compute, 0, *device.getDispatcher()) }
+    , graphicsPresent{ (*device).getQueue(queueFamilies.graphicsPresent, 0, *device.getDispatcher()) }
+    , transfer { (*device).getQueue(queueFamilies.transfer, 0, *device.getDispatcher()) } { }
 
 vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, const vk::SurfaceKHR &surface)
     : physicalDevice { selectPhysicalDevice(instance, surface) }
@@ -132,7 +134,7 @@ vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, const vk::S
 
 vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const vk::raii::Instance &instance, vk::SurfaceKHR surface) const {
     std::vector physicalDevices = instance.enumeratePhysicalDevices();
-    const auto physicalDeviceRater = [&](vk::PhysicalDevice physicalDevice) -> std::uint32_t {
+    const auto physicalDeviceRater = [&](const vk::raii::PhysicalDevice &physicalDevice) -> std::uint32_t {
         // Check queue family availability.
         try {
             std::ignore = QueueFamilies { physicalDevice, surface };
@@ -227,7 +229,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
     };
 
     vk::raii::PhysicalDevice bestPhysicalDevice = *std::ranges::max_element(physicalDevices, {}, physicalDeviceRater);
-    if (physicalDeviceRater(*bestPhysicalDevice) == 0U) {
+    if (physicalDeviceRater(bestPhysicalDevice) == 0U) {
         throw std::runtime_error { "No suitable GPU for the application." };
     }
 

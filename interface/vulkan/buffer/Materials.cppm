@@ -2,8 +2,6 @@ module;
 
 #include <cassert>
 
-#include <vulkan/vulkan_hpp_macros.hpp>
-
 export module vk_gltf_viewer.vulkan.buffer.Materials;
 
 import std;
@@ -259,7 +257,7 @@ std::optional<vku::raii::AllocatedBuffer> vk_gltf_viewer::vulkan::buffer::Materi
     }
     else {
         // Copy needed to be done in GPU.
-        transferCommandBuffer.copyBuffer(*this, newBuffer, vk::BufferCopy { 0, 0, size });
+        transferCommandBuffer.copyBuffer(*this, newBuffer, vk::BufferCopy { 0, 0, size }, *getDispatcher());
         return std::exchange(static_cast<AllocatedBuffer&>(*this), std::move(newBuffer));
     }
 }
@@ -277,7 +275,7 @@ bool vk_gltf_viewer::vulkan::buffer::Materials::add(const fastgltf::Asset &asset
         return false;
     }
     else {
-        transferCommandBuffer.updateBuffer(*this, sizeof(shader_type::Material) * count++, sizeof(shader_type::Material), &shaderMaterial);
+        transferCommandBuffer.updateBuffer(*this, sizeof(shader_type::Material) * count++, sizeof(shader_type::Material), &shaderMaterial, *getDispatcher());
         return true;
     }
 }
