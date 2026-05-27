@@ -104,13 +104,10 @@ vk_gltf_viewer::vulkan::Gpu::Gpu(const vk::raii::Instance &instance, vk::Surface
         {}, vk::makeApiVersion(0, 1, 2, 0),
     } } {
     // Retrieve physical device properties.
-    const auto /*[props2, subgroupProps, descriptorIndexingProps]*/props = physicalDevice.getProperties2<
+    const auto [props2, subgroupProps, descriptorIndexingProps] = physicalDevice.getProperties2<
         vk::PhysicalDeviceProperties2,
         vk::PhysicalDeviceSubgroupProperties,
         vk::PhysicalDeviceDescriptorIndexingProperties>();
-    const vk::PhysicalDeviceProperties2 &props2 = props.get<vk::PhysicalDeviceProperties2>();
-    const vk::PhysicalDeviceSubgroupProperties &subgroupProps = props.get<vk::PhysicalDeviceSubgroupProperties>();
-    const vk::PhysicalDeviceDescriptorIndexingProperties &descriptorIndexingProps = props.get<vk::PhysicalDeviceDescriptorIndexingProperties>();
     subgroupSize = subgroupProps.subgroupSize;
     maxPerStageDescriptorUpdateAfterBindSamplers = descriptorIndexingProps.maxPerStageDescriptorUpdateAfterBindSamplers;
     maxPerStageDescriptorUpdateAfterBindSampledImages = descriptorIndexingProps.maxPerStageDescriptorUpdateAfterBindSampledImages;
@@ -163,7 +160,7 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
         }
 
         // Check physical device feature availability.
-        const auto /*[features2, vulkan11Features, vulkan12Features, dynamicRenderingFeatures, synchronization2Features, extendedDynamicStateFeatures]*/features
+        const auto [features2, vulkan11Features, vulkan12Features, dynamicRenderingFeatures, synchronization2Features, extendedDynamicStateFeatures]
             = physicalDevice.getFeatures2<
                 vk::PhysicalDeviceFeatures2,
                 vk::PhysicalDeviceVulkan11Features,
@@ -171,12 +168,6 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
                 vk::PhysicalDeviceDynamicRenderingFeatures,
                 vk::PhysicalDeviceSynchronization2Features,
                 vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
-        const vk::PhysicalDeviceFeatures2 &features2 = features.get<vk::PhysicalDeviceFeatures2>();
-        const vk::PhysicalDeviceVulkan11Features &vulkan11Features = features.get<vk::PhysicalDeviceVulkan11Features>();
-        const vk::PhysicalDeviceVulkan12Features &vulkan12Features = features.get<vk::PhysicalDeviceVulkan12Features>();
-        const vk::PhysicalDeviceDynamicRenderingFeatures &dynamicRenderingFeatures = features.get<vk::PhysicalDeviceDynamicRenderingFeatures>();
-        const vk::PhysicalDeviceSynchronization2Features &synchronization2Features = features.get<vk::PhysicalDeviceSynchronization2Features>();
-        const vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT &extendedDynamicStateFeatures = features.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
         if (!features2.features.depthClamp ||
             !features2.features.drawIndirectFirstInstance ||
             !features2.features.samplerAnisotropy ||
@@ -208,21 +199,20 @@ vk::raii::PhysicalDevice vk_gltf_viewer::vulkan::Gpu::selectPhysicalDevice(const
         }
 
         // Check physical device properties.
-        const vk::StructureChain physicalDeviceProperties = physicalDevice.getProperties2<
+        const auto [props2, subgroupProps] = physicalDevice.getProperties2<
             vk::PhysicalDeviceProperties2,
             vk::PhysicalDeviceSubgroupProperties>();
-        const vk::PhysicalDeviceProperties &properties = physicalDeviceProperties.get<vk::PhysicalDeviceProperties2>().properties;
-        if (physicalDeviceProperties.get<vk::PhysicalDeviceSubgroupProperties>().subgroupSize < 16U) {
+        if (subgroupProps.subgroupSize < 16U) {
             return 0U;
         }
 
         // Rate the physical device.
         std::uint32_t score = 0;
-        if (properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
+        if (props2.properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
             score += 1000;
         }
 
-        score += properties.limits.maxImageDimension2D;
+        score += props2.properties.limits.maxImageDimension2D;
 
         return score;
     };
@@ -259,12 +249,10 @@ vk::raii::Device vk_gltf_viewer::vulkan::Gpu::createDevice() {
     supportShaderStencilExport = availableExtensionNames.contains(vk::EXTShaderStencilExportExtensionName);
 
     // Set optional features if available.
-    const auto /*[_, vulkan12Features, indexTypeUint8Features]*/features2 = physicalDevice.getFeatures2<
+    const auto [_, vulkan12Features, indexTypeUint8Features] = physicalDevice.getFeatures2<
         vk::PhysicalDeviceFeatures2,
         vk::PhysicalDeviceVulkan12Features,
         vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
-    const vk::PhysicalDeviceVulkan12Features &vulkan12Features = features2.get<vk::PhysicalDeviceVulkan12Features>();
-    const vk::PhysicalDeviceIndexTypeUint8FeaturesKHR &indexTypeUint8Features = features2.get<vk::PhysicalDeviceIndexTypeUint8FeaturesKHR>();
 
     supportShaderBufferInt64Atomics = vulkan12Features.shaderBufferInt64Atomics;
     supportDrawIndirectCount = vulkan12Features.drawIndirectCount;
