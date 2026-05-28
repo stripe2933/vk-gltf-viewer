@@ -29,5 +29,10 @@
     "nativefiledialog-extended",
     "stb",
     "vku"
+  ],
+  "overrides": [
+    {
+      "name": "imgui", "version": "1.92.7"
+    }
   ]
 }

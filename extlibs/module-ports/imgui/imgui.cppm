@@ -77,6 +77,7 @@ export {
     using ::ImGuiButtonFlags_MouseButtonMiddle;
     using ::ImGuiButtonFlags_MouseButtonMask_;
     using ::ImGuiButtonFlags_EnableNav;
+    using ::ImGuiButtonFlags_AllowOverlap;
 
     using ::ImGuiChildFlags_;
     using ::ImGuiChildFlags_None;
@@ -563,10 +564,12 @@ export {
     using ::ImGuiMultiSelectFlags_ClearOnClickVoid;
     using ::ImGuiMultiSelectFlags_ScopeWindow;
     using ::ImGuiMultiSelectFlags_ScopeRect;
-    using ::ImGuiMultiSelectFlags_SelectOnClick;
+    using ::ImGuiMultiSelectFlags_SelectOnAuto;
+    using ::ImGuiMultiSelectFlags_SelectOnClickAlways;
     using ::ImGuiMultiSelectFlags_SelectOnClickRelease;
     using ::ImGuiMultiSelectFlags_NavWrapX;
     using ::ImGuiMultiSelectFlags_NoSelectOnRightClick;
+    using ::ImGuiMultiSelectFlags_SelectOnMask_;
 
     using ::ImGuiPopupFlags_;
     using ::ImGuiPopupFlags_None;
@@ -654,6 +657,7 @@ export {
     using ::ImGuiStyleVar_TreeLinesRounding;
     using ::ImGuiStyleVar_ButtonTextAlign;
     using ::ImGuiStyleVar_SelectableTextAlign;
+    using ::ImGuiStyleVar_SeparatorSize;
     using ::ImGuiStyleVar_SeparatorTextBorderSize;
     using ::ImGuiStyleVar_SeparatorTextAlign;
     using ::ImGuiStyleVar_SeparatorTextPadding;
@@ -1338,6 +1342,7 @@ namespace ImGui {
     using ImGui::TreeNode;
     using ImGui::TreeNodeEx;
     using ImGui::TreeNodeExV;
+    using ImGui::TreeNodeGetOpen;
     using ImGui::TreeNodeV;
     using ImGui::TreePop;
     using ImGui::TreePush;

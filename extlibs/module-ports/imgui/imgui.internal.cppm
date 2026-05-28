@@ -37,7 +37,6 @@ export {
     using ::ImGuiButtonFlags_PressedOnDoubleClick;
     using ::ImGuiButtonFlags_PressedOnDragDropHold;
     using ::ImGuiButtonFlags_FlattenChildren;
-    using ::ImGuiButtonFlags_AllowOverlap;
     using ::ImGuiButtonFlags_AlignTextBaseLine;
     using ::ImGuiButtonFlags_NoKeyModsAllowed;
     using ::ImGuiButtonFlags_NoHoldingActiveId;
@@ -143,7 +142,7 @@ export {
 
     using ::ImGuiInputTextFlagsPrivate_;
     using ::ImGuiInputTextFlags_Multiline;
-    using ::ImGuiInputTextFlags_MergedItem;
+    using ::ImGuiInputTextFlags_TempInput;
     using ::ImGuiInputTextFlags_LocalizeDecimalPoint;
 
     using ::ImGuiItemFlagsPrivate_;
@@ -506,6 +505,7 @@ export {
     using ::ImGuiActivateFlags;
     using ::ImGuiContextHookCallback;
     using ::ImGuiDebugLogFlags;
+    using ::ImGuiDemoMarkerCallback;
     using ::ImGuiErrorCallback;
     using ::ImGuiFocusRequestFlags;
     using ::ImGuiItemStatusFlags;
@@ -768,7 +768,7 @@ namespace ImGui {
     using ImGui::DebugNodeDrawList;
     using ImGui::DebugNodeFont;
     using ImGui::DebugNodeFontGlyph;
-    using ImGui::DebugNodeFontGlyphesForSrcMask;
+    using ImGui::DebugNodeFontGlyphsForSrcMask;
     using ImGui::DebugNodeInputTextState;
     using ImGui::DebugNodeMultiSelectState;
     using ImGui::DebugNodeStorage;
@@ -786,6 +786,7 @@ namespace ImGui {
     using ImGui::DebugRenderViewportThumbnail;
     using ImGui::DebugTextUnformattedWithLocateItem;
     using ImGui::DebugTextureIDToU64;
+    using ImGui::DemoMarker;
     using ImGui::DragBehavior;
     using ImGui::EndBoxSelect;
     using ImGui::EndColumns;
@@ -798,6 +799,7 @@ namespace ImGui {
     using ImGui::ErrorRecoveryStoreState;
     using ImGui::ErrorRecoveryTryToRecoverState;
     using ImGui::ErrorRecoveryTryToRecoverWindowState;
+    using ImGui::ExtendHitBoxWhenNearViewportEdge;
     using ImGui::FindBestWindowPosForPopup;
     using ImGui::FindBestWindowPosForPopupEx;
     using ImGui::FindBlockingModal;
@@ -886,6 +888,8 @@ namespace ImGui {
     using ImGui::IsNamedKey;
     using ImGui::IsNamedKeyOrMod;
     using ImGui::IsPopupOpen;
+    using ImGui::IsPopupOpenRequestForItem;
+    using ImGui::IsPopupOpenRequestForWindow;
     using ImGui::IsWindowAbove;
     using ImGui::IsWindowChildOf;
     using ImGui::IsWindowContentHoverable;
@@ -1060,6 +1064,7 @@ namespace ImGui {
     using ImGui::TablePopColumnChannel;
     using ImGui::TablePushBackgroundChannel;
     using ImGui::TablePushColumnChannel;
+    using ImGui::TableQueueSetColumnDisplayOrder;
     using ImGui::TableRemove;
     using ImGui::TableResetSettings;
     using ImGui::TableSaveSettings;
@@ -1089,7 +1094,6 @@ namespace ImGui {
     using ImGui::TreeNodeBehavior;
     using ImGui::TreeNodeDrawLineToChildNode;
     using ImGui::TreeNodeDrawLineToTreePop;
-    using ImGui::TreeNodeGetOpen;
     using ImGui::TreeNodeSetOpen;
     using ImGui::TreeNodeUpdateNextOpen;
     using ImGui::TreePushOverrideID;
